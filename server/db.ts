@@ -314,6 +314,30 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows };
 }
 
+export async function createRisk(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; probability: number; severity: number; dueAt?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(risks).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, probability: input.probability, severity: input.severity, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_created", entityType: "risk", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); });
+  return { id };
+}
+
+export async function createIssue(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; priority: "low" | "medium" | "high" | "critical"; dueAt?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(issues).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, priority: input.priority, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.issue_created", entityType: "issue", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); });
+  return { id };
+}
+
 export async function saveEvmSnapshot(input: EvmInput & { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
