@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createBudgetLine, createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getProjectControlsForTenant, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { createBudgetLine, createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -66,6 +66,10 @@ export const appRouter = router({
         eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]), manualEac: z.number().finite().nonnegative().optional(),
       }))
       .mutation(({ ctx, input }) => saveEvmSnapshot({ userId: ctx.user.id, ...input })),
+  }),
+  dashboards: router({
+    executive: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getExecutiveDashboard({ userId: ctx.user.id, ...input })),
+    pmo: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPmoDashboard({ userId: ctx.user.id, ...input })),
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
