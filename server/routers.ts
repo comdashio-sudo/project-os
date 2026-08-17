@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createProjectForTenant, createTenantForUser, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser } from "./db";
+import { createProjectForTenant, createTenantForUser, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -59,6 +59,13 @@ export const appRouter = router({
         manualEac: z.number().finite().nonnegative().optional(),
       }))
       .query(({ input }) => calculateEvm(input)),
+    saveEvmSnapshot: protectedProcedure
+      .input(z.object({
+        tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date(),
+        pv: z.number().finite().nonnegative(), ev: z.number().finite().nonnegative(), ac: z.number().finite().nonnegative(), bac: z.number().finite().nonnegative(),
+        eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]), manualEac: z.number().finite().nonnegative().optional(),
+      }))
+      .mutation(({ ctx, input }) => saveEvmSnapshot({ userId: ctx.user.id, ...input })),
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
