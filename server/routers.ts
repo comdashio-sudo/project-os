@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { getTenantAccessSnapshot } from "./db";
+import { createProjectForTenant, createTenantForUser, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
+import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -37,7 +38,38 @@ export const appRouter = router({
         return { allowed: true as const };
       }),
   }),
+  tenant: router({
+    mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
+    create: protectedProcedure
+      .input(z.object({
+        legalName: z.string().trim().min(2).max(255),
+        slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),
+        packageCode: z.enum(["EXECUTIVE", "PMO", "PROJECT", "EXECUTIVE + PMO", "PMO + PROJECT", "EXECUTIVE + PROJECT", "ALL-IN-ONE"]),
+      }))
+      .mutation(({ ctx, input }) => createTenantForUser({ ...input, userId: ctx.user.id })),
+  }),
+  controls: router({
+    calculateEvm: protectedProcedure
+      .input(z.object({
+        pv: z.number().finite().nonnegative(),
+        ev: z.number().finite().nonnegative(),
+        ac: z.number().finite().nonnegative(),
+        bac: z.number().finite().nonnegative(),
+        eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]),
+        manualEac: z.number().finite().nonnegative().optional(),
+      }))
+      .query(({ input }) => calculateEvm(input)),
+  }),
+  projects: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(),
+      code: z.string().trim().min(2).max(80),
+      name: z.string().trim().min(2).max(255),
+      projectType: z.string().trim().min(2).max(120),
+      currency: z.string().length(3).transform(value => value.toUpperCase()),
+    })).mutation(({ ctx, input }) => createProjectForTenant({ userId: ctx.user.id, ...input })),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
-

@@ -1,5 +1,6 @@
 import {
   boolean,
+  decimal,
   index,
   int,
   mysqlEnum,
@@ -170,8 +171,285 @@ export const auditLogs = mysqlTable(
   table => [index("audit_logs_tenant_entity_idx").on(table.tenantId, table.entityType, table.entityId)],
 );
 
+export const portfolios = mysqlTable(
+  "portfolios",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["active", "on_hold", "closed"]).default("active").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("portfolios_tenant_code_unique").on(table.tenantId, table.code)],
+);
+
+export const programs = mysqlTable(
+  "programs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    portfolioId: varchar("portfolioId", { length: 36 }).references(() => portfolios.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["active", "on_hold", "closed"]).default("active").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("programs_tenant_code_unique").on(table.tenantId, table.code), index("programs_tenant_portfolio_idx").on(table.tenantId, table.portfolioId)],
+);
+
+export const projects = mysqlTable(
+  "projects",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    portfolioId: varchar("portfolioId", { length: 36 }).references(() => portfolios.id),
+    programId: varchar("programId", { length: 36 }).references(() => programs.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    projectType: varchar("projectType", { length: 120 }).notNull(),
+    lifecycleStage: mysqlEnum("lifecycleStage", ["opportunity", "pre_award", "tender", "award", "mobilization", "planning", "design", "procurement", "execution", "commissioning", "handover", "closeout", "post_project_review"]).default("planning").notNull(),
+    status: mysqlEnum("status", ["draft", "active", "on_hold", "closed", "cancelled"]).default("draft").notNull(),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    originalBudget: decimal("originalBudget", { precision: 18, scale: 2 }).default("0").notNull(),
+    currentBudget: decimal("currentBudget", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualCost: decimal("actualCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    committedCost: decimal("committedCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    forecastCost: decimal("forecastCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    plannedStartAt: timestamp("plannedStartAt"),
+    plannedFinishAt: timestamp("plannedFinishAt"),
+    forecastFinishAt: timestamp("forecastFinishAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("projects_tenant_code_unique").on(table.tenantId, table.code), index("projects_tenant_portfolio_idx").on(table.tenantId, table.portfolioId), index("projects_tenant_program_idx").on(table.tenantId, table.programId)],
+);
+
+export const wbsItems = mysqlTable(
+  "wbs_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    parentId: varchar("parentId", { length: 36 }),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    earnedValue: decimal("earnedValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualCost: decimal("actualCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("wbs_items_project_code_unique").on(table.projectId, table.code), index("wbs_items_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const activities = mysqlTable(
+  "activities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["not_started", "in_progress", "completed", "blocked"]).default("not_started").notNull(),
+    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    earnedValue: decimal("earnedValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    plannedStartAt: timestamp("plannedStartAt"),
+    plannedFinishAt: timestamp("plannedFinishAt"),
+    actualStartAt: timestamp("actualStartAt"),
+    actualFinishAt: timestamp("actualFinishAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("activities_project_code_unique").on(table.projectId, table.code), index("activities_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const budgetLines = mysqlTable(
+  "budget_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    costCode: varchar("costCode", { length: 80 }).notNull(),
+    originalAmount: decimal("originalAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    currentAmount: decimal("currentAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("budget_lines_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const costEntries = mysqlTable(
+  "cost_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    entryType: mysqlEnum("entryType", ["actual", "accrual", "adjustment"]).notNull(),
+    status: mysqlEnum("status", ["draft", "posted", "void"]).default("draft").notNull(),
+    incurredAt: timestamp("incurredAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("cost_entries_tenant_project_date_idx").on(table.tenantId, table.projectId, table.incurredAt)],
+);
+
+export const progressEntries = mysqlTable(
+  "progress_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
+    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "validated", "rejected"]).default("draft").notNull(),
+    measuredAt: timestamp("measuredAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("progress_entries_tenant_project_date_idx").on(table.tenantId, table.projectId, table.measuredAt)],
+);
+
+export const evmSnapshots = mysqlTable(
+  "evm_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    periodAt: timestamp("periodAt").notNull(),
+    pv: decimal("pv", { precision: 18, scale: 2 }).notNull(),
+    ev: decimal("ev", { precision: 18, scale: 2 }).notNull(),
+    ac: decimal("ac", { precision: 18, scale: 2 }).notNull(),
+    bac: decimal("bac", { precision: 18, scale: 2 }).notNull(),
+    cv: decimal("cv", { precision: 18, scale: 2 }).notNull(),
+    sv: decimal("sv", { precision: 18, scale: 2 }).notNull(),
+    cpi: decimal("cpi", { precision: 12, scale: 4 }),
+    spi: decimal("spi", { precision: 12, scale: 4 }),
+    eac: decimal("eac", { precision: 18, scale: 2 }).notNull(),
+    etc: decimal("etc", { precision: 18, scale: 2 }).notNull(),
+    vac: decimal("vac", { precision: 18, scale: 2 }).notNull(),
+    tcpi: decimal("tcpi", { precision: 12, scale: 4 }),
+    eacMethod: mysqlEnum("eacMethod", ["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("evm_snapshots_project_period_unique").on(table.projectId, table.periodAt), index("evm_snapshots_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const risks = mysqlTable(
+  "risks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    cause: text("cause"),
+    event: text("event"),
+    impact: text("impact"),
+    probability: int("probability").notNull(),
+    severity: int("severity").notNull(),
+    residualProbability: int("residualProbability"),
+    residualSeverity: int("residualSeverity"),
+    response: text("response"),
+    mitigation: text("mitigation"),
+    trigger: text("trigger"),
+    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("dueAt"),
+    status: mysqlEnum("status", ["open", "mitigating", "accepted", "closed"]).default("open").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("risks_project_code_unique").on(table.projectId, table.code), index("risks_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const issues = mysqlTable(
+  "issues",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    cause: text("cause"),
+    impact: text("impact"),
+    priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("dueAt"),
+    escalationStatus: mysqlEnum("escalationStatus", ["none", "pending", "escalated"]).default("none").notNull(),
+    status: mysqlEnum("status", ["open", "in_progress", "resolved", "closed"]).default("open").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("issues_project_code_unique").on(table.projectId, table.code), index("issues_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const actions = mysqlTable(
+  "actions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("dueAt"),
+    evidenceDocumentId: varchar("evidenceDocumentId", { length: 36 }),
+    escalationStatus: mysqlEnum("escalationStatus", ["none", "pending", "escalated"]).default("none").notNull(),
+    status: mysqlEnum("status", ["open", "in_progress", "completed", "cancelled"]).default("open").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("actions_tenant_project_due_idx").on(table.tenantId, table.projectId, table.dueAt)],
+);
+
+export const decisions = mysqlTable(
+  "decisions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    problem: text("problem").notNull(),
+    options: text("options").notNull(),
+    recommendation: text("recommendation"),
+    costImpact: decimal("costImpact", { precision: 18, scale: 2 }),
+    scheduleImpactDays: int("scheduleImpactDays"),
+    riskImpact: text("riskImpact"),
+    decisionOwnerMembershipId: varchar("decisionOwnerMembershipId", { length: 36 }).references(() => memberships.id),
+    decision: text("decision"),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected", "implemented"]).default("draft").notNull(),
+    decidedAt: timestamp("decidedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("decisions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const projectHealthSnapshots = mysqlTable(
+  "project_health_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    periodAt: timestamp("periodAt").notNull(),
+    overallScore: decimal("overallScore", { precision: 5, scale: 2 }).notNull(),
+    status: mysqlEnum("status", ["green", "amber", "red"]).notNull(),
+    confidence: mysqlEnum("confidence", ["low", "medium", "high"]).notNull(),
+    drivers: text("drivers").notNull(),
+    exceptions: text("exceptions").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("project_health_period_unique").on(table.projectId, table.periodAt), index("project_health_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ProductCode = (typeof productCodes)[number];
 export type SubscriptionPackageCode = (typeof subscriptionPackageCodes)[number];
-
