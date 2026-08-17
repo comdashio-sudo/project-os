@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { createBudgetLine, createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -85,6 +85,9 @@ export const appRouter = router({
   }),
   progress: router({
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid(), percentComplete: z.number().min(0).max(100), reportedAt: z.date() })).mutation(({ ctx, input }) => createProgressEntry({ userId: ctx.user.id, ...input })),
+  }),
+  budgets: router({
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), costCode: z.string().trim().min(1).max(80), originalAmount: z.number().finite().nonnegative(), currentAmount: z.number().finite().nonnegative() })).mutation(({ ctx, input }) => createBudgetLine({ userId: ctx.user.id, ...input })),
   }),
 });
 
