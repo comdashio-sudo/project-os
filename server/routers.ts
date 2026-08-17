@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createProjectForTenant, createTenantForUser, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -76,6 +76,9 @@ export const appRouter = router({
       projectType: z.string().trim().min(2).max(120),
       currency: z.string().length(3).transform(value => value.toUpperCase()),
     })).mutation(({ ctx, input }) => createProjectForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  wbs: router({
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), code: z.string().trim().min(1).max(80), name: z.string().trim().min(2).max(255), parentId: z.string().uuid().optional(), plannedValue: z.number().finite().nonnegative().optional() })).mutation(({ ctx, input }) => createWbsItem({ userId: ctx.user.id, ...input })),
   }),
 });
 
