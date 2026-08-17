@@ -119,6 +119,21 @@
   }
   body {
     @apply bg-background text-foreground;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  #root,
+  main {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  html[dir="rtl"] body {
+    font-family: "Tahoma", "Arial", sans-serif;
+  }
+  html[dir="rtl"] input,
+  html[dir="rtl"] textarea {
+    text-align: right;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),

@@ -6,7 +6,11 @@ type LanguageContextValue = { language: Language; isArabic: boolean; toggleLangu
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem("project-os-language") === "ar" ? "ar" : "en"));
+  const [language, setLanguage] = useState<Language>(() => {
+    const requested = new URLSearchParams(window.location.search).get("lang");
+    if (requested === "ar" || requested === "en") return requested;
+    return localStorage.getItem("project-os-language") === "ar" ? "ar" : "en";
+  });
   const isArabic = language === "ar";
   useEffect(() => {
     document.documentElement.lang = language;
