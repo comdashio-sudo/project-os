@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createBudgetLine, createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { createBudgetLine, createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getProjectControlsForTenant, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -69,6 +69,7 @@ export const appRouter = router({
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
+    getControls: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectControlsForTenant({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(),
       code: z.string().trim().min(2).max(80),

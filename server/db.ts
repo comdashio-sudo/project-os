@@ -1,5 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { TRPCError } from "@trpc/server";
 import {
   type InsertUser,
   type ProductCode,
@@ -113,6 +114,38 @@ export async function writeAuditLog(input: {
   await db.insert(auditLogs).values(input);
 }
 
+async function assertProjectWithinTenant(input: { tenantId: string; projectId: string }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+
+  const project = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)))
+    .limit(1);
+
+  if (!project[0]) throw new Error("PROJECT_OS_PROJECT_NOT_FOUND");
+}
+
+async function assertWbsItemWithinProject(input: { tenantId: string; projectId: string; wbsItemId: string }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+
+  const wbsItem = await db
+    .select({ id: wbsItems.id })
+    .from(wbsItems)
+    .where(
+      and(
+        eq(wbsItems.id, input.wbsItemId),
+        eq(wbsItems.tenantId, input.tenantId),
+        eq(wbsItems.projectId, input.projectId),
+      ),
+    )
+    .limit(1);
+
+  if (!wbsItem[0]) throw new Error("PROJECT_OS_WBS_SCOPE_MISMATCH");
+}
+
 const ownerPermissions = [
   { code: "tenant.manage", name: "Manage tenant settings", productCode: "EXECUTIVE" as const },
   { code: "executive.read", name: "View Level 1", productCode: "EXECUTIVE" as const },
@@ -216,14 +249,34 @@ export async function listProjectsForTenant(input: { userId: number; tenantId: s
   return db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId));
 }
 
+export async function getProjectControlsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [projectRows, wbs, budgets, costs, progress, latestEvm] = await Promise.all([
+    db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1),
+    db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name, parentId: wbsItems.parentId, plannedValue: wbsItems.plannedValue, earnedValue: wbsItems.earnedValue, actualCost: wbsItems.actualCost, progressPercent: wbsItems.progressPercent }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))),
+    db.select({ id: budgetLines.id, wbsItemId: budgetLines.wbsItemId, costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))),
+    db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, entryType: costEntries.entryType, status: costEntries.status, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId))).orderBy(desc(costEntries.incurredAt)),
+    db.select({ id: progressEntries.id, wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, status: progressEntries.status, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(eq(progressEntries.tenantId, input.tenantId), eq(progressEntries.projectId, input.projectId))).orderBy(desc(progressEntries.measuredAt)),
+    db.select({ id: evmSnapshots.id, periodAt: evmSnapshots.periodAt, pv: evmSnapshots.pv, ev: evmSnapshots.ev, ac: evmSnapshots.ac, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, etc: evmSnapshots.etc, vac: evmSnapshots.vac }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId))).orderBy(desc(evmSnapshots.periodAt)).limit(1),
+  ]);
+
+  return { project: projectRows[0]!, wbs, budgets, costs, progress, latestEvm: latestEvm[0] ?? null };
+}
+
 export async function saveEvmSnapshot(input: EvmInput & { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
-  const project = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
-  if (!project[0]) throw new Error("Project was not found in the requested tenant.");
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const result = calculateEvm(input);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
@@ -239,10 +292,15 @@ export async function createWbsItem(input: { userId: number; tenantId: string; p
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
-  const project = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
-  if (!project[0]) throw new Error("Project was not found in the requested tenant.");
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.parentId) {
+    await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.parentId });
+  }
   const id = crypto.randomUUID();
-  await db.insert(wbsItems).values({ id, tenantId: input.tenantId, projectId: input.projectId, parentId: input.parentId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0) });
+  await db.transaction(async tx => {
+    await tx.insert(wbsItems).values({ id, tenantId: input.tenantId, projectId: input.projectId, parentId: input.parentId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.wbs_created", entityType: "wbs_item", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, parentId: input.parentId ?? null }) });
+  });
   return { id };
 }
 
@@ -252,8 +310,15 @@ export async function createCostEntry(input: { userId: number; tenantId: string;
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.wbsItemId) {
+    await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  }
   const id = crypto.randomUUID();
-  await db.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt });
+  await db.transaction(async tx => {
+    await tx.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.cost_entry_created", entityType: "cost_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, amount: input.amount, incurredAt: input.incurredAt.toISOString() }) });
+  });
   return { id };
 }
 
@@ -263,8 +328,13 @@ export async function createProgressEntry(input: { userId: number; tenantId: str
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
   const id = crypto.randomUUID();
-  await db.insert(progressEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, progressPercent: String(input.percentComplete), measuredAt: input.reportedAt, status: "submitted" });
+  await db.transaction(async tx => {
+    await tx.insert(progressEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, progressPercent: String(input.percentComplete), measuredAt: input.reportedAt, status: "submitted" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.progress_entry_created", entityType: "progress_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId, percentComplete: input.percentComplete, reportedAt: input.reportedAt.toISOString() }) });
+  });
   return { id };
 }
 
@@ -274,7 +344,14 @@ export async function createBudgetLine(input: { userId: number; tenantId: string
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.wbsItemId) {
+    await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  }
   const id = crypto.randomUUID();
-  await db.insert(budgetLines).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, costCode: input.costCode, originalAmount: String(input.originalAmount), currentAmount: String(input.currentAmount) });
+  await db.transaction(async tx => {
+    await tx.insert(budgetLines).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, costCode: input.costCode, originalAmount: String(input.originalAmount), currentAmount: String(input.currentAmount) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.budget_line_created", entityType: "budget_line", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, costCode: input.costCode, originalAmount: input.originalAmount, currentAmount: input.currentAmount }) });
+  });
   return { id };
 }

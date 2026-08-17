@@ -1,10 +1,23 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { getProjectError } from "@shared/projectErrors";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    const projectError = getProjectError(error.message);
+    const { stack: _internalStack, ...safeData } = shape.data;
+    return {
+      ...shape,
+      message: projectError.messages.en,
+      data: {
+        ...safeData,
+        projectError,
+      },
+    };
+  },
 });
 
 export const router = t.router;
