@@ -11,6 +11,7 @@ import {
   permissions,
   projects,
   wbsItems,
+  costEntries,
   evmSnapshots,
   rolePermissions,
   roles,
@@ -240,5 +241,16 @@ export async function createWbsItem(input: { userId: number; tenantId: string; p
   if (!project[0]) throw new Error("Project was not found in the requested tenant.");
   const id = crypto.randomUUID();
   await db.insert(wbsItems).values({ id, tenantId: input.tenantId, projectId: input.projectId, parentId: input.parentId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0) });
+  return { id };
+}
+
+export async function createCostEntry(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; amount: number; incurredAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new Error("Tenant membership is not available");
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  const id = crypto.randomUUID();
+  await db.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt });
   return { id };
 }
