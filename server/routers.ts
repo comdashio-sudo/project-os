@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { createCostEntry, createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { createCostEntry, createProgressEntry, createProjectForTenant, createTenantForUser, createWbsItem, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -82,6 +82,9 @@ export const appRouter = router({
   }),
   costs: router({
     createActual: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date() })).mutation(({ ctx, input }) => createCostEntry({ userId: ctx.user.id, ...input })),
+  }),
+  progress: router({
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid(), percentComplete: z.number().min(0).max(100), reportedAt: z.date() })).mutation(({ ctx, input }) => createProgressEntry({ userId: ctx.user.id, ...input })),
   }),
 });
 

@@ -12,6 +12,7 @@ import {
   projects,
   wbsItems,
   costEntries,
+  progressEntries,
   evmSnapshots,
   rolePermissions,
   roles,
@@ -252,5 +253,16 @@ export async function createCostEntry(input: { userId: number; tenantId: string;
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   const id = crypto.randomUUID();
   await db.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt });
+  return { id };
+}
+
+export async function createProgressEntry(input: { userId: number; tenantId: string; projectId: string; wbsItemId: string; percentComplete: number; reportedAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new Error("Tenant membership is not available");
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  const id = crypto.randomUUID();
+  await db.insert(progressEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, progressPercent: String(input.percentComplete), measuredAt: input.reportedAt, status: "submitted" });
   return { id };
 }
