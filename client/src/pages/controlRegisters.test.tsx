@@ -125,6 +125,11 @@ vi.mock("@/lib/trpc", () => ({
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.ncrError }) },
       transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.ncrError }) },
     },
+    hse: {
+      list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+    },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },

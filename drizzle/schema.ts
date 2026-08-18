@@ -365,6 +365,26 @@ export const ncrs = mysqlTable(
   table => [uniqueIndex("ncrs_project_number_unique").on(table.projectId, table.ncrNumber), index("ncrs_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
+export const hseObservations = mysqlTable(
+  "hse_observations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    observationNumber: varchar("observationNumber", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description").notNull(),
+    category: mysqlEnum("category", ["safety", "health", "environment"]).notNull(),
+    severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+    status: mysqlEnum("status", ["open", "assigned", "remediation", "verification", "closed", "cancelled"]).default("open").notNull(),
+    dueAt: timestamp("dueAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("hse_observations_project_number_unique").on(table.projectId, table.observationNumber), index("hse_observations_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
+);
+
 export const wbsItems = mysqlTable(
   "wbs_items",
   {

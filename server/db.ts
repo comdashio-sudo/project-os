@@ -13,6 +13,7 @@ import {
   memberships,
   membershipInvitations,
   membershipRoles,
+  hseObservations,
   ncrs,
   permissions,
   portfolios,
@@ -825,6 +826,41 @@ export async function transitionNcrStatus(input: { userId: number; tenantId: str
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "ncrs.status_transitioned", entityType: "ncr", entityId: input.ncrId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: ncr.status, nextStatus: input.nextStatus }) });
   });
   return { id: input.ncrId, previousStatus: ncr.status, status: input.nextStatus };
+}
+
+const hseStatusTransitions: Record<string, readonly string[]> = { open: ["assigned", "cancelled"], assigned: ["remediation", "cancelled"], remediation: ["verification", "cancelled"], verification: ["closed", "remediation"], closed: [], cancelled: [] };
+
+export async function getHseObservationsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: hseObservations.id, observationNumber: hseObservations.observationNumber, title: hseObservations.title, description: hseObservations.description, category: hseObservations.category, severity: hseObservations.severity, status: hseObservations.status, dueAt: hseObservations.dueAt, createdAt: hseObservations.createdAt }).from(hseObservations).where(and(eq(hseObservations.tenantId, input.tenantId), eq(hseObservations.projectId, input.projectId))).orderBy(desc(hseObservations.createdAt));
+}
+
+export async function createHseObservationForTenant(input: { userId: number; tenantId: string; projectId: string; observationNumber: string; title: string; description: string; category: "safety" | "health" | "environment"; severity: "low" | "medium" | "high" | "critical"; dueAt?: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(hseObservations).values({ id, tenantId: input.tenantId, projectId: input.projectId, observationNumber: input.observationNumber, title: input.title, description: input.description, category: input.category, severity: input.severity, dueAt: input.dueAt, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hse.observation_created", entityType: "hse_observation", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, observationNumber: input.observationNumber, category: input.category, severity: input.severity }) }); });
+  return { id, status: "open" as const };
+}
+
+export async function transitionHseObservationStatus(input: { userId: number; tenantId: string; projectId: string; observationId: string; nextStatus: "open" | "assigned" | "remediation" | "verification" | "closed" | "cancelled" }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [observation] = await db.select({ id: hseObservations.id, status: hseObservations.status }).from(hseObservations).where(and(eq(hseObservations.id, input.observationId), eq(hseObservations.tenantId, input.tenantId), eq(hseObservations.projectId, input.projectId))).limit(1);
+  if (!observation) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_HSE_OBSERVATION_NOT_FOUND" });
+  if (!hseStatusTransitions[observation.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_HSE_TRANSITION_INVALID" });
+  await db.transaction(async tx => { await tx.update(hseObservations).set({ status: input.nextStatus }).where(and(eq(hseObservations.id, input.observationId), eq(hseObservations.tenantId, input.tenantId), eq(hseObservations.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hse.observation_status_transitioned", entityType: "hse_observation", entityId: input.observationId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: observation.status, nextStatus: input.nextStatus }) }); });
+  return { id: input.observationId, previousStatus: observation.status, status: input.nextStatus };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
