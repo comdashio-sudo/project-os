@@ -114,6 +114,20 @@ async function assertTenantManager(userId: number, tenantId: string): Promise<vo
   assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
 }
 
+async function assertTenantScopeOwnership(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, scopeType: "company" | "portfolio" | "program" | "project", scopeId?: string): Promise<void> {
+  if (scopeType === "company") {
+    if (scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+    return;
+  }
+  if (!scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  const [scope] = scopeType === "portfolio"
+    ? await db.select({ id: portfolios.id }).from(portfolios).where(and(eq(portfolios.id, scopeId), eq(portfolios.tenantId, tenantId))).limit(1)
+    : scopeType === "program"
+      ? await db.select({ id: programs.id }).from(programs).where(and(eq(programs.id, scopeId), eq(programs.tenantId, tenantId))).limit(1)
+      : await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, scopeId), eq(projects.tenantId, tenantId))).limit(1);
+  if (!scope) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_INVALID_SCOPE" });
+}
+
 export async function getTenantAdministration(input: { userId: number; tenantId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -194,8 +208,7 @@ export async function assignTenantMembershipRole(input: { actorUserId: number; t
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await assertTenantManager(input.actorUserId, input.tenantId);
-  if (input.scopeType === "company" && input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
-  if (input.scopeType !== "company" && !input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
   const [membership] = await db.select({ id: memberships.id, tenantId: memberships.tenantId, userId: memberships.userId }).from(memberships).where(eq(memberships.id, input.membershipId)).limit(1);
   if (!membership || membership.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MEMBER_NOT_FOUND" });
   if (membership.userId === input.actorUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
@@ -236,8 +249,7 @@ export async function assignTenantMember(input: { actorUserId: number; tenantId:
   if (!db) throw new Error("Database connection is not available");
   await assertTenantManager(input.actorUserId, input.tenantId);
   if (input.actorUserId === input.targetUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
-  if (input.scopeType === "company" && input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
-  if (input.scopeType !== "company" && !input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
   const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.id, input.targetUserId));
   if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_USER_NOT_FOUND" });
   const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId));

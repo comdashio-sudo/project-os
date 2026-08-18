@@ -127,6 +127,7 @@ function configureAuthorizedMembershipRoleAssignment(input: { membershipTenantId
     if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
     if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
     if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "id") return queryResult([]);
     if (keys === "id,tenantId,userId") return queryResult([{ id: "member-target", tenantId: input.membershipTenantId ?? tenantA, userId: input.membershipUserId ?? 99 }]);
     if (keys === "id,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA }]);
     if (keys === "id") return queryResult(input.existingAssignment ? [{ id: "existing-role-assignment" }] : []);
@@ -270,6 +271,15 @@ describe("operational API authorization", () => {
     await expect(caller.tenant.assignMembershipRole({ tenantId: tenantB, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
 
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an additional role assignment with a project scope outside the tenant before loading the membership", async () => {
+    configureAuthorizedMembershipRoleAssignment();
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "project", scopeId: "88888888-8888-4888-8888-888888888888" })).rejects.toThrow("PROJECT_OS_INVALID_SCOPE");
+
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
