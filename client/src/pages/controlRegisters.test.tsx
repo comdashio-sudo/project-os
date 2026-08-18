@@ -24,6 +24,8 @@ const state = vi.hoisted(() => ({
   pmoPortfolioSuccess: false,
   pmoProgramError: null as unknown,
   pmoProgramSuccess: false,
+  pmoProjectLinkError: null as unknown,
+  pmoProjectLinkSuccess: false,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -58,7 +60,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <span>Language toggle</span> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
+vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, isArabic: boolean) => isArabic ? "خطأ موضّع" : "Localized error" }));
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),
@@ -94,7 +96,7 @@ vi.mock("@/lib/trpc", () => ({
     pmo: {
       createPortfolio: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoPortfolioError, isSuccess: state.pmoPortfolioSuccess }) },
       createProgram: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoProgramError, isSuccess: state.pmoProgramSuccess }) },
-      linkProject: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
+      linkProject: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoProjectLinkError, isSuccess: state.pmoProjectLinkSuccess }) },
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createAction: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -154,11 +156,40 @@ describe("control-register dashboards", () => {
     state.pmoProgramSuccess = true;
     markup = renderToStaticMarkup(<PmoDashboard />);
     expect(markup).toContain("تم إنشاء السجل الرئيسي وتحديث لوحة PMO.");
-    expect(markup).toContain("Localized error");
+    expect(markup).toContain("خطأ موضّع");
 
     state.isArabic = false;
     state.pmoPortfolioError = null;
     state.pmoProgramSuccess = false;
+  });
+
+  it("يعرض نجاح وفشل ربط المشروع بالبرنامج باللغتين", () => {
+    state.isArabic = false;
+    state.pmoProjectLinkSuccess = true;
+    let markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("The project relationship was updated with audit evidence.");
+
+    state.pmoProjectLinkSuccess = false;
+    state.pmoProjectLinkError = {};
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("Localized error");
+
+    expect(markup).not.toContain("خطأ موضّع");
+
+    state.isArabic = true;
+    state.pmoProjectLinkError = null;
+    state.pmoProjectLinkSuccess = true;
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("تم تحديث ارتباط المشروع وتسجيل الدليل التدقيقي.");
+
+    state.pmoProjectLinkSuccess = false;
+    state.pmoProjectLinkError = {};
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("خطأ موضّع");
+    expect(markup).toContain("ربط مشروع ببرنامج");
+
+    state.isArabic = false;
+    state.pmoProjectLinkError = null;
   });
 
   it("يعرض إرشاد غياب المشروع وحالة الحفظ المتخصصة للقرار التنفيذي", () => {
