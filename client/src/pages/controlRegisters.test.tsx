@@ -67,7 +67,10 @@ vi.mock("@/lib/trpc", () => ({
     budgets: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
     costs: { createActual: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
     progress: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
-    controls: { saveEvmSnapshot: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
+    controls: {
+      saveEvmSnapshot: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
+      captureOperationalEvmSnapshot: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, data: null }) },
+    },
     executive: {
       createDecision: { useMutation: () => ({ mutate: vi.fn(), isPending: state.executiveMutationPending, error: null, isSuccess: false }) },
     },
@@ -113,11 +116,14 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Schedule activity");
     expect(markup).toContain("A-01 · Mobilize crew");
     expect(markup).toContain("Not started");
+    expect(markup).toContain("Calculated EVM capture");
+    expect(markup).toContain("Calculate and save operational snapshot");
 
     state.isArabic = true;
     markup = renderToStaticMarkup(<ProjectControls />);
     expect(markup).toContain("الأنشطة والجدولة");
     expect(markup).toContain("جدولة نشاط");
     expect(markup).toContain("لم يبدأ");
+    expect(markup).toContain("التقاط EVM محسوب");
   });
 });
