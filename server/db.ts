@@ -54,6 +54,7 @@ import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
+import { analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1356,4 +1357,15 @@ export async function getDataImportsForTenant(input: { userId: number; tenantId:
   } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "company", id: input.tenantId } });
   const filter = input.projectId ? and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)) : eq(dataImports.tenantId, input.tenantId);
   return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
+}
+
+export async function createAndAnalyzeDataImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode; fileName: string; sourceFormat: "xlsx" | "csv"; base64: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("PROJECT_OS_IMPORT_FILE_INVALID");
+  const analysis = analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
+  const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode: "fail_on_duplicate", totalRows: analysis.rows.length, validRows: analysis.errors.length ? 0 : analysis.rows.length, invalidRows: analysis.errors.length ? analysis.rows.length : 0, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, totalRows: analysis.rows.length }) }); });
+  return { id, status: analysis.errors.length ? "uploaded" : "validated", mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
