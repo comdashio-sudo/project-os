@@ -45,7 +45,7 @@ const state = vi.hoisted(() => ({
     latestEvm: null,
   },
   tenantAdminData: {
-    members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ assignmentId: "assignment-1", roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "company", scopeId: null }] }],
+    members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ assignmentId: "assignment-1", roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "project", scopeId: "project-opaque-id", scopeName: "Airport Terminal" }] }],
     roles: [{ id: "role-1", code: "PMO_MANAGER", name: "PMO Manager", productCode: "PMO", systemManaged: false, permissions: [{ code: "pmo.write" }] }],
     permissions: [{ code: "pmo.write", name: "Manage PMO", productCode: "PMO" }],
   },
@@ -166,7 +166,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Find user");
     expect(markup).toContain("Select user");
     expect(markup).toContain("Amina");
-    expect(markup).toContain("PMO Manager · Scope: Company");
+    expect(markup).toContain("PMO Manager · Scope: Airport Terminal");
 
     state.tenantAssignmentSuccess = true;
     markup = renderToStaticMarkup(<TenantAdministration />);
@@ -184,7 +184,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("إسناد عضو موجود");
     expect(markup).toContain("بريد المستخدم الموجود");
     expect(markup).toContain("التحقق من المستخدم");
-    expect(markup).toContain("النطاق: المؤسسة");
+    expect(markup).toContain("النطاق: Airport Terminal");
     state.isArabic = false;
   });
 
@@ -287,5 +287,11 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("تحديث دور مخصص");
     expect(markup).toContain("اختر دورًا مخصصًا");
     state.isArabic = false;
+  });
+
+  it("يعرض اسم نطاق الدور المملوك للمستأجر بدل معرّف النطاق الخام", () => {
+    const markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Airport Terminal");
+    expect(markup).not.toContain("project-opaque-id");
   });
 });

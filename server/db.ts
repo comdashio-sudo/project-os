@@ -137,10 +137,19 @@ export async function getTenantAdministration(input: { userId: number; tenantId:
     db.select({ id: roles.id, code: roles.code, name: roles.name, productCode: roles.productCode, systemManaged: roles.systemManaged }).from(roles).where(eq(roles.tenantId, input.tenantId)),
     db.select({ code: permissions.code, name: permissions.name, productCode: permissions.productCode }).from(permissions),
   ]);
-  const membershipAssignments = await Promise.all(memberRows.map(async member => ({
-    membershipId: member.membershipId,
-    roles: await db.select({ assignmentId: membershipRoles.id, roleId: membershipRoles.roleId, roleCode: roles.code, roleName: roles.name, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, member.membershipId)),
-  })));
+  const membershipAssignments = await Promise.all(memberRows.map(async member => {
+    const roleAssignments = await db.select({ assignmentId: membershipRoles.id, roleId: membershipRoles.roleId, roleCode: roles.code, roleName: roles.name, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, member.membershipId));
+    const rolesWithScopeNames = await Promise.all(roleAssignments.map(async assignment => {
+      if (assignment.scopeType === "company") return { ...assignment, scopeName: null };
+      const [scope] = assignment.scopeType === "portfolio"
+        ? await db.select({ name: portfolios.name }).from(portfolios).where(and(eq(portfolios.id, assignment.scopeId!), eq(portfolios.tenantId, input.tenantId))).limit(1)
+        : assignment.scopeType === "program"
+          ? await db.select({ name: programs.name }).from(programs).where(and(eq(programs.id, assignment.scopeId!), eq(programs.tenantId, input.tenantId))).limit(1)
+          : await db.select({ name: projects.name }).from(projects).where(and(eq(projects.id, assignment.scopeId!), eq(projects.tenantId, input.tenantId))).limit(1);
+      return { ...assignment, scopeName: scope?.name ?? null };
+    }));
+    return { membershipId: member.membershipId, roles: rolesWithScopeNames };
+  }));
   const rolesWithPermissions = await Promise.all(roleRows.map(async role => ({
     ...role,
     permissions: await db.select({ code: permissions.code }).from(rolePermissions).innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id)).where(eq(rolePermissions.roleId, role.id)),
