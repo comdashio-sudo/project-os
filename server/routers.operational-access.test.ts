@@ -4,10 +4,12 @@ const databaseDouble = vi.hoisted(() => ({
   select: vi.fn(),
   transaction: vi.fn(),
 }));
+const storageDouble = vi.hoisted(() => ({ storagePut: vi.fn(async () => ({ key: "tenant/project/document.bin", url: "/manus-storage/tenant/project/document.bin" })) }));
 
 vi.mock("drizzle-orm/mysql2", () => ({
   drizzle: vi.fn(() => databaseDouble),
 }));
+vi.mock("./storage", () => ({ storagePut: storageDouble.storagePut }));
 
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -183,6 +185,7 @@ describe("operational API authorization", () => {
     process.env.DATABASE_URL = "mysql://router-access-test";
     databaseDouble.select.mockReset();
     databaseDouble.transaction.mockReset();
+    storageDouble.storagePut.mockClear();
   });
 
   it("rejects a direct request for another tenant's project before loading the resource or writing data", async () => {
@@ -336,6 +339,104 @@ describe("operational API authorization", () => {
     await expect(caller.contracts.create({ tenantId: tenantB, projectId: projectB, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
 
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects document creation for a tenant without active membership before storage or project lookup", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.createWithVersion({ tenantId: tenantB, projectId: projectB, documentNumber: "DRW-01", title: "Foundation drawing", category: "drawing", originalName: "foundation.pdf", mimeType: "application/pdf", contentBase64: "aGVsbG8=" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(storageDouble.storagePut).not.toHaveBeenCalled();
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized project document and first version with audit evidence in one transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.createWithVersion({ tenantId: tenantA, projectId: projectA, documentNumber: "DRW-01", title: "Foundation drawing", category: "drawing", originalName: "foundation.pdf", mimeType: "application/pdf", contentBase64: "aGVsbG8=" })).resolves.toMatchObject({ id: expect.any(String), versionNumber: 1 });
+
+    expect(storageDouble.storagePut).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
+  });
+
+  it("adds an authorized successive document version with audit evidence in one transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") { idSelectionCount += 1; return queryResult([{ id: idSelectionCount === 1 ? projectA : "99999999-9999-4999-8999-999999999999" }]); }
+      if (keys === "versionNumber") return queryResult([{ versionNumber: 1 }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.addVersion({ tenantId: tenantA, projectId: projectA, documentId: "99999999-9999-4999-8999-999999999999", originalName: "foundation-r1.pdf", mimeType: "application/pdf", contentBase64: "aGVsbG8=" })).resolves.toMatchObject({ versionNumber: 2 });
+
+    expect(storageDouble.storagePut).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects document-register reading for a tenant without active membership before selecting project documents", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.getProjectRegister({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects document-register reading when the project is outside the tenant before returning documents", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.read" }]);
+      if (keys === "id") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.getProjectRegister({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a successive document version outside the project before storage or writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: projectA }] : []); }
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.addVersion({ tenantId: tenantA, projectId: projectA, documentId: "99999999-9999-4999-8999-999999999999", originalName: "foreign.pdf", mimeType: "application/pdf", contentBase64: "aGVsbG8=" })).rejects.toThrow("PROJECT_OS_DOCUMENT_NOT_FOUND");
+
+    expect(storageDouble.storagePut).not.toHaveBeenCalled();
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 

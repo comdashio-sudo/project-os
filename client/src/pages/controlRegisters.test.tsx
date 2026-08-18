@@ -32,8 +32,10 @@ const state = vi.hoisted(() => ({
   projectLifecycleSuccess: false,
   projectRegistryData: [{ id: "project-1", code: "PRJ-01", name: "North Link", projectType: "Infrastructure", lifecycleStage: "planning", status: "active", currentBudget: "1000", actualCost: "400", forecastCost: "1100" }],
   contractRegisterError: null as unknown,
+  documentRegisterError: null as unknown,
   projectHealthError: null as unknown,
   contractRegisterData: { contracts: [{ id: "contract-1", code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: "1000", currency: "USD", status: "draft", startAt: null, endAt: null }], commitments: [{ id: "commitment-1", contractId: "contract-1", code: "COM-01", description: "Steel package", amount: "250", currency: "USD", status: "draft", committedAt: null }] },
+  documentRegisterData: { documents: [{ id: "document-1", documentNumber: "DRW-01", title: "Foundation drawing", category: "drawing", status: "for_review", createdAt: new Date("2026-08-18T00:00:00.000Z") }], versions: [{ id: "version-1", documentId: "document-1", versionNumber: 1, originalName: "foundation.pdf", mimeType: "application/pdf", sizeBytes: 2048, checksumSha256: "abc", createdAt: new Date("2026-08-18T00:00:00.000Z") }] },
   pmoData: {
     portfolios: [],
     programs: [],
@@ -99,6 +101,11 @@ vi.mock("@/lib/trpc", () => ({
       getProjectRegister: { useQuery: () => ({ isLoading: false, error: state.contractRegisterError, data: state.contractRegisterData, refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       createCommitment: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+    },
+    documents: {
+      getProjectRegister: { useQuery: () => ({ isLoading: false, error: state.documentRegisterError, data: state.documentRegisterData, refetch: vi.fn() }) },
+      createWithVersion: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      addVersion: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
@@ -232,6 +239,8 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Contracts &amp; commitments");
     expect(markup).toContain("CTR-01 · Civil Works");
     expect(markup).toContain("COM-01 · Steel package");
+    expect(markup).toContain("Document register");
+    expect(markup).toContain("DRW-01 · Foundation drawing");
     expect(markup).toContain("Project health");
     expect(markup).toContain("Calculate and save health snapshot");
     expect(markup).toContain("Latest snapshot: Score 82 · Amber · Confidence: Medium");
@@ -243,6 +252,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("لم يبدأ");
     expect(markup).toContain("التقاط EVM محسوب");
     expect(markup).toContain("العقود والالتزامات");
+    expect(markup).toContain("سجل المستندات");
     expect(markup).toContain("صحة المشروع");
     expect(markup).toContain("أحدث لقطة: الدرجة 82 · كهرماني · الثقة: متوسطة");
   });
@@ -281,6 +291,19 @@ describe("control-register dashboards", () => {
     expect(commitmentFormAfterResponse(commitmentDraft, false)).toEqual(commitmentDraft);
     expect(contractFormAfterResponse(contractDraft, true).code).toBe("");
     expect(commitmentFormAfterResponse(commitmentDraft, true).code).toBe("");
+  });
+
+  it("يعرض خطأ سجل المستندات موضّعًا باللغتين", () => {
+    state.isArabic = false;
+    state.documentRegisterError = {};
+    let markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("خطأ موضّع");
+    state.documentRegisterError = null;
+    state.isArabic = false;
   });
 
   it("يعرض اختيار المستخدم وحالات نجاح وفشل الإسناد باللغتين", () => {

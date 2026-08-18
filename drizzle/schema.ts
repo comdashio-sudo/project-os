@@ -292,6 +292,42 @@ export const commitments = mysqlTable(
   table => [uniqueIndex("commitments_project_code_unique").on(table.projectId, table.code), index("commitments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("commitments_contract_idx").on(table.contractId)],
 );
 
+export const projectDocuments = mysqlTable(
+  "project_documents",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    documentNumber: varchar("documentNumber", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    category: mysqlEnum("category", ["drawing", "specification", "method_statement", "report", "correspondence", "commercial", "other"]).default("other").notNull(),
+    status: mysqlEnum("status", ["draft", "for_review", "approved", "superseded", "archived"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("project_documents_project_number_unique").on(table.projectId, table.documentNumber), index("project_documents_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const documentVersions = mysqlTable(
+  "document_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    documentId: varchar("documentId", { length: 36 }).notNull().references(() => projectDocuments.id),
+    versionNumber: int("versionNumber").notNull(),
+    originalName: varchar("originalName", { length: 255 }).notNull(),
+    storageKey: varchar("storageKey", { length: 512 }).notNull(),
+    mimeType: varchar("mimeType", { length: 120 }).notNull(),
+    sizeBytes: int("sizeBytes").notNull(),
+    checksumSha256: varchar("checksumSha256", { length: 64 }).notNull(),
+    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("document_versions_document_version_unique").on(table.documentId, table.versionNumber), index("document_versions_tenant_project_document_idx").on(table.tenantId, table.projectId, table.documentId)],
+);
+
 export const wbsItems = mysqlTable(
   "wbs_items",
   {

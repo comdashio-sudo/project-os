@@ -112,6 +112,14 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن يسبق تاريخ انتهاء العقد تاريخ بدايته.",
     en: "A contract end date cannot be earlier than its start date.",
   },
+  PROJECT_OS_DOCUMENT_NOT_FOUND: {
+    ar: "المستند المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected document is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DOCUMENT_CONTENT_INVALID: {
+    ar: "محتوى الملف غير صالح أو يتجاوز حد الحجم المسموح.",
+    en: "The file content is invalid or exceeds the permitted size limit.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

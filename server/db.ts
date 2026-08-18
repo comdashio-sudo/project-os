@@ -28,6 +28,8 @@ import {
   budgetLines,
   progressEntries,
   evmSnapshots,
+  documentVersions,
+  projectDocuments,
   rolePermissions,
   roles,
   subscriptions,
@@ -40,6 +42,7 @@ import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
+import { storagePut } from "./storage";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -639,6 +642,73 @@ export async function getContractsCommitmentsForTenant(input: { userId: number; 
     db.select({ id: commitments.id, contractId: commitments.contractId, code: commitments.code, description: commitments.description, amount: commitments.amount, currency: commitments.currency, status: commitments.status, committedAt: commitments.committedAt }).from(commitments).where(and(eq(commitments.tenantId, input.tenantId), eq(commitments.projectId, input.projectId))).orderBy(desc(commitments.createdAt)),
   ]);
   return { contracts: contractRows, commitments: commitmentRows };
+}
+
+function decodeDocumentContent(contentBase64: string) {
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(contentBase64) || contentBase64.length % 4 !== 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DOCUMENT_CONTENT_INVALID" });
+  const content = Buffer.from(contentBase64, "base64");
+  if (content.length === 0 || content.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DOCUMENT_CONTENT_INVALID" });
+  return content;
+}
+
+function documentStorageName(originalName: string) {
+  return originalName.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 180) || "document.bin";
+}
+
+export async function getProjectDocumentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [documents, versions] = await Promise.all([
+    db.select({ id: projectDocuments.id, documentNumber: projectDocuments.documentNumber, title: projectDocuments.title, category: projectDocuments.category, status: projectDocuments.status, createdAt: projectDocuments.createdAt }).from(projectDocuments).where(and(eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.projectId, input.projectId))).orderBy(desc(projectDocuments.createdAt)),
+    db.select({ id: documentVersions.id, documentId: documentVersions.documentId, versionNumber: documentVersions.versionNumber, originalName: documentVersions.originalName, mimeType: documentVersions.mimeType, sizeBytes: documentVersions.sizeBytes, checksumSha256: documentVersions.checksumSha256, createdAt: documentVersions.createdAt }).from(documentVersions).where(and(eq(documentVersions.tenantId, input.tenantId), eq(documentVersions.projectId, input.projectId))).orderBy(desc(documentVersions.versionNumber)),
+  ]);
+  return { documents, versions };
+}
+
+export async function createProjectDocumentWithVersion(input: { userId: number; tenantId: string; projectId: string; documentNumber: string; title: string; category: "drawing" | "specification" | "method_statement" | "report" | "correspondence" | "commercial" | "other"; originalName: string; mimeType: string; contentBase64: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const content = decodeDocumentContent(input.contentBase64);
+  const documentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const checksumSha256 = createHash("sha256").update(content).digest("hex");
+  const { key } = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${documentId}/v1/${documentStorageName(input.originalName)}`, content, input.mimeType);
+  await db.transaction(async tx => {
+    await tx.insert(projectDocuments).values({ id: documentId, tenantId: input.tenantId, projectId: input.projectId, documentNumber: input.documentNumber, title: input.title, category: input.category, createdByUserId: input.userId });
+    await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId, versionNumber: 1, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.document_created", entityType: "project_document", entityId: documentId, metadata: JSON.stringify({ projectId: input.projectId, versionId, versionNumber: 1, documentNumber: input.documentNumber, checksumSha256 }) });
+  });
+  return { id: documentId, versionId, versionNumber: 1 };
+}
+
+export async function addProjectDocumentVersion(input: { userId: number; tenantId: string; projectId: string; documentId: string; originalName: string; mimeType: string; contentBase64: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [document] = await db.select({ id: projectDocuments.id }).from(projectDocuments).where(and(eq(projectDocuments.id, input.documentId), eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.projectId, input.projectId))).limit(1);
+  if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_DOCUMENT_NOT_FOUND" });
+  const [latestVersion] = await db.select({ versionNumber: documentVersions.versionNumber }).from(documentVersions).where(and(eq(documentVersions.documentId, input.documentId), eq(documentVersions.tenantId, input.tenantId), eq(documentVersions.projectId, input.projectId))).orderBy(desc(documentVersions.versionNumber)).limit(1);
+  const content = decodeDocumentContent(input.contentBase64);
+  const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
+  const versionId = crypto.randomUUID();
+  const checksumSha256 = createHash("sha256").update(content).digest("hex");
+  const { key } = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${input.documentId}/v${versionNumber}/${documentStorageName(input.originalName)}`, content, input.mimeType);
+  await db.transaction(async tx => {
+    await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId: input.documentId, versionNumber, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.version_created", entityType: "document_version", entityId: versionId, metadata: JSON.stringify({ projectId: input.projectId, documentId: input.documentId, versionNumber, checksumSha256 }) });
+  });
+  return { id: versionId, documentId: input.documentId, versionNumber };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
