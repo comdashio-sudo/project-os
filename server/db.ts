@@ -711,6 +711,31 @@ export async function addProjectDocumentVersion(input: { userId: number; tenantI
   return { id: versionId, documentId: input.documentId, versionNumber };
 }
 
+const documentStatusTransitions: Record<string, readonly string[]> = {
+  draft: ["for_review", "archived"],
+  for_review: ["draft", "approved"],
+  approved: ["superseded", "archived"],
+  superseded: ["archived"],
+  archived: [],
+};
+
+export async function transitionProjectDocumentStatus(input: { userId: number; tenantId: string; projectId: string; documentId: string; nextStatus: "draft" | "for_review" | "approved" | "superseded" | "archived" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [document] = await db.select({ id: projectDocuments.id, status: projectDocuments.status }).from(projectDocuments).where(and(eq(projectDocuments.id, input.documentId), eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.projectId, input.projectId))).limit(1);
+  if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_DOCUMENT_NOT_FOUND" });
+  if (!documentStatusTransitions[document.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DOCUMENT_WORKFLOW_TRANSITION_INVALID" });
+  await db.transaction(async tx => {
+    await tx.update(projectDocuments).set({ status: input.nextStatus }).where(and(eq(projectDocuments.id, input.documentId), eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.projectId, input.projectId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.status_transitioned", entityType: "project_document", entityId: input.documentId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: document.status, nextStatus: input.nextStatus }) });
+  });
+  return { id: input.documentId, previousStatus: document.status, status: input.nextStatus };
+}
+
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
   if (input.endAt && input.startAt && input.endAt < input.startAt) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_DATES_INVALID" });
   const db = await getDb();

@@ -120,6 +120,10 @@ export const projectErrorMessages = {
     ar: "محتوى الملف غير صالح أو يتجاوز حد الحجم المسموح.",
     en: "The file content is invalid or exceeds the permitted size limit.",
   },
+  PROJECT_OS_DOCUMENT_WORKFLOW_TRANSITION_INVALID: {
+    ar: "انتقال حالة المستند المحدد غير مسموح من حالته الحالية.",
+    en: "The selected document-status transition is not allowed from its current status.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

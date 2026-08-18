@@ -404,6 +404,75 @@ describe("operational API authorization", () => {
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects an invalid document workflow transition before writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") {
+        idSelectionCount += 1;
+        return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "document-a", status: "draft" }]);
+      }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.transitionStatus({ tenantId: tenantA, projectId: projectA, documentId: "99999999-9999-4999-8999-999999999999", nextStatus: "approved" })).rejects.toThrow("PROJECT_OS_DOCUMENT_WORKFLOW_TRANSITION_INVALID");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a document workflow transition for a document outside the project before writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") {
+        idSelectionCount += 1;
+        return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : []);
+      }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.transitionStatus({ tenantId: tenantA, projectId: projectA, documentId: "99999999-9999-4999-8999-999999999999", nextStatus: "for_review" })).rejects.toThrow("PROJECT_OS_DOCUMENT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("transitions an authorized document to review with audit evidence in one transaction", async () => {
+    const transactionDouble = {
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+      insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+    };
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") {
+        idSelectionCount += 1;
+        return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "document-a", status: "draft" }]);
+      }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.documents.transitionStatus({ tenantId: tenantA, projectId: projectA, documentId: "99999999-9999-4999-8999-999999999999", nextStatus: "for_review" })).resolves.toMatchObject({ previousStatus: "draft", status: "for_review" });
+
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects document-register reading when the project is outside the tenant before returning documents", async () => {
     databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
       const keys = Object.keys(selection).sort().join(",");
