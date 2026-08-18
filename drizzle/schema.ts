@@ -689,6 +689,34 @@ export const projectHealthSnapshots = mysqlTable(
   table => [uniqueIndex("project_health_period_unique").on(table.projectId, table.periodAt), index("project_health_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
+export const dataImports = mysqlTable(
+  "data_imports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    moduleCode: varchar("moduleCode", { length: 64 }).notNull(),
+    templateCode: varchar("templateCode", { length: 64 }).notNull(),
+    sourceFormat: mysqlEnum("sourceFormat", ["xlsx", "csv"]).notNull(),
+    fileName: varchar("fileName", { length: 255 }).notNull(),
+    fileKey: varchar("fileKey", { length: 512 }).notNull(),
+    fileHash: varchar("fileHash", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["uploaded", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]).default("uploaded").notNull(),
+    duplicateMode: mysqlEnum("duplicateMode", ["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]).default("fail_on_duplicate").notNull(),
+    totalRows: int("totalRows").default(0).notNull(), validRows: int("validRows").default(0).notNull(), invalidRows: int("invalidRows").default(0).notNull(), createdRows: int("createdRows").default(0).notNull(), updatedRows: int("updatedRows").default(0).notNull(), skippedRows: int("skippedRows").default(0).notNull(),
+    mappingJson: text("mappingJson"), summaryJson: text("summaryJson"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    startedAt: timestamp("startedAt"), completedAt: timestamp("completedAt"), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash)],
+);
+
+export const dataImportErrors = mysqlTable(
+  "data_import_errors",
+  { id: varchar("id", { length: 36 }).primaryKey(), importId: varchar("importId", { length: 36 }).notNull().references(() => dataImports.id), rowNumber: int("rowNumber").notNull(), columnName: varchar("columnName", { length: 128 }), value: text("value"), code: varchar("code", { length: 96 }).notNull(), severity: mysqlEnum("severity", ["error", "warning"]).notNull(), suggestedFix: text("suggestedFix"), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  table => [index("data_import_errors_import_row_idx").on(table.importId, table.rowNumber)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ProductCode = (typeof productCodes)[number];
