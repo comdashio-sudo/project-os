@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { lazy, Suspense } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -14,8 +15,9 @@ import {
   Scale,
 } from "lucide-react";
 import React, { FormEvent, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from "recharts";
 import { Link, useParams } from "wouter";
+
+const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
 export default function ExecutiveDashboard() {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -131,14 +133,6 @@ export default function ExecutiveDashboard() {
         unassigned: "Projects without a portfolio",
         projects: "Projects",
       };
-  const portfolioChart = (data.cashFlowByPortfolio ?? []).map(portfolio => ({
-    name:
-      portfolio.code && portfolio.name
-        ? `${portfolio.code} · ${portfolio.name}`
-        : cash.unassigned,
-    exposure: portfolio.totalExposure,
-    remaining: portfolio.remainingBudget,
-  }));
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b bg-white">
@@ -224,25 +218,7 @@ export default function ExecutiveDashboard() {
                   <b>{money(data.cashFlow.remainingBudget)}</b>
                 </p>
               </div>
-              {portfolioChart.length ? (
-                <div className="mt-5 overflow-x-auto">
-                  <p className="mb-2 text-sm font-semibold">{cash.chart}</p>
-                  <BarChart
-                    width={760}
-                    height={250}
-                    data={portfolioChart}
-                    margin={{ top: 8, right: 12, left: 0, bottom: 48 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" angle={-18} textAnchor="end" interval={0} height={60} tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="exposure" name={cash.exposure} fill="#0e6b70" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="remaining" name={cash.remaining} fill="#d4972c" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </div>
-              ) : null}
+              {(data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-slate-500">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
               {data.cashFlowByPortfolio?.length ? (
                 <div className="mt-5">
                   <p className="text-sm font-semibold">{cash.byPortfolio}</p>
