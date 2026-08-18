@@ -22,8 +22,8 @@ describe("health exception presentation", () => {
   });
 
   it("يستخرج عداد RFI المتأخر فقط من مصادر الصحة ويصفر الحمولة غير الصالحة", () => {
-    expect(parseStoredHealthSources('{"overdueRfiCount":3,"untrusted":"RAW"}')).toEqual({ overdueRfiCount: 3 });
-    expect(parseStoredHealthSources('{"overdueRfiCount":-1}')).toEqual({ overdueRfiCount: 0 });
-    expect(parseStoredHealthSources("not-json")).toEqual({ overdueRfiCount: 0 });
+    expect(parseStoredHealthSources('{"overdueRfiCount":3,"overdueNcrCount":2,"untrusted":"RAW"}')).toEqual({ overdueRfiCount: 3, overdueNcrCount: 2 });
+    expect(parseStoredHealthSources('{"overdueRfiCount":-1,"overdueNcrCount":-1}')).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0 });
+    expect(parseStoredHealthSources("not-json")).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0 });
   });
 });

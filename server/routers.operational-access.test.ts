@@ -743,6 +743,7 @@ describe("operational API authorization", () => {
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
       if (keys === "dueAt,status") return queryResult([{ dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "open" }]);
       if (keys === "dueAt,rfiNumber,status") return queryResult([{ rfiNumber: "RFI-01", dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "submitted" }]);
+      if (keys === "dueAt,ncrNumber,status") return queryResult([{ ncrNumber: "NCR-01", dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "under_investigation" }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
     databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
@@ -750,7 +751,7 @@ describe("operational API authorization", () => {
 
     const result = await caller.controls.captureProjectHealthSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-18T00:00:00.000Z") });
 
-    expect(result).toMatchObject({ score: 29, status: "red", sources: { latestEvmFound: true, highRiskCount: 1, overdueActionCount: 1, overdueRfiCount: 1 } });
+    expect(result).toMatchObject({ score: 21, status: "red", sources: { latestEvmFound: true, highRiskCount: 1, overdueActionCount: 1, overdueRfiCount: 1, overdueNcrCount: 1 } });
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
 
@@ -767,6 +768,7 @@ describe("operational API authorization", () => {
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
       if (keys === "dueAt,status") return queryResult([{ dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "open" }]);
       if (keys === "dueAt,rfiNumber,status") return queryResult([]);
+      if (keys === "dueAt,ncrNumber,status") return queryResult([]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
     databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
@@ -775,6 +777,32 @@ describe("operational API authorization", () => {
     const result = await caller.controls.captureProjectHealthSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-18T00:00:00.000Z") });
 
     expect(result.sources.overdueRfiCount).toBe(0);
+    expect(result.score).toBe(37);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not count an overdue NCR outside the project in the project-health source", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "bac,cpi,eac,spi") return queryResult([{ cpi: "0.88", spi: "0.95", eac: "120", bac: "100" }]);
+      if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
+      if (keys === "dueAt,status") return queryResult([{ dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "open" }]);
+      if (keys === "dueAt,rfiNumber,status") return queryResult([]);
+      if (keys === "dueAt,ncrNumber,status") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.controls.captureProjectHealthSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-18T00:00:00.000Z") });
+
+    expect(result.sources.overdueNcrCount).toBe(0);
     expect(result.score).toBe(37);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });

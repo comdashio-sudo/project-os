@@ -1,5 +1,5 @@
 type StoredHealthException = { code: string; severity: "warning" | "critical" };
-type StoredHealthSources = { overdueRfiCount: number };
+type StoredHealthSources = { overdueRfiCount: number; overdueNcrCount: number };
 
 const messages = {
   CPI_CRITICAL: { ar: ["مؤشر أداء التكلفة دون حد التحكم الحرج.", "تحقق من تكلفة الإكمال وافتح إجراءً لاستعادة التكلفة."], en: ["Cost performance is below the critical control threshold.", "Validate cost to complete and open a cost-recovery action."] },
@@ -25,10 +25,11 @@ export function parseStoredHealthExceptions(value: string): StoredHealthExceptio
 export function parseStoredHealthSources(value: string): StoredHealthSources {
   try {
     const parsed: unknown = JSON.parse(value);
-    const source = parsed as { overdueRfiCount?: unknown } | null;
+    const source = parsed as { overdueRfiCount?: unknown; overdueNcrCount?: unknown } | null;
     const overdueRfiCount = typeof source?.overdueRfiCount === "number" && Number.isInteger(source.overdueRfiCount) && source.overdueRfiCount >= 0 ? source.overdueRfiCount : 0;
-    return { overdueRfiCount };
-  } catch { return { overdueRfiCount: 0 }; }
+    const overdueNcrCount = typeof source?.overdueNcrCount === "number" && Number.isInteger(source.overdueNcrCount) && source.overdueNcrCount >= 0 ? source.overdueNcrCount : 0;
+    return { overdueRfiCount, overdueNcrCount };
+  } catch { return { overdueRfiCount: 0, overdueNcrCount: 0 }; }
 }
 
 export function localizedHealthException(item: StoredHealthException, isArabic: boolean) {

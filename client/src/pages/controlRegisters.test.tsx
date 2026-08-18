@@ -65,7 +65,7 @@ const state = vi.hoisted(() => ({
     costs: [],
     progress: [],
     latestEvm: null,
-    latestHealth: { id: "health-1", periodAt: new Date("2026-08-18T00:00:00.000Z"), overallScore: "82", status: "amber", confidence: "medium", drivers: "{\"overdueRfiCount\":2}", exceptions: "[{\"code\":\"CPI_CRITICAL\",\"severity\":\"critical\",\"message\":\"RAW SERVER MESSAGE\",\"recommendedAction\":\"RAW SERVER ACTION\"}]" },
+    latestHealth: { id: "health-1", periodAt: new Date("2026-08-18T00:00:00.000Z"), overallScore: "82", status: "amber", confidence: "medium", drivers: "{\"overdueRfiCount\":2,\"overdueNcrCount\":1}", exceptions: "[{\"code\":\"CPI_CRITICAL\",\"severity\":\"critical\",\"message\":\"RAW SERVER MESSAGE\",\"recommendedAction\":\"RAW SERVER ACTION\"}]" },
   },
   tenantAdminData: {
     members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ assignmentId: "assignment-1", roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "project", scopeId: "project-opaque-id", scopeName: "Airport Terminal" }] }],
@@ -269,6 +269,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Calculate and save health snapshot");
     expect(markup).toContain("Latest snapshot: Score 82 · Amber · Confidence: Medium");
     expect(markup).toContain("Overdue RFIs: 2");
+    expect(markup).toContain("Overdue NCRs: 1");
     expect(markup).toContain("Cost performance is below the critical control threshold.");
     expect(markup).not.toContain("RAW SERVER MESSAGE");
 
@@ -290,6 +291,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("صحة المشروع");
     expect(markup).toContain("أحدث لقطة: الدرجة 82 · كهرماني · الثقة: متوسطة");
     expect(markup).toContain("طلبات معلومات متأخرة: 2");
+    expect(markup).toContain("حالات عدم مطابقة متأخرة: 1");
     expect(markup).toContain("مؤشر أداء التكلفة دون حد التحكم الحرج.");
   });
 
