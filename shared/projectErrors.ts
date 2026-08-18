@@ -196,6 +196,10 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن تتجاوز القيمة المعتمدة قيمة المطالبة المطلوبة.",
     en: "The approved amount cannot exceed the claimed amount.",
   },
+  PROJECT_OS_ADVISOR_UNAVAILABLE: {
+    ar: "تعذر إنشاء النصيحة الاستشارية الآن. لا يغير ذلك أي بيانات للمشروع.",
+    en: "The advisory could not be generated now. No project data was changed.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
