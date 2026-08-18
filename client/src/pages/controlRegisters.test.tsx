@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import ExecutiveDashboard from "./ExecutiveDashboard";
 import PmoDashboard from "./PmoDashboard";
 import ProjectControls from "./ProjectControls";
+import { commitmentFormAfterResponse, contractFormAfterResponse } from "./ProjectContracts";
 import ProjectRegistry, { lifecycleFeedbackTargetsProject } from "./ProjectRegistry";
 import TenantAdministration from "./TenantAdministration";
 
@@ -30,6 +31,8 @@ const state = vi.hoisted(() => ({
   projectLifecycleError: null as unknown,
   projectLifecycleSuccess: false,
   projectRegistryData: [{ id: "project-1", code: "PRJ-01", name: "North Link", projectType: "Infrastructure", lifecycleStage: "planning", status: "active", currentBudget: "1000", actualCost: "400", forecastCost: "1100" }],
+  contractRegisterError: null as unknown,
+  contractRegisterData: { contracts: [{ id: "contract-1", code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: "1000", currency: "USD", status: "draft", startAt: null, endAt: null }], commitments: [{ id: "commitment-1", contractId: "contract-1", code: "COM-01", description: "Steel package", amount: "250", currency: "USD", status: "draft", committedAt: null }] },
   pmoData: {
     portfolios: [],
     programs: [],
@@ -89,6 +92,11 @@ vi.mock("@/lib/trpc", () => ({
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.projectRegistryData, refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       transitionLifecycle: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.projectLifecycleError, isSuccess: state.projectLifecycleSuccess }) },
+    },
+    contracts: {
+      getProjectRegister: { useQuery: () => ({ isLoading: false, error: state.contractRegisterError, data: state.contractRegisterData, refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      createCommitment: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
@@ -218,6 +226,9 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Not started");
     expect(markup).toContain("Calculated EVM capture");
     expect(markup).toContain("Calculate and save operational snapshot");
+    expect(markup).toContain("Contracts &amp; commitments");
+    expect(markup).toContain("CTR-01 · Civil Works");
+    expect(markup).toContain("COM-01 · Steel package");
 
     state.isArabic = true;
     markup = renderToStaticMarkup(<ProjectControls />);
@@ -225,6 +236,30 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("جدولة نشاط");
     expect(markup).toContain("لم يبدأ");
     expect(markup).toContain("التقاط EVM محسوب");
+    expect(markup).toContain("العقود والالتزامات");
+  });
+
+  it("يعرض خطأ سجل العقود والالتزامات موضّعًا باللغتين", () => {
+    state.isArabic = false;
+    state.contractRegisterError = {};
+    let markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("خطأ موضّع");
+    state.contractRegisterError = null;
+    state.isArabic = false;
+  });
+
+  it("يبقي مدخلات العقد والالتزام عند فشل الحفظ ولا يصفرها إلا عند النجاح", () => {
+    const contractDraft = { code: "CTR-02", title: "Access road", counterparty: "Works Co", contractValue: "1500", currency: "SAR" };
+    const commitmentDraft = { contractId: "contract-1", code: "COM-02", description: "Concrete package", amount: "375", currency: "SAR" };
+
+    expect(contractFormAfterResponse(contractDraft, false)).toEqual(contractDraft);
+    expect(commitmentFormAfterResponse(commitmentDraft, false)).toEqual(commitmentDraft);
+    expect(contractFormAfterResponse(contractDraft, true).code).toBe("");
+    expect(commitmentFormAfterResponse(commitmentDraft, true).code).toBe("");
   });
 
   it("يعرض اختيار المستخدم وحالات نجاح وفشل الإسناد باللغتين", () => {

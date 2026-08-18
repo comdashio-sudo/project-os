@@ -253,6 +253,45 @@ export const projects = mysqlTable(
   table => [uniqueIndex("projects_tenant_code_unique").on(table.tenantId, table.code), index("projects_tenant_portfolio_idx").on(table.tenantId, table.portfolioId), index("projects_tenant_program_idx").on(table.tenantId, table.programId)],
 );
 
+export const contracts = mysqlTable(
+  "contracts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    counterparty: varchar("counterparty", { length: 255 }).notNull(),
+    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    status: mysqlEnum("status", ["draft", "active", "suspended", "closed", "cancelled"]).default("draft").notNull(),
+    startAt: timestamp("startAt"),
+    endAt: timestamp("endAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("contracts_project_code_unique").on(table.projectId, table.code), index("contracts_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const commitments = mysqlTable(
+  "commitments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    description: varchar("description", { length: 255 }).notNull(),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    status: mysqlEnum("status", ["draft", "committed", "released", "cancelled"]).default("draft").notNull(),
+    committedAt: timestamp("committedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("commitments_project_code_unique").on(table.projectId, table.code), index("commitments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("commitments_contract_idx").on(table.contractId)],
+);
+
 export const wbsItems = mysqlTable(
   "wbs_items",
   {

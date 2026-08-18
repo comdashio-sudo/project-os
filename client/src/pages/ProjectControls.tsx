@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { ProjectContracts } from "./ProjectContracts";
 import { Activity, ArrowLeft, Banknote, CalendarDays, Calculator, CheckCircle2, ClipboardList, Plus, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
 import { Link, useParams } from "wouter";
@@ -110,6 +111,7 @@ export default function ProjectControls() {
 
           <aside className="space-y-6">
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><SectionHeading icon={TrendingUp} title={t.progress} /><form className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createProgress.mutate({ tenantId, projectId, wbsItemId: progress.wbsItemId, percentComplete: Number(progress.percentComplete), reportedAt: new Date(`${progress.reportedAt}T00:00:00.000Z`) }); setProgress({ wbsItemId: "", percentComplete: "", reportedAt: today }); }}><Select value={progress.wbsItemId} onValueChange={wbsItemId => setProgress({ ...progress, wbsItemId })} disabled={!data.wbs.length}><SelectTrigger><SelectValue placeholder={t.link} /></SelectTrigger><SelectContent>{data.wbs.map(item => <SelectItem key={item.id} value={item.id}>{item.code} · {item.name}</SelectItem>)}</SelectContent></Select><Input placeholder={t.percent} type="number" min="0" max="100" value={progress.percentComplete} onChange={event => setProgress({ ...progress, percentComplete: event.target.value })} required /><Input aria-label={t.date} type="date" value={progress.reportedAt} onChange={event => setProgress({ ...progress, reportedAt: event.target.value })} required /><Button className="w-full" disabled={disabled || !progress.wbsItemId}>{createProgress.isPending ? t.submitting : t.addProgress}</Button></form></section>
+            <ProjectContracts tenantId={tenantId} projectId={projectId} />
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <SectionHeading icon={Calculator} title={t.snapshot} />
               <div className="mt-5 rounded-xl bg-[#e6f4f3] p-4">

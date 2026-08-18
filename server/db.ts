@@ -8,6 +8,8 @@ import {
   type SubscriptionPackageCode,
   auditLogs,
   companies,
+  commitments,
+  contracts,
   memberships,
   membershipInvitations,
   membershipRoles,
@@ -621,6 +623,55 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   ]);
 
   return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows };
+}
+
+export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [contractRows, commitmentRows] = await Promise.all([
+    db.select({ id: contracts.id, code: contracts.code, title: contracts.title, counterparty: contracts.counterparty, contractValue: contracts.contractValue, currency: contracts.currency, status: contracts.status, startAt: contracts.startAt, endAt: contracts.endAt }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))).orderBy(desc(contracts.createdAt)),
+    db.select({ id: commitments.id, contractId: commitments.contractId, code: commitments.code, description: commitments.description, amount: commitments.amount, currency: commitments.currency, status: commitments.status, committedAt: commitments.committedAt }).from(commitments).where(and(eq(commitments.tenantId, input.tenantId), eq(commitments.projectId, input.projectId))).orderBy(desc(commitments.createdAt)),
+  ]);
+  return { contracts: contractRows, commitments: commitmentRows };
+}
+
+export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
+  if (input.endAt && input.startAt && input.endAt < input.startAt) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_DATES_INVALID" });
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(contracts).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, counterparty: input.counterparty, contractValue: String(input.contractValue), currency: input.currency, startAt: input.startAt, endAt: input.endAt, status: "draft" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.contract_created", entityType: "contract", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, contractValue: input.contractValue }) });
+  });
+  return { id };
+}
+
+export async function createCommitmentForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; code: string; description: string; amount: number; currency: string; committedAt?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.contractId) {
+    const [contract] = await db.select({ id: contracts.id }).from(contracts).where(and(eq(contracts.id, input.contractId), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))).limit(1);
+    if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CONTRACT_NOT_FOUND" });
+  }
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(commitments).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, code: input.code, description: input.description, amount: String(input.amount), currency: input.currency, committedAt: input.committedAt, status: "draft" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.commitment_created", entityType: "commitment", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId ?? null, code: input.code, amount: input.amount }) });
+  });
+  return { id };
 }
 
 export async function createRisk(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; probability: number; severity: number; dueAt?: Date }) {

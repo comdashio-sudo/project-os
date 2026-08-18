@@ -104,6 +104,14 @@ export const projectErrorMessages = {
     ar: "انتقال دورة حياة المشروع المحدد غير مسموح من مرحلته الحالية.",
     en: "The selected project lifecycle transition is not allowed from its current stage.",
   },
+  PROJECT_OS_CONTRACT_NOT_FOUND: {
+    ar: "العقد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected contract is not available in the current project and workspace.",
+  },
+  PROJECT_OS_CONTRACT_DATES_INVALID: {
+    ar: "لا يمكن أن يسبق تاريخ انتهاء العقد تاريخ بدايته.",
+    en: "A contract end date cannot be earlier than its start date.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

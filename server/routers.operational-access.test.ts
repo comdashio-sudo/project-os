@@ -22,6 +22,7 @@ function queryResult<T>(result: T) {
   const query = {
     from: () => query,
     where: () => query,
+    orderBy: () => query,
     innerJoin: () => query,
     limit: async () => result,
     then: <TResult1 = T, TResult2 = never>(
@@ -326,6 +327,99 @@ describe("operational API authorization", () => {
     expect(result).toEqual({ projectId: projectA, lifecycleStage: "execution" });
     expect(transactionDouble.update).toHaveBeenCalledTimes(1);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects contract creation for a tenant without active membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.create({ tenantId: tenantB, projectId: projectB, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a commitment whose contract belongs outside the requested tenant project before writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: projectA }] : []); }
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "USD" })).rejects.toThrow("PROJECT_OS_CONTRACT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized contract with audit evidence in the same transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.create({ tenantId: tenantA, projectId: projectA, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates an authorized commitment with audit evidence in the same transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") { idSelectionCount += 1; return queryResult([{ id: idSelectionCount === 1 ? projectA : "contract-a" }]); }
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects contract-register reading for a tenant without active membership before reading project records", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.getProjectRegister({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects contract-register reading when the project is outside the tenant before returning contracts", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.read" }]);
+      if (keys === "id") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.contracts.getProjectRegister({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
   it("rejects a project link when the selected program is outside the tenant before writing", async () => {
