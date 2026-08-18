@@ -509,6 +509,105 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects NCR creation for a tenant without active membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.create({ tenantId: tenantB, projectId: projectB, ncrNumber: "NCR-01", title: "Reinforcement deviation", description: "Reinforcement does not match the approved drawing." })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid NCR status transition before writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "ncr-a", status: "open" }]); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.transitionStatus({ tenantId: tenantA, projectId: projectA, ncrId: "99999999-9999-4999-8999-999999999999", nextStatus: "closed" })).rejects.toThrow("PROJECT_OS_NCR_TRANSITION_INVALID");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized NCR with audit evidence in one transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.create({ tenantId: tenantA, projectId: projectA, ncrNumber: "NCR-01", title: "Reinforcement deviation", description: "Reinforcement does not match the approved drawing." })).resolves.toMatchObject({ id: expect.any(String), status: "open" });
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("transitions an authorized NCR to investigation with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "ncr-a", status: "open" }]); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.transitionStatus({ tenantId: tenantA, projectId: projectA, ncrId: "99999999-9999-4999-8999-999999999999", nextStatus: "under_investigation" })).resolves.toMatchObject({ previousStatus: "open", status: "under_investigation" });
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects NCR reading outside the authorized project before returning any register data", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.read" }]);
+      if (keys === "id") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an NCR transition outside the requested project before update or audit", async () => {
+    let idStatusSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idStatusSelectionCount += 1; return queryResult(idStatusSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : []); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.ncrs.transitionStatus({ tenantId: tenantA, projectId: projectA, ncrId: "99999999-9999-4999-8999-999999999999", nextStatus: "under_investigation" })).rejects.toThrow("PROJECT_OS_NCR_NOT_FOUND");
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects RFI creation for a tenant without active membership before loading the project", async () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());

@@ -13,6 +13,7 @@ import {
   memberships,
   membershipInvitations,
   membershipRoles,
+  ncrs,
   permissions,
   portfolios,
   programs,
@@ -780,6 +781,50 @@ export async function transitionRfiStatus(input: { userId: number; tenantId: str
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "rfis.status_transitioned", entityType: "rfi", entityId: input.rfiId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: rfi.status, nextStatus: input.nextStatus }) });
   });
   return { id: input.rfiId, previousStatus: rfi.status, status: input.nextStatus };
+}
+
+const ncrStatusTransitions: Record<string, readonly string[]> = { open: ["under_investigation", "cancelled"], under_investigation: ["corrective_action", "cancelled"], corrective_action: ["verification", "cancelled"], verification: ["closed", "corrective_action"], closed: [], cancelled: [] };
+
+export async function getNcrsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: ncrs.id, ncrNumber: ncrs.ncrNumber, title: ncrs.title, description: ncrs.description, status: ncrs.status, dueAt: ncrs.dueAt, createdAt: ncrs.createdAt }).from(ncrs).where(and(eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId))).orderBy(desc(ncrs.createdAt));
+}
+
+export async function createNcrForTenant(input: { userId: number; tenantId: string; projectId: string; ncrNumber: string; title: string; description: string; dueAt?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(ncrs).values({ id, tenantId: input.tenantId, projectId: input.projectId, ncrNumber: input.ncrNumber, title: input.title, description: input.description, dueAt: input.dueAt, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "ncrs.created", entityType: "ncr", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, ncrNumber: input.ncrNumber }) });
+  });
+  return { id, status: "open" as const };
+}
+
+export async function transitionNcrStatus(input: { userId: number; tenantId: string; projectId: string; ncrId: string; nextStatus: "open" | "under_investigation" | "corrective_action" | "verification" | "closed" | "cancelled" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [ncr] = await db.select({ id: ncrs.id, status: ncrs.status }).from(ncrs).where(and(eq(ncrs.id, input.ncrId), eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId))).limit(1);
+  if (!ncr) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_NCR_NOT_FOUND" });
+  if (!ncrStatusTransitions[ncr.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_NCR_TRANSITION_INVALID" });
+  await db.transaction(async tx => {
+    await tx.update(ncrs).set({ status: input.nextStatus }).where(and(eq(ncrs.id, input.ncrId), eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "ncrs.status_transitioned", entityType: "ncr", entityId: input.ncrId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: ncr.status, nextStatus: input.nextStatus }) });
+  });
+  return { id: input.ncrId, previousStatus: ncr.status, status: input.nextStatus };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {

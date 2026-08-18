@@ -35,10 +35,12 @@ const state = vi.hoisted(() => ({
   documentRegisterError: null as unknown,
   documentTransitionError: null as unknown,
   rfiError: null as unknown,
+  ncrError: null as unknown,
   projectHealthError: null as unknown,
   contractRegisterData: { contracts: [{ id: "contract-1", code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: "1000", currency: "USD", status: "draft", startAt: null, endAt: null }], commitments: [{ id: "commitment-1", contractId: "contract-1", code: "COM-01", description: "Steel package", amount: "250", currency: "USD", status: "draft", committedAt: null }] },
   documentRegisterData: { documents: [{ id: "document-1", documentNumber: "DRW-01", title: "Foundation drawing", category: "drawing", status: "for_review", createdAt: new Date("2026-08-18T00:00:00.000Z") }], versions: [{ id: "version-1", documentId: "document-1", versionNumber: 1, originalName: "foundation.pdf", mimeType: "application/pdf", sizeBytes: 2048, checksumSha256: "abc", createdAt: new Date("2026-08-18T00:00:00.000Z") }] },
   rfiData: [{ id: "rfi-1", rfiNumber: "RFI-01", subject: "Foundation detail", question: "Please clarify foundation reinforcement details.", status: "submitted", dueAt: null, submittedAt: null, createdAt: new Date("2026-08-18T00:00:00.000Z") }],
+  ncrData: [{ id: "ncr-1", ncrNumber: "NCR-01", title: "Reinforcement deviation", description: "Reinforcement does not match the approved drawing.", status: "open", dueAt: null, createdAt: new Date("2026-08-18T00:00:00.000Z") }],
   pmoData: {
     portfolios: [],
     programs: [],
@@ -115,6 +117,11 @@ vi.mock("@/lib/trpc", () => ({
       list: { useQuery: () => ({ isLoading: false, error: state.rfiError, data: state.rfiData, refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.rfiError }) },
       transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.rfiError }) },
+    },
+    ncrs: {
+      list: { useQuery: () => ({ isLoading: false, error: state.ncrError, data: state.ncrData, refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.ncrError }) },
+      transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.ncrError }) },
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
@@ -255,6 +262,9 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("RFI register");
     expect(markup).toContain("RFI-01 · Foundation detail");
     expect(markup).toContain("Update status");
+    expect(markup).toContain("NCR register");
+    expect(markup).toContain("NCR-01 · Reinforcement deviation");
+    expect(markup).toContain("Next status");
     expect(markup).toContain("Project health");
     expect(markup).toContain("Calculate and save health snapshot");
     expect(markup).toContain("Latest snapshot: Score 82 · Amber · Confidence: Medium");
@@ -274,6 +284,9 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("تحديث حالة المراجعة");
     expect(markup).toContain("سجل طلبات المعلومات");
     expect(markup).toContain("تحديث الحالة");
+    expect(markup).toContain("سجل عدم المطابقة");
+    expect(markup).toContain("NCR-01 · Reinforcement deviation");
+    expect(markup).toContain("الحالة التالية");
     expect(markup).toContain("صحة المشروع");
     expect(markup).toContain("أحدث لقطة: الدرجة 82 · كهرماني · الثقة: متوسطة");
     expect(markup).toContain("طلبات معلومات متأخرة: 2");
@@ -290,6 +303,19 @@ describe("control-register dashboards", () => {
     markup = renderToStaticMarkup(<ProjectControls />);
     expect(markup).toContain("خطأ موضّع");
     state.contractRegisterError = null;
+    state.isArabic = false;
+  });
+
+  it("يعرض خطأ سجل NCR موضّعًا باللغتين", () => {
+    state.isArabic = false;
+    state.ncrError = {};
+    let markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<ProjectControls />);
+    expect(markup).toContain("خطأ موضّع");
+    state.ncrError = null;
     state.isArabic = false;
   });
 

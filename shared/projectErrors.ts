@@ -132,6 +132,14 @@ export const projectErrorMessages = {
     ar: "انتقال حالة طلب المعلومات المحدد غير مسموح من حالته الحالية.",
     en: "The selected RFI-status transition is not allowed from its current status.",
   },
+  PROJECT_OS_NCR_NOT_FOUND: {
+    ar: "سجل عدم المطابقة المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected NCR is not available in the current project and workspace.",
+  },
+  PROJECT_OS_NCR_TRANSITION_INVALID: {
+    ar: "انتقال حالة عدم المطابقة المحدد غير مسموح من حالته الحالية.",
+    en: "The selected NCR-status transition is not allowed from its current status.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
