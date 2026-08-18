@@ -4,6 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { FileSpreadsheet } from "lucide-react";
+import React from "react";
 import { useState } from "react";
 
 export function ProjectImports({ tenantId, projectId }: { tenantId: string; projectId: string }) {
