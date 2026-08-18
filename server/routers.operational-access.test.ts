@@ -60,7 +60,7 @@ function configureActiveMembershipWithoutProjectEntitlement() {
   });
 }
 
-function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXECUTIVE"; permissionCode: "pmo.write" | "tenant.manage" }) {
+function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXECUTIVE" | "PROJECT"; permissionCode: "pmo.write" | "tenant.manage" | "project.write" }) {
   const transactionDouble = {
     insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
   };
@@ -100,6 +100,7 @@ describe("operational API authorization", () => {
     ["EVM snapshot", (caller: ReturnType<typeof appRouter.createCaller>) => caller.controls.saveEvmSnapshot({ tenantId: tenantA, projectId: projectB, periodAt: new Date("2026-08-17T00:00:00.000Z"), pv: 100, ev: 90, ac: 95, bac: 120, eacMethod: "bac_over_cpi" })],
     ["WBS", (caller: ReturnType<typeof appRouter.createCaller>) => caller.wbs.create({ tenantId: tenantA, projectId: projectB, code: "1", name: "Foundation", plannedValue: 100 })],
     ["actual cost", (caller: ReturnType<typeof appRouter.createCaller>) => caller.costs.createActual({ tenantId: tenantA, projectId: projectB, amount: 100, incurredAt: new Date("2026-08-17T00:00:00.000Z") })],
+    ["activity", (caller: ReturnType<typeof appRouter.createCaller>) => caller.activities.create({ tenantId: tenantA, projectId: projectB, code: "A-01", name: "Activity without project entitlement", plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") })],
     ["progress", (caller: ReturnType<typeof appRouter.createCaller>) => caller.progress.create({ tenantId: tenantA, projectId: projectB, wbsItemId: wbsB, percentComplete: 50, reportedAt: new Date("2026-08-17T00:00:00.000Z") })],
     ["budget", (caller: ReturnType<typeof appRouter.createCaller>) => caller.budgets.create({ tenantId: tenantA, projectId: projectB, costCode: "CIVIL", originalAmount: 100, currentAmount: 100 })],
   ])("rejects %s through the API when the PROJECT entitlement is absent", async (_operation, execute) => {
@@ -152,5 +153,33 @@ describe("operational API authorization", () => {
     expect(result.id).toEqual(expect.any(String));
     expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an activity write for a tenant without membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.activities.create({ tenantId: tenantB, projectId: projectB, code: "A-02", name: "Cross-tenant activity", plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") })).rejects.toThrow("Tenant membership is not available");
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("allows an entitled activity write and records its audit evidence in the same transaction", async () => {
+    const transactionDouble = configureAuthorizedOperationalAccess({ productCode: "PROJECT", permissionCode: "project.write" });
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.activities.create({ tenantId: tenantA, projectId: projectB, code: "A-03", name: "Authorized activity", plannedValue: 100, plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") });
+
+    expect(result.id).toEqual(expect.any(String));
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a backwards activity schedule after authorization and before any write", async () => {
+    configureAuthorizedOperationalAccess({ productCode: "PROJECT", permissionCode: "project.write" });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.activities.create({ tenantId: tenantA, projectId: projectB, code: "A-04", name: "Invalid schedule", plannedStartAt: new Date("2026-08-18T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-17T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_ACTIVITY_SCHEDULE_INVALID");
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 });

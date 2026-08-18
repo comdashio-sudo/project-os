@@ -14,6 +14,7 @@ import {
   programs,
   projects,
   projectHealthSnapshots,
+  activities,
   risks,
   issues,
   actions,
@@ -265,16 +266,17 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
 
-  const [projectRows, wbs, budgets, costs, progress, latestEvm] = await Promise.all([
+  const [projectRows, wbs, activitiesForProject, budgets, costs, progress, latestEvm] = await Promise.all([
     db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1),
     db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name, parentId: wbsItems.parentId, plannedValue: wbsItems.plannedValue, earnedValue: wbsItems.earnedValue, actualCost: wbsItems.actualCost, progressPercent: wbsItems.progressPercent }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))),
+    db.select({ id: activities.id, wbsItemId: activities.wbsItemId, code: activities.code, name: activities.name, status: activities.status, plannedValue: activities.plannedValue, earnedValue: activities.earnedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))),
     db.select({ id: budgetLines.id, wbsItemId: budgetLines.wbsItemId, costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))),
     db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, entryType: costEntries.entryType, status: costEntries.status, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId))).orderBy(desc(costEntries.incurredAt)),
     db.select({ id: progressEntries.id, wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, status: progressEntries.status, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(eq(progressEntries.tenantId, input.tenantId), eq(progressEntries.projectId, input.projectId))).orderBy(desc(progressEntries.measuredAt)),
     db.select({ id: evmSnapshots.id, periodAt: evmSnapshots.periodAt, pv: evmSnapshots.pv, ev: evmSnapshots.ev, ac: evmSnapshots.ac, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, etc: evmSnapshots.etc, vac: evmSnapshots.vac }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId))).orderBy(desc(evmSnapshots.periodAt)).limit(1),
   ]);
 
-  return { project: projectRows[0]!, wbs, budgets, costs, progress, latestEvm: latestEvm[0] ?? null };
+  return { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null };
 }
 
 export async function getExecutiveDashboard(input: { userId: number; tenantId: string }) {
@@ -394,6 +396,23 @@ export async function createWbsItem(input: { userId: number; tenantId: string; p
   await db.transaction(async tx => {
     await tx.insert(wbsItems).values({ id, tenantId: input.tenantId, projectId: input.projectId, parentId: input.parentId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0) });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.wbs_created", entityType: "wbs_item", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, parentId: input.parentId ?? null }) });
+  });
+  return { id };
+}
+
+export async function createActivity(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; code: string; name: string; plannedValue?: number; plannedStartAt: Date; plannedFinishAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new Error("Tenant membership is not available");
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  if (input.plannedFinishAt < input.plannedStartAt) throw new Error("PROJECT_OS_ACTIVITY_SCHEDULE_INVALID");
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(activities).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0), plannedStartAt: input.plannedStartAt, plannedFinishAt: input.plannedFinishAt, status: "not_started" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.activity_created", entityType: "activity", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, code: input.code, plannedStartAt: input.plannedStartAt.toISOString(), plannedFinishAt: input.plannedFinishAt.toISOString() }) });
   });
   return { id };
 }

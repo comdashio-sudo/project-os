@@ -28,6 +28,10 @@ export const projectErrorMessages = {
     ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
     en: "The selected WBS item does not belong to the requested project.",
   },
+  PROJECT_OS_ACTIVITY_SCHEDULE_INVALID: {
+    ar: "لا يمكن أن يسبق تاريخ نهاية النشاط تاريخ بدايته المخطط.",
+    en: "An activity's planned finish date cannot be earlier than its planned start date.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
