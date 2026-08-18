@@ -14,6 +14,7 @@ import { appRouter } from "./routers";
 
 const tenantA = "11111111-1111-4111-8111-111111111111";
 const tenantB = "22222222-2222-4222-8222-222222222222";
+const projectA = "77777777-7777-4777-8777-777777777777";
 const projectB = "33333333-3333-4333-8333-333333333333";
 const wbsB = "44444444-4444-4444-8444-444444444444";
 
@@ -270,6 +271,47 @@ describe("operational API authorization", () => {
     await expect(caller.pmo.linkProject({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
 
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a project link when the selected program is outside the tenant before writing", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "id,portfolioId") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.linkProject({ tenantId: tenantA, projectId: projectA, programId: "99999999-9999-4999-8999-999999999999" })).rejects.toThrow("PROJECT_OS_PROGRAM_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("links an authorized project to a tenant-owned program with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "id,portfolioId") return queryResult([{ id: "program-a", portfolioId: null }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.pmo.linkProject({ tenantId: tenantA, projectId: projectA, programId: "99999999-9999-4999-8999-999999999999" });
+
+    expect(result).toMatchObject({ projectId: projectA, programId: "99999999-9999-4999-8999-999999999999", portfolioId: null });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a program linked to a portfolio outside the tenant before writing", async () => {
