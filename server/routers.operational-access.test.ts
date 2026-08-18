@@ -60,6 +60,23 @@ function configureActiveMembershipWithoutProjectEntitlement() {
   });
 }
 
+function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXECUTIVE"; permissionCode: "pmo.write" | "tenant.manage" }) {
+  const transactionDouble = {
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: input.productCode }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: input.permissionCode }]);
+    if (keys === "id") return queryResult([{ id: projectB }]);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -91,5 +108,49 @@ describe("operational API authorization", () => {
 
     await expect(execute(caller)).rejects.toThrow("not licensed");
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["risk", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createRisk({ tenantId: tenantB, projectId: projectB, code: "R-01", title: "Cross-tenant risk", probability: 3, severity: 4 })],
+    ["issue", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createIssue({ tenantId: tenantB, projectId: projectB, code: "I-01", title: "Cross-tenant issue", priority: "high" })],
+    ["action", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createAction({ tenantId: tenantB, projectId: projectB, title: "Cross-tenant action", priority: "high" })],
+    ["decision", (caller: ReturnType<typeof appRouter.createCaller>) => caller.executive.createDecision({ tenantId: tenantB, projectId: projectB, problem: "Cross-tenant decision", options: "Do not permit this write." })],
+  ])("rejects a %s write for a tenant without an active membership before querying the project or writing", async (_operation, execute) => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(execute(caller)).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["risk", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createRisk({ tenantId: tenantA, projectId: projectB, code: "R-01", title: "Unlicensed risk", probability: 3, severity: 4 })],
+    ["issue", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createIssue({ tenantId: tenantA, projectId: projectB, code: "I-01", title: "Unlicensed issue", priority: "high" })],
+    ["action", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createAction({ tenantId: tenantA, projectId: projectB, title: "Unlicensed action", priority: "high" })],
+    ["decision", "EXECUTIVE", "tenant.manage", (caller: ReturnType<typeof appRouter.createCaller>) => caller.executive.createDecision({ tenantId: tenantA, projectId: projectB, problem: "Unlicensed decision", options: "Block the write." })],
+  ])("rejects an unlicensed %s write before querying the project or writing", async (_operation, _productCode, _permissionCode, execute) => {
+    configureActiveMembershipWithoutProjectEntitlement();
+    const caller = appRouter.createCaller(context());
+
+    await expect(execute(caller)).rejects.toThrow("not licensed");
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+    expect(databaseDouble.select).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    ["risk", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createRisk({ tenantId: tenantA, projectId: projectB, code: "R-02", title: "Authorized risk", probability: 3, severity: 4 })],
+    ["issue", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createIssue({ tenantId: tenantA, projectId: projectB, code: "I-02", title: "Authorized issue", priority: "medium" })],
+    ["action", "PMO", "pmo.write", (caller: ReturnType<typeof appRouter.createCaller>) => caller.pmo.createAction({ tenantId: tenantA, projectId: projectB, title: "Authorized action", priority: "medium" })],
+    ["decision", "EXECUTIVE", "tenant.manage", (caller: ReturnType<typeof appRouter.createCaller>) => caller.executive.createDecision({ tenantId: tenantA, projectId: projectB, problem: "Authorized decision", options: "Approve with controls." })],
+  ])("allows an authorized %s write only after access and project-scope checks, with an atomic audit write", async (_operation, productCode, permissionCode, execute) => {
+    const transactionDouble = configureAuthorizedOperationalAccess({ productCode: productCode as "PMO" | "EXECUTIVE", permissionCode: permissionCode as "pmo.write" | "tenant.manage" });
+    const caller = appRouter.createCaller(context());
+
+    const result = await execute(caller);
+
+    expect(result.id).toEqual(expect.any(String));
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
 });
