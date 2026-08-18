@@ -913,16 +913,18 @@ export async function captureProjectHealthSnapshot(input: { userId: number; tena
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const now = new Date();
-  const [evmRows, riskRows, actionRows] = await Promise.all([
+  const [evmRows, riskRows, actionRows, rfiRows] = await Promise.all([
     db.select({ cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, bac: evmSnapshots.bac }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId))).orderBy(desc(evmSnapshots.periodAt)).limit(1),
     db.select({ probability: risks.probability, severity: risks.severity, status: risks.status }).from(risks).where(and(eq(risks.tenantId, input.tenantId), eq(risks.projectId, input.projectId))),
     db.select({ dueAt: actions.dueAt, status: actions.status }).from(actions).where(and(eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId))),
+    db.select({ rfiNumber: rfis.rfiNumber, dueAt: rfis.dueAt, status: rfis.status }).from(rfis).where(and(eq(rfis.tenantId, input.tenantId), eq(rfis.projectId, input.projectId))),
   ]);
   const latestEvm = evmRows[0] ?? null;
   const highRiskCount = riskRows.filter(risk => risk.status !== "closed" && risk.probability * risk.severity >= 16).length;
   const overdueActionCount = actionRows.filter(action => action.dueAt !== null && action.dueAt < now && !["completed", "cancelled"].includes(action.status)).length;
-  const sources = { latestEvmFound: Boolean(latestEvm), highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount: 0, overdueNcrCount: 0 };
-  const result = calculateProjectHealth({ cpi: latestEvm?.cpi === null || !latestEvm ? null : Number(latestEvm.cpi), spi: latestEvm?.spi === null || !latestEvm ? null : Number(latestEvm.spi), eac: latestEvm ? Number(latestEvm.eac) : null, bac: latestEvm ? Number(latestEvm.bac) : null, highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount: 0, overdueNcrCount: 0 });
+  const overdueRfiCount = rfiRows.filter(rfi => rfi.dueAt !== null && rfi.dueAt < now && !["closed", "cancelled"].includes(rfi.status)).length;
+  const sources = { latestEvmFound: Boolean(latestEvm), highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount, overdueNcrCount: 0 };
+  const result = calculateProjectHealth({ cpi: latestEvm?.cpi === null || !latestEvm ? null : Number(latestEvm.cpi), spi: latestEvm?.spi === null || !latestEvm ? null : Number(latestEvm.spi), eac: latestEvm ? Number(latestEvm.eac) : null, bac: latestEvm ? Number(latestEvm.bac) : null, highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount, overdueNcrCount: 0 });
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
     await tx.insert(projectHealthSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, overallScore: String(result.score), status: result.status, confidence: result.confidence, drivers: JSON.stringify(sources), exceptions: JSON.stringify(result.exceptions) });

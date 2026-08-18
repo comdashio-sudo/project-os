@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localizedHealthException, parseStoredHealthExceptions } from "./healthPresentation";
+import { localizedHealthException, parseStoredHealthExceptions, parseStoredHealthSources } from "./healthPresentation";
 
 describe("health exception presentation", () => {
   it("يتجاهل الرسائل وخطط العمل الخام ويحفظ الرموز والشدة فقط", () => {
@@ -19,5 +19,11 @@ describe("health exception presentation", () => {
   it("يعالج الحمولة غير الصالحة بأمان دون عرضها", () => {
     expect(parseStoredHealthExceptions("not-json")).toEqual([]);
     expect(parseStoredHealthExceptions('[{"code":7,"severity":"critical","message":"RAW"}]')).toEqual([]);
+  });
+
+  it("يستخرج عداد RFI المتأخر فقط من مصادر الصحة ويصفر الحمولة غير الصالحة", () => {
+    expect(parseStoredHealthSources('{"overdueRfiCount":3,"untrusted":"RAW"}')).toEqual({ overdueRfiCount: 3 });
+    expect(parseStoredHealthSources('{"overdueRfiCount":-1}')).toEqual({ overdueRfiCount: 0 });
+    expect(parseStoredHealthSources("not-json")).toEqual({ overdueRfiCount: 0 });
   });
 });
