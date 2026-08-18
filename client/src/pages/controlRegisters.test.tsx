@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   tenantExistingRoleAssignmentError: null as unknown,
   tenantRoleRevocationSuccess: false,
   tenantRoleRevocationError: null as unknown,
+  tenantRoleUpdateSuccess: false,
+  tenantRoleUpdateError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -79,6 +81,7 @@ vi.mock("@/lib/trpc", () => ({
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
       createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },
+      updateRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleUpdateError, isSuccess: state.tenantRoleUpdateSuccess }) },
       assignMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantExistingRoleAssignmentError, isSuccess: state.tenantExistingRoleAssignmentSuccess }) },
       revokeMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleRevocationError, isSuccess: state.tenantRoleRevocationSuccess }) },
     },
@@ -258,6 +261,31 @@ describe("control-register dashboards", () => {
     state.isArabic = true;
     markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("إلغاء إسناد الدور");
+    state.isArabic = false;
+  });
+
+  it("يعرض تحديث الدور المخصص وحالتي نجاح وفشل التحديث باللغتين", () => {
+    state.isArabic = false;
+    state.tenantRoleUpdateSuccess = false;
+    state.tenantRoleUpdateError = null;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Update a custom role");
+    expect(markup).toContain("Select a custom role");
+
+    state.tenantRoleUpdateSuccess = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("The role definition and permissions were updated with audit evidence.");
+
+    state.tenantRoleUpdateSuccess = false;
+    state.tenantRoleUpdateError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
+    state.tenantRoleUpdateError = null;
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("تحديث دور مخصص");
+    expect(markup).toContain("اختر دورًا مخصصًا");
     state.isArabic = false;
   });
 });

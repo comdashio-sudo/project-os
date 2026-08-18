@@ -56,6 +56,10 @@ export const projectErrorMessages = {
     ar: "يجب أن تنتمي جميع الصلاحيات المختارة إلى منتج الدور المحدد وأن تكون موجودة في الكتالوج.",
     en: "Every selected permission must exist in the catalog and belong to the selected role product.",
   },
+  PROJECT_OS_SYSTEM_ROLE_IMMUTABLE: {
+    ar: "لا يمكن تعديل دور يديره النظام.",
+    en: "A system-managed role cannot be modified.",
+  },
   PROJECT_OS_MEMBER_NOT_FOUND: {
     ar: "العضوية المحددة غير متاحة ضمن هذه المؤسسة.",
     en: "The selected membership is not available in this organization.",

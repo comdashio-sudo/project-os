@@ -27,6 +27,9 @@ export default function TenantAdministration() {
   const [newRoleName, setNewRoleName] = React.useState("");
   const [newRoleProduct, setNewRoleProduct] = React.useState<"EXECUTIVE" | "PMO" | "PROJECT">("EXECUTIVE");
   const [newRolePermissions, setNewRolePermissions] = React.useState<string[]>([]);
+  const [editRoleId, setEditRoleId] = React.useState("");
+  const [editRoleName, setEditRoleName] = React.useState("");
+  const [editRolePermissions, setEditRolePermissions] = React.useState<string[]>([]);
   const [existingMembershipId, setExistingMembershipId] = React.useState("");
   const [existingMembershipRoleId, setExistingMembershipRoleId] = React.useState("");
   const [existingMembershipScopeType, setExistingMembershipScopeType] = React.useState<ScopeType>("company");
@@ -52,6 +55,14 @@ export default function TenantAdministration() {
       setNewRoleName("");
       setNewRoleProduct("EXECUTIVE");
       setNewRolePermissions([]);
+    },
+  });
+  const roleUpdate = trpc.tenant.updateRole.useMutation({
+    onSuccess: async () => {
+      await utils.tenant.administration.invalidate({ tenantId });
+      setEditRoleId("");
+      setEditRoleName("");
+      setEditRolePermissions([]);
     },
   });
   const existingRoleAssignment = trpc.tenant.assignMembershipRole.useMutation({
@@ -109,12 +120,31 @@ export default function TenantAdministration() {
     setRevokingAssignmentId(assignmentId);
     roleRevocation.mutate({ tenantId, assignmentId });
   };
+  const roleUpdateText = isArabic
+    ? { title: "تحديث دور مخصص", sub: "لا تظهر الأدوار النظامية هنا، ويمنع الخادم تعديل أي دور مرتبط بعضوية المنفذ.", select: "اختر دورًا مخصصًا", save: "حفظ تحديث الدور", saving: "جارٍ حفظ تحديث الدور…", success: "تم تحديث تعريف الدور وصلاحياته وتسجيل الدليل التدقيقي." }
+    : { title: "Update a custom role", sub: "System-managed roles are excluded, and the server blocks changes to any role assigned to the acting manager.", select: "Select a custom role", save: "Save role update", saving: "Saving role update…", success: "The role definition and permissions were updated with audit evidence." };
+  const editableRoles = data.roles.filter(role => !role.systemManaged);
+  const selectedEditableRole = editableRoles.find(role => role.id === editRoleId) ?? null;
+  const updatePermissions = selectedEditableRole ? data.permissions.filter(permission => permission.productCode === selectedEditableRole.productCode) : [];
+  const toggleUpdatePermission = (permissionCode: string) => setEditRolePermissions(current => current.includes(permissionCode) ? current.filter(code => code !== permissionCode) : [...current, permissionCode]);
+  const selectRoleForUpdate = (nextRoleId: string) => {
+    const nextRole = editableRoles.find(role => role.id === nextRoleId);
+    setEditRoleId(nextRoleId);
+    setEditRoleName(nextRole?.name ?? "");
+    setEditRolePermissions(nextRole?.permissions.map(permission => permission.code) ?? []);
+  };
+  const submitRoleUpdate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editRoleId) return;
+    roleUpdate.mutate({ tenantId, roleId: editRoleId, name: editRoleName, permissionCodes: editRolePermissions });
+  };
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div></div></header>
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white"><p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">PROJECT OS</p><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><p className="mt-2 text-slate-300">{t.sub}</p></section>
+        <Card className="mt-6"><CardHeader><CardTitle>{roleUpdateText.title}</CardTitle><p className="text-sm leading-6 text-slate-500">{roleUpdateText.sub}</p></CardHeader><CardContent>{editableRoles.length ? <form className="grid gap-4 sm:grid-cols-2" onSubmit={submitRoleUpdate}><div className="space-y-2"><Label htmlFor="edit-role">{roleUpdateText.select}</Label><select id="edit-role" required value={editRoleId} onChange={event => selectRoleForUpdate(event.target.value)} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"><option value="" disabled>{roleUpdateText.select}</option>{editableRoles.map(role => <option key={role.id} value={role.id}>{role.name} · {role.code}</option>)}</select></div><div className="space-y-2"><Label htmlFor="edit-role-name">{t.roleName}</Label><Input id="edit-role-name" required disabled={!selectedEditableRole} value={editRoleName} onChange={event => setEditRoleName(event.target.value)} /></div><fieldset className="space-y-2 sm:col-span-2"><legend className="text-sm font-medium">{t.choosePermissions}</legend><div className="grid gap-2 sm:grid-cols-2">{updatePermissions.map(permission => <label key={permission.code} className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" disabled={!selectedEditableRole} checked={editRolePermissions.includes(permission.code)} onChange={() => toggleUpdatePermission(permission.code)} />{permission.code} · {permission.name}</label>)}</div></fieldset><div className="sm:col-span-2 space-y-3"><Button type="submit" disabled={!selectedEditableRole || editRolePermissions.length === 0 || roleUpdate.isPending}>{roleUpdate.isPending ? roleUpdateText.saving : roleUpdateText.save}</Button>{roleUpdate.isSuccess ? <p role="status" className="text-sm font-medium text-emerald-700">{roleUpdateText.success}</p> : null}{roleUpdate.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(roleUpdate.error, isArabic)}</p> : null}</div></form> : <p className="text-sm text-slate-500">{t.noRoles}</p>}</CardContent></Card>
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
           <div className="space-y-6">
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-[#0e6b70]" />{t.assignTitle}</CardTitle><p className="text-sm leading-6 text-slate-500">{t.assignSub}</p></CardHeader><CardContent className="space-y-5">

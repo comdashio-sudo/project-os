@@ -154,6 +154,27 @@ function configureAuthorizedMembershipRoleRevocation(input: { assignmentTenantId
   return transactionDouble;
 }
 
+function configureAuthorizedRoleUpdate(input: { systemManaged?: boolean; actorHasRole?: boolean } = {}) {
+  const transactionDouble = {
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+    delete: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "id,productCode,systemManaged,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA, productCode: "EXECUTIVE", systemManaged: input.systemManaged ?? false }]);
+    if (keys === "membershipId") return queryResult(input.actorHasRole ? [{ membershipId: "membership-a" }] : []);
+    if (keys === "code,id,productCode") return queryResult([{ id: "permission-1", code: "tenant.manage", productCode: "EXECUTIVE" }]);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -319,6 +340,47 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
     expect(transactionDouble.delete).toHaveBeenCalledTimes(1);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects custom-role updates for a tenant without active membership before loading the role", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.updateRole({ tenantId: tenantB, roleId: "55555555-5555-4555-8555-555555555555", name: "Updated role", permissionCodes: ["tenant.manage"] })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects updates to a system-managed role before inspecting the actor's assignments or writing", async () => {
+    configureAuthorizedRoleUpdate({ systemManaged: true });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.updateRole({ tenantId: tenantA, roleId: "55555555-5555-4555-8555-555555555555", name: "Updated role", permissionCodes: ["tenant.manage"] })).rejects.toThrow("PROJECT_OS_SYSTEM_ROLE_IMMUTABLE");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects updates to a role assigned to the acting manager", async () => {
+    configureAuthorizedRoleUpdate({ actorHasRole: true });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.updateRole({ tenantId: tenantA, roleId: "55555555-5555-4555-8555-555555555555", name: "Updated role", permissionCodes: ["tenant.manage"] })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("updates an authorized custom role and its catalog permissions with audit evidence in one transaction", async () => {
+    const transactionDouble = configureAuthorizedRoleUpdate();
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.tenant.updateRole({ tenantId: tenantA, roleId: "55555555-5555-4555-8555-555555555555", name: "Updated role", permissionCodes: ["tenant.manage"] });
+
+    expect(result).toEqual({ id: "55555555-5555-4555-8555-555555555555", permissionCount: 1 });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.delete).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
 
   it("rejects member assignment for a tenant without active membership before inspecting the target user or role", async () => {

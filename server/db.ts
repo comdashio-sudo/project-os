@@ -167,6 +167,29 @@ export async function createTenantRole(input: { actorUserId: number; tenantId: s
   return { id: roleId, code: normalizedCode, permissionCount: selectedPermissions.length };
 }
 
+export async function updateTenantRole(input: { actorUserId: number; tenantId: string; roleId: string; name: string; permissionCodes: string[] }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId, productCode: roles.productCode, systemManaged: roles.systemManaged }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
+  if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  if (role.systemManaged) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SYSTEM_ROLE_IMMUTABLE" });
+  const [actorRoleAssignment] = await db.select({ membershipId: memberships.id }).from(memberships).innerJoin(membershipRoles, eq(memberships.id, membershipRoles.membershipId)).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.actorUserId), eq(membershipRoles.roleId, role.id))).limit(1);
+  if (actorRoleAssignment) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
+  const permissionCodes = Array.from(new Set(input.permissionCodes.map(code => code.trim())));
+  const selectedPermissions = await db.select({ id: permissions.id, code: permissions.code, productCode: permissions.productCode }).from(permissions).where(inArray(permissions.code, permissionCodes));
+  if (selectedPermissions.length !== permissionCodes.length || selectedPermissions.some(permission => permission.productCode !== role.productCode)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_ROLE_PERMISSIONS" });
+  }
+  await db.transaction(async tx => {
+    await tx.update(roles).set({ name: input.name.trim() }).where(eq(roles.id, role.id));
+    await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, role.id));
+    await tx.insert(rolePermissions).values(selectedPermissions.map(permission => ({ roleId: role.id, permissionId: permission.id })));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.role_updated", entityType: "role", entityId: role.id, metadata: JSON.stringify({ name: input.name.trim(), permissionCodes }) });
+  });
+  return { id: role.id, permissionCount: selectedPermissions.length };
+}
+
 export async function assignTenantMembershipRole(input: { actorUserId: number; tenantId: string; membershipId: string; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
