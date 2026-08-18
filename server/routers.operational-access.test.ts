@@ -244,6 +244,16 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects a membership invitation for a tenant without active membership before inspecting invite data", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.createInvitation({ tenantId: tenantB, email: "invitee@example.com", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects custom-role permissions outside the selected product before writing", async () => {
     configureAuthorizedRoleCreation("PMO");
     const caller = appRouter.createCaller(context());

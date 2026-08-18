@@ -66,6 +66,31 @@ export const memberships = mysqlTable(
   ],
 );
 
+export const membershipInvitations = mysqlTable(
+  "membership_invitations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    email: varchar("email", { length: 320 }).notNull(),
+    roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id),
+    scopeType: mysqlEnum("scopeType", ["company", "portfolio", "program", "project"]).notNull(),
+    scopeId: varchar("scopeId", { length: 36 }),
+    tokenHash: varchar("tokenHash", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["pending", "accepted", "expired", "revoked"]).default("pending").notNull(),
+    invitedByUserId: int("invitedByUserId").notNull().references(() => users.id),
+    acceptedByUserId: int("acceptedByUserId").references(() => users.id),
+    expiresAt: timestamp("expiresAt").notNull(),
+    acceptedAt: timestamp("acceptedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("membership_invitations_token_hash_unique").on(table.tokenHash),
+    index("membership_invitations_tenant_email_status_idx").on(table.tenantId, table.email, table.status),
+    index("membership_invitations_email_status_idx").on(table.email, table.status),
+  ],
+);
+
 export const subscriptions = mysqlTable(
   "subscriptions",
   {

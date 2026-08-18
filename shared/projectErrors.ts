@@ -76,6 +76,10 @@ export const projectErrorMessages = {
     ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
     en: "The selected user already has a membership in this organization.",
   },
+  PROJECT_OS_INVITATION_ALREADY_PENDING: {
+    ar: "توجد دعوة معلقة بالفعل لهذا البريد ضمن المؤسسة.",
+    en: "A pending invitation already exists for this email in the organization.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

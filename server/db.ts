@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
+import { createHash, randomBytes } from "node:crypto";
 import {
   type InsertUser,
   type ProductCode,
@@ -8,6 +9,7 @@ import {
   auditLogs,
   companies,
   memberships,
+  membershipInvitations,
   membershipRoles,
   permissions,
   portfolios,
@@ -273,6 +275,29 @@ export async function assignTenantMember(input: { actorUserId: number; tenantId:
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_assigned", entityType: "membership", entityId: membershipId, metadata: JSON.stringify({ targetUserId: input.targetUserId, roleId: input.roleId, scopeType: input.scopeType, scopeId: input.scopeId ?? null }) });
   });
   return { membershipId, assignmentId, status: "invited" as const };
+}
+
+export async function createMembershipInvitation(input: { actorUserId: number; tenantId: string; email: string; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
+  const email = input.email.trim().toLowerCase();
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
+  if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(and(eq(memberships.tenantId, input.tenantId), eq(users.email, email))).limit(1);
+  if (existingMembership) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBER_ALREADY_EXISTS" });
+  const [pendingInvitation] = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.tenantId, input.tenantId), eq(membershipInvitations.email, email), eq(membershipInvitations.status, "pending"))).limit(1);
+  if (pendingInvitation) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_INVITATION_ALREADY_PENDING" });
+  const invitationId = crypto.randomUUID();
+  const inviteToken = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(inviteToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db.transaction(async tx => {
+    await tx.insert(membershipInvitations).values({ id: invitationId, tenantId: input.tenantId, email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, tokenHash, status: "pending", invitedByUserId: input.actorUserId, expiresAt });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_invited", entityType: "membership_invitation", entityId: invitationId, metadata: JSON.stringify({ email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, expiresAt: expiresAt.toISOString() }) });
+  });
+  return { invitationId, email, expiresAt, inviteToken };
 }
 
 export async function writeAuditLog(input: {
