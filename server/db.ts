@@ -13,6 +13,7 @@ import {
   memberships,
   membershipInvitations,
   membershipRoles,
+  changeRequests,
   hseObservations,
   ncrs,
   permissions,
@@ -829,6 +830,42 @@ export async function transitionNcrStatus(input: { userId: number; tenantId: str
 }
 
 const hseStatusTransitions: Record<string, readonly string[]> = { open: ["assigned", "cancelled"], assigned: ["remediation", "cancelled"], remediation: ["verification", "cancelled"], verification: ["closed", "remediation"], closed: [], cancelled: [] };
+
+const changeRequestTransitions: Record<string, readonly string[]> = { draft: ["submitted", "cancelled"], submitted: ["under_review", "cancelled"], under_review: ["approved", "rejected", "cancelled"], approved: [], rejected: [], cancelled: [] };
+
+export async function getChangeRequestsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: changeRequests.id, changeNumber: changeRequests.changeNumber, title: changeRequests.title, description: changeRequests.description, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, currency: changeRequests.currency, status: changeRequests.status, createdAt: changeRequests.createdAt }).from(changeRequests).where(and(eq(changeRequests.tenantId, input.tenantId), eq(changeRequests.projectId, input.projectId))).orderBy(desc(changeRequests.createdAt));
+}
+
+export async function createChangeRequestForTenant(input: { userId: number; tenantId: string; projectId: string; changeNumber: string; title: string; description: string; impactScheduleDays: number; impactCost: number; currency: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(changeRequests).values({ id, tenantId: input.tenantId, projectId: input.projectId, changeNumber: input.changeNumber, title: input.title, description: input.description, impactScheduleDays: input.impactScheduleDays, impactCost: String(input.impactCost), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.change_request_created", entityType: "change_request", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, changeNumber: input.changeNumber, impactScheduleDays: input.impactScheduleDays, impactCost: input.impactCost, currency: input.currency }) }); });
+  return { id, status: "draft" as const };
+}
+
+export async function transitionChangeRequestStatus(input: { userId: number; tenantId: string; projectId: string; changeRequestId: string; nextStatus: "draft" | "submitted" | "under_review" | "approved" | "rejected" | "cancelled" }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [request] = await db.select({ id: changeRequests.id, status: changeRequests.status }).from(changeRequests).where(and(eq(changeRequests.id, input.changeRequestId), eq(changeRequests.tenantId, input.tenantId), eq(changeRequests.projectId, input.projectId))).limit(1);
+  if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CHANGE_REQUEST_NOT_FOUND" });
+  if (!changeRequestTransitions[request.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CHANGE_REQUEST_TRANSITION_INVALID" });
+  const isReviewOutcome = ["approved", "rejected"].includes(input.nextStatus);
+  await db.transaction(async tx => { await tx.update(changeRequests).set({ status: input.nextStatus, submittedAt: input.nextStatus === "submitted" ? new Date() : undefined, reviewedByUserId: isReviewOutcome ? input.userId : undefined, reviewedAt: isReviewOutcome ? new Date() : undefined }).where(and(eq(changeRequests.id, input.changeRequestId), eq(changeRequests.tenantId, input.tenantId), eq(changeRequests.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.change_request_status_transitioned", entityType: "change_request", entityId: input.changeRequestId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: request.status, nextStatus: input.nextStatus }) }); });
+  return { id: input.changeRequestId, previousStatus: request.status, status: input.nextStatus };
+}
 
 export async function getHseObservationsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
