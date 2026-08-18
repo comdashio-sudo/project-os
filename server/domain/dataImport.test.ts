@@ -13,4 +13,10 @@ describe("analyzeImportFile", () => {
     const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10 }])) });
     expect(result.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "currentAmount" }));
   });
+
+  it("returns only validated rows and reports their spreadsheet row number", () => {
+    const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10, "Current Amount": 15 }, { "Cost Code": "", "Original Amount": 2, "Current Amount": "not-a-number" }])) });
+    expect(result.validRows).toEqual([{ rowNumber: 2, values: { costCode: "CIVIL", originalAmount: 10, currentAmount: 15 } }]);
+    expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 3, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" })]));
+  });
 });

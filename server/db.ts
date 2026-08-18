@@ -53,8 +53,8 @@ import { calculateOperationalCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
-import { analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
+import { storageGetSignedUrl, storagePut } from "./storage";
+import { analyzeImportFile, type BudgetImportRow, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1366,6 +1366,47 @@ export async function createAndAnalyzeDataImport(input: { userId: number; tenant
   const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("PROJECT_OS_IMPORT_FILE_INVALID");
   const analysis = analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode: "fail_on_duplicate", totalRows: analysis.rows.length, validRows: analysis.errors.length ? 0 : analysis.rows.length, invalidRows: analysis.errors.length ? analysis.rows.length : 0, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, totalRows: analysis.rows.length }) }); });
+  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode: "fail_on_duplicate", totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, totalRows: analysis.rows.length }) }); });
   return { id, status: analysis.errors.length ? "uploaded" : "validated", mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
+}
+
+export async function confirmAndImportData(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
+  if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+  if (record.moduleCode !== "wbs" && record.moduleCode !== "budget") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+
+  const signedUrl = await storageGetSignedUrl(record.fileKey);
+  const fileResponse = await fetch(signedUrl);
+  if (!fileResponse.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" });
+  const bytes = Buffer.from(await fileResponse.arrayBuffer());
+  if (!bytes.length || bytes.length > 10 * 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes });
+  if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
+
+  const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : analysis.validRows as BudgetImportRow[];
+  const keys = record.moduleCode === "wbs"
+    ? (records as WbsImportRow[]).map(row => row.values.code)
+    : (records as BudgetImportRow[]).map(row => row.values.costCode);
+  if (new Set(keys).size !== keys.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+  const existing = record.moduleCode === "wbs"
+    ? await db.select({ key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), inArray(wbsItems.code, keys)))
+    : await db.select({ key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)));
+  if (existing.length && record.duplicateMode === "fail_on_duplicate") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+
+  const now = new Date();
+  await db.transaction(async tx => {
+    if (record.moduleCode === "wbs") await tx.insert(wbsItems).values((records as WbsImportRow[]).map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, name: row.values.name, plannedValue: String(row.values.plannedValue) })));
+    else await tx.insert(budgetLines).values((records as BudgetImportRow[]).map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) })));
+    await tx.update(dataImports).set({ status: "completed", createdRows: records.length, updatedRows: 0, skippedRows: 0, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "validated")));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_completed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: record.moduleCode, createdRows: records.length, duplicateMode: record.duplicateMode }) });
+  });
+  return { id: record.id, status: "completed" as const, createdRows: records.length, updatedRows: 0, skippedRows: 0 };
 }
