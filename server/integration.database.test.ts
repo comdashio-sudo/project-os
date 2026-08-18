@@ -97,12 +97,16 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
   it("analyzes and confirms an authorized WBS import with atomic business and audit writes", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);
+    await expect(caller.dataImports.export({ tenantId: tenantA, projectId: projectB, moduleCode: "wbs", format: "csv", locale: "en" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     const analysis = await caller.dataImports.analyze({ tenantId: tenantA, projectId: projectA, moduleCode: "wbs", fileName: "integration-wbs.csv", sourceFormat: "csv", base64: Buffer.from("Code,Name,Planned Value\nWBS-IMPORT-TRPC,Imported work package,250").toString("base64") });
     expect(analysis).toMatchObject({ status: "validated", totalRows: 1, errors: [] });
     const completion = await caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id });
     expect(completion).toMatchObject({ id: analysis.id, status: "completed", createdRows: 1 });
+    const exported = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "wbs", format: "csv", locale: "en" });
+    expect(exported).toMatchObject({ fileName: "wbs-export.csv", rowCount: 1 }); expect(Buffer.from(exported.base64, "base64").toString("utf8")).toContain("WBS-IMPORT-TRPC");
     const [rows] = await connection.query<{ imports: number; wbs: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-IMPORT-TRPC' AND plannedValue = 250) AS wbs, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS audits", [analysis.id, tenantA, projectA, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, wbs: 1, audits: 1 });
+    const [exportAudit] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE entityId = ? AND action = 'data_export_generated'", [exported.id]); expect(exportAudit[0]).toMatchObject({ count: 1 });
   });
 
   it("rejects cross-tenant EVM and health snapshot captures before writing snapshots", async () => {

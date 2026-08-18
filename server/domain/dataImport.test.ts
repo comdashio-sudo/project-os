@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { analyzeImportFile } from "./dataImport";
+import { analyzeImportFile, buildDataExportFile } from "./dataImport";
 
 function workbookBytes(rows: Record<string, unknown>[]) { const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Data"); return XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer; }
 
@@ -18,5 +18,11 @@ describe("analyzeImportFile", () => {
     const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10, "Current Amount": 15 }, { "Cost Code": "", "Original Amount": 2, "Current Amount": "not-a-number" }])) });
     expect(result.validRows).toEqual([{ rowNumber: 2, values: { costCode: "CIVIL", originalAmount: 10, currentAmount: 15 } }]);
     expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 3, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" })]));
+  });
+  it("builds localized CSV headers without exposing unrequested columns", () => {
+    const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] });
+    const csv = result.bytes.toString("utf8");
+    expect(result).toMatchObject({ fileName: "wbs-export.csv", contentType: "text/csv;charset=utf-8" });
+    expect(csv).toContain("رمز WBS"); expect(csv).toContain("أعمال مدنية"); expect(csv).not.toContain("must-not-export");
   });
 });

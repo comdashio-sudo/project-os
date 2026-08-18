@@ -54,7 +54,7 @@ import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
-import { analyzeImportFile, type BudgetImportRow, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { analyzeImportFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1409,4 +1409,24 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_completed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: record.moduleCode, createdRows: records.length, duplicateMode: record.duplicateMode }) });
   });
   return { id: record.id, status: "completed" as const, createdRows: records.length, updatedRows: 0, skippedRows: 0 };
+}
+
+export async function createDataExport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const rows: Record<string, unknown>[] = input.moduleCode === "wbs"
+    ? (await db.select({ code: wbsItems.code, name: wbsItems.name, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue) }))
+    : input.moduleCode === "budget"
+      ? (await db.select({ costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId)))).map(row => ({ ...row, originalAmount: Number(row.originalAmount), currentAmount: Number(row.currentAmount) }))
+      : (await db.select({ code: activities.code, name: activities.name, plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt, status: activities.status }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue), plannedStartAt: row.plannedStartAt?.toISOString().slice(0, 10) ?? "", plannedFinishAt: row.plannedFinishAt?.toISOString().slice(0, 10) ?? "" }));
+  const file = buildDataExportFile({ moduleCode: input.moduleCode, format: input.format, locale: input.locale, rows });
+  if (file.bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "PROJECT_OS_EXPORT_FILE_TOO_LARGE" });
+  const exportId = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(auditLogs).values({ id: exportId, tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "data_export", entityId: exportId, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, format: input.format, locale: input.locale, rowCount: rows.length }) }); });
+  return { id: exportId, fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64"), rowCount: rows.length };
 }
