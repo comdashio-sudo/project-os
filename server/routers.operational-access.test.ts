@@ -99,6 +99,24 @@ function configureAuthorizedTenantMemberAssignment() {
   return transactionDouble;
 }
 
+function configureAuthorizedRoleCreation(permissionProductCode: "EXECUTIVE" | "PMO" | "PROJECT" = "EXECUTIVE") {
+  const transactionDouble = {
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "id") return queryResult([]);
+    if (keys === "code,id,productCode") return queryResult([{ id: "permission-1", code: "tenant.manage", productCode: permissionProductCode }]);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -155,6 +173,36 @@ describe("operational API authorization", () => {
     await expect(caller.tenant.findAssignableUser({ tenantId: tenantA, email: "candidate@example.com" })).resolves.toEqual({ id: 99, name: "Candidate User", email: "candidate@example.com" });
     await expect(caller.tenant.findAssignableUser({ tenantId: tenantA, email: "candidate@example.com" })).resolves.toBeNull();
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom-role creation for a tenant without active membership before inspecting roles or permissions", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.createRole({ tenantId: tenantB, code: "CUSTOM_MANAGER", name: "Custom Manager", productCode: "EXECUTIVE", permissionCodes: ["tenant.manage"] })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom-role permissions outside the selected product before writing", async () => {
+    configureAuthorizedRoleCreation("PMO");
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.createRole({ tenantId: tenantA, code: "CUSTOM_MANAGER", name: "Custom Manager", productCode: "EXECUTIVE", permissionCodes: ["tenant.manage"] })).rejects.toThrow("PROJECT_OS_INVALID_ROLE_PERMISSIONS");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized custom role with catalog permissions and audit evidence in one transaction", async () => {
+    const transactionDouble = configureAuthorizedRoleCreation();
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.tenant.createRole({ tenantId: tenantA, code: "custom_manager", name: "Custom Manager", productCode: "EXECUTIVE", permissionCodes: ["tenant.manage"] });
+
+    expect(result).toMatchObject({ id: expect.any(String), code: "CUSTOM_MANAGER", permissionCount: 1 });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it("rejects member assignment for a tenant without active membership before inspecting the target user or role", async () => {

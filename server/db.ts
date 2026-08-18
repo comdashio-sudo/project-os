@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import {
@@ -144,6 +144,27 @@ export async function findAssignableTenantUser(input: { userId: number; tenantId
   const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, candidate.id))).limit(1);
   if (existingMembership) return null;
   return candidate;
+}
+
+export async function createTenantRole(input: { actorUserId: number; tenantId: string; code: string; name: string; productCode: ProductCode; permissionCodes: string[] }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  const normalizedCode = input.code.trim().toUpperCase();
+  const permissionCodes = Array.from(new Set(input.permissionCodes.map(code => code.trim())));
+  const [existingRole] = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, input.tenantId), eq(roles.code, normalizedCode))).limit(1);
+  if (existingRole) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_ROLE_CODE_EXISTS" });
+  const selectedPermissions = await db.select({ id: permissions.id, code: permissions.code, productCode: permissions.productCode }).from(permissions).where(inArray(permissions.code, permissionCodes));
+  if (selectedPermissions.length !== permissionCodes.length || selectedPermissions.some(permission => permission.productCode !== input.productCode)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_ROLE_PERMISSIONS" });
+  }
+  const roleId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(roles).values({ id: roleId, tenantId: input.tenantId, code: normalizedCode, name: input.name.trim(), productCode: input.productCode, systemManaged: false });
+    await tx.insert(rolePermissions).values(selectedPermissions.map(permission => ({ roleId, permissionId: permission.id })));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.role_created", entityType: "role", entityId: roleId, metadata: JSON.stringify({ code: normalizedCode, productCode: input.productCode, permissionCodes }) });
+  });
+  return { id: roleId, code: normalizedCode, permissionCount: selectedPermissions.length };
 }
 
 export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {

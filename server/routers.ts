@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { assignTenantMember, captureOperationalEvmSnapshot, createAction, createActivity, createBudgetLine, createCostEntry, createDecision, createIssue, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createWbsItem, findAssignableTenantUser, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, getTenantAdministration, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { assignTenantMember, captureOperationalEvmSnapshot, createAction, createActivity, createBudgetLine, createCostEntry, createDecision, createIssue, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, getTenantAdministration, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -42,6 +42,7 @@ export const appRouter = router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
     administration: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantAdministration({ userId: ctx.user.id, ...input })),
     findAssignableUser: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), email: z.string().trim().email().max(320) })).query(({ ctx, input }) => findAssignableTenantUser({ userId: ctx.user.id, ...input })),
+    createRole: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9_ -]+$/), name: z.string().trim().min(2).max(160), productCode: z.enum(productCodes), permissionCodes: z.array(z.string().trim().min(3).max(120)).min(1).max(30) })).mutation(({ ctx, input }) => createTenantRole({ actorUserId: ctx.user.id, ...input })),
     assignMember: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), targetUserId: z.number().int().positive(), roleId: z.string().uuid(), scopeType: z.enum(["company", "portfolio", "program", "project"]), scopeId: z.string().uuid().optional() })).mutation(({ ctx, input }) => assignTenantMember({ actorUserId: ctx.user.id, ...input })),
     create: protectedProcedure
       .input(z.object({

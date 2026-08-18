@@ -48,6 +48,14 @@ export const projectErrorMessages = {
     ar: "الدور المحدد غير متاح ضمن هذه المؤسسة.",
     en: "The selected role is not available in this organization.",
   },
+  PROJECT_OS_ROLE_CODE_EXISTS: {
+    ar: "رمز الدور مستخدم بالفعل ضمن هذه المؤسسة.",
+    en: "This role code is already in use in this organization.",
+  },
+  PROJECT_OS_INVALID_ROLE_PERMISSIONS: {
+    ar: "يجب أن تنتمي جميع الصلاحيات المختارة إلى منتج الدور المحدد وأن تكون موجودة في الكتالوج.",
+    en: "Every selected permission must exist in the catalog and belong to the selected role product.",
+  },
   PROJECT_OS_MEMBER_ALREADY_EXISTS: {
     ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
     en: "The selected user already has a membership in this organization.",

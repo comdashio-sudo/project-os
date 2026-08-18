@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   executiveMutationPending: false,
   tenantAssignmentSuccess: false,
   tenantAssignmentError: null as unknown,
+  tenantRoleSuccess: false,
+  tenantRoleError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -72,6 +74,7 @@ vi.mock("@/lib/trpc", () => ({
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
+      createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },
     },
     pmo: {
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -173,6 +176,33 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("بريد المستخدم الموجود");
     expect(markup).toContain("التحقق من المستخدم");
     expect(markup).toContain("النطاق: المؤسسة");
+    state.isArabic = false;
+  });
+
+  it("يعرض نموذج الدور المخصص وحالتي نجاح وفشل إنشائه باللغتين", () => {
+    state.isArabic = false;
+    state.tenantRoleSuccess = false;
+    state.tenantRoleError = null;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Create a custom role");
+    expect(markup).toContain("Role code");
+    expect(markup).toContain("Choose at least one permission");
+
+    state.tenantRoleSuccess = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("The custom role and its permissions were created.");
+
+    state.tenantRoleSuccess = false;
+    state.tenantRoleError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
+    state.tenantRoleError = null;
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("إنشاء دور مخصص");
+    expect(markup).toContain("رمز الدور");
+    expect(markup).toContain("اختر صلاحية واحدة على الأقل");
     state.isArabic = false;
   });
 });
