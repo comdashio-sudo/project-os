@@ -56,6 +56,14 @@ export const projectErrorMessages = {
     ar: "يجب أن تنتمي جميع الصلاحيات المختارة إلى منتج الدور المحدد وأن تكون موجودة في الكتالوج.",
     en: "Every selected permission must exist in the catalog and belong to the selected role product.",
   },
+  PROJECT_OS_MEMBER_NOT_FOUND: {
+    ar: "العضوية المحددة غير متاحة ضمن هذه المؤسسة.",
+    en: "The selected membership is not available in this organization.",
+  },
+  PROJECT_OS_ROLE_ASSIGNMENT_EXISTS: {
+    ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
+    en: "This role and scope are already assigned to the selected membership.",
+  },
   PROJECT_OS_MEMBER_ALREADY_EXISTS: {
     ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
     en: "The selected user already has a membership in this organization.",

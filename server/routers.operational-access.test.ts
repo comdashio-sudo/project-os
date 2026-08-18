@@ -117,6 +117,25 @@ function configureAuthorizedRoleCreation(permissionProductCode: "EXECUTIVE" | "P
   return transactionDouble;
 }
 
+function configureAuthorizedMembershipRoleAssignment(input: { membershipTenantId?: string; membershipUserId?: number; existingAssignment?: boolean } = {}) {
+  const transactionDouble = {
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "id,tenantId,userId") return queryResult([{ id: "member-target", tenantId: input.membershipTenantId ?? tenantA, userId: input.membershipUserId ?? 99 }]);
+    if (keys === "id,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA }]);
+    if (keys === "id") return queryResult(input.existingAssignment ? [{ id: "existing-role-assignment" }] : []);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -203,6 +222,45 @@ describe("operational API authorization", () => {
     expect(result).toMatchObject({ id: expect.any(String), code: "CUSTOM_MANAGER", permissionCount: 1 });
     expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects an additional membership-role assignment for a tenant without active membership before loading the membership", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMembershipRole({ tenantId: tenantB, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a role assignment that would change the acting manager's own privileges", async () => {
+    configureAuthorizedMembershipRoleAssignment({ membershipUserId: 42 });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an additional role assignment when the membership belongs to another tenant", async () => {
+    configureAuthorizedMembershipRoleAssignment({ membershipTenantId: tenantB });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_MEMBER_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("assigns an authorized additional role and records audit evidence in the same transaction", async () => {
+    const transactionDouble = configureAuthorizedMembershipRoleAssignment();
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: "66666666-6666-4666-8666-666666666666", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" });
+
+    expect(result).toMatchObject({ assignmentId: expect.any(String), membershipId: "member-target", roleId: "55555555-5555-4555-8555-555555555555" });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
 
   it("rejects member assignment for a tenant without active membership before inspecting the target user or role", async () => {

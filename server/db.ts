@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import {
@@ -165,6 +165,28 @@ export async function createTenantRole(input: { actorUserId: number; tenantId: s
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.role_created", entityType: "role", entityId: roleId, metadata: JSON.stringify({ code: normalizedCode, productCode: input.productCode, permissionCodes }) });
   });
   return { id: roleId, code: normalizedCode, permissionCount: selectedPermissions.length };
+}
+
+export async function assignTenantMembershipRole(input: { actorUserId: number; tenantId: string; membershipId: string; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  if (input.scopeType === "company" && input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  if (input.scopeType !== "company" && !input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  const [membership] = await db.select({ id: memberships.id, tenantId: memberships.tenantId, userId: memberships.userId }).from(memberships).where(eq(memberships.id, input.membershipId)).limit(1);
+  if (!membership || membership.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MEMBER_NOT_FOUND" });
+  if (membership.userId === input.actorUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
+  if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  const scopeCondition = input.scopeId ? eq(membershipRoles.scopeId, input.scopeId) : isNull(membershipRoles.scopeId);
+  const [existingAssignment] = await db.select({ id: membershipRoles.id }).from(membershipRoles).where(and(eq(membershipRoles.membershipId, membership.id), eq(membershipRoles.roleId, role.id), eq(membershipRoles.scopeType, input.scopeType), scopeCondition)).limit(1);
+  if (existingAssignment) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_ROLE_ASSIGNMENT_EXISTS" });
+  const assignmentId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(membershipRoles).values({ id: assignmentId, membershipId: membership.id, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.membership_role_assigned", entityType: "membership_role", entityId: assignmentId, metadata: JSON.stringify({ membershipId: membership.id, targetUserId: membership.userId, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null }) });
+  });
+  return { assignmentId, membershipId: membership.id, roleId: role.id };
 }
 
 export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {

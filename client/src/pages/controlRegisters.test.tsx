@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   tenantAssignmentError: null as unknown,
   tenantRoleSuccess: false,
   tenantRoleError: null as unknown,
+  tenantExistingRoleAssignmentSuccess: false,
+  tenantExistingRoleAssignmentError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -75,6 +77,7 @@ vi.mock("@/lib/trpc", () => ({
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
       createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },
+      assignMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantExistingRoleAssignmentError, isSuccess: state.tenantExistingRoleAssignmentSuccess }) },
     },
     pmo: {
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -203,6 +206,32 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("إنشاء دور مخصص");
     expect(markup).toContain("رمز الدور");
     expect(markup).toContain("اختر صلاحية واحدة على الأقل");
+    state.isArabic = false;
+  });
+
+  it("يعرض تعيين الدور لعضوية قائمة وحالتي نجاح وفشل الإسناد باللغتين", () => {
+    state.isArabic = false;
+    state.tenantExistingRoleAssignmentSuccess = false;
+    state.tenantExistingRoleAssignmentError = null;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Assign a role to an existing membership");
+    expect(markup).toContain("Select a member");
+    expect(markup).toContain("Select a role to assign");
+
+    state.tenantExistingRoleAssignmentSuccess = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("The role and scope were assigned to the membership with audit evidence.");
+
+    state.tenantExistingRoleAssignmentSuccess = false;
+    state.tenantExistingRoleAssignmentError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
+    state.tenantExistingRoleAssignmentError = null;
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("إسناد دور لعضوية قائمة");
+    expect(markup).toContain("اختر عضوًا");
     state.isArabic = false;
   });
 });
