@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   tenantRoleRevocationError: null as unknown,
   tenantRoleUpdateSuccess: false,
   tenantRoleUpdateError: null as unknown,
+  tenantInvitationError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -82,6 +83,7 @@ vi.mock("@/lib/trpc", () => ({
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
       createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },
       updateRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleUpdateError, isSuccess: state.tenantRoleUpdateSuccess }) },
+      createInvitation: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantInvitationError, data: null }) },
       assignMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantExistingRoleAssignmentError, isSuccess: state.tenantExistingRoleAssignmentSuccess }) },
       revokeMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleRevocationError, isSuccess: state.tenantRoleRevocationSuccess }) },
     },
@@ -293,5 +295,24 @@ describe("control-register dashboards", () => {
     const markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("Airport Terminal");
     expect(markup).not.toContain("project-opaque-id");
+  });
+
+  it("يعرض نموذج دعوة العضوية باللغتين وحالة الخطأ الآمنة", () => {
+    state.isArabic = false;
+    state.tenantInvitationError = null;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Invite a new member");
+    expect(markup).toContain("Create invitation link");
+
+    state.tenantInvitationError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
+    state.tenantInvitationError = null;
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("دعوة عضو جديد");
+    expect(markup).toContain("إنشاء رابط الدعوة");
+    state.isArabic = false;
   });
 });
