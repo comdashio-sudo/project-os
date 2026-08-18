@@ -125,7 +125,7 @@ export async function getTenantAdministration(input: { userId: number; tenantId:
   ]);
   const membershipAssignments = await Promise.all(memberRows.map(async member => ({
     membershipId: member.membershipId,
-    roles: await db.select({ roleId: membershipRoles.roleId, roleCode: roles.code, roleName: roles.name, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, member.membershipId)),
+    roles: await db.select({ assignmentId: membershipRoles.id, roleId: membershipRoles.roleId, roleCode: roles.code, roleName: roles.name, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, member.membershipId)),
   })));
   const rolesWithPermissions = await Promise.all(roleRows.map(async role => ({
     ...role,
@@ -187,6 +187,25 @@ export async function assignTenantMembershipRole(input: { actorUserId: number; t
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.membership_role_assigned", entityType: "membership_role", entityId: assignmentId, metadata: JSON.stringify({ membershipId: membership.id, targetUserId: membership.userId, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null }) });
   });
   return { assignmentId, membershipId: membership.id, roleId: role.id };
+}
+
+export async function revokeTenantMembershipRole(input: { actorUserId: number; tenantId: string; assignmentId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  const [assignment] = await db
+    .select({ assignmentId: membershipRoles.id, membershipId: membershipRoles.membershipId, roleId: membershipRoles.roleId, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId, userId: memberships.userId, tenantId: memberships.tenantId })
+    .from(membershipRoles)
+    .innerJoin(memberships, eq(membershipRoles.membershipId, memberships.id))
+    .where(eq(membershipRoles.id, input.assignmentId))
+    .limit(1);
+  if (!assignment || assignment.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND" });
+  if (assignment.userId === input.actorUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
+  await db.transaction(async tx => {
+    await tx.delete(membershipRoles).where(eq(membershipRoles.id, assignment.assignmentId));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.membership_role_revoked", entityType: "membership_role", entityId: assignment.assignmentId, metadata: JSON.stringify({ membershipId: assignment.membershipId, targetUserId: assignment.userId, roleId: assignment.roleId, scopeType: assignment.scopeType, scopeId: assignment.scopeId }) });
+  });
+  return { assignmentId: assignment.assignmentId, membershipId: assignment.membershipId };
 }
 
 export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {

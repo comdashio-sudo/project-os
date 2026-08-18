@@ -64,6 +64,10 @@ export const projectErrorMessages = {
     ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
     en: "This role and scope are already assigned to the selected membership.",
   },
+  PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND: {
+    ar: "إسناد الدور المحدد غير متاح ضمن هذه المؤسسة.",
+    en: "The selected role assignment is not available in this organization.",
+  },
   PROJECT_OS_MEMBER_ALREADY_EXISTS: {
     ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
     en: "The selected user already has a membership in this organization.",

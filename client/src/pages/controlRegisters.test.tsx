@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   tenantRoleError: null as unknown,
   tenantExistingRoleAssignmentSuccess: false,
   tenantExistingRoleAssignmentError: null as unknown,
+  tenantRoleRevocationSuccess: false,
+  tenantRoleRevocationError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -41,7 +43,7 @@ const state = vi.hoisted(() => ({
     latestEvm: null,
   },
   tenantAdminData: {
-    members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "company", scopeId: null }] }],
+    members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ assignmentId: "assignment-1", roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "company", scopeId: null }] }],
     roles: [{ id: "role-1", code: "PMO_MANAGER", name: "PMO Manager", productCode: "PMO", systemManaged: false, permissions: [{ code: "pmo.write" }] }],
     permissions: [{ code: "pmo.write", name: "Manage PMO", productCode: "PMO" }],
   },
@@ -78,6 +80,7 @@ vi.mock("@/lib/trpc", () => ({
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
       createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },
       assignMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantExistingRoleAssignmentError, isSuccess: state.tenantExistingRoleAssignmentSuccess }) },
+      revokeMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleRevocationError, isSuccess: state.tenantRoleRevocationSuccess }) },
     },
     pmo: {
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -232,6 +235,29 @@ describe("control-register dashboards", () => {
     markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("إسناد دور لعضوية قائمة");
     expect(markup).toContain("اختر عضوًا");
+    state.isArabic = false;
+  });
+
+  it("يعرض إجراء إلغاء الدور وحالتي نجاح وفشل الإلغاء باللغتين", () => {
+    state.isArabic = false;
+    state.tenantRoleRevocationSuccess = false;
+    state.tenantRoleRevocationError = null;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Revoke role assignment");
+
+    state.tenantRoleRevocationSuccess = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("The role assignment was revoked with audit evidence.");
+
+    state.tenantRoleRevocationSuccess = false;
+    state.tenantRoleRevocationError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
+    state.tenantRoleRevocationError = null;
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("إلغاء إسناد الدور");
     state.isArabic = false;
   });
 });

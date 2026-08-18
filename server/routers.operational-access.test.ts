@@ -136,6 +136,24 @@ function configureAuthorizedMembershipRoleAssignment(input: { membershipTenantId
   return transactionDouble;
 }
 
+function configureAuthorizedMembershipRoleRevocation(input: { assignmentTenantId?: string; assignmentUserId?: number } = {}) {
+  const transactionDouble = {
+    delete: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "assignmentId,membershipId,roleId,scopeId,scopeType,tenantId,userId") return queryResult([{ assignmentId: "77777777-7777-4777-8777-777777777777", membershipId: "member-target", roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company", scopeId: null, tenantId: input.assignmentTenantId ?? tenantA, userId: input.assignmentUserId ?? 99 }]);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -261,6 +279,46 @@ describe("operational API authorization", () => {
     expect(result).toMatchObject({ assignmentId: expect.any(String), membershipId: "member-target", roleId: "55555555-5555-4555-8555-555555555555" });
     expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects role-assignment revocation for a tenant without active membership before loading the assignment", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.revokeMembershipRole({ tenantId: tenantB, assignmentId: "77777777-7777-4777-8777-777777777777" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects revocation of a role assignment owned by the acting manager", async () => {
+    configureAuthorizedMembershipRoleRevocation({ assignmentUserId: 42 });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.revokeMembershipRole({ tenantId: tenantA, assignmentId: "77777777-7777-4777-8777-777777777777" })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects role-assignment revocation when the assignment belongs to another tenant", async () => {
+    configureAuthorizedMembershipRoleRevocation({ assignmentTenantId: tenantB });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.revokeMembershipRole({ tenantId: tenantA, assignmentId: "77777777-7777-4777-8777-777777777777" })).rejects.toThrow("PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("revokes an authorized role assignment and records audit evidence in the same transaction", async () => {
+    const transactionDouble = configureAuthorizedMembershipRoleRevocation();
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.tenant.revokeMembershipRole({ tenantId: tenantA, assignmentId: "77777777-7777-4777-8777-777777777777" });
+
+    expect(result).toEqual({ assignmentId: "77777777-7777-4777-8777-777777777777", membershipId: "member-target" });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.delete).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
   });
 
   it("rejects member assignment for a tenant without active membership before inspecting the target user or role", async () => {
