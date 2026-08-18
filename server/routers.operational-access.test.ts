@@ -1445,4 +1445,39 @@ describe("operational API authorization", () => {
     await expect(caller.hse.create({ tenantId: tenantA, projectId: projectA, observationNumber: "HSE-01", title: "Open edge", description: "An unprotected edge requires immediate control.", category: "safety", severity: "high" })).resolves.toMatchObject({ id: expect.any(String), status: "open" });
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
+
+  it("rejects resource creation for a tenant without active membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.resources.create({ tenantId: tenantB, projectId: projectB, resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects resource allocation above its plan before any database read or write", async () => {
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-02", name: "Civil crew", resourceType: "labor", plannedUnits: 5, allocatedUnits: 6, unitCost: 100, currency: "USD" })).rejects.toThrow("PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN");
+    expect(databaseDouble.select).not.toHaveBeenCalled();
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized resource with audit evidence in one transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-03", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
 });

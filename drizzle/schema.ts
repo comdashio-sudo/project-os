@@ -425,6 +425,26 @@ export const changeRequests = mysqlTable(
   table => [uniqueIndex("change_requests_project_number_unique").on(table.projectId, table.changeNumber), index("change_requests_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
+export const projectResources = mysqlTable(
+  "project_resources",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    resourceCode: varchar("resourceCode", { length: 120 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    resourceType: mysqlEnum("resourceType", ["labor", "equipment", "material", "service"]).notNull(),
+    plannedUnits: decimal("plannedUnits", { precision: 14, scale: 2 }).default("0").notNull(),
+    allocatedUnits: decimal("allocatedUnits", { precision: 14, scale: 2 }).default("0").notNull(),
+    unitCost: decimal("unitCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("project_resources_project_code_unique").on(table.projectId, table.resourceCode), index("project_resources_tenant_project_type_idx").on(table.tenantId, table.projectId, table.resourceType)],
+);
+
 export const wbsItems = mysqlTable(
   "wbs_items",
   {

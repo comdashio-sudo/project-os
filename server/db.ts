@@ -34,6 +34,7 @@ import {
   evmSnapshots,
   documentVersions,
   projectDocuments,
+  projectResources,
   rfis,
   rolePermissions,
   roles,
@@ -902,6 +903,27 @@ export async function transitionHseObservationStatus(input: { userId: number; te
   if (!hseStatusTransitions[observation.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_HSE_TRANSITION_INVALID" });
   await db.transaction(async tx => { await tx.update(hseObservations).set({ status: input.nextStatus }).where(and(eq(hseObservations.id, input.observationId), eq(hseObservations.tenantId, input.tenantId), eq(hseObservations.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hse.observation_status_transitioned", entityType: "hse_observation", entityId: input.observationId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: observation.status, nextStatus: input.nextStatus }) }); });
   return { id: input.observationId, previousStatus: observation.status, status: input.nextStatus };
+}
+
+export async function getProjectResourcesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: projectResources.id, resourceCode: projectResources.resourceCode, name: projectResources.name, resourceType: projectResources.resourceType, plannedUnits: projectResources.plannedUnits, allocatedUnits: projectResources.allocatedUnits, unitCost: projectResources.unitCost, currency: projectResources.currency, createdAt: projectResources.createdAt }).from(projectResources).where(and(eq(projectResources.tenantId, input.tenantId), eq(projectResources.projectId, input.projectId))).orderBy(desc(projectResources.createdAt));
+}
+
+export async function createProjectResourceForTenant(input: { userId: number; tenantId: string; projectId: string; resourceCode: string; name: string; resourceType: "labor" | "equipment" | "material" | "service"; plannedUnits: number; allocatedUnits: number; unitCost: number; currency: string }) {
+  if (input.allocatedUnits > input.plannedUnits) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(projectResources).values({ id, tenantId: input.tenantId, projectId: input.projectId, resourceCode: input.resourceCode, name: input.name, resourceType: input.resourceType, plannedUnits: String(input.plannedUnits), allocatedUnits: String(input.allocatedUnits), unitCost: String(input.unitCost), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_created", entityType: "project_resource", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, resourceCode: input.resourceCode, resourceType: input.resourceType, plannedUnits: input.plannedUnits, allocatedUnits: input.allocatedUnits }) }); });
+  return { id };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {

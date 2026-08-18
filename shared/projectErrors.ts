@@ -172,6 +172,10 @@ export const projectErrorMessages = {
     ar: "لا يستوفي هذا السجل شروط التصعيد في حالته الحالية.",
     en: "This record does not meet the escalation conditions in its current state.",
   },
+  PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN: {
+    ar: "لا يمكن أن تتجاوز وحدات المورد المخصصة وحداته المخططة.",
+    en: "Allocated resource units cannot exceed planned resource units.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
