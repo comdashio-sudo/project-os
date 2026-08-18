@@ -626,7 +626,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ id: risks.id, projectId: risks.projectId, code: risks.code, title: risks.title, probability: risks.probability, severity: risks.severity, status: risks.status, dueAt: risks.dueAt }).from(risks).where(eq(risks.tenantId, input.tenantId)),
     db.select({ id: issues.id, projectId: issues.projectId, code: issues.code, title: issues.title, priority: issues.priority, escalationStatus: issues.escalationStatus, status: issues.status, dueAt: issues.dueAt }).from(issues).where(eq(issues.tenantId, input.tenantId)),
-    db.select({ id: actions.id, projectId: actions.projectId, title: actions.title, priority: actions.priority, status: actions.status, dueAt: actions.dueAt }).from(actions).where(eq(actions.tenantId, input.tenantId)),
+    db.select({ id: actions.id, projectId: actions.projectId, title: actions.title, priority: actions.priority, escalationStatus: actions.escalationStatus, status: actions.status, dueAt: actions.dueAt }).from(actions).where(eq(actions.tenantId, input.tenantId)),
   ]);
 
   return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows };
@@ -896,6 +896,53 @@ export async function createAction(input: { userId: number; tenantId: string; pr
   const id = crypto.randomUUID();
   await db.transaction(async tx => { await tx.insert(actions).values({ id, tenantId: input.tenantId, projectId: input.projectId, title: input.title, priority: input.priority, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_created", entityType: "action", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, priority: input.priority }) }); });
   return { id };
+}
+
+const escalationTransitions = {
+  none: ["pending"],
+  pending: ["escalated"],
+  escalated: [],
+} as const;
+
+function canTransitionEscalation(current: "none" | "pending" | "escalated", next: "pending" | "escalated") {
+  return escalationTransitions[current].includes(next as never);
+}
+
+export async function transitionIssueEscalation(input: { userId: number; tenantId: string; projectId: string; issueId: string; nextStatus: "pending" | "escalated" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [issue] = await db.select({ id: issues.id, priority: issues.priority, status: issues.status, escalationStatus: issues.escalationStatus }).from(issues).where(and(eq(issues.id, input.issueId), eq(issues.tenantId, input.tenantId), eq(issues.projectId, input.projectId))).limit(1);
+  if (!issue) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ISSUE_NOT_FOUND" });
+  if (!canTransitionEscalation(issue.escalationStatus, input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_ESCALATION_TRANSITION_INVALID" });
+  if (issue.priority !== "critical" || ["resolved", "closed"].includes(issue.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_ESCALATION_NOT_ELIGIBLE" });
+  await db.transaction(async tx => {
+    await tx.update(issues).set({ escalationStatus: input.nextStatus }).where(and(eq(issues.id, input.issueId), eq(issues.tenantId, input.tenantId), eq(issues.projectId, input.projectId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.issue_escalation_transitioned", entityType: "issue", entityId: input.issueId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: issue.escalationStatus, nextStatus: input.nextStatus }) });
+  });
+  return { id: input.issueId, previousStatus: issue.escalationStatus, status: input.nextStatus };
+}
+
+export async function transitionActionEscalation(input: { userId: number; tenantId: string; projectId: string; actionId: string; nextStatus: "pending" | "escalated" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [action] = await db.select({ id: actions.id, dueAt: actions.dueAt, status: actions.status, escalationStatus: actions.escalationStatus }).from(actions).where(and(eq(actions.id, input.actionId), eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId))).limit(1);
+  if (!action) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTION_NOT_FOUND" });
+  if (!canTransitionEscalation(action.escalationStatus, input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_ESCALATION_TRANSITION_INVALID" });
+  const isOverdue = action.dueAt !== null && action.dueAt < new Date() && !["completed", "cancelled"].includes(action.status);
+  if (!isOverdue) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_ESCALATION_NOT_ELIGIBLE" });
+  await db.transaction(async tx => {
+    await tx.update(actions).set({ escalationStatus: input.nextStatus }).where(and(eq(actions.id, input.actionId), eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_escalation_transitioned", entityType: "action", entityId: input.actionId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: action.escalationStatus, nextStatus: input.nextStatus }) });
+  });
+  return { id: input.actionId, previousStatus: action.escalationStatus, status: input.nextStatus };
 }
 
 export async function createDecision(input: { userId: number; tenantId: string; projectId: string; problem: string; options: string; recommendation?: string }) {

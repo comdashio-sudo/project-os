@@ -140,6 +140,22 @@ export const projectErrorMessages = {
     ar: "انتقال حالة عدم المطابقة المحدد غير مسموح من حالته الحالية.",
     en: "The selected NCR-status transition is not allowed from its current status.",
   },
+  PROJECT_OS_ISSUE_NOT_FOUND: {
+    ar: "القضية المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected issue is not available in the current project and workspace.",
+  },
+  PROJECT_OS_ACTION_NOT_FOUND: {
+    ar: "الإجراء المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected action is not available in the current project and workspace.",
+  },
+  PROJECT_OS_ESCALATION_TRANSITION_INVALID: {
+    ar: "انتقال حالة التصعيد المحدد غير مسموح من حالته الحالية.",
+    en: "The selected escalation transition is not allowed from its current status.",
+  },
+  PROJECT_OS_ESCALATION_NOT_ELIGIBLE: {
+    ar: "لا يستوفي هذا السجل شروط التصعيد في حالته الحالية.",
+    en: "This record does not meet the escalation conditions in its current state.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

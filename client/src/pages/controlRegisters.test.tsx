@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   pmoProgramSuccess: false,
   pmoProjectLinkError: null as unknown,
   pmoProjectLinkSuccess: false,
+  pmoEscalationError: null as unknown,
+  pmoEscalationSuccess: false,
   projectLifecycleError: null as unknown,
   projectLifecycleSuccess: false,
   projectRegistryData: [{ id: "project-1", code: "PRJ-01", name: "North Link", projectType: "Infrastructure", lifecycleStage: "planning", status: "active", currentBudget: "1000", actualCost: "400", forecastCost: "1100" }],
@@ -46,10 +48,10 @@ const state = vi.hoisted(() => ({
     programs: [],
     projects: [{ id: "project-1", code: "PRJ-01", name: "North Link" }],
     risks: [],
-    issues: [],
+    issues: [{ id: "issue-critical", projectId: "project-1", code: "ISS-01", title: "Critical access blockage", priority: "critical", escalationStatus: "none", status: "open", dueAt: null }],
     actions: [
-      { id: "action-open", projectId: "project-1", title: "Mitigate access constraint", priority: "high", status: "in_progress", dueAt: null },
-      { id: "action-done", projectId: "project-1", title: "Closed action", priority: "low", status: "completed", dueAt: null },
+      { id: "action-open", projectId: "project-1", title: "Mitigate access constraint", priority: "high", escalationStatus: "none", status: "in_progress", dueAt: new Date("2020-01-01T00:00:00.000Z") },
+      { id: "action-done", projectId: "project-1", title: "Closed action", priority: "low", escalationStatus: "none", status: "completed", dueAt: null },
     ],
   },
   executiveData: {
@@ -140,6 +142,8 @@ vi.mock("@/lib/trpc", () => ({
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createAction: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
+      transitionIssueEscalation: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoEscalationError, isSuccess: state.pmoEscalationSuccess }) },
+      transitionActionEscalation: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoEscalationError, isSuccess: state.pmoEscalationSuccess }) },
     },
     wbs: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
     activities: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
@@ -180,6 +184,29 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("عنوان الإجراء");
     expect(markup).toContain("الإجراءات المفتوحة");
     expect(markup).toContain("Mitigate access constraint · مرتفعة");
+  });
+
+  it("يعرض التصعيدات المحكومة وخطأها الموطّن باللغتين", () => {
+    state.isArabic = false;
+    state.pmoEscalationSuccess = true;
+    let markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("Escalation: Not escalated");
+    expect(markup).toContain("Request escalation");
+    expect(markup).toContain("The escalation status was updated with audit evidence.");
+
+    state.pmoEscalationSuccess = false;
+    state.pmoEscalationError = {};
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("التصعيد: غير مصعّد");
+    expect(markup).toContain("طلب تصعيد");
+    expect(markup).toContain("خطأ موضّع");
+
+    state.isArabic = false;
+    state.pmoEscalationError = null;
   });
 
   it("يعرض نجاح وفشل إنشاء المحفظة والبرنامج باللغتين", () => {

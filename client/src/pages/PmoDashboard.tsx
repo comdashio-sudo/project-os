@@ -11,6 +11,7 @@ import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
 
 type Priority = "low" | "medium" | "high" | "critical";
+type EscalationStatus = "none" | "pending" | "escalated";
 
 export default function PmoDashboard() {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -18,18 +19,18 @@ export default function PmoDashboard() {
   const utils = trpc.useUtils();
   const query = trpc.dashboards.pmo.useQuery({ tenantId });
   const [riskForm, setRiskForm] = useState({ projectId: "", code: "", title: "", probability: "3", severity: "3" });
-  const [issueForm, setIssueForm] = useState<{ projectId: string; code: string; title: string; priority: Priority }>({ projectId: "", code: "", title: "", priority: "medium" });
-  const [actionForm, setActionForm] = useState<{ projectId: string; title: string; priority: Priority }>({ projectId: "", title: "", priority: "medium" });
+  const [issueForm, setIssueForm] = useState<{ projectId: string; code: string; title: string; priority: Priority; dueAt: string }>({ projectId: "", code: "", title: "", priority: "medium", dueAt: "" });
+  const [actionForm, setActionForm] = useState<{ projectId: string; title: string; priority: Priority; dueAt: string }>({ projectId: "", title: "", priority: "medium", dueAt: "" });
   const [portfolioForm, setPortfolioForm] = useState({ code: "", name: "" });
   const [programForm, setProgramForm] = useState({ portfolioId: "", code: "", name: "" });
   const [projectLinkForm, setProjectLinkForm] = useState({ projectId: "", programId: "", portfolioId: "" });
 
   const t = isArabic
     ? {
-        back: "مساحة العمل", level: "المستوى 2 · مكتب إدارة المشاريع", title: "لوحة حوكمة PMO", sub: "نطاق المحافظ والبرامج وسجلات المخاطر والقضايا والإجراءات ضمن المستأجر المصرح به.", portfolios: "المحافظ", programs: "البرامج", projects: "المشاريع", risks: "المخاطر المفتوحة", issues: "القضايا المفتوحة", actions: "الإجراءات المفتوحة", noData: "لا توجد سجلات ضمن نطاق الوصول الحالي.", loading: "جارٍ تحميل ضوابط PMO…", saving: "جارٍ حفظ السجل…", addRisk: "تسجيل مخاطرة", addIssue: "تسجيل قضية", addAction: "تسجيل إجراء", addPortfolio: "إنشاء محفظة", addProgram: "إنشاء برنامج", linkProject: "ربط مشروع ببرنامج", program: "البرنامج", portfolio: "المحفظة", optionalPortfolio: "المحفظة (اختياري)", project: "المشروع", code: "الرمز", titleLabel: "العنوان", actionTitle: "عنوان الإجراء", probability: "الاحتمال (1–5)", severity: "الأثر (1–5)", priority: "الأولوية", save: "حفظ السجل", create: "إنشاء", link: "حفظ الربط", select: "اختر مشروعًا", selectProgram: "بدون برنامج", selectPortfolio: "بدون محفظة", unavailable: "لا يمكن التسجيل قبل وجود مشروع ضمن النطاق.", success: "تم الحفظ وتحديث السجل.", masterSuccess: "تم إنشاء السجل الرئيسي وتحديث لوحة PMO.", linkSuccess: "تم تحديث ارتباط المشروع وتسجيل الدليل التدقيقي.", low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
+        back: "مساحة العمل", level: "المستوى 2 · مكتب إدارة المشاريع", title: "لوحة حوكمة PMO", sub: "نطاق المحافظ والبرامج وسجلات المخاطر والقضايا والإجراءات ضمن المستأجر المصرح به.", portfolios: "المحافظ", programs: "البرامج", projects: "المشاريع", risks: "المخاطر المفتوحة", issues: "القضايا المفتوحة", actions: "الإجراءات المفتوحة", escalations: "التصعيدات", noData: "لا توجد سجلات ضمن نطاق الوصول الحالي.", loading: "جارٍ تحميل ضوابط PMO…", saving: "جارٍ حفظ السجل…", addRisk: "تسجيل مخاطرة", addIssue: "تسجيل قضية", addAction: "تسجيل إجراء", addPortfolio: "إنشاء محفظة", addProgram: "إنشاء برنامج", linkProject: "ربط مشروع ببرنامج", program: "البرنامج", portfolio: "المحفظة", optionalPortfolio: "المحفظة (اختياري)", project: "المشروع", code: "الرمز", titleLabel: "العنوان", actionTitle: "عنوان الإجراء", probability: "الاحتمال (1–5)", severity: "الأثر (1–5)", priority: "الأولوية", dueDate: "تاريخ الاستحقاق", escalation: "التصعيد", none: "غير مصعّد", pending: "قيد التصعيد", escalated: "مصعّد", requestEscalation: "طلب تصعيد", confirmEscalation: "تأكيد التصعيد", escalationSuccess: "تم تحديث حالة التصعيد وتسجيل الدليل التدقيقي.", save: "حفظ السجل", create: "إنشاء", link: "حفظ الربط", select: "اختر مشروعًا", selectProgram: "بدون برنامج", selectPortfolio: "بدون محفظة", unavailable: "لا يمكن التسجيل قبل وجود مشروع ضمن النطاق.", success: "تم الحفظ وتحديث السجل.", masterSuccess: "تم إنشاء السجل الرئيسي وتحديث لوحة PMO.", linkSuccess: "تم تحديث ارتباط المشروع وتسجيل الدليل التدقيقي.", low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
       }
     : {
-        back: "Workspace", level: "Level 2 · PMO", title: "PMO governance board", sub: "Portfolio, program, risk, issue, and action registers within the authorized tenant.", portfolios: "Portfolios", programs: "Programs", projects: "Projects", risks: "Open risks", issues: "Open issues", actions: "Open actions", noData: "No records are available in the current access scope.", loading: "Loading PMO controls…", saving: "Saving register entry…", addRisk: "Register risk", addIssue: "Register issue", addAction: "Register action", addPortfolio: "Create portfolio", addProgram: "Create program", linkProject: "Link project to program", program: "Program", portfolio: "Portfolio", optionalPortfolio: "Portfolio (optional)", project: "Project", code: "Code", titleLabel: "Title", actionTitle: "Action title", probability: "Probability (1–5)", severity: "Severity (1–5)", priority: "Priority", save: "Save register", create: "Create", link: "Save link", select: "Select a project", selectProgram: "No program", selectPortfolio: "No portfolio", unavailable: "A project in your scope is required before registration.", success: "Saved and register refreshed.", masterSuccess: "The master record was created and the PMO board has been refreshed.", linkSuccess: "The project relationship was updated with audit evidence.", low: "Low", medium: "Medium", high: "High", critical: "Critical",
+        back: "Workspace", level: "Level 2 · PMO", title: "PMO governance board", sub: "Portfolio, program, risk, issue, and action registers within the authorized tenant.", portfolios: "Portfolios", programs: "Programs", projects: "Projects", risks: "Open risks", issues: "Open issues", actions: "Open actions", escalations: "Escalations", noData: "No records are available in the current access scope.", loading: "Loading PMO controls…", saving: "Saving register entry…", addRisk: "Register risk", addIssue: "Register issue", addAction: "Register action", addPortfolio: "Create portfolio", addProgram: "Create program", linkProject: "Link project to program", program: "Program", portfolio: "Portfolio", optionalPortfolio: "Portfolio (optional)", project: "Project", code: "Code", titleLabel: "Title", actionTitle: "Action title", probability: "Probability (1–5)", severity: "Severity (1–5)", priority: "Priority", dueDate: "Due date", escalation: "Escalation", none: "Not escalated", pending: "Pending escalation", escalated: "Escalated", requestEscalation: "Request escalation", confirmEscalation: "Confirm escalation", escalationSuccess: "The escalation status was updated with audit evidence.", save: "Save register", create: "Create", link: "Save link", select: "Select a project", selectProgram: "No program", selectPortfolio: "No portfolio", unavailable: "A project in your scope is required before registration.", success: "Saved and register refreshed.", masterSuccess: "The master record was created and the PMO board has been refreshed.", linkSuccess: "The project relationship was updated with audit evidence.", low: "Low", medium: "Medium", high: "High", critical: "Critical",
       };
 
   const riskMutation = trpc.pmo.createRisk.useMutation({
@@ -40,19 +41,21 @@ export default function PmoDashboard() {
   });
   const issueMutation = trpc.pmo.createIssue.useMutation({
     onSuccess: () => {
-      setIssueForm({ projectId: "", code: "", title: "", priority: "medium" });
+      setIssueForm({ projectId: "", code: "", title: "", priority: "medium", dueAt: "" });
       utils.dashboards.pmo.invalidate({ tenantId });
     },
   });
   const actionMutation = trpc.pmo.createAction.useMutation({
     onSuccess: () => {
-      setActionForm({ projectId: "", title: "", priority: "medium" });
+      setActionForm({ projectId: "", title: "", priority: "medium", dueAt: "" });
       utils.dashboards.pmo.invalidate({ tenantId });
     },
   });
   const portfolioMutation = trpc.pmo.createPortfolio.useMutation({ onSuccess: () => { setPortfolioForm({ code: "", name: "" }); utils.dashboards.pmo.invalidate({ tenantId }); } });
   const programMutation = trpc.pmo.createProgram.useMutation({ onSuccess: () => { setProgramForm({ portfolioId: "", code: "", name: "" }); utils.dashboards.pmo.invalidate({ tenantId }); } });
   const projectLinkMutation = trpc.pmo.linkProject.useMutation({ onSuccess: () => { setProjectLinkForm({ projectId: "", programId: "", portfolioId: "" }); utils.dashboards.pmo.invalidate({ tenantId }); } });
+  const issueEscalationMutation = trpc.pmo.transitionIssueEscalation.useMutation({ onSuccess: () => utils.dashboards.pmo.invalidate({ tenantId }) });
+  const actionEscalationMutation = trpc.pmo.transitionActionEscalation.useMutation({ onSuccess: () => utils.dashboards.pmo.invalidate({ tenantId }) });
 
   if (query.isLoading) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-slate-500">{t.loading}</main>;
   if (query.error || !query.data) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(query.error, isArabic)}</main>;
@@ -63,6 +66,8 @@ export default function PmoDashboard() {
   const openActions = data.actions.filter(item => !["completed", "cancelled"].includes(item.status));
   const field = "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm";
   const priorityLabel = (priority: string) => t[priority as Priority] ?? priority;
+  const escalationLabel = (status: EscalationStatus) => t[status];
+  const nextEscalation = (status: EscalationStatus) => status === "none" ? "pending" : status === "pending" ? "escalated" : null;
   const projectSelect = (value: string, change: (value: string) => void) => (
     <select value={value} onChange={event => change(event.target.value)} className={field} required>
       <option value="">{t.select}</option>
@@ -83,11 +88,11 @@ export default function PmoDashboard() {
   };
   const submitIssue = (event: FormEvent) => {
     event.preventDefault();
-    issueMutation.mutate({ tenantId, projectId: issueForm.projectId, code: issueForm.code, title: issueForm.title, priority: issueForm.priority });
+    issueMutation.mutate({ tenantId, projectId: issueForm.projectId, code: issueForm.code, title: issueForm.title, priority: issueForm.priority, ...(issueForm.dueAt ? { dueAt: new Date(issueForm.dueAt) } : {}) });
   };
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
-    actionMutation.mutate({ tenantId, projectId: actionForm.projectId, title: actionForm.title, priority: actionForm.priority });
+    actionMutation.mutate({ tenantId, projectId: actionForm.projectId, title: actionForm.title, priority: actionForm.priority, ...(actionForm.dueAt ? { dueAt: new Date(actionForm.dueAt) } : {}) });
   };
   const submitPortfolio = (event: FormEvent) => { event.preventDefault(); portfolioMutation.mutate({ tenantId, ...portfolioForm }); };
   const submitProgram = (event: FormEvent) => { event.preventDefault(); programMutation.mutate({ tenantId, code: programForm.code, name: programForm.name, ...(programForm.portfolioId ? { portfolioId: programForm.portfolioId } : {}) }); };
@@ -151,6 +156,7 @@ export default function PmoDashboard() {
                 <Label>{t.code}<Input value={issueForm.code} required onChange={event => setIssueForm({ ...issueForm, code: event.target.value })} /></Label>
                 <Label>{t.titleLabel}<Input value={issueForm.title} required onChange={event => setIssueForm({ ...issueForm, title: event.target.value })} /></Label>
                 <Label>{t.priority}{prioritySelect(issueForm.priority, priority => setIssueForm({ ...issueForm, priority }))}</Label>
+                <Label>{t.dueDate}<Input type="date" value={issueForm.dueAt} onChange={event => setIssueForm({ ...issueForm, dueAt: event.target.value })} /></Label>
                 <Button disabled={!data.projects.length || issueMutation.isPending}>{issueMutation.isPending ? t.saving : t.save}</Button>
                 {issueMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(issueMutation.error, isArabic)}</p>}
                 {issueMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
@@ -165,6 +171,7 @@ export default function PmoDashboard() {
                 <Label>{t.project}{projectSelect(actionForm.projectId, projectId => setActionForm({ ...actionForm, projectId }))}</Label>
                 <Label>{t.actionTitle}<Input value={actionForm.title} required onChange={event => setActionForm({ ...actionForm, title: event.target.value })} /></Label>
                 <Label>{t.priority}{prioritySelect(actionForm.priority, priority => setActionForm({ ...actionForm, priority }))}</Label>
+                <Label>{t.dueDate}<Input type="date" value={actionForm.dueAt} onChange={event => setActionForm({ ...actionForm, dueAt: event.target.value })} /></Label>
                 <Button disabled={!data.projects.length || actionMutation.isPending}>{actionMutation.isPending ? t.saving : t.save}</Button>
                 {actionMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(actionMutation.error, isArabic)}</p>}
                 {actionMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
@@ -177,9 +184,20 @@ export default function PmoDashboard() {
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <Register icon={ShieldAlert} title={t.risks} items={openRisks.map(item => `${item.code} · ${item.title}`)} empty={t.noData} />
-          <Register icon={TriangleAlert} title={t.issues} items={openIssues.map(item => `${item.code} · ${item.title} · ${priorityLabel(item.priority)}`)} empty={t.noData} />
-          <Register icon={CheckSquare} title={t.actions} items={openActions.map(item => `${item.title} · ${priorityLabel(item.priority)}`)} empty={t.noData} />
+          <Register icon={TriangleAlert} title={t.issues} items={openIssues.map(item => {
+            const next = nextEscalation(item.escalationStatus);
+            const eligible = item.priority === "critical";
+            return <div key={item.id} className="space-y-2"><p>{item.code} · {item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p>{eligible && next && <Button size="sm" variant="outline" disabled={issueEscalationMutation.isPending} onClick={() => issueEscalationMutation.mutate({ tenantId, projectId: item.projectId, issueId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</div>;
+          })} empty={t.noData} />
+          <Register icon={CheckSquare} title={t.actions} items={openActions.map(item => {
+            const next = nextEscalation(item.escalationStatus);
+            const overdue = item.dueAt !== null && item.dueAt < new Date();
+            const projectId = item.projectId;
+            return <div key={item.id} className="space-y-2"><p>{item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p>{projectId && overdue && next && <Button size="sm" variant="outline" disabled={actionEscalationMutation.isPending} onClick={() => actionEscalationMutation.mutate({ tenantId, projectId, actionId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</div>;
+          })} empty={t.noData} />
         </div>
+        {(issueEscalationMutation.error || actionEscalationMutation.error) && <p role="alert" className="mt-4 text-sm text-red-700">{getLocalizedProjectError(issueEscalationMutation.error ?? actionEscalationMutation.error, isArabic)}</p>}
+        {(issueEscalationMutation.isSuccess || actionEscalationMutation.isSuccess) && <p role="status" className="mt-4 text-sm text-emerald-700">{t.escalationSuccess}</p>}
       </div>
     </main>
   );
@@ -189,6 +207,6 @@ function Metric({ label, value }: { label: string; value: number }) {
   return <Card><CardContent className="p-5"><FolderTree className="h-5 w-5 text-[#0e6b70]" /><p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></CardContent></Card>;
 }
 
-function Register({ icon: Icon, title, items, empty }: { icon: typeof ShieldAlert; title: string; items: string[]; empty: string }) {
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-[#0e6b70]" />{title}</CardTitle></CardHeader><CardContent className="space-y-3">{items.length ? items.map(item => <p key={item} className="rounded-xl bg-slate-50 p-4 text-sm font-medium">{item}</p>) : <p className="text-sm text-slate-500">{empty}</p>}</CardContent></Card>;
+function Register({ icon: Icon, title, items, empty }: { icon: typeof ShieldAlert; title: string; items: React.ReactNode[]; empty: string }) {
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-[#0e6b70]" />{title}</CardTitle></CardHeader><CardContent className="space-y-3">{items.length ? items.map((item, index) => <div key={index} className="rounded-xl bg-slate-50 p-4 text-sm font-medium">{item}</div>) : <p className="text-sm text-slate-500">{empty}</p>}</CardContent></Card>;
 }

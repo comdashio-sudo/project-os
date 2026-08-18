@@ -1316,4 +1316,82 @@ describe("operational API authorization", () => {
     await expect(caller.activities.create({ tenantId: tenantA, projectId: projectB, code: "A-04", name: "Invalid schedule", plannedStartAt: new Date("2026-08-18T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-17T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_ACTIVITY_SCHEDULE_INVALID");
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
+
+  it("rejects escalation of an issue outside the requested project before writing", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "escalationStatus,id,priority,status") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.transitionIssueEscalation({ tenantId: tenantA, projectId: projectA, issueId: "99999999-9999-4999-8999-999999999999", nextStatus: "pending" })).rejects.toThrow("PROJECT_OS_ISSUE_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an action escalation that is not overdue before writing", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "dueAt,escalationStatus,id,status") return queryResult([{ id: "99999999-9999-4999-8999-999999999999", dueAt: new Date("2099-01-01T00:00:00.000Z"), status: "open", escalationStatus: "none" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.transitionActionEscalation({ tenantId: tenantA, projectId: projectA, actionId: "99999999-9999-4999-8999-999999999999", nextStatus: "pending" })).rejects.toThrow("PROJECT_OS_ESCALATION_NOT_ELIGIBLE");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("transitions an eligible critical issue escalation with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "escalationStatus,id,priority,status") return queryResult([{ id: "99999999-9999-4999-8999-999999999999", priority: "critical", status: "open", escalationStatus: "none" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.transitionIssueEscalation({ tenantId: tenantA, projectId: projectA, issueId: "99999999-9999-4999-8999-999999999999", nextStatus: "pending" })).resolves.toEqual({ id: "99999999-9999-4999-8999-999999999999", previousStatus: "none", status: "pending" });
+
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("transitions an eligible overdue action escalation with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      if (keys === "dueAt,escalationStatus,id,status") return queryResult([{ id: "99999999-9999-4999-8999-999999999999", dueAt: new Date("2020-01-01T00:00:00.000Z"), status: "open", escalationStatus: "none" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.transitionActionEscalation({ tenantId: tenantA, projectId: projectA, actionId: "99999999-9999-4999-8999-999999999999", nextStatus: "pending" })).resolves.toEqual({ id: "99999999-9999-4999-8999-999999999999", previousStatus: "none", status: "pending" });
+
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
 });
