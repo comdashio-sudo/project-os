@@ -254,6 +254,15 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects an invalid invitation token without creating a membership or writing audit evidence", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.acceptInvitation({ inviteToken: "abcdefghijklmnopqrstuvwxyz1234567890" })).rejects.toThrow("PROJECT_OS_INVITATION_INVALID_OR_EXPIRED");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects custom-role permissions outside the selected product before writing", async () => {
     configureAuthorizedRoleCreation("PMO");
     const caller = appRouter.createCaller(context());
