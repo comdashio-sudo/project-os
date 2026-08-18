@@ -304,15 +304,16 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows] = await Promise.all([
+  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ id: risks.id, projectId: risks.projectId, code: risks.code, title: risks.title, probability: risks.probability, severity: risks.severity, status: risks.status, dueAt: risks.dueAt }).from(risks).where(eq(risks.tenantId, input.tenantId)),
     db.select({ id: issues.id, projectId: issues.projectId, code: issues.code, title: issues.title, priority: issues.priority, escalationStatus: issues.escalationStatus, status: issues.status, dueAt: issues.dueAt }).from(issues).where(eq(issues.tenantId, input.tenantId)),
+    db.select({ id: actions.id, projectId: actions.projectId, title: actions.title, priority: actions.priority, status: actions.status, dueAt: actions.dueAt }).from(actions).where(eq(actions.tenantId, input.tenantId)),
   ]);
 
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows };
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows };
 }
 
 export async function createRisk(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; probability: number; severity: number; dueAt?: Date }) {
