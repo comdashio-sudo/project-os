@@ -92,6 +92,14 @@ export const projectErrorMessages = {
     ar: "المحفظة المحددة غير متاحة ضمن هذه المؤسسة.",
     en: "The selected portfolio is not available in this organization.",
   },
+  PROJECT_OS_PROGRAM_NOT_FOUND: {
+    ar: "البرنامج المحدد غير متاح ضمن هذه المؤسسة.",
+    en: "The selected program is not available in this organization.",
+  },
+  PROJECT_OS_PROGRAM_PORTFOLIO_MISMATCH: {
+    ar: "المحفظة المحددة لا تتطابق مع محفظة البرنامج.",
+    en: "The selected portfolio does not match the program's portfolio.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

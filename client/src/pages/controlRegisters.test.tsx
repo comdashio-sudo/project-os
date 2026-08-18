@@ -94,6 +94,7 @@ vi.mock("@/lib/trpc", () => ({
     pmo: {
       createPortfolio: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoPortfolioError, isSuccess: state.pmoPortfolioSuccess }) },
       createProgram: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoProgramError, isSuccess: state.pmoProgramSuccess }) },
+      linkProject: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createAction: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -121,6 +122,7 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("Register action");
     expect(markup).toContain("Create portfolio");
     expect(markup).toContain("Create program");
+    expect(markup).toContain("Link project to program");
     expect(markup).toContain("Action title");
     expect(markup).toContain("Open actions");
     expect(markup).toContain("Mitigate access constraint · High");

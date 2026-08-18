@@ -263,6 +263,15 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects project-program linking for a tenant without active membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.linkProject({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects a program linked to a portfolio outside the tenant before writing", async () => {
     databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
       const keys = Object.keys(selection).sort().join(",");

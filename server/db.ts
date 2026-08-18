@@ -496,6 +496,29 @@ export async function createProgramForTenant(input: { userId: number; tenantId: 
   return { id };
 }
 
+export async function linkProjectToProgramForTenant(input: { userId: number; tenantId: string; projectId: string; programId?: string; portfolioId?: string }): Promise<{ projectId: string; programId: string | null; portfolioId: string | null }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write" });
+  const [project] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
+  if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_NOT_FOUND" });
+  const [program] = input.programId ? await db.select({ id: programs.id, portfolioId: programs.portfolioId }).from(programs).where(and(eq(programs.id, input.programId), eq(programs.tenantId, input.tenantId))).limit(1) : [null];
+  if (input.programId && !program) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROGRAM_NOT_FOUND" });
+  const targetPortfolioId = input.portfolioId ?? program?.portfolioId ?? null;
+  if (input.portfolioId) {
+    const [portfolio] = await db.select({ id: portfolios.id }).from(portfolios).where(and(eq(portfolios.id, input.portfolioId), eq(portfolios.tenantId, input.tenantId))).limit(1);
+    if (!portfolio) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PORTFOLIO_NOT_FOUND" });
+  }
+  if (program?.portfolioId && input.portfolioId && program.portfolioId !== input.portfolioId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PROGRAM_PORTFOLIO_MISMATCH" });
+  await db.transaction(async tx => {
+    await tx.update(projects).set({ programId: input.programId ?? null, portfolioId: targetPortfolioId }).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.program_linked", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ programId: input.programId ?? null, portfolioId: targetPortfolioId }) });
+  });
+  return { projectId: input.projectId, programId: input.programId ?? null, portfolioId: targetPortfolioId };
+}
+
 export async function listProjectsForTenant(input: { userId: number; tenantId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
