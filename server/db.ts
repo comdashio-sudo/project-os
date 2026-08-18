@@ -300,6 +300,27 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   return { invitationId, email, expiresAt, inviteToken };
 }
 
+export async function acceptMembershipInvitation(input: { userId: number; inviteToken: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const tokenHash = createHash("sha256").update(input.inviteToken).digest("hex");
+  const [invitation] = await db.select({ id: membershipInvitations.id, tenantId: membershipInvitations.tenantId, email: membershipInvitations.email, roleId: membershipInvitations.roleId, scopeType: membershipInvitations.scopeType, scopeId: membershipInvitations.scopeId, expiresAt: membershipInvitations.expiresAt }).from(membershipInvitations).where(and(eq(membershipInvitations.tokenHash, tokenHash), eq(membershipInvitations.status, "pending"))).limit(1);
+  if (!invitation || invitation.expiresAt.getTime() <= Date.now()) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_INVITATION_INVALID_OR_EXPIRED" });
+  const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!user?.email || user.email.trim().toLowerCase() !== invitation.email) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_INVITATION_EMAIL_MISMATCH" });
+  const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, invitation.tenantId), eq(memberships.userId, input.userId))).limit(1);
+  if (existingMembership) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBER_ALREADY_EXISTS" });
+  const membershipId = crypto.randomUUID();
+  const assignmentId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(memberships).values({ id: membershipId, tenantId: invitation.tenantId, userId: input.userId, status: "active", joinedAt: new Date() });
+    await tx.insert(membershipRoles).values({ id: assignmentId, membershipId, roleId: invitation.roleId, scopeType: invitation.scopeType, scopeId: invitation.scopeId });
+    await tx.update(membershipInvitations).set({ status: "accepted", acceptedByUserId: input.userId, acceptedAt: new Date() }).where(eq(membershipInvitations.id, invitation.id));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: invitation.tenantId, actorUserId: input.userId, action: "tenant.invitation_accepted", entityType: "membership_invitation", entityId: invitation.id, metadata: JSON.stringify({ membershipId, assignmentId }) });
+  });
+  return { tenantId: invitation.tenantId, membershipId, assignmentId };
+}
+
 export async function writeAuditLog(input: {
   id: string;
   tenantId: string;

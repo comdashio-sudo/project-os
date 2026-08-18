@@ -80,6 +80,14 @@ export const projectErrorMessages = {
     ar: "توجد دعوة معلقة بالفعل لهذا البريد ضمن المؤسسة.",
     en: "A pending invitation already exists for this email in the organization.",
   },
+  PROJECT_OS_INVITATION_INVALID_OR_EXPIRED: {
+    ar: "رابط الدعوة غير صالح أو انتهت صلاحيته.",
+    en: "The invitation link is invalid or has expired.",
+  },
+  PROJECT_OS_INVITATION_EMAIL_MISMATCH: {
+    ar: "يجب تسجيل الدخول بالبريد الذي استلم الدعوة.",
+    en: "Sign in with the email address that received this invitation.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
