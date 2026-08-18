@@ -58,6 +58,8 @@ const state = vi.hoisted(() => ({
     totals: { budget: 0, actual: 0, forecast: 0 },
     projects: [] as Array<{ id: string; code: string; name: string; status: string; forecastCost: number; health: { status: string } | null }> ,
     decisions: [],
+    cashFlow: { plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 },
+    cashFlowByProject: [{ id: "project-1", code: "PRJ-01", name: "North Link", plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 }],
   },
   projectControlsData: {
     project: { code: "PRJ-01", name: "North Link" },
@@ -282,6 +284,18 @@ describe("control-register dashboards", () => {
 
     expect(markup).toContain("Create a project in your scope first so the decision can be linked to a specific project record.");
     expect(markup).toContain("Saving decision draft…");
+  });
+
+  it("يعرض ملخص التدفق النقدي التنفيذي وارتباطه بالمشروع باللغتين", () => {
+    state.isArabic = false;
+    let markup = renderToStaticMarkup(<ExecutiveDashboard />);
+    expect(markup).toContain("Executive cash-flow summary");
+    expect(markup).toContain("Total exposure");
+    expect(markup).toContain("PRJ-01 · North Link");
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<ExecutiveDashboard />);
+    expect(markup).toContain("ملخص التدفق النقدي التنفيذي");
+    expect(markup).toContain("إجمالي التعرض");
   });
 
   it("يعرض نموذج النشاط وسجل الجدولة وحالة النشاط باللغتين", () => {

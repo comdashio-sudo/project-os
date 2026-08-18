@@ -607,17 +607,25 @@ export async function getExecutiveDashboard(input: { userId: number; tenantId: s
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "executive.read" });
 
-  const [projectRows, healthRows, decisionRows] = await Promise.all([
+  const [projectRows, healthRows, decisionRows, budgetRows, costRows, commitmentRows] = await Promise.all([
     db.select({ id: projects.id, code: projects.code, name: projects.name, status: projects.status, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, confidence: projectHealthSnapshots.confidence, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
     db.select({ id: decisions.id, projectId: decisions.projectId, problem: decisions.problem, status: decisions.status, costImpact: decisions.costImpact, scheduleImpactDays: decisions.scheduleImpactDays, createdAt: decisions.createdAt }).from(decisions).where(eq(decisions.tenantId, input.tenantId)).orderBy(desc(decisions.createdAt)),
+    db.select({ projectId: budgetLines.projectId, amount: budgetLines.currentAmount }).from(budgetLines).where(eq(budgetLines.tenantId, input.tenantId)),
+    db.select({ projectId: costEntries.projectId, amount: costEntries.amount, status: costEntries.status }).from(costEntries).where(eq(costEntries.tenantId, input.tenantId)),
+    db.select({ projectId: commitments.projectId, amount: commitments.amount, status: commitments.status }).from(commitments).where(eq(commitments.tenantId, input.tenantId)),
   ]);
 
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>();
   healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
   const projectsWithHealth = projectRows.map(project => ({ ...project, health: latestHealthByProject.get(project.id) ?? null }));
   const totals = projectRows.reduce((accumulator, project) => ({ budget: accumulator.budget + Number(project.currentBudget), actual: accumulator.actual + Number(project.actualCost), forecast: accumulator.forecast + Number(project.forecastCost) }), { budget: 0, actual: 0, forecast: 0 });
-  return { totals, projects: projectsWithHealth, decisions: decisionRows.filter(item => !["implemented", "rejected"].includes(item.status)) };
+  const budgetsByProject = new Map<string, number[]>(); budgetRows.forEach(item => budgetsByProject.set(item.projectId, [...(budgetsByProject.get(item.projectId) ?? []), Number(item.amount)]));
+  const costsByProject = new Map<string, { amount: number; status: "draft" | "posted" | "void" }[]>(); costRows.forEach(item => costsByProject.set(item.projectId, [...(costsByProject.get(item.projectId) ?? []), { amount: Number(item.amount), status: item.status }]));
+  const commitmentsByProject = new Map<string, { amount: number; status: string }[]>(); commitmentRows.forEach(item => commitmentsByProject.set(item.projectId, [...(commitmentsByProject.get(item.projectId) ?? []), { amount: Number(item.amount), status: item.status }]));
+  const cashFlowByProject = projectRows.map(project => ({ id: project.id, code: project.code, name: project.name, ...calculateOperationalCashFlow({ budgetAmounts: budgetsByProject.get(project.id) ?? [], costEntries: costsByProject.get(project.id) ?? [], commitments: commitmentsByProject.get(project.id) ?? [] }) }));
+  const cashFlow = cashFlowByProject.reduce((accumulator, project) => ({ plannedBudget: accumulator.plannedBudget + project.plannedBudget, actualCost: accumulator.actualCost + project.actualCost, committedAmount: accumulator.committedAmount + project.committedAmount, totalExposure: accumulator.totalExposure + project.totalExposure, remainingBudget: accumulator.remainingBudget + project.remainingBudget }), { plannedBudget: 0, actualCost: 0, committedAmount: 0, totalExposure: 0, remainingBudget: 0 });
+  return { totals, projects: projectsWithHealth, decisions: decisionRows.filter(item => !["implemented", "rejected"].includes(item.status)), cashFlow, cashFlowByProject };
 }
 
 export async function getPmoDashboard(input: { userId: number; tenantId: string }) {
