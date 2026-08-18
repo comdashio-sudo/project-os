@@ -328,6 +328,25 @@ export const documentVersions = mysqlTable(
   table => [uniqueIndex("document_versions_document_version_unique").on(table.documentId, table.versionNumber), index("document_versions_tenant_project_document_idx").on(table.tenantId, table.projectId, table.documentId)],
 );
 
+export const rfis = mysqlTable(
+  "rfis",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    rfiNumber: varchar("rfiNumber", { length: 120 }).notNull(),
+    subject: varchar("subject", { length: 255 }).notNull(),
+    question: text("question").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "under_review", "answered", "closed", "cancelled"]).default("draft").notNull(),
+    dueAt: timestamp("dueAt"),
+    submittedAt: timestamp("submittedAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("rfis_project_number_unique").on(table.projectId, table.rfiNumber), index("rfis_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
+);
+
 export const wbsItems = mysqlTable(
   "wbs_items",
   {

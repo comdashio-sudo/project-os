@@ -124,6 +124,14 @@ export const projectErrorMessages = {
     ar: "انتقال حالة المستند المحدد غير مسموح من حالته الحالية.",
     en: "The selected document-status transition is not allowed from its current status.",
   },
+  PROJECT_OS_RFI_NOT_FOUND: {
+    ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected RFI is not available in the current project and workspace.",
+  },
+  PROJECT_OS_RFI_TRANSITION_INVALID: {
+    ar: "انتقال حالة طلب المعلومات المحدد غير مسموح من حالته الحالية.",
+    en: "The selected RFI-status transition is not allowed from its current status.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

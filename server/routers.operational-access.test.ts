@@ -509,6 +509,118 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects RFI creation for a tenant without active membership before loading the project", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.create({ tenantId: tenantB, projectId: projectB, rfiNumber: "RFI-01", subject: "Foundation detail", question: "Please clarify foundation reinforcement details." })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid RFI status transition before writing", async () => {
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "rfi-a", status: "draft" }]); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.transitionStatus({ tenantId: tenantA, projectId: projectA, rfiId: "99999999-9999-4999-8999-999999999999", nextStatus: "closed" })).rejects.toThrow("PROJECT_OS_RFI_TRANSITION_INVALID");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized RFI with audit evidence in one transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.create({ tenantId: tenantA, projectId: projectA, rfiNumber: "RFI-01", subject: "Foundation detail", question: "Please clarify foundation reinforcement details." })).resolves.toMatchObject({ id: expect.any(String), status: "draft" });
+
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("transitions an authorized RFI to submitted with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    let idSelectionCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "rfi-a", status: "draft" }]); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.transitionStatus({ tenantId: tenantA, projectId: projectA, rfiId: "99999999-9999-4999-8999-999999999999", nextStatus: "submitted" })).resolves.toMatchObject({ previousStatus: "draft", status: "submitted" });
+
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects RFI-register reading for a tenant without active membership before selecting RFIs", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.list({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects RFI-register reading when the project is outside the tenant before returning RFIs", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.read" }]);
+      if (keys === "id") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an RFI status transition outside the project before writing", async () => {
+    let idStatusCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") { idStatusCount += 1; return queryResult(idStatusCount === 1 ? [{ id: "membership-a", status: "active" }] : []); }
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id") return queryResult([{ id: projectA }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.rfis.transitionStatus({ tenantId: tenantA, projectId: projectA, rfiId: "99999999-9999-4999-8999-999999999999", nextStatus: "submitted" })).rejects.toThrow("PROJECT_OS_RFI_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects project-health capture for a tenant without active membership before loading operational sources", async () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());

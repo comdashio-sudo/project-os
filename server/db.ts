@@ -30,6 +30,7 @@ import {
   evmSnapshots,
   documentVersions,
   projectDocuments,
+  rfis,
   rolePermissions,
   roles,
   subscriptions,
@@ -734,6 +735,51 @@ export async function transitionProjectDocumentStatus(input: { userId: number; t
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.status_transitioned", entityType: "project_document", entityId: input.documentId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: document.status, nextStatus: input.nextStatus }) });
   });
   return { id: input.documentId, previousStatus: document.status, status: input.nextStatus };
+}
+
+const rfiStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted", "cancelled"], submitted: ["under_review", "answered", "cancelled"], under_review: ["answered", "cancelled"], answered: ["closed"], closed: [], cancelled: [] };
+
+export async function getRfisForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: rfis.id, rfiNumber: rfis.rfiNumber, subject: rfis.subject, question: rfis.question, status: rfis.status, dueAt: rfis.dueAt, submittedAt: rfis.submittedAt, createdAt: rfis.createdAt }).from(rfis).where(and(eq(rfis.tenantId, input.tenantId), eq(rfis.projectId, input.projectId))).orderBy(desc(rfis.createdAt));
+}
+
+export async function createRfiForTenant(input: { userId: number; tenantId: string; projectId: string; rfiNumber: string; subject: string; question: string; dueAt?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(rfis).values({ id, tenantId: input.tenantId, projectId: input.projectId, rfiNumber: input.rfiNumber, subject: input.subject, question: input.question, dueAt: input.dueAt, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "rfis.created", entityType: "rfi", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, rfiNumber: input.rfiNumber }) });
+  });
+  return { id, status: "draft" as const };
+}
+
+export async function transitionRfiStatus(input: { userId: number; tenantId: string; projectId: string; rfiId: string; nextStatus: "draft" | "submitted" | "under_review" | "answered" | "closed" | "cancelled" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [rfi] = await db.select({ id: rfis.id, status: rfis.status }).from(rfis).where(and(eq(rfis.id, input.rfiId), eq(rfis.tenantId, input.tenantId), eq(rfis.projectId, input.projectId))).limit(1);
+  if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_RFI_NOT_FOUND" });
+  if (!rfiStatusTransitions[rfi.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_RFI_TRANSITION_INVALID" });
+  const now = new Date();
+  await db.transaction(async tx => {
+    await tx.update(rfis).set(input.nextStatus === "submitted" ? { status: input.nextStatus, submittedAt: now } : { status: input.nextStatus }).where(and(eq(rfis.id, input.rfiId), eq(rfis.tenantId, input.tenantId), eq(rfis.projectId, input.projectId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "rfis.status_transitioned", entityType: "rfi", entityId: input.rfiId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: rfi.status, nextStatus: input.nextStatus }) });
+  });
+  return { id: input.rfiId, previousStatus: rfi.status, status: input.nextStatus };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
