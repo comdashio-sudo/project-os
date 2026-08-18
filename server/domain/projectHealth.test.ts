@@ -18,6 +18,12 @@ describe("calculateProjectHealth", () => {
     expect(calculateProjectHealth({ ...healthy, cpi: null, spi: null, eac: null, bac: null }).confidence).toBe("low");
   });
 
+  it("records an overdue HSE observation as a governed health exception", () => {
+    const result = calculateProjectHealth({ ...healthy, overdueHseCount: 1 });
+    expect(result).toMatchObject({ score: 92, status: "green" });
+    expect(result.exceptions.map(item => item.code)).toContain("OVERDUE_HSE");
+  });
+
   it("rejects invalid exception counts", () => {
     expect(() => calculateProjectHealth({ ...healthy, highRiskCount: -1 })).toThrow(/highRiskCount/);
     expect(() => calculateProjectHealth({ ...healthy, overdueActionCount: 1.5 })).toThrow(/overdueActionCount/);

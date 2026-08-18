@@ -11,6 +11,7 @@ export type ProjectHealthInput = {
   overdueApprovalCount: number;
   overdueRfiCount: number;
   overdueNcrCount: number;
+  overdueHseCount?: number;
 };
 
 export type ProjectHealthResult = {
@@ -27,6 +28,8 @@ function assertCount(value: number, name: string) {
 
 export function calculateProjectHealth(input: ProjectHealthInput): ProjectHealthResult {
   ["highRiskCount", "overdueActionCount", "overdueApprovalCount", "overdueRfiCount", "overdueNcrCount"].forEach(key => assertCount(input[key as keyof ProjectHealthInput] as number, key));
+  const overdueHseCount = input.overdueHseCount ?? 0;
+  assertCount(overdueHseCount, "overdueHseCount");
   let score = 100;
   const exceptions: HealthException[] = [];
   const add = (condition: boolean, points: number, exception: HealthException) => { if (condition) { score -= points; exceptions.push(exception); } };
@@ -41,6 +44,7 @@ export function calculateProjectHealth(input: ProjectHealthInput): ProjectHealth
   add(input.overdueApprovalCount > 0, 10, { code: "OVERDUE_APPROVAL", severity: "warning", message: "At least one approval has exceeded its SLA.", recommendedAction: "Escalate the workflow task to its designated approver." });
   add(input.overdueRfiCount > 0, 8, { code: "OVERDUE_RFI", severity: "warning", message: "At least one RFI is overdue.", recommendedAction: "Review the responsible reviewer and schedule impact." });
   add(input.overdueNcrCount > 0, 8, { code: "OVERDUE_NCR", severity: "warning", message: "At least one NCR is overdue.", recommendedAction: "Verify corrective action ownership and closure evidence." });
+  add(overdueHseCount > 0, 8, { code: "OVERDUE_HSE", severity: "warning", message: "At least one HSE observation is overdue.", recommendedAction: "Verify remediation ownership and closure evidence." });
 
   const cappedScore = Math.max(0, score);
   const status: HealthStatus = cappedScore >= 85 ? "green" : cappedScore >= 65 ? "amber" : "red";

@@ -21,9 +21,9 @@ describe("health exception presentation", () => {
     expect(parseStoredHealthExceptions('[{"code":7,"severity":"critical","message":"RAW"}]')).toEqual([]);
   });
 
-  it("يستخرج عداد RFI المتأخر فقط من مصادر الصحة ويصفر الحمولة غير الصالحة", () => {
-    expect(parseStoredHealthSources('{"overdueRfiCount":3,"overdueNcrCount":2,"untrusted":"RAW"}')).toEqual({ overdueRfiCount: 3, overdueNcrCount: 2 });
-    expect(parseStoredHealthSources('{"overdueRfiCount":-1,"overdueNcrCount":-1}')).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0 });
-    expect(parseStoredHealthSources("not-json")).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0 });
+  it("يستخرج عدادات RFI وNCR وHSE المتأخرة ويصفر الحمولة غير الصالحة", () => {
+    expect(parseStoredHealthSources('{"overdueRfiCount":3,"overdueNcrCount":2,"overdueHseCount":1,"untrusted":"RAW"}')).toEqual({ overdueRfiCount: 3, overdueNcrCount: 2, overdueHseCount: 1 });
+    expect(parseStoredHealthSources('{"overdueRfiCount":-1,"overdueNcrCount":-1,"overdueHseCount":-1}')).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 });
+    expect(parseStoredHealthSources("not-json")).toEqual({ overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 });
   });
 });

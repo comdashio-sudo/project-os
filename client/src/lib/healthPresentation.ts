@@ -1,5 +1,5 @@
 type StoredHealthException = { code: string; severity: "warning" | "critical" };
-type StoredHealthSources = { overdueRfiCount: number; overdueNcrCount: number };
+type StoredHealthSources = { overdueRfiCount: number; overdueNcrCount: number; overdueHseCount: number };
 
 const messages = {
   CPI_CRITICAL: { ar: ["مؤشر أداء التكلفة دون حد التحكم الحرج.", "تحقق من تكلفة الإكمال وافتح إجراءً لاستعادة التكلفة."], en: ["Cost performance is below the critical control threshold.", "Validate cost to complete and open a cost-recovery action."] },
@@ -12,6 +12,7 @@ const messages = {
   OVERDUE_APPROVAL: { ar: ["تجاوزت موافقة واحدة على الأقل مستوى الخدمة.", "صعّد مهمة سير العمل إلى المعتمد المعيّن."], en: ["At least one approval has exceeded its service level.", "Escalate the workflow task to its designated approver."] },
   OVERDUE_RFI: { ar: ["تجاوز طلب معلومات واحد على الأقل تاريخ الاستحقاق.", "راجع المسؤول عن المراجعة وأثر الجدول."], en: ["At least one RFI is overdue.", "Review the responsible reviewer and schedule impact."] },
   OVERDUE_NCR: { ar: ["تجاوز تقرير عدم مطابقة واحد على الأقل تاريخ الاستحقاق.", "تحقق من مالك الإجراء التصحيحي ودليل الإغلاق."], en: ["At least one NCR is overdue.", "Verify corrective-action ownership and closure evidence."] },
+  OVERDUE_HSE: { ar: ["تجاوزت ملاحظة HSE واحدة على الأقل تاريخ الاستحقاق.", "تحقق من مالك المعالجة ودليل الإغلاق."], en: ["At least one HSE observation is overdue.", "Verify remediation ownership and closure evidence."] },
 } as const;
 
 export function parseStoredHealthExceptions(value: string): StoredHealthException[] {
@@ -25,11 +26,12 @@ export function parseStoredHealthExceptions(value: string): StoredHealthExceptio
 export function parseStoredHealthSources(value: string): StoredHealthSources {
   try {
     const parsed: unknown = JSON.parse(value);
-    const source = parsed as { overdueRfiCount?: unknown; overdueNcrCount?: unknown } | null;
+    const source = parsed as { overdueRfiCount?: unknown; overdueNcrCount?: unknown; overdueHseCount?: unknown } | null;
     const overdueRfiCount = typeof source?.overdueRfiCount === "number" && Number.isInteger(source.overdueRfiCount) && source.overdueRfiCount >= 0 ? source.overdueRfiCount : 0;
     const overdueNcrCount = typeof source?.overdueNcrCount === "number" && Number.isInteger(source.overdueNcrCount) && source.overdueNcrCount >= 0 ? source.overdueNcrCount : 0;
-    return { overdueRfiCount, overdueNcrCount };
-  } catch { return { overdueRfiCount: 0, overdueNcrCount: 0 }; }
+    const overdueHseCount = typeof source?.overdueHseCount === "number" && Number.isInteger(source.overdueHseCount) && source.overdueHseCount >= 0 ? source.overdueHseCount : 0;
+    return { overdueRfiCount, overdueNcrCount, overdueHseCount };
+  } catch { return { overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 }; }
 }
 
 export function localizedHealthException(item: StoredHealthException, isArabic: boolean) {
