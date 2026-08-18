@@ -8,6 +8,7 @@ import {
   type SubscriptionPackageCode,
   auditLogs,
   companies,
+  claims,
   commitments,
   contracts,
   memberships,
@@ -949,6 +950,45 @@ export async function updateProjectResourceAllocationForTenant(input: { userId: 
   if (input.allocatedUnits > Number(resource.plannedUnits)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN" });
   await db.transaction(async tx => { await tx.update(projectResources).set({ allocatedUnits: String(input.allocatedUnits) }).where(and(eq(projectResources.id, input.resourceId), eq(projectResources.tenantId, input.tenantId), eq(projectResources.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_allocation_updated", entityType: "project_resource", entityId: input.resourceId, metadata: JSON.stringify({ projectId: input.projectId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits }) }); });
   return { id: input.resourceId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits };
+}
+
+const claimStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted", "withdrawn"], submitted: ["under_review", "withdrawn"], under_review: ["approved", "rejected", "withdrawn"], approved: [], rejected: [], withdrawn: [] };
+
+export async function getClaimsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: claims.id, contractId: claims.contractId, claimNumber: claims.claimNumber, title: claims.title, description: claims.description, claimedAmount: claims.claimedAmount, approvedAmount: claims.approvedAmount, currency: claims.currency, status: claims.status, submittedAt: claims.submittedAt, resolvedAt: claims.resolvedAt, createdAt: claims.createdAt }).from(claims).where(and(eq(claims.tenantId, input.tenantId), eq(claims.projectId, input.projectId))).orderBy(desc(claims.createdAt));
+}
+
+export async function createClaimForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; claimNumber: string; title: string; description: string; claimedAmount: number; currency: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.contractId) { const [contract] = await db.select({ id: contracts.id }).from(contracts).where(and(eq(contracts.id, input.contractId), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))).limit(1); if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CONTRACT_NOT_FOUND" }); }
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(claims).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, claimNumber: input.claimNumber, title: input.title, description: input.description, claimedAmount: String(input.claimedAmount), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.claim_created", entityType: "claim", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, claimNumber: input.claimNumber, claimedAmount: input.claimedAmount, contractId: input.contractId ?? null }) }); });
+  return { id, status: "draft" as const };
+}
+
+export async function transitionClaimStatus(input: { userId: number; tenantId: string; projectId: string; claimId: string; nextStatus: "submitted" | "under_review" | "approved" | "rejected" | "withdrawn"; approvedAmount?: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [claim] = await db.select({ id: claims.id, status: claims.status, claimedAmount: claims.claimedAmount }).from(claims).where(and(eq(claims.id, input.claimId), eq(claims.tenantId, input.tenantId), eq(claims.projectId, input.projectId))).limit(1);
+  if (!claim) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CLAIM_NOT_FOUND" });
+  if (!claimStatusTransitions[claim.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CLAIM_TRANSITION_INVALID" });
+  if (input.nextStatus === "approved" && input.approvedAmount === undefined) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CLAIM_APPROVAL_AMOUNT_REQUIRED" });
+  if (input.nextStatus === "approved" && input.approvedAmount! > Number(claim.claimedAmount)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CLAIM_APPROVAL_EXCEEDS_CLAIM" });
+  const now = new Date(); const statusFields = input.nextStatus === "submitted" ? { submittedAt: now } : ["approved", "rejected", "withdrawn"].includes(input.nextStatus) ? { resolvedAt: now } : {};
+  await db.transaction(async tx => { await tx.update(claims).set({ status: input.nextStatus, ...(input.nextStatus === "approved" ? { approvedAmount: String(input.approvedAmount) } : {}), ...statusFields }).where(and(eq(claims.id, input.claimId), eq(claims.tenantId, input.tenantId), eq(claims.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.claim_status_transitioned", entityType: "claim", entityId: input.claimId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: claim.status, nextStatus: input.nextStatus, approvedAmount: input.nextStatus === "approved" ? input.approvedAmount : null }) }); });
+  return { id: input.claimId, previousStatus: claim.status, status: input.nextStatus };
 }
 
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {

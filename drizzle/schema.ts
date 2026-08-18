@@ -425,6 +425,29 @@ export const changeRequests = mysqlTable(
   table => [uniqueIndex("change_requests_project_number_unique").on(table.projectId, table.changeNumber), index("change_requests_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
+export const claims = mysqlTable(
+  "claims",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
+    claimNumber: varchar("claimNumber", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description").notNull(),
+    claimedAmount: decimal("claimedAmount", { precision: 18, scale: 2 }).notNull(),
+    approvedAmount: decimal("approvedAmount", { precision: 18, scale: 2 }),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"]).default("draft").notNull(),
+    submittedAt: timestamp("submittedAt"),
+    resolvedAt: timestamp("resolvedAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("claims_project_number_unique").on(table.projectId, table.claimNumber), index("claims_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("claims_contract_idx").on(table.contractId)],
+);
+
 export const projectResources = mysqlTable(
   "project_resources",
   {

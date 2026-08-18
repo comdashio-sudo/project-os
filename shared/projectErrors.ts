@@ -180,6 +180,22 @@ export const projectErrorMessages = {
     ar: "المورد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected resource is not available in the current project and workspace.",
   },
+  PROJECT_OS_CLAIM_NOT_FOUND: {
+    ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected claim is not available in the current project and workspace.",
+  },
+  PROJECT_OS_CLAIM_TRANSITION_INVALID: {
+    ar: "انتقال حالة المطالبة المحدد غير مسموح من حالتها الحالية.",
+    en: "The selected claim-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_CLAIM_APPROVAL_AMOUNT_REQUIRED: {
+    ar: "يلزم إدخال قيمة معتمدة عند اعتماد المطالبة.",
+    en: "An approved amount is required when approving a claim.",
+  },
+  PROJECT_OS_CLAIM_APPROVAL_EXCEEDS_CLAIM: {
+    ar: "لا يمكن أن تتجاوز القيمة المعتمدة قيمة المطالبة المطلوبة.",
+    en: "The approved amount cannot exceed the claimed amount.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
