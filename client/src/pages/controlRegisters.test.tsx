@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import ExecutiveDashboard from "./ExecutiveDashboard";
 import PmoDashboard from "./PmoDashboard";
 import ProjectControls from "./ProjectControls";
+import ProjectRegistry, { lifecycleFeedbackTargetsProject } from "./ProjectRegistry";
 import TenantAdministration from "./TenantAdministration";
 
 const state = vi.hoisted(() => ({
@@ -26,6 +27,9 @@ const state = vi.hoisted(() => ({
   pmoProgramSuccess: false,
   pmoProjectLinkError: null as unknown,
   pmoProjectLinkSuccess: false,
+  projectLifecycleError: null as unknown,
+  projectLifecycleSuccess: false,
+  projectRegistryData: [{ id: "project-1", code: "PRJ-01", name: "North Link", projectType: "Infrastructure", lifecycleStage: "planning", status: "active", currentBudget: "1000", actualCost: "400", forecastCost: "1100" }],
   pmoData: {
     portfolios: [],
     programs: [],
@@ -82,6 +86,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, data: state.projectControlsData, refetch: vi.fn() }) },
+      list: { useQuery: () => ({ isLoading: false, error: null, data: state.projectRegistryData, refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      transitionLifecycle: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.projectLifecycleError, isSuccess: state.projectLifecycleSuccess }) },
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
@@ -376,6 +383,24 @@ describe("control-register dashboards", () => {
     markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("دعوة عضو جديد");
     expect(markup).toContain("إنشاء رابط الدعوة");
+    state.isArabic = false;
+  });
+
+  it("يعرض تحكم انتقال دورة الحياة وحالات النجاح والخطأ باللغتين", () => {
+    state.isArabic = false;
+    let markup = renderToStaticMarkup(<ProjectRegistry />);
+    expect(markup).toContain("Lifecycle");
+    expect(markup).toContain("Choose next stage");
+    expect(markup).toContain('value="design"');
+    expect(markup).toContain('value="execution"');
+    expect(markup).not.toContain('value="opportunity"');
+    expect(lifecycleFeedbackTargetsProject("project-1", "project-1")).toBe(true);
+    expect(lifecycleFeedbackTargetsProject("project-1", "project-2")).toBe(false);
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<ProjectRegistry />);
+    expect(markup).toContain("دورة الحياة");
+    expect(markup).toContain("اختر المرحلة التالية");
     state.isArabic = false;
   });
 });
