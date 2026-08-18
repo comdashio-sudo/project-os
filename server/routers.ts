@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { acceptMembershipInvitation, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, createAction, createActivity, createBudgetLine, createCommitmentForTenant, createContractForTenant, createCostEntry, createDecision, createIssue, createMembershipInvitation, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, getContractsCommitmentsForTenant, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, getTenantAdministration, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, revokeTenantMembershipRole, saveEvmSnapshot, transitionProjectLifecycle, updateTenantRole } from "./db";
+import { acceptMembershipInvitation, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, captureProjectHealthSnapshot, createAction, createActivity, createBudgetLine, createCommitmentForTenant, createContractForTenant, createCostEntry, createDecision, createIssue, createMembershipInvitation, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, getContractsCommitmentsForTenant, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, getTenantAdministration, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, revokeTenantMembershipRole, saveEvmSnapshot, transitionProjectLifecycle, updateTenantRole } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -78,6 +78,7 @@ export const appRouter = router({
     captureOperationalEvmSnapshot: protectedProcedure
       .input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date(), eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi"]) }))
       .mutation(({ ctx, input }) => captureOperationalEvmSnapshot({ userId: ctx.user.id, ...input })),
+    captureProjectHealthSnapshot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date() })).mutation(({ ctx, input }) => captureProjectHealthSnapshot({ userId: ctx.user.id, ...input })),
   }),
   dashboards: router({
     executive: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getExecutiveDashboard({ userId: ctx.user.id, ...input })),

@@ -38,6 +38,7 @@ import { productsForPackage, type TenantAccessSnapshot } from "./domain/authoriz
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
+import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -573,7 +574,7 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
 
-  const [projectRows, wbs, activitiesForProject, budgets, costs, progress, latestEvm] = await Promise.all([
+  const [projectRows, wbs, activitiesForProject, budgets, costs, progress, latestEvm, latestHealth] = await Promise.all([
     db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1),
     db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name, parentId: wbsItems.parentId, plannedValue: wbsItems.plannedValue, earnedValue: wbsItems.earnedValue, actualCost: wbsItems.actualCost, progressPercent: wbsItems.progressPercent }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))),
     db.select({ id: activities.id, wbsItemId: activities.wbsItemId, code: activities.code, name: activities.name, status: activities.status, plannedValue: activities.plannedValue, earnedValue: activities.earnedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))),
@@ -581,9 +582,10 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
     db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, entryType: costEntries.entryType, status: costEntries.status, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId))).orderBy(desc(costEntries.incurredAt)),
     db.select({ id: progressEntries.id, wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, status: progressEntries.status, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(eq(progressEntries.tenantId, input.tenantId), eq(progressEntries.projectId, input.projectId))).orderBy(desc(progressEntries.measuredAt)),
     db.select({ id: evmSnapshots.id, periodAt: evmSnapshots.periodAt, pv: evmSnapshots.pv, ev: evmSnapshots.ev, ac: evmSnapshots.ac, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, etc: evmSnapshots.etc, vac: evmSnapshots.vac }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId))).orderBy(desc(evmSnapshots.periodAt)).limit(1),
+    db.select({ id: projectHealthSnapshots.id, periodAt: projectHealthSnapshots.periodAt, overallScore: projectHealthSnapshots.overallScore, status: projectHealthSnapshots.status, confidence: projectHealthSnapshots.confidence, drivers: projectHealthSnapshots.drivers, exceptions: projectHealthSnapshots.exceptions }).from(projectHealthSnapshots).where(and(eq(projectHealthSnapshots.tenantId, input.tenantId), eq(projectHealthSnapshots.projectId, input.projectId))).orderBy(desc(projectHealthSnapshots.periodAt)).limit(1),
   ]);
 
-  return { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null };
+  return { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null };
 }
 
 export async function getExecutiveDashboard(input: { userId: number; tenantId: string }) {
@@ -760,6 +762,32 @@ export async function captureOperationalEvmSnapshot(input: { userId: number; ten
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "evm.operational_snapshot_created", entityType: "evm_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), source: "operational_records", sources: result.sources }) });
   });
   return { id, ...result };
+}
+
+export async function captureProjectHealthSnapshot(input: { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const now = new Date();
+  const [evmRows, riskRows, actionRows] = await Promise.all([
+    db.select({ cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, bac: evmSnapshots.bac }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId))).orderBy(desc(evmSnapshots.periodAt)).limit(1),
+    db.select({ probability: risks.probability, severity: risks.severity, status: risks.status }).from(risks).where(and(eq(risks.tenantId, input.tenantId), eq(risks.projectId, input.projectId))),
+    db.select({ dueAt: actions.dueAt, status: actions.status }).from(actions).where(and(eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId))),
+  ]);
+  const latestEvm = evmRows[0] ?? null;
+  const highRiskCount = riskRows.filter(risk => risk.status !== "closed" && risk.probability * risk.severity >= 16).length;
+  const overdueActionCount = actionRows.filter(action => action.dueAt !== null && action.dueAt < now && !["completed", "cancelled"].includes(action.status)).length;
+  const sources = { latestEvmFound: Boolean(latestEvm), highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount: 0, overdueNcrCount: 0 };
+  const result = calculateProjectHealth({ cpi: latestEvm?.cpi === null || !latestEvm ? null : Number(latestEvm.cpi), spi: latestEvm?.spi === null || !latestEvm ? null : Number(latestEvm.spi), eac: latestEvm ? Number(latestEvm.eac) : null, bac: latestEvm ? Number(latestEvm.bac) : null, highRiskCount, overdueActionCount, overdueApprovalCount: 0, overdueRfiCount: 0, overdueNcrCount: 0 });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(projectHealthSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, overallScore: String(result.score), status: result.status, confidence: result.confidence, drivers: JSON.stringify(sources), exceptions: JSON.stringify(result.exceptions) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.health_snapshot_captured", entityType: "project_health_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), sources }) });
+  });
+  return { id, sources, ...result };
 }
 
 export async function createWbsItem(input: { userId: number; tenantId: string; projectId: string; code: string; name: string; parentId?: string; plannedValue?: number }) {
