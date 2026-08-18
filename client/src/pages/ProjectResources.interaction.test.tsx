@@ -5,14 +5,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectResources } from "./ProjectResources";
 
-const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn() }));
+const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn(), allocationMutate: vi.fn() }));
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized resource error" }));
-vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "USD" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "USD" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) }, updateAllocation: { useMutation: () => ({ mutate: state.allocationMutate, isPending: false, error: null }) } } } }));
 
 describe("ProjectResources interaction", () => {
-  beforeEach(() => { cleanup(); state.error = null; state.mutate.mockReset(); });
+  beforeEach(() => { cleanup(); state.error = null; state.mutate.mockReset(); state.allocationMutate.mockReset(); });
 
   it("submits a bounded resource record and shows its defined allocation denominator", async () => {
     const user = userEvent.setup();
@@ -43,5 +43,16 @@ describe("ProjectResources interaction", () => {
 
     expect((code as HTMLInputElement).value).toBe("LAB-FAIL");
     expect(screen.getByText("Localized resource error")).toBeTruthy();
+  });
+
+  it("submits an updated allocation from the resource card", async () => {
+    const user = userEvent.setup();
+    render(<ProjectResources tenantId="tenant-1" projectId="project-1" />);
+    const allocation = screen.getByLabelText("Allocated units LAB-01");
+    await user.clear(allocation);
+    await user.type(allocation, "8");
+    await user.click(screen.getByRole("button", { name: "Update allocation" }));
+
+    expect(state.allocationMutate).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", resourceId: "resource-1", allocatedUnits: 8 });
   });
 });

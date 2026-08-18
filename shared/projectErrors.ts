@@ -176,6 +176,10 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن تتجاوز وحدات المورد المخصصة وحداته المخططة.",
     en: "Allocated resource units cannot exceed planned resource units.",
   },
+  PROJECT_OS_RESOURCE_NOT_FOUND: {
+    ar: "المورد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected resource is not available in the current project and workspace.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

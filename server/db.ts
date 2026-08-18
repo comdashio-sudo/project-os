@@ -938,6 +938,19 @@ export async function createProjectResourceForTenant(input: { userId: number; te
   return { id };
 }
 
+export async function updateProjectResourceAllocationForTenant(input: { userId: number; tenantId: string; projectId: string; resourceId: string; allocatedUnits: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [resource] = await db.select({ id: projectResources.id, plannedUnits: projectResources.plannedUnits, allocatedUnits: projectResources.allocatedUnits }).from(projectResources).where(and(eq(projectResources.id, input.resourceId), eq(projectResources.tenantId, input.tenantId), eq(projectResources.projectId, input.projectId))).limit(1);
+  if (!resource) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_RESOURCE_NOT_FOUND" });
+  if (input.allocatedUnits > Number(resource.plannedUnits)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN" });
+  await db.transaction(async tx => { await tx.update(projectResources).set({ allocatedUnits: String(input.allocatedUnits) }).where(and(eq(projectResources.id, input.resourceId), eq(projectResources.tenantId, input.tenantId), eq(projectResources.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_allocation_updated", entityType: "project_resource", entityId: input.resourceId, metadata: JSON.stringify({ projectId: input.projectId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits }) }); });
+  return { id: input.resourceId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits };
+}
+
 export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
   if (input.endAt && input.startAt && input.endAt < input.startAt) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_DATES_INVALID" });
   const db = await getDb();
