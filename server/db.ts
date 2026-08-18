@@ -135,6 +135,29 @@ export async function getTenantAdministration(input: { userId: number; tenantId:
   return { members: memberRows.map(member => ({ ...member, roles: assignmentsByMembership.get(member.membershipId) ?? [] })), roles: rolesWithPermissions, permissions: permissionRows };
 }
 
+export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  if (input.actorUserId === input.targetUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
+  if (input.scopeType === "company" && input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  if (input.scopeType !== "company" && !input.scopeId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVALID_SCOPE" });
+  const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.id, input.targetUserId));
+  if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_USER_NOT_FOUND" });
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId));
+  if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  const [existing] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.targetUserId)));
+  if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBER_ALREADY_EXISTS" });
+  const membershipId = crypto.randomUUID();
+  const assignmentId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(memberships).values({ id: membershipId, tenantId: input.tenantId, userId: input.targetUserId, status: "invited" });
+    await tx.insert(membershipRoles).values({ id: assignmentId, membershipId, roleId: input.roleId, scopeType: input.scopeType, scopeId: input.scopeId ?? null });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_assigned", entityType: "membership", entityId: membershipId, metadata: JSON.stringify({ targetUserId: input.targetUserId, roleId: input.roleId, scopeType: input.scopeType, scopeId: input.scopeId ?? null }) });
+  });
+  return { membershipId, assignmentId, status: "invited" as const };
+}
+
 export async function writeAuditLog(input: {
   id: string;
   tenantId: string;
