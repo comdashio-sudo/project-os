@@ -9,6 +9,8 @@ import TenantAdministration from "./TenantAdministration";
 const state = vi.hoisted(() => ({
   isArabic: false,
   executiveMutationPending: false,
+  tenantAssignmentSuccess: false,
+  tenantAssignmentError: null as unknown,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -55,6 +57,9 @@ vi.mock("@/lib/trpc", () => ({
         pmo: { invalidate: vi.fn() },
         executive: { invalidate: vi.fn() },
       },
+      tenant: {
+        administration: { invalidate: vi.fn() },
+      },
     }),
     dashboards: {
       pmo: { useQuery: () => ({ isLoading: false, error: null, data: state.pmoData }) },
@@ -65,6 +70,8 @@ vi.mock("@/lib/trpc", () => ({
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
+      findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
+      assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
     },
     pmo: {
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -136,16 +143,36 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("التقاط EVM محسوب");
   });
 
-  it("يعرض أعضاء المؤسسة وأدوارهم ونطاقاتهم باللغتين", () => {
+  it("يعرض اختيار المستخدم وحالات نجاح وفشل الإسناد باللغتين", () => {
     state.isArabic = false;
+    state.tenantAssignmentSuccess = false;
+    state.tenantAssignmentError = null;
     let markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("Organization members &amp; roles");
+    expect(markup).toContain("Assign an existing member");
+    expect(markup).toContain("Existing user email");
+    expect(markup).toContain("Find user");
+    expect(markup).toContain("Select user");
     expect(markup).toContain("Amina");
     expect(markup).toContain("PMO Manager · Scope: Company");
 
+    state.tenantAssignmentSuccess = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("The invited membership and role assignment were created.");
+
+    state.tenantAssignmentSuccess = false;
+    state.tenantAssignmentError = {};
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Localized error");
+
     state.isArabic = true;
+    state.tenantAssignmentError = null;
     markup = renderToStaticMarkup(<TenantAdministration />);
     expect(markup).toContain("أعضاء وأدوار المؤسسة");
+    expect(markup).toContain("إسناد عضو موجود");
+    expect(markup).toContain("بريد المستخدم الموجود");
+    expect(markup).toContain("التحقق من المستخدم");
     expect(markup).toContain("النطاق: المؤسسة");
+    state.isArabic = false;
   });
 });

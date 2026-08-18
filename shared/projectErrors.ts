@@ -32,6 +32,26 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن يسبق تاريخ نهاية النشاط تاريخ بدايته المخطط.",
     en: "An activity's planned finish date cannot be earlier than its planned start date.",
   },
+  PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN: {
+    ar: "لا يمكنك تعديل عضويتك أو امتيازاتك من خلال هذا المسار.",
+    en: "You cannot change your own membership or privileges through this path.",
+  },
+  PROJECT_OS_INVALID_SCOPE: {
+    ar: "حدد نطاقًا صالحًا للدور المطلوب إسناده.",
+    en: "Select a valid scope for the role assignment.",
+  },
+  PROJECT_OS_USER_NOT_FOUND: {
+    ar: "لا يمكن العثور على المستخدم المحدد.",
+    en: "The selected user could not be found.",
+  },
+  PROJECT_OS_ROLE_NOT_FOUND: {
+    ar: "الدور المحدد غير متاح ضمن هذه المؤسسة.",
+    en: "The selected role is not available in this organization.",
+  },
+  PROJECT_OS_MEMBER_ALREADY_EXISTS: {
+    ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
+    en: "The selected user already has a membership in this organization.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

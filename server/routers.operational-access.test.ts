@@ -77,6 +77,28 @@ function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXE
   return transactionDouble;
 }
 
+function configureAuthorizedTenantMemberAssignment() {
+  const transactionDouble = {
+    insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
+  };
+  let idSelectionCount = 0;
+  databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+    const keys = Object.keys(selection).sort().join(",");
+    if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+    if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+    if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+    if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+    if (keys === "id") {
+      idSelectionCount += 1;
+      return queryResult(idSelectionCount === 1 ? [{ id: "target-user" }] : []);
+    }
+    if (keys === "id,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA }]);
+    throw new Error(`Unexpected select shape: ${keys}`);
+  });
+  databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+  return transactionDouble;
+}
+
 describe("operational API authorization", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://router-access-test";
@@ -102,6 +124,78 @@ describe("operational API authorization", () => {
 
     await expect(caller.tenant.administration({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects assignable-user lookup for a tenant without active membership before inspecting user identities", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.findAssignableUser({ tenantId: tenantB, email: "candidate@example.com" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an exact-match user only after tenant-manager checks and only when that user is not already a member", async () => {
+    let membershipCheckCount = 0;
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "EXECUTIVE" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
+      if (keys === "email,id,name") return queryResult([{ id: 99, name: "Candidate User", email: "candidate@example.com" }]);
+      if (keys === "id") {
+        membershipCheckCount += 1;
+        return queryResult(membershipCheckCount === 1 ? [] : [{ id: "existing-membership" }]);
+      }
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.findAssignableUser({ tenantId: tenantA, email: "candidate@example.com" })).resolves.toEqual({ id: 99, name: "Candidate User", email: "candidate@example.com" });
+    await expect(caller.tenant.findAssignableUser({ tenantId: tenantA, email: "candidate@example.com" })).resolves.toBeNull();
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects member assignment for a tenant without active membership before inspecting the target user or role", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMember({ tenantId: tenantB, targetUserId: 99, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects member assignment when the EXECUTIVE entitlement is absent before inspecting the target user or role", async () => {
+    configureActiveMembershipWithoutProjectEntitlement();
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: 99, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("not licensed");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(4);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an assignment that would alter the acting manager's own privileges before inspecting target data or writing", async () => {
+    configureAuthorizedOperationalAccess({ productCode: "EXECUTIVE", permissionCode: "tenant.manage" });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: 42, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+
+    expect(databaseDouble.select).toHaveBeenCalledTimes(4);
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("allows an authorized member assignment only after access checks, and writes membership, role, and audit evidence atomically", async () => {
+    const transactionDouble = configureAuthorizedTenantMemberAssignment();
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.tenant.assignMember({ tenantId: tenantA, targetUserId: 99, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" });
+
+    expect(result).toMatchObject({ membershipId: expect.any(String), assignmentId: expect.any(String), status: "invited" });
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it.each([

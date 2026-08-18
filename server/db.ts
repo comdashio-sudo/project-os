@@ -135,6 +135,17 @@ export async function getTenantAdministration(input: { userId: number; tenantId:
   return { members: memberRows.map(member => ({ ...member, roles: assignmentsByMembership.get(member.membershipId) ?? [] })), roles: rolesWithPermissions, permissions: permissionRows };
 }
 
+export async function findAssignableTenantUser(input: { userId: number; tenantId: string; email: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  const [candidate] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, input.email.trim().toLowerCase())).limit(1);
+  if (!candidate) return null;
+  const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, candidate.id))).limit(1);
+  if (existingMembership) return null;
+  return candidate;
+}
+
 export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
