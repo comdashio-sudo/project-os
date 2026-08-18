@@ -60,6 +60,7 @@ const state = vi.hoisted(() => ({
     decisions: [],
     cashFlow: { plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 },
     cashFlowByProject: [{ id: "project-1", code: "PRJ-01", name: "North Link", plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 }],
+    cashFlowByPortfolio: [{ portfolioId: "portfolio-1", code: "PORT-01", name: "Strategic Works", projectCount: 1, plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 }],
   },
   projectControlsData: {
     project: { code: "PRJ-01", name: "North Link" },
@@ -291,11 +292,14 @@ describe("control-register dashboards", () => {
     let markup = renderToStaticMarkup(<ExecutiveDashboard />);
     expect(markup).toContain("Executive cash-flow summary");
     expect(markup).toContain("Total exposure");
+    expect(markup).toContain("Cash flow by portfolio");
+    expect(markup).toContain("PORT-01 · Strategic Works");
     expect(markup).toContain("PRJ-01 · North Link");
     state.isArabic = true;
     markup = renderToStaticMarkup(<ExecutiveDashboard />);
     expect(markup).toContain("ملخص التدفق النقدي التنفيذي");
     expect(markup).toContain("إجمالي التعرض");
+    expect(markup).toContain("التدفق حسب المحفظة");
   });
 
   it("يعرض نموذج النشاط وسجل الجدولة وحالة النشاط باللغتين", () => {
