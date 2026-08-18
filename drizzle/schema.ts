@@ -196,6 +196,23 @@ export const auditLogs = mysqlTable(
   table => [index("audit_logs_tenant_entity_idx").on(table.tenantId, table.entityType, table.entityId)],
 );
 
+export const internalNotifications = mysqlTable(
+  "internal_notifications",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    recipientUserId: int("recipientUserId").notNull().references(() => users.id),
+    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    notificationCode: varchar("notificationCode", { length: 120 }).notNull(),
+    entityType: varchar("entityType", { length: 120 }),
+    entityId: varchar("entityId", { length: 36 }),
+    payload: text("payload").notNull(),
+    acknowledgedAt: timestamp("acknowledgedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("internal_notifications_recipient_tenant_ack_idx").on(table.recipientUserId, table.tenantId, table.acknowledgedAt), index("internal_notifications_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
 export const portfolios = mysqlTable(
   "portfolios",
   {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { acceptMembershipInvitation, addProjectDocumentVersion, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, captureProjectHealthSnapshot, createAction, createActivity, createBudgetLine, createChangeRequestForTenant, createCommitmentForTenant, createContractForTenant, createCostEntry, createDecision, createHseObservationForTenant, createIssue, createMembershipInvitation, createNcrForTenant, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectDocumentWithVersion, createProjectForTenant, createRfiForTenant, createRisk, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, getChangeRequestsForTenant, getContractsCommitmentsForTenant, getExecutiveDashboard, getHseObservationsForTenant, getNcrsForTenant, getPmoDashboard, getProjectControlsForTenant, getProjectDocumentsForTenant, getRfisForTenant, getTenantAccessSnapshot, getTenantAdministration, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, revokeTenantMembershipRole, saveEvmSnapshot, transitionActionEscalation, transitionChangeRequestStatus, transitionHseObservationStatus, transitionIssueEscalation, transitionNcrStatus, transitionProjectDocumentStatus, transitionProjectLifecycle, transitionRfiStatus, updateTenantRole } from "./db";
+import { acceptMembershipInvitation, acknowledgeInternalNotification, addProjectDocumentVersion, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, captureProjectHealthSnapshot, createAction, createActivity, createBudgetLine, createChangeRequestForTenant, createCommitmentForTenant, createContractForTenant, createCostEntry, createDecision, createHseObservationForTenant, createIssue, createMembershipInvitation, createNcrForTenant, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectDocumentWithVersion, createProjectForTenant, createRfiForTenant, createRisk, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, getChangeRequestsForTenant, getContractsCommitmentsForTenant, getExecutiveDashboard, getHseObservationsForTenant, getInternalNotificationsForTenant, getNcrsForTenant, getPmoDashboard, getProjectControlsForTenant, getProjectDocumentsForTenant, getRfisForTenant, getTenantAccessSnapshot, getTenantAdministration, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, revokeTenantMembershipRole, saveEvmSnapshot, transitionActionEscalation, transitionChangeRequestStatus, transitionHseObservationStatus, transitionIssueEscalation, transitionNcrStatus, transitionProjectDocumentStatus, transitionProjectLifecycle, transitionRfiStatus, updateTenantRole } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -37,6 +37,10 @@ export const appRouter = router({
         assertTenantAccess(snapshot, input);
         return { allowed: true as const };
       }),
+  }),
+  notifications: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getInternalNotificationsForTenant({ userId: ctx.user.id, ...input })),
+    acknowledge: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), notificationId: z.string().uuid() })).mutation(({ ctx, input }) => acknowledgeInternalNotification({ userId: ctx.user.id, ...input })),
   }),
   tenant: router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),

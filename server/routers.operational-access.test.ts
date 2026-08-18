@@ -753,7 +753,7 @@ describe("operational API authorization", () => {
     const result = await caller.controls.captureProjectHealthSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-18T00:00:00.000Z") });
 
     expect(result).toMatchObject({ score: 13, status: "red", sources: { latestEvmFound: true, highRiskCount: 1, overdueActionCount: 1, overdueRfiCount: 1, overdueNcrCount: 1, overdueHseCount: 1 } });
-    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it("does not count an overdue RFI outside the project in the project-health source", async () => {
@@ -779,7 +779,7 @@ describe("operational API authorization", () => {
 
     expect(result.sources.overdueRfiCount).toBe(0);
     expect(result.score).toBe(37);
-    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it("does not count an overdue NCR outside the project in the project-health source", async () => {
@@ -805,7 +805,7 @@ describe("operational API authorization", () => {
 
     expect(result.sources.overdueNcrCount).toBe(0);
     expect(result.score).toBe(37);
-    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it("does not count an overdue HSE observation outside the project in the project-health source", async () => {
@@ -828,7 +828,7 @@ describe("operational API authorization", () => {
     const result = await appRouter.createCaller(context()).controls.captureProjectHealthSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-18T00:00:00.000Z") });
     expect(result.sources.overdueHseCount).toBe(0);
     expect(result.score).toBe(37);
-    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(3);
   });
 
   it("rejects a commitment whose contract belongs outside the requested tenant project before writing", async () => {

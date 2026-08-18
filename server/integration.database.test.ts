@@ -10,6 +10,7 @@ const projectA = "00000000-0000-4000-8000-0000000000a2";
 const projectB = "00000000-0000-4000-8000-0000000000b2";
 const documentA = "00000000-0000-4000-8000-0000000000d1";
 const changeRequestA = "00000000-0000-4000-8000-0000000000c1";
+const notificationA = "00000000-0000-4000-8000-0000000000f1";
 const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let integrationUserId = 0;
 let unassignedUserId = 0;
@@ -145,5 +146,18 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const created = await caller.changes.create({ tenantId: tenantA, projectId: projectA, ...request });
     const [rows] = await connection.query<{ changes: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM change_requests WHERE id = ?) AS changes, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ?) AS audits", [created.id, created.id]);
     expect(rows[0]).toMatchObject({ changes: 1, audits: 1 });
+  });
+
+  it("lists and acknowledges an internal notification for its recipient with audit evidence", async () => {
+    await connection.query("DELETE FROM internal_notifications WHERE id = ?", [notificationA]);
+    await connection.query("INSERT INTO internal_notifications (id, tenantId, recipientUserId, notificationCode, payload) VALUES (?, ?, ?, 'PROJECT_HEALTH_EXCEPTION', '{}')", [notificationA, tenantA, integrationUserId]);
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.notifications.list({ tenantId: tenantA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: notificationA })]));
+    await expect(caller.notifications.acknowledge({ tenantId: tenantA, notificationId: notificationA })).resolves.toMatchObject({ id: notificationA });
+    const [rows] = await connection.query<{ acknowledged: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM internal_notifications WHERE id = ? AND acknowledgedAt IS NOT NULL) AS acknowledged, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ?) AS audits", [notificationA, notificationA]);
+    expect(rows[0]).toMatchObject({ acknowledged: 1, audits: 1 });
+    await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [notificationA]);
+    await connection.query("DELETE FROM internal_notifications WHERE id = ?", [notificationA]);
   });
 });

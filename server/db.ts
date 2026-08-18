@@ -14,6 +14,7 @@ import {
   membershipInvitations,
   membershipRoles,
   changeRequests,
+  internalNotifications,
   hseObservations,
   ncrs,
   permissions,
@@ -1098,8 +1099,28 @@ export async function captureProjectHealthSnapshot(input: { userId: number; tena
   await db.transaction(async tx => {
     await tx.insert(projectHealthSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, overallScore: String(result.score), status: result.status, confidence: result.confidence, drivers: JSON.stringify(sources), exceptions: JSON.stringify(result.exceptions) });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.health_snapshot_captured", entityType: "project_health_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), sources }) });
+    if (result.exceptions.length) await tx.insert(internalNotifications).values({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId: input.userId, projectId: input.projectId, notificationCode: "PROJECT_HEALTH_EXCEPTION", entityType: "project_health_snapshot", entityId: id, payload: JSON.stringify({ exceptionCodes: result.exceptions.map(exception => exception.code), status: result.status, score: result.score }) });
   });
   return { id, sources, ...result };
+}
+
+export async function getInternalNotificationsForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  return db.select({ id: internalNotifications.id, notificationCode: internalNotifications.notificationCode, projectId: internalNotifications.projectId, entityType: internalNotifications.entityType, entityId: internalNotifications.entityId, payload: internalNotifications.payload, acknowledgedAt: internalNotifications.acknowledgedAt, createdAt: internalNotifications.createdAt }).from(internalNotifications).where(and(eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))).orderBy(desc(internalNotifications.createdAt));
+}
+
+export async function acknowledgeInternalNotification(input: { userId: number; tenantId: string; notificationId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  const [notification] = await db.select({ id: internalNotifications.id, acknowledgedAt: internalNotifications.acknowledgedAt }).from(internalNotifications).where(and(eq(internalNotifications.id, input.notificationId), eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))).limit(1);
+  if (!notification) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_NOTIFICATION_NOT_FOUND" });
+  if (notification.acknowledgedAt) return { id: notification.id, acknowledgedAt: notification.acknowledgedAt };
+  const acknowledgedAt = new Date();
+  await db.transaction(async tx => { await tx.update(internalNotifications).set({ acknowledgedAt }).where(and(eq(internalNotifications.id, input.notificationId), eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "internal_notification_acknowledged", entityType: "internal_notification", entityId: input.notificationId, metadata: JSON.stringify({ acknowledgedAt: acknowledgedAt.toISOString() }) }); });
+  return { id: notification.id, acknowledgedAt };
 }
 
 export async function createWbsItem(input: { userId: number; tenantId: string; projectId: string; code: string; name: string; parentId?: string; plannedValue?: number }) {
