@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import ExecutiveDashboard from "./ExecutiveDashboard";
 import PmoDashboard from "./PmoDashboard";
 import ProjectControls from "./ProjectControls";
+import TenantAdministration from "./TenantAdministration";
 
 const state = vi.hoisted(() => ({
   isArabic: false,
@@ -33,6 +34,11 @@ const state = vi.hoisted(() => ({
     progress: [],
     latestEvm: null,
   },
+  tenantAdminData: {
+    members: [{ membershipId: "member-1", userId: 12, name: "Amina", email: "amina@example.com", status: "active", joinedAt: null, roles: [{ roleId: "role-1", roleCode: "PMO_MANAGER", roleName: "PMO Manager", scopeType: "company", scopeId: null }] }],
+    roles: [{ id: "role-1", code: "PMO_MANAGER", name: "PMO Manager", productCode: "PMO", systemManaged: false, permissions: [{ code: "pmo.write" }] }],
+    permissions: [{ code: "pmo.write", name: "Manage PMO", productCode: "PMO" }],
+  },
 }));
 
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <span>Language toggle</span> }));
@@ -56,6 +62,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, data: state.projectControlsData, refetch: vi.fn() }) },
+    },
+    tenant: {
+      administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
     },
     pmo: {
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -125,5 +134,18 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("جدولة نشاط");
     expect(markup).toContain("لم يبدأ");
     expect(markup).toContain("التقاط EVM محسوب");
+  });
+
+  it("يعرض أعضاء المؤسسة وأدوارهم ونطاقاتهم باللغتين", () => {
+    state.isArabic = false;
+    let markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("Organization members &amp; roles");
+    expect(markup).toContain("Amina");
+    expect(markup).toContain("PMO Manager · Scope: Company");
+
+    state.isArabic = true;
+    markup = renderToStaticMarkup(<TenantAdministration />);
+    expect(markup).toContain("أعضاء وأدوار المؤسسة");
+    expect(markup).toContain("النطاق: المؤسسة");
   });
 });

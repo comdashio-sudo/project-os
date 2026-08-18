@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productCodes } from "../drizzle/schema";
-import { captureOperationalEvmSnapshot, createAction, createActivity, createBudgetLine, createCostEntry, createDecision, createIssue, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createWbsItem, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
+import { captureOperationalEvmSnapshot, createAction, createActivity, createBudgetLine, createCostEntry, createDecision, createIssue, createProgressEntry, createProjectForTenant, createRisk, createTenantForUser, createWbsItem, getExecutiveDashboard, getPmoDashboard, getProjectControlsForTenant, getTenantAccessSnapshot, getTenantAdministration, listProjectsForTenant, listTenantsForUser, saveEvmSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -40,6 +40,7 @@ export const appRouter = router({
   }),
   tenant: router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
+    administration: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantAdministration({ userId: ctx.user.id, ...input })),
     create: protectedProcedure
       .input(z.object({
         legalName: z.string().trim().min(2).max(255),

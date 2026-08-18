@@ -96,6 +96,14 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects tenant administration data for a tenant without active membership", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.tenant.administration({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(databaseDouble.select).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["EVM snapshot", (caller: ReturnType<typeof appRouter.createCaller>) => caller.controls.saveEvmSnapshot({ tenantId: tenantA, projectId: projectB, periodAt: new Date("2026-08-17T00:00:00.000Z"), pv: 100, ev: 90, ac: 95, bac: 120, eacMethod: "bac_over_cpi" })],
     ["operational EVM snapshot", (caller: ReturnType<typeof appRouter.createCaller>) => caller.controls.captureOperationalEvmSnapshot({ tenantId: tenantA, projectId: projectB, periodAt: new Date("2026-08-17T00:00:00.000Z"), eacMethod: "ac_plus_remaining" })],

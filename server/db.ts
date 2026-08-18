@@ -108,6 +108,33 @@ export async function getTenantAccessSnapshot(input: { userId: number; tenantId:
   };
 }
 
+async function assertTenantManager(userId: number, tenantId: string): Promise<void> {
+  const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
+}
+
+export async function getTenantAdministration(input: { userId: number; tenantId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  const [memberRows, roleRows, permissionRows] = await Promise.all([
+    db.select({ membershipId: memberships.id, userId: users.id, name: users.name, email: users.email, status: memberships.status, joinedAt: memberships.joinedAt }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(eq(memberships.tenantId, input.tenantId)),
+    db.select({ id: roles.id, code: roles.code, name: roles.name, productCode: roles.productCode, systemManaged: roles.systemManaged }).from(roles).where(eq(roles.tenantId, input.tenantId)),
+    db.select({ code: permissions.code, name: permissions.name, productCode: permissions.productCode }).from(permissions),
+  ]);
+  const membershipAssignments = await Promise.all(memberRows.map(async member => ({
+    membershipId: member.membershipId,
+    roles: await db.select({ roleId: membershipRoles.roleId, roleCode: roles.code, roleName: roles.name, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, member.membershipId)),
+  })));
+  const rolesWithPermissions = await Promise.all(roleRows.map(async role => ({
+    ...role,
+    permissions: await db.select({ code: permissions.code }).from(rolePermissions).innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id)).where(eq(rolePermissions.roleId, role.id)),
+  })));
+  const assignmentsByMembership = new Map(membershipAssignments.map(item => [item.membershipId, item.roles]));
+  return { members: memberRows.map(member => ({ ...member, roles: assignmentsByMembership.get(member.membershipId) ?? [] })), roles: rolesWithPermissions, permissions: permissionRows };
+}
+
 export async function writeAuditLog(input: {
   id: string;
   tenantId: string;
