@@ -101,6 +101,10 @@ vi.mock("@/lib/trpc", () => ({
       pmo: { useQuery: () => ({ isLoading: false, error: null, data: state.pmoData }) },
       executive: { useQuery: () => ({ isLoading: false, error: null, data: state.executiveData }) },
     },
+    dataImports: {
+      list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      analyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+    },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, data: state.projectControlsData, refetch: vi.fn() }) },
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.projectRegistryData, refetch: vi.fn() }) },

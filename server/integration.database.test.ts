@@ -84,6 +84,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(appRouter.createCaller(context).advisor.project({ tenantId: tenantA, projectId: projectB, locale: "en" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   });
 
+  it("rejects cross-tenant import analysis before file storage or import audit writes", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.dataImports.analyze({ tenantId: tenantA, projectId: projectB, moduleCode: "wbs", fileName: "cross-tenant.csv", sourceFormat: "csv", base64: Buffer.from("code,name\n1,Blocked").toString("base64") })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    const [rows] = await connection.query<{ imports: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE tenantId = ? AND projectId = ?) AS imports, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'data_import.analyzed') AS audits", [tenantA, projectB, tenantA]);
+    expect(rows[0]).toMatchObject({ imports: 0, audits: 0 });
+  });
+
   it("rejects cross-tenant EVM and health snapshot captures before writing snapshots", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context); const periodAt = new Date("2026-01-31T00:00:00.000Z");
