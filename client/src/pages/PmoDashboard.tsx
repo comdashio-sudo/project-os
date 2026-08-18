@@ -20,13 +20,15 @@ export default function PmoDashboard() {
   const [riskForm, setRiskForm] = useState({ projectId: "", code: "", title: "", probability: "3", severity: "3" });
   const [issueForm, setIssueForm] = useState<{ projectId: string; code: string; title: string; priority: Priority }>({ projectId: "", code: "", title: "", priority: "medium" });
   const [actionForm, setActionForm] = useState<{ projectId: string; title: string; priority: Priority }>({ projectId: "", title: "", priority: "medium" });
+  const [portfolioForm, setPortfolioForm] = useState({ code: "", name: "" });
+  const [programForm, setProgramForm] = useState({ portfolioId: "", code: "", name: "" });
 
   const t = isArabic
     ? {
-        back: "مساحة العمل", level: "المستوى 2 · مكتب إدارة المشاريع", title: "لوحة حوكمة PMO", sub: "نطاق المحافظ والبرامج وسجلات المخاطر والقضايا والإجراءات ضمن المستأجر المصرح به.", portfolios: "المحافظ", programs: "البرامج", projects: "المشاريع", risks: "المخاطر المفتوحة", issues: "القضايا المفتوحة", actions: "الإجراءات المفتوحة", noData: "لا توجد سجلات ضمن نطاق الوصول الحالي.", loading: "جارٍ تحميل ضوابط PMO…", saving: "جارٍ حفظ السجل…", addRisk: "تسجيل مخاطرة", addIssue: "تسجيل قضية", addAction: "تسجيل إجراء", project: "المشروع", code: "الرمز", titleLabel: "العنوان", actionTitle: "عنوان الإجراء", probability: "الاحتمال (1–5)", severity: "الأثر (1–5)", priority: "الأولوية", save: "حفظ السجل", select: "اختر مشروعًا", unavailable: "لا يمكن التسجيل قبل وجود مشروع ضمن النطاق.", success: "تم الحفظ وتحديث السجل.", low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
+        back: "مساحة العمل", level: "المستوى 2 · مكتب إدارة المشاريع", title: "لوحة حوكمة PMO", sub: "نطاق المحافظ والبرامج وسجلات المخاطر والقضايا والإجراءات ضمن المستأجر المصرح به.", portfolios: "المحافظ", programs: "البرامج", projects: "المشاريع", risks: "المخاطر المفتوحة", issues: "القضايا المفتوحة", actions: "الإجراءات المفتوحة", noData: "لا توجد سجلات ضمن نطاق الوصول الحالي.", loading: "جارٍ تحميل ضوابط PMO…", saving: "جارٍ حفظ السجل…", addRisk: "تسجيل مخاطرة", addIssue: "تسجيل قضية", addAction: "تسجيل إجراء", addPortfolio: "إنشاء محفظة", addProgram: "إنشاء برنامج", portfolio: "المحفظة", optionalPortfolio: "المحفظة (اختياري)", project: "المشروع", code: "الرمز", titleLabel: "العنوان", actionTitle: "عنوان الإجراء", probability: "الاحتمال (1–5)", severity: "الأثر (1–5)", priority: "الأولوية", save: "حفظ السجل", create: "إنشاء", select: "اختر مشروعًا", selectPortfolio: "بدون محفظة", unavailable: "لا يمكن التسجيل قبل وجود مشروع ضمن النطاق.", success: "تم الحفظ وتحديث السجل.", masterSuccess: "تم إنشاء السجل الرئيسي وتحديث لوحة PMO.", low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
       }
     : {
-        back: "Workspace", level: "Level 2 · PMO", title: "PMO governance board", sub: "Portfolio, program, risk, issue, and action registers within the authorized tenant.", portfolios: "Portfolios", programs: "Programs", projects: "Projects", risks: "Open risks", issues: "Open issues", actions: "Open actions", noData: "No records are available in the current access scope.", loading: "Loading PMO controls…", saving: "Saving register entry…", addRisk: "Register risk", addIssue: "Register issue", addAction: "Register action", project: "Project", code: "Code", titleLabel: "Title", actionTitle: "Action title", probability: "Probability (1–5)", severity: "Severity (1–5)", priority: "Priority", save: "Save register", select: "Select a project", unavailable: "A project in your scope is required before registration.", success: "Saved and register refreshed.", low: "Low", medium: "Medium", high: "High", critical: "Critical",
+        back: "Workspace", level: "Level 2 · PMO", title: "PMO governance board", sub: "Portfolio, program, risk, issue, and action registers within the authorized tenant.", portfolios: "Portfolios", programs: "Programs", projects: "Projects", risks: "Open risks", issues: "Open issues", actions: "Open actions", noData: "No records are available in the current access scope.", loading: "Loading PMO controls…", saving: "Saving register entry…", addRisk: "Register risk", addIssue: "Register issue", addAction: "Register action", addPortfolio: "Create portfolio", addProgram: "Create program", portfolio: "Portfolio", optionalPortfolio: "Portfolio (optional)", project: "Project", code: "Code", titleLabel: "Title", actionTitle: "Action title", probability: "Probability (1–5)", severity: "Severity (1–5)", priority: "Priority", save: "Save register", create: "Create", select: "Select a project", selectPortfolio: "No portfolio", unavailable: "A project in your scope is required before registration.", success: "Saved and register refreshed.", masterSuccess: "The master record was created and the PMO board has been refreshed.", low: "Low", medium: "Medium", high: "High", critical: "Critical",
       };
 
   const riskMutation = trpc.pmo.createRisk.useMutation({
@@ -47,6 +49,8 @@ export default function PmoDashboard() {
       utils.dashboards.pmo.invalidate({ tenantId });
     },
   });
+  const portfolioMutation = trpc.pmo.createPortfolio.useMutation({ onSuccess: () => { setPortfolioForm({ code: "", name: "" }); utils.dashboards.pmo.invalidate({ tenantId }); } });
+  const programMutation = trpc.pmo.createProgram.useMutation({ onSuccess: () => { setProgramForm({ portfolioId: "", code: "", name: "" }); utils.dashboards.pmo.invalidate({ tenantId }); } });
 
   if (query.isLoading) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-slate-500">{t.loading}</main>;
   if (query.error || !query.data) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(query.error, isArabic)}</main>;
@@ -83,6 +87,8 @@ export default function PmoDashboard() {
     event.preventDefault();
     actionMutation.mutate({ tenantId, projectId: actionForm.projectId, title: actionForm.title, priority: actionForm.priority });
   };
+  const submitPortfolio = (event: FormEvent) => { event.preventDefault(); portfolioMutation.mutate({ tenantId, ...portfolioForm }); };
+  const submitProgram = (event: FormEvent) => { event.preventDefault(); programMutation.mutate({ tenantId, code: programForm.code, name: programForm.name, ...(programForm.portfolioId ? { portfolioId: programForm.portfolioId } : {}) }); };
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
@@ -106,6 +112,11 @@ export default function PmoDashboard() {
           <Metric label={t.risks} value={openRisks.length} />
           <Metric label={t.issues} value={openIssues.length} />
           <Metric label={t.actions} value={openActions.length} />
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <Card><CardHeader><CardTitle>{t.addPortfolio}</CardTitle></CardHeader><CardContent><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitPortfolio}><Label>{t.code}<Input required value={portfolioForm.code} onChange={event => setPortfolioForm({ ...portfolioForm, code: event.target.value })} /></Label><Label>{t.titleLabel}<Input required value={portfolioForm.name} onChange={event => setPortfolioForm({ ...portfolioForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={portfolioMutation.isPending}>{portfolioMutation.isPending ? t.saving : t.create}</Button>{portfolioMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(portfolioMutation.error, isArabic)}</p>}{portfolioMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></CardContent></Card>
+          <Card><CardHeader><CardTitle>{t.addProgram}</CardTitle></CardHeader><CardContent><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitProgram}><Label>{t.optionalPortfolio}<select value={programForm.portfolioId} onChange={event => setProgramForm({ ...programForm, portfolioId: event.target.value })} className={field}><option value="">{t.selectPortfolio}</option>{data.portfolios.map(portfolio => <option key={portfolio.id} value={portfolio.id}>{portfolio.code} · {portfolio.name}</option>)}</select></Label><Label>{t.code}<Input required value={programForm.code} onChange={event => setProgramForm({ ...programForm, code: event.target.value })} /></Label><Label className="sm:col-span-2">{t.titleLabel}<Input required value={programForm.name} onChange={event => setProgramForm({ ...programForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={programMutation.isPending}>{programMutation.isPending ? t.saving : t.create}</Button>{programMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(programMutation.error, isArabic)}</p>}{programMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></CardContent></Card>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">

@@ -88,6 +88,10 @@ export const projectErrorMessages = {
     ar: "يجب تسجيل الدخول بالبريد الذي استلم الدعوة.",
     en: "Sign in with the email address that received this invitation.",
   },
+  PROJECT_OS_PORTFOLIO_NOT_FOUND: {
+    ar: "المحفظة المحددة غير متاحة ضمن هذه المؤسسة.",
+    en: "The selected portfolio is not available in this organization.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

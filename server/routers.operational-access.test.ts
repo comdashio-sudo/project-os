@@ -254,6 +254,93 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects portfolio creation for a tenant without active membership before writing master data", async () => {
+    databaseDouble.select.mockReturnValue(queryResult([]));
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.createPortfolio({ tenantId: tenantB, code: "PORT-A", name: "Portfolio A" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a program linked to a portfolio outside the tenant before writing", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.pmo.createProgram({ tenantId: tenantA, portfolioId: "88888888-8888-4888-8888-888888888888", code: "PRG-A", name: "Program A" })).rejects.toThrow("PROJECT_OS_PORTFOLIO_NOT_FOUND");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates an authorized portfolio with audit evidence in the same transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.pmo.createPortfolio({ tenantId: tenantA, code: "port-a", name: "Portfolio A" });
+
+    expect(result.id).toEqual(expect.any(String));
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates an authorized program linked to a tenant-owned portfolio with audit evidence in the same transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      if (keys === "id") return queryResult([{ id: "portfolio-a" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.pmo.createProgram({ tenantId: tenantA, portfolioId: "99999999-9999-4999-8999-999999999999", code: "prg-a", name: "Program A" });
+
+    expect(result.id).toEqual(expect.any(String));
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates an authorized program without a portfolio with audit evidence in the same transaction", async () => {
+    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PMO" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "pmo.write" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.pmo.createProgram({ tenantId: tenantA, code: "prg-b", name: "Independent Program" });
+
+    expect(result.id).toEqual(expect.any(String));
+    expect(databaseDouble.transaction).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects an invalid invitation token without creating a membership or writing audit evidence", async () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());

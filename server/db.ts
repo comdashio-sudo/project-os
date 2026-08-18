@@ -462,6 +462,40 @@ export async function createProjectForTenant(input: {
   return { id };
 }
 
+export async function createPortfolioForTenant(input: { userId: number; tenantId: string; code: string; name: string }): Promise<{ id: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write" });
+  const id = crypto.randomUUID();
+  const code = input.code.trim().toUpperCase();
+  await db.transaction(async tx => {
+    await tx.insert(portfolios).values({ id, tenantId: input.tenantId, code, name: input.name.trim(), status: "active" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "portfolio.created", entityType: "portfolio", entityId: id, metadata: JSON.stringify({ code }) });
+  });
+  return { id };
+}
+
+export async function createProgramForTenant(input: { userId: number; tenantId: string; portfolioId?: string; code: string; name: string }): Promise<{ id: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write" });
+  if (input.portfolioId) {
+    const [portfolio] = await db.select({ id: portfolios.id }).from(portfolios).where(and(eq(portfolios.id, input.portfolioId), eq(portfolios.tenantId, input.tenantId))).limit(1);
+    if (!portfolio) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PORTFOLIO_NOT_FOUND" });
+  }
+  const id = crypto.randomUUID();
+  const code = input.code.trim().toUpperCase();
+  await db.transaction(async tx => {
+    await tx.insert(programs).values({ id, tenantId: input.tenantId, portfolioId: input.portfolioId ?? null, code, name: input.name.trim(), status: "active" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "program.created", entityType: "program", entityId: id, metadata: JSON.stringify({ code, portfolioId: input.portfolioId ?? null }) });
+  });
+  return { id };
+}
+
 export async function listProjectsForTenant(input: { userId: number; tenantId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");

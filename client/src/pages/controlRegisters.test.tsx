@@ -20,6 +20,10 @@ const state = vi.hoisted(() => ({
   tenantRoleUpdateSuccess: false,
   tenantRoleUpdateError: null as unknown,
   tenantInvitationError: null as unknown,
+  pmoPortfolioError: null as unknown,
+  pmoPortfolioSuccess: false,
+  pmoProgramError: null as unknown,
+  pmoProgramSuccess: false,
   pmoData: {
     portfolios: [],
     programs: [],
@@ -88,6 +92,8 @@ vi.mock("@/lib/trpc", () => ({
       revokeMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleRevocationError, isSuccess: state.tenantRoleRevocationSuccess }) },
     },
     pmo: {
+      createPortfolio: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoPortfolioError, isSuccess: state.pmoPortfolioSuccess }) },
+      createProgram: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoProgramError, isSuccess: state.pmoProgramSuccess }) },
       createRisk: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
       createAction: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
@@ -113,6 +119,8 @@ describe("control-register dashboards", () => {
     const markup = renderToStaticMarkup(<PmoDashboard />);
 
     expect(markup).toContain("Register action");
+    expect(markup).toContain("Create portfolio");
+    expect(markup).toContain("Create program");
     expect(markup).toContain("Action title");
     expect(markup).toContain("Open actions");
     expect(markup).toContain("Mitigate access constraint · High");
@@ -127,6 +135,28 @@ describe("control-register dashboards", () => {
     expect(markup).toContain("عنوان الإجراء");
     expect(markup).toContain("الإجراءات المفتوحة");
     expect(markup).toContain("Mitigate access constraint · مرتفعة");
+  });
+
+  it("يعرض نجاح وفشل إنشاء المحفظة والبرنامج باللغتين", () => {
+    state.isArabic = false;
+    state.pmoPortfolioSuccess = true;
+    state.pmoProgramError = {};
+    let markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("The master record was created and the PMO board has been refreshed.");
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = true;
+    state.pmoPortfolioSuccess = false;
+    state.pmoPortfolioError = {};
+    state.pmoProgramError = null;
+    state.pmoProgramSuccess = true;
+    markup = renderToStaticMarkup(<PmoDashboard />);
+    expect(markup).toContain("تم إنشاء السجل الرئيسي وتحديث لوحة PMO.");
+    expect(markup).toContain("Localized error");
+
+    state.isArabic = false;
+    state.pmoPortfolioError = null;
+    state.pmoProgramSuccess = false;
   });
 
   it("يعرض إرشاد غياب المشروع وحالة الحفظ المتخصصة للقرار التنفيذي", () => {
