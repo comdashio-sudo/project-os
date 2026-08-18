@@ -34,6 +34,8 @@ import {
   progressEntries,
   evmSnapshots,
   documentVersions,
+  dataImportErrors,
+  dataImports,
   projectDocuments,
   projectResources,
   rfis,
@@ -1341,4 +1343,17 @@ export async function createBudgetLine(input: { userId: number; tenantId: string
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.budget_line_created", entityType: "budget_line", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, costCode: input.costCode, originalAmount: input.originalAmount, currentAmount: input.currentAmount }) });
   });
   return { id };
+}
+
+export async function getDataImportsForTenant(input: { userId: number; tenantId: string; projectId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (input.projectId) {
+    assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+    await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "company", id: input.tenantId } });
+  const filter = input.projectId ? and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)) : eq(dataImports.tenantId, input.tenantId);
+  return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
 }
