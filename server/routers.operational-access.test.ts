@@ -290,6 +290,44 @@ describe("operational API authorization", () => {
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects an invalid project lifecycle transition before writing", async () => {
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id,lifecycleStage") return queryResult([{ id: projectA, lifecycleStage: "planning" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    const caller = appRouter.createCaller(context());
+
+    await expect(caller.projects.transitionLifecycle({ tenantId: tenantA, projectId: projectA, lifecycleStage: "handover" })).rejects.toThrow("PROJECT_OS_LIFECYCLE_TRANSITION_INVALID");
+
+    expect(databaseDouble.transaction).not.toHaveBeenCalled();
+  });
+
+  it("transitions an authorized project lifecycle with audit evidence in one transaction", async () => {
+    const transactionDouble = { update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
+      const keys = Object.keys(selection).sort().join(",");
+      if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
+      if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
+      if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
+      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "id,lifecycleStage") return queryResult([{ id: projectA, lifecycleStage: "planning" }]);
+      throw new Error(`Unexpected select shape: ${keys}`);
+    });
+    databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
+    const caller = appRouter.createCaller(context());
+
+    const result = await caller.projects.transitionLifecycle({ tenantId: tenantA, projectId: projectA, lifecycleStage: "execution" });
+
+    expect(result).toEqual({ projectId: projectA, lifecycleStage: "execution" });
+    expect(transactionDouble.update).toHaveBeenCalledTimes(1);
+    expect(transactionDouble.insert).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a project link when the selected program is outside the tenant before writing", async () => {
     databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
       const keys = Object.keys(selection).sort().join(",");

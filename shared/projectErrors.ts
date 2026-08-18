@@ -100,6 +100,10 @@ export const projectErrorMessages = {
     ar: "المحفظة المحددة لا تتطابق مع محفظة البرنامج.",
     en: "The selected portfolio does not match the program's portfolio.",
   },
+  PROJECT_OS_LIFECYCLE_TRANSITION_INVALID: {
+    ar: "انتقال دورة حياة المشروع المحدد غير مسموح من مرحلته الحالية.",
+    en: "The selected project lifecycle transition is not allowed from its current stage.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

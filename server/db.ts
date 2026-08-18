@@ -462,6 +462,40 @@ export async function createProjectForTenant(input: {
   return { id };
 }
 
+type LifecycleStage = "opportunity" | "pre_award" | "tender" | "award" | "mobilization" | "planning" | "design" | "procurement" | "execution" | "commissioning" | "handover" | "closeout" | "post_project_review";
+
+const lifecycleTransitions: Record<LifecycleStage, readonly LifecycleStage[]> = {
+  opportunity: ["pre_award"],
+  pre_award: ["tender", "award"],
+  tender: ["award"],
+  award: ["mobilization"],
+  mobilization: ["planning"],
+  planning: ["design", "procurement", "execution"],
+  design: ["procurement", "execution"],
+  procurement: ["execution"],
+  execution: ["commissioning"],
+  commissioning: ["handover"],
+  handover: ["closeout"],
+  closeout: ["post_project_review"],
+  post_project_review: [],
+};
+
+export async function transitionProjectLifecycle(input: { userId: number; tenantId: string; projectId: string; lifecycleStage: LifecycleStage }): Promise<{ projectId: string; lifecycleStage: LifecycleStage }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write" });
+  const [project] = await db.select({ id: projects.id, lifecycleStage: projects.lifecycleStage }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
+  if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_NOT_FOUND" });
+  if (!lifecycleTransitions[project.lifecycleStage].includes(input.lifecycleStage)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_LIFECYCLE_TRANSITION_INVALID" });
+  await db.transaction(async tx => {
+    await tx.update(projects).set({ lifecycleStage: input.lifecycleStage }).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.lifecycle_transitioned", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ from: project.lifecycleStage, to: input.lifecycleStage }) });
+  });
+  return { projectId: input.projectId, lifecycleStage: input.lifecycleStage };
+}
+
 export async function createPortfolioForTenant(input: { userId: number; tenantId: string; code: string; name: string }): Promise<{ id: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
