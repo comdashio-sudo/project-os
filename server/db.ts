@@ -1670,7 +1670,7 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
 
-  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
   if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   if (record.moduleCode !== "wbs" && record.moduleCode !== "budget") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
@@ -1680,7 +1680,8 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   if (!fileResponse.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" });
   const bytes = Buffer.from(await fileResponse.arrayBuffer());
   if (!bytes.length || bytes.length > 10 * 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
-  const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes });
+  const storedMapping = record.mappingJson ? JSON.parse(record.mappingJson) as Record<string, string> : undefined;
+  const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: storedMapping });
   if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
 
   const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : analysis.validRows as BudgetImportRow[];
