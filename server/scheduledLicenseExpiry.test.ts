@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { TRPCError } from "@trpc/server";
 import { createScheduledLicenseExpiryHandler } from "./scheduledLicenseExpiry";
 
 function response() {
@@ -11,6 +12,14 @@ describe("scheduled license expiry handler", () => {
   it("rejects a request that is not an authenticated scheduled task", async () => {
     const res = response();
     const handler = createScheduledLicenseExpiryHandler({ authenticateRequest: vi.fn().mockResolvedValue({ isCron: false }), getScheduledJobByTaskUid: vi.fn(), evaluateTenantLicenseLifecycle: vi.fn() });
+    await handler({} as never, res as never);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ code: "PROJECT_OS_SCHEDULED_UNAUTHORIZED" });
+  });
+
+  it("maps a rejected cron authentication attempt to a non-retryable forbidden response", async () => {
+    const res = response();
+    const handler = createScheduledLicenseExpiryHandler({ authenticateRequest: vi.fn().mockRejectedValue(new TRPCError({ code: "FORBIDDEN" })), getScheduledJobByTaskUid: vi.fn(), evaluateTenantLicenseLifecycle: vi.fn() });
     await handler({} as never, res as never);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({ code: "PROJECT_OS_SCHEDULED_UNAUTHORIZED" });

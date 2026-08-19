@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { TRPCError } from "@trpc/server";
 import { evaluateTenantLicenseLifecycle, getScheduledJobByTaskUid } from "./db";
 import { sdk } from "./_core/sdk";
 
@@ -22,6 +23,9 @@ export function createScheduledLicenseExpiryHandler(dependencies: ScheduledLicen
       const result = await dependencies.evaluateTenantLicenseLifecycle();
     return res.status(200).json({ code: "PROJECT_OS_LICENSE_LIFECYCLE_EVALUATED", result: { ...result, evaluatedAt: result.evaluatedAt.toISOString() } });
     } catch (error) {
+      if (error instanceof TRPCError && error.code === "FORBIDDEN") {
+        return res.status(403).json({ code: "PROJECT_OS_SCHEDULED_UNAUTHORIZED" });
+      }
       console.error("[Scheduled license expiry] Evaluation failed", error);
       return res.status(500).json({ code: "PROJECT_OS_SCHEDULED_EXECUTION_FAILED" });
     }
