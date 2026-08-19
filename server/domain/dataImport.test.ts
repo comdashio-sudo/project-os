@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { analyzeImportFile, analyzeMasterPlanMappingFile, buildDataExportFile } from "./dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile } from "./dataImport";
 
 function workbookBytes(rows: Record<string, unknown>[]) { const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Data"); return XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer; }
 
@@ -38,5 +38,17 @@ describe("analyzeMasterPlanMappingFile", () => {
     const result = analyzeMasterPlanMappingFile({ format: "csv", bytes: Buffer.from("Unit ID,Status\nV-105,Unknown") });
     expect(result.validRows).toEqual([]);
     expect(result.errors).toContainEqual({ rowNumber: 2, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" });
+  });
+});
+
+describe("analyzeMasterPlanSpatialEntityFile", () => {
+  it("maps an Arabic spatial-entity row with bounded geometry", () => {
+    const result = analyzeMasterPlanSpatialEntityFile({ format: "csv", bytes: Buffer.from("رمز الكيان,اسم الكيان,نوع الكيان,س,ص,العرض,الارتفاع,نسبة التقدم\nZONE-NEW,منطقة جديدة,منطقة,5,10,25,20,84%") });
+    expect(result.errors).toEqual([]); expect(result.validRows).toEqual([{ rowNumber: 2, values: { code: "ZONE-NEW", name: "منطقة جديدة", entityType: "zone", geometry: { x: 5, y: 10, width: 25, height: 20 }, status: "not_started", progressPercent: 84, plannedValue: 0, actualValue: 0, forecastValue: 0 } }]);
+  });
+
+  it("rejects a spatial entity that exceeds the fixed plan geometry", () => {
+    const result = analyzeMasterPlanSpatialEntityFile({ format: "csv", bytes: Buffer.from("Code,Name,Entity Type,X,Y,Width,Height\nOVER,Overflow,zone,90,0,20,10") });
+    expect(result.validRows).toEqual([]); expect(result.errors).toContainEqual({ rowNumber: 2, code: "MASTER_PLAN_SPATIAL_GEOMETRY_INVALID", field: "geometry" });
   });
 });

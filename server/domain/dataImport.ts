@@ -7,6 +7,7 @@ export type WbsImportRow = { rowNumber: number; values: { code: string; name: st
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ValidatedImportRow = WbsImportRow | BudgetImportRow;
 export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
+export type MasterPlanSpatialImportRow = { rowNumber: number; values: { code: string; name: string; entityType: "block" | "building" | "zone" | "unit" | "area"; geometry: { x: number; y: number; width: number; height: number }; status: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent: number; plannedValue: number; actualValue: number; forecastValue: number } };
 
 type Field = { key: string; required: boolean; aliases: string[] };
 const templates: Record<ImportModuleCode, Field[]> = {
@@ -48,11 +49,31 @@ const masterPlanFields: Field[] = [
   { key: "forecastValue", required: false, aliases: ["forecast", "forecast value", "القيمة المتوقعة", "التوقع"] },
 ];
 
+const masterPlanSpatialFields: Field[] = [
+  { key: "code", required: true, aliases: ["unit id", "unit", "entity id", "spatial entity", "code", "معرف الوحدة", "رقم الوحدة", "رمز الكيان", "الرمز"] },
+  { key: "name", required: true, aliases: ["name", "unit name", "entity name", "اسم الوحدة", "اسم الكيان", "الاسم"] },
+  { key: "entityType", required: true, aliases: ["entity type", "type", "unit type", "نوع الكيان", "نوع الوحدة", "النوع"] },
+  { key: "x", required: true, aliases: ["x", "horizontal", "المحور س", "س"] },
+  { key: "y", required: true, aliases: ["y", "vertical", "المحور ص", "ص"] },
+  { key: "width", required: true, aliases: ["width", "العرض"] },
+  { key: "height", required: true, aliases: ["height", "الارتفاع"] },
+  { key: "status", required: false, aliases: ["status", "حالة", "الحالة"] },
+  { key: "progressPercent", required: false, aliases: ["progress", "progress percent", "completion", "التقدم", "نسبة التقدم", "الإنجاز"] },
+  { key: "plannedValue", required: false, aliases: ["planned", "planned value", "القيمة المخططة", "المخطط"] },
+  { key: "actualValue", required: false, aliases: ["actual", "actual value", "القيمة الفعلية", "الفعلي"] },
+  { key: "forecastValue", required: false, aliases: ["forecast", "forecast value", "القيمة المتوقعة", "التوقع"] },
+];
+
 function normalizeMasterPlanStatus(value: unknown): MasterPlanMappingRow["values"]["status"] | "invalid" | undefined {
   const normalized = normalize(value);
   if (!normalized) return undefined;
   const statuses: Record<string, NonNullable<MasterPlanMappingRow["values"]["status"]>> = { "not started": "not_started", "not_started": "not_started", "لم يبدأ": "not_started", "in progress": "in_progress", "in_progress": "in_progress", "قيد التنفيذ": "in_progress", completed: "completed", مكتمل: "completed", blocked: "blocked", متعثر: "blocked", محجوب: "blocked" };
   return statuses[normalized] ?? "invalid";
+}
+
+function normalizeMasterPlanEntityType(value: unknown): MasterPlanSpatialImportRow["values"]["entityType"] | "invalid" {
+  const types: Record<string, MasterPlanSpatialImportRow["values"]["entityType"]> = { block: "block", building: "building", zone: "zone", unit: "unit", area: "area", كتلة: "block", مبنى: "building", منطقة: "zone", وحدة: "unit", مساحة: "area" };
+  return types[normalize(value)] ?? "invalid";
 }
 
 export function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
@@ -65,6 +86,20 @@ export function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; by
     const rowNumber = index + 2; const code = requiredText(row[mapping.code]); const status = mapping.status ? normalizeMasterPlanStatus(row[mapping.status]) : undefined; const progressPercent = mapping.progressPercent ? percentage(row[mapping.progressPercent]) : undefined; const plannedValue = mapping.plannedValue ? nonnegativeNumber(row[mapping.plannedValue]) : undefined; const actualValue = mapping.actualValue ? nonnegativeNumber(row[mapping.actualValue]) : undefined; const forecastValue = mapping.forecastValue ? nonnegativeNumber(row[mapping.forecastValue]) : undefined;
     if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (status === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" }); if (mapping.progressPercent && progressPercent === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "progressPercent" }); if (mapping.plannedValue && plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (mapping.actualValue && actualValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "actualValue" }); if (mapping.forecastValue && forecastValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "forecastValue" });
     if (code && status !== "invalid" && (!mapping.progressPercent || progressPercent !== undefined) && (!mapping.plannedValue || plannedValue !== undefined) && (!mapping.actualValue || actualValue !== undefined) && (!mapping.forecastValue || forecastValue !== undefined)) validRows.push({ rowNumber, values: { code, ...(status ? { status } : {}), ...(progressPercent !== undefined ? { progressPercent } : {}), ...(plannedValue !== undefined ? { plannedValue } : {}), ...(actualValue !== undefined ? { actualValue } : {}), ...(forecastValue !== undefined ? { forecastValue } : {}) } });
+  });
+  return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
+}
+
+export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
+  const workbook = XLSX.read(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, { type: input.format === "csv" ? "string" : "array" }); const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" }); const headers = Object.keys(rows[0] ?? {});
+  const mapping = Object.fromEntries(masterPlanSpatialFields.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; }));
+  const errors: ImportError[] = masterPlanSpatialFields.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const validRows: MasterPlanSpatialImportRow[] = [];
+  if (!errors.length) rows.forEach((row, index) => {
+    const rowNumber = index + 2; const code = requiredText(row[mapping.code]); const name = requiredText(row[mapping.name]); const entityType = normalizeMasterPlanEntityType(row[mapping.entityType]); const x = nonnegativeNumber(row[mapping.x]); const y = nonnegativeNumber(row[mapping.y]); const width = nonnegativeNumber(row[mapping.width]); const height = nonnegativeNumber(row[mapping.height]); const status = mapping.status ? normalizeMasterPlanStatus(row[mapping.status]) : undefined; const progressPercent = mapping.progressPercent ? percentage(row[mapping.progressPercent]) : 0; const plannedValue = mapping.plannedValue ? nonnegativeNumber(row[mapping.plannedValue]) : 0; const actualValue = mapping.actualValue ? nonnegativeNumber(row[mapping.actualValue]) : 0; const forecastValue = mapping.forecastValue ? nonnegativeNumber(row[mapping.forecastValue]) : 0;
+    if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (!name) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "name" }); if (entityType === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_SPATIAL_TYPE_INVALID", field: "entityType" }); if (x === undefined || y === undefined || width === undefined || height === undefined || width <= 0 || height <= 0 || x + width > 100 || y + height > 100) errors.push({ rowNumber, code: "MASTER_PLAN_SPATIAL_GEOMETRY_INVALID", field: "geometry" }); if (status === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" }); if (progressPercent === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "progressPercent" }); if (plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (actualValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "actualValue" }); if (forecastValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "forecastValue" });
+    if (code && name && entityType !== "invalid" && x !== undefined && y !== undefined && width !== undefined && height !== undefined && width > 0 && height > 0 && x + width <= 100 && y + height <= 100 && status !== "invalid" && progressPercent !== undefined && plannedValue !== undefined && actualValue !== undefined && forecastValue !== undefined) validRows.push({ rowNumber, values: { code, name, entityType, geometry: { x, y, width, height }, status: status ?? "not_started", progressPercent, plannedValue, actualValue, forecastValue } });
   });
   return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
 }

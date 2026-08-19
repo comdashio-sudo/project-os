@@ -62,7 +62,7 @@ import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
-import { analyzeImportFile, analyzeMasterPlanMappingFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1009,6 +1009,21 @@ export async function applyMasterPlanMappingFile(input: { userId: number; tenant
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.excel_mapping_applied", entityType: "master_plan_version", entityId: input.masterPlanVersionId, metadata: JSON.stringify({ projectId: input.projectId, updatedRows: analysis.validRows.length, fileHash: createHash("sha256").update(bytes).digest("hex") }) });
   });
   return { masterPlanVersionId: input.masterPlanVersionId, updatedRows: analysis.validRows.length, mapping: analysis.mapping };
+}
+
+export async function importMasterPlanSpatialEntitiesFromFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv"; base64: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN_ENTITIES", scope: { type: "project", id: input.projectId } });
+  const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
+  const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const analysis = analyzeMasterPlanSpatialEntityFile({ format: input.format, bytes }); if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_SPATIAL_IMPORT_VALIDATION_FAILED" });
+  const codes = analysis.validRows.map(row => row.values.code); if (new Set(codes).size !== codes.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+  const existing = await db.select({ code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), inArray(masterPlanSpatialEntities.code, codes))); if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MASTER_PLAN_ENTITY_CODE_EXISTS" });
+  if (feature.limitValue !== null) { const existingCount = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))); if (existingCount.length + analysis.validRows.length > feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
+  await db.transaction(async tx => { await tx.insert(masterPlanSpatialEntities).values(analysis.validRows.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, code: row.values.code, name: row.values.name, entityType: row.values.entityType, geometry: normalizeMasterPlanGeometry(row.values.geometry), status: row.values.status, progressPercent: String(row.values.progressPercent), plannedValue: String(row.values.plannedValue), actualValue: String(row.values.actualValue), forecastValue: String(row.values.forecastValue) }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.spatial_entities_imported", entityType: "master_plan_version", entityId: input.masterPlanVersionId, metadata: JSON.stringify({ projectId: input.projectId, createdRows: analysis.validRows.length, fileHash: createHash("sha256").update(bytes).digest("hex") }) }); });
+  return { masterPlanVersionId: input.masterPlanVersionId, createdRows: analysis.validRows.length, mapping: analysis.mapping };
 }
 
 export async function transitionProjectDocumentStatus(input: { userId: number; tenantId: string; projectId: string; documentId: string; nextStatus: "draft" | "for_review" | "approved" | "superseded" | "archived" }) {

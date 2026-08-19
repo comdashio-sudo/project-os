@@ -156,6 +156,14 @@ export const projectErrorMessages = {
     ar: "تعذر تطبيق ملف الربط لأن الأعمدة أو القيم لا تحقق قالب Master Plan.",
     en: "The mapping file could not be applied because its columns or values do not satisfy the Master Plan template.",
   },
+  PROJECT_OS_MASTER_PLAN_SPATIAL_IMPORT_VALIDATION_FAILED: {
+    ar: "تعذر إنشاء الكيانات من الملف لأن الأعمدة أو الهندسة أو القيم لا تحقق قالب الكيانات المكانية.",
+    en: "Spatial entities could not be created because the file columns, geometry, or values do not satisfy the spatial-entity template.",
+  },
+  PROJECT_OS_MASTER_PLAN_ENTITY_CODE_EXISTS: {
+    ar: "يوجد رمز كيان مكاني مستخدم بالفعل ضمن إصدار Master Plan المحدد.",
+    en: "A spatial-entity code in the file already exists in the selected Master Plan version.",
+  },
   PROJECT_OS_MASTER_PLAN_ENTITY_NOT_FOUND: {
     ar: "لا يتطابق أحد رموز الوحدات في الملف مع كيان مكاني ضمن إصدار Master Plan المحدد.",
     en: "A unit code in the file does not match a spatial entity in the selected Master Plan version.",
