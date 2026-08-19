@@ -252,6 +252,10 @@ export const projectErrorMessages = {
     ar: "انتقال حالة أمر الشراء المحدد غير مسموح من حالته الحالية.",
     en: "The selected purchase-order transition is not allowed from its current status.",
   },
+  PROJECT_OS_PURCHASE_ORDER_REFERENCE_INVALID: {
+    ar: "العقد أو الالتزام المحدد لا يطابق المستأجر والمشروع الحاليين.",
+    en: "The selected contract or commitment does not belong to the current tenant and project.",
+  },
   PROJECT_OS_CHANGE_REQUEST_NOT_FOUND: {
     ar: "طلب التغيير المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected change request is not available in the current project and workspace.",

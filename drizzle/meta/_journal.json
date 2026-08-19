@@ -162,6 +162,13 @@
       "when": 1787136364183,
       "tag": "0022_rapid_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1787136803589,
+      "tag": "0023_eager_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

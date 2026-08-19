@@ -607,13 +607,16 @@ export const purchaseOrders = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
     projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
+    commitmentId: varchar("commitmentId", { length: 36 }).references(() => commitments.id),
     purchaseOrderNumber: varchar("purchaseOrderNumber", { length: 120 }).notNull(),
     supplierName: varchar("supplierName", { length: 240 }).notNull(),
     orderDate: timestamp("orderDate").notNull(),
     amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
     summary: text("summary").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "issued", "cancelled"]).default("draft").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "issued", "received", "cancelled"]).default("draft").notNull(),
+    receivedAt: timestamp("receivedAt"),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -621,6 +624,8 @@ export const purchaseOrders = mysqlTable(
   table => [
     uniqueIndex("purchase_orders_project_number_unique").on(table.projectId, table.purchaseOrderNumber),
     index("purchase_orders_tenant_project_date_status_idx").on(table.tenantId, table.projectId, table.orderDate, table.status),
+    index("purchase_orders_contract_idx").on(table.contractId),
+    index("purchase_orders_commitment_idx").on(table.commitmentId),
   ],
 );
 

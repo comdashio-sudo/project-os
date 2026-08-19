@@ -1177,7 +1177,7 @@ export async function transitionNcrStatus(input: { userId: number; tenantId: str
 const hseStatusTransitions: Record<string, readonly string[]> = { open: ["assigned", "cancelled"], assigned: ["remediation", "cancelled"], remediation: ["verification", "cancelled"], verification: ["closed", "remediation"], closed: [], cancelled: [] };
 const fieldReportStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["reviewed", "rejected"], reviewed: ["approved", "rejected"], approved: [], rejected: ["draft"] };
 const qualityInspectionStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["accepted", "rejected"], accepted: [], rejected: ["draft"] };
-const purchaseOrderStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["approved", "cancelled"], approved: ["issued", "cancelled"], issued: [], cancelled: [] };
+const purchaseOrderStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["approved", "cancelled"], approved: ["issued", "cancelled"], issued: ["received"], received: [], cancelled: [] };
 
 const changeRequestTransitions: Record<string, readonly string[]> = { draft: ["submitted", "cancelled"], submitted: ["under_review", "cancelled"], under_review: ["approved", "rejected", "cancelled"], approved: [], rejected: [], cancelled: [] };
 
@@ -1321,21 +1321,34 @@ export async function getPurchaseOrdersForTenant(input: { userId: number; tenant
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select({ id: purchaseOrders.id, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, supplierName: purchaseOrders.supplierName, orderDate: purchaseOrders.orderDate, amount: purchaseOrders.amount, currency: purchaseOrders.currency, summary: purchaseOrders.summary, status: purchaseOrders.status, createdAt: purchaseOrders.createdAt }).from(purchaseOrders).where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
+  return db.select({ id: purchaseOrders.id, contractId: purchaseOrders.contractId, commitmentId: purchaseOrders.commitmentId, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, supplierName: purchaseOrders.supplierName, orderDate: purchaseOrders.orderDate, amount: purchaseOrders.amount, currency: purchaseOrders.currency, summary: purchaseOrders.summary, status: purchaseOrders.status, receivedAt: purchaseOrders.receivedAt, createdAt: purchaseOrders.createdAt }).from(purchaseOrders).where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
 }
 
-export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; purchaseOrderNumber: string; supplierName: string; orderDate: Date; amount: number; currency: string; summary: string }) {
+async function assertPurchaseOrderReferencesWithinProject(input: { tenantId: string; projectId: string; contractId?: string; commitmentId?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  let contractExists = !input.contractId;
+  if (input.contractId) {
+    const [contract] = await db.select({ id: contracts.id }).from(contracts).where(and(eq(contracts.id, input.contractId), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))).limit(1);
+    contractExists = Boolean(contract);
+  }
+  let commitment: { id: string; contractId: string | null } | undefined;
+  if (input.commitmentId) [commitment] = await db.select({ id: commitments.id, contractId: commitments.contractId }).from(commitments).where(and(eq(commitments.id, input.commitmentId), eq(commitments.tenantId, input.tenantId), eq(commitments.projectId, input.projectId))).limit(1);
+  if (!contractExists || (input.commitmentId && !commitment) || (input.contractId && commitment?.contractId && commitment.contractId !== input.contractId)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PURCHASE_ORDER_REFERENCE_INVALID" });
+}
+
+export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; commitmentId?: string; purchaseOrderNumber: string; supplierName: string; orderDate: Date; amount: number; currency: string; summary: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertPurchaseOrderReferencesWithinProject(input);
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
+  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
   return { id, status: "draft" as const };
 }
 
-export async function transitionPurchaseOrderStatus(input: { userId: number; tenantId: string; projectId: string; purchaseOrderId: string; nextStatus: "draft" | "submitted" | "approved" | "issued" | "cancelled" }) {
+export async function transitionPurchaseOrderStatus(input: { userId: number; tenantId: string; projectId: string; purchaseOrderId: string; nextStatus: "draft" | "submitted" | "approved" | "issued" | "received" | "cancelled" }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -1344,8 +1357,9 @@ export async function transitionPurchaseOrderStatus(input: { userId: number; ten
   const [purchaseOrder] = await db.select({ id: purchaseOrders.id, status: purchaseOrders.status }).from(purchaseOrders).where(and(eq(purchaseOrders.id, input.purchaseOrderId), eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).limit(1);
   if (!purchaseOrder) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PURCHASE_ORDER_NOT_FOUND" });
   if (!purchaseOrderStatusTransitions[purchaseOrder.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PURCHASE_ORDER_TRANSITION_INVALID" });
-  await db.transaction(async tx => { await tx.update(purchaseOrders).set({ status: input.nextStatus }).where(and(eq(purchaseOrders.id, input.purchaseOrderId), eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_status_transitioned", entityType: "purchase_order", entityId: input.purchaseOrderId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: purchaseOrder.status, nextStatus: input.nextStatus }) }); });
-  return { id: input.purchaseOrderId, previousStatus: purchaseOrder.status, status: input.nextStatus };
+  const receivedAt = input.nextStatus === "received" ? new Date() : undefined;
+  await db.transaction(async tx => { await tx.update(purchaseOrders).set({ status: input.nextStatus, ...(receivedAt ? { receivedAt } : {}) }).where(and(eq(purchaseOrders.id, input.purchaseOrderId), eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_status_transitioned", entityType: "purchase_order", entityId: input.purchaseOrderId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: purchaseOrder.status, nextStatus: input.nextStatus, receivedAt: receivedAt?.toISOString() }) }); });
+  return { id: input.purchaseOrderId, previousStatus: purchaseOrder.status, status: input.nextStatus, receivedAt };
 }
 
 export async function getProjectResourcesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
