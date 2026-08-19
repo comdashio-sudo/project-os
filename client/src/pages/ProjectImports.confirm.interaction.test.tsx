@@ -10,7 +10,9 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized import error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { dataImports: {
   list: { useQuery: () => ({ data: [], refetch: vi.fn() }) },
+  detail: { useQuery: () => ({ data: null, refetch: vi.fn(), error: null }) },
   analyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: { id: "00000000-0000-4000-8000-0000000000f2", status: "validated", totalRows: 1, errors: [] } }) },
+  reanalyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
   confirm: { useMutation: () => ({ mutate: state.confirmMutate, isPending: false, error: null, data: null }) },
 } } }));
 

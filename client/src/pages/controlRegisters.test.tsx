@@ -112,7 +112,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     dataImports: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      detail: { useQuery: () => ({ isLoading: false, error: null, data: null, refetch: vi.fn() }) },
       analyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+      reanalyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       confirm: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       export: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
     },

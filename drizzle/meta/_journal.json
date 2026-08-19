@@ -134,6 +134,13 @@
       "when": 1787128357392,
       "tag": "0018_fat_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1787134335571,
+      "tag": "0019_dizzy_scorpion",
+      "breakpoints": true
     }
   ]
 }

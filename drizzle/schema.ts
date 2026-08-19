@@ -870,6 +870,23 @@ export const dataImportErrors = mysqlTable(
   table => [index("data_import_errors_import_row_idx").on(table.importId, table.rowNumber)],
 );
 
+export const dataImportRowResults = mysqlTable(
+  "data_import_row_results",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    importId: varchar("importId", { length: 36 }).notNull().references(() => dataImports.id),
+    rowNumber: int("rowNumber").notNull(),
+    rowKey: varchar("rowKey", { length: 160 }).notNull(),
+    action: mysqlEnum("action", ["created", "updated", "skipped"]).notNull(),
+    entityId: varchar("entityId", { length: 36 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    index("data_import_row_results_import_row_idx").on(table.importId, table.rowNumber),
+    uniqueIndex("data_import_row_results_import_row_action_unique").on(table.importId, table.rowNumber, table.action),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ProductCode = (typeof productCodes)[number];
