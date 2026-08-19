@@ -155,6 +155,11 @@ vi.mock("@/lib/trpc", () => ({
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
     },
+    qualityInspections: {
+      list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+      transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+    },
     changes: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },

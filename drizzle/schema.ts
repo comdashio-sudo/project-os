@@ -579,6 +579,28 @@ export const fieldReports = mysqlTable(
   ],
 );
 
+export const qualityInspections = mysqlTable(
+  "quality_inspections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    inspectionNumber: varchar("inspectionNumber", { length: 120 }).notNull(),
+    inspectionType: mysqlEnum("inspectionType", ["hold_point", "witness", "surveillance", "testing"]).notNull(),
+    inspectedAt: timestamp("inspectedAt").notNull(),
+    outcome: mysqlEnum("outcome", ["pass", "fail", "conditional"]).notNull(),
+    summary: text("summary").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "accepted", "rejected"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("quality_inspections_project_number_unique").on(table.projectId, table.inspectionNumber),
+    index("quality_inspections_tenant_project_date_status_idx").on(table.tenantId, table.projectId, table.inspectedAt, table.status),
+  ],
+);
+
 export const changeRequests = mysqlTable(
   "change_requests",
   {

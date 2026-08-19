@@ -236,6 +236,14 @@ export const projectErrorMessages = {
     ar: "عدد العاملين في التقرير الميداني يجب أن يكون عددًا صحيحًا بين صفر و100000.",
     en: "The field-report workforce count must be a whole number between 0 and 100000.",
   },
+  PROJECT_OS_QUALITY_INSPECTION_NOT_FOUND: {
+    ar: "فحص الجودة المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected quality inspection is not available in the current project and workspace.",
+  },
+  PROJECT_OS_QUALITY_INSPECTION_TRANSITION_INVALID: {
+    ar: "انتقال حالة فحص الجودة المحدد غير مسموح من حالته الحالية.",
+    en: "The selected quality-inspection transition is not allowed from its current status.",
+  },
   PROJECT_OS_CHANGE_REQUEST_NOT_FOUND: {
     ar: "طلب التغيير المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected change request is not available in the current project and workspace.",
