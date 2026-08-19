@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import * as XLSX from "xlsx";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -260,6 +261,27 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(Number(rows[0].audits)).toBe(1);
     await connection.query("DELETE FROM audit_logs WHERE id = ?", [exported.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = 'int-wbs-export-audit'");
+  }, 12_000);
+
+  it("generates an authorized Arabic XLSX export with localized content and audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    let exportId: string | undefined;
+    await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES ('int-wbs-xlsx-audit', ?, ?, 'WBS-XLSX-AUDIT', 'XLSX audit work package', 350)", [tenantA, projectA]);
+    try {
+      const exported = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "wbs", format: "xlsx", locale: "ar" });
+      exportId = exported.id;
+      expect(exported).toMatchObject({ fileName: "wbs-export.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", rowCount: expect.any(Number) });
+      const workbook = XLSX.read(Buffer.from(exported.base64, "base64"), { type: "buffer" });
+      expect(workbook.SheetNames).toEqual(["WBS"]);
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.WBS, { defval: "" });
+      expect(rows).toContainEqual(expect.objectContaining({ "رمز WBS": "WBS-XLSX-AUDIT", "اسم WBS": "XLSX audit work package", "القيمة المخططة": 350 }));
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE id = ? AND tenantId = ? AND action = 'data_export_generated' AND entityType = 'data_export'", [exportId, tenantA]);
+      expect(Number(audits[0].count)).toBe(1);
+    } finally {
+      if (exportId) await connection.query("DELETE FROM audit_logs WHERE id = ?", [exportId]);
+      await connection.query("DELETE FROM wbs_items WHERE id = 'int-wbs-xlsx-audit'");
+    }
   }, 12_000);
 
   it("analyzes and confirms an authorized WBS import with atomic business and audit writes", async () => {
