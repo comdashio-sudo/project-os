@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => ({
       applyExcelMapping: { useMutation: () => ({ mutate: state.mappingMutate, isPending: false, isSuccess: false, error: null }) },
       importSpatialEntities: { useMutation: () => ({ mutate: state.spatialImportMutate, isPending: false, isSuccess: false, error: null }) },
     },
-    projects: { getControls: { useQuery: () => ({ data: { wbs: [{ id: "wbs-1", code: "1.0", name: "Civil works" }], activities: [{ id: "activity-1", code: "A-01", name: "Mobilize crew" }] } }) } },
+    projects: { getControls: { useQuery: () => ({ data: { wbs: [{ id: "wbs-1", code: "1.0", name: "Civil works" }, { id: "wbs-2", code: "2.0", name: "Steel works" }], activities: [{ id: "activity-1", wbsItemId: "wbs-1", code: "A-01", name: "Mobilize crew" }, { id: "activity-2", wbsItemId: "wbs-2", code: "A-02", name: "Install steel" }] } }) } },
   },
 }));
 
@@ -42,6 +42,14 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText("Zoom level: 100%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
   });
 
+  it("filters map entities by authorized WBS and activity choices", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; if (!state.data.entities.find(item => item.id === "entity-filter")) state.data.entities.push({ ...state.data.entities[0], id: "entity-filter", parentEntityId: null, code: "ZONE-C", name: "Zone C", wbsItemId: "wbs-2", activityId: "activity-2", geometry: JSON.stringify({ x: 55, y: 10, width: 25, height: 20 }) }); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.selectOptions(screen.getAllByLabelText("WBS item").at(0)!, "wbs-2");
+    expect(screen.queryByRole("button", { name: "ZONE-A Zone A" })).toBeNull(); expect(screen.getByRole("button", { name: "ZONE-C Zone C" })).toBeTruthy(); expect(within(screen.getAllByLabelText("Activity").at(0)!).getByRole("option", { name: "A-02 · Install steel" })).toBeTruthy();
+    await user.selectOptions(screen.getAllByLabelText("Activity").at(0)!, "activity-2");
+    expect(screen.getByRole("button", { name: "ZONE-C Zone C" })).toBeTruthy();
+  });
+
   it("shows only the project-authorized WBS and activity references for a selected entity", async () => {
     state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
@@ -60,6 +68,7 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText(/الكيان الأب: BLOCK-A · Block A/)).toBeTruthy();
     expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
+    expect(screen.getAllByLabelText("عنصر WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
