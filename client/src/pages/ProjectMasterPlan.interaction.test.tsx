@@ -80,6 +80,13 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText("Parent entity: BLOCK-A · Block A · WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
   });
 
+  it("focuses the authorized parent entity from selected entity details", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; if (!state.data.entities.find(item => item.id === "entity-parent")) state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
+    await user.click(screen.getByRole("button", { name: "Focus parent entity: BLOCK-A" }));
+    expect(screen.getByText("Selected entity: BLOCK-A · Block A")).toBeTruthy();
+  });
+
   it("localizes the parent reference for Arabic details", async () => {
     state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; if (!state.data.entities.find(item => item.id === "entity-parent")) state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); state.isArabic = true; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
@@ -87,6 +94,7 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "إزاحة الخريطة لليمين" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تركيز الكيان الأب: BLOCK-A" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "تركيز عنصر WBS: 1.0" })).toBeTruthy();
     expect(screen.getAllByLabelText("عنصر WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
