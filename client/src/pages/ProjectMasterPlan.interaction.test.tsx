@@ -5,8 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 
-const state = vi.hoisted(() => ({ data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, refetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, refetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn() }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -24,7 +24,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("ProjectMasterPlan", () => {
-  afterEach(() => cleanup());
+  afterEach(() => { state.isArabic = false; cleanup(); });
 
   it("selects a filtered spatial entity and reveals its authorized KPI details", async () => {
     const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
@@ -36,7 +36,19 @@ describe("ProjectMasterPlan", () => {
   it("shows only the project-authorized WBS and activity references for a selected entity", async () => {
     state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
-    expect(screen.getByText("WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
+    expect(screen.getByText("Parent entity: No link · WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
+  });
+
+  it("shows the parent reference only from the selected version entity set", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
+    expect(screen.getByText("Parent entity: BLOCK-A · Block A · WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
+  });
+
+  it("localizes the parent reference for Arabic details", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; if (!state.data.entities.find(item => item.id === "entity-parent")) state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); state.isArabic = true; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
+    expect(screen.getByText(/الكيان الأب: BLOCK-A · Block A/)).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
