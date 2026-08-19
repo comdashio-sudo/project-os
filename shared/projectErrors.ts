@@ -140,6 +140,10 @@ export const projectErrorMessages = {
     ar: "الكيان المكاني الأب المحدد غير متاح ضمن إصدار Master Plan الحالي.",
     en: "The selected parent spatial entity is not available in the current Master Plan version.",
   },
+  PROJECT_OS_MASTER_PLAN_PARENT_CYCLE: {
+    ar: "لا يمكن أن يحتوي ملف الكيانات المكانية على دورة في علاقات الكيان الأب.",
+    en: "The spatial-entity file cannot contain a cycle in parent-entity relationships.",
+  },
   PROJECT_OS_MASTER_PLAN_GEOMETRY_INVALID: {
     ar: "حدود الكيان المكاني يجب أن تقع بالكامل داخل مخطط 100×100 وأن يكون له عرض وارتفاع موجبان.",
     en: "The spatial entity must fit inside the 100×100 plan and have positive width and height.",
