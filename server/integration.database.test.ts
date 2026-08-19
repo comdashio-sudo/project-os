@@ -8,6 +8,7 @@ const tenantA = "00000000-0000-4000-8000-0000000000a1";
 const tenantB = "00000000-0000-4000-8000-0000000000b1";
 const projectA = "00000000-0000-4000-8000-0000000000a2";
 const projectB = "00000000-0000-4000-8000-0000000000b2";
+const projectC = "00000000-0000-4000-8000-0000000000a3";
 const documentA = "00000000-0000-4000-8000-0000000000d1";
 const changeRequestA = "00000000-0000-4000-8000-0000000000c1";
 const notificationA = "00000000-0000-4000-8000-0000000000f1";
@@ -45,7 +46,12 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM tenant_licenses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
-    await connection.query("DELETE FROM projects WHERE id IN (?, ?)", [projectA, projectB]);
+    await connection.query("DELETE FROM progress_entries WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM cost_entries WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM budget_lines WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM activities WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM wbs_items WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
     await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM users WHERE openId = 'integration-test-user'");
@@ -232,6 +238,19 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ budgets: 1, costs: 1, audits: 2 });
     await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?)", [budget.id, cost.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]);
   });
+
+  it("rejects a WBS from a sibling project before budget cost or progress writes and allows the owned WBS", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context); await connection.query("INSERT INTO projects (id, tenantId, portfolioId, code, name, projectType) VALUES (?, ?, 'int-portfolio-a', 'INT-C', 'Integration project C', 'test')", [projectC, tenantA]);
+    const siblingWbs = await caller.wbs.create({ tenantId: tenantA, projectId: projectC, code: "WBS-SIBLING", name: "Sibling project work package", plannedValue: 100 });
+    await expect(caller.budgets.create({ tenantId: tenantA, projectId: projectA, wbsItemId: siblingWbs.id, costCode: "WBS-SCOPE-B", originalAmount: 100, currentAmount: 125 })).rejects.toThrow("PROJECT_OS_WBS_SCOPE_MISMATCH");
+    await expect(caller.costs.createActual({ tenantId: tenantA, projectId: projectA, wbsItemId: siblingWbs.id, amount: 50, incurredAt: new Date("2026-01-11T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_WBS_SCOPE_MISMATCH");
+    await expect(caller.progress.create({ tenantId: tenantA, projectId: projectA, wbsItemId: siblingWbs.id, percentComplete: 25, reportedAt: new Date("2026-01-11T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_WBS_SCOPE_MISMATCH");
+    const ownedWbs = await caller.wbs.create({ tenantId: tenantA, projectId: projectA, code: "WBS-SCOPE-OWNED", name: "Owned scope work package", plannedValue: 100 }); const budget = await caller.budgets.create({ tenantId: tenantA, projectId: projectA, wbsItemId: ownedWbs.id, costCode: "WBS-SCOPE-A", originalAmount: 100, currentAmount: 125 }); const cost = await caller.costs.createActual({ tenantId: tenantA, projectId: projectA, wbsItemId: ownedWbs.id, amount: 50, incurredAt: new Date("2026-01-11T00:00:00.000Z") }); const progress = await caller.progress.create({ tenantId: tenantA, projectId: projectA, wbsItemId: ownedWbs.id, percentComplete: 25, reportedAt: new Date("2026-01-11T00:00:00.000Z") });
+    const [rows] = await connection.query<{ budget: number; cost: number; progress: number; forbiddenWrites: number }[]>("SELECT (SELECT COUNT(*) FROM budget_lines WHERE id = ?) AS budget, (SELECT COUNT(*) FROM cost_entries WHERE id = ?) AS cost, (SELECT COUNT(*) FROM progress_entries WHERE id = ?) AS progress, (SELECT COUNT(*) FROM budget_lines WHERE wbsItemId = ?) + (SELECT COUNT(*) FROM cost_entries WHERE wbsItemId = ?) + (SELECT COUNT(*) FROM progress_entries WHERE wbsItemId = ?) AS forbiddenWrites", [budget.id, cost.id, progress.id, siblingWbs.id, siblingWbs.id, siblingWbs.id]);
+    expect(rows[0]).toMatchObject({ budget: 1, cost: 1, progress: 1, forbiddenWrites: 0 });
+    await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?)", [siblingWbs.id, ownedWbs.id, budget.id, cost.id, progress.id]); await connection.query("DELETE FROM progress_entries WHERE id = ?", [progress.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]); await connection.query("DELETE FROM wbs_items WHERE id IN (?, ?)", [siblingWbs.id, ownedWbs.id]); await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
+  }, 12_000);
 
   it("does not return an HSE observation outside the requested tenant and project", async () => {
     const [[user]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-test-user' LIMIT 1");
