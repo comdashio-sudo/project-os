@@ -107,22 +107,28 @@ export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "cs
   return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
 }
 
-export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv"; bytes: Uint8Array }) {
+export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
   const workbook = XLSX.read(input.bytes, { type: "array" });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
 
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" });
   const headers = Object.keys(rows[0] ?? {});
-  const mapping = Object.fromEntries(
+  const inferredMapping = Object.fromEntries(
     templates[input.moduleCode].flatMap(field => {
       const header = headers.find(candidate => field.aliases.includes(normalize(candidate)));
       return header ? [[field.key, header]] : [];
     }),
   );
-  const errors: ImportError[] = templates[input.moduleCode]
+  const permittedFields = new Set(templates[input.moduleCode].map(field => field.key));
+  const requestedMapping = Object.entries(input.mappingOverride ?? {}).filter(([field, header]) => permittedFields.has(field) && headers.includes(header));
+  const mapping = { ...inferredMapping, ...Object.fromEntries(requestedMapping) };
+  const errors: ImportError[] = Object.values(Object.fromEntries(requestedMapping)).length !== new Set(requestedMapping.map(([, header]) => header)).size
+    ? [{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID" }]
+    : [];
+  errors.push(...templates[input.moduleCode]
     .filter(field => field.required && !mapping[field.key])
-    .map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key }));
+    .map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })));
   const validRows: ValidatedImportRow[] = [];
 
   if (!errors.length) {
@@ -149,7 +155,7 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
     });
   }
 
-  return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
+  return { sheetNames: workbook.SheetNames, headers, mapping, rows, validRows, errors };
 }
 
 const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string, string>>> = {

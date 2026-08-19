@@ -14,6 +14,12 @@ describe("analyzeImportFile", () => {
     expect(result.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "currentAmount" }));
   });
 
+  it("accepts a unique manual mapping for unrecognized headings and rejects duplicated assignments", () => {
+    const bytes = new Uint8Array(workbookBytes([{ A: "CIVIL", B: 10, C: 15 }]));
+    expect(analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes, mappingOverride: { costCode: "A", originalAmount: "B", currentAmount: "C" } }).validRows).toEqual([{ rowNumber: 2, values: { costCode: "CIVIL", originalAmount: 10, currentAmount: 15 } }]);
+    expect(analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes, mappingOverride: { costCode: "A", originalAmount: "A", currentAmount: "C" } }).errors).toContainEqual({ rowNumber: 0, code: "IMPORT_MAPPING_INVALID" });
+  });
+
   it("returns only validated rows and reports their spreadsheet row number", () => {
     const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10, "Current Amount": 15 }, { "Cost Code": "", "Original Amount": 2, "Current Amount": "not-a-number" }])) });
     expect(result.validRows).toEqual([{ rowNumber: 2, values: { costCode: "CIVIL", originalAmount: 10, currentAmount: 15 } }]);
