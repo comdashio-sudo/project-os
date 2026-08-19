@@ -154,6 +154,108 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.navigation.get({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   });
 
+  it("governs tenant role and membership administration with scope and self-privilege guards", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const unassigned = appRouter.createCaller(unassignedContext);
+    let roleId: string | undefined;
+    let membershipId: string | undefined;
+    let assignmentId: string | undefined;
+    try {
+      const role = await owner.tenant.createRole({ tenantId: tenantA, code: "INT_AUDIT_ROLE", name: "Integration Audit Role", productCode: "PROJECT", permissionCodes: ["project.read"] });
+      roleId = role.id;
+      await expect(unassigned.tenant.assignMember({ tenantId: tenantA, targetUserId: integrationUserId, roleId, scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      await expect(owner.tenant.assignMember({ tenantId: tenantA, targetUserId: integrationUserId, roleId, scopeType: "company" })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+      await expect(owner.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId, scopeType: "project", scopeId: projectB })).rejects.toThrow("PROJECT_OS_INVALID_SCOPE");
+      await expect(owner.tenant.updateRole({ tenantId: tenantA, roleId, name: "Integration Audit Role Updated", permissionCodes: ["project.write"] })).resolves.toMatchObject({ id: roleId, permissionCount: 1 });
+      const member = await owner.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId, scopeType: "company" });
+      membershipId = member.membershipId;
+      expect(member).toMatchObject({ status: "invited" });
+      const assignment = await owner.tenant.assignMembershipRole({ tenantId: tenantA, membershipId, roleId, scopeType: "project", scopeId: projectA });
+      assignmentId = assignment.assignmentId;
+      await expect(owner.tenant.revokeMembershipRole({ tenantId: tenantA, assignmentId })).resolves.toMatchObject({ assignmentId, membershipId });
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action IN ('tenant.role_created','tenant.role_updated','tenant.member_assigned','tenant.membership_role_assigned','tenant.membership_role_revoked') AND entityId IN (?, ?, ?)", [tenantA, roleId, membershipId, assignmentId]);
+      expect(Number(audits[0].count)).toBe(5);
+    } finally {
+      if (assignmentId) await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [assignmentId]);
+      if (membershipId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [membershipId]);
+        await connection.query("DELETE FROM membership_roles WHERE membershipId = ?", [membershipId]);
+        await connection.query("DELETE FROM memberships WHERE id = ?", [membershipId]);
+      }
+      if (roleId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [roleId]);
+        await connection.query("DELETE FROM role_permissions WHERE roleId = ?", [roleId]);
+        await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
+      }
+    }
+  }, 12_000);
+
+  it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const unassigned = appRouter.createCaller(unassignedContext);
+    let projectId: string | undefined;
+    try {
+      await expect(unassigned.projects.create({ tenantId: tenantA, code: "PRJ-LIFE-TRPC", name: "Unassigned lifecycle project", projectType: "test", currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      const project = await owner.projects.create({ tenantId: tenantA, code: "PRJ-LIFE-TRPC", name: "Lifecycle evidence project", projectType: "test", currency: "USD" });
+      projectId = project.id;
+      await expect(owner.projects.transitionLifecycle({ tenantId: tenantA, projectId: projectB, lifecycleStage: "pre_award" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      await expect(owner.projects.transitionLifecycle({ tenantId: tenantA, projectId, lifecycleStage: "pre_award" })).rejects.toThrow("PROJECT_OS_LIFECYCLE_TRANSITION_INVALID");
+      await expect(owner.projects.transitionLifecycle({ tenantId: tenantA, projectId, lifecycleStage: "execution" })).resolves.toMatchObject({ projectId, lifecycleStage: "execution" });
+      await expect(owner.projects.transitionLifecycle({ tenantId: tenantA, projectId, lifecycleStage: "commissioning" })).resolves.toMatchObject({ projectId, lifecycleStage: "commissioning" });
+      const listed = await owner.projects.list({ tenantId: tenantA });
+      expect(listed).toEqual(expect.arrayContaining([expect.objectContaining({ id: projectId, code: "PRJ-LIFE-TRPC", lifecycleStage: "commissioning" })]));
+      const controls = await owner.projects.getControls({ tenantId: tenantA, projectId });
+      expect(controls).toMatchObject({ project: expect.objectContaining({ id: projectId, name: "Lifecycle evidence project" }) });
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action IN ('project.created','project.lifecycle_transitioned')", [tenantA, projectId]);
+      expect(Number(audits[0].count)).toBe(3);
+    } finally {
+      if (projectId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [projectId]);
+        await connection.query("DELETE FROM projects WHERE id = ?", [projectId]);
+      }
+    }
+  }, 12_000);
+
+  it("governs change-request and HSE transitions with isolation, reads, and audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    let changeId: string | undefined;
+    let observationId: string | undefined;
+    try {
+      const change = await caller.changes.create({ tenantId: tenantA, projectId: projectA, changeNumber: "CHANGE-TRANS-TRPC", title: "Transition evidence change", description: "This request exercises the governed operational change transition workflow.", impactScheduleDays: 7, impactCost: 2500, currency: "USD" });
+      changeId = change.id;
+      await expect(caller.changes.transitionStatus({ tenantId: tenantA, projectId: projectB, changeRequestId: changeId, nextStatus: "submitted" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      await expect(caller.changes.transitionStatus({ tenantId: tenantA, projectId: projectA, changeRequestId: changeId, nextStatus: "approved" })).rejects.toThrow("PROJECT_OS_CHANGE_REQUEST_TRANSITION_INVALID");
+      await expect(caller.changes.transitionStatus({ tenantId: tenantA, projectId: projectA, changeRequestId: changeId, nextStatus: "submitted" })).resolves.toMatchObject({ id: changeId, status: "submitted" });
+      await expect(caller.changes.transitionStatus({ tenantId: tenantA, projectId: projectA, changeRequestId: changeId, nextStatus: "under_review" })).resolves.toMatchObject({ id: changeId, status: "under_review" });
+      await expect(caller.changes.transitionStatus({ tenantId: tenantA, projectId: projectA, changeRequestId: changeId, nextStatus: "approved" })).resolves.toMatchObject({ id: changeId, status: "approved" });
+      expect(await caller.changes.list({ tenantId: tenantA, projectId: projectA })).toEqual(expect.arrayContaining([expect.objectContaining({ id: changeId, status: "approved" })]));
+      const observation = await caller.hse.create({ tenantId: tenantA, projectId: projectA, observationNumber: "HSE-TRANS-TRPC", title: "Transition evidence observation", description: "This observation exercises the governed HSE transition workflow.", category: "safety", severity: "high" });
+      observationId = observation.id;
+      await expect(caller.hse.transitionStatus({ tenantId: tenantA, projectId: projectB, observationId, nextStatus: "assigned" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      await expect(caller.hse.transitionStatus({ tenantId: tenantA, projectId: projectA, observationId, nextStatus: "closed" })).rejects.toThrow("PROJECT_OS_HSE_TRANSITION_INVALID");
+      for (const nextStatus of ["assigned", "remediation", "verification", "closed"] as const) {
+        await expect(caller.hse.transitionStatus({ tenantId: tenantA, projectId: projectA, observationId, nextStatus })).resolves.toMatchObject({ id: observationId, status: nextStatus });
+      }
+      expect(await caller.hse.list({ tenantId: tenantA, projectId: projectA })).toEqual(expect.arrayContaining([expect.objectContaining({ id: observationId, status: "closed" })]));
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND ((entityId = ? AND action IN ('project.change_request_created','project.change_request_status_transitioned')) OR (entityId = ? AND action IN ('hse.observation_created','hse.observation_status_transitioned')))", [tenantA, changeId, observationId]);
+      expect(Number(audits[0].count)).toBe(9);
+    } finally {
+      if (changeId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [changeId]);
+        await connection.query("DELETE FROM change_requests WHERE id = ?", [changeId]);
+      }
+      if (observationId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [observationId]);
+        await connection.query("DELETE FROM hse_observations WHERE id = ?", [observationId]);
+      }
+    }
+  }, 15_000);
+
   it("rejects a foreign master plan and creates versioned spatial records with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);

@@ -632,7 +632,7 @@ export async function createProjectForTenant(input: {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write" });
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
