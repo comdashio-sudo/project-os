@@ -34,6 +34,9 @@ import {
   progressEntries,
   evmSnapshots,
   documentVersions,
+  masterPlans,
+  masterPlanVersions,
+  masterPlanSpatialEntities,
   dataImportErrors,
   dataImports,
   projectDocuments,
@@ -794,6 +797,65 @@ const documentStatusTransitions: Record<string, readonly string[]> = {
   superseded: ["archived"],
   archived: [],
 };
+
+type MasterPlanVersionKind = "original" | "revision" | "updated";
+type MasterPlanEntityType = "block" | "building" | "zone" | "unit" | "area";
+type MasterPlanEntityStatus = "not_started" | "in_progress" | "completed" | "blocked";
+type MasterPlanGeometry = { x: number; y: number; width: number; height: number };
+
+function normalizeMasterPlanGeometry(geometry: MasterPlanGeometry) {
+  const values = [geometry.x, geometry.y, geometry.width, geometry.height];
+  if (values.some(value => !Number.isFinite(value)) || geometry.x < 0 || geometry.y < 0 || geometry.width <= 0 || geometry.height <= 0 || geometry.x + geometry.width > 100 || geometry.y + geometry.height > 100) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_GEOMETRY_INVALID" });
+  return JSON.stringify(geometry);
+}
+
+export async function getMasterPlansForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [plans, versions, entities] = await Promise.all([
+    db.select({ id: masterPlans.id, code: masterPlans.code, title: masterPlans.title, status: masterPlans.status, createdAt: masterPlans.createdAt }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))).orderBy(desc(masterPlans.createdAt)),
+    db.select({ id: masterPlanVersions.id, masterPlanId: masterPlanVersions.masterPlanId, versionNumber: masterPlanVersions.versionNumber, versionKind: masterPlanVersions.versionKind, description: masterPlanVersions.description, changeSummary: masterPlanVersions.changeSummary, sourceFileName: masterPlanVersions.sourceFileName, createdAt: masterPlanVersions.createdAt }).from(masterPlanVersions).where(and(eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).orderBy(desc(masterPlanVersions.versionNumber)),
+    db.select({ id: masterPlanSpatialEntities.id, masterPlanVersionId: masterPlanSpatialEntities.masterPlanVersionId, parentEntityId: masterPlanSpatialEntities.parentEntityId, code: masterPlanSpatialEntities.code, name: masterPlanSpatialEntities.name, entityType: masterPlanSpatialEntities.entityType, geometry: masterPlanSpatialEntities.geometry, status: masterPlanSpatialEntities.status, progressPercent: masterPlanSpatialEntities.progressPercent, plannedValue: masterPlanSpatialEntities.plannedValue, actualValue: masterPlanSpatialEntities.actualValue, forecastValue: masterPlanSpatialEntities.forecastValue, wbsItemId: masterPlanSpatialEntities.wbsItemId, activityId: masterPlanSpatialEntities.activityId }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))),
+  ]);
+  return { plans, versions, entities };
+}
+
+export async function createMasterPlanForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; description?: string; sourceFileName?: string; sourceMimeType?: string; sourceContentBase64?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [existing] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId), eq(masterPlans.code, input.code))).limit(1); if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MASTER_PLAN_CODE_EXISTS" });
+  const masterPlanId = crypto.randomUUID(); const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
+  if (input.sourceContentBase64) { const content = decodeDocumentContent(input.sourceContentBase64); checksumSha256 = createHash("sha256").update(content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${masterPlanId}/v1/${documentStorageName(input.sourceFileName ?? "master-plan.bin")}`, content, input.sourceMimeType ?? "application/octet-stream"); storageKey = stored.key; }
+  await db.transaction(async tx => { await tx.insert(masterPlans).values({ id: masterPlanId, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, createdByUserId: input.userId }); await tx.insert(masterPlanVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, masterPlanId, versionNumber: 1, versionKind: "original", description: input.description, sourceFileName: input.sourceFileName, storageKey, checksumSha256, uploadedByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.plan_created", entityType: "master_plan", entityId: masterPlanId, metadata: JSON.stringify({ projectId: input.projectId, versionId, versionNumber: 1, checksumSha256 }) }); });
+  return { id: masterPlanId, versionId, versionNumber: 1 };
+}
+
+export async function createMasterPlanVersionForTenant(input: { userId: number; tenantId: string; projectId: string; masterPlanId: string; versionKind: Exclude<MasterPlanVersionKind, "original">; description?: string; changeSummary?: string; sourceFileName?: string; sourceMimeType?: string; sourceContentBase64?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [plan] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.id, input.masterPlanId), eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))).limit(1); if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_NOT_FOUND" });
+  const [latest] = await db.select({ versionNumber: masterPlanVersions.versionNumber }).from(masterPlanVersions).where(and(eq(masterPlanVersions.masterPlanId, input.masterPlanId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).orderBy(desc(masterPlanVersions.versionNumber)).limit(1);
+  const versionNumber = (latest?.versionNumber ?? 0) + 1; const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
+  if (input.sourceContentBase64) { const content = decodeDocumentContent(input.sourceContentBase64); checksumSha256 = createHash("sha256").update(content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${input.masterPlanId}/v${versionNumber}/${documentStorageName(input.sourceFileName ?? "master-plan.bin")}`, content, input.sourceMimeType ?? "application/octet-stream"); storageKey = stored.key; }
+  await db.transaction(async tx => { await tx.insert(masterPlanVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, masterPlanId: input.masterPlanId, versionNumber, versionKind: input.versionKind, description: input.description, changeSummary: input.changeSummary, sourceFileName: input.sourceFileName, storageKey, checksumSha256, uploadedByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.version_created", entityType: "master_plan_version", entityId: versionId, metadata: JSON.stringify({ projectId: input.projectId, masterPlanId: input.masterPlanId, versionNumber, versionKind: input.versionKind, checksumSha256 }) }); });
+  return { id: versionId, masterPlanId: input.masterPlanId, versionNumber };
+}
+
+export async function createMasterPlanSpatialEntityForTenant(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; parentEntityId?: string; code: string; name: string; entityType: MasterPlanEntityType; geometry: MasterPlanGeometry; status: MasterPlanEntityStatus; progressPercent: number; plannedValue?: number; actualValue?: number; forecastValue?: number; wbsItemId?: string; activityId?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const geometry = normalizeMasterPlanGeometry(input.geometry); if (!Number.isFinite(input.progressPercent) || input.progressPercent < 0 || input.progressPercent > 100) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_PROGRESS_INVALID" });
+  const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
+  if (input.parentEntityId) { const [parent] = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.id, input.parentEntityId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).limit(1); if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_PARENT_NOT_FOUND" }); }
+  if (input.wbsItemId) { const [wbs] = await db.select({ id: wbsItems.id }).from(wbsItems).where(and(eq(wbsItems.id, input.wbsItemId), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))).limit(1); if (!wbs) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WBS_NOT_FOUND" }); }
+  if (input.activityId) { const [activity] = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1); if (!activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); }
+  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(masterPlanSpatialEntities).values({ id, tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, parentEntityId: input.parentEntityId, code: input.code, name: input.name, entityType: input.entityType, geometry, status: input.status, progressPercent: String(input.progressPercent), plannedValue: String(input.plannedValue ?? 0), actualValue: String(input.actualValue ?? 0), forecastValue: String(input.forecastValue ?? 0), wbsItemId: input.wbsItemId, activityId: input.activityId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.spatial_entity_created", entityType: "master_plan_spatial_entity", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, code: input.code, entityType: input.entityType }) }); });
+  return { id, masterPlanVersionId: input.masterPlanVersionId };
+}
 
 export async function transitionProjectDocumentStatus(input: { userId: number; tenantId: string; projectId: string; documentId: string; nextStatus: "draft" | "for_review" | "approved" | "superseded" | "archived" }) {
   const db = await getDb();

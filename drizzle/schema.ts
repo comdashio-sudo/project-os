@@ -345,6 +345,67 @@ export const documentVersions = mysqlTable(
   table => [uniqueIndex("document_versions_document_version_unique").on(table.documentId, table.versionNumber), index("document_versions_tenant_project_document_idx").on(table.tenantId, table.projectId, table.documentId)],
 );
 
+export const masterPlans = mysqlTable(
+  "master_plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["active", "superseded", "archived"]).default("active").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("master_plans_project_code_unique").on(table.projectId, table.code), index("master_plans_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const masterPlanVersions = mysqlTable(
+  "master_plan_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanId: varchar("masterPlanId", { length: 36 }).notNull().references(() => masterPlans.id),
+    versionNumber: int("versionNumber").notNull(),
+    versionKind: mysqlEnum("versionKind", ["original", "revision", "updated"]).notNull(),
+    description: text("description"),
+    changeSummary: text("changeSummary"),
+    sourceFileName: varchar("sourceFileName", { length: 255 }),
+    storageKey: varchar("storageKey", { length: 512 }),
+    checksumSha256: varchar("checksumSha256", { length: 64 }),
+    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("master_plan_versions_plan_version_unique").on(table.masterPlanId, table.versionNumber), index("master_plan_versions_tenant_project_plan_idx").on(table.tenantId, table.projectId, table.masterPlanId)],
+);
+
+export const masterPlanSpatialEntities = mysqlTable(
+  "master_plan_spatial_entities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanVersionId: varchar("masterPlanVersionId", { length: 36 }).notNull().references(() => masterPlanVersions.id),
+    parentEntityId: varchar("parentEntityId", { length: 36 }),
+    code: varchar("code", { length: 120 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    entityType: mysqlEnum("entityType", ["block", "building", "zone", "unit", "area"]).notNull(),
+    geometry: text("geometry").notNull(),
+    status: mysqlEnum("status", ["not_started", "in_progress", "completed", "blocked"]).default("not_started").notNull(),
+    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).default("0").notNull(),
+    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualValue: decimal("actualValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    forecastValue: decimal("forecastValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("master_plan_spatial_entities_version_code_unique").on(table.masterPlanVersionId, table.code), index("master_plan_spatial_entities_tenant_project_version_idx").on(table.tenantId, table.projectId, table.masterPlanVersionId), index("master_plan_spatial_entities_version_status_idx").on(table.masterPlanVersionId, table.status)],
+);
+
 export const rfis = mysqlTable(
   "rfis",
   {

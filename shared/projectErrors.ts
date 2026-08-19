@@ -124,6 +124,30 @@ export const projectErrorMessages = {
     ar: "انتقال حالة المستند المحدد غير مسموح من حالته الحالية.",
     en: "The selected document-status transition is not allowed from its current status.",
   },
+  PROJECT_OS_MASTER_PLAN_CODE_EXISTS: {
+    ar: "رمز Master Plan مستخدم بالفعل ضمن هذا المشروع.",
+    en: "This Master Plan code is already in use in this project.",
+  },
+  PROJECT_OS_MASTER_PLAN_NOT_FOUND: {
+    ar: "Master Plan المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected Master Plan is not available in the current project and workspace.",
+  },
+  PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND: {
+    ar: "إصدار Master Plan المحدد غير متاح ضمن المشروع الحالي.",
+    en: "The selected Master Plan version is not available in the current project.",
+  },
+  PROJECT_OS_MASTER_PLAN_PARENT_NOT_FOUND: {
+    ar: "الكيان المكاني الأب المحدد غير متاح ضمن إصدار Master Plan الحالي.",
+    en: "The selected parent spatial entity is not available in the current Master Plan version.",
+  },
+  PROJECT_OS_MASTER_PLAN_GEOMETRY_INVALID: {
+    ar: "حدود الكيان المكاني يجب أن تقع بالكامل داخل مخطط 100×100 وأن يكون له عرض وارتفاع موجبان.",
+    en: "The spatial entity must fit inside the 100×100 plan and have positive width and height.",
+  },
+  PROJECT_OS_MASTER_PLAN_PROGRESS_INVALID: {
+    ar: "يجب أن تكون نسبة تقدم الكيان المكاني بين 0 و100.",
+    en: "A spatial entity progress percentage must be between 0 and 100.",
+  },
   PROJECT_OS_RFI_NOT_FOUND: {
     ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected RFI is not available in the current project and workspace.",

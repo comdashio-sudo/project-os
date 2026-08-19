@@ -102,6 +102,12 @@ vi.mock("@/lib/trpc", () => ({
       executive: { useQuery: () => ({ isLoading: false, error: null, data: state.executiveData }) },
     },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
+    masterPlans: {
+      list: { useQuery: () => ({ isLoading: false, error: null, data: { plans: [], versions: [], entities: [] }, refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      createVersion: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      createSpatialEntity: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+    },
     dataImports: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
       analyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
