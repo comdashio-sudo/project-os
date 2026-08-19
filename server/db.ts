@@ -47,6 +47,7 @@ import {
   rfis,
   rolePermissions,
   roles,
+  scheduledJobs,
   subscriptions,
   tenantEntitlements,
   tenantLicenseFeatureOverrides,
@@ -250,6 +251,35 @@ export async function transitionTenantLicenseStatus(input: { actorUserId: number
   if (!licenseTransitions[license.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_LICENSE_TRANSITION_INVALID" }); const active = enabledLicenseStatuses.has(input.nextStatus);
   await db.transaction(async tx => { await tx.update(tenantLicenses).set({ status: input.nextStatus }).where(eq(tenantLicenses.id, license.id)); await tx.update(subscriptions).set({ status: input.nextStatus }).where(eq(subscriptions.id, license.subscriptionId)); await tx.update(tenantEntitlements).set({ active }).where(eq(tenantEntitlements.subscriptionId, license.subscriptionId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.license_status_transitioned", entityType: "tenant_license", entityId: license.id, metadata: JSON.stringify({ previousStatus: license.status, nextStatus: input.nextStatus }) }); });
   return { id: license.id, previousStatus: license.status, status: input.nextStatus };
+}
+
+export async function getScheduledJobByTaskUid(taskUid: string) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [job] = await db.select().from(scheduledJobs).where(and(eq(scheduledJobs.scheduleCronTaskUid, taskUid), eq(scheduledJobs.enabled, true))).limit(1);
+  return job ?? null;
+}
+
+export async function evaluateTenantLicenseLifecycle(now = new Date()) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const licenses = await db.select({ id: tenantLicenses.id, tenantId: tenantLicenses.tenantId, subscriptionId: tenantLicenses.subscriptionId, status: tenantLicenses.status, endsAt: tenantLicenses.endsAt, trialEndsAt: tenantLicenses.trialEndsAt, graceEndsAt: tenantLicenses.graceEndsAt }).from(tenantLicenses).where(inArray(tenantLicenses.status, ["trialing", "active", "past_due", "grace_period"]));
+  const candidates = licenses.flatMap(license => {
+    const trialExpired = license.status === "trialing" && license.trialEndsAt !== null && license.trialEndsAt <= now;
+    const graceExpired = license.status === "grace_period" && license.graceEndsAt !== null && license.graceEndsAt <= now;
+    const subscriptionEnded = (license.status === "active" || license.status === "past_due") && license.endsAt !== null && license.endsAt <= now;
+    const graceAvailable = subscriptionEnded && license.graceEndsAt !== null && license.graceEndsAt > now;
+    const nextStatus: TenantLicenseStatus | null = trialExpired || graceExpired || (subscriptionEnded && !graceAvailable) ? "expired" : graceAvailable ? "grace_period" : null;
+    return nextStatus && licenseTransitions[license.status].includes(nextStatus) ? [{ ...license, nextStatus }] : [];
+  });
+  for (const license of candidates) {
+    await db.transaction(async tx => {
+      const active = enabledLicenseStatuses.has(license.nextStatus);
+      await tx.update(tenantLicenses).set({ status: license.nextStatus }).where(and(eq(tenantLicenses.id, license.id), eq(tenantLicenses.status, license.status)));
+      await tx.update(subscriptions).set({ status: license.nextStatus }).where(eq(subscriptions.id, license.subscriptionId));
+      await tx.update(tenantEntitlements).set({ active }).where(eq(tenantEntitlements.subscriptionId, license.subscriptionId));
+      await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: license.tenantId, actorUserId: null, action: "licensing.license_lifecycle_evaluated", entityType: "tenant_license", entityId: license.id, metadata: JSON.stringify({ previousStatus: license.status, nextStatus: license.nextStatus, evaluatedAt: now.toISOString() }) });
+    });
+  }
+  return { evaluatedAt: now, transitioned: candidates.length, transitions: candidates.map(license => ({ id: license.id, tenantId: license.tenantId, previousStatus: license.status, status: license.nextStatus })) };
 }
 
 export async function setTenantLicenseFeatureOverride(input: { actorUserId: number; tenantId: string; licenseId: string; featureCode: string; active: boolean; limitValue?: number }) {

@@ -190,6 +190,19 @@ export const tenantLicenses = mysqlTable(
   table => [uniqueIndex("tenant_licenses_subscription_unique").on(table.subscriptionId), index("tenant_licenses_tenant_status_idx").on(table.tenantId, table.status), index("tenant_licenses_plan_idx").on(table.planId)],
 );
 
+export const scheduledJobs = mysqlTable(
+  "scheduled_jobs",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    purpose: mysqlEnum("purpose", ["license_lifecycle"]).notNull(),
+    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }).unique(),
+    enabled: boolean("enabled").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("scheduled_jobs_task_uid_idx").on(table.scheduleCronTaskUid)],
+);
+
 export const tenantLicenseFeatureOverrides = mysqlTable(
   "tenant_license_feature_overrides",
   {
