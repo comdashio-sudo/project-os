@@ -13,6 +13,7 @@ import { ProjectDocuments } from "./ProjectDocuments";
 import { ProjectRfis } from "./ProjectRfis";
 import { ProjectNcrs } from "./ProjectNcrs";
 import { ProjectHse } from "./ProjectHse";
+import { ProjectFieldReports } from "./ProjectFieldReports";
 import { ProjectChanges } from "./ProjectChanges";
 import { ProjectNotifications } from "./ProjectNotifications";
 import { ProjectResources } from "./ProjectResources";
@@ -137,6 +138,7 @@ export default function ProjectControls() {
             <ProjectRfis tenantId={tenantId} projectId={projectId} />
             <ProjectNcrs tenantId={tenantId} projectId={projectId} />
             <ProjectHse tenantId={tenantId} projectId={projectId} />
+            <ProjectFieldReports tenantId={tenantId} projectId={projectId} />
             <ProjectResources tenantId={tenantId} projectId={projectId} />
             <ProjectClaims tenantId={tenantId} projectId={projectId} />
             <ProjectAdvisor tenantId={tenantId} projectId={projectId} />

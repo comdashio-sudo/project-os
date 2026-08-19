@@ -224,6 +224,18 @@ export const projectErrorMessages = {
     ar: "انتقال حالة ملاحظة HSE المحدد غير مسموح من حالتها الحالية.",
     en: "The selected HSE-observation transition is not allowed from its current status.",
   },
+  PROJECT_OS_FIELD_REPORT_NOT_FOUND: {
+    ar: "التقرير الميداني المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected field report is not available in the current project and workspace.",
+  },
+  PROJECT_OS_FIELD_REPORT_TRANSITION_INVALID: {
+    ar: "انتقال حالة التقرير الميداني المحدد غير مسموح من حالته الحالية.",
+    en: "The selected field-report transition is not allowed from its current status.",
+  },
+  PROJECT_OS_FIELD_REPORT_WORKFORCE_INVALID: {
+    ar: "عدد العاملين في التقرير الميداني يجب أن يكون عددًا صحيحًا بين صفر و100000.",
+    en: "The field-report workforce count must be a whole number between 0 and 100000.",
+  },
   PROJECT_OS_CHANGE_REQUEST_NOT_FOUND: {
     ar: "طلب التغيير المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected change request is not available in the current project and workspace.",

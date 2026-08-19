@@ -555,6 +555,30 @@ export const hseObservations = mysqlTable(
   table => [uniqueIndex("hse_observations_project_number_unique").on(table.projectId, table.observationNumber), index("hse_observations_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
+export const fieldReports = mysqlTable(
+  "field_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    reportNumber: varchar("reportNumber", { length: 120 }).notNull(),
+    reportType: mysqlEnum("reportType", ["daily", "inspection", "progress"]).notNull(),
+    reportedAt: timestamp("reportedAt").notNull(),
+    shift: mysqlEnum("shift", ["day", "night"]).default("day").notNull(),
+    workforceCount: int("workforceCount").default(0).notNull(),
+    weather: varchar("weather", { length: 160 }),
+    summary: text("summary").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "reviewed", "approved", "rejected"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("field_reports_project_number_unique").on(table.projectId, table.reportNumber),
+    index("field_reports_tenant_project_date_status_idx").on(table.tenantId, table.projectId, table.reportedAt, table.status),
+  ],
+);
+
 export const changeRequests = mysqlTable(
   "change_requests",
   {

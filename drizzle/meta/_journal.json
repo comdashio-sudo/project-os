@@ -141,6 +141,13 @@
       "when": 1787134335571,
       "tag": "0019_dizzy_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1787135166290,
+      "tag": "0020_soft_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

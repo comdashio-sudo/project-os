@@ -16,6 +16,7 @@ import {
   membershipRoles,
   changeRequests,
   internalNotifications,
+  fieldReports,
   hseObservations,
   ncrs,
   permissions,
@@ -1172,6 +1173,7 @@ export async function transitionNcrStatus(input: { userId: number; tenantId: str
 }
 
 const hseStatusTransitions: Record<string, readonly string[]> = { open: ["assigned", "cancelled"], assigned: ["remediation", "cancelled"], remediation: ["verification", "cancelled"], verification: ["closed", "remediation"], closed: [], cancelled: [] };
+const fieldReportStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["reviewed", "rejected"], reviewed: ["approved", "rejected"], approved: [], rejected: ["draft"] };
 
 const changeRequestTransitions: Record<string, readonly string[]> = { draft: ["submitted", "cancelled"], submitted: ["under_review", "cancelled"], under_review: ["approved", "rejected", "cancelled"], approved: [], rejected: [], cancelled: [] };
 
@@ -1240,6 +1242,40 @@ export async function transitionHseObservationStatus(input: { userId: number; te
   if (!hseStatusTransitions[observation.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_HSE_TRANSITION_INVALID" });
   await db.transaction(async tx => { await tx.update(hseObservations).set({ status: input.nextStatus }).where(and(eq(hseObservations.id, input.observationId), eq(hseObservations.tenantId, input.tenantId), eq(hseObservations.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hse.observation_status_transitioned", entityType: "hse_observation", entityId: input.observationId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: observation.status, nextStatus: input.nextStatus }) }); });
   return { id: input.observationId, previousStatus: observation.status, status: input.nextStatus };
+}
+
+export async function getFieldReportsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: fieldReports.id, reportNumber: fieldReports.reportNumber, reportType: fieldReports.reportType, reportedAt: fieldReports.reportedAt, shift: fieldReports.shift, workforceCount: fieldReports.workforceCount, weather: fieldReports.weather, summary: fieldReports.summary, status: fieldReports.status, createdAt: fieldReports.createdAt }).from(fieldReports).where(and(eq(fieldReports.tenantId, input.tenantId), eq(fieldReports.projectId, input.projectId))).orderBy(desc(fieldReports.reportedAt), desc(fieldReports.createdAt));
+}
+
+export async function createFieldReportForTenant(input: { userId: number; tenantId: string; projectId: string; reportNumber: string; reportType: "daily" | "inspection" | "progress"; reportedAt: Date; shift: "day" | "night"; workforceCount: number; weather?: string; summary: string }) {
+  if (!Number.isInteger(input.workforceCount) || input.workforceCount < 0 || input.workforceCount > 100_000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_FIELD_REPORT_WORKFORCE_INVALID" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(fieldReports).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportNumber: input.reportNumber, reportType: input.reportType, reportedAt: input.reportedAt, shift: input.shift, workforceCount: input.workforceCount, weather: input.weather?.trim() || null, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "field_report.created", entityType: "field_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportNumber: input.reportNumber, reportType: input.reportType, reportedAt: input.reportedAt.toISOString(), shift: input.shift, workforceCount: input.workforceCount }) }); });
+  return { id, status: "draft" as const };
+}
+
+export async function transitionFieldReportStatus(input: { userId: number; tenantId: string; projectId: string; reportId: string; nextStatus: "draft" | "submitted" | "reviewed" | "approved" | "rejected" }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [report] = await db.select({ id: fieldReports.id, status: fieldReports.status }).from(fieldReports).where(and(eq(fieldReports.id, input.reportId), eq(fieldReports.tenantId, input.tenantId), eq(fieldReports.projectId, input.projectId))).limit(1);
+  if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_FIELD_REPORT_NOT_FOUND" });
+  if (!fieldReportStatusTransitions[report.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_FIELD_REPORT_TRANSITION_INVALID" });
+  await db.transaction(async tx => { await tx.update(fieldReports).set({ status: input.nextStatus }).where(and(eq(fieldReports.id, input.reportId), eq(fieldReports.tenantId, input.tenantId), eq(fieldReports.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "field_report.status_transitioned", entityType: "field_report", entityId: input.reportId, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: report.status, nextStatus: input.nextStatus }) }); });
+  return { id: input.reportId, previousStatus: report.status, status: input.nextStatus };
 }
 
 export async function getProjectResourcesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
