@@ -148,6 +148,10 @@ export const projectErrorMessages = {
     ar: "يجب أن تكون نسبة تقدم الكيان المكاني بين 0 و100.",
     en: "A spatial entity progress percentage must be between 0 and 100.",
   },
+  PROJECT_OS_MASTER_PLAN_SOURCE_INVALID: {
+    ar: "ملف أصل Master Plan يجب أن يكون PNG أو JPG أو WEBP أو PDF وباسم ونوع ملف صالحين.",
+    en: "The Master Plan source must be a PNG, JPG, WEBP, or PDF file with a valid file name and type.",
+  },
   PROJECT_OS_MASTER_PLAN_MAPPING_VALIDATION_FAILED: {
     ar: "تعذر تطبيق ملف الربط لأن الأعمدة أو القيم لا تحقق قالب Master Plan.",
     en: "The mapping file could not be applied because its columns or values do not satisfy the Master Plan template.",

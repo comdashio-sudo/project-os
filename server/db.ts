@@ -846,6 +846,16 @@ function decodeDocumentContent(contentBase64: string) {
   return content;
 }
 
+const masterPlanSourceMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
+function decodeMasterPlanSource(sourceContentBase64?: string, sourceFileName?: string, sourceMimeType?: string) {
+  if (!sourceContentBase64) {
+    if (sourceFileName || sourceMimeType) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_SOURCE_INVALID" });
+    return undefined;
+  }
+  if (!sourceFileName || !sourceMimeType || !masterPlanSourceMimeTypes.has(sourceMimeType)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_SOURCE_INVALID" });
+  return { content: decodeDocumentContent(sourceContentBase64), sourceFileName, sourceMimeType };
+}
+
 function documentStorageName(originalName: string) {
   return originalName.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 180) || "document.bin";
 }
@@ -945,8 +955,8 @@ export async function createMasterPlanForTenant(input: { userId: number; tenantI
   const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   if (feature.limitValue !== null) { const existingCount = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))); if (existingCount.length >= feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
   const [existing] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId), eq(masterPlans.code, input.code))).limit(1); if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MASTER_PLAN_CODE_EXISTS" });
-  const masterPlanId = crypto.randomUUID(); const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
-  if (input.sourceContentBase64) { const content = decodeDocumentContent(input.sourceContentBase64); checksumSha256 = createHash("sha256").update(content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${masterPlanId}/v1/${documentStorageName(input.sourceFileName ?? "master-plan.bin")}`, content, input.sourceMimeType ?? "application/octet-stream"); storageKey = stored.key; }
+  const masterPlanId = crypto.randomUUID(); const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined; const source = decodeMasterPlanSource(input.sourceContentBase64, input.sourceFileName, input.sourceMimeType);
+  if (source) { checksumSha256 = createHash("sha256").update(source.content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${masterPlanId}/v1/${documentStorageName(source.sourceFileName)}`, source.content, source.sourceMimeType); storageKey = stored.key; }
   await db.transaction(async tx => { await tx.insert(masterPlans).values({ id: masterPlanId, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, createdByUserId: input.userId }); await tx.insert(masterPlanVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, masterPlanId, versionNumber: 1, versionKind: "original", description: input.description, sourceFileName: input.sourceFileName, storageKey, checksumSha256, uploadedByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.plan_created", entityType: "master_plan", entityId: masterPlanId, metadata: JSON.stringify({ projectId: input.projectId, versionId, versionNumber: 1, checksumSha256 }) }); });
   return { id: masterPlanId, versionId, versionNumber: 1 };
 }
@@ -958,8 +968,8 @@ export async function createMasterPlanVersionForTenant(input: { userId: number; 
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   const [plan] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.id, input.masterPlanId), eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))).limit(1); if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_NOT_FOUND" });
   const [latest] = await db.select({ versionNumber: masterPlanVersions.versionNumber }).from(masterPlanVersions).where(and(eq(masterPlanVersions.masterPlanId, input.masterPlanId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).orderBy(desc(masterPlanVersions.versionNumber)).limit(1);
-  const versionNumber = (latest?.versionNumber ?? 0) + 1; const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
-  if (input.sourceContentBase64) { const content = decodeDocumentContent(input.sourceContentBase64); checksumSha256 = createHash("sha256").update(content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${input.masterPlanId}/v${versionNumber}/${documentStorageName(input.sourceFileName ?? "master-plan.bin")}`, content, input.sourceMimeType ?? "application/octet-stream"); storageKey = stored.key; }
+  const versionNumber = (latest?.versionNumber ?? 0) + 1; const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined; const source = decodeMasterPlanSource(input.sourceContentBase64, input.sourceFileName, input.sourceMimeType);
+  if (source) { checksumSha256 = createHash("sha256").update(source.content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${input.masterPlanId}/v${versionNumber}/${documentStorageName(source.sourceFileName)}`, source.content, source.sourceMimeType); storageKey = stored.key; }
   await db.transaction(async tx => { await tx.insert(masterPlanVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, masterPlanId: input.masterPlanId, versionNumber, versionKind: input.versionKind, description: input.description, changeSummary: input.changeSummary, sourceFileName: input.sourceFileName, storageKey, checksumSha256, uploadedByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.version_created", entityType: "master_plan_version", entityId: versionId, metadata: JSON.stringify({ projectId: input.projectId, masterPlanId: input.masterPlanId, versionNumber, versionKind: input.versionKind, checksumSha256 }) }); });
   return { id: versionId, masterPlanId: input.masterPlanId, versionNumber };
 }
