@@ -247,6 +247,21 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ imports: 0, audits: 0 });
   });
 
+  it("rejects a cross-tenant export and generates an authorized CSV export with audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.dataImports.export({ tenantId: tenantA, projectId: projectB, moduleCode: "wbs", format: "csv", locale: "en" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES ('int-wbs-export-audit', ?, ?, 'WBS-EXPORT-AUDIT', 'Export evidence work package', 340)", [tenantA, projectA]);
+    const exported = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "wbs", format: "csv", locale: "en" });
+    expect(exported).toMatchObject({ rowCount: expect.any(Number) });
+    expect(exported.contentType).toContain("text/csv");
+    expect(Buffer.from(exported.base64, "base64").toString("utf8")).toContain("WBS-EXPORT-AUDIT");
+    const [rows] = await connection.query<{ audits: number }[]>("SELECT COUNT(*) AS audits FROM audit_logs WHERE id = ? AND tenantId = ? AND action = 'data_export_generated' AND entityType = 'data_export'", [exported.id, tenantA]);
+    expect(Number(rows[0].audits)).toBe(1);
+    await connection.query("DELETE FROM audit_logs WHERE id = ?", [exported.id]);
+    await connection.query("DELETE FROM wbs_items WHERE id = 'int-wbs-export-audit'");
+  }, 12_000);
+
   it("analyzes and confirms an authorized WBS import with atomic business and audit writes", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);
