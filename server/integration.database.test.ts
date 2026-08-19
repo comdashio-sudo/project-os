@@ -2,6 +2,7 @@ import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { evaluateTenantLicenseLifecycle } from "./db";
 
 let connection: mysql.Connection;
 const tenantA = "00000000-0000-4000-8000-0000000000a1";
@@ -164,6 +165,22 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(allInOne.license).toMatchObject({ planCode: "ALL_IN_ONE_STANDARD", status: "active" });
     expect(allInOneNavigation.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-controls"]));
     expect(allInOneNavigation.map(item => item.id)).not.toContain("pmo-controls");
+  });
+
+  it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
+    await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
+    const [licenses] = await connection.query<{ id: string; subscriptionId: string }[]>("SELECT id, subscriptionId FROM tenant_licenses WHERE tenantId = ? ORDER BY createdAt LIMIT 1", [tenantA]);
+    expect(licenses[0]).toBeTruthy();
+    const evaluatedAt = new Date("2026-08-19T02:00:00.000Z");
+    await connection.query("UPDATE tenant_licenses SET status = 'active', endsAt = ?, graceEndsAt = NULL WHERE id = ?", [new Date("2026-08-18T23:59:59.000Z"), licenses[0].id]);
+    await connection.query("UPDATE subscriptions SET status = 'active' WHERE id = ?", [licenses[0].subscriptionId]);
+    await connection.query("UPDATE tenant_entitlements SET active = true WHERE subscriptionId = ?", [licenses[0].subscriptionId]);
+    await expect(evaluateTenantLicenseLifecycle(evaluatedAt)).resolves.toMatchObject({ transitioned: 1, transitions: [expect.objectContaining({ id: licenses[0].id, status: "expired" })] });
+    const [rows] = await connection.query<{ licenseStatus: string; subscriptionStatus: string; entitlementActive: number; audits: number }[]>("SELECT (SELECT status FROM tenant_licenses WHERE id = ?) AS licenseStatus, (SELECT status FROM subscriptions WHERE id = ?) AS subscriptionStatus, (SELECT active FROM tenant_entitlements WHERE subscriptionId = ? LIMIT 1) AS entitlementActive, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'licensing.license_lifecycle_evaluated') AS audits", [licenses[0].id, licenses[0].subscriptionId, licenses[0].subscriptionId, licenses[0].id]);
+    expect(rows[0]).toMatchObject({ licenseStatus: "expired", subscriptionStatus: "expired", entitlementActive: 0, audits: 1 });
+    await connection.query("UPDATE tenant_licenses SET status = 'active', endsAt = NULL WHERE id = ?", [licenses[0].id]);
+    await connection.query("UPDATE subscriptions SET status = 'active' WHERE id = ?", [licenses[0].subscriptionId]);
+    await connection.query("UPDATE tenant_entitlements SET active = true WHERE subscriptionId = ?", [licenses[0].subscriptionId]);
   });
 
   it("rejects disabled and exhausted data-import and data-export features before storage, business writes, or export audit writes", async () => {
