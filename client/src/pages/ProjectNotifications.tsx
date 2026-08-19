@@ -7,7 +7,17 @@ import React from "react";
 
 const labels = {
   PROJECT_HEALTH_EXCEPTION: { ar: "استثناء في صحة المشروع", en: "Project-health exception" },
+  FIELD_REPORT_REVIEWED: { ar: "قرار مراجعة تقرير ميداني", en: "Field-report review decision" },
 } as const;
+
+function fieldReportOutcome(payload: string, isArabic: boolean) {
+  try {
+    const value = JSON.parse(payload) as { reportNumber?: string; status?: string };
+    if (value.status !== "approved" && value.status !== "rejected") return null;
+    const number = value.reportNumber ? ` ${value.reportNumber}` : "";
+    return isArabic ? `${value.status === "approved" ? "تم اعتماد" : "تم رفض"} التقرير الميداني${number}` : `Field report${number} ${value.status === "approved" ? "approved" : "rejected"}`;
+  } catch { return null; }
+}
 
 export function ProjectNotifications({ tenantId }: { tenantId: string }) {
   const { isArabic } = useLanguage();
@@ -17,5 +27,5 @@ export function ProjectNotifications({ tenantId }: { tenantId: string }) {
   const t = isArabic ? { title: "إشعاراتي", empty: "لا توجد إشعارات داخلية جديدة.", acknowledge: "إقرار", acknowledged: "تم الإقرار" } : { title: "My notifications", empty: "There are no new internal notifications.", acknowledge: "Acknowledge", acknowledged: "Acknowledged" };
   if (list.isLoading) return null;
   if (!list.data) return <p className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>;
-  return <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-3"><BellRing className="text-amber-700" /><h2 className="font-semibold">{t.title}</h2></div>{error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}{list.data.length ? <div className="mt-4 space-y-3">{list.data.map(item => { const label = labels[item.notificationCode as keyof typeof labels]; return <div key={item.id} className="rounded-xl bg-slate-50 p-3"><p className="font-medium">{label ? label[isArabic ? "ar" : "en"] : (isArabic ? "إشعار تشغيلي" : "Operational notification")}</p><p className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(isArabic ? "ar" : "en")}</p>{item.acknowledgedAt ? <p className="mt-2 text-sm text-emerald-700">{t.acknowledged}</p> : <Button size="sm" className="mt-2" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate({ tenantId, notificationId: item.id })}>{t.acknowledge}</Button>}</div>; })}</div> : <p className="mt-4 text-sm text-slate-500">{t.empty}</p>}</section>;
+  return <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center gap-3"><BellRing className="text-amber-700" /><h2 className="font-semibold">{t.title}</h2></div>{error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}{list.data.length ? <div className="mt-4 space-y-3">{list.data.map(item => { const label = labels[item.notificationCode as keyof typeof labels]; const outcome = item.notificationCode === "FIELD_REPORT_REVIEWED" ? fieldReportOutcome(item.payload, isArabic) : null; return <div key={item.id} className="rounded-xl bg-slate-50 p-3"><p className="font-medium">{outcome ?? (label ? label[isArabic ? "ar" : "en"] : (isArabic ? "إشعار تشغيلي" : "Operational notification"))}</p><p className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(isArabic ? "ar" : "en")}</p>{item.acknowledgedAt ? <p className="mt-2 text-sm text-emerald-700">{t.acknowledged}</p> : <Button size="sm" className="mt-2" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate({ tenantId, notificationId: item.id })}>{t.acknowledge}</Button>}</div>; })}</div> : <p className="mt-4 text-sm text-slate-500">{t.empty}</p>}</section>;
 }

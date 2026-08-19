@@ -266,10 +266,17 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectB, reportId: report.id, nextStatus: "submitted" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectA, reportId: report.id, nextStatus: "submitted" })).resolves.toMatchObject({ previousStatus: "draft", status: "submitted" });
     await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectA, reportId: report.id, nextStatus: "reviewed" })).resolves.toMatchObject({ previousStatus: "submitted", status: "reviewed" });
+    await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectA, reportId: report.id, nextStatus: "approved" })).resolves.toMatchObject({ previousStatus: "reviewed", status: "approved" });
+    const rejectedReport = await caller.fieldReports.create({ tenantId: tenantA, projectId: projectA, reportNumber: "FR-REJECTED", reportType: "inspection", reportedAt: new Date("2026-08-19T00:00:00.000Z"), shift: "night", workforceCount: 8, summary: "Field report that will exercise the rejection notification." });
+    await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectA, reportId: rejectedReport.id, nextStatus: "submitted" })).resolves.toMatchObject({ status: "submitted" });
+    await expect(caller.fieldReports.transitionStatus({ tenantId: tenantA, projectId: projectA, reportId: rejectedReport.id, nextStatus: "rejected" })).resolves.toMatchObject({ status: "rejected" });
     const reports = await caller.fieldReports.list({ tenantId: tenantA, projectId: projectA });
-    expect(reports.find(item => item.id === report.id)).toMatchObject({ reportNumber: "FR-TRPC", workforceCount: 24, status: "reviewed" });
-    const [rows] = await connection.query<{ reports: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM field_reports WHERE id = ? AND status = 'reviewed') AS reports, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND entityType = 'field_report') AS audits", [report.id, report.id]);
-    expect(rows[0]).toMatchObject({ reports: 1, audits: 3 });
+    expect(reports.find(item => item.id === report.id)).toMatchObject({ reportNumber: "FR-TRPC", workforceCount: 24, status: "approved" });
+    expect(reports.find(item => item.id === rejectedReport.id)).toMatchObject({ reportNumber: "FR-REJECTED", status: "rejected" });
+    const notifications = await caller.notifications.list({ tenantId: tenantA });
+    expect(notifications).toEqual(expect.arrayContaining([expect.objectContaining({ notificationCode: "FIELD_REPORT_REVIEWED", entityId: report.id }), expect.objectContaining({ notificationCode: "FIELD_REPORT_REVIEWED", entityId: rejectedReport.id })]));
+    const [rows] = await connection.query<{ approved: number; rejected: number; audits: number; notifications: number }[]>("SELECT (SELECT COUNT(*) FROM field_reports WHERE id = ? AND status = 'approved') AS approved, (SELECT COUNT(*) FROM field_reports WHERE id = ? AND status = 'rejected') AS rejected, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?) AND entityType = 'field_report') AS audits, (SELECT COUNT(*) FROM internal_notifications WHERE entityId IN (?, ?) AND notificationCode = 'FIELD_REPORT_REVIEWED' AND recipientUserId = ?) AS notifications", [report.id, rejectedReport.id, report.id, rejectedReport.id, report.id, rejectedReport.id, integrationUserId]);
+    expect(rows[0]).toMatchObject({ approved: 1, rejected: 1, audits: 7, notifications: 2 });
   }, 12_000);
 
   it("rejects cross-tenant EVM and health snapshot captures before writing snapshots", async () => {
