@@ -55,6 +55,7 @@ import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
 import { analyzeImportFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { buildTenantNavigation } from "./domain/navigation";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -126,6 +127,13 @@ export async function getTenantAccessSnapshot(input: { userId: number; tenantId:
     permissionCodes: Array.from(new Set(grantedPermissions.map(item => item.code))),
     scopes,
   };
+}
+
+export async function getTenantNavigationForUser(input: { userId: number; tenantId: string; projectId?: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (input.projectId) await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return buildTenantNavigation({ snapshot, tenantId: input.tenantId, projectId: input.projectId });
 }
 
 async function assertTenantManager(userId: number, tenantId: string): Promise<void> {

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { ArrowLeft, CheckSquare, FolderTree, ShieldAlert, TriangleAlert } from "lucide-react";
 import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
@@ -107,6 +108,7 @@ export default function PmoDashboard() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
+        <EnterpriseNavigation tenantId={tenantId} context="pmo" />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">PROJECT OS</p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>

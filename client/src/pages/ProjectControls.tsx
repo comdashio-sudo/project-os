@@ -20,6 +20,7 @@ import { ProjectClaims } from "./ProjectClaims";
 import { ProjectAdvisor } from "./ProjectAdvisor";
 import { ProjectImports } from "./ProjectImports";
 import { ProjectDataExport } from "./ProjectDataExport";
+import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { Activity, ArrowLeft, Banknote, CalendarDays, Calculator, CheckCircle2, ClipboardList, HeartPulse, Plus, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
 import { Link, useParams } from "wouter";
@@ -86,6 +87,7 @@ export default function ProjectControls() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
+        <EnterpriseNavigation tenantId={tenantId} projectId={projectId} context="project" />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">{t.project} · {data.project.code}</p>
           <h1 className="mt-2 text-3xl font-semibold">{data.project.name}</h1>

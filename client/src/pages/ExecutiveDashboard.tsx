@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { lazy, Suspense } from "react";
 import {
   ArrowLeft,
@@ -151,6 +152,7 @@ export default function ExecutiveDashboard() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
+        <EnterpriseNavigation tenantId={tenantId} context="executive" />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">
             PROJECT OS
