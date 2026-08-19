@@ -284,6 +284,32 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("rejects a foreign budget export and generates authorized budget CSV and activity XLSX exports with audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const exportIds: string[] = [];
+    await expect(caller.dataImports.export({ tenantId: tenantA, projectId: projectB, moduleCode: "budget", format: "csv", locale: "en" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await connection.query("INSERT INTO budget_lines (id, tenantId, projectId, costCode, originalAmount, currentAmount) VALUES ('int-budget-export-audit', ?, ?, 'BUD-EXPORT-AUDIT', 610, 640)", [tenantA, projectA]);
+    await connection.query("INSERT INTO activities (id, tenantId, projectId, code, name, status, plannedValue, plannedStartAt, plannedFinishAt) VALUES ('int-activity-export-audit', ?, ?, 'ACT-EXPORT-AUDIT', 'Activity export evidence', 'in_progress', 275, '2026-09-01 00:00:00', '2026-09-30 00:00:00')", [tenantA, projectA]);
+    try {
+      const budgetExport = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "budget", format: "csv", locale: "en" });
+      exportIds.push(budgetExport.id);
+      expect(budgetExport).toMatchObject({ fileName: "budget-export.csv", contentType: expect.stringContaining("text/csv") });
+      expect(Buffer.from(budgetExport.base64, "base64").toString("utf8")).toContain("BUD-EXPORT-AUDIT");
+      const activityExport = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "activities", format: "xlsx", locale: "ar" });
+      exportIds.push(activityExport.id);
+      const workbook = XLSX.read(Buffer.from(activityExport.base64, "base64"), { type: "buffer" });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.ACTIVITIES, { defval: "" });
+      expect(rows).toContainEqual(expect.objectContaining({ "رمز النشاط": "ACT-EXPORT-AUDIT", "اسم النشاط": "Activity export evidence", "القيمة المخططة": 275, "الحالة": "in_progress" }));
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE id IN (?, ?) AND tenantId = ? AND action = 'data_export_generated'", [budgetExport.id, activityExport.id, tenantA]);
+      expect(Number(audits[0].count)).toBe(2);
+    } finally {
+      if (exportIds.length) await connection.query("DELETE FROM audit_logs WHERE id IN (?)", [exportIds]);
+      await connection.query("DELETE FROM activities WHERE id = 'int-activity-export-audit'");
+      await connection.query("DELETE FROM budget_lines WHERE id = 'int-budget-export-audit'");
+    }
+  }, 12_000);
+
   it("analyzes and confirms an authorized WBS import with atomic business and audit writes", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);
