@@ -244,6 +244,14 @@ export const projectErrorMessages = {
     ar: "انتقال حالة فحص الجودة المحدد غير مسموح من حالته الحالية.",
     en: "The selected quality-inspection transition is not allowed from its current status.",
   },
+  PROJECT_OS_PURCHASE_ORDER_NOT_FOUND: {
+    ar: "أمر الشراء المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected purchase order is not available in the current project and workspace.",
+  },
+  PROJECT_OS_PURCHASE_ORDER_TRANSITION_INVALID: {
+    ar: "انتقال حالة أمر الشراء المحدد غير مسموح من حالته الحالية.",
+    en: "The selected purchase-order transition is not allowed from its current status.",
+  },
   PROJECT_OS_CHANGE_REQUEST_NOT_FOUND: {
     ar: "طلب التغيير المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected change request is not available in the current project and workspace.",

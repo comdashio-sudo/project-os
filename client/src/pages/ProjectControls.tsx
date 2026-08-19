@@ -15,6 +15,7 @@ import { ProjectNcrs } from "./ProjectNcrs";
 import { ProjectHse } from "./ProjectHse";
 import { ProjectFieldReports } from "./ProjectFieldReports";
 import { ProjectQualityInspections } from "./ProjectQualityInspections";
+import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
 import { ProjectChanges } from "./ProjectChanges";
 import { ProjectNotifications } from "./ProjectNotifications";
 import { ProjectResources } from "./ProjectResources";
@@ -141,6 +142,7 @@ export default function ProjectControls() {
             <ProjectHse tenantId={tenantId} projectId={projectId} />
             <ProjectFieldReports tenantId={tenantId} projectId={projectId} />
             <ProjectQualityInspections tenantId={tenantId} projectId={projectId} />
+            <ProjectPurchaseOrders tenantId={tenantId} projectId={projectId} />
             <ProjectResources tenantId={tenantId} projectId={projectId} />
             <ProjectClaims tenantId={tenantId} projectId={projectId} />
             <ProjectAdvisor tenantId={tenantId} projectId={projectId} />

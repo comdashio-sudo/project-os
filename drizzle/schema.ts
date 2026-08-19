@@ -601,6 +601,29 @@ export const qualityInspections = mysqlTable(
   ],
 );
 
+export const purchaseOrders = mysqlTable(
+  "purchase_orders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    purchaseOrderNumber: varchar("purchaseOrderNumber", { length: 120 }).notNull(),
+    supplierName: varchar("supplierName", { length: 240 }).notNull(),
+    orderDate: timestamp("orderDate").notNull(),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    summary: text("summary").notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "issued", "cancelled"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("purchase_orders_project_number_unique").on(table.projectId, table.purchaseOrderNumber),
+    index("purchase_orders_tenant_project_date_status_idx").on(table.tenantId, table.projectId, table.orderDate, table.status),
+  ],
+);
+
 export const changeRequests = mysqlTable(
   "change_requests",
   {
