@@ -49,7 +49,7 @@ export const appRouter = router({
   }),
   controlLinks: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getControlRecordLinksForTenant({ userId: ctx.user.id, ...input })),
-    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), sourceType: z.enum(["risk", "issue", "action", "decision"]), sourceId: z.string().uuid(), targetType: z.enum(["risk", "issue", "action", "decision"]), targetId: z.string().uuid() })).mutation(({ ctx, input }) => createControlRecordLinkForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), sourceType: z.enum(["risk", "issue", "action", "decision"]), sourceId: z.string().uuid(), targetType: z.enum(["risk", "issue", "action", "decision", "rfi", "ncr"]), targetId: z.string().uuid() })).mutation(({ ctx, input }) => createControlRecordLinkForTenant({ userId: ctx.user.id, ...input })),
   }),
   dataImports: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid().optional() })).query(({ ctx, input }) => getDataImportsForTenant({ userId: ctx.user.id, ...input })),

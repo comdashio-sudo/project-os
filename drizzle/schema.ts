@@ -907,7 +907,7 @@ export const controlRecordLinks = mysqlTable(
     projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
     sourceType: mysqlEnum("sourceType", ["risk", "issue", "action", "decision"]).notNull(),
     sourceId: varchar("sourceId", { length: 36 }).notNull(),
-    targetType: mysqlEnum("targetType", ["risk", "issue", "action", "decision"]).notNull(),
+    targetType: mysqlEnum("targetType", ["risk", "issue", "action", "decision", "rfi", "ncr"]).notNull(),
     targetId: varchar("targetId", { length: 36 }).notNull(),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -54,6 +54,8 @@ const state = vi.hoisted(() => ({
       { id: "action-done", projectId: "project-1", title: "Closed action", priority: "low", escalationStatus: "none", status: "completed", dueAt: null },
     ],
     decisions: [],
+    rfis: [],
+    ncrs: [],
   },
   executiveData: {
     totals: { budget: 0, actual: 0, forecast: 0 },
