@@ -33,6 +33,15 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText("Selected entity: ZONE-A · Zone A")).toBeTruthy(); expect(screen.getByText("Planned / actual / forecast: 100 / 40 / 110")).toBeTruthy();
   });
 
+  it("zooms the map surface and restores its default scale", async () => {
+    const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    expect(screen.getByText("Zoom level: 100%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
+    await user.click(screen.getByRole("button", { name: "Zoom in map" }));
+    expect(screen.getByText("Zoom level: 125%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1.25)");
+    await user.click(screen.getByRole("button", { name: "Reset map view" }));
+    expect(screen.getByText("Zoom level: 100%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
+  });
+
   it("shows only the project-authorized WBS and activity references for a selected entity", async () => {
     state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
@@ -50,6 +59,7 @@ describe("ProjectMasterPlan", () => {
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
     expect(screen.getByText(/الكيان الأب: BLOCK-A · Block A/)).toBeTruthy();
     expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
