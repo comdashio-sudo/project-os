@@ -149,6 +149,14 @@
 }
 
 @layer components {
+  @media (max-width: 639px) {
+    header > div > :first-child {
+      flex-shrink: 0;
+      white-space: nowrap;
+      font-size: 0.875rem;
+    }
+  }
+
   /**
    * Custom container utility that centers content and adds responsive padding.
    *
