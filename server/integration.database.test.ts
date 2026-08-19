@@ -159,6 +159,11 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ licenses: number; overrides: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM tenant_licenses WHERE tenantId = ?) AS licenses, (SELECT COUNT(*) FROM tenant_license_feature_overrides WHERE tenantLicenseId = ?) AS overrides, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action LIKE 'licensing.%') AS audits", [tenantA, licenseRegister.license!.id, tenantA]);
     expect(rows[0]).toMatchObject({ licenses: 1, overrides: 1, audits: 5 });
     await caller.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 3, manualActivation: true });
+    const allInOne = await caller.licensing.tenantLicense({ tenantId: tenantA });
+    const allInOneNavigation = await caller.navigation.get({ tenantId: tenantA, projectId: projectA });
+    expect(allInOne.license).toMatchObject({ planCode: "ALL_IN_ONE_STANDARD", status: "active" });
+    expect(allInOneNavigation.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-controls"]));
+    expect(allInOneNavigation.map(item => item.id)).not.toContain("pmo-controls");
   });
 
   it("rejects disabled and exhausted data-import and data-export features before storage, business writes, or export audit writes", async () => {
