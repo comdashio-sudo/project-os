@@ -43,8 +43,8 @@ describe("analyzeMasterPlanMappingFile", () => {
 
 describe("analyzeMasterPlanSpatialEntityFile", () => {
   it("maps an Arabic spatial-entity row with bounded geometry", () => {
-    const result = analyzeMasterPlanSpatialEntityFile({ format: "csv", bytes: Buffer.from("رمز الكيان,اسم الكيان,نوع الكيان,س,ص,العرض,الارتفاع,نسبة التقدم\nZONE-NEW,منطقة جديدة,منطقة,5,10,25,20,84%") });
-    expect(result.errors).toEqual([]); expect(result.validRows).toEqual([{ rowNumber: 2, values: { code: "ZONE-NEW", name: "منطقة جديدة", entityType: "zone", geometry: { x: 5, y: 10, width: 25, height: 20 }, status: "not_started", progressPercent: 84, plannedValue: 0, actualValue: 0, forecastValue: 0 } }]);
+    const result = analyzeMasterPlanSpatialEntityFile({ format: "csv", bytes: Buffer.from("رمز الكيان,اسم الكيان,نوع الكيان,س,ص,العرض,الارتفاع,نسبة التقدم,رمز WBS,رمز النشاط\nZONE-NEW,منطقة جديدة,منطقة,5,10,25,20,84%,1.0,A-01") });
+    expect(result.errors).toEqual([]); expect(result.validRows).toEqual([{ rowNumber: 2, values: { code: "ZONE-NEW", name: "منطقة جديدة", entityType: "zone", geometry: { x: 5, y: 10, width: 25, height: 20 }, status: "not_started", progressPercent: 84, plannedValue: 0, actualValue: 0, forecastValue: 0, wbsCode: "1.0", activityCode: "A-01" } }]);
   });
 
   it("rejects a spatial entity that exceeds the fixed plan geometry", () => {

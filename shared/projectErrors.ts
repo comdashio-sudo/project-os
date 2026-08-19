@@ -164,6 +164,10 @@ export const projectErrorMessages = {
     ar: "يوجد رمز كيان مكاني مستخدم بالفعل ضمن إصدار Master Plan المحدد.",
     en: "A spatial-entity code in the file already exists in the selected Master Plan version.",
   },
+  PROJECT_OS_MASTER_PLAN_WBS_ACTIVITY_MISMATCH: {
+    ar: "النشاط المحدد في ملف الكيان لا يتبع لعنصر WBS المحدد في الصف نفسه.",
+    en: "The activity in the spatial-entity file does not belong to the WBS item selected in the same row.",
+  },
   PROJECT_OS_MASTER_PLAN_ENTITY_NOT_FOUND: {
     ar: "لا يتطابق أحد رموز الوحدات في الملف مع كيان مكاني ضمن إصدار Master Plan المحدد.",
     en: "A unit code in the file does not match a spatial entity in the selected Master Plan version.",
