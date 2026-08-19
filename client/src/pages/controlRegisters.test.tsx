@@ -107,6 +107,7 @@ vi.mock("@/lib/trpc", () => ({
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       createVersion: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       createSpatialEntity: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      applyExcelMapping: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
     },
     dataImports: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },

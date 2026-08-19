@@ -62,7 +62,7 @@ import { calculateProjectHealth } from "./domain/projectHealth";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
-import { analyzeImportFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -977,6 +977,27 @@ export async function createMasterPlanSpatialEntityForTenant(input: { userId: nu
   if (input.activityId) { const [activity] = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1); if (!activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); }
   const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(masterPlanSpatialEntities).values({ id, tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, parentEntityId: input.parentEntityId, code: input.code, name: input.name, entityType: input.entityType, geometry, status: input.status, progressPercent: String(input.progressPercent), plannedValue: String(input.plannedValue ?? 0), actualValue: String(input.actualValue ?? 0), forecastValue: String(input.forecastValue ?? 0), wbsItemId: input.wbsItemId, activityId: input.activityId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.spatial_entity_created", entityType: "master_plan_spatial_entity", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, code: input.code, entityType: input.entityType }) }); });
   return { id, masterPlanVersionId: input.masterPlanVersionId };
+}
+
+export async function applyMasterPlanMappingFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv"; base64: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
+  const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const analysis = analyzeMasterPlanMappingFile({ format: input.format, bytes }); if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_MAPPING_VALIDATION_FAILED" });
+  const codes = analysis.validRows.map(row => row.values.code); if (new Set(codes).size !== codes.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+  const entities = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), inArray(masterPlanSpatialEntities.code, codes)));
+  const entityByCode = new Map(entities.map(entity => [entity.code, entity])); const missingCode = codes.find(code => !entityByCode.has(code)); if (missingCode) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_ENTITY_NOT_FOUND" });
+  await db.transaction(async tx => {
+    for (const row of analysis.validRows) {
+      const entity = entityByCode.get(row.values.code)!;
+      await tx.update(masterPlanSpatialEntities).set({ ...(row.values.status ? { status: row.values.status } : {}), ...(row.values.progressPercent !== undefined ? { progressPercent: String(row.values.progressPercent) } : {}), ...(row.values.plannedValue !== undefined ? { plannedValue: String(row.values.plannedValue) } : {}), ...(row.values.actualValue !== undefined ? { actualValue: String(row.values.actualValue) } : {}), ...(row.values.forecastValue !== undefined ? { forecastValue: String(row.values.forecastValue) } : {}) }).where(and(eq(masterPlanSpatialEntities.id, entity.id), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId)));
+    }
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.excel_mapping_applied", entityType: "master_plan_version", entityId: input.masterPlanVersionId, metadata: JSON.stringify({ projectId: input.projectId, updatedRows: analysis.validRows.length, fileHash: createHash("sha256").update(bytes).digest("hex") }) });
+  });
+  return { masterPlanVersionId: input.masterPlanVersionId, updatedRows: analysis.validRows.length, mapping: analysis.mapping };
 }
 
 export async function transitionProjectDocumentStatus(input: { userId: number; tenantId: string; projectId: string; documentId: string; nextStatus: "draft" | "for_review" | "approved" | "superseded" | "archived" }) {

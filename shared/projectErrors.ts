@@ -148,6 +148,14 @@ export const projectErrorMessages = {
     ar: "يجب أن تكون نسبة تقدم الكيان المكاني بين 0 و100.",
     en: "A spatial entity progress percentage must be between 0 and 100.",
   },
+  PROJECT_OS_MASTER_PLAN_MAPPING_VALIDATION_FAILED: {
+    ar: "تعذر تطبيق ملف الربط لأن الأعمدة أو القيم لا تحقق قالب Master Plan.",
+    en: "The mapping file could not be applied because its columns or values do not satisfy the Master Plan template.",
+  },
+  PROJECT_OS_MASTER_PLAN_ENTITY_NOT_FOUND: {
+    ar: "لا يتطابق أحد رموز الوحدات في الملف مع كيان مكاني ضمن إصدار Master Plan المحدد.",
+    en: "A unit code in the file does not match a spatial entity in the selected Master Plan version.",
+  },
   PROJECT_OS_LICENSING_ADMIN_REQUIRED: {
     ar: "تتطلب إدارة التراخيص صلاحية مسؤول المنصة.",
     en: "Licensing management requires platform-administrator access.",

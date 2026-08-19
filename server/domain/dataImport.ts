@@ -6,6 +6,7 @@ export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ValidatedImportRow = WbsImportRow | BudgetImportRow;
+export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
 
 type Field = { key: string; required: boolean; aliases: string[] };
 const templates: Record<ImportModuleCode, Field[]> = {
@@ -21,7 +22,7 @@ const templates: Record<ImportModuleCode, Field[]> = {
   ],
 };
 
-const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[_\s-]+/g, " ");
+const normalize = (value: unknown) => String(value ?? "").replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[_\s-]+/g, " ");
 const requiredText = (value: unknown) => String(value ?? "").trim();
 const nonnegativeNumber = (value: unknown) => {
   const normalized = String(value ?? "").trim().replace(/,/g, "");
@@ -29,6 +30,44 @@ const nonnegativeNumber = (value: unknown) => {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 };
+
+const percentage = (value: unknown) => {
+  const source = String(value ?? "").trim(); const normalized = source.replace(/[%٬،,]/g, "");
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  const normalizedPercent = typeof value === "number" && parsed >= 0 && parsed <= 1 ? parsed * 100 : parsed;
+  return Number.isFinite(normalizedPercent) && normalizedPercent >= 0 && normalizedPercent <= 100 ? normalizedPercent : undefined;
+};
+
+const masterPlanFields: Field[] = [
+  { key: "code", required: true, aliases: ["unit id", "unit", "entity id", "spatial entity", "code", "معرف الوحدة", "رقم الوحدة", "رمز الكيان", "الرمز"] },
+  { key: "status", required: false, aliases: ["status", "حالة", "الحالة"] },
+  { key: "progressPercent", required: false, aliases: ["progress", "progress percent", "completion", "التقدم", "نسبة التقدم", "الإنجاز"] },
+  { key: "plannedValue", required: false, aliases: ["planned", "planned value", "القيمة المخططة", "المخطط"] },
+  { key: "actualValue", required: false, aliases: ["actual", "actual value", "القيمة الفعلية", "الفعلي"] },
+  { key: "forecastValue", required: false, aliases: ["forecast", "forecast value", "القيمة المتوقعة", "التوقع"] },
+];
+
+function normalizeMasterPlanStatus(value: unknown): MasterPlanMappingRow["values"]["status"] | "invalid" | undefined {
+  const normalized = normalize(value);
+  if (!normalized) return undefined;
+  const statuses: Record<string, NonNullable<MasterPlanMappingRow["values"]["status"]>> = { "not started": "not_started", "not_started": "not_started", "لم يبدأ": "not_started", "in progress": "in_progress", "in_progress": "in_progress", "قيد التنفيذ": "in_progress", completed: "completed", مكتمل: "completed", blocked: "blocked", متعثر: "blocked", محجوب: "blocked" };
+  return statuses[normalized] ?? "invalid";
+}
+
+export function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
+  const workbook = XLSX.read(input.bytes, { type: "array" }); const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" }); const headers = Object.keys(rows[0] ?? {});
+  const mapping = Object.fromEntries(masterPlanFields.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; }));
+  const errors: ImportError[] = masterPlanFields.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const validRows: MasterPlanMappingRow[] = [];
+  if (!errors.length) rows.forEach((row, index) => {
+    const rowNumber = index + 2; const code = requiredText(row[mapping.code]); const status = mapping.status ? normalizeMasterPlanStatus(row[mapping.status]) : undefined; const progressPercent = mapping.progressPercent ? percentage(row[mapping.progressPercent]) : undefined; const plannedValue = mapping.plannedValue ? nonnegativeNumber(row[mapping.plannedValue]) : undefined; const actualValue = mapping.actualValue ? nonnegativeNumber(row[mapping.actualValue]) : undefined; const forecastValue = mapping.forecastValue ? nonnegativeNumber(row[mapping.forecastValue]) : undefined;
+    if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (status === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" }); if (mapping.progressPercent && progressPercent === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "progressPercent" }); if (mapping.plannedValue && plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (mapping.actualValue && actualValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "actualValue" }); if (mapping.forecastValue && forecastValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "forecastValue" });
+    if (code && status !== "invalid" && (!mapping.progressPercent || progressPercent !== undefined) && (!mapping.plannedValue || plannedValue !== undefined) && (!mapping.actualValue || actualValue !== undefined) && (!mapping.forecastValue || forecastValue !== undefined)) validRows.push({ rowNumber, values: { code, ...(status ? { status } : {}), ...(progressPercent !== undefined ? { progressPercent } : {}), ...(plannedValue !== undefined ? { plannedValue } : {}), ...(actualValue !== undefined ? { actualValue } : {}), ...(forecastValue !== undefined ? { forecastValue } : {}) } });
+  });
+  return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
+}
 
 export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv"; bytes: Uint8Array }) {
   const workbook = XLSX.read(input.bytes, { type: "array" });

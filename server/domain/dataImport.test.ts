@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { analyzeImportFile, buildDataExportFile } from "./dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, buildDataExportFile } from "./dataImport";
 
 function workbookBytes(rows: Record<string, unknown>[]) { const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Data"); return XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer; }
 
@@ -24,5 +24,19 @@ describe("analyzeImportFile", () => {
     const csv = result.bytes.toString("utf8");
     expect(result).toMatchObject({ fileName: "wbs-export.csv", contentType: "text/csv;charset=utf-8" });
     expect(csv).toContain("رمز WBS"); expect(csv).toContain("أعمال مدنية"); expect(csv).not.toContain("must-not-export");
+  });
+});
+
+describe("analyzeMasterPlanMappingFile", () => {
+  it("maps Arabic unit, progress, status, and value headings", () => {
+    const result = analyzeMasterPlanMappingFile({ format: "csv", bytes: Buffer.from("\uFEFFرقم الوحدة,نسبة التقدم,الحالة,القيمة المخططة,القيمة الفعلية\nV-105,84%,قيد التنفيذ,1000,840") });
+    expect(result.errors).toEqual([]);
+    expect(result.validRows).toEqual([{ rowNumber: 2, values: { code: "V-105", progressPercent: 84, status: "in_progress", plannedValue: 1000, actualValue: 840 } }]);
+  });
+
+  it("rejects an invalid status before any Master Plan update", () => {
+    const result = analyzeMasterPlanMappingFile({ format: "csv", bytes: Buffer.from("Unit ID,Status\nV-105,Unknown") });
+    expect(result.validRows).toEqual([]);
+    expect(result.errors).toContainEqual({ rowNumber: 2, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" });
   });
 });
