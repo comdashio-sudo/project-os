@@ -65,6 +65,15 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText("Parent entity: No link · WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
   });
 
+  it("focuses the local map filters from a selected entity WBS and activity links", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
+    await user.click(screen.getByRole("button", { name: "Focus WBS item: 1.0" }));
+    expect((screen.getAllByLabelText("WBS item").at(0) as HTMLSelectElement).value).toBe("wbs-1");
+    await user.click(screen.getByRole("button", { name: "Focus activity: A-01" }));
+    expect((screen.getAllByLabelText("Activity").at(0) as HTMLSelectElement).value).toBe("activity-1");
+  });
+
   it("shows the parent reference only from the selected version entity set", async () => {
     state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
@@ -78,6 +87,7 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "إزاحة الخريطة لليمين" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تركيز عنصر WBS: 1.0" })).toBeTruthy();
     expect(screen.getAllByLabelText("عنصر WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
 
