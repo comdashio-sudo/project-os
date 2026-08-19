@@ -35,11 +35,20 @@ describe("ProjectMasterPlan", () => {
 
   it("zooms the map surface and restores its default scale", async () => {
     const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
-    expect(screen.getByText("Zoom level: 100%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
+    expect(screen.getByText(/Zoom level: 100%/)).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
     await user.click(screen.getByRole("button", { name: "Zoom in map" }));
-    expect(screen.getByText("Zoom level: 125%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1.25)");
+    expect(screen.getByText(/Zoom level: 125%/)).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1.25)");
     await user.click(screen.getByRole("button", { name: "Reset map view" }));
-    expect(screen.getByText("Zoom level: 100%")).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
+    expect(screen.getByText(/Zoom level: 100%/)).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("scale(1)");
+  });
+
+  it("pans the map surface within its local view and resets its position", async () => {
+    const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    expect(screen.getByText(/Map position: 0%, 0%/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Pan map right" }));
+    expect(screen.getByText(/Map position: 10%, 0%/)).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("translate(10%, 0%)");
+    await user.click(screen.getByRole("button", { name: "Reset map view" }));
+    expect(screen.getByText(/Map position: 0%, 0%/)).toBeTruthy();
   });
 
   it("filters map entities by authorized WBS and activity choices", async () => {
@@ -68,6 +77,7 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText(/الكيان الأب: BLOCK-A · Block A/)).toBeTruthy();
     expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "إزاحة الخريطة لليمين" })).toBeTruthy();
     expect(screen.getAllByLabelText("عنصر WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
 
