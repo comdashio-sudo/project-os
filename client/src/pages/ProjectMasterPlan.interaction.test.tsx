@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 
-const state = vi.hoisted(() => ({ data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null, activityId: null }] }, refetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn() }));
+const state = vi.hoisted(() => ({ data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, refetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
@@ -23,11 +23,19 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("ProjectMasterPlan", () => {
+  afterEach(() => cleanup());
+
   it("selects a filtered spatial entity and reveals its authorized KPI details", async () => {
     const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     expect(screen.getByAltText("Map source").getAttribute("src")).toBe("https://signed.test/baseline.png");
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
     expect(screen.getByText("Selected entity: ZONE-A · Zone A")).toBeTruthy(); expect(screen.getByText("Planned / actual / forecast: 100 / 40 / 110")).toBeTruthy();
+  });
+
+  it("shows only the project-authorized WBS and activity references for a selected entity", async () => {
+    state.data.entities[0] = { ...state.data.entities[0], wbsItemId: "wbs-1", activityId: "activity-1" }; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
+    expect(screen.getByText("WBS item: 1.0 · Civil works · Activity: A-01 · Mobilize crew")).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
