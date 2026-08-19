@@ -31,7 +31,10 @@ import {
   wbsItems,
   costEntries,
   budgetLines,
+  commercialFeatures,
+  commercialPlans,
   progressEntries,
+  planFeatureEntitlements,
   evmSnapshots,
   documentVersions,
   masterPlans,
@@ -46,6 +49,8 @@ import {
   roles,
   subscriptions,
   tenantEntitlements,
+  tenantLicenseFeatureOverrides,
+  tenantLicenses,
   users,
 } from "../drizzle/schema";
 import { productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
@@ -143,6 +148,117 @@ async function assertTenantManager(userId: number, tenantId: string): Promise<vo
   const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
+}
+
+async function assertPlatformAdministrator(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSING_ADMIN_REQUIRED" });
+}
+
+const defaultCommercialPlans = [
+  { code: "EXECUTIVE_STANDARD", name: "Executive Standard", packageCode: "EXECUTIVE" as SubscriptionPackageCode },
+  { code: "PMO_STANDARD", name: "PMO Standard", packageCode: "PMO" as SubscriptionPackageCode },
+  { code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" as SubscriptionPackageCode },
+  { code: "EXECUTIVE_PMO_STANDARD", name: "Executive + PMO Standard", packageCode: "EXECUTIVE + PMO" as SubscriptionPackageCode },
+  { code: "PMO_PROJECT_STANDARD", name: "PMO + Project Standard", packageCode: "PMO + PROJECT" as SubscriptionPackageCode },
+  { code: "EXECUTIVE_PROJECT_STANDARD", name: "Executive + Project Standard", packageCode: "EXECUTIVE + PROJECT" as SubscriptionPackageCode },
+  { code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", packageCode: "ALL-IN-ONE" as SubscriptionPackageCode },
+];
+
+const defaultCommercialFeatures = [
+  { code: "MASTER_PLAN", name: "Master Plan", productCode: "PROJECT" as ProductCode },
+  { code: "MASTER_PLAN_ENTITIES", name: "Master Plan spatial entities", productCode: "PROJECT" as ProductCode },
+  { code: "DATA_IMPORT", name: "Data import", productCode: "PROJECT" as ProductCode },
+  { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
+];
+
+async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
+  await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
+  const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));
+  const features = await db.select({ id: commercialFeatures.id, code: commercialFeatures.code, productCode: commercialFeatures.productCode }).from(commercialFeatures).where(eq(commercialFeatures.active, true));
+  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : 100 })));
+  if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onDuplicateKeyUpdate({ set: { active: true } });
+}
+
+export async function assertTenantFeatureAccess(input: { userId: number; tenantId: string; product: ProductCode; permission: string; featureCode: string; scope?: { type: "company" | "portfolio" | "program" | "project"; id?: string } }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: input.product, permission: input.permission, scope: input.scope });
+  const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1);
+  if (!license) return { limitValue: null as number | null, licenseId: null as string | null };
+  const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, input.featureCode), eq(commercialFeatures.active, true))).limit(1); if (!feature) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  const [override] = await db.select({ active: tenantLicenseFeatureOverrides.active, limitValue: tenantLicenseFeatureOverrides.limitValue }).from(tenantLicenseFeatureOverrides).where(and(eq(tenantLicenseFeatureOverrides.tenantLicenseId, license.id), eq(tenantLicenseFeatureOverrides.featureId, feature.id))).limit(1);
+  const [planFeature] = await db.select({ active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements).where(and(eq(planFeatureEntitlements.planId, license.planId), eq(planFeatureEntitlements.featureId, feature.id))).limit(1);
+  const entitlement = override ?? planFeature; if (!entitlement?.active) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  return { limitValue: entitlement.limitValue, licenseId: license.id };
+}
+
+type TenantLicenseStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled" | "expired" | "grace_period";
+const enabledLicenseStatuses = new Set<TenantLicenseStatus>(["trialing", "active", "grace_period"]);
+const licenseTransitions: Record<TenantLicenseStatus, readonly TenantLicenseStatus[]> = { trialing: ["active", "cancelled", "expired"], active: ["past_due", "suspended", "cancelled", "expired", "grace_period"], past_due: ["active", "suspended", "cancelled", "expired", "grace_period"], suspended: ["active", "cancelled", "expired"], cancelled: ["active"], expired: ["active"], grace_period: ["active", "cancelled", "expired"] };
+
+export async function getCommercialCatalogForAdministrator(input: { userId: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPlatformAdministrator(input.userId); await ensureDefaultCommercialCatalog(db);
+  const [plans, features, planFeatures] = await Promise.all([
+    db.select({ id: commercialPlans.id, code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode, active: commercialPlans.active }).from(commercialPlans).orderBy(commercialPlans.code),
+    db.select({ id: commercialFeatures.id, code: commercialFeatures.code, name: commercialFeatures.name, productCode: commercialFeatures.productCode, active: commercialFeatures.active }).from(commercialFeatures).orderBy(commercialFeatures.code),
+    db.select({ planId: planFeatureEntitlements.planId, featureId: planFeatureEntitlements.featureId, active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements),
+  ]);
+  return { plans, features, planFeatures };
+}
+
+export async function getTenantLicenseForManager(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [actor] = await db.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (actor?.role !== "admin") await assertTenantManager(input.userId, input.tenantId);
+  await ensureDefaultCommercialCatalog(db);
+  const [license] = await db.select({ id: tenantLicenses.id, subscriptionId: tenantLicenses.subscriptionId, planId: tenantLicenses.planId, status: tenantLicenses.status, seats: tenantLicenses.seats, priceAmount: tenantLicenses.priceAmount, discountAmount: tenantLicenses.discountAmount, manualActivation: tenantLicenses.manualActivation, startsAt: tenantLicenses.startsAt, endsAt: tenantLicenses.endsAt, trialEndsAt: tenantLicenses.trialEndsAt, graceEndsAt: tenantLicenses.graceEndsAt, planCode: commercialPlans.code, planName: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(tenantLicenses).innerJoin(commercialPlans, eq(tenantLicenses.planId, commercialPlans.id)).where(eq(tenantLicenses.tenantId, input.tenantId)).orderBy(desc(tenantLicenses.updatedAt)).limit(1);
+  if (!license) return { license: null, featureOverrides: [] };
+  const featureOverrides = await db.select({ code: commercialFeatures.code, name: commercialFeatures.name, active: tenantLicenseFeatureOverrides.active, limitValue: tenantLicenseFeatureOverrides.limitValue }).from(tenantLicenseFeatureOverrides).innerJoin(commercialFeatures, eq(tenantLicenseFeatureOverrides.featureId, commercialFeatures.id)).where(eq(tenantLicenseFeatureOverrides.tenantLicenseId, license.id));
+  return { license, featureOverrides };
+}
+
+export async function provisionTenantLicense(input: { actorUserId: number; tenantId: string; planCode: string; status: TenantLicenseStatus; seats: number; priceAmount?: number; discountAmount?: number; startsAt?: Date; endsAt?: Date; trialEndsAt?: Date; graceEndsAt?: Date; manualActivation: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPlatformAdministrator(input.actorUserId); await ensureDefaultCommercialCatalog(db);
+  if (!Number.isInteger(input.seats) || input.seats < 1 || input.seats > 100000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const [tenant] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.tenantId)).limit(1); if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  const [plan] = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(and(eq(commercialPlans.code, input.planCode), eq(commercialPlans.active, true))).limit(1); if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND" });
+  const [existingSubscription] = await db.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).orderBy(desc(subscriptions.updatedAt)).limit(1);
+  const subscriptionId = existingSubscription?.id ?? crypto.randomUUID(); const now = input.startsAt ?? new Date(); const active = enabledLicenseStatuses.has(input.status);
+  await db.transaction(async tx => {
+    if (existingSubscription) await tx.update(subscriptions).set({ packageCode: plan.packageCode, status: input.status, startsAt: now, endsAt: input.endsAt }).where(eq(subscriptions.id, subscriptionId));
+    else await tx.insert(subscriptions).values({ id: subscriptionId, tenantId: input.tenantId, packageCode: plan.packageCode, status: input.status, startsAt: now, endsAt: input.endsAt });
+    const [existingLicense] = await tx.select({ id: tenantLicenses.id }).from(tenantLicenses).where(eq(tenantLicenses.subscriptionId, subscriptionId)).limit(1); const licenseId = existingLicense?.id ?? crypto.randomUUID();
+    const licenseValues = { tenantId: input.tenantId, subscriptionId, planId: plan.id, status: input.status, seats: input.seats, priceAmount: String(input.priceAmount ?? 0), discountAmount: String(input.discountAmount ?? 0), manualActivation: input.manualActivation, startsAt: now, endsAt: input.endsAt, trialEndsAt: input.trialEndsAt, graceEndsAt: input.graceEndsAt, createdByUserId: input.actorUserId };
+    if (existingLicense) await tx.update(tenantLicenses).set(licenseValues).where(eq(tenantLicenses.id, licenseId)); else await tx.insert(tenantLicenses).values({ id: licenseId, ...licenseValues });
+    await tx.update(tenantEntitlements).set({ active: false }).where(eq(tenantEntitlements.subscriptionId, subscriptionId));
+    for (const productCode of productsForPackage(plan.packageCode as SubscriptionPackageCode)) await tx.insert(tenantEntitlements).values({ id: crypto.randomUUID(), tenantId: input.tenantId, subscriptionId, productCode, active, startsAt: now, endsAt: input.endsAt }).onDuplicateKeyUpdate({ set: { active, startsAt: now, endsAt: input.endsAt } });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.license_provisioned", entityType: "tenant_license", entityId: licenseId, metadata: JSON.stringify({ subscriptionId, planCode: input.planCode, status: input.status, seats: input.seats, manualActivation: input.manualActivation }) });
+  });
+  return { subscriptionId, tenantId: input.tenantId };
+}
+
+export async function transitionTenantLicenseStatus(input: { actorUserId: number; tenantId: string; licenseId: string; nextStatus: TenantLicenseStatus }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPlatformAdministrator(input.actorUserId);
+  const [license] = await db.select({ id: tenantLicenses.id, subscriptionId: tenantLicenses.subscriptionId, status: tenantLicenses.status }).from(tenantLicenses).where(and(eq(tenantLicenses.id, input.licenseId), eq(tenantLicenses.tenantId, input.tenantId))).limit(1); if (!license) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_LICENSE_NOT_FOUND" });
+  if (!licenseTransitions[license.status].includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_LICENSE_TRANSITION_INVALID" }); const active = enabledLicenseStatuses.has(input.nextStatus);
+  await db.transaction(async tx => { await tx.update(tenantLicenses).set({ status: input.nextStatus }).where(eq(tenantLicenses.id, license.id)); await tx.update(subscriptions).set({ status: input.nextStatus }).where(eq(subscriptions.id, license.subscriptionId)); await tx.update(tenantEntitlements).set({ active }).where(eq(tenantEntitlements.subscriptionId, license.subscriptionId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.license_status_transitioned", entityType: "tenant_license", entityId: license.id, metadata: JSON.stringify({ previousStatus: license.status, nextStatus: input.nextStatus }) }); });
+  return { id: license.id, previousStatus: license.status, status: input.nextStatus };
+}
+
+export async function setTenantLicenseFeatureOverride(input: { actorUserId: number; tenantId: string; licenseId: string; featureCode: string; active: boolean; limitValue?: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPlatformAdministrator(input.actorUserId); if (input.limitValue !== undefined && (!Number.isInteger(input.limitValue) || input.limitValue < 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const [license] = await db.select({ id: tenantLicenses.id }).from(tenantLicenses).where(and(eq(tenantLicenses.id, input.licenseId), eq(tenantLicenses.tenantId, input.tenantId))).limit(1); if (!license) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_LICENSE_NOT_FOUND" });
+  const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, input.featureCode), eq(commercialFeatures.active, true))).limit(1); if (!feature) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(tenantLicenseFeatureOverrides).values({ id, tenantLicenseId: input.licenseId, featureId: feature.id, active: input.active, limitValue: input.limitValue }).onDuplicateKeyUpdate({ set: { active: input.active, limitValue: input.limitValue } }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.feature_override_set", entityType: "tenant_license_feature_override", entityId: id, metadata: JSON.stringify({ licenseId: input.licenseId, featureCode: input.featureCode, active: input.active, limitValue: input.limitValue }) }); });
+  return { licenseId: input.licenseId, featureCode: input.featureCode, active: input.active, limitValue: input.limitValue ?? null };
 }
 
 async function assertTenantScopeOwnership(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, scopeType: "company" | "portfolio" | "program" | "project", scopeId?: string): Promise<void> {
@@ -813,6 +929,7 @@ export async function getMasterPlansForTenant(input: { userId: number; tenantId:
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   const [plans, versions, entities] = await Promise.all([
     db.select({ id: masterPlans.id, code: masterPlans.code, title: masterPlans.title, status: masterPlans.status, createdAt: masterPlans.createdAt }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))).orderBy(desc(masterPlans.createdAt)),
     db.select({ id: masterPlanVersions.id, masterPlanId: masterPlanVersions.masterPlanId, versionNumber: masterPlanVersions.versionNumber, versionKind: masterPlanVersions.versionKind, description: masterPlanVersions.description, changeSummary: masterPlanVersions.changeSummary, sourceFileName: masterPlanVersions.sourceFileName, createdAt: masterPlanVersions.createdAt }).from(masterPlanVersions).where(and(eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).orderBy(desc(masterPlanVersions.versionNumber)),
@@ -825,6 +942,8 @@ export async function createMasterPlanForTenant(input: { userId: number; tenantI
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  if (feature.limitValue !== null) { const existingCount = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))); if (existingCount.length >= feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
   const [existing] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId), eq(masterPlans.code, input.code))).limit(1); if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MASTER_PLAN_CODE_EXISTS" });
   const masterPlanId = crypto.randomUUID(); const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
   if (input.sourceContentBase64) { const content = decodeDocumentContent(input.sourceContentBase64); checksumSha256 = createHash("sha256").update(content).digest("hex"); const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/master-plans/${masterPlanId}/v1/${documentStorageName(input.sourceFileName ?? "master-plan.bin")}`, content, input.sourceMimeType ?? "application/octet-stream"); storageKey = stored.key; }
@@ -836,6 +955,7 @@ export async function createMasterPlanVersionForTenant(input: { userId: number; 
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   const [plan] = await db.select({ id: masterPlans.id }).from(masterPlans).where(and(eq(masterPlans.id, input.masterPlanId), eq(masterPlans.tenantId, input.tenantId), eq(masterPlans.projectId, input.projectId))).limit(1); if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_NOT_FOUND" });
   const [latest] = await db.select({ versionNumber: masterPlanVersions.versionNumber }).from(masterPlanVersions).where(and(eq(masterPlanVersions.masterPlanId, input.masterPlanId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).orderBy(desc(masterPlanVersions.versionNumber)).limit(1);
   const versionNumber = (latest?.versionNumber ?? 0) + 1; const versionId = crypto.randomUUID(); let storageKey: string | undefined; let checksumSha256: string | undefined;
@@ -848,6 +968,8 @@ export async function createMasterPlanSpatialEntityForTenant(input: { userId: nu
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN_ENTITIES", scope: { type: "project", id: input.projectId } });
+  if (feature.limitValue !== null) { const existingCount = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))); if (existingCount.length >= feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
   const geometry = normalizeMasterPlanGeometry(input.geometry); if (!Number.isFinite(input.progressPercent) || input.progressPercent < 0 || input.progressPercent > 100) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_PROGRESS_INVALID" });
   const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
   if (input.parentEntityId) { const [parent] = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.id, input.parentEntityId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).limit(1); if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_PARENT_NOT_FOUND" }); }

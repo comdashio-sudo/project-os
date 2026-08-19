@@ -148,6 +148,30 @@ export const projectErrorMessages = {
     ar: "يجب أن تكون نسبة تقدم الكيان المكاني بين 0 و100.",
     en: "A spatial entity progress percentage must be between 0 and 100.",
   },
+  PROJECT_OS_LICENSING_ADMIN_REQUIRED: {
+    ar: "تتطلب إدارة التراخيص صلاحية مسؤول المنصة.",
+    en: "Licensing management requires platform-administrator access.",
+  },
+  PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND: {
+    ar: "الخطة التجارية المحددة غير متاحة أو غير نشطة.",
+    en: "The selected commercial plan is unavailable or inactive.",
+  },
+  PROJECT_OS_LICENSE_NOT_FOUND: {
+    ar: "الرخصة المحددة غير متاحة ضمن مساحة العمل هذه.",
+    en: "The selected license is unavailable in this workspace.",
+  },
+  PROJECT_OS_LICENSE_TRANSITION_INVALID: {
+    ar: "انتقال حالة الرخصة المحدد غير مسموح من حالتها الحالية.",
+    en: "The selected license-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE: {
+    ar: "لا تتضمن الرخصة النشطة الميزة المطلوبة.",
+    en: "The active license does not include the required feature.",
+  },
+  PROJECT_OS_LICENSE_LIMIT_EXCEEDED: {
+    ar: "تم بلوغ الحد المسموح لهذه الميزة في الرخصة النشطة.",
+    en: "The active license limit for this feature has been reached.",
+  },
   PROJECT_OS_RFI_NOT_FOUND: {
     ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected RFI is not available in the current project and workspace.",

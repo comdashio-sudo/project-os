@@ -97,7 +97,7 @@ export const subscriptions = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
     packageCode: mysqlEnum("packageCode", subscriptionPackageCodes).notNull(),
-    status: mysqlEnum("status", ["trialing", "active", "past_due", "cancelled", "expired"]).default("trialing").notNull(),
+    status: mysqlEnum("status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]).default("trialing").notNull(),
     startsAt: timestamp("startsAt").notNull(),
     endsAt: timestamp("endsAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -123,6 +123,85 @@ export const tenantEntitlements = mysqlTable(
     uniqueIndex("tenant_entitlements_subscription_product_unique").on(table.subscriptionId, table.productCode),
     index("tenant_entitlements_tenant_product_idx").on(table.tenantId, table.productCode, table.active),
   ],
+);
+
+export const commercialPlans = mysqlTable(
+  "commercial_plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    packageCode: mysqlEnum("packageCode", subscriptionPackageCodes).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("commercial_plans_code_unique").on(table.code), index("commercial_plans_package_active_idx").on(table.packageCode, table.active)],
+);
+
+export const commercialFeatures = mysqlTable(
+  "commercial_features",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    code: varchar("code", { length: 120 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    productCode: mysqlEnum("productCode", productCodes).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("commercial_features_code_unique").on(table.code), index("commercial_features_product_active_idx").on(table.productCode, table.active)],
+);
+
+export const planFeatureEntitlements = mysqlTable(
+  "plan_feature_entitlements",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    planId: varchar("planId", { length: 36 }).notNull().references(() => commercialPlans.id),
+    featureId: varchar("featureId", { length: 36 }).notNull().references(() => commercialFeatures.id),
+    active: boolean("active").default(true).notNull(),
+    limitValue: int("limitValue"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("plan_feature_entitlements_plan_feature_unique").on(table.planId, table.featureId), index("plan_feature_entitlements_feature_idx").on(table.featureId)],
+);
+
+export const tenantLicenses = mysqlTable(
+  "tenant_licenses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
+    planId: varchar("planId", { length: 36 }).notNull().references(() => commercialPlans.id),
+    status: mysqlEnum("status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]).default("trialing").notNull(),
+    seats: int("seats").default(1).notNull(),
+    priceAmount: decimal("priceAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    discountAmount: decimal("discountAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    manualActivation: boolean("manualActivation").default(false).notNull(),
+    startsAt: timestamp("startsAt").notNull(),
+    endsAt: timestamp("endsAt"),
+    trialEndsAt: timestamp("trialEndsAt"),
+    graceEndsAt: timestamp("graceEndsAt"),
+    createdByUserId: int("createdByUserId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tenant_licenses_subscription_unique").on(table.subscriptionId), index("tenant_licenses_tenant_status_idx").on(table.tenantId, table.status), index("tenant_licenses_plan_idx").on(table.planId)],
+);
+
+export const tenantLicenseFeatureOverrides = mysqlTable(
+  "tenant_license_feature_overrides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantLicenseId: varchar("tenantLicenseId", { length: 36 }).notNull().references(() => tenantLicenses.id),
+    featureId: varchar("featureId", { length: 36 }).notNull().references(() => commercialFeatures.id),
+    active: boolean("active").default(true).notNull(),
+    limitValue: int("limitValue"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tenant_license_feature_overrides_license_feature_unique").on(table.tenantLicenseId, table.featureId), index("tenant_license_feature_overrides_feature_idx").on(table.featureId)],
 );
 
 export const roles = mysqlTable(
