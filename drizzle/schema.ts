@@ -899,6 +899,26 @@ export const decisions = mysqlTable(
   table => [index("decisions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
+export const controlRecordLinks = mysqlTable(
+  "control_record_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    sourceType: mysqlEnum("sourceType", ["risk", "issue", "action", "decision"]).notNull(),
+    sourceId: varchar("sourceId", { length: 36 }).notNull(),
+    targetType: mysqlEnum("targetType", ["risk", "issue", "action", "decision"]).notNull(),
+    targetId: varchar("targetId", { length: 36 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("control_record_links_project_source_target_unique").on(table.projectId, table.sourceType, table.sourceId, table.targetType, table.targetId),
+    index("control_record_links_tenant_project_source_idx").on(table.tenantId, table.projectId, table.sourceType, table.sourceId),
+    index("control_record_links_tenant_project_target_idx").on(table.tenantId, table.projectId, table.targetType, table.targetId),
+  ],
+);
+
 export const projectHealthSnapshots = mysqlTable(
   "project_health_snapshots",
   {

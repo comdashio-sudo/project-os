@@ -256,6 +256,18 @@ export const projectErrorMessages = {
     ar: "العقد أو الالتزام المحدد لا يطابق المستأجر والمشروع الحاليين.",
     en: "The selected contract or commitment does not belong to the current tenant and project.",
   },
+  PROJECT_OS_CONTROL_LINK_REFERENCE_INVALID: {
+    ar: "سجل المصدر أو الهدف المحدد لا يطابق المستأجر والمشروع الحاليين.",
+    en: "The selected source or target record does not belong to the current tenant and project.",
+  },
+  PROJECT_OS_CONTROL_LINK_SELF_REFERENCE: {
+    ar: "لا يمكن ربط السجل بنفسه.",
+    en: "A record cannot be linked to itself.",
+  },
+  PROJECT_OS_CONTROL_LINK_DUPLICATE: {
+    ar: "الرابط المحدد موجود بالفعل ضمن المشروع.",
+    en: "The selected record link already exists in this project.",
+  },
   PROJECT_OS_CHANGE_REQUEST_NOT_FOUND: {
     ar: "طلب التغيير المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected change request is not available in the current project and workspace.",

@@ -31,6 +31,7 @@ import {
   issues,
   actions,
   decisions,
+  controlRecordLinks,
   wbsItems,
   costEntries,
   budgetLines,
@@ -847,16 +848,17 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows] = await Promise.all([
+  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ id: risks.id, projectId: risks.projectId, code: risks.code, title: risks.title, probability: risks.probability, severity: risks.severity, status: risks.status, dueAt: risks.dueAt }).from(risks).where(eq(risks.tenantId, input.tenantId)),
     db.select({ id: issues.id, projectId: issues.projectId, code: issues.code, title: issues.title, priority: issues.priority, escalationStatus: issues.escalationStatus, status: issues.status, dueAt: issues.dueAt }).from(issues).where(eq(issues.tenantId, input.tenantId)),
     db.select({ id: actions.id, projectId: actions.projectId, title: actions.title, priority: actions.priority, escalationStatus: actions.escalationStatus, status: actions.status, dueAt: actions.dueAt }).from(actions).where(eq(actions.tenantId, input.tenantId)),
+    db.select({ id: decisions.id, projectId: decisions.projectId, problem: decisions.problem, status: decisions.status }).from(decisions).where(eq(decisions.tenantId, input.tenantId)),
   ]);
 
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows };
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -1178,6 +1180,43 @@ const hseStatusTransitions: Record<string, readonly string[]> = { open: ["assign
 const fieldReportStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["reviewed", "rejected"], reviewed: ["approved", "rejected"], approved: [], rejected: ["draft"] };
 const qualityInspectionStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["accepted", "rejected"], accepted: [], rejected: ["draft"] };
 const purchaseOrderStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["approved", "cancelled"], approved: ["issued", "cancelled"], issued: ["received"], received: [], cancelled: [] };
+type ControlRecordType = "risk" | "issue" | "action" | "decision";
+
+async function assertControlRecordWithinProject(input: { tenantId: string; projectId: string; recordType: ControlRecordType; recordId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const found = input.recordType === "risk"
+    ? await db.select({ id: risks.id }).from(risks).where(and(eq(risks.id, input.recordId), eq(risks.tenantId, input.tenantId), eq(risks.projectId, input.projectId))).limit(1)
+    : input.recordType === "issue"
+      ? await db.select({ id: issues.id }).from(issues).where(and(eq(issues.id, input.recordId), eq(issues.tenantId, input.tenantId), eq(issues.projectId, input.projectId))).limit(1)
+      : input.recordType === "action"
+        ? await db.select({ id: actions.id }).from(actions).where(and(eq(actions.id, input.recordId), eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId))).limit(1)
+        : await db.select({ id: decisions.id }).from(decisions).where(and(eq(decisions.id, input.recordId), eq(decisions.tenantId, input.tenantId), eq(decisions.projectId, input.projectId))).limit(1);
+  if (!found[0]) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTROL_LINK_REFERENCE_INVALID" });
+}
+
+export async function getControlRecordLinksForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ id: controlRecordLinks.id, sourceType: controlRecordLinks.sourceType, sourceId: controlRecordLinks.sourceId, targetType: controlRecordLinks.targetType, targetId: controlRecordLinks.targetId, createdAt: controlRecordLinks.createdAt }).from(controlRecordLinks).where(and(eq(controlRecordLinks.tenantId, input.tenantId), eq(controlRecordLinks.projectId, input.projectId))).orderBy(desc(controlRecordLinks.createdAt));
+}
+
+export async function createControlRecordLinkForTenant(input: { userId: number; tenantId: string; projectId: string; sourceType: ControlRecordType; sourceId: string; targetType: ControlRecordType; targetId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.sourceType === input.targetType && input.sourceId === input.targetId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTROL_LINK_SELF_REFERENCE" });
+  await Promise.all([assertControlRecordWithinProject({ tenantId: input.tenantId, projectId: input.projectId, recordType: input.sourceType, recordId: input.sourceId }), assertControlRecordWithinProject({ tenantId: input.tenantId, projectId: input.projectId, recordType: input.targetType, recordId: input.targetId })]);
+  const [existing] = await db.select({ id: controlRecordLinks.id }).from(controlRecordLinks).where(and(eq(controlRecordLinks.tenantId, input.tenantId), eq(controlRecordLinks.projectId, input.projectId), eq(controlRecordLinks.sourceType, input.sourceType), eq(controlRecordLinks.sourceId, input.sourceId), eq(controlRecordLinks.targetType, input.targetType), eq(controlRecordLinks.targetId, input.targetId))).limit(1);
+  if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_CONTROL_LINK_DUPLICATE" });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(controlRecordLinks).values({ id, tenantId: input.tenantId, projectId: input.projectId, sourceType: input.sourceType, sourceId: input.sourceId, targetType: input.targetType, targetId: input.targetId, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "governance.control_record_link_created", entityType: "control_record_link", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, sourceType: input.sourceType, sourceId: input.sourceId, targetType: input.targetType, targetId: input.targetId }) }); });
+  return { id };
+}
 
 const changeRequestTransitions: Record<string, readonly string[]> = { draft: ["submitted", "cancelled"], submitted: ["under_review", "cancelled"], under_review: ["approved", "rejected", "cancelled"], approved: [], rejected: [], cancelled: [] };
 

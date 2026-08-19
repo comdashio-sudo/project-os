@@ -53,6 +53,7 @@ const state = vi.hoisted(() => ({
       { id: "action-open", projectId: "project-1", title: "Mitigate access constraint", priority: "high", escalationStatus: "none", status: "in_progress", dueAt: new Date("2020-01-01T00:00:00.000Z") },
       { id: "action-done", projectId: "project-1", title: "Closed action", priority: "low", escalationStatus: "none", status: "completed", dueAt: null },
     ],
+    decisions: [],
   },
   executiveData: {
     totals: { budget: 0, actual: 0, forecast: 0 },
@@ -164,6 +165,10 @@ vi.mock("@/lib/trpc", () => ({
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       transitionStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+    },
+    controlLinks: {
+      list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null, isSuccess: false }) },
     },
     changes: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },

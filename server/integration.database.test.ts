@@ -23,6 +23,12 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     if (!isIntegrationUrl(url)) return;
     if (!url) throw new Error("TEST_DATABASE_URL is required for integration tests");
     connection = await mysql.createConnection(url);
+    await connection.query("CREATE TABLE IF NOT EXISTS control_record_links (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `sourceType` enum('risk','issue','action','decision') NOT NULL, `sourceId` varchar(36) NOT NULL, `targetType` enum('risk','issue','action','decision') NOT NULL, `targetId` varchar(36) NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `control_record_links_project_source_target_unique` (`projectId`,`sourceType`,`sourceId`,`targetType`,`targetId`), KEY `control_record_links_tenant_project_source_idx` (`tenantId`,`projectId`,`sourceType`,`sourceId`), KEY `control_record_links_tenant_project_target_idx` (`tenantId`,`projectId`,`targetType`,`targetId`))");
+    await connection.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM risks WHERE code IN ('LINK-RISK', 'LINK-FOR')");
+    await connection.query("DELETE FROM issues WHERE code = 'LINK-ISSUE'");
+    await connection.query("DELETE FROM actions WHERE title = 'Linkable mitigating action'");
+    await connection.query("DELETE FROM decisions WHERE problem = 'Linkable decision problem'");
     await connection.query("CREATE TABLE IF NOT EXISTS purchase_orders (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `contractId` varchar(36), `commitmentId` varchar(36), `purchaseOrderNumber` varchar(120) NOT NULL, `supplierName` varchar(240) NOT NULL, `orderDate` timestamp NOT NULL, `amount` decimal(18,2) NOT NULL, `currency` varchar(3) NOT NULL, `summary` text NOT NULL, `status` enum('draft','submitted','approved','issued','received','cancelled') NOT NULL DEFAULT 'draft', `receivedAt` timestamp, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `purchase_orders_project_number_unique` (`projectId`,`purchaseOrderNumber`), KEY `purchase_orders_tenant_project_date_status_idx` (`tenantId`,`projectId`,`orderDate`,`status`), KEY `purchase_orders_contract_idx` (`contractId`), KEY `purchase_orders_commitment_idx` (`commitmentId`))");
     await connection.query("ALTER TABLE purchase_orders MODIFY COLUMN status enum('draft','submitted','approved','issued','received','cancelled') NOT NULL DEFAULT 'draft'");
     await connection.query("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS contractId varchar(36)");
@@ -33,6 +39,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM quality_inspections WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS field_reports (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `reportNumber` varchar(120) NOT NULL, `reportType` enum('daily','inspection','progress') NOT NULL, `reportedAt` timestamp NOT NULL, `shift` enum('day','night') NOT NULL DEFAULT 'day', `workforceCount` int NOT NULL DEFAULT 0, `weather` varchar(160), `summary` text NOT NULL, `status` enum('draft','submitted','reviewed','approved','rejected') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `field_reports_project_number_unique` (`projectId`,`reportNumber`), KEY `field_reports_tenant_project_date_status_idx` (`tenantId`,`projectId`,`reportedAt`,`status`), CONSTRAINT `field_reports_tenantId_companies_id_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `field_reports_projectId_projects_id_fk` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`), CONSTRAINT `field_reports_createdByUserId_users_id_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
     await connection.query("DELETE FROM field_reports WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS data_import_row_results (`id` varchar(36) NOT NULL, `importId` varchar(36) NOT NULL, `rowNumber` int NOT NULL, `rowKey` varchar(160) NOT NULL, `action` enum('created','updated','skipped') NOT NULL, `entityId` varchar(36), `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `data_import_row_results_import_row_action_unique` (`importId`,`rowNumber`,`action`), KEY `data_import_row_results_import_row_idx` (`importId`,`rowNumber`), CONSTRAINT `data_import_row_results_importId_data_imports_id_fk` FOREIGN KEY (`importId`) REFERENCES `data_imports`(`id`))");
     await connection.query("DELETE FROM data_import_row_results WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]);
     await connection.query("DELETE FROM data_import_errors WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]);
@@ -72,6 +79,17 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM budget_lines WHERE projectId = ?", [projectC]);
     await connection.query("DELETE FROM activities WHERE projectId = ?", [projectC]);
     await connection.query("DELETE FROM wbs_items WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM control_record_links WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM purchase_orders WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM field_reports WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM quality_inspections WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM hse_observations WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM ncrs WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM rfis WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM actions WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM issues WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM risks WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
     await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
@@ -328,6 +346,30 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
     await connection.query("DELETE FROM commitments WHERE id IN (?, '00000000-0000-4000-8000-0000000000e2')", [commitment.id]);
     await connection.query("DELETE FROM contracts WHERE id IN (?, ?, '00000000-0000-4000-8000-0000000000e1')", [contract.id, alternateContract.id]);
+  }, 12_000);
+
+  it("rejects foreign, self, and duplicate control links while recording authorized PMO relationships", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await connection.query("INSERT INTO risks (id, tenantId, projectId, code, title, probability, severity, status) VALUES ('00000000-0000-4000-8000-0000000000d1', ?, ?, 'LINK-FOR', 'Foreign link source', 3, 3, 'open')", [tenantB, projectB]);
+    const risk = await caller.pmo.createRisk({ tenantId: tenantA, projectId: projectA, code: "LINK-RISK", title: "Linkable project risk", probability: 4, severity: 4 });
+    const issue = await caller.pmo.createIssue({ tenantId: tenantA, projectId: projectA, code: "LINK-ISSUE", title: "Linkable project issue", priority: "high" });
+    const action = await caller.pmo.createAction({ tenantId: tenantA, projectId: projectA, title: "Linkable mitigating action", priority: "high" });
+    const decision = await caller.executive.createDecision({ tenantId: tenantA, projectId: projectA, problem: "Linkable decision problem", options: "Approve or defer", recommendation: "Approve" });
+    await expect(caller.controlLinks.create({ tenantId: tenantA, projectId: projectA, sourceType: "risk", sourceId: "00000000-0000-4000-8000-0000000000d1", targetType: "issue", targetId: issue.id })).rejects.toThrow("PROJECT_OS_CONTROL_LINK_REFERENCE_INVALID");
+    await expect(caller.controlLinks.create({ tenantId: tenantA, projectId: projectA, sourceType: "risk", sourceId: risk.id, targetType: "risk", targetId: risk.id })).rejects.toThrow("PROJECT_OS_CONTROL_LINK_SELF_REFERENCE");
+    const firstLink = await caller.controlLinks.create({ tenantId: tenantA, projectId: projectA, sourceType: "risk", sourceId: risk.id, targetType: "action", targetId: action.id });
+    const secondLink = await caller.controlLinks.create({ tenantId: tenantA, projectId: projectA, sourceType: "issue", sourceId: issue.id, targetType: "decision", targetId: decision.id });
+    await expect(caller.controlLinks.create({ tenantId: tenantA, projectId: projectA, sourceType: "risk", sourceId: risk.id, targetType: "action", targetId: action.id })).rejects.toThrow("PROJECT_OS_CONTROL_LINK_DUPLICATE");
+    const links = await caller.controlLinks.list({ tenantId: tenantA, projectId: projectA });
+    expect(links).toEqual(expect.arrayContaining([expect.objectContaining({ id: firstLink.id, sourceType: "risk", sourceId: risk.id, targetType: "action", targetId: action.id }), expect.objectContaining({ id: secondLink.id, sourceType: "issue", sourceId: issue.id, targetType: "decision", targetId: decision.id })]));
+    const [rows] = await connection.query<{ links: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM control_record_links WHERE id IN (?, ?)) AS links, (SELECT COUNT(*) FROM audit_logs WHERE entityType = 'control_record_link' AND entityId IN (?, ?)) AS audits", [firstLink.id, secondLink.id, firstLink.id, secondLink.id]);
+    expect(rows[0]).toMatchObject({ links: 2, audits: 2 });
+    await connection.query("DELETE FROM control_record_links WHERE id IN (?, ?)", [firstLink.id, secondLink.id]);
+    await connection.query("DELETE FROM risks WHERE id IN (?, '00000000-0000-4000-8000-0000000000d1')", [risk.id]);
+    await connection.query("DELETE FROM issues WHERE id = ?", [issue.id]);
+    await connection.query("DELETE FROM actions WHERE id = ?", [action.id]);
+    await connection.query("DELETE FROM decisions WHERE id = ?", [decision.id]);
   }, 12_000);
 
   it("rejects cross-tenant EVM and health snapshot captures before writing snapshots", async () => {
