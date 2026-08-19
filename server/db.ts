@@ -1546,6 +1546,7 @@ export async function getDataImportsForTenant(input: { userId: number; tenantId:
   if (input.projectId) {
     assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
     await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+    await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "company", id: input.tenantId } });
   const filter = input.projectId ? and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)) : eq(dataImports.tenantId, input.tenantId);
   return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
@@ -1555,6 +1556,8 @@ export async function createAndAnalyzeDataImport(input: { userId: number; tenant
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
+  if (feature.limitValue !== null) { const importCount = await db.select({ id: dataImports.id }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))); if (importCount.length >= feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
   const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("PROJECT_OS_IMPORT_FILE_INVALID");
   const analysis = analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -1569,6 +1572,7 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
 
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
@@ -1610,12 +1614,14 @@ export async function createDataExport(input: { userId: number; tenantId: string
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_EXPORT", scope: { type: "project", id: input.projectId } });
 
   const rows: Record<string, unknown>[] = input.moduleCode === "wbs"
     ? (await db.select({ code: wbsItems.code, name: wbsItems.name, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue) }))
     : input.moduleCode === "budget"
       ? (await db.select({ costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId)))).map(row => ({ ...row, originalAmount: Number(row.originalAmount), currentAmount: Number(row.currentAmount) }))
       : (await db.select({ code: activities.code, name: activities.name, plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt, status: activities.status }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue), plannedStartAt: row.plannedStartAt?.toISOString().slice(0, 10) ?? "", plannedFinishAt: row.plannedFinishAt?.toISOString().slice(0, 10) ?? "" }));
+  if (feature.limitValue !== null && rows.length > feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
   const file = buildDataExportFile({ moduleCode: input.moduleCode, format: input.format, locale: input.locale, rows });
   if (file.bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "PROJECT_OS_EXPORT_FILE_TOO_LARGE" });
   const exportId = crypto.randomUUID();
