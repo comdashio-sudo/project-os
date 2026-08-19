@@ -49,6 +49,7 @@ describe("ProjectMasterPlan", () => {
     state.data.entities[0] = { ...state.data.entities[0], parentEntityId: "entity-parent" }; if (!state.data.entities.find(item => item.id === "entity-parent")) state.data.entities.push({ ...state.data.entities[0], id: "entity-parent", parentEntityId: null, code: "BLOCK-A", name: "Block A", geometry: JSON.stringify({ x: 35, y: 10, width: 25, height: 20 }) }); state.isArabic = true; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.click(screen.getByRole("button", { name: "ZONE-A Zone A" }));
     expect(screen.getByText(/الكيان الأب: BLOCK-A · Block A/)).toBeTruthy();
+    expect(screen.getByLabelText("الكيان الأب")).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
@@ -83,8 +84,8 @@ describe("ProjectMasterPlan", () => {
     state.data.versions[0] = { ...state.data.versions[0], sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png" }; state.entityMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     const form = screen.getAllByRole("button", { name: "Add entity" }).at(-1)?.closest("form"); if (!form) throw new Error("Entity form was not rendered"); const entityForm = within(form);
     await user.type(entityForm.getByLabelText("Code"), "UNIT-1"); await user.type(entityForm.getByLabelText("Name"), "Unit one");
-    await user.selectOptions(entityForm.getByLabelText("WBS item"), "wbs-1"); await user.selectOptions(entityForm.getByLabelText("Activity"), "activity-1");
+    await user.selectOptions(entityForm.getByLabelText("Parent entity"), "entity-parent"); await user.selectOptions(entityForm.getByLabelText("WBS item"), "wbs-1"); await user.selectOptions(entityForm.getByLabelText("Activity"), "activity-1");
     fireEvent.submit(form);
-    await waitFor(() => expect(state.entityMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", code: "UNIT-1", wbsItemId: "wbs-1", activityId: "activity-1" })));
+    await waitFor(() => expect(state.entityMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", code: "UNIT-1", parentEntityId: "entity-parent", wbsItemId: "wbs-1", activityId: "activity-1" })));
   });
 });
