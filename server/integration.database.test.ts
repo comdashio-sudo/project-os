@@ -220,6 +220,32 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("governs manual EVM calculation and snapshot persistence with isolation and audit evidence", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const unassigned = appRouter.createCaller(unassignedContext);
+    const evmInput = { pv: 120, ev: 90, ac: 100, bac: 200, eacMethod: "manual" as const, manualEac: 225 };
+    let snapshotId: string | undefined;
+    try {
+      await expect(owner.controls.calculateEvm(evmInput)).resolves.toMatchObject({ pv: 120, ev: 90, ac: 100, eac: 225 });
+      await expect(unassigned.controls.saveEvmSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-19T00:00:00.000Z"), ...evmInput })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      await expect(owner.controls.saveEvmSnapshot({ tenantId: tenantA, projectId: projectB, periodAt: new Date("2026-08-19T00:00:00.000Z"), ...evmInput })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      const saved = await owner.controls.saveEvmSnapshot({ tenantId: tenantA, projectId: projectA, periodAt: new Date("2026-08-19T00:00:00.000Z"), ...evmInput });
+      snapshotId = saved.id;
+      expect(saved).toMatchObject({ id: snapshotId, pv: 120, ev: 90, ac: 100, eac: 225 });
+      const [rows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM evm_snapshots WHERE id = ? AND tenantId = ? AND projectId = ?", [snapshotId, tenantA, projectA]);
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'evm.snapshot_created'", [tenantA, snapshotId]);
+      expect(Number(rows[0].count)).toBe(1);
+      expect(Number(audits[0].count)).toBe(1);
+    } finally {
+      if (snapshotId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [snapshotId]);
+        await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [snapshotId]);
+      }
+    }
+  }, 12_000);
+
   it("governs change-request and HSE transitions with isolation, reads, and audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);
