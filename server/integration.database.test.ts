@@ -192,6 +192,47 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("governs tenant invitations with scope, email, one-time acceptance, and audit evidence", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const unassigned = appRouter.createCaller(unassignedContext);
+    let roleId: string | undefined;
+    let invitationId: string | undefined;
+    let membershipId: string | undefined;
+    let assignmentId: string | undefined;
+    try {
+      const role = await owner.tenant.createRole({ tenantId: tenantA, code: "INT_INVITE_ROLE", name: "Integration Invitation Role", productCode: "PROJECT", permissionCodes: ["project.read"] });
+      roleId = role.id;
+      await expect(unassigned.tenant.createInvitation({ tenantId: tenantA, email: "unassigned@test.local", roleId, scopeType: "company" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      await expect(owner.tenant.createInvitation({ tenantId: tenantA, email: "unassigned@test.local", roleId, scopeType: "project", scopeId: projectB })).rejects.toThrow("PROJECT_OS_INVALID_SCOPE");
+      const invitation = await owner.tenant.createInvitation({ tenantId: tenantA, email: "unassigned@test.local", roleId, scopeType: "company" });
+      invitationId = invitation.invitationId;
+      expect(invitation.inviteToken).toHaveLength(43);
+      await expect(owner.tenant.acceptInvitation({ inviteToken: invitation.inviteToken })).rejects.toThrow("PROJECT_OS_INVITATION_EMAIL_MISMATCH");
+      await expect(unassigned.tenant.acceptInvitation({ inviteToken: "x".repeat(32) })).rejects.toThrow("PROJECT_OS_INVITATION_INVALID_OR_EXPIRED");
+      const accepted = await unassigned.tenant.acceptInvitation({ inviteToken: invitation.inviteToken });
+      membershipId = accepted.membershipId;
+      assignmentId = accepted.assignmentId;
+      expect(accepted).toMatchObject({ tenantId: tenantA, membershipId, assignmentId });
+      await expect(unassigned.tenant.acceptInvitation({ inviteToken: invitation.inviteToken })).rejects.toThrow("PROJECT_OS_INVITATION_INVALID_OR_EXPIRED");
+      const [membershipsRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE id = ? AND tenantId = ? AND userId = ? AND status = 'active'", [membershipId, tenantA, unassignedUserId]);
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action IN ('tenant.member_invited','tenant.invitation_accepted')", [tenantA, invitationId]);
+      expect(Number(membershipsRows[0].count)).toBe(1);
+      expect(Number(audits[0].count)).toBe(2);
+    } finally {
+      if (invitationId) await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [invitationId]);
+      if (assignmentId) await connection.query("DELETE FROM membership_roles WHERE id = ?", [assignmentId]);
+      if (membershipId) await connection.query("DELETE FROM memberships WHERE id = ?", [membershipId]);
+      if (invitationId) await connection.query("DELETE FROM membership_invitations WHERE id = ?", [invitationId]);
+      if (roleId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [roleId]);
+        await connection.query("DELETE FROM role_permissions WHERE roleId = ?", [roleId]);
+        await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
+      }
+    }
+  }, 12_000);
+
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
