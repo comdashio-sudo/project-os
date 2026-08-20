@@ -545,6 +545,41 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("enforces the licensed document-storage limit before uploading a document or version and allows them after capacity is restored", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const firstBytes = Buffer.from("12345", "utf8");
+    const secondBytes = Buffer.from("6", "utf8");
+    const blockedNumber = "DOC-STORAGE-BLOCKED";
+    let documentId: string | undefined;
+    let firstVersionId: string | undefined;
+    let secondVersionId: string | undefined;
+    try {
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      expect(licenseRegister.license).toBeTruthy();
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 4 });
+      await expect(caller.documents.createWithVersion({ tenantId: tenantA, projectId: projectA, documentNumber: blockedNumber, title: "Blocked by storage limit", category: "report", originalName: "blocked.txt", mimeType: "text/plain", contentBase64: firstBytes.toString("base64") })).rejects.toThrow("PROJECT_OS_LICENSE_LIMIT_EXCEEDED");
+      const [blockedRows] = await connection.query<{ documents: number; versions: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM project_documents WHERE tenantId = ? AND documentNumber = ?) AS documents, (SELECT COUNT(*) FROM document_versions WHERE tenantId = ? AND projectId = ?) AS versions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'documents.document_created' AND metadata LIKE ?) AS audits", [tenantA, blockedNumber, tenantA, projectA, tenantA, `%${blockedNumber}%`]);
+      expect(blockedRows[0]).toMatchObject({ documents: 0, versions: 0, audits: 0 });
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 5 });
+      const created = await caller.documents.createWithVersion({ tenantId: tenantA, projectId: projectA, documentNumber: "DOC-STORAGE-ALLOWED", title: "Allowed by storage limit", category: "report", originalName: "allowed-v1.txt", mimeType: "text/plain", contentBase64: firstBytes.toString("base64") });
+      documentId = created.id;
+      firstVersionId = created.versionId;
+      await expect(caller.documents.addVersion({ tenantId: tenantA, projectId: projectA, documentId, originalName: "allowed-v2.txt", mimeType: "text/plain", contentBase64: secondBytes.toString("base64") })).rejects.toThrow("PROJECT_OS_LICENSE_LIMIT_EXCEEDED");
+      const [versionBlockedRows] = await connection.query<{ versions: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM document_versions WHERE documentId = ?) AS versions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'documents.version_created' AND entityId NOT IN (?)) AS audits", [documentId, tenantA, firstVersionId]);
+      expect(versionBlockedRows[0]).toMatchObject({ versions: 1, audits: 0 });
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 6 });
+      const second = await caller.documents.addVersion({ tenantId: tenantA, projectId: projectA, documentId, originalName: "allowed-v2.txt", mimeType: "text/plain", contentBase64: secondBytes.toString("base64") });
+      secondVersionId = second.id;
+      const [allowedRows] = await connection.query<{ bytes: number; versions: number; audits: number }[]>("SELECT (SELECT COALESCE(SUM(sizeBytes), 0) FROM document_versions WHERE documentId = ?) AS bytes, (SELECT COUNT(*) FROM document_versions WHERE documentId = ?) AS versions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action IN ('documents.document_created','documents.version_created') AND entityId IN (?, ?, ?)) AS audits", [documentId, documentId, tenantA, documentId, firstVersionId, secondVersionId]);
+      expect({ ...allowedRows[0], bytes: Number(allowedRows[0].bytes) }).toMatchObject({ bytes: 6, versions: 2, audits: 2 });
+    } finally {
+      if (documentId) { await connection.query("DELETE FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?, ?)", [tenantA, documentId, firstVersionId ?? "", secondVersionId ?? ""]); await connection.query("DELETE FROM document_versions WHERE documentId = ?", [documentId]); await connection.query("DELETE FROM project_documents WHERE id = ?", [documentId]); }
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 1_073_741_824 });
+    }
+  }, 15_000);
+
   it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
     await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
     const [licenses] = await connection.query<{ id: string; subscriptionId: string }[]>("SELECT id, subscriptionId FROM tenant_licenses WHERE tenantId = ? ORDER BY createdAt LIMIT 1", [tenantA]);

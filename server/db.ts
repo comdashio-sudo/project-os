@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { createHash, randomBytes } from "node:crypto";
@@ -179,6 +179,7 @@ const defaultCommercialFeatures = [
   { code: "DATA_IMPORT", name: "Data import", productCode: "PROJECT" as ProductCode },
   { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
   { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
+  { code: "STORAGE_BYTES", name: "Document storage bytes", productCode: "PROJECT" as ProductCode },
 ];
 
 async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
@@ -186,7 +187,7 @@ async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType
   await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
   const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));
   const features = await db.select({ id: commercialFeatures.id, code: commercialFeatures.code, productCode: commercialFeatures.productCode }).from(commercialFeatures).where(eq(commercialFeatures.active, true));
-  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : 100 })));
+  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : feature.code === "STORAGE_BYTES" ? 1_073_741_824 : 100 })));
   if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onDuplicateKeyUpdate({ set: { active: true } });
 }
 
@@ -228,6 +229,20 @@ async function assertTenantProjectCapacity(db: DatabaseTransaction, tenantId: st
   if (!entitlement?.active) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
   const currentProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.tenantId, tenantId));
   if (entitlement.limitValue !== null && currentProjects.length >= entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
+}
+
+async function assertTenantDocumentStorageCapacity(db: DatabaseTransaction, tenantId: string, incomingBytes: number): Promise<void> {
+  const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
+  if (!license) return;
+  const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "STORAGE_BYTES"), eq(commercialFeatures.active, true))).limit(1);
+  if (!feature) return;
+  const [override] = await db.select({ active: tenantLicenseFeatureOverrides.active, limitValue: tenantLicenseFeatureOverrides.limitValue }).from(tenantLicenseFeatureOverrides).where(and(eq(tenantLicenseFeatureOverrides.tenantLicenseId, license.id), eq(tenantLicenseFeatureOverrides.featureId, feature.id))).limit(1);
+  const [planFeature] = await db.select({ active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements).where(and(eq(planFeatureEntitlements.planId, license.planId), eq(planFeatureEntitlements.featureId, feature.id))).limit(1);
+  const entitlement = override ?? planFeature;
+  if (!entitlement?.active) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  if (entitlement.limitValue === null) return;
+  const [usage] = await db.select({ totalBytes: sql<number>`coalesce(sum(${documentVersions.sizeBytes}), 0)` }).from(documentVersions).where(eq(documentVersions.tenantId, tenantId));
+  if (Number(usage?.totalBytes ?? 0) + incomingBytes > entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
 }
 
 export async function getCommercialCatalogForAdministrator(input: { userId: number }) {
@@ -952,8 +967,10 @@ export async function createProjectDocumentWithVersion(input: { userId: number; 
   const documentId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
   const checksumSha256 = createHash("sha256").update(content).digest("hex");
-  const { key } = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${documentId}/v1/${documentStorageName(input.originalName)}`, content, input.mimeType);
+  let key = "";
   await db.transaction(async tx => {
+    await assertTenantDocumentStorageCapacity(tx, input.tenantId, content.length);
+    key = (await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${documentId}/v1/${documentStorageName(input.originalName)}`, content, input.mimeType)).key;
     await tx.insert(projectDocuments).values({ id: documentId, tenantId: input.tenantId, projectId: input.projectId, documentNumber: input.documentNumber, title: input.title, category: input.category, createdByUserId: input.userId });
     await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId, versionNumber: 1, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.document_created", entityType: "project_document", entityId: documentId, metadata: JSON.stringify({ projectId: input.projectId, versionId, versionNumber: 1, documentNumber: input.documentNumber, checksumSha256 }) });
@@ -975,8 +992,10 @@ export async function addProjectDocumentVersion(input: { userId: number; tenantI
   const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
   const versionId = crypto.randomUUID();
   const checksumSha256 = createHash("sha256").update(content).digest("hex");
-  const { key } = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${input.documentId}/v${versionNumber}/${documentStorageName(input.originalName)}`, content, input.mimeType);
+  let key = "";
   await db.transaction(async tx => {
+    await assertTenantDocumentStorageCapacity(tx, input.tenantId, content.length);
+    key = (await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/documents/${input.documentId}/v${versionNumber}/${documentStorageName(input.originalName)}`, content, input.mimeType)).key;
     await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId: input.documentId, versionNumber, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.version_created", entityType: "document_version", entityId: versionId, metadata: JSON.stringify({ projectId: input.projectId, documentId: input.documentId, versionNumber, checksumSha256 }) });
   });

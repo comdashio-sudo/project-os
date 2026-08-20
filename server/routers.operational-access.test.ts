@@ -356,7 +356,7 @@ describe("operational API authorization", () => {
   });
 
   it("creates an authorized project document and first version with audit evidence in one transaction", async () => {
-    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    const transactionDouble = { select: vi.fn(() => queryResult([])), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
     databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
       const keys = Object.keys(selection).sort().join(",");
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
@@ -376,7 +376,7 @@ describe("operational API authorization", () => {
   });
 
   it("adds an authorized successive document version with audit evidence in one transaction", async () => {
-    const transactionDouble = { insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
+    const transactionDouble = { select: vi.fn(() => queryResult([])), insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })) };
     let idSelectionCount = 0;
     databaseDouble.select.mockImplementation((selection: Record<string, unknown>) => {
       const keys = Object.keys(selection).sort().join(",");
