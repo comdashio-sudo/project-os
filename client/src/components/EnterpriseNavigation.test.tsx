@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EnterpriseNavigation } from "./EnterpriseNavigation";
@@ -78,6 +78,7 @@ describe("EnterpriseNavigation", () => {
     const workspace = screen.getByRole("link", { name: "Workspace" });
     const notificationMenu = screen.getByLabelText("Notifications");
     const userMenu = screen.getByLabelText("User menu");
+    const navigationToggle = screen.getByRole("button", { name: "Open navigation" });
     const executive = screen.getByRole("link", { name: "Executive" });
     const pmo = screen.getByRole("link", { name: "PMO" });
     const projects = screen.getByRole("link", { name: "Project registry" });
@@ -92,10 +93,31 @@ describe("EnterpriseNavigation", () => {
     await user.tab();
     expect(document.activeElement).toBe(userMenu);
     await user.tab();
+    expect(document.activeElement).toBe(navigationToggle);
+    await user.tab();
     expect(document.activeElement).toBe(executive);
     await user.tab();
     expect(document.activeElement).toBe(pmo);
     await user.tab();
     expect(document.activeElement).toBe(projects);
+  });
+
+  it("opens a searchable sidebar that filters only server-authorized modules", async () => {
+    const user = userEvent.setup();
+    document.body.innerHTML = "";
+    state.isArabic = false; notificationState.data = [];
+    state.items = [
+      { id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t" },
+      { id: "projects", labelKey: "navigation.projectRegistry", href: "/projects/t" },
+    ];
+    render(<EnterpriseNavigation tenantId="t" context="administration" />);
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    const sidebar = screen.getByRole("complementary", { name: "Module navigation" });
+    expect(within(sidebar).getByRole("link", { name: "Executive" })).toBeTruthy();
+    expect(within(sidebar).getByRole("link", { name: "Project registry" })).toBeTruthy();
+    await user.type(within(sidebar).getByRole("textbox", { name: "Search authorized modules" }), "project");
+    expect(within(sidebar).queryByRole("link", { name: "Executive" })).toBeNull();
+    expect(within(sidebar).getByRole("link", { name: "Project registry" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
   });
 });
