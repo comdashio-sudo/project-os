@@ -233,6 +233,43 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("creates an isolated tenant with subscription, owner access, audit evidence, and cleanup", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(ownerContext);
+    let createdTenantId: string | undefined;
+    let subscriptionId: string | undefined;
+    try {
+      const created = await caller.tenant.create({ legalName: "Integration Created Tenant", slug: "integration-created-tenant", packageCode: "ALL-IN-ONE" });
+      createdTenantId = created.tenantId;
+      subscriptionId = created.subscriptionId;
+      const mine = await caller.tenant.mine();
+      expect(mine).toEqual(expect.arrayContaining([expect.objectContaining({ tenantId: createdTenantId, legalName: "Integration Created Tenant", products: expect.arrayContaining(["EXECUTIVE", "PMO", "PROJECT"]) })]));
+      const [subscriptionsRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM subscriptions WHERE id = ? AND tenantId = ? AND packageCode = 'ALL-IN-ONE' AND status = 'active'", [subscriptionId, createdTenantId]);
+      const [entitlementsRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM tenant_entitlements WHERE tenantId = ? AND subscriptionId = ? AND active = TRUE", [createdTenantId, subscriptionId]);
+      const [membershipRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE tenantId = ? AND userId = ? AND status = 'active'", [createdTenantId, integrationUserId]);
+      const [roleRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM roles WHERE tenantId = ? AND code = 'TENANT_OWNER' AND systemManaged = TRUE", [createdTenantId]);
+      const [assignmentRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ? AND mr.scopeType = 'company' AND mr.scopeId IS NULL", [createdTenantId]);
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'tenant.created'", [createdTenantId, createdTenantId]);
+      expect(Number(subscriptionsRows[0].count)).toBe(1);
+      expect(Number(entitlementsRows[0].count)).toBe(3);
+      expect(Number(membershipRows[0].count)).toBe(1);
+      expect(Number(roleRows[0].count)).toBe(1);
+      expect(Number(assignmentRows[0].count)).toBe(1);
+      expect(Number(audits[0].count)).toBe(1);
+    } finally {
+      if (createdTenantId) {
+        await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [createdTenantId]);
+        await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [createdTenantId]);
+        await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [createdTenantId]);
+        await connection.query("DELETE FROM roles WHERE tenantId = ?", [createdTenantId]);
+        await connection.query("DELETE FROM memberships WHERE tenantId = ?", [createdTenantId]);
+        await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [createdTenantId]);
+        if (subscriptionId) await connection.query("DELETE FROM subscriptions WHERE id = ?", [subscriptionId]);
+        await connection.query("DELETE FROM companies WHERE id = ?", [createdTenantId]);
+      }
+    }
+  }, 12_000);
+
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
