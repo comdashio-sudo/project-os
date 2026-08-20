@@ -520,6 +520,31 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("enforces the licensed project limit before project creation and allows a governed project after capacity is restored", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    let projectId: string | undefined;
+    const limitedCode = "PRJ-LIMIT-BLOCKED";
+    const allowedCode = "PRJ-LIMIT-ALLOWED";
+    try {
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      expect(licenseRegister.license).toBeTruthy();
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "PROJECT_LIMIT", active: true, limitValue: 1 });
+      await expect(caller.projects.create({ tenantId: tenantA, code: limitedCode, name: "Blocked by project limit", projectType: "Infrastructure", currency: "USD" })).rejects.toThrow("PROJECT_OS_LICENSE_LIMIT_EXCEEDED");
+      const [blockedRows] = await connection.query<{ projects: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM projects WHERE tenantId = ? AND code = ?) AS projects, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'project.created' AND metadata LIKE ?) AS audits", [tenantA, limitedCode, tenantA, `%${limitedCode}%`]);
+      expect(blockedRows[0]).toMatchObject({ projects: 0, audits: 0 });
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "PROJECT_LIMIT", active: true, limitValue: 2 });
+      const created = await caller.projects.create({ tenantId: tenantA, code: allowedCode, name: "Allowed by project limit", projectType: "Infrastructure", currency: "USD" });
+      projectId = created.id;
+      const [allowedRows] = await connection.query<{ projects: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM projects WHERE id = ? AND tenantId = ? AND code = ?) AS projects, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'project.created') AS audits", [projectId, tenantA, allowedCode, projectId]);
+      expect(allowedRows[0]).toMatchObject({ projects: 1, audits: 1 });
+    } finally {
+      if (projectId) { await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [projectId]); await connection.query("DELETE FROM projects WHERE id = ?", [projectId]); }
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "PROJECT_LIMIT", active: true, limitValue: 20 });
+    }
+  }, 12_000);
+
   it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
     await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
     const [licenses] = await connection.query<{ id: string; subscriptionId: string }[]>("SELECT id, subscriptionId FROM tenant_licenses WHERE tenantId = ? ORDER BY createdAt LIMIT 1", [tenantA]);

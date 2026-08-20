@@ -178,6 +178,7 @@ const defaultCommercialFeatures = [
   { code: "MASTER_PLAN_ENTITIES", name: "Master Plan spatial entities", productCode: "PROJECT" as ProductCode },
   { code: "DATA_IMPORT", name: "Data import", productCode: "PROJECT" as ProductCode },
   { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
+  { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
 ];
 
 async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
@@ -185,7 +186,7 @@ async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType
   await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
   const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));
   const features = await db.select({ id: commercialFeatures.id, code: commercialFeatures.code, productCode: commercialFeatures.productCode }).from(commercialFeatures).where(eq(commercialFeatures.active, true));
-  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : 100 })));
+  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : 100 })));
   if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onDuplicateKeyUpdate({ set: { active: true } });
 }
 
@@ -214,6 +215,19 @@ async function assertTenantSeatAvailability(db: DatabaseTransaction, tenantId: s
   const pendingInvitations = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.tenantId, tenantId), eq(membershipInvitations.status, "pending")));
   const reservedSeats = occupiedMemberships.length + pendingInvitations.length;
   if (mode === "reserve" ? reservedSeats >= license.seats : reservedSeats > license.seats) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED" });
+}
+
+async function assertTenantProjectCapacity(db: DatabaseTransaction, tenantId: string): Promise<void> {
+  const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
+  if (!license) return;
+  const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "PROJECT_LIMIT"), eq(commercialFeatures.active, true))).limit(1);
+  if (!feature) return;
+  const [override] = await db.select({ active: tenantLicenseFeatureOverrides.active, limitValue: tenantLicenseFeatureOverrides.limitValue }).from(tenantLicenseFeatureOverrides).where(and(eq(tenantLicenseFeatureOverrides.tenantLicenseId, license.id), eq(tenantLicenseFeatureOverrides.featureId, feature.id))).limit(1);
+  const [planFeature] = await db.select({ active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements).where(and(eq(planFeatureEntitlements.planId, license.planId), eq(planFeatureEntitlements.featureId, feature.id))).limit(1);
+  const entitlement = override ?? planFeature;
+  if (!entitlement?.active) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  const currentProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.tenantId, tenantId));
+  if (entitlement.limitValue !== null && currentProjects.length >= entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
 }
 
 export async function getCommercialCatalogForAdministrator(input: { userId: number }) {
@@ -647,8 +661,10 @@ export async function createProjectForTenant(input: {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write" });
+  await ensureDefaultCommercialCatalog(db);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
+    await assertTenantProjectCapacity(tx, input.tenantId);
     await tx.insert(projects).values({ id, tenantId: input.tenantId, code: input.code, name: input.name, projectType: input.projectType, currency: input.currency, status: "draft" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.created", entityType: "project", entityId: id, metadata: JSON.stringify({ code: input.code, projectType: input.projectType }) });
   });
