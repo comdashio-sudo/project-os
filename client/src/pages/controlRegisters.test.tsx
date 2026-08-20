@@ -85,6 +85,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <span>Language toggle</span> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, isArabic: boolean) => isArabic ? "خطأ موضّع" : "Localized error" }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: null, logout: vi.fn(), loading: false }) }));
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),
