@@ -31,4 +31,21 @@ describe("project error map", () => {
       },
     });
   });
+
+  it("returns Arabic and English guidance for guarded membership-status transitions", () => {
+    expect(getProjectError("PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID")).toEqual({
+      code: "PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID",
+      messages: {
+        ar: "انتقال حالة العضوية المطلوب غير مسموح.",
+        en: "The requested membership status transition is not allowed.",
+      },
+    });
+    expect(getProjectError("PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN")).toEqual({
+      code: "PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN",
+      messages: {
+        ar: "لا يمكن تعطيل آخر مالك نشط للمؤسسة.",
+        en: "The last active tenant owner cannot be deactivated.",
+      },
+    });
+  });
 });

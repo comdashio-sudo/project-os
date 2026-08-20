@@ -36,6 +36,14 @@ export const projectErrorMessages = {
     ar: "لا يمكنك تعديل عضويتك أو امتيازاتك من خلال هذا المسار.",
     en: "You cannot change your own membership or privileges through this path.",
   },
+  PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID: {
+    ar: "انتقال حالة العضوية المطلوب غير مسموح.",
+    en: "The requested membership status transition is not allowed.",
+  },
+  PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN: {
+    ar: "لا يمكن تعطيل آخر مالك نشط للمؤسسة.",
+    en: "The last active tenant owner cannot be deactivated.",
+  },
   PROJECT_OS_INVALID_SCOPE: {
     ar: "حدد نطاقًا صالحًا للدور المطلوب إسناده.",
     en: "Select a valid scope for the role assignment.",

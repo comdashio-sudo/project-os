@@ -496,6 +496,44 @@ export async function revokeTenantMembershipRole(input: { actorUserId: number; t
   return { assignmentId: assignment.assignmentId, membershipId: assignment.membershipId };
 }
 
+export async function transitionTenantMembershipStatus(input: { actorUserId: number; tenantId: string; membershipId: string; nextStatus: "active" | "suspended" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.actorUserId, input.tenantId);
+  const [membership] = await db
+    .select({ id: memberships.id, tenantId: memberships.tenantId, userId: memberships.userId, status: memberships.status })
+    .from(memberships)
+    .where(eq(memberships.id, input.membershipId))
+    .limit(1);
+  if (!membership || membership.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MEMBER_NOT_FOUND" });
+  if (membership.userId === input.actorUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
+  if (input.nextStatus === "suspended" && membership.status !== "active") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID" });
+  if (input.nextStatus === "active" && membership.status !== "suspended") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID" });
+  if (input.nextStatus === "suspended") {
+    const [ownerRole] = await db
+      .select({ id: membershipRoles.id })
+      .from(membershipRoles)
+      .innerJoin(roles, eq(membershipRoles.roleId, roles.id))
+      .where(and(eq(membershipRoles.membershipId, membership.id), eq(roles.code, "TENANT_OWNER")))
+      .limit(1);
+    if (ownerRole) {
+      const activeOwners = await db
+        .select({ id: memberships.id })
+        .from(memberships)
+        .innerJoin(membershipRoles, eq(memberships.id, membershipRoles.membershipId))
+        .innerJoin(roles, eq(membershipRoles.roleId, roles.id))
+        .where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"), eq(roles.code, "TENANT_OWNER")));
+      if (activeOwners.length <= 1) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN" });
+    }
+  }
+  await db.transaction(async tx => {
+    if (input.nextStatus === "active") await assertTenantSeatAvailability(tx, input.tenantId, "reserve");
+    await tx.update(memberships).set({ status: input.nextStatus }).where(eq(memberships.id, membership.id));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.membership_status_changed", entityType: "membership", entityId: membership.id, metadata: JSON.stringify({ targetUserId: membership.userId, fromStatus: membership.status, nextStatus: input.nextStatus }) });
+  });
+  return { membershipId: membership.id, status: input.nextStatus };
+}
+
 export async function assignTenantMember(input: { actorUserId: number; tenantId: string; targetUserId: number; roleId: string; scopeType: "company" | "portfolio" | "program" | "project"; scopeId?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");

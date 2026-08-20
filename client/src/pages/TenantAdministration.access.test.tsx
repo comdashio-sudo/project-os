@@ -25,6 +25,7 @@ vi.mock("@/lib/trpc", () => {
       assignMembershipRole: { useMutation: mutation },
       revokeMembershipRole: { useMutation: mutation },
       createInvitation: { useMutation: mutation },
+      transitionMembershipStatus: { useMutation: mutation },
     },
   } };
 });

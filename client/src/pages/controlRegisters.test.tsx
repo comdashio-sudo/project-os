@@ -195,6 +195,7 @@ vi.mock("@/lib/trpc", () => ({
       createInvitation: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantInvitationError, data: null }) },
       assignMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantExistingRoleAssignmentError, isSuccess: state.tenantExistingRoleAssignmentSuccess }) },
       revokeMembershipRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleRevocationError, isSuccess: state.tenantRoleRevocationSuccess }) },
+      transitionMembershipStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) },
     },
     pmo: {
       createPortfolio: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.pmoPortfolioError, isSuccess: state.pmoPortfolioSuccess }) },

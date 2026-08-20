@@ -268,6 +268,48 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("governs tenant membership suspension and reactivation with scope, self-protection, and audit evidence", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const target = appRouter.createCaller(unassignedContext);
+    let roleId: string | undefined;
+    let invitationId: string | undefined;
+    let membershipId: string | undefined;
+    let assignmentId: string | undefined;
+    try {
+      const [managerPermissions] = await connection.query<{ productCode: "EXECUTIVE" | "PMO" | "PROJECT" }[]>("SELECT productCode FROM permissions WHERE code = 'tenant.manage' LIMIT 1");
+      if (!managerPermissions[0]) throw new Error("Integration tenant.manage permission is required");
+      const role = await owner.tenant.createRole({ tenantId: tenantA, code: "INT_STATUS_MANAGER", name: "Integration Status Manager", productCode: managerPermissions[0].productCode, permissionCodes: ["tenant.manage"] });
+      roleId = role.id;
+      const invitation = await owner.tenant.createInvitation({ tenantId: tenantA, email: "unassigned@test.local", roleId, scopeType: "company" });
+      invitationId = invitation.invitationId;
+      const accepted = await target.tenant.acceptInvitation({ inviteToken: invitation.inviteToken });
+      membershipId = accepted.membershipId;
+      assignmentId = accepted.assignmentId;
+      await expect(target.tenant.transitionMembershipStatus({ tenantId: tenantA, membershipId, nextStatus: "suspended" })).rejects.toThrow("PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN");
+      await expect(owner.tenant.transitionMembershipStatus({ tenantId: tenantB, membershipId, nextStatus: "suspended" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      await expect(owner.tenant.transitionMembershipStatus({ tenantId: tenantA, membershipId, nextStatus: "suspended" })).resolves.toMatchObject({ membershipId, status: "suspended" });
+      const [suspendedRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE id = ? AND tenantId = ? AND status = 'suspended'", [membershipId, tenantA]);
+      expect(Number(suspendedRows[0].count)).toBe(1);
+      await expect(owner.tenant.transitionMembershipStatus({ tenantId: tenantA, membershipId, nextStatus: "suspended" })).rejects.toThrow("PROJECT_OS_MEMBERSHIP_STATUS_TRANSITION_INVALID");
+      await expect(owner.tenant.transitionMembershipStatus({ tenantId: tenantA, membershipId, nextStatus: "active" })).resolves.toMatchObject({ membershipId, status: "active" });
+      const [activeRows] = await connection.query<{ status: string; audits: number }[]>("SELECT m.status, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'tenant.membership_status_changed') AS audits FROM memberships m WHERE m.id = ?", [tenantA, membershipId, membershipId]);
+      expect(activeRows[0]).toMatchObject({ status: "active", audits: 2 });
+    } finally {
+      if (membershipId) await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [membershipId]);
+      if (invitationId) await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [invitationId]);
+      if (assignmentId) await connection.query("DELETE FROM membership_roles WHERE id = ?", [assignmentId]);
+      if (membershipId) await connection.query("DELETE FROM memberships WHERE id = ?", [membershipId]);
+      if (invitationId) await connection.query("DELETE FROM membership_invitations WHERE id = ?", [invitationId]);
+      if (roleId) {
+        await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [roleId]);
+        await connection.query("DELETE FROM role_permissions WHERE roleId = ?", [roleId]);
+        await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
+      }
+    }
+  }, 12_000);
+
   it("creates an isolated tenant with subscription, owner access, audit evidence, and cleanup", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(ownerContext);
