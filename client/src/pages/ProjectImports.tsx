@@ -77,6 +77,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         templateNote: "القالب يحتوي الأعمدة المعتمدة فقط. يمكنك إضافة صفوف بيانات بعد الصف الأول دون تغيير العناوين.",
         requiredColumns: "الأعمدة المطلوبة",
         accepted: "الملفات المعتمدة: XLSX أو CSV فقط، حتى 10 MB.",
+        fileRules: "ملف واحد، ورقة واحدة، ونوع بيانات واحد. يرفض النظام أي عمود غير معتمد أو رمز مكرر داخل الملف.",
         noFile: "اختر ملفًا قبل التحليل.",
         typeError: "يُقبل فقط ملف XLSX أو CSV.",
         sizeError: "حجم الملف أكبر من الحد المسموح به وهو 10 MB.",
@@ -118,6 +119,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         templateNote: "The template contains only approved columns. Add data rows below the header without changing column names.",
         requiredColumns: "Required columns",
         accepted: "Accepted files: XLSX or CSV only, up to 10 MB.",
+        fileRules: "One file, one sheet, and one data type. The system rejects unapproved columns and repeated keys inside the file.",
         noFile: "Choose a file before analysis.",
         typeError: "Only XLSX or CSV files are accepted.",
         sizeError: "The file exceeds the 10 MB limit.",
@@ -145,12 +147,18 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   };
   const analysisHeaders = analyze.data?.headers ?? [];
   const selected = detail.data;
+  const importErrorLabel = (code: string) => ({
+    IMPORT_SINGLE_SHEET_REQUIRED: isArabic ? "يجب أن يحتوي الملف على ورقة عمل واحدة فقط." : "The file must contain exactly one worksheet.",
+    IMPORT_UNSUPPORTED_COLUMN: isArabic ? "يوجد عمود غير معتمد لنوع البيانات المحدد." : "The file includes a column not approved for the selected data type.",
+    IMPORT_DUPLICATE_FILE_KEY: isArabic ? "يوجد رمز مكرر داخل الملف. صحح التكرار قبل التحليل." : "A business key is repeated inside the file. Correct the duplicate before analysis.",
+    IMPORT_MAPPING_INVALID: isArabic ? "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد." : "A file column cannot be assigned to more than one approved field.",
+  }[code] ?? code);
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] bg-[var(--dashio-indigo)]/10 text-primary"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 className="font-semibold">{t.title}</h2><p className="mt-1 text-xs text-muted-foreground">{t.note}</p></div></div><span className="rounded-full bg-[var(--dashio-aqua)]/10 px-3 py-1 text-xs font-semibold text-[var(--dashio-aqua-deep)]">{t.workflow}</span></div>
       <div className="mt-5 grid gap-3 md:grid-cols-3"><Step icon={ListChecks} number="1" title={t.step1} /><Step icon={Upload} number="2" title={t.step2} /><Step icon={BadgeCheck} number="3" title={t.step3} /></div>
-      <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/[.07] p-4 text-sm text-foreground"><p className="font-semibold">{t.instructions}</p><p className="mt-2 text-xs text-muted-foreground">{t.accepted}</p></div>
+      <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/[.07] p-4 text-sm text-foreground"><p className="font-semibold">{t.instructions}</p><p className="mt-2 text-xs text-muted-foreground">{t.accepted}</p><p className="mt-1 text-xs font-medium text-foreground">{t.fileRules}</p></div>
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p></div><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept=".xlsx,.csv" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={analyze.isPending} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}</div></div>
       {localError && <p role="alert" className="mt-3 text-xs text-red-700">{localError}</p>}
       {analyze.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(analyze.error, isArabic)}</p>}
@@ -158,6 +166,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         <p>{t.rows}: {analyze.data.totalRows}</p>
         <p>{t.errors}: {analyze.data.errors.length}</p>
         {Object.keys(analyze.data.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(analyze.data.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {header}</li>)}</ul></div>}
+        {analyze.data.errors.length > 0 && <div className="mt-3 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold">{t.errors}</p><ul className="mt-1 space-y-1">{analyze.data.errors.map((error, index) => <li key={`${error.code}-${error.field ?? ""}-${index}`}>{importErrorLabel(error.code)}{error.field ? ` (${error.field})` : ""}</li>)}</ul></div>}
         {analyze.data.errors.length > 0 && analysisHeaders.length > 0 && <div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(current => ({ ...current, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{analysisHeaders.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: analyze.data!.id, mappingOverride })}>{t.reanalyze}</Button></div>}
         {analyze.data.status === "validated" && !analyze.data.errors.length ? <Button className="mt-3" type="button" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: analyze.data!.id })}>{t.confirm}</Button> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
       </div>}

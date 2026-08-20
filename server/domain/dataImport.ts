@@ -109,6 +109,7 @@ export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "cs
 
 export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
   const workbook = XLSX.read(input.bytes, { type: "array" });
+  if (workbook.SheetNames.length !== 1) return { sheetNames: workbook.SheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
 
@@ -123,15 +124,19 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
   const permittedFields = new Set(templates[input.moduleCode].map(field => field.key));
   const requestedMapping = Object.entries(input.mappingOverride ?? {}).filter(([field, header]) => permittedFields.has(field) && headers.includes(header));
   const mapping = { ...inferredMapping, ...Object.fromEntries(requestedMapping) };
+  const knownHeaders = new Set(templates[input.moduleCode].flatMap(field => field.aliases));
+  const explicitlyMappedHeaders = new Set(requestedMapping.map(([, header]) => header));
   const errors: ImportError[] = Object.values(Object.fromEntries(requestedMapping)).length !== new Set(requestedMapping.map(([, header]) => header)).size
     ? [{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID" }]
     : [];
+  errors.push(...headers.filter(header => !knownHeaders.has(normalize(header)) && !explicitlyMappedHeaders.has(header)).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header })));
   errors.push(...templates[input.moduleCode]
     .filter(field => field.required && !mapping[field.key])
     .map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })));
   const validRows: ValidatedImportRow[] = [];
 
   if (!errors.length) {
+    const fileKeys = new Set<string>();
     rows.forEach((row, index) => {
       const rowNumber = index + 2;
       if (input.moduleCode === "wbs") {
@@ -141,7 +146,8 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
         if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" });
         if (!name) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "name" });
         if (plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" });
-        if (code && name && plannedValue !== undefined) validRows.push({ rowNumber, values: { code, name, plannedValue } });
+        if (code && fileKeys.has(code)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" });
+        if (code && name && plannedValue !== undefined && !fileKeys.has(code)) { fileKeys.add(code); validRows.push({ rowNumber, values: { code, name, plannedValue } }); }
         return;
       }
 
@@ -151,7 +157,8 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
       if (!costCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" });
       if (originalAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "originalAmount" });
       if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
-      if (costCode && originalAmount !== undefined && currentAmount !== undefined) validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } });
+      if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
+      if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
     });
   }
 

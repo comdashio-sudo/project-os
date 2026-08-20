@@ -25,6 +25,19 @@ describe("analyzeImportFile", () => {
     expect(result.validRows).toEqual([{ rowNumber: 2, values: { costCode: "CIVIL", originalAmount: 10, currentAmount: 15 } }]);
     expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 3, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" })]));
   });
+  it("rejects a workbook with multiple sheets or unapproved extra columns before confirmation", () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ "WBS Code": "1.0", "WBS Name": "Civil" }]), "WBS");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ "WBS Code": "2.0", "WBS Name": "MEP" }]), "Second");
+    expect(analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer) }).errors).toContainEqual({ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" });
+    const extraColumn = analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "WBS Code": "1.0", "WBS Name": "Civil", Notes: "Do not import" }])) });
+    expect(extraColumn.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: "Notes" });
+  });
+  it("rejects repeated business keys inside the same file instead of choosing a row silently", () => {
+    const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10, "Current Amount": 12 }, { "Cost Code": "CIVIL", "Original Amount": 20, "Current Amount": 25 }])) });
+    expect(result.errors).toContainEqual({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
+    expect(result.validRows).toHaveLength(1);
+  });
   it("builds localized CSV headers without exposing unrequested columns", () => {
     const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] });
     const csv = result.bytes.toString("utf8");
