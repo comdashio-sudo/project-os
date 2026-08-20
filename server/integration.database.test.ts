@@ -270,6 +270,41 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 12_000);
 
+  it("governs document creation and versioning with isolation, storage evidence, and audit cleanup", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(ownerContext);
+    const firstContent = Buffer.from("PROJECT OS integration document version one", "utf8").toString("base64");
+    const secondContent = Buffer.from("PROJECT OS integration document version two", "utf8").toString("base64");
+    let documentId: string | undefined;
+    let firstVersionId: string | undefined;
+    let secondVersionId: string | undefined;
+    try {
+      const createInput = { documentNumber: "DOC-INTEGRATION-TRPC", title: "Integration governed document", category: "report" as const, originalName: "integration-v1.txt", mimeType: "text/plain", contentBase64: firstContent };
+      await expect(caller.documents.createWithVersion({ tenantId: tenantA, projectId: projectB, ...createInput })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      const created = await caller.documents.createWithVersion({ tenantId: tenantA, projectId: projectA, ...createInput });
+      documentId = created.id;
+      firstVersionId = created.versionId;
+      expect(created).toMatchObject({ id: documentId, versionId: firstVersionId, versionNumber: 1 });
+      await expect(caller.documents.addVersion({ tenantId: tenantA, projectId: projectB, documentId, originalName: "integration-v2.txt", mimeType: "text/plain", contentBase64: secondContent })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      const second = await caller.documents.addVersion({ tenantId: tenantA, projectId: projectA, documentId, originalName: "integration-v2.txt", mimeType: "text/plain", contentBase64: secondContent });
+      secondVersionId = second.id;
+      expect(second).toMatchObject({ documentId, versionNumber: 2 });
+      const register = await caller.documents.getProjectRegister({ tenantId: tenantA, projectId: projectA });
+      expect(register.documents).toEqual(expect.arrayContaining([expect.objectContaining({ id: documentId, documentNumber: "DOC-INTEGRATION-TRPC" })]));
+      expect(register.versions).toEqual(expect.arrayContaining([expect.objectContaining({ id: firstVersionId, documentId, versionNumber: 1 }), expect.objectContaining({ id: secondVersionId, documentId, versionNumber: 2 })]));
+      const [versionsRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM document_versions WHERE documentId = ? AND tenantId = ? AND projectId = ? AND storageKey LIKE ?", [documentId, tenantA, projectA, `tenants/${tenantA}/projects/${projectA}/documents/${documentId}/%`]);
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action IN ('documents.document_created','documents.version_created') AND entityId IN (?, ?, ?)", [tenantA, documentId, firstVersionId, secondVersionId]);
+      expect(Number(versionsRows[0].count)).toBe(2);
+      expect(Number(audits[0].count)).toBe(2);
+    } finally {
+      if (documentId) {
+        await connection.query("DELETE FROM audit_logs WHERE tenantId = ? AND (entityId = ? OR entityId = ? OR entityId = ?)", [tenantA, documentId, firstVersionId ?? "", secondVersionId ?? ""]);
+        await connection.query("DELETE FROM document_versions WHERE documentId = ?", [documentId]);
+        await connection.query("DELETE FROM project_documents WHERE id = ?", [documentId]);
+      }
+    }
+  }, 15_000);
+
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
