@@ -64,6 +64,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM project_documents WHERE id = ?", [documentA]);
     await connection.query("DELETE FROM change_requests WHERE changeNumber = 'CHANGE-TRPC'");
     await connection.query("DELETE FROM claims WHERE claimNumber = 'CLAIM-TRPC'");
+    await connection.query("CREATE TABLE IF NOT EXISTS master_plan_snapshots (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `masterPlanVersionId` varchar(36) NOT NULL, `label` varchar(160) NOT NULL, `metric` enum('progress','status','cost','risk','quality','hse','production','custom') NOT NULL, `filtersJson` text NOT NULL, `viewportJson` text NOT NULL, `layersJson` text NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), KEY `master_plan_snapshots_tenant_project_version_creator_idx` (`tenantId`,`projectId`,`masterPlanVersionId`,`createdByUserId`,`createdAt`), CONSTRAINT `mps_tenant_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `mps_project_fk` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`), CONSTRAINT `mps_plan_version_fk` FOREIGN KEY (`masterPlanVersionId`) REFERENCES `master_plan_versions`(`id`), CONSTRAINT `mps_creator_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
+    await connection.query("DELETE FROM master_plan_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plan_spatial_entities WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plan_versions WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plans WHERE projectId IN (?, ?)", [projectA, projectB]);
@@ -152,6 +154,22 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(items.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-registry", "tenant-administration", "project-controls"]));
     expect(items.map(item => item.id)).not.toContain("pmo-dashboard");
     await expect(caller.navigation.get({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+  });
+
+  it("isolates Master Plan snapshots by tenant, project, version, and creator while preserving a recoverable view", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    try {
+      const plan = await caller.masterPlans.create({ tenantId: tenantA, projectId: projectA, code: "MP-SNAPSHOT", title: "Snapshot master plan" });
+      await expect(caller.masterPlans.createSnapshot({ tenantId: tenantA, projectId: projectB, masterPlanVersionId: plan.versionId, label: "Foreign view", metric: "progress", filters: {}, viewport: { x: 0, y: 0, zoom: 1 }, layers: ["entities"] })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      const created = await caller.masterPlans.createSnapshot({ tenantId: tenantA, projectId: projectA, masterPlanVersionId: plan.versionId, label: "Weekly delivery view", metric: "cost", filters: { status: ["in_progress"], search: "ZONE", wbsItemId: "00000000-0000-4000-8000-0000000000a4" }, viewport: { x: -10, y: 10, zoom: 1.25 }, layers: ["source", "entities"] });
+      const snapshots = await caller.masterPlans.listSnapshots({ tenantId: tenantA, projectId: projectA, masterPlanVersionId: plan.versionId });
+      expect(snapshots).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.id, label: "Weekly delivery view", metric: "cost", filters: { status: ["in_progress"], search: "ZONE", wbsItemId: "00000000-0000-4000-8000-0000000000a4" }, viewport: { x: -10, y: 10, zoom: 1.25 }, layers: ["source", "entities"] })]));
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'master_plans.snapshot_created' AND entityId = ?", [tenantA, created.id]);
+      expect(Number(audits[0].count)).toBe(1);
+    } finally {
+      await connection.query("DELETE FROM master_plan_snapshots WHERE tenantId = ?", [tenantA]);
+    }
   });
 
   it("governs tenant role and membership administration with scope and self-privilege guards", async () => {

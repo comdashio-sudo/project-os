@@ -43,6 +43,7 @@ import {
   documentVersions,
   masterPlans,
   masterPlanVersions,
+  masterPlanSnapshots,
   masterPlanSpatialEntities,
   dataImportErrors,
   dataImportRowResults,
@@ -1038,6 +1039,9 @@ type MasterPlanVersionKind = "original" | "revision" | "updated";
 type MasterPlanEntityType = "block" | "building" | "zone" | "unit" | "area";
 type MasterPlanEntityStatus = "not_started" | "in_progress" | "completed" | "blocked";
 type MasterPlanGeometry = { x: number; y: number; width: number; height: number };
+type MasterPlanSnapshotMetric = "progress" | "status" | "cost" | "risk" | "quality" | "hse" | "production" | "custom";
+type MasterPlanSnapshotFilters = { status?: MasterPlanEntityStatus[]; entityTypes?: MasterPlanEntityType[]; codes?: string[]; search?: string; wbsItemId?: string; activityId?: string };
+type MasterPlanSnapshotViewport = { x: number; y: number; zoom: number };
 
 function normalizeMasterPlanGeometry(geometry: MasterPlanGeometry) {
   const values = [geometry.x, geometry.y, geometry.width, geometry.height];
@@ -1057,6 +1061,27 @@ export async function getMasterPlansForTenant(input: { userId: number; tenantId:
   ]);
   const visibleVersions = await Promise.all(versions.map(async ({ storageKey, ...version }) => ({ ...version, sourceUrl: storageKey ? await storageGetSignedUrl(storageKey).catch(() => null) : null })));
   return { plans, versions: visibleVersions, entities };
+}
+
+export async function getMasterPlanSnapshotsForTenant(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  if (input.masterPlanVersionId) { const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" }); }
+  const rows = await db.select({ id: masterPlanSnapshots.id, masterPlanVersionId: masterPlanSnapshots.masterPlanVersionId, label: masterPlanSnapshots.label, metric: masterPlanSnapshots.metric, filtersJson: masterPlanSnapshots.filtersJson, viewportJson: masterPlanSnapshots.viewportJson, layersJson: masterPlanSnapshots.layersJson, createdAt: masterPlanSnapshots.createdAt }).from(masterPlanSnapshots).where(and(eq(masterPlanSnapshots.tenantId, input.tenantId), eq(masterPlanSnapshots.projectId, input.projectId), eq(masterPlanSnapshots.createdByUserId, input.userId), ...(input.masterPlanVersionId ? [eq(masterPlanSnapshots.masterPlanVersionId, input.masterPlanVersionId)] : []))).orderBy(desc(masterPlanSnapshots.createdAt));
+  return rows.map(row => ({ ...row, filters: JSON.parse(row.filtersJson) as MasterPlanSnapshotFilters, viewport: JSON.parse(row.viewportJson) as MasterPlanSnapshotViewport, layers: JSON.parse(row.layersJson) as string[] }));
+}
+
+export async function createMasterPlanSnapshotForTenant(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; label: string; metric: MasterPlanSnapshotMetric; filters: MasterPlanSnapshotFilters; viewport: MasterPlanSnapshotViewport; layers: string[] }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
+  const id = crypto.randomUUID(); const filtersJson = JSON.stringify(input.filters); const viewportJson = JSON.stringify(input.viewport); const layersJson = JSON.stringify(input.layers);
+  await db.transaction(async tx => { await tx.insert(masterPlanSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, label: input.label, metric: input.metric, filtersJson, viewportJson, layersJson, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.snapshot_created", entityType: "master_plan_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, metric: input.metric, layerCount: input.layers.length }) }); });
+  return { id, masterPlanVersionId: input.masterPlanVersionId };
 }
 
 export async function createMasterPlanForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; description?: string; sourceFileName?: string; sourceMimeType?: string; sourceContentBase64?: string }) {

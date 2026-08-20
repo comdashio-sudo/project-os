@@ -1,6 +1,7 @@
 import {
   boolean,
   decimal,
+  foreignKey,
   index,
   int,
   mysqlEnum,
@@ -471,6 +472,27 @@ export const masterPlanVersions = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [uniqueIndex("master_plan_versions_plan_version_unique").on(table.masterPlanId, table.versionNumber), index("master_plan_versions_tenant_project_plan_idx").on(table.tenantId, table.projectId, table.masterPlanId)],
+);
+
+export const masterPlanSnapshots = mysqlTable(
+  "master_plan_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanVersionId: varchar("masterPlanVersionId", { length: 36 }).notNull(),
+    label: varchar("label", { length: 160 }).notNull(),
+    metric: mysqlEnum("metric", ["progress", "status", "cost", "risk", "quality", "hse", "production", "custom"]).notNull(),
+    filtersJson: text("filtersJson").notNull(),
+    viewportJson: text("viewportJson").notNull(),
+    layersJson: text("layersJson").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.masterPlanVersionId], foreignColumns: [masterPlanVersions.id], name: "mps_plan_version_fk" }),
+    index("master_plan_snapshots_tenant_project_version_creator_idx").on(table.tenantId, table.projectId, table.masterPlanVersionId, table.createdByUserId, table.createdAt),
+  ],
 );
 
 export const masterPlanSpatialEntities = mysqlTable(

@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 
-const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, refetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn() }));
+const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, refetch: vi.fn(), snapshotRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
@@ -13,6 +13,8 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: () => ({}),
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.data, refetch: state.refetch }) },
+      listSnapshots: { useQuery: () => ({ isLoading: false, error: null, data: state.snapshots, refetch: state.snapshotRefetch }) },
+      createSnapshot: { useMutation: () => ({ mutate: state.snapshotMutate, isPending: false, isSuccess: false, error: null }) },
       create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: null }) },
       createVersion: { useMutation: () => ({ mutate: state.versionMutate, isPending: false, error: null }) },
       createSpatialEntity: { useMutation: () => ({ mutate: state.entityMutate, isPending: false, error: null }) },
@@ -24,7 +26,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("ProjectMasterPlan", () => {
-  afterEach(() => { state.isArabic = false; cleanup(); });
+  afterEach(() => { state.isArabic = false; state.snapshots = []; cleanup(); });
 
   it("selects a filtered spatial entity and reveals its authorized KPI details", async () => {
     const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
@@ -49,6 +51,20 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByText(/Map position: 10%, 0%/)).toBeTruthy(); expect(screen.getByTestId("master-plan-map-surface").getAttribute("style")).toContain("translate(10%, 0%)");
     await user.click(screen.getByRole("button", { name: "Reset map view" }));
     expect(screen.getByText(/Map position: 0%, 0%/)).toBeTruthy();
+  });
+
+  it("saves the current authorized map filters, viewport, metric, and layers as a personal snapshot", async () => {
+    state.snapshotMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "Zoom in map" })); await user.click(screen.getByRole("button", { name: "Pan map right" }));
+    await user.type(screen.getByLabelText("Snapshot label"), "Weekly delivery view"); await user.selectOptions(screen.getByLabelText("Metric"), "cost");
+    await user.click(screen.getByRole("button", { name: "Save view" }));
+    expect(state.snapshotMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", label: "Weekly delivery view", metric: "cost", viewport: { x: 10, y: 0, zoom: 1.25 }, layers: ["source", "entities"] }));
+  });
+
+  it("restores only a saved snapshot for the selected version", async () => {
+    state.snapshots = [{ id: "snapshot-1", masterPlanVersionId: "version-1", label: "Risk review", metric: "status", filters: { search: "zone", wbsItemId: "wbs-1" }, viewport: { x: -10, y: 10, zoom: 1.5 }, layers: ["entities"] }]; const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "Restore view: Risk review" }));
+    expect(screen.getByText(/Zoom level: 150%/)).toBeTruthy(); expect(screen.getByText(/Map position: -10%, 10%/)).toBeTruthy(); expect((screen.getByLabelText("Search entities") as HTMLInputElement).value).toBe("zone"); expect((screen.getAllByLabelText("WBS item").at(0) as HTMLSelectElement).value).toBe("wbs-1");
   });
 
   it("filters map entities by authorized WBS and activity choices", async () => {
