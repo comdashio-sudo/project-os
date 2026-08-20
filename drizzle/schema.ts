@@ -495,6 +495,27 @@ export const masterPlanSnapshots = mysqlTable(
   ],
 );
 
+export const masterPlanVisualizationRules = mysqlTable(
+  "master_plan_visualization_rules",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    metric: mysqlEnum("metric", ["progress", "status", "cost"]).notNull(),
+    rulesJson: text("rulesJson").notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpvr_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpvr_project_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "mpvr_creator_fk" }),
+    uniqueIndex("master_plan_visualization_rules_project_metric_unique").on(table.tenantId, table.projectId, table.metric),
+    index("master_plan_visualization_rules_tenant_project_idx").on(table.tenantId, table.projectId, table.updatedAt),
+  ],
+);
+
 export const masterPlanSpatialEntities = mysqlTable(
   "master_plan_spatial_entities",
   {

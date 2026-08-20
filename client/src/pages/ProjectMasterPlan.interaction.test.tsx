@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 
-const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, refetch: vi.fn(), snapshotRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn() }));
+const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, visualizationRules: [{ id: null, metric: "progress", rules: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, configured: false, updatedAt: null }, { id: null, metric: "status", rules: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, configured: false, updatedAt: null }, { id: null, metric: "cost", rules: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, configured: false, updatedAt: null }], refetch: vi.fn(), snapshotRefetch: vi.fn(), visualizationRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn(), visualizationMutate: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
@@ -13,6 +13,8 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: () => ({}),
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.data, refetch: state.refetch }) },
+      visualizationRules: { useQuery: () => ({ isLoading: false, error: null, data: state.visualizationRules, refetch: state.visualizationRefetch }) },
+      saveVisualizationRule: { useMutation: () => ({ mutate: state.visualizationMutate, isPending: false, isSuccess: false, error: null }) },
       listSnapshots: { useQuery: () => ({ isLoading: false, error: null, data: state.snapshots, refetch: state.snapshotRefetch }) },
       createSnapshot: { useMutation: () => ({ mutate: state.snapshotMutate, isPending: false, isSuccess: false, error: null }) },
       create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: null }) },
@@ -59,6 +61,12 @@ describe("ProjectMasterPlan", () => {
     await user.type(screen.getByLabelText("Snapshot label"), "Weekly delivery view"); await user.selectOptions(screen.getByLabelText("Metric"), "cost");
     await user.click(screen.getByRole("button", { name: "Save view" }));
     expect(state.snapshotMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", label: "Weekly delivery view", metric: "cost", viewport: { x: 10, y: 0, zoom: 1.25 }, layers: ["source", "entities"] }));
+  });
+
+  it("saves a project-scoped progress threshold through the authorized visualization-rule contract", async () => {
+    state.visualizationMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    fireEvent.change(screen.getByLabelText("Low threshold"), { target: { value: "25" } }); await user.click(screen.getByRole("button", { name: "Save visualization rules" }));
+    expect(state.visualizationMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", metric: "progress", rules: expect.objectContaining({ lowMax: 25, mediumMax: 79.99 }) }));
   });
 
   it("restores only a saved snapshot for the selected version", async () => {

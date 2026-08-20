@@ -44,6 +44,7 @@ import {
   masterPlans,
   masterPlanVersions,
   masterPlanSnapshots,
+  masterPlanVisualizationRules,
   masterPlanSpatialEntities,
   dataImportErrors,
   dataImportRowResults,
@@ -1042,6 +1043,21 @@ type MasterPlanGeometry = { x: number; y: number; width: number; height: number 
 type MasterPlanSnapshotMetric = "progress" | "status" | "cost" | "risk" | "quality" | "hse" | "production" | "custom";
 type MasterPlanSnapshotFilters = { status?: MasterPlanEntityStatus[]; entityTypes?: MasterPlanEntityType[]; codes?: string[]; search?: string; wbsItemId?: string; activityId?: string };
 type MasterPlanSnapshotViewport = { x: number; y: number; zoom: number };
+type MasterPlanVisualizationMetric = "progress" | "status" | "cost";
+type MasterPlanVisualizationRules =
+  | { lowMax: number; mediumMax: number; lowColor: string; mediumColor: string; highColor: string }
+  | { notStartedColor: string; inProgressColor: string; completedColor: string; blockedColor: string }
+  | { favorableMax: number; warningMax: number; favorableColor: string; warningColor: string; unfavorableColor: string };
+
+const defaultMasterPlanVisualizationRules: Record<MasterPlanVisualizationMetric, MasterPlanVisualizationRules> = {
+  progress: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" },
+  status: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" },
+  cost: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" },
+};
+
+function parseMasterPlanVisualizationRules(metric: MasterPlanVisualizationMetric, rulesJson: string): MasterPlanVisualizationRules {
+  try { return JSON.parse(rulesJson) as MasterPlanVisualizationRules; } catch { return defaultMasterPlanVisualizationRules[metric]; }
+}
 
 function normalizeMasterPlanGeometry(geometry: MasterPlanGeometry) {
   const values = [geometry.x, geometry.y, geometry.width, geometry.height];
@@ -1082,6 +1098,31 @@ export async function createMasterPlanSnapshotForTenant(input: { userId: number;
   const id = crypto.randomUUID(); const filtersJson = JSON.stringify(input.filters); const viewportJson = JSON.stringify(input.viewport); const layersJson = JSON.stringify(input.layers);
   await db.transaction(async tx => { await tx.insert(masterPlanSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, label: input.label, metric: input.metric, filtersJson, viewportJson, layersJson, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.snapshot_created", entityType: "master_plan_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, metric: input.metric, layerCount: input.layers.length }) }); });
   return { id, masterPlanVersionId: input.masterPlanVersionId };
+}
+
+export async function getMasterPlanVisualizationRulesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  const rows = await db.select({ id: masterPlanVisualizationRules.id, metric: masterPlanVisualizationRules.metric, rulesJson: masterPlanVisualizationRules.rulesJson, updatedAt: masterPlanVisualizationRules.updatedAt }).from(masterPlanVisualizationRules).where(and(eq(masterPlanVisualizationRules.tenantId, input.tenantId), eq(masterPlanVisualizationRules.projectId, input.projectId)));
+  return (Object.keys(defaultMasterPlanVisualizationRules) as MasterPlanVisualizationMetric[]).map(metric => { const row = rows.find(item => item.metric === metric); return { id: row?.id ?? null, metric, rules: row ? parseMasterPlanVisualizationRules(metric, row.rulesJson) : defaultMasterPlanVisualizationRules[metric], configured: Boolean(row), updatedAt: row?.updatedAt ?? null }; });
+}
+
+export async function saveMasterPlanVisualizationRuleForTenant(input: { userId: number; tenantId: string; projectId: string; metric: MasterPlanVisualizationMetric; rules: MasterPlanVisualizationRules }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
+  const rulesJson = JSON.stringify(input.rules); const proposedId = crypto.randomUUID(); const now = new Date();
+  const id = await db.transaction(async tx => {
+    await tx.insert(masterPlanVisualizationRules).values({ id: proposedId, tenantId: input.tenantId, projectId: input.projectId, metric: input.metric, rulesJson, createdByUserId: input.userId }).onDuplicateKeyUpdate({ set: { rulesJson, updatedAt: now } });
+    const [rule] = await tx.select({ id: masterPlanVisualizationRules.id }).from(masterPlanVisualizationRules).where(and(eq(masterPlanVisualizationRules.tenantId, input.tenantId), eq(masterPlanVisualizationRules.projectId, input.projectId), eq(masterPlanVisualizationRules.metric, input.metric))).limit(1);
+    if (!rule) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_MASTER_PLAN_RULE_SAVE_FAILED" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.visualization_rule_saved", entityType: "master_plan_visualization_rule", entityId: rule.id, metadata: JSON.stringify({ projectId: input.projectId, metric: input.metric }) });
+    return rule.id;
+  });
+  return { id, metric: input.metric, rules: input.rules };
 }
 
 export async function createMasterPlanForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; description?: string; sourceFileName?: string; sourceMimeType?: string; sourceContentBase64?: string }) {

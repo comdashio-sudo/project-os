@@ -65,6 +65,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM change_requests WHERE changeNumber = 'CHANGE-TRPC'");
     await connection.query("DELETE FROM claims WHERE claimNumber = 'CLAIM-TRPC'");
     await connection.query("CREATE TABLE IF NOT EXISTS master_plan_snapshots (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `masterPlanVersionId` varchar(36) NOT NULL, `label` varchar(160) NOT NULL, `metric` enum('progress','status','cost','risk','quality','hse','production','custom') NOT NULL, `filtersJson` text NOT NULL, `viewportJson` text NOT NULL, `layersJson` text NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), KEY `master_plan_snapshots_tenant_project_version_creator_idx` (`tenantId`,`projectId`,`masterPlanVersionId`,`createdByUserId`,`createdAt`), CONSTRAINT `mps_tenant_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `mps_project_fk` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`), CONSTRAINT `mps_plan_version_fk` FOREIGN KEY (`masterPlanVersionId`) REFERENCES `master_plan_versions`(`id`), CONSTRAINT `mps_creator_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS master_plan_visualization_rules (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `metric` enum('progress','status','cost') NOT NULL, `rulesJson` text NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `master_plan_visualization_rules_project_metric_unique` (`tenantId`,`projectId`,`metric`), KEY `master_plan_visualization_rules_tenant_project_idx` (`tenantId`,`projectId`,`updatedAt`), CONSTRAINT `mpvr_tenant_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `mpvr_project_fk` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`), CONSTRAINT `mpvr_creator_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
+    await connection.query("DELETE FROM master_plan_visualization_rules WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plan_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plan_spatial_entities WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM master_plan_versions WHERE projectId IN (?, ?)", [projectA, projectB]);
@@ -169,6 +171,21 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       expect(Number(audits[0].count)).toBe(1);
     } finally {
       await connection.query("DELETE FROM master_plan_snapshots WHERE tenantId = ?", [tenantA]);
+    }
+  });
+
+  it("isolates and persists Master Plan visualization rules with a project audit trail", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    try {
+      await expect(caller.masterPlans.saveVisualizationRule({ tenantId: tenantA, projectId: projectB, metric: "progress", rules: { lowMax: 20, mediumMax: 70, lowColor: "#991b1b", mediumColor: "#b45309", highColor: "#047857" } })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      const saved = await caller.masterPlans.saveVisualizationRule({ tenantId: tenantA, projectId: projectA, metric: "progress", rules: { lowMax: 25, mediumMax: 75, lowColor: "#991b1b", mediumColor: "#b45309", highColor: "#047857" } });
+      const rules = await caller.masterPlans.visualizationRules({ tenantId: tenantA, projectId: projectA });
+      expect(rules).toEqual(expect.arrayContaining([expect.objectContaining({ id: saved.id, metric: "progress", configured: true, rules: { lowMax: 25, mediumMax: 75, lowColor: "#991b1b", mediumColor: "#b45309", highColor: "#047857" } })]));
+      const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'master_plans.visualization_rule_saved' AND entityId = ?", [tenantA, saved.id]);
+      expect(Number(audits[0].count)).toBe(1);
+    } finally {
+      await connection.query("DELETE FROM master_plan_visualization_rules WHERE tenantId = ?", [tenantA]);
     }
   });
 

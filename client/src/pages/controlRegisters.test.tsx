@@ -108,6 +108,8 @@ vi.mock("@/lib/trpc", () => ({
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: { plans: [], versions: [], entities: [] }, refetch: vi.fn() }) },
+      visualizationRules: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
+      saveVisualizationRule: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
       listSnapshots: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
       createSnapshot: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
