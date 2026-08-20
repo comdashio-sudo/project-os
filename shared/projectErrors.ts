@@ -200,6 +200,10 @@ export const projectErrorMessages = {
     ar: "تم بلوغ الحد المسموح لهذه الميزة في الرخصة النشطة.",
     en: "The active license limit for this feature has been reached.",
   },
+  PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED: {
+    ar: "تم بلوغ عدد المقاعد المسموح به في الرخصة النشطة.",
+    en: "The active license seat limit has been reached.",
+  },
   PROJECT_OS_RFI_NOT_FOUND: {
     ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected RFI is not available in the current project and workspace.",

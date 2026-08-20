@@ -26,7 +26,8 @@ function queryResult<T>(result: T) {
     where: () => query,
     orderBy: () => query,
     innerJoin: () => query,
-    limit: async () => result,
+    for: () => query,
+    limit: () => query,
     then: <TResult1 = T, TResult2 = never>(
       onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
@@ -83,6 +84,7 @@ function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXE
 
 function configureAuthorizedTenantMemberAssignment() {
   const transactionDouble = {
+    select: vi.fn(() => queryResult([])),
     insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
   };
   let idSelectionCount = 0;

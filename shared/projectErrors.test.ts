@@ -21,4 +21,14 @@ describe("project error map", () => {
       },
     });
   });
+
+  it("returns localized guidance when a commercial seat limit blocks membership access", () => {
+    expect(getProjectError("PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED")).toEqual({
+      code: "PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED",
+      messages: {
+        ar: "تم بلوغ عدد المقاعد المسموح به في الرخصة النشطة.",
+        en: "The active license seat limit has been reached.",
+      },
+    });
+  });
 });

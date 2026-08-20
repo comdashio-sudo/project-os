@@ -477,6 +477,49 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(allInOneNavigation.map(item => item.id)).not.toContain("pmo-controls");
   });
 
+  it("reserves commercial seats for invitations and blocks direct assignment or acceptance above the active limit", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const owner = appRouter.createCaller(ownerContext);
+    const seatUserOpenId = "integration-seat-user";
+    const seatUserEmail = "integration-seat@test.local";
+    let seatUserId: number | undefined;
+    let invitationId: string | undefined;
+    let membershipId: string | undefined;
+    let assignmentId: string | undefined;
+    let roleId: string | undefined;
+    try {
+      await connection.query("DELETE FROM users WHERE openId = ?", [seatUserOpenId]);
+      await connection.query("INSERT INTO users (openId, name, email) VALUES (?, 'Seat Test User', ?)", [seatUserOpenId, seatUserEmail]);
+      const [[seatUser]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = ? LIMIT 1", [seatUserOpenId]);
+      seatUserId = seatUser.id;
+      const seatUserContext: TrpcContext = { user: { id: seatUserId, openId: seatUserOpenId, name: "Seat Test User", email: seatUserEmail, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+      const seatUserCaller = appRouter.createCaller(seatUserContext);
+      const role = await owner.tenant.createRole({ tenantId: tenantA, code: "INT_SEAT_ROLE", name: "Integration Seat Role", productCode: "PROJECT", permissionCodes: ["project.read"] });
+      roleId = role.id;
+      await owner.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 2, manualActivation: true });
+      const invitation = await owner.tenant.createInvitation({ tenantId: tenantA, email: seatUserEmail, roleId, scopeType: "company" });
+      invitationId = invitation.invitationId;
+      await expect(owner.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId, scopeType: "company" })).rejects.toThrow("PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED");
+      await owner.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 1, manualActivation: true });
+      await expect(seatUserCaller.tenant.acceptInvitation({ inviteToken: invitation.inviteToken })).rejects.toThrow("PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED");
+      const [blockedRows] = await connection.query<{ pending: number; memberships: number; acceptanceAudits: number }[]>("SELECT (SELECT COUNT(*) FROM membership_invitations WHERE id = ? AND status = 'pending') AS pending, (SELECT COUNT(*) FROM memberships WHERE tenantId = ? AND userId = ?) AS memberships, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'tenant.invitation_accepted') AS acceptanceAudits", [invitationId, tenantA, seatUserId, invitationId]);
+      expect(blockedRows[0]).toMatchObject({ pending: 1, memberships: 0, acceptanceAudits: 0 });
+      await owner.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 2, manualActivation: true });
+      const accepted = await seatUserCaller.tenant.acceptInvitation({ inviteToken: invitation.inviteToken });
+      membershipId = accepted.membershipId;
+      assignmentId = accepted.assignmentId;
+      const [allowedRows] = await connection.query<{ activeMemberships: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM memberships WHERE id = ? AND status = 'active') AS activeMemberships, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action IN ('tenant.member_invited','tenant.invitation_accepted')) AS audits", [membershipId, invitationId]);
+      expect(allowedRows[0]).toMatchObject({ activeMemberships: 1, audits: 2 });
+    } finally {
+      if (assignmentId) await connection.query("DELETE FROM membership_roles WHERE id = ?", [assignmentId]);
+      if (membershipId) await connection.query("DELETE FROM memberships WHERE id = ?", [membershipId]);
+      if (invitationId) { await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [invitationId]); await connection.query("DELETE FROM membership_invitations WHERE id = ?", [invitationId]); }
+      if (seatUserId) await connection.query("DELETE FROM users WHERE id = ?", [seatUserId]);
+      if (roleId) { await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [roleId]); await connection.query("DELETE FROM role_permissions WHERE roleId = ?", [roleId]); await connection.query("DELETE FROM roles WHERE id = ?", [roleId]); }
+      await owner.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 3, manualActivation: true });
+    }
+  }, 12_000);
+
   it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
     await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
     const [licenses] = await connection.query<{ id: string; subscriptionId: string }[]>("SELECT id, subscriptionId FROM tenant_licenses WHERE tenantId = ? ORDER BY createdAt LIMIT 1", [tenantA]);

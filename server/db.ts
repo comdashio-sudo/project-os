@@ -205,6 +205,16 @@ export async function assertTenantFeatureAccess(input: { userId: number; tenantI
 type TenantLicenseStatus = "trialing" | "active" | "past_due" | "suspended" | "cancelled" | "expired" | "grace_period";
 const enabledLicenseStatuses = new Set<TenantLicenseStatus>(["trialing", "active", "grace_period"]);
 const licenseTransitions: Record<TenantLicenseStatus, readonly TenantLicenseStatus[]> = { trialing: ["active", "cancelled", "expired"], active: ["past_due", "suspended", "cancelled", "expired", "grace_period"], past_due: ["active", "suspended", "cancelled", "expired", "grace_period"], suspended: ["active", "cancelled", "expired"], cancelled: ["active"], expired: ["active"], grace_period: ["active", "cancelled", "expired"] };
+type DatabaseTransaction = Parameters<Parameters<NonNullable<Awaited<ReturnType<typeof getDb>>>["transaction"]>[0]>[0];
+
+async function assertTenantSeatAvailability(db: DatabaseTransaction, tenantId: string, mode: "reserve" | "activate"): Promise<void> {
+  const [license] = await db.select({ id: tenantLicenses.id, seats: tenantLicenses.seats }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
+  if (!license) return;
+  const occupiedMemberships = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, tenantId), inArray(memberships.status, ["invited", "active"])));
+  const pendingInvitations = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.tenantId, tenantId), eq(membershipInvitations.status, "pending")));
+  const reservedSeats = occupiedMemberships.length + pendingInvitations.length;
+  if (mode === "reserve" ? reservedSeats >= license.seats : reservedSeats > license.seats) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED" });
+}
 
 export async function getCommercialCatalogForAdministrator(input: { userId: number }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
@@ -450,6 +460,7 @@ export async function assignTenantMember(input: { actorUserId: number; tenantId:
   const membershipId = crypto.randomUUID();
   const assignmentId = crypto.randomUUID();
   await db.transaction(async tx => {
+    await assertTenantSeatAvailability(tx, input.tenantId, "reserve");
     await tx.insert(memberships).values({ id: membershipId, tenantId: input.tenantId, userId: input.targetUserId, status: "invited" });
     await tx.insert(membershipRoles).values({ id: assignmentId, membershipId, roleId: input.roleId, scopeType: input.scopeType, scopeId: input.scopeId ?? null });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_assigned", entityType: "membership", entityId: membershipId, metadata: JSON.stringify({ targetUserId: input.targetUserId, roleId: input.roleId, scopeType: input.scopeType, scopeId: input.scopeId ?? null }) });
@@ -474,6 +485,7 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   const tokenHash = createHash("sha256").update(inviteToken).digest("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await db.transaction(async tx => {
+    await assertTenantSeatAvailability(tx, input.tenantId, "reserve");
     await tx.insert(membershipInvitations).values({ id: invitationId, tenantId: input.tenantId, email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, tokenHash, status: "pending", invitedByUserId: input.actorUserId, expiresAt });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_invited", entityType: "membership_invitation", entityId: invitationId, metadata: JSON.stringify({ email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, expiresAt: expiresAt.toISOString() }) });
   });
@@ -493,6 +505,7 @@ export async function acceptMembershipInvitation(input: { userId: number; invite
   const membershipId = crypto.randomUUID();
   const assignmentId = crypto.randomUUID();
   await db.transaction(async tx => {
+    await assertTenantSeatAvailability(tx, invitation.tenantId, "activate");
     await tx.insert(memberships).values({ id: membershipId, tenantId: invitation.tenantId, userId: input.userId, status: "active", joinedAt: new Date() });
     await tx.insert(membershipRoles).values({ id: assignmentId, membershipId, roleId: invitation.roleId, scopeType: invitation.scopeType, scopeId: invitation.scopeId });
     await tx.update(membershipInvitations).set({ status: "accepted", acceptedByUserId: input.userId, acceptedAt: new Date() }).where(eq(membershipInvitations.id, invitation.id));
