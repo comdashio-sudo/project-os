@@ -1,6 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { appRouter } from "../server/routers.ts";
 
+const allowedFrameworkExceptions = new Map([
+  ["access.check", "فحص إطار الوصول العام؛ تغطيه حراسة tRPC واختبارات الواجهة."],
+  ["auth.me", "قراءة جلسة OAuth؛ تغطيها طبقة المصادقة لا قاعدة أعمال."],
+  ["auth.logout", "إلغاء جلسة؛ له اختبار وحدة مستقل لمسح ملف الارتباط."],
+  ["system.health", "فحص مراقبة عام بلا نطاق أعمال أو كتابة."],
+  ["system.notifyOwner", "إرسال إشعار خارجي لا يستدعى آليًا لتجنب إشعار المالك الحقيقي."],
+]);
+const validate = process.argv.includes("--validate");
+
 const procedures = Object.entries(appRouter._def.procedures)
   .map(([path, procedure]) => ({
     path,
@@ -24,6 +33,8 @@ for (const expression of [memberExpression, callerExpression]) {
 
 const directIntegrationProcedures = procedures.filter(({ path }) => references.has(path));
 const proceduresWithoutDirectReference = procedures.filter(({ path }) => !references.has(path));
+const unclassifiedProcedures = proceduresWithoutDirectReference.filter(({ path }) => !allowedFrameworkExceptions.has(path));
+const staleExceptions = [...allowedFrameworkExceptions.keys()].filter((path) => !procedurePaths.has(path));
 
 console.log(JSON.stringify({
   procedureCount: procedures.length,
@@ -31,4 +42,12 @@ console.log(JSON.stringify({
   procedures,
   directIntegrationProcedures,
   proceduresWithoutDirectReference,
+  allowedFrameworkExceptions: Object.fromEntries(allowedFrameworkExceptions),
+  unclassifiedProcedures,
+  staleExceptions,
 }, null, 2));
+
+if (validate && (unclassifiedProcedures.length > 0 || staleExceptions.length > 0)) {
+  console.error(`tRPC coverage validation failed: ${unclassifiedProcedures.length} unclassified procedure(s), ${staleExceptions.length} stale exception(s).`);
+  process.exitCode = 1;
+}
