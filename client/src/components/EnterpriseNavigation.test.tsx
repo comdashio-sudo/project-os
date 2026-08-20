@@ -15,4 +15,14 @@ describe("EnterpriseNavigation", () => {
     expect(screen.getByRole("navigation", { name: "الملاحة المؤسسية" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "ضوابط المشروع" }).getAttribute("href")).toBe("/projects/t/p/controls"); expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
   });
+
+  it("keeps privileged navigation hidden when a low-permission account receives no server-authorized items", () => {
+    state.isArabic = false; state.items = [];
+    render(<EnterpriseNavigation tenantId="t" context="administration" />);
+    expect(screen.getByRole("navigation", { name: "Enterprise navigation" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Executive" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Project registry" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Tenant administration" })).toBeNull();
+  });
 });
