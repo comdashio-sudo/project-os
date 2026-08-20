@@ -414,6 +414,37 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(assignable).toBeNull();
   }, 12_000);
 
+  it("returns a tenant-scoped planning control center with latest EVM, health, schedule, and exception signals", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(ownerContext);
+    let createdPermission = false;
+    let pmoReadPermissionId = "int-perm-pmo-read";
+    try {
+      const [existingPermissions] = await connection.query<{ id: string }[]>("SELECT id FROM permissions WHERE code = 'pmo.read' LIMIT 1");
+      if (existingPermissions[0]) pmoReadPermissionId = existingPermissions[0].id;
+      else { await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES (?, 'pmo.read', 'Integration PMO read', 'PMO')", [pmoReadPermissionId]); createdPermission = true; }
+      await connection.query("INSERT IGNORE INTO role_permissions (roleId, permissionId) VALUES ('int-role-pmo', ?)", [pmoReadPermissionId]);
+      await connection.query("DELETE FROM actions WHERE projectId = ?", [projectC]);
+      await connection.query("DELETE FROM evm_snapshots WHERE projectId = ?", [projectC]);
+      await connection.query("DELETE FROM project_health_snapshots WHERE projectId = ?", [projectC]);
+      await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
+      await connection.query("INSERT INTO projects (id, tenantId, portfolioId, code, name, projectType, plannedFinishAt, forecastFinishAt) VALUES (?, ?, 'int-portfolio-a', 'INT-PLAN', 'Integration planning signal project', 'test', '2026-08-20 00:00:00', '2026-08-25 00:00:00')", [projectC, tenantA]);
+      await connection.query("INSERT INTO evm_snapshots (id, tenantId, projectId, periodAt, pv, ev, ac, bac, cv, sv, cpi, spi, eac, etc, vac, eacMethod) VALUES ('int-evm-plan', ?, ?, NOW(), 100, 80, 120, 100, -40, -20, 0.8000, 0.8000, 150, 30, -50, 'bac_over_cpi')", [tenantA, projectC]);
+      await connection.query("INSERT INTO project_health_snapshots (id, tenantId, projectId, periodAt, overallScore, status, confidence, drivers, exceptions) VALUES ('int-health-plan', ?, ?, NOW(), 44, 'red', 'high', '[]', '[]')", [tenantA, projectC]);
+      await connection.query("INSERT INTO actions (id, tenantId, projectId, title, priority, dueAt, status) VALUES ('int-action-plan', ?, ?, 'Integration overdue action', 'high', '2020-01-01 00:00:00', 'open')", [tenantA, projectC]);
+      const dashboard = await caller.dashboards.pmo({ tenantId: tenantA });
+      expect(dashboard.planningOverview.projects).toEqual(expect.arrayContaining([expect.objectContaining({ id: projectC, attentionLevel: "critical", finishVarianceDays: 5, evm: expect.objectContaining({ cpi: 0.8, spi: 0.8 }), health: expect.objectContaining({ status: "red" }), signals: expect.arrayContaining(["health_red", "schedule_critical", "cost_critical", "finish_delay", "overdue_action"]) })]));
+      expect(dashboard.planningOverview.projects.some(project => project.id === projectB)).toBe(false);
+    } finally {
+      await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-pmo' AND permissionId = ?", [pmoReadPermissionId]);
+      if (createdPermission) await connection.query("DELETE FROM permissions WHERE id = ?", [pmoReadPermissionId]);
+      await connection.query("DELETE FROM actions WHERE id = 'int-action-plan'");
+      await connection.query("DELETE FROM evm_snapshots WHERE id = 'int-evm-plan'");
+      await connection.query("DELETE FROM project_health_snapshots WHERE id = 'int-health-plan'");
+      await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
+    }
+  }, 12_000);
+
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };

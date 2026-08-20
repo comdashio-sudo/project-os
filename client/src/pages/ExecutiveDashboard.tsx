@@ -318,7 +318,9 @@ export default function ExecutiveDashboard() {
             </CardContent>
           </Card>
         </div>
-        <Card className="mt-6">
+        <details className="mt-6 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{t.create}</span><span className="text-xs font-medium text-primary">+</span></summary>
+        <Card className="border-0 shadow-none">
           <CardHeader>
             <CardTitle>{t.create}</CardTitle>
           </CardHeader>
@@ -392,6 +394,7 @@ export default function ExecutiveDashboard() {
             </form>
           </CardContent>
         </Card>
+        </details>
       </div>
     </main>
   );

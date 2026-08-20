@@ -67,6 +67,7 @@ import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
 import { calculateOperationalCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
+import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
@@ -956,19 +957,34 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows] = await Promise.all([
+  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
-    db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status }).from(projects).where(eq(projects.tenantId, input.tenantId)),
+    db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, plannedFinishAt: projects.plannedFinishAt, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ id: risks.id, projectId: risks.projectId, code: risks.code, title: risks.title, probability: risks.probability, severity: risks.severity, status: risks.status, dueAt: risks.dueAt }).from(risks).where(eq(risks.tenantId, input.tenantId)),
     db.select({ id: issues.id, projectId: issues.projectId, code: issues.code, title: issues.title, priority: issues.priority, escalationStatus: issues.escalationStatus, status: issues.status, dueAt: issues.dueAt }).from(issues).where(eq(issues.tenantId, input.tenantId)),
     db.select({ id: actions.id, projectId: actions.projectId, title: actions.title, priority: actions.priority, escalationStatus: actions.escalationStatus, status: actions.status, dueAt: actions.dueAt }).from(actions).where(eq(actions.tenantId, input.tenantId)),
     db.select({ id: decisions.id, projectId: decisions.projectId, problem: decisions.problem, status: decisions.status }).from(decisions).where(eq(decisions.tenantId, input.tenantId)),
     db.select({ id: rfis.id, projectId: rfis.projectId, rfiNumber: rfis.rfiNumber, subject: rfis.subject, status: rfis.status }).from(rfis).where(eq(rfis.tenantId, input.tenantId)),
     db.select({ id: ncrs.id, projectId: ncrs.projectId, ncrNumber: ncrs.ncrNumber, title: ncrs.title, status: ncrs.status }).from(ncrs).where(eq(ncrs.tenantId, input.tenantId)),
+    db.select({ projectId: evmSnapshots.projectId, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, vac: evmSnapshots.vac, periodAt: evmSnapshots.periodAt }).from(evmSnapshots).where(eq(evmSnapshots.tenantId, input.tenantId)).orderBy(desc(evmSnapshots.periodAt)),
+    db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
   ]);
-
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows };
+  const latestEvmByProject = new Map<string, (typeof evmRows)[number]>(); evmRows.forEach(item => { if (!latestEvmByProject.has(item.projectId)) latestEvmByProject.set(item.projectId, item); });
+  const latestHealthByProject = new Map<string, (typeof healthRows)[number]>(); healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
+  const today = new Date();
+  const planningOverview = buildPmoPlanningOverview(projectRows.map(project => {
+    const evm = latestEvmByProject.get(project.id); const health = latestHealthByProject.get(project.id);
+    return {
+      ...project,
+      health: health ? { status: health.status, overallScore: Number(health.overallScore), periodAt: health.periodAt } : null,
+      evm: evm ? { cpi: evm.cpi === null ? null : Number(evm.cpi), spi: evm.spi === null ? null : Number(evm.spi), eac: Number(evm.eac), vac: Number(evm.vac), periodAt: evm.periodAt } : null,
+      openRiskCount: riskRows.filter(item => item.projectId === project.id && item.status !== "closed" && item.probability * item.severity >= 15).length,
+      criticalIssueCount: issueRows.filter(item => item.projectId === project.id && !["resolved", "closed"].includes(item.status) && item.priority === "critical").length,
+      overdueActionCount: actionRows.filter(item => item.projectId === project.id && !["completed", "cancelled"].includes(item.status) && item.dueAt !== null && item.dueAt < today).length,
+    };
+  }));
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {

@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { FileSpreadsheet } from "lucide-react";
+import { BadgeCheck, Download, FileCheck2, FileSpreadsheet, ListChecks, Upload } from "lucide-react";
 import React, { useState } from "react";
 
 type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate";
@@ -15,6 +15,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("fail_on_duplicate");
   const [mappingOverride, setMappingOverride] = useState<Record<string, string>>({});
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const imports = trpc.dataImports.list.useQuery({ tenantId, projectId });
   const detail = trpc.dataImports.detail.useQuery(
     { tenantId, projectId, importId: selectedImportId ?? "00000000-0000-0000-0000-000000000000" },
@@ -67,6 +68,19 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         status: { uploaded: "مرفوع", validated: "جاهز للتأكيد", completed: "مكتمل", failed: "فشل", importing: "قيد التنفيذ", cancelled: "ملغى", confirmed: "مؤكد" },
         duplicate: { fail_on_duplicate: "إيقاف الاستيراد عند وجود تكرار", skip_duplicates: "تجاوز الصفوف الموجودة", update_existing: "تحديث الصفوف الموجودة فقط", upsert: "إنشاء الجديد وتحديث الموجود" },
         action: { created: "تم الإنشاء", updated: "تم التحديث", skipped: "تم التجاوز" },
+        workflow: "استيراد منضبط في ثلاث خطوات",
+        step1: "اختر نوع البيانات والقالب",
+        step2: "ارفع الملف وحلّل التعيين",
+        step3: "راجع النتيجة ثم أكّد الكتابة",
+        instructions: "لا يكتب النظام أي سجل قبل نجاح التحقق ومراجعة التعيين. لا تُرفَع الأعمدة غير المطلوبة ولا ملفات مجمّعة من أقسام متعددة.",
+        template: "تنزيل قالب Excel",
+        templateNote: "القالب يحتوي الأعمدة المعتمدة فقط. يمكنك إضافة صفوف بيانات بعد الصف الأول دون تغيير العناوين.",
+        requiredColumns: "الأعمدة المطلوبة",
+        accepted: "الملفات المعتمدة: XLSX أو CSV فقط، حتى 10 MB.",
+        noFile: "اختر ملفًا قبل التحليل.",
+        typeError: "يُقبل فقط ملف XLSX أو CSV.",
+        sizeError: "حجم الملف أكبر من الحد المسموح به وهو 10 MB.",
+        blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
       }
     : {
         title: "Data import",
@@ -95,40 +109,57 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         status: { uploaded: "Uploaded", validated: "Ready to confirm", completed: "Completed", failed: "Failed", importing: "Importing", cancelled: "Cancelled", confirmed: "Confirmed" },
         duplicate: { fail_on_duplicate: "Stop when a duplicate exists", skip_duplicates: "Skip existing rows", update_existing: "Update existing rows only", upsert: "Create new and update existing rows" },
         action: { created: "Created", updated: "Updated", skipped: "Skipped" },
+        workflow: "Controlled import in three steps",
+        step1: "Choose the data type and template",
+        step2: "Upload the file and analyze mapping",
+        step3: "Review the result, then confirm the write",
+        instructions: "The system does not write a record until validation and mapping review succeed. Do not upload columns outside the selected data type or combined files from multiple areas.",
+        template: "Download Excel template",
+        templateNote: "The template contains only approved columns. Add data rows below the header without changing column names.",
+        requiredColumns: "Required columns",
+        accepted: "Accepted files: XLSX or CSV only, up to 10 MB.",
+        noFile: "Choose a file before analysis.",
+        typeError: "Only XLSX or CSV files are accepted.",
+        sizeError: "The file exceeds the 10 MB limit.",
+        blocked: "Confirmation remains blocked until analysis has no validation errors.",
       };
   const submit = async () => {
-    if (!file) return;
+    if (!file) { setLocalError(t.noFile); return; }
+    const format = file.name.toLowerCase().endsWith(".csv") ? "csv" : file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : null;
+    if (!format) { setLocalError(t.typeError); return; }
+    if (file.size > 10 * 1024 * 1024) { setLocalError(t.sizeError); return; }
+    setLocalError(null);
     const bytes = await file.arrayBuffer();
     const base64 = btoa(Array.from(new Uint8Array(bytes), byte => String.fromCharCode(byte)).join(""));
-    analyze.mutate({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: file.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx", base64, duplicateMode });
+    analyze.mutate({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, base64, duplicateMode });
   };
   const requiredFields = moduleCode === "wbs" ? ["code", "name"] : ["costCode", "originalAmount", "currentAmount"];
+  const templateHeaders = moduleCode === "wbs"
+    ? isArabic ? ["رمز WBS", "اسم WBS", "القيمة المخططة"] : ["WBS Code", "WBS Name", "Planned Value"]
+    : isArabic ? ["رمز التكلفة", "القيمة الأصلية", "القيمة الحالية"] : ["Cost Code", "Original Amount", "Current Amount"];
+  const templateExample = moduleCode === "wbs" ? ["1.1", isArabic ? "الأعمال التمهيدية" : "Preliminaries", "100000"] : ["CIVIL", "500000", "525000"];
+  const downloadTemplate = () => {
+    const content = `\uFEFF${templateHeaders.join(",")}\n${templateExample.join(",")}\n`;
+    const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${moduleCode}-template.csv`; anchor.click(); URL.revokeObjectURL(url);
+  };
   const analysisHeaders = analyze.data?.headers ?? [];
   const selected = detail.data;
 
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-[#0e6b70]" /><h2 className="font-semibold">{t.title}</h2></div>
-      <p className="mt-2 text-xs text-slate-500">{t.note}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => setModuleCode("wbs")}>{t.wbs}</Button>
-        <Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => setModuleCode("budget")}>{t.budget}</Button>
-      </div>
-      <label className="mt-4 block text-xs font-medium text-slate-700">
-        {t.duplicateMode}
-        <select className="mt-1 block w-full rounded border border-slate-300 bg-white p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>
-          {(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}
-        </select>
-      </label>
-      <Input className="mt-4" aria-label={t.choose} type="file" accept=".xlsx,.csv" onChange={event => setFile(event.target.files?.[0] ?? null)} />
-      <Button className="mt-3 w-full" disabled={!file || analyze.isPending} onClick={submit}>{t.analyze}</Button>
+    <section className="rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] bg-[var(--dashio-indigo)]/10 text-primary"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 className="font-semibold">{t.title}</h2><p className="mt-1 text-xs text-muted-foreground">{t.note}</p></div></div><span className="rounded-full bg-[var(--dashio-aqua)]/10 px-3 py-1 text-xs font-semibold text-[var(--dashio-aqua-deep)]">{t.workflow}</span></div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3"><Step icon={ListChecks} number="1" title={t.step1} /><Step icon={Upload} number="2" title={t.step2} /><Step icon={BadgeCheck} number="3" title={t.step3} /></div>
+      <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/[.07] p-4 text-sm text-foreground"><p className="font-semibold">{t.instructions}</p><p className="mt-2 text-xs text-muted-foreground">{t.accepted}</p></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p></div><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept=".xlsx,.csv" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={analyze.isPending} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}</div></div>
+      {localError && <p role="alert" className="mt-3 text-xs text-red-700">{localError}</p>}
       {analyze.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(analyze.error, isArabic)}</p>}
       {analyze.data && <div className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs">
         <p>{t.rows}: {analyze.data.totalRows}</p>
         <p>{t.errors}: {analyze.data.errors.length}</p>
         {Object.keys(analyze.data.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(analyze.data.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {header}</li>)}</ul></div>}
         {analyze.data.errors.length > 0 && analysisHeaders.length > 0 && <div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(current => ({ ...current, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{analysisHeaders.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: analyze.data!.id, mappingOverride })}>{t.reanalyze}</Button></div>}
-        {analyze.data.status === "validated" && !analyze.data.errors.length && <Button className="mt-3" type="button" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: analyze.data!.id })}>{t.confirm}</Button>}
+        {analyze.data.status === "validated" && !analyze.data.errors.length ? <Button className="mt-3" type="button" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: analyze.data!.id })}>{t.confirm}</Button> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
       </div>}
       {confirm.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
       {confirm.data && <p className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs">{t.created}: {confirm.data.createdRows} · {t.updated}: {confirm.data.updatedRows} · {t.skipped}: {confirm.data.skippedRows}</p>}
@@ -136,4 +167,8 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       {selectedImportId && <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.details}</h3>{detail.error && <p className="mt-2 text-xs text-red-700">{getLocalizedProjectError(detail.error, isArabic)}</p>}{selected && <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-medium">{selected.fileName}</p><p className="mt-1 text-slate-500">{t.duplicate[selected.duplicateMode as DuplicateMode] ?? selected.duplicateMode}</p>{selected.rowResults.length ? <div className="mt-3"><p className="font-medium">{t.results}</p><ul className="mt-1 space-y-1">{selected.rowResults.slice(0, 20).map(result => <li key={`${result.rowNumber}-${result.action}`} className="flex justify-between gap-3"><span>#{result.rowNumber} · {result.rowKey}</span><span>{t.action[result.action]}</span></li>)}</ul></div> : <p className="mt-3 text-slate-500">{t.noRowResults}</p>}{selected.errors.length ? <div className="mt-3"><p className="font-medium">{t.validationErrors}</p><ul className="mt-1 space-y-1">{selected.errors.slice(0, 20).map(error => <li key={`${error.rowNumber}-${error.code}`}>#{error.rowNumber} · {error.code}</li>)}</ul></div> : null}</div>}</div>}
     </section>
   );
+}
+
+function Step({ icon: Icon, number, title }: { icon: typeof ListChecks; number: string; title: string }) {
+  return <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-muted/40 p-3"><span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{number}</span><Icon className="h-4 w-4 text-primary" /><span className="text-xs font-semibold text-foreground">{title}</span></div>;
 }
