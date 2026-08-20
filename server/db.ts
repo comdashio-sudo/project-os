@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { createHash, randomBytes } from "node:crypto";
@@ -180,6 +180,7 @@ const defaultCommercialFeatures = [
   { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
   { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
   { code: "STORAGE_BYTES", name: "Document storage bytes", productCode: "PROJECT" as ProductCode },
+  { code: "AI_ADVISORY_MONTHLY", name: "Monthly AI advisory requests", productCode: "PROJECT" as ProductCode },
 ];
 
 async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
@@ -187,7 +188,7 @@ async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType
   await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
   const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));
   const features = await db.select({ id: commercialFeatures.id, code: commercialFeatures.code, productCode: commercialFeatures.productCode }).from(commercialFeatures).where(eq(commercialFeatures.active, true));
-  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : feature.code === "STORAGE_BYTES" ? 1_073_741_824 : 100 })));
+  const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : feature.code === "STORAGE_BYTES" ? 1_073_741_824 : feature.code === "AI_ADVISORY_MONTHLY" ? 100 : 100 })));
   if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onDuplicateKeyUpdate({ set: { active: true } });
 }
 
@@ -243,6 +244,25 @@ async function assertTenantDocumentStorageCapacity(db: DatabaseTransaction, tena
   if (entitlement.limitValue === null) return;
   const [usage] = await db.select({ totalBytes: sql<number>`coalesce(sum(${documentVersions.sizeBytes}), 0)` }).from(documentVersions).where(eq(documentVersions.tenantId, tenantId));
   if (Number(usage?.totalBytes ?? 0) + incomingBytes > entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
+}
+
+function utcMonthStart(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: "ar" | "en" }): Promise<void> {
+  const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
+  if (!license) return;
+  const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "AI_ADVISORY_MONTHLY"), eq(commercialFeatures.active, true))).limit(1);
+  if (!feature) return;
+  const [override] = await db.select({ active: tenantLicenseFeatureOverrides.active, limitValue: tenantLicenseFeatureOverrides.limitValue }).from(tenantLicenseFeatureOverrides).where(and(eq(tenantLicenseFeatureOverrides.tenantLicenseId, license.id), eq(tenantLicenseFeatureOverrides.featureId, feature.id))).limit(1);
+  const [planFeature] = await db.select({ active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements).where(and(eq(planFeatureEntitlements.planId, license.planId), eq(planFeatureEntitlements.featureId, feature.id))).limit(1);
+  const entitlement = override ?? planFeature;
+  if (!entitlement?.active) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
+  const periodStart = utcMonthStart();
+  const usage = await db.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.action, "advisor.usage_consumed"), gte(auditLogs.createdAt, periodStart)));
+  if (entitlement.limitValue !== null && usage.length >= entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "advisor.usage_consumed", entityType: "project_advisory", entityId: crypto.randomUUID(), metadata: JSON.stringify({ projectId: input.projectId, locale: input.locale, periodStart: periodStart.toISOString() }) });
 }
 
 export async function getCommercialCatalogForAdministrator(input: { userId: number }) {
@@ -816,6 +836,10 @@ const advisoryKinds: AdvisoryKind[] = ["actual", "calculated", "forecast", "assu
 
 export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: "ar" | "en" }) {
   const controls = await getProjectControlsForTenant(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await ensureDefaultCommercialCatalog(db);
+  await db.transaction(async tx => consumeTenantAdvisorUsage(tx, input));
   const facts = {
     actual: { currentBudget: Number(controls.project.currentBudget), actualCost: Number(controls.project.actualCost), latestEvmAc: controls.latestEvm ? Number(controls.latestEvm.ac) : null, healthStatus: controls.latestHealth?.status ?? null, healthScore: controls.latestHealth ? Number(controls.latestHealth.overallScore) : null },
     calculated: { plannedBudget: controls.cashFlow.plannedBudget, totalExposure: controls.cashFlow.totalExposure, remainingBudget: controls.cashFlow.remainingBudget, committedAmount: controls.cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },

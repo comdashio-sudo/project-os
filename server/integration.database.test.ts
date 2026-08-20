@@ -580,6 +580,22 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 15_000);
 
+  it("blocks an AI advisory request at the monthly commercial limit before any model call or usage audit", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    try {
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      expect(licenseRegister.license).toBeTruthy();
+      await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "AI_ADVISORY_MONTHLY", active: true, limitValue: 0 });
+      await expect(caller.advisor.project({ tenantId: tenantA, projectId: projectA, locale: "en" })).rejects.toThrow("PROJECT_OS_LICENSE_LIMIT_EXCEEDED");
+      const [rows] = await connection.query<{ usageAudits: number }[]>("SELECT COUNT(*) AS usageAudits FROM audit_logs WHERE tenantId = ? AND action = 'advisor.usage_consumed'", [tenantA]);
+      expect(Number(rows[0].usageAudits)).toBe(0);
+    } finally {
+      const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
+      if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "AI_ADVISORY_MONTHLY", active: true, limitValue: 100 });
+    }
+  }, 12_000);
+
   it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
     await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
     const [licenses] = await connection.query<{ id: string; subscriptionId: string }[]>("SELECT id, subscriptionId FROM tenant_licenses WHERE tenantId = ? ORDER BY createdAt LIMIT 1", [tenantA]);
