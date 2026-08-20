@@ -39,6 +39,9 @@ export default function PmoDashboard() {
   const planningCopy = isArabic
     ? { title: "متابعة التخطيط الموحدة", sub: "ابدأ بالمشاريع التي تحتاج تدخلاً؛ تستند الإشارات إلى آخر EVM وصحة مشروع وسجلات حوكمة متاحة.", attention: "تحتاج تدخلاً", all: "كل المشاريع", dataRequired: "تحتاج بيانات", critical: "حرجة", warning: "تحذير", delayed: "تأخر توقع النهاية", evm: "EVM", health: "الصحة", finish: "النهاية", signals: "الإشارات", empty: "لا توجد مشاريع مطابقة للمرشح الحالي.", onTrack: "ضمن المسار", noForecast: "غير متاح", currentForecast: "التوقع الحالي", daysLate: "يوم تأخر", labels: { health_red: "صحة حمراء", health_amber: "صحة صفراء", schedule_critical: "تأخر زمني حرج", schedule_warning: "تنبيه زمني", cost_critical: "تجاوز تكلفة حرج", cost_warning: "تنبيه تكلفة", finish_delay: "تأخر نهاية متوقعة", high_risk: "مخاطرة عالية", critical_issue: "قضية حرجة", overdue_action: "إجراء متأخر", missing_evm: "لا توجد لقطة EVM", missing_health: "لا توجد لقطة صحة" } }
     : { title: "Planning control center", sub: "Start with projects that need intervention. Signals use the latest available EVM, project health, and governance records.", attention: "Needs attention", all: "All projects", dataRequired: "Data required", critical: "Critical", warning: "Warning", delayed: "Forecast finish delayed", evm: "EVM", health: "Health", finish: "Finish", signals: "Signals", empty: "No projects match the current filter.", onTrack: "On track", noForecast: "Not available", currentForecast: "Current forecast", daysLate: "days late", labels: { health_red: "Red health", health_amber: "Amber health", schedule_critical: "Critical schedule delay", schedule_warning: "Schedule warning", cost_critical: "Critical cost overrun", cost_warning: "Cost warning", finish_delay: "Forecast finish delayed", high_risk: "High risk", critical_issue: "Critical issue", overdue_action: "Overdue action", missing_evm: "No EVM snapshot", missing_health: "No health snapshot" } };
+  const exceptionCopy = isArabic
+    ? { title: "استثناءات اليوم", sub: "الأحداث التي تتطلب متابعة الآن عبر المشاريع المصرح بها فقط.", empty: "لا توجد استثناءات مفتوحة تتطلب متابعة اليوم.", critical: "حرج", warning: "تنبيه", labels: { health_red: "صحة حمراء", health_amber: "صحة صفراء", forecast_finish_delayed: "تأخر النهاية المتوقعة", high_risk: "مخاطرة عالية", critical_issue: "قضية حرجة", overdue_action: "إجراء متأخر", open_change: "طلب تغيير مفتوح" } }
+    : { title: "Today’s exceptions", sub: "Items requiring attention now, across authorized projects only.", empty: "No open exceptions require attention today.", critical: "Critical", warning: "Warning", labels: { health_red: "Red health", health_amber: "Amber health", forecast_finish_delayed: "Forecast finish delayed", high_risk: "High risk", critical_issue: "Critical issue", overdue_action: "Overdue action", open_change: "Open change request" } };
 
   const riskMutation = trpc.pmo.createRisk.useMutation({
     onSuccess: () => {
@@ -69,6 +72,7 @@ export default function PmoDashboard() {
 
   const data = query.data;
   const planningOverview = data.planningOverview ?? { projects: [], summary: { totalProjects: 0, criticalProjects: 0, warningProjects: 0, dataRequiredProjects: 0, delayedProjects: 0 } };
+  const todayExceptions = data.todayExceptions ?? [];
   const planningProjects = planningOverview.projects.filter(project => planningFilter === "all" || (planningFilter === "data_required" ? project.attentionLevel === "data_required" : project.attentionLevel !== "on_track"));
   const openRisks = data.risks.filter(item => item.status !== "closed");
   const openIssues = data.issues.filter(item => !["resolved", "closed"].includes(item.status));
@@ -77,6 +81,7 @@ export default function PmoDashboard() {
   const priorityLabel = (priority: string) => t[priority as Priority] ?? priority;
   const escalationLabel = (status: EscalationStatus) => t[status];
   const signalLabel = (signal: string) => planningCopy.labels[signal as keyof typeof planningCopy.labels] ?? signal;
+  const exceptionLabel = (label: string) => exceptionCopy.labels[label as keyof typeof exceptionCopy.labels] ?? label;
   const nextEscalation = (status: EscalationStatus) => status === "none" ? "pending" : status === "pending" ? "escalated" : null;
   const projectSelect = (value: string, change: (value: string) => void) => (
     <select value={value} onChange={event => change(event.target.value)} className={field} required>
@@ -132,6 +137,11 @@ export default function PmoDashboard() {
           <Metric label={t.issues} value={openIssues.length} />
           <Metric label={t.actions} value={openActions.length} />
         </div>
+
+        <section className="mt-6 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" aria-label={exceptionCopy.title}>
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5"><div><div className="flex items-center gap-2"><CircleAlert className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold text-foreground">{exceptionCopy.title}</h2></div><p className="mt-1 text-sm text-muted-foreground">{exceptionCopy.sub}</p></div><span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">{todayExceptions.length}</span></div>
+          {todayExceptions.length ? <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">{todayExceptions.slice(0, 12).map(exception => <article key={exception.id} className={`rounded-[var(--radius-md)] border p-4 ${exception.severity === "critical" ? "border-red-200 bg-red-50/70" : "border-amber-200 bg-amber-50/70"}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{exception.projectCode}</p><h3 className="mt-1 font-semibold text-foreground">{exceptionLabel(exception.label)}</h3></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${exception.severity === "critical" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>{exception.severity === "critical" ? exceptionCopy.critical : exceptionCopy.warning}</span></div><p className="mt-3 text-sm font-medium text-foreground">{exception.detail}</p><p className="mt-1 text-xs text-muted-foreground">{exception.projectName}{exception.dueAt ? ` · ${new Date(exception.dueAt).toLocaleDateString(isArabic ? "ar-SA" : "en-GB")}` : ""}</p></article>)}</div> : <p className="p-5 text-sm text-muted-foreground">{exceptionCopy.empty}</p>}
+        </section>
 
         <section className="mt-6 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" aria-label={planningCopy.title}>
           <div className="flex flex-col gap-4 border-b border-border p-5 lg:flex-row lg:items-end lg:justify-between">

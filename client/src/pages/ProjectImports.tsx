@@ -10,7 +10,7 @@ type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on
 
 export function ProjectImports({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
-  const [moduleCode, setModuleCode] = useState<"wbs" | "budget">("wbs");
+  const [moduleCode, setModuleCode] = useState<"wbs" | "budget" | "contracts">("wbs");
   const [file, setFile] = useState<File | null>(null);
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("fail_on_duplicate");
   const [mappingOverride, setMappingOverride] = useState<Record<string, string>>({});
@@ -46,6 +46,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         note: "ارفع XLSX أو CSV، واختر سياسة التكرار، ثم راجع النتيجة قبل تأكيد الكتابة التشغيلية.",
         wbs: "WBS",
         budget: "الميزانية",
+        contracts: "العقود",
         analyze: "تحليل الملف",
         reanalyze: "إعادة التحليل بالتعيين",
         chooseMapping: "اختر عمود الملف",
@@ -64,7 +65,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         mapping: "تعيين الأعمدة المكتشف",
         noRowResults: "لا توجد نتائج صفوف محفوظة لهذا السجل بعد.",
         validationErrors: "أخطاء التحقق المحفوظة",
-        field: { code: "الرمز", name: "الاسم", plannedValue: "القيمة المخططة", costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية" },
+        field: { code: "الرمز", name: "الاسم", plannedValue: "القيمة المخططة", costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية", title: "اسم العقد", counterparty: "الطرف المتعاقد", contractValue: "قيمة العقد", currency: "العملة" },
         status: { uploaded: "مرفوع", validated: "جاهز للتأكيد", completed: "مكتمل", failed: "فشل", importing: "قيد التنفيذ", cancelled: "ملغى", confirmed: "مؤكد" },
         duplicate: { fail_on_duplicate: "إيقاف الاستيراد عند وجود تكرار", skip_duplicates: "تجاوز الصفوف الموجودة", update_existing: "تحديث الصفوف الموجودة فقط", upsert: "إنشاء الجديد وتحديث الموجود" },
         action: { created: "تم الإنشاء", updated: "تم التحديث", skipped: "تم التجاوز" },
@@ -88,6 +89,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         note: "Upload XLSX or CSV, select the duplicate policy, then review the result before confirming the operational write.",
         wbs: "WBS",
         budget: "Budget",
+        contracts: "Contracts",
         analyze: "Analyze file",
         reanalyze: "Reanalyze mapping",
         chooseMapping: "Choose a file column",
@@ -106,7 +108,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         mapping: "Detected column mapping",
         noRowResults: "No row results have been saved for this record yet.",
         validationErrors: "Saved validation errors",
-        field: { code: "Code", name: "Name", plannedValue: "Planned value", costCode: "Cost code", originalAmount: "Original amount", currentAmount: "Current amount" },
+        field: { code: "Code", name: "Name", plannedValue: "Planned value", costCode: "Cost code", originalAmount: "Original amount", currentAmount: "Current amount", title: "Contract title", counterparty: "Counterparty", contractValue: "Contract value", currency: "Currency" },
         status: { uploaded: "Uploaded", validated: "Ready to confirm", completed: "Completed", failed: "Failed", importing: "Importing", cancelled: "Cancelled", confirmed: "Confirmed" },
         duplicate: { fail_on_duplicate: "Stop when a duplicate exists", skip_duplicates: "Skip existing rows", update_existing: "Update existing rows only", upsert: "Create new and update existing rows" },
         action: { created: "Created", updated: "Updated", skipped: "Skipped" },
@@ -135,11 +137,12 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
     const base64 = btoa(Array.from(new Uint8Array(bytes), byte => String.fromCharCode(byte)).join(""));
     analyze.mutate({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, base64, duplicateMode });
   };
-  const requiredFields = moduleCode === "wbs" ? ["code", "name"] : ["costCode", "originalAmount", "currentAmount"];
+  const requiredFields = moduleCode === "wbs" ? ["code", "name"] : moduleCode === "budget" ? ["costCode", "originalAmount", "currentAmount"] : ["code", "title", "counterparty", "contractValue", "currency"];
   const templateHeaders = moduleCode === "wbs"
     ? isArabic ? ["رمز WBS", "اسم WBS", "القيمة المخططة"] : ["WBS Code", "WBS Name", "Planned Value"]
-    : isArabic ? ["رمز التكلفة", "القيمة الأصلية", "القيمة الحالية"] : ["Cost Code", "Original Amount", "Current Amount"];
-  const templateExample = moduleCode === "wbs" ? ["1.1", isArabic ? "الأعمال التمهيدية" : "Preliminaries", "100000"] : ["CIVIL", "500000", "525000"];
+    : moduleCode === "budget" ? isArabic ? ["رمز التكلفة", "القيمة الأصلية", "القيمة الحالية"] : ["Cost Code", "Original Amount", "Current Amount"]
+      : isArabic ? ["رمز العقد", "اسم العقد", "الطرف المتعاقد", "قيمة العقد", "العملة"] : ["Contract Code", "Contract Title", "Counterparty", "Contract Value", "Currency"];
+  const templateExample = moduleCode === "wbs" ? ["1.1", isArabic ? "الأعمال التمهيدية" : "Preliminaries", "100000"] : moduleCode === "budget" ? ["CIVIL", "500000", "525000"] : ["CON-001", isArabic ? "عقد الأعمال المدنية" : "Civil works contract", isArabic ? "المقاول الرئيسي" : "Main Contractor", "2500000", "SAR"];
   const downloadTemplate = () => {
     const content = `\uFEFF${templateHeaders.join(",")}\n${templateExample.join(",")}\n`;
     const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
@@ -151,7 +154,8 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
     IMPORT_SINGLE_SHEET_REQUIRED: isArabic ? "يجب أن يحتوي الملف على ورقة عمل واحدة فقط." : "The file must contain exactly one worksheet.",
     IMPORT_UNSUPPORTED_COLUMN: isArabic ? "يوجد عمود غير معتمد لنوع البيانات المحدد." : "The file includes a column not approved for the selected data type.",
     IMPORT_DUPLICATE_FILE_KEY: isArabic ? "يوجد رمز مكرر داخل الملف. صحح التكرار قبل التحليل." : "A business key is repeated inside the file. Correct the duplicate before analysis.",
-    IMPORT_MAPPING_INVALID: isArabic ? "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد." : "A file column cannot be assigned to more than one approved field.",
+      IMPORT_MAPPING_INVALID: isArabic ? "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد." : "A file column cannot be assigned to more than one approved field.",
+      IMPORT_INVALID_CURRENCY: isArabic ? "العملة يجب أن تكون رمزًا من ثلاثة أحرف مثل SAR أو USD." : "Currency must be a three-letter code such as SAR or USD.",
   }[code] ?? code);
 
   return (
@@ -159,7 +163,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       <div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] bg-[var(--dashio-indigo)]/10 text-primary"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 className="font-semibold">{t.title}</h2><p className="mt-1 text-xs text-muted-foreground">{t.note}</p></div></div><span className="rounded-full bg-[var(--dashio-aqua)]/10 px-3 py-1 text-xs font-semibold text-[var(--dashio-aqua-deep)]">{t.workflow}</span></div>
       <div className="mt-5 grid gap-3 md:grid-cols-3"><Step icon={ListChecks} number="1" title={t.step1} /><Step icon={Upload} number="2" title={t.step2} /><Step icon={BadgeCheck} number="3" title={t.step3} /></div>
       <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/[.07] p-4 text-sm text-foreground"><p className="font-semibold">{t.instructions}</p><p className="mt-2 text-xs text-muted-foreground">{t.accepted}</p><p className="mt-1 text-xs font-medium text-foreground">{t.fileRules}</p></div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p></div><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept=".xlsx,.csv" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={analyze.isPending} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}</div></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button><Button type="button" variant={moduleCode === "contracts" ? "default" : "outline"} onClick={() => { setModuleCode("contracts"); setMappingOverride({}); setLocalError(null); }}>{t.contracts}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p></div><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept=".xlsx,.csv" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={analyze.isPending} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}</div></div>
       {localError && <p role="alert" className="mt-3 text-xs text-red-700">{localError}</p>}
       {analyze.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(analyze.error, isArabic)}</p>}
       {analyze.data && <div className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs">

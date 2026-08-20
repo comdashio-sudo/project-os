@@ -1,11 +1,12 @@
 import * as XLSX from "xlsx";
 
-export type ImportModuleCode = "wbs" | "budget";
+export type ImportModuleCode = "wbs" | "budget" | "contracts";
 export type ExportModuleCode = "wbs" | "budget" | "activities";
 export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
-export type ValidatedImportRow = WbsImportRow | BudgetImportRow;
+export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
+export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow;
 export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
 export type MasterPlanSpatialImportRow = { rowNumber: number; values: { code: string; name: string; entityType: "block" | "building" | "zone" | "unit" | "area"; geometry: { x: number; y: number; width: number; height: number }; status: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent: number; plannedValue: number; actualValue: number; forecastValue: number; parentCode?: string; wbsCode?: string; activityCode?: string } };
 
@@ -20,6 +21,13 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "costCode", required: true, aliases: ["cost code", "رمز التكلفة"] },
     { key: "originalAmount", required: true, aliases: ["original amount", "القيمة الأصلية"] },
     { key: "currentAmount", required: true, aliases: ["current amount", "القيمة الحالية"] },
+  ],
+  contracts: [
+    { key: "code", required: true, aliases: ["contract code", "code", "رمز العقد", "الرمز"] },
+    { key: "title", required: true, aliases: ["contract title", "title", "اسم العقد", "العقد"] },
+    { key: "counterparty", required: true, aliases: ["counterparty", "contractor", "party", "الطرف المتعاقد", "المقاول"] },
+    { key: "contractValue", required: true, aliases: ["contract value", "value", "قيمة العقد", "القيمة"] },
+    { key: "currency", required: true, aliases: ["currency", "عملة", "العملة"] },
   ],
 };
 
@@ -151,14 +159,31 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
         return;
       }
 
-      const costCode = requiredText(row[mapping.costCode]);
-      const originalAmount = nonnegativeNumber(row[mapping.originalAmount]);
-      const currentAmount = nonnegativeNumber(row[mapping.currentAmount]);
-      if (!costCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" });
-      if (originalAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "originalAmount" });
-      if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
-      if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
-      if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
+      if (input.moduleCode === "budget") {
+        const costCode = requiredText(row[mapping.costCode]);
+        const originalAmount = nonnegativeNumber(row[mapping.originalAmount]);
+        const currentAmount = nonnegativeNumber(row[mapping.currentAmount]);
+        if (!costCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" });
+        if (originalAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "originalAmount" });
+        if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
+        if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
+        if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
+        return;
+      }
+      const code = requiredText(row[mapping.code]);
+      const title = requiredText(row[mapping.title]);
+      const counterparty = requiredText(row[mapping.counterparty]);
+      const contractValue = nonnegativeNumber(row[mapping.contractValue]);
+      const currency = requiredText(row[mapping.currency]).toUpperCase();
+      if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" });
+      if (!title) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "title" });
+      if (!counterparty) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "counterparty" });
+      if (contractValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "contractValue" });
+      if (!/^[A-Z]{3}$/.test(currency)) errors.push({ rowNumber, code: "IMPORT_INVALID_CURRENCY", field: "currency" });
+      const duplicateCode = Boolean(code && fileKeys.has(code));
+      if (duplicateCode) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" });
+      if (code && !duplicateCode) fileKeys.add(code);
+      if (code && title && counterparty && contractValue !== undefined && /^[A-Z]{3}$/.test(currency) && !duplicateCode) validRows.push({ rowNumber, values: { code, title, counterparty, contractValue, currency } });
     });
   }
 

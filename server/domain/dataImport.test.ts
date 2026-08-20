@@ -38,6 +38,16 @@ describe("analyzeImportFile", () => {
     expect(result.errors).toContainEqual({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
     expect(result.validRows).toHaveLength(1);
   });
+  it("accepts an approved Arabic contracts template and normalizes its ISO currency", () => {
+    const result = analyzeImportFile({ moduleCode: "contracts", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "رمز العقد": "CON-001", "اسم العقد": "عقد الأعمال المدنية", "الطرف المتعاقد": "المقاول الرئيسي", "قيمة العقد": "2,500,000", "العملة": "sar" }])) });
+    expect(result.errors).toEqual([]);
+    expect(result.validRows).toEqual([{ rowNumber: 2, values: { code: "CON-001", title: "عقد الأعمال المدنية", counterparty: "المقاول الرئيسي", contractValue: 2500000, currency: "SAR" } }]);
+  });
+  it("rejects a contracts file with an invalid currency or a repeated contract code", () => {
+    const result = analyzeImportFile({ moduleCode: "contracts", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Contract Code": "CON-001", "Contract Title": "Civil works", Counterparty: "Main Contractor", "Contract Value": 100, Currency: "Saudi Riyal" }, { "Contract Code": "CON-001", "Contract Title": "MEP works", Counterparty: "MEP Contractor", "Contract Value": 200, Currency: "SAR" }])) });
+    expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 2, code: "IMPORT_INVALID_CURRENCY", field: "currency" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" })]));
+    expect(result.validRows).toEqual([]);
+  });
   it("builds localized CSV headers without exposing unrequested columns", () => {
     const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] });
     const csv = result.bytes.toString("utf8");

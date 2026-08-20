@@ -20,6 +20,7 @@ vi.mock("@/lib/trpc", () => {
         { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red" }, evm: { cpi: 0.8, spi: 0.8 }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
         { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: "on_track", health: { status: "green" }, evm: { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: [] },
       ] },
+      todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }],
     } }) } },
     pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: mutation }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
@@ -29,6 +30,8 @@ describe("PmoDashboard planning control center", () => {
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
     expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
+    expect(screen.getByText("Red health")).toBeTruthy();
     expect(screen.getByText("Critical schedule delay")).toBeTruthy();
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(4);
     fireEvent.change(screen.getByLabelText("Projects"), { target: { value: "all" } });

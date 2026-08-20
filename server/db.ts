@@ -68,18 +68,21 @@ import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/op
 import { calculateOperationalCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
+import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
-import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
+import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const useAdministrativeConnection = process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true" || process.env.VITEST === "true";
+      _db = drizzle(buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD, useAdministrativeConnection));
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -957,7 +960,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows] = await Promise.all([
+  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows, changeRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, plannedFinishAt: projects.plannedFinishAt, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
@@ -969,6 +972,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     db.select({ id: ncrs.id, projectId: ncrs.projectId, ncrNumber: ncrs.ncrNumber, title: ncrs.title, status: ncrs.status }).from(ncrs).where(eq(ncrs.tenantId, input.tenantId)),
     db.select({ projectId: evmSnapshots.projectId, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, vac: evmSnapshots.vac, periodAt: evmSnapshots.periodAt }).from(evmSnapshots).where(eq(evmSnapshots.tenantId, input.tenantId)).orderBy(desc(evmSnapshots.periodAt)),
     db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
+    db.select({ id: changeRequests.id, projectId: changeRequests.projectId, changeNumber: changeRequests.changeNumber, title: changeRequests.title, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, currency: changeRequests.currency, status: changeRequests.status }).from(changeRequests).where(eq(changeRequests.tenantId, input.tenantId)),
   ]);
   const latestEvmByProject = new Map<string, (typeof evmRows)[number]>(); evmRows.forEach(item => { if (!latestEvmByProject.has(item.projectId)) latestEvmByProject.set(item.projectId, item); });
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>(); healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
@@ -984,7 +988,15 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
       overdueActionCount: actionRows.filter(item => item.projectId === project.id && !["completed", "cancelled"].includes(item.status) && item.dueAt !== null && item.dueAt < today).length,
     };
   }));
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview };
+  const todayExceptions = buildPmoTodayExceptions({
+    projects: projectRows.map(project => ({ ...project, health: latestHealthByProject.get(project.id) ? { status: latestHealthByProject.get(project.id)!.status } : null })),
+    risks: riskRows,
+    issues: issueRows,
+    actions: actionRows,
+    changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost) })),
+    today,
+  });
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -2031,7 +2043,7 @@ export async function reanalyzeDataImport(input: { userId: number; tenantId: str
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId }); await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, status: dataImports.status }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
-  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" }); if (record.moduleCode !== "wbs" && record.moduleCode !== "budget") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" }); if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
   const response = await fetch(await storageGetSignedUrl(record.fileKey)); if (!response.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" }); const bytes = Buffer.from(await response.arrayBuffer()); const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: input.mappingOverride });
   await db.transaction(async tx => { await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id)); await tx.update(dataImports).set({ status: analysis.errors.length ? "uploaded" : "validated", validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }) }).where(eq(dataImports.id, record.id)); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_reanalyzed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, mapping: analysis.mapping }) }); });
   return { id: record.id, status: analysis.errors.length ? "uploaded" as const : "validated" as const, headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
@@ -2049,7 +2061,7 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
   if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  if (record.moduleCode !== "wbs" && record.moduleCode !== "budget") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
 
   const signedUrl = await storageGetSignedUrl(record.fileKey);
   const fileResponse = await fetch(signedUrl);
@@ -2060,18 +2072,20 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: storedMapping });
   if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
 
-  const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : analysis.validRows as BudgetImportRow[];
+  const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : record.moduleCode === "budget" ? analysis.validRows as BudgetImportRow[] : analysis.validRows as ContractImportRow[];
   const keys = record.moduleCode === "wbs"
     ? (records as WbsImportRow[]).map(row => row.values.code)
-    : (records as BudgetImportRow[]).map(row => row.values.costCode);
+    : record.moduleCode === "budget" ? (records as BudgetImportRow[]).map(row => row.values.costCode) : (records as ContractImportRow[]).map(row => row.values.code);
   if (new Set(keys).size !== keys.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existing = record.moduleCode === "wbs"
     ? await db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), inArray(wbsItems.code, keys)))
-    : await db.select({ id: budgetLines.id, key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)));
+    : record.moduleCode === "budget"
+      ? await db.select({ id: budgetLines.id, key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)))
+      : await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), inArray(contracts.code, keys)));
   if (existing.length && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existingByKey = new Map(existing.map(item => [item.key, item.id]));
   const operations = records.map(row => {
-    const key = record.moduleCode === "wbs" ? (row as WbsImportRow).values.code : (row as BudgetImportRow).values.costCode;
+    const key = record.moduleCode === "wbs" ? (row as WbsImportRow).values.code : record.moduleCode === "budget" ? (row as BudgetImportRow).values.costCode : (row as ContractImportRow).values.code;
     const existingId = existingByKey.get(key);
     const action = existingId
       ? (record.duplicateMode === "skip_duplicates" ? "skipped" as const : "updated" as const)
@@ -2086,11 +2100,13 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   await db.transaction(async tx => {
     if (created.length) {
       if (record.moduleCode === "wbs") await tx.insert(wbsItems).values(created.map(operation => { const row = operation.row as WbsImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, name: row.values.name, plannedValue: String(row.values.plannedValue) }; }));
-      else await tx.insert(budgetLines).values(created.map(operation => { const row = operation.row as BudgetImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }; }));
+      else if (record.moduleCode === "budget") await tx.insert(budgetLines).values(created.map(operation => { const row = operation.row as BudgetImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }; }));
+      else await tx.insert(contracts).values(created.map(operation => { const row = operation.row as ContractImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }; }));
     }
     for (const operation of updated) {
       if (record.moduleCode === "wbs") { const row = operation.row as WbsImportRow; await tx.update(wbsItems).set({ name: row.values.name, plannedValue: String(row.values.plannedValue) }).where(and(eq(wbsItems.id, operation.entityId!), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))); }
-      else { const row = operation.row as BudgetImportRow; await tx.update(budgetLines).set({ originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }).where(and(eq(budgetLines.id, operation.entityId!), eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))); }
+      else if (record.moduleCode === "budget") { const row = operation.row as BudgetImportRow; await tx.update(budgetLines).set({ originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }).where(and(eq(budgetLines.id, operation.entityId!), eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))); }
+      else { const row = operation.row as ContractImportRow; await tx.update(contracts).set({ title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }).where(and(eq(contracts.id, operation.entityId!), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))); }
     }
     await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
     await tx.insert(dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));

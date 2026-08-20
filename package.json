@@ -12,6 +12,8 @@
     "test": "vitest run",
     "coverage:trpc": "node --import tsx scripts/inventory-trpc-procedures.mjs --validate",
     "verify:audit-grants": "node --import tsx scripts/verify-audit-log-grants.mjs",
+    "provision:audit-app": "node scripts/provision-audit-app-account.mjs",
+    "provision:audit-admin": "node scripts/provision-audit-admin-account.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {
