@@ -305,6 +305,38 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
   }, 15_000);
 
+  it("governs remaining operational wrapper reads with authorized scope and foreign rejection", async () => {
+    const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(ownerContext);
+    await expect(caller.claims.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.contracts.getProjectRegister({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.dataImports.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.ncrs.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.resources.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.rfis.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.dashboards.pmo({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.tenant.administration({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.dashboards.pmo({ tenantId: tenantA })).rejects.toThrow("Required permission is not granted.");
+    const [claims, contracts, imports, ncrs, resources, rfis, administration, assignable] = await Promise.all([
+      caller.claims.list({ tenantId: tenantA, projectId: projectA }),
+      caller.contracts.getProjectRegister({ tenantId: tenantA, projectId: projectA }),
+      caller.dataImports.list({ tenantId: tenantA, projectId: projectA }),
+      caller.ncrs.list({ tenantId: tenantA, projectId: projectA }),
+      caller.resources.list({ tenantId: tenantA, projectId: projectA }),
+      caller.rfis.list({ tenantId: tenantA, projectId: projectA }),
+      caller.tenant.administration({ tenantId: tenantA }),
+      caller.tenant.findAssignableUser({ tenantId: tenantA, email: "integration@test.local" }),
+    ]);
+    expect(claims).toEqual(expect.any(Array));
+    expect(contracts.contracts).toEqual(expect.any(Array));
+    expect(imports).toEqual(expect.any(Array));
+    expect(ncrs).toEqual(expect.any(Array));
+    expect(resources).toEqual(expect.any(Array));
+    expect(rfis).toEqual(expect.any(Array));
+    expect(administration).toEqual(expect.objectContaining({ members: expect.arrayContaining([expect.objectContaining({ userId: integrationUserId })]), roles: expect.arrayContaining([expect.objectContaining({ id: "int-role-a" })]) }));
+    expect(assignable).toBeNull();
+  }, 12_000);
+
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const unassignedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
