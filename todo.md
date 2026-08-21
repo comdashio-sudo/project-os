@@ -1,5 +1,7 @@
 # Project TODO
 
+- [x] الدفعة 0: عزل فشل مصدر بيانات واحد في كل من لوحات Level 1 وLevel 2 وLevel 3، مع حد خطأ موضعي وحالات تحميل/فارغ/خطأ/بيانات ناقصة موطنة ودليل يثبت استمرار بقية الأقسام. الدليل: `SectionResilience.test.tsx` للحالات الأربع؛ `ExecutiveDashboard.access.test.tsx` لفشل cash-flow/projects؛ `PmoDashboard.planning.test.tsx` (6) لفشل exceptions/risks والتحميل/الفراغ والبيانات الجزئية في PMO؛ و`ProjectControls.resilience.test.tsx` (4) لفشل performance/schedule وحالات التحميل/الفراغ والبيانات الجزئية المسماة في PROJECT.
+
 - [x] توثيق حد حيازة اعتماد حساب التدقيق الإداري في ADR والحالة، وتصنيفه BLOCKED_BY_OWNER وشرطًا إلزاميًا قبل بيانات Pilot الحقيقية. الدليل: قسم «حدود الضابط: حيازة اعتماد التدقيق الإداري» في ADR-0001 وصف STATE على `github/main`.
 - [x] حفظ ودفع تحصين الاستبعاد والحالة الحاكمة إلى `github/main` مع تحقق `ahead = 0`، من دون لمس `origin` الداخلي. الدليل: الرأس `d2e7cc1` محليًا وعلى `github/main` مع `ahead/behind = 0/0`.
 - [x] تعطيل النشر التلقائي أو توثيق قيده `BLOCKED_BY_PLATFORM` بصيغة صريحة قبل رفع حظر Pilot. الدليل: `STATE.md` يثبت أن كل نقطة تحقق تصل النطاق العام تلقائيًا وأنه لم يظهر مسار إعداد مدعوم لتعطيله.

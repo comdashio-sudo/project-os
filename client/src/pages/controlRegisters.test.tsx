@@ -94,16 +94,23 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
       dashboards: {
-        pmo: { invalidate: vi.fn() },
-        executive: { invalidate: vi.fn() },
+        invalidate: vi.fn(),
       },
       tenant: {
         administration: { invalidate: vi.fn() },
       },
     }),
     dashboards: {
-      pmo: { useQuery: () => ({ isLoading: false, error: null, data: state.pmoData }) },
-      executive: { useQuery: () => ({ isLoading: false, error: null, data: state.executiveData }) },
+      pmoPortfolioSetup: { useQuery: () => ({ isLoading: false, error: null, data: { portfolios: state.pmoData.portfolios, programs: state.pmoData.programs, projects: state.pmoData.projects, decisions: state.pmoData.decisions, rfis: state.pmoData.rfis, ncrs: state.pmoData.ncrs } }) },
+      pmoRisks: { useQuery: () => ({ isLoading: false, error: null, data: { risks: state.pmoData.risks } }) },
+      pmoIssues: { useQuery: () => ({ isLoading: false, error: null, data: { issues: state.pmoData.issues } }) },
+      pmoActions: { useQuery: () => ({ isLoading: false, error: null, data: { actions: state.pmoData.actions } }) },
+      pmoPlanning: { useQuery: () => ({ isLoading: false, error: null, data: { planningOverview: { projects: [], summary: { totalProjects: 0, criticalProjects: 0, warningProjects: 0, dataRequiredProjects: 0, delayedProjects: 0 } } } }) },
+      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: null, data: { todayExceptions: [] } }) },
+      executiveMetrics: { useQuery: () => ({ isLoading: false, error: null, data: { totals: state.executiveData.totals } }) },
+      executiveProjects: { useQuery: () => ({ isLoading: false, error: null, data: { projects: state.executiveData.projects } }) },
+      executiveDecisions: { useQuery: () => ({ isLoading: false, error: null, data: { decisions: state.executiveData.decisions } }) },
+      executiveCashFlow: { useQuery: () => ({ isLoading: false, error: null, data: { cashFlow: state.executiveData.cashFlow, cashFlowByProject: state.executiveData.cashFlowByProject, cashFlowByPortfolio: state.executiveData.cashFlowByPortfolio } }) },
     },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
     masterPlans: {
@@ -128,6 +135,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, data: state.projectControlsData, refetch: vi.fn() }) },
+      getControlsSchedule: { useQuery: () => ({ isLoading: false, error: null, data: { project: state.projectControlsData.project, wbs: state.projectControlsData.wbs, activities: state.projectControlsData.activities }, refetch: vi.fn() }) },
+      getControlsFinancials: { useQuery: () => ({ isLoading: false, error: null, data: { wbs: state.projectControlsData.wbs, budgets: state.projectControlsData.budgets, costs: state.projectControlsData.costs, progress: state.projectControlsData.progress }, refetch: vi.fn() }) },
+      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: null, data: { latestEvm: state.projectControlsData.latestEvm, latestHealth: state.projectControlsData.latestHealth, cashFlow: null }, refetch: vi.fn() }) },
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.projectRegistryData, refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       transitionLifecycle: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.projectLifecycleError, isSuccess: state.projectLifecycleSuccess }) },

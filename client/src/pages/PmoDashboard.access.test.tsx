@@ -17,8 +17,15 @@ vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null });
   return {
     trpc: {
-      useUtils: () => ({ dashboards: { pmo: { invalidate: vi.fn() } } }),
-      dashboards: { pmo: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined }) } },
+      useUtils: () => ({ dashboards: { invalidate: vi.fn() } }),
+      dashboards: {
+        pmoPortfolioSetup: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined }) },
+        pmoRisks: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined }) },
+        pmoIssues: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined }) },
+        pmoActions: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined }) },
+        pmoPlanning: { useQuery: () => ({ isLoading: false, error: null, data: { planningOverview: { projects: [], summary: { totalProjects: 0, criticalProjects: 0, warningProjects: 0, dataRequiredProjects: 0, delayedProjects: 0 } } } }) },
+        pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: null, data: { todayExceptions: [] } }) },
+      },
       pmo: {
         createRisk: { useMutation: mutation },
         createIssue: { useMutation: mutation },

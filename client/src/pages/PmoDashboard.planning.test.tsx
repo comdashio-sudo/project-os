@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
+
+const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
@@ -13,20 +15,25 @@ vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe er
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null });
   return { trpc: {
-    useUtils: () => ({ dashboards: { pmo: { invalidate: vi.fn() } } }),
-    dashboards: { pmo: { useQuery: () => ({ isLoading: false, error: null, data: {
-      portfolios: [], programs: [], projects: [{ id: "critical", code: "P-01", name: "Needs intervention" }, { id: "steady", code: "P-02", name: "On track project" }], risks: [], issues: [], actions: [], decisions: [], rfis: [], ncrs: [],
-      planningOverview: { summary: { totalProjects: 2, criticalProjects: 1, warningProjects: 0, dataRequiredProjects: 0, delayedProjects: 1 }, projects: [
+    useUtils: () => ({ dashboards: { invalidate: vi.fn() } }),
+    dashboards: {
+      pmoPortfolioSetup: { useQuery: () => ({ isLoading: false, error: null, data: { portfolios: [], programs: [], projects: state.setupEmpty ? [] : [{ id: "critical", code: "P-01", name: "Needs intervention" }, { id: "steady", code: "P-02", name: "On track project" }], decisions: [], rfis: [], ncrs: [] } }) },
+      pmoRisks: { useQuery: () => ({ isLoading: state.risksLoading, error: state.risksError, data: state.risksError || state.risksLoading ? undefined : { risks: [] } }) },
+      pmoIssues: { useQuery: () => ({ isLoading: false, error: null, data: { issues: [] } }) },
+      pmoActions: { useQuery: () => ({ isLoading: false, error: null, data: { actions: [] } }) },
+      pmoPlanning: { useQuery: () => ({ isLoading: false, error: null, data: { planningOverview: { summary: { totalProjects: 2, criticalProjects: 1, warningProjects: 0, dataRequiredProjects: state.planningPartial ? 1 : 0, delayedProjects: 1 }, projects: [
         { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red" }, evm: { cpi: 0.8, spi: 0.8 }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
-        { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: "on_track", health: { status: "green" }, evm: { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: [] },
-      ] },
-      todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }],
-    } }) } },
+        { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: state.planningPartial ? "data_required" : "on_track", health: state.planningPartial ? null : { status: "green" }, evm: state.planningPartial ? null : { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: state.planningPartial ? ["missing_evm", "missing_health"] : [] },
+      ] } } }) },
+      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }] } }) },
+    },
     pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: mutation }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
 });
 
 describe("PmoDashboard planning control center", () => {
+  afterEach(() => { cleanup(); state.exceptionsError = null; state.risksError = null; state.risksLoading = false; state.setupEmpty = false; state.planningPartial = false; });
+
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
     expect(screen.getByText("PROJECT OS")).toBeTruthy();
@@ -37,5 +44,44 @@ describe("PmoDashboard planning control center", () => {
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(4);
     fireEvent.change(screen.getByLabelText("Projects"), { target: { value: "all" } });
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(5);
+  });
+
+  it("keeps the planning center and PMO register available when today exceptions fail", () => {
+    state.exceptionsError = { message: "exceptions unavailable" };
+    render(<PmoDashboard />);
+    expect(screen.getAllByRole("heading", { name: "Planning control center" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("P-01 · Needs intervention").length).toBeGreaterThan(0);
+    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
+  });
+
+  it("keeps planning and today exceptions available when the independent risks source fails", () => {
+    state.risksError = { message: "risks unavailable" };
+    render(<PmoDashboard />);
+    expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
+    expect(screen.getAllByText("safe error").length).toBeGreaterThan(0);
+  });
+
+  it("shows loading and empty states in their PMO source sections without hiding planning", () => {
+    state.risksLoading = true;
+    render(<PmoDashboard />);
+    expect(within(screen.getAllByLabelText("Open risks")[0]).getByText("Loading this section…")).toBeTruthy();
+    expect(within(screen.getByLabelText("Open issues")).getByText("No records are available in the current access scope.")).toBeTruthy();
+    expect(within(screen.getByLabelText("Open actions")).getByText("No records are available in the current access scope.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
+  });
+
+  it("identifies missing planning inputs as partial without replacing the planning table", () => {
+    state.planningPartial = true;
+    render(<PmoDashboard />);
+    expect(within(screen.getAllByLabelText("Planning control center")[1]).getByText("Available: portfolio planning data. Missing: an EVM or health snapshot for one or more projects.")).toBeTruthy();
+    expect(screen.getByText("No EVM snapshot")).toBeTruthy();
+  });
+
+  it("shows an empty portfolio setup state at the setup source", () => {
+    state.setupEmpty = true;
+    render(<PmoDashboard />);
+    expect(within(screen.getByLabelText("Portfolio and program setup")).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
   });
 });

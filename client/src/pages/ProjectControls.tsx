@@ -25,6 +25,7 @@ import { ProjectImports } from "./ProjectImports";
 import { ProjectDataExport } from "./ProjectDataExport";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { Activity, ArrowLeft, Banknote, CalendarDays, Calculator, CheckCircle2, ClipboardList, HeartPulse, Plus, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
 import { Link, useParams } from "wouter";
@@ -34,8 +35,10 @@ const today = new Date().toISOString().slice(0, 10);
 export default function ProjectControls() {
   const { tenantId, projectId } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
-  const controls = trpc.projects.getControls.useQuery({ tenantId, projectId });
-  const refresh = () => controls.refetch();
+  const scheduleQuery = trpc.projects.getControlsSchedule.useQuery({ tenantId, projectId });
+  const financialsQuery = trpc.projects.getControlsFinancials.useQuery({ tenantId, projectId });
+  const performanceQuery = trpc.projects.getControlsPerformance.useQuery({ tenantId, projectId });
+  const refresh = () => { scheduleQuery.refetch(); financialsQuery.refetch(); performanceQuery.refetch(); };
   const createWbs = trpc.wbs.create.useMutation({ onSuccess: refresh });
   const createActivity = trpc.activities.create.useMutation({ onSuccess: refresh });
   const createBudget = trpc.budgets.create.useMutation({ onSuccess: refresh });
@@ -66,12 +69,24 @@ export default function ProjectControls() {
     ? { title: "التقاط EVM محسوب", note: "تحسب PV من الأنشطة المجدولة حتى التاريخ المحدد، وEV من أحدث تقدم مُرسل لكل بند WBS، وAC من قيود التكلفة الفعلية المُرحّلة، وBAC من بنود الميزانية الحالية.", capture: "حساب وحفظ لقطة تشغيلية", sources: "مصادر اللقطة", activities: "أنشطة مجدولة", budgets: "بنود الميزانية", actualCosts: "قيود تكلفة فعلية", progress: "تقدم WBS", period: "تاريخ القطع" }
     : { title: "Calculated EVM capture", note: "PV is derived from scheduled activities through the selected date, EV from the latest submitted progress for each WBS item, AC from posted actual-cost entries, and BAC from current budget lines.", capture: "Calculate and save operational snapshot", sources: "Snapshot sources", activities: "Scheduled activities", budgets: "Budget lines", actualCosts: "Posted actual-cost entries", progress: "WBS progress", period: "Cut-off date" };
 
-  if (controls.isLoading) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-slate-500">{t.loading}</main>;
-  if (controls.error || !controls.data) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(controls.error, isArabic)}</main>;
+  if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</main>;
 
-  const data = controls.data;
-  const latestHealthExceptions = data.latestHealth ? parseStoredHealthExceptions(data.latestHealth.exceptions) : [];
-  const latestHealthSources = data.latestHealth ? parseStoredHealthSources(data.latestHealth.drivers) : { overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 };
+  const fallbackData = { project: { code: projectId, name: t.title }, wbs: [], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null };
+  const baseData = {
+    ...fallbackData,
+    project: scheduleQuery.data?.project ?? fallbackData.project,
+    wbs: scheduleQuery.data?.wbs ?? financialsQuery.data?.wbs ?? fallbackData.wbs,
+    activities: scheduleQuery.data?.activities ?? fallbackData.activities,
+    budgets: financialsQuery.data?.budgets ?? fallbackData.budgets,
+    costs: financialsQuery.data?.costs ?? fallbackData.costs,
+    progress: financialsQuery.data?.progress ?? fallbackData.progress,
+  };
+  const latestHealth = performanceQuery.data?.latestHealth ?? null;
+  const latestEvm = performanceQuery.data?.latestEvm ?? null;
+  const cashFlow = performanceQuery.data?.cashFlow ?? null;
+  const data = { ...baseData, latestHealth, latestEvm, cashFlow };
+  const latestHealthExceptions = latestHealth ? parseStoredHealthExceptions(latestHealth.exceptions) : [];
+  const latestHealthSources = latestHealth ? parseStoredHealthSources(latestHealth.drivers) : { overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 };
   const disabled = createWbs.isPending || createActivity.isPending || createBudget.isPending || createCost.isPending || createProgress.isPending || saveEvm.isPending || captureOperationalEvm.isPending || captureProjectHealth.isPending;
   const apiError = createWbs.error ?? createActivity.error ?? createBudget.error ?? createCost.error ?? createProgress.error ?? saveEvm.error ?? captureOperationalEvm.error ?? captureProjectHealth.error;
   const statusLabel = (status: string) => {
@@ -99,8 +114,19 @@ export default function ProjectControls() {
         </section>
 
         {apiError && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{getLocalizedProjectError(apiError, isArabic)}</p>}
+        {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={isArabic ? "الجدولة وWBS" : "Schedule and WBS"} isArabic={isArabic} kind="loading" /></div>}
+        {scheduleQuery.error && <div className="mt-5"><SectionMessage title={isArabic ? "الجدولة وWBS" : "Schedule and WBS"} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(scheduleQuery.error, isArabic)} /></div>}
+        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={isArabic ? "الجدولة وWBS" : "Schedule and WBS"} isArabic={isArabic} kind="empty" /></div>}
+        {financialsQuery.isLoading && <div className="mt-5"><SectionMessage title={isArabic ? "سجلات التكلفة والتقدم" : "Cost and progress records"} isArabic={isArabic} kind="loading" /></div>}
+        {financialsQuery.error && <div className="mt-5"><SectionMessage title={isArabic ? "سجلات التكلفة والتقدم" : "Cost and progress records"} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(financialsQuery.error, isArabic)} /></div>}
+        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={isArabic ? "سجلات التكلفة والتقدم" : "Cost and progress records"} isArabic={isArabic} kind="empty" /></div>}
+        {performanceQuery.isLoading && <div className="mt-5"><SectionMessage title={isArabic ? "بيانات أداء المشروع" : "Project performance data"} isArabic={isArabic} kind="loading" /></div>}
+        {performanceQuery.error && <div className="mt-5"><SectionMessage title={isArabic ? "بيانات أداء المشروع" : "Project performance data"} isArabic={isArabic} kind="error" /></div>}
+        {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={isArabic ? "بيانات أداء المشروع" : "Project performance data"} isArabic={isArabic} kind="empty" /></div>}
+        {performanceQuery.data && (latestEvm || latestHealth || cashFlow) && (!latestEvm || !latestHealth) && <div className="mt-5"><SectionMessage title={isArabic ? "بيانات أداء المشروع" : "Project performance data"} isArabic={isArabic} kind="partial" detail={isArabic ? `المتاح: ${cashFlow ? "التدفق النقدي" : "جزء من الأداء"}. الناقص: ${!latestEvm ? "لقطة EVM" : ""}${!latestEvm && !latestHealth ? " و" : ""}${!latestHealth ? "لقطة الصحة" : ""}.` : `Available: ${cashFlow ? "cash flow" : "part of the performance data"}. Missing: ${!latestEvm ? "EVM snapshot" : ""}${!latestEvm && !latestHealth ? " and " : ""}${!latestHealth ? "health snapshot" : ""}.`} /></div>}
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
+          <SectionErrorBoundary title={isArabic ? "تحديث التخطيط والتكلفة" : "Schedule & cost updates"} isArabic={isArabic}>
           <OperationsGroup title={isArabic ? "تحديث التخطيط والتكلفة" : "Schedule & cost updates"}>
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <SectionHeading icon={ClipboardList} title={t.wbs} detail={`${data.wbs.length} ${t.recorded}`} />
@@ -132,7 +158,9 @@ export default function ProjectControls() {
               <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><SectionHeading icon={Activity} title={t.cost} /><form className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createCost.mutate({ tenantId, projectId, ...(cost.wbsItemId === "project" ? {} : { wbsItemId: cost.wbsItemId }), amount: Number(cost.amount), incurredAt: new Date(`${cost.incurredAt}T00:00:00.000Z`) }); setCost({ wbsItemId: "project", amount: "", incurredAt: today }); }}><WbsSelect value={cost.wbsItemId} onChange={wbsItemId => setCost({ ...cost, wbsItemId })} label={t.link} projectLabel={t.projectLevel} items={data.wbs} /><Input placeholder={t.amount} type="number" min="0.01" step="0.01" value={cost.amount} onChange={event => setCost({ ...cost, amount: event.target.value })} required /><Input aria-label={t.date} type="date" value={cost.incurredAt} onChange={event => setCost({ ...cost, incurredAt: event.target.value })} required /><Button className="w-full" disabled={disabled}>{createCost.isPending ? t.submitting : t.addCost}</Button></form></section>
             </div>
           </OperationsGroup>
+          </SectionErrorBoundary>
 
+          <SectionErrorBoundary title={isArabic ? "أداء المشروع والسجلات" : "Project performance and records"} isArabic={isArabic}>
           <aside className="space-y-6">
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><SectionHeading icon={TrendingUp} title={t.progress} /><form className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createProgress.mutate({ tenantId, projectId, wbsItemId: progress.wbsItemId, percentComplete: Number(progress.percentComplete), reportedAt: new Date(`${progress.reportedAt}T00:00:00.000Z`) }); setProgress({ wbsItemId: "", percentComplete: "", reportedAt: today }); }}><Select value={progress.wbsItemId} onValueChange={wbsItemId => setProgress({ ...progress, wbsItemId })} disabled={!data.wbs.length}><SelectTrigger><SelectValue placeholder={t.link} /></SelectTrigger><SelectContent>{data.wbs.map(item => <SelectItem key={item.id} value={item.id}>{item.code} · {item.name}</SelectItem>)}</SelectContent></Select><Input placeholder={t.percent} type="number" min="0" max="100" value={progress.percentComplete} onChange={event => setProgress({ ...progress, percentComplete: event.target.value })} required /><Input aria-label={t.date} type="date" value={progress.reportedAt} onChange={event => setProgress({ ...progress, reportedAt: event.target.value })} required /><Button className="w-full" disabled={disabled || !progress.wbsItemId}>{createProgress.isPending ? t.submitting : t.addProgress}</Button></form></section>
             <OperationsGroup title={t.contractsAndDocuments}><ProjectContracts tenantId={tenantId} projectId={projectId} /><ProjectPurchaseOrders tenantId={tenantId} projectId={projectId} /><ProjectClaims tenantId={tenantId} projectId={projectId} /><ProjectDocuments tenantId={tenantId} projectId={projectId} /></OperationsGroup>
@@ -153,6 +181,7 @@ export default function ProjectControls() {
               <form className="mt-5 grid grid-cols-2 gap-3" onSubmit={event => { event.preventDefault(); saveEvm.mutate({ tenantId, projectId, periodAt: new Date(`${evm.periodAt}T00:00:00.000Z`), pv: Number(evm.pv), ev: Number(evm.ev), ac: Number(evm.ac), bac: Number(evm.bac), eacMethod: evm.eacMethod }); }}><Input className="col-span-2" aria-label={t.date} type="date" value={evm.periodAt} onChange={event => setEvm({ ...evm, periodAt: event.target.value })} required /><Input placeholder={t.pv} type="number" min="0" value={evm.pv} onChange={event => setEvm({ ...evm, pv: event.target.value })} required /><Input placeholder={t.ev} type="number" min="0" value={evm.ev} onChange={event => setEvm({ ...evm, ev: event.target.value })} required /><Input placeholder={t.ac} type="number" min="0" value={evm.ac} onChange={event => setEvm({ ...evm, ac: event.target.value })} required /><Input placeholder={t.bac} type="number" min="0" value={evm.bac} onChange={event => setEvm({ ...evm, bac: event.target.value })} required /><Button className="col-span-2" disabled={disabled}>{saveEvm.isPending ? t.submitting : t.save}</Button></form>{data.latestEvm ? <div className="mt-5 rounded-xl bg-[#e6f4f3] p-4 text-sm"><div className="flex items-center gap-2 font-semibold text-[#0e6b70]"><CheckCircle2 className="h-4 w-4" />{t.latest}</div><div className="mt-3 grid grid-cols-4 gap-2 text-xs"><span>{t.cpi}: {data.latestEvm.cpi ?? "—"}</span><span>{t.spi}: {data.latestEvm.spi ?? "—"}</span><span>{t.eac}: {data.latestEvm.eac}</span><span>{t.vac}: {data.latestEvm.vac}</span></div></div> : <p className="mt-4 text-sm text-slate-500">{t.noSnapshot}</p>}{data.cashFlow && <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">{isArabic ? "ملخص التدفق النقدي التشغيلي" : "Operational cash-flow summary"}</p><div className="mt-2 grid grid-cols-2 gap-2 text-xs"><span>{isArabic ? "الميزانية المخططة" : "Planned budget"}: {data.cashFlow.plannedBudget}</span><span>{isArabic ? "التكلفة الفعلية" : "Actual cost"}: {data.cashFlow.actualCost}</span><span>{isArabic ? "الالتزامات" : "Commitments"}: {data.cashFlow.committedAmount}</span><span>{isArabic ? "المتبقي" : "Remaining budget"}: {data.cashFlow.remainingBudget}</span></div></div>}</section>
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><h2 className="font-semibold">{t.entries}</h2>{data.costs.length || data.progress.length || data.budgets.length ? <div className="mt-4 space-y-2 text-sm">{data.costs.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{t.actual}: {entry.amount} · {entry.status}</p>)}{data.progress.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{t.progress}: {entry.progressPercent}% · {entry.status}</p>)}{data.budgets.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{entry.costCode}: {entry.currentAmount}</p>)}</div> : <p className="mt-4 text-sm text-slate-500">{t.noEntries}</p>}</section>
           </aside>
+          </SectionErrorBoundary>
         </div>
       </div>
     </main>

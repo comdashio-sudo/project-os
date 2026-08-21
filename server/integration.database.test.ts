@@ -441,6 +441,13 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       expect(dashboard.planningOverview.projects).toEqual(expect.arrayContaining([expect.objectContaining({ id: projectC, attentionLevel: "critical", finishVarianceDays: 5, evm: expect.objectContaining({ cpi: 0.8, spi: 0.8 }), health: expect.objectContaining({ status: "red" }), signals: expect.arrayContaining(["health_red", "schedule_critical", "cost_critical", "finish_delay", "overdue_action"]) })]));
       expect(dashboard.todayExceptions).toEqual(expect.arrayContaining([expect.objectContaining({ projectId: projectC, category: "health", label: "health_red", severity: "critical" }), expect.objectContaining({ projectId: projectC, category: "schedule", label: "forecast_finish_delayed", severity: "warning" }), expect.objectContaining({ projectId: projectC, category: "action", label: "overdue_action" }), expect.objectContaining({ projectId: projectC, category: "change", label: "open_change", severity: "critical", detail: expect.stringContaining("CR-PLAN") })]));
       expect(dashboard.planningOverview.projects.some(project => project.id === projectB)).toBe(false);
+      await expect(caller.dashboards.pmoRegisters({ tenantId: tenantA })).resolves.toMatchObject({ projects: expect.any(Array), risks: expect.any(Array), issues: expect.any(Array) });
+      await expect(caller.dashboards.pmoPortfolioSetup({ tenantId: tenantA })).resolves.toMatchObject({ portfolios: expect.any(Array), projects: expect.any(Array) });
+      await expect(caller.dashboards.pmoRisks({ tenantId: tenantA })).resolves.toMatchObject({ risks: expect.any(Array) });
+      await expect(caller.dashboards.pmoIssues({ tenantId: tenantA })).resolves.toMatchObject({ issues: expect.any(Array) });
+      await expect(caller.dashboards.pmoActions({ tenantId: tenantA })).resolves.toMatchObject({ actions: expect.any(Array) });
+      await expect(caller.dashboards.pmoPlanning({ tenantId: tenantA })).resolves.toMatchObject({ planningOverview: expect.any(Object) });
+      await expect(caller.dashboards.pmoTodayExceptions({ tenantId: tenantA })).resolves.toMatchObject({ todayExceptions: expect.any(Array) });
     } finally {
       await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-pmo' AND permissionId = ?", [pmoReadPermissionId]);
       if (createdPermission) await connection.query("DELETE FROM permissions WHERE id = ?", [pmoReadPermissionId]);
@@ -1171,10 +1178,19 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO cost_entries (id, tenantId, projectId, amount, entryType, status, incurredAt) VALUES ('int-cost-a', ?, ?, 300, 'actual', 'posted', NOW()), ('int-cost-a-void', ?, ?, 10, 'actual', 'void', NOW()), ('int-cost-b', ?, ?, 9000, 'actual', 'posted', NOW())", [tenantA, projectA, tenantA, projectA, tenantB, projectB]);
     await connection.query("INSERT INTO commitments (id, tenantId, projectId, code, description, amount, currency, status) VALUES ('int-commitment-a', ?, ?, 'INT-COM-A', 'Authorized commitment', 250, 'USD', 'committed'), ('int-commitment-a-cancelled', ?, ?, 'INT-COM-C', 'Cancelled commitment', 100, 'USD', 'cancelled'), ('int-commitment-b', ?, ?, 'INT-COM-B', 'Cross tenant commitment', 9000, 'USD', 'committed')", [tenantA, projectA, tenantA, projectA, tenantB, projectB]);
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
-    const dashboard = await appRouter.createCaller(context).dashboards.executive({ tenantId: tenantA });
+    const caller = appRouter.createCaller(context);
+    const dashboard = await caller.dashboards.executive({ tenantId: tenantA });
     expect(dashboard.cashFlow).toEqual({ plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 });
     expect(dashboard.cashFlowByProject).toEqual([expect.objectContaining({ id: projectA, totalExposure: 550, remainingBudget: 450 })]);
     expect(dashboard.cashFlowByPortfolio).toEqual([expect.objectContaining({ portfolioId: "int-portfolio-a", code: "INT-PORT-A", totalExposure: 550, remainingBudget: 450, projectCount: 1 })]);
+    await expect(caller.dashboards.executiveOverview({ tenantId: tenantA })).resolves.toMatchObject({ totals: expect.any(Object), projects: expect.any(Array), decisions: expect.any(Array) });
+    await expect(caller.dashboards.executiveMetrics({ tenantId: tenantA })).resolves.toMatchObject({ totals: expect.any(Object) });
+    await expect(caller.dashboards.executiveProjects({ tenantId: tenantA })).resolves.toMatchObject({ projects: expect.any(Array) });
+    await expect(caller.dashboards.executiveDecisions({ tenantId: tenantA })).resolves.toMatchObject({ decisions: expect.any(Array) });
+    await expect(caller.dashboards.executiveCashFlow({ tenantId: tenantA })).resolves.toMatchObject({ cashFlow: { plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 } });
+    await expect(caller.projects.getControlsSchedule({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ project: expect.any(Object), wbs: expect.any(Array), activities: expect.any(Array) });
+    await expect(caller.projects.getControlsFinancials({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ wbs: expect.any(Array), budgets: expect.any(Array), costs: expect.any(Array), progress: expect.any(Array) });
+    await expect(caller.projects.getControlsPerformance({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ cashFlow: { plannedBudget: 1000, actualCost: 300, committedAmount: 250, totalExposure: 550, remainingBudget: 450 } });
   });
 
   it("rejects a cross-tenant resource update and updates an authorized allocation with audit evidence", async () => {

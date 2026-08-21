@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { lazy, Suspense } from "react";
 import {
   ArrowLeft,
@@ -24,7 +25,10 @@ export default function ExecutiveDashboard() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { isArabic } = useLanguage();
   const utils = trpc.useUtils();
-  const query = trpc.dashboards.executive.useQuery({ tenantId });
+  const metricsQuery = trpc.dashboards.executiveMetrics.useQuery({ tenantId });
+  const projectsQuery = trpc.dashboards.executiveProjects.useQuery({ tenantId });
+  const decisionsQuery = trpc.dashboards.executiveDecisions.useQuery({ tenantId });
+  const cashFlowQuery = trpc.dashboards.executiveCashFlow.useQuery({ tenantId });
   const [form, setForm] = useState({
     projectId: "",
     problem: "",
@@ -34,7 +38,7 @@ export default function ExecutiveDashboard() {
   const mutation = trpc.executive.createDecision.useMutation({
     onSuccess: () => {
       setForm({ projectId: "", problem: "", options: "", recommendation: "" });
-      utils.dashboards.executive.invalidate({ tenantId });
+      utils.dashboards.invalidate();
     },
   });
   const t = isArabic
@@ -88,19 +92,14 @@ export default function ExecutiveDashboard() {
         noProjects:
           "Create a project in your scope first so the decision can be linked to a specific project record.",
       };
-  if (query.isLoading)
-    return (
-      <main className="min-h-screen bg-[#f4f6f8] p-8 text-slate-500">
-        {t.loading}
-      </main>
-    );
-  if (query.error || !query.data)
-    return (
-      <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">
-        {getLocalizedProjectError(query.error, isArabic)}
-      </main>
-    );
-  const data = query.data;
+  if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
+    return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
+  }
+  const data = {
+    totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
+    projects: projectsQuery.data?.projects ?? [],
+    decisions: decisionsQuery.data?.decisions ?? [],
+  };
   const money = (value: number) =>
     value.toLocaleString(isArabic ? "ar" : "en", { maximumFractionDigits: 0 });
   const submit = (event: FormEvent) => {
@@ -160,7 +159,7 @@ export default function ExecutiveDashboard() {
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
           <p className="mt-2 text-slate-300">{t.sub}</p>
         </section>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Metric
             icon={Landmark}
             label={t.budget}
@@ -176,13 +175,9 @@ export default function ExecutiveDashboard() {
             label={t.forecast}
             value={money(data.totals.forecast)}
           />
-          <Metric
-            icon={CircleAlert}
-            label={t.decisions}
-            value={String(data.decisions.length)}
-          />
-        </div>
-        {data.cashFlow && (
+        </div>}
+        <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
+        {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" /></div> : cashFlowQuery.data.cashFlow ? (
           <Card className="mt-6 border-amber-200 bg-amber-50">
             <CardHeader>
               <CardTitle>{cash.title}</CardTitle>
@@ -193,39 +188,39 @@ export default function ExecutiveDashboard() {
                   <span className="block text-xs text-slate-500">
                     {cash.budget}
                   </span>
-                  <b>{money(data.cashFlow.plannedBudget)}</b>
+                  <b>{money(cashFlowQuery.data.cashFlow.plannedBudget)}</b>
                 </p>
                 <p>
                   <span className="block text-xs text-slate-500">
                     {cash.actual}
                   </span>
-                  <b>{money(data.cashFlow.actualCost)}</b>
+                  <b>{money(cashFlowQuery.data.cashFlow.actualCost)}</b>
                 </p>
                 <p>
                   <span className="block text-xs text-slate-500">
                     {cash.committed}
                   </span>
-                  <b>{money(data.cashFlow.committedAmount)}</b>
+                  <b>{money(cashFlowQuery.data.cashFlow.committedAmount)}</b>
                 </p>
                 <p>
                   <span className="block text-xs text-slate-500">
                     {cash.exposure}
                   </span>
-                  <b>{money(data.cashFlow.totalExposure)}</b>
+                  <b>{money(cashFlowQuery.data.cashFlow.totalExposure)}</b>
                 </p>
                 <p>
                   <span className="block text-xs text-slate-500">
                     {cash.remaining}
                   </span>
-                  <b>{money(data.cashFlow.remainingBudget)}</b>
+                  <b>{money(cashFlowQuery.data.cashFlow.remainingBudget)}</b>
                 </p>
               </div>
-              {(data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-slate-500">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
-              {data.cashFlowByPortfolio?.length ? (
+              {(cashFlowQuery.data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-slate-500">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={cashFlowQuery.data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
+              {cashFlowQuery.data.cashFlowByPortfolio?.length ? (
                 <div className="mt-5">
                   <p className="text-sm font-semibold">{cash.byPortfolio}</p>
                   <div className="mt-2 space-y-2">
-                    {data.cashFlowByPortfolio.map(portfolio => (
+                    {cashFlowQuery.data.cashFlowByPortfolio.map(portfolio => (
                       <div
                         key={portfolio.portfolioId ?? "unassigned"}
                         className="flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-xs"
@@ -245,11 +240,11 @@ export default function ExecutiveDashboard() {
                   </div>
                 </div>
               ) : null}
-              {data.cashFlowByProject?.length ? (
+              {cashFlowQuery.data.cashFlowByProject?.length ? (
                 <div className="mt-5">
                   <p className="text-sm font-semibold">{cash.byProject}</p>
                   <div className="mt-2 space-y-2">
-                    {data.cashFlowByProject.map(project => (
+                    {cashFlowQuery.data.cashFlowByProject.map(project => (
                       <div
                         key={project.id}
                         className="flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-xs"
@@ -268,9 +263,11 @@ export default function ExecutiveDashboard() {
               ) : null}
             </CardContent>
           </Card>
-        )}
+        ) : <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="empty" /></div>}
+        </SectionErrorBoundary>
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
-          <Card>
+          <SectionErrorBoundary title={t.attention} isArabic={isArabic}>
+          {projectsQuery.isLoading ? <SectionMessage title={t.attention} isArabic={isArabic} kind="loading" /> : projectsQuery.error || !projectsQuery.data ? <SectionMessage title={t.attention} isArabic={isArabic} kind="error" detail={projectsQuery.error ? getLocalizedProjectError(projectsQuery.error, isArabic) : undefined} /> : <Card>
             <CardHeader>
               <CardTitle>{t.attention}</CardTitle>
             </CardHeader>
@@ -299,8 +296,10 @@ export default function ExecutiveDashboard() {
                 <p className="text-sm text-slate-500">{t.empty}</p>
               )}
             </CardContent>
-          </Card>
-          <Card>
+          </Card>}
+          </SectionErrorBoundary>
+          <SectionErrorBoundary title={t.decisions} isArabic={isArabic}>
+          {decisionsQuery.isLoading ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="loading" /> : decisionsQuery.error || !decisionsQuery.data ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="error" detail={decisionsQuery.error ? getLocalizedProjectError(decisionsQuery.error, isArabic) : undefined} /> : <Card>
             <CardHeader>
               <CardTitle>{t.decisions}</CardTitle>
             </CardHeader>
@@ -316,7 +315,8 @@ export default function ExecutiveDashboard() {
                 <p className="text-sm text-slate-500">{t.empty}</p>
               )}
             </CardContent>
-          </Card>
+          </Card>}
+          </SectionErrorBoundary>
         </div>
         <details className="mt-6 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{t.create}</span><span className="text-xs font-medium text-primary">+</span></summary>

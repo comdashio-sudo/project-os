@@ -130,7 +130,46 @@ export const appRouter = router({
   }),
   dashboards: router({
     executive: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getExecutiveDashboard({ userId: ctx.user.id, ...input })),
+    executiveOverview: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getExecutiveDashboard({ userId: ctx.user.id, ...input });
+      return { totals: dashboard.totals, projects: dashboard.projects, decisions: dashboard.decisions };
+    }),
+    executiveMetrics: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getExecutiveDashboard({ userId: ctx.user.id, ...input });
+      return { totals: dashboard.totals };
+    }),
+    executiveProjects: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getExecutiveDashboard({ userId: ctx.user.id, ...input });
+      return { projects: dashboard.projects };
+    }),
+    executiveDecisions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getExecutiveDashboard({ userId: ctx.user.id, ...input });
+      return { decisions: dashboard.decisions };
+    }),
+    executiveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getExecutiveDashboard({ userId: ctx.user.id, ...input });
+      return { cashFlow: dashboard.cashFlow, cashFlowByProject: dashboard.cashFlowByProject, cashFlowByPortfolio: dashboard.cashFlowByPortfolio };
+    }),
     pmo: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPmoDashboard({ userId: ctx.user.id, ...input })),
+    pmoRegisters: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
+      return { portfolios: dashboard.portfolios, programs: dashboard.programs, projects: dashboard.projects, risks: dashboard.risks, issues: dashboard.issues, actions: dashboard.actions, decisions: dashboard.decisions, rfis: dashboard.rfis, ncrs: dashboard.ncrs };
+    }),
+    pmoPortfolioSetup: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
+      return { portfolios: dashboard.portfolios, programs: dashboard.programs, projects: dashboard.projects, decisions: dashboard.decisions, rfis: dashboard.rfis, ncrs: dashboard.ncrs };
+    }),
+    pmoRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => ({ risks: (await getPmoDashboard({ userId: ctx.user.id, ...input })).risks })),
+    pmoIssues: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => ({ issues: (await getPmoDashboard({ userId: ctx.user.id, ...input })).issues })),
+    pmoActions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => ({ actions: (await getPmoDashboard({ userId: ctx.user.id, ...input })).actions })),
+    pmoPlanning: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
+      return { planningOverview: dashboard.planningOverview };
+    }),
+    pmoTodayExceptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
+      return { todayExceptions: dashboard.todayExceptions };
+    }),
   }),
   pmo: router({
     createPortfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(80), name: z.string().trim().min(2).max(255) })).mutation(({ ctx, input }) => createPortfolioForTenant({ userId: ctx.user.id, ...input })),
@@ -148,6 +187,18 @@ export const appRouter = router({
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
     getControls: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectControlsForTenant({ userId: ctx.user.id, ...input })),
+    getControlsSchedule: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
+      return { project: controls.project, wbs: controls.wbs, activities: controls.activities };
+    }),
+    getControlsFinancials: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
+      return { wbs: controls.wbs, budgets: controls.budgets, costs: controls.costs, progress: controls.progress };
+    }),
+    getControlsPerformance: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
+      return { latestEvm: controls.latestEvm, latestHealth: controls.latestHealth, cashFlow: controls.cashFlow };
+    }),
     create: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(),
       code: z.string().trim().min(2).max(80),
