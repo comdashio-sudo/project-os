@@ -14,6 +14,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { useUtils: () => ({ licensing: { tenantLic
 describe("LicensingConsole", () => {
   it("sends a governed Master Plan limit for the current tenant license", async () => {
     const user = userEvent.setup(); render(<LicensingConsole />);
+    expect(screen.getByText("PROJECT OS")).toBeTruthy();
     await user.clear(screen.getByLabelText("Master Plan limit")); await user.type(screen.getByLabelText("Master Plan limit"), "7"); await user.click(screen.getByRole("button", { name: "Save limit" }));
     expect(state.override).toHaveBeenCalledWith({ tenantId: "tenant-1", licenseId: "license-1", featureCode: "MASTER_PLAN", active: true, limitValue: 7 });
   });

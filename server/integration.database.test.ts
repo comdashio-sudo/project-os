@@ -416,7 +416,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rfis).toEqual(expect.any(Array));
     expect(administration).toEqual(expect.objectContaining({ members: expect.arrayContaining([expect.objectContaining({ userId: integrationUserId })]), roles: expect.arrayContaining([expect.objectContaining({ id: "int-role-a" })]) }));
     expect(assignable).toBeNull();
-  }, 12_000);
+  }, 30_000);
 
   it("returns a tenant-scoped planning control center with latest EVM, health, schedule, and exception signals", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };

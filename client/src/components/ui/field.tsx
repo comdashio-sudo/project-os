@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
@@ -184,33 +184,9 @@ function FieldSeparator({
 function FieldError({
   className,
   children,
-  errors,
   ...props
-}: React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string } | undefined>;
-}) {
-  const content = useMemo(() => {
-    if (children) {
-      return children;
-    }
-
-    if (!errors) {
-      return null;
-    }
-
-    if (errors?.length === 1 && errors[0]?.message) {
-      return errors[0].message;
-    }
-
-    return (
-      <ul className="ml-4 flex list-disc flex-col gap-1">
-        {errors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>
-        )}
-      </ul>
-    );
-  }, [children, errors]);
+}: React.ComponentProps<"div">) {
+  const content = useMemo(() => children ?? null, [children]);
 
   if (!content) {
     return null;

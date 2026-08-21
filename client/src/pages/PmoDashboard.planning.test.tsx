@@ -29,6 +29,7 @@ vi.mock("@/lib/trpc", () => {
 describe("PmoDashboard planning control center", () => {
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
+    expect(screen.getByText("PROJECT OS")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
     expect(screen.getByText("Red health")).toBeTruthy();
