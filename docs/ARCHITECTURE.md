@@ -24,4 +24,4 @@ PROJECT OS منصة مؤسسية معيارية تعمل عبر نواة مشت�
 
 ## قرار تقني مسجل
 
-تعتمد المنصة في هذه المساحة على React وTypeScript وخدمة Express وقاعدة **MySQL/TiDB Serverless** عبر `drizzle-orm/mysql2` و`mysqlTable` وترحيلات MySQL. لا توجد تبعية تشغيلية لـSupabase أو PostgreSQL في PROJECT OS الحالي، ولا يصح استخدام اتصال PostgreSQL لاختبار هذا المستودع أو نشره دون مشروع تحويل معماري مستقل يشمل طبقة ORM والمخطط والترحيلات والاختبارات. توضع ملفات إعداد Vercel لاحقًا لملاءمة حزمة النشر، لكن لا يتم أي نشر خارجي تلقائيًا.
+تعتمد المنصة في هذه المساحة على React وTypeScript وخدمة Express وقاعدة **MySQL/TiDB Serverless** عبر `drizzle-orm/mysql2` و`mysqlTable` وترحيلات MySQL. يستخدم الاختبار والنشر اتصال MySQL/TiDB المخصص للمشروع فقط. لا يتم أي نشر خارجي تلقائيًا.

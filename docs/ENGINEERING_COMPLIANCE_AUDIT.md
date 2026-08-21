@@ -109,7 +109,7 @@ pnpm test && pnpm check && pnpm build
 
 ## قرار قاعدة البيانات التشغيلي
 
-المصدر المعتمد للمشروع الحالي هو **MySQL/TiDB Serverless**. يثبت ذلك استخدام `drizzle-orm/mysql2` و`mysqlTable` وملفات الترحيل بصيغة MySQL، إضافة إلى الاتصال الحي بقاعدة مشروع PROJECT OS. لا يعد Supabase/PostgreSQL جزءًا من هذه المعمارية؛ وأي تحويل إليه تغيير معماري مستقل لا يصح دمجه ضمن اختبار تكامل أو تغيير تشغيلي صغير.
+المصدر المعتمد للمشروع هو **MySQL/TiDB Serverless**. يثبت ذلك استخدام `drizzle-orm/mysql2` و`mysqlTable` وملفات الترحيل بصيغة MySQL، إضافة إلى الاتصال الحي بقاعدة مشروع PROJECT OS.
 
 ## قاعدة الاستمرار
 
