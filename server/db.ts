@@ -46,6 +46,8 @@ import {
   masterPlanSnapshots,
   masterPlanVisualizationRules,
   masterPlanSpatialEntities,
+  materialMasters,
+  projectMaterialOverrides,
   dataImportErrors,
   dataImportRowResults,
   dataImports,
@@ -72,7 +74,7 @@ import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
-import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type WbsImportRow } from "./domain/dataImport";
+import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 
@@ -1646,6 +1648,43 @@ export async function updateProjectResourceAllocationForTenant(input: { userId: 
   return { id: input.resourceId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits };
 }
 
+export async function getMaterialCatalogForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [masters, overrides] = await Promise.all([db.select().from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)).orderBy(materialMasters.code), db.select().from(projectMaterialOverrides).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.projectId, input.projectId)))]);
+  const byMaterial = new Map(overrides.map(item => [item.materialId, item]));
+  return masters.map(material => ({ ...material, override: byMaterial.get(material.id) ?? null }));
+}
+
+export async function createMaterialMasterForTenant(input: { userId: number; tenantId: string; code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "company" } });
+  const duplicate = await db.select({ id: materialMasters.id }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), eq(materialMasters.code, input.code))).limit(1);
+  if (duplicate[0]) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MATERIAL_CODE_EXISTS" });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(materialMasters).values({ id, tenantId: input.tenantId, code: input.code, description: input.description, unitOfMeasure: input.unitOfMeasure, category: input.category, referenceSpecification: input.referenceSpecification, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "materials.master_created", entityType: "material_master", entityId: id, metadata: JSON.stringify({ code: input.code, category: input.category, unitOfMeasure: input.unitOfMeasure }) }); });
+  return { id };
+}
+
+export async function saveProjectMaterialOverrideForTenant(input: { userId: number; tenantId: string; projectId: string; materialId: string; projectDescription?: string; referenceSpecification?: string; active: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [material] = await db.select({ id: materialMasters.id }).from(materialMasters).where(and(eq(materialMasters.id, input.materialId), eq(materialMasters.tenantId, input.tenantId))).limit(1);
+  if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MATERIAL_NOT_FOUND" });
+  const [existing] = await db.select({ id: projectMaterialOverrides.id }).from(projectMaterialOverrides).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.projectId, input.projectId), eq(projectMaterialOverrides.materialId, input.materialId))).limit(1);
+  const id = existing?.id ?? crypto.randomUUID();
+  await db.transaction(async tx => { if (existing) await tx.update(projectMaterialOverrides).set({ projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active }).where(eq(projectMaterialOverrides.id, id)); else await tx.insert(projectMaterialOverrides).values({ id, tenantId: input.tenantId, projectId: input.projectId, materialId: input.materialId, projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "materials.project_override_saved", entityType: "project_material_override", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, materialId: input.materialId, active: input.active }) }); });
+  return { id };
+}
+
 const claimStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted", "withdrawn"], submitted: ["under_review", "withdrawn"], under_review: ["approved", "rejected", "withdrawn"], approved: [], rejected: [], withdrawn: [] };
 
 export async function getClaimsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -2061,7 +2100,7 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
   if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
 
   const signedUrl = await storageGetSignedUrl(record.fileKey);
   const fileResponse = await fetch(signedUrl);
@@ -2072,20 +2111,20 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   const analysis = analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: storedMapping });
   if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
 
-  const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : record.moduleCode === "budget" ? analysis.validRows as BudgetImportRow[] : analysis.validRows as ContractImportRow[];
+  const records = record.moduleCode === "wbs" ? analysis.validRows as WbsImportRow[] : record.moduleCode === "budget" ? analysis.validRows as BudgetImportRow[] : record.moduleCode === "contracts" ? analysis.validRows as ContractImportRow[] : analysis.validRows as MaterialImportRow[];
   const keys = record.moduleCode === "wbs"
     ? (records as WbsImportRow[]).map(row => row.values.code)
-    : record.moduleCode === "budget" ? (records as BudgetImportRow[]).map(row => row.values.costCode) : (records as ContractImportRow[]).map(row => row.values.code);
+    : record.moduleCode === "budget" ? (records as BudgetImportRow[]).map(row => row.values.costCode) : record.moduleCode === "contracts" ? (records as ContractImportRow[]).map(row => row.values.code) : (records as MaterialImportRow[]).map(row => row.values.code);
   if (new Set(keys).size !== keys.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existing = record.moduleCode === "wbs"
     ? await db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), inArray(wbsItems.code, keys)))
     : record.moduleCode === "budget"
       ? await db.select({ id: budgetLines.id, key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)))
-      : await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), inArray(contracts.code, keys)));
+      : record.moduleCode === "contracts" ? await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), inArray(contracts.code, keys))) : await db.select({ id: materialMasters.id, key: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.code, keys)));
   if (existing.length && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existingByKey = new Map(existing.map(item => [item.key, item.id]));
   const operations = records.map(row => {
-    const key = record.moduleCode === "wbs" ? (row as WbsImportRow).values.code : record.moduleCode === "budget" ? (row as BudgetImportRow).values.costCode : (row as ContractImportRow).values.code;
+    const key = record.moduleCode === "wbs" ? (row as WbsImportRow).values.code : record.moduleCode === "budget" ? (row as BudgetImportRow).values.costCode : record.moduleCode === "contracts" ? (row as ContractImportRow).values.code : (row as MaterialImportRow).values.code;
     const existingId = existingByKey.get(key);
     const action = existingId
       ? (record.duplicateMode === "skip_duplicates" ? "skipped" as const : "updated" as const)
@@ -2101,12 +2140,14 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
     if (created.length) {
       if (record.moduleCode === "wbs") await tx.insert(wbsItems).values(created.map(operation => { const row = operation.row as WbsImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, name: row.values.name, plannedValue: String(row.values.plannedValue) }; }));
       else if (record.moduleCode === "budget") await tx.insert(budgetLines).values(created.map(operation => { const row = operation.row as BudgetImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }; }));
-      else await tx.insert(contracts).values(created.map(operation => { const row = operation.row as ContractImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }; }));
+      else if (record.moduleCode === "contracts") await tx.insert(contracts).values(created.map(operation => { const row = operation.row as ContractImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }; }));
+      else await tx.insert(materialMasters).values(created.map(operation => { const row = operation.row as MaterialImportRow; return { id: operation.entityId!, tenantId: input.tenantId, code: row.values.code, description: row.values.description, unitOfMeasure: row.values.unitOfMeasure, category: row.values.category, referenceSpecification: row.values.referenceSpecification, createdByUserId: input.userId }; }));
     }
     for (const operation of updated) {
       if (record.moduleCode === "wbs") { const row = operation.row as WbsImportRow; await tx.update(wbsItems).set({ name: row.values.name, plannedValue: String(row.values.plannedValue) }).where(and(eq(wbsItems.id, operation.entityId!), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))); }
       else if (record.moduleCode === "budget") { const row = operation.row as BudgetImportRow; await tx.update(budgetLines).set({ originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }).where(and(eq(budgetLines.id, operation.entityId!), eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))); }
-      else { const row = operation.row as ContractImportRow; await tx.update(contracts).set({ title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }).where(and(eq(contracts.id, operation.entityId!), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))); }
+      else if (record.moduleCode === "contracts") { const row = operation.row as ContractImportRow; await tx.update(contracts).set({ title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }).where(and(eq(contracts.id, operation.entityId!), eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))); }
+      else { const row = operation.row as MaterialImportRow; await tx.update(materialMasters).set({ description: row.values.description, unitOfMeasure: row.values.unitOfMeasure, category: row.values.category, referenceSpecification: row.values.referenceSpecification }).where(and(eq(materialMasters.id, operation.entityId!), eq(materialMasters.tenantId, input.tenantId))); }
     }
     await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
     await tx.insert(dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));

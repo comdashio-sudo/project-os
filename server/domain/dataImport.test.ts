@@ -48,6 +48,13 @@ describe("analyzeImportFile", () => {
     expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 2, code: "IMPORT_INVALID_CURRENCY", field: "currency" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" })]));
     expect(result.validRows).toEqual([]);
   });
+  it("accepts the named materials template and rejects duplicated or unsupported columns", () => {
+    const accepted = analyzeImportFile({ moduleCode: "materials", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Material Code": "MAT-01", Description: "Structural concrete", "Unit of Measure": "m3", Category: "Concrete", "Reference Specification": "ASTM C94" }])) });
+    expect(accepted.errors).toEqual([]); expect(accepted.validRows).toEqual([expect.objectContaining({ values: expect.objectContaining({ code: "MAT-01", unitOfMeasure: "m3" }) })]);
+    const unsupported = analyzeImportFile({ moduleCode: "materials", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Material Code": "MAT-01", Description: "Concrete", "Unit of Measure": "m3", Category: "Concrete", Notes: "not approved" }])) });
+    const duplicate = analyzeImportFile({ moduleCode: "materials", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Material Code": "MAT-01", Description: "Concrete", "Unit of Measure": "m3", Category: "Concrete" }, { "Material Code": "MAT-01", Description: "Concrete 2", "Unit of Measure": "m3", Category: "Concrete" }])) });
+    expect(unsupported.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_UNSUPPORTED_COLUMN" })); expect(duplicate.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_DUPLICATE_FILE_KEY" }));
+  });
   it("builds localized CSV headers without exposing unrequested columns", () => {
     const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] });
     const csv = result.bytes.toString("utf8");

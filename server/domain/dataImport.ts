@@ -1,12 +1,13 @@
 import * as XLSX from "xlsx";
 
-export type ImportModuleCode = "wbs" | "budget" | "contracts";
+export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials";
 export type ExportModuleCode = "wbs" | "budget" | "activities";
 export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
-export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow;
+export type MaterialImportRow = { rowNumber: number; values: { code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string } };
+export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow | MaterialImportRow;
 export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
 export type MasterPlanSpatialImportRow = { rowNumber: number; values: { code: string; name: string; entityType: "block" | "building" | "zone" | "unit" | "area"; geometry: { x: number; y: number; width: number; height: number }; status: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent: number; plannedValue: number; actualValue: number; forecastValue: number; parentCode?: string; wbsCode?: string; activityCode?: string } };
 
@@ -28,6 +29,13 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "counterparty", required: true, aliases: ["counterparty", "contractor", "party", "الطرف المتعاقد", "المقاول"] },
     { key: "contractValue", required: true, aliases: ["contract value", "value", "قيمة العقد", "القيمة"] },
     { key: "currency", required: true, aliases: ["currency", "عملة", "العملة"] },
+  ],
+  materials: [
+    { key: "code", required: true, aliases: ["material code", "code", "رمز المادة", "الرمز"] },
+    { key: "description", required: true, aliases: ["description", "material description", "وصف المادة", "الوصف"] },
+    { key: "unitOfMeasure", required: true, aliases: ["unit of measure", "uom", "unit", "وحدة القياس", "الوحدة"] },
+    { key: "category", required: true, aliases: ["category", "classification", "تصنيف", "الفئة"] },
+    { key: "referenceSpecification", required: false, aliases: ["reference specification", "specification", "المواصفة المرجعية", "المواصفة"] },
   ],
 };
 
@@ -168,6 +176,12 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
         if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
         if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
         if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
+        return;
+      }
+      if (input.moduleCode === "materials") {
+        const code = requiredText(row[mapping.code]); const description = requiredText(row[mapping.description]); const unitOfMeasure = requiredText(row[mapping.unitOfMeasure]); const category = requiredText(row[mapping.category]); const referenceSpecification = mapping.referenceSpecification ? requiredText(row[mapping.referenceSpecification]) || undefined : undefined;
+        if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (!description) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "description" }); if (!unitOfMeasure) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "unitOfMeasure" }); if (!category) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "category" }); if (code && fileKeys.has(code)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" });
+        if (code && description && unitOfMeasure && category && !fileKeys.has(code)) { fileKeys.add(code); validRows.push({ rowNumber, values: { code, description, unitOfMeasure, category, ...(referenceSpecification ? { referenceSpecification } : {}) } }); }
         return;
       }
       const code = requiredText(row[mapping.code]);

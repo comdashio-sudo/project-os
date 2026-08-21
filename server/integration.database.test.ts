@@ -40,6 +40,10 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS commitmentId varchar(36)");
     await connection.query("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS receivedAt timestamp");
     await connection.query("DELETE FROM purchase_orders WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("CREATE TABLE IF NOT EXISTS material_masters (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `code` varchar(120) NOT NULL, `description` varchar(255) NOT NULL, `unitOfMeasure` varchar(40) NOT NULL, `category` varchar(120) NOT NULL, `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `material_masters_tenant_code_unique` (`tenantId`,`code`), KEY `material_masters_tenant_category_active_idx` (`tenantId`,`category`,`active`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS project_material_overrides (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `projectDescription` varchar(255), `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_material_overrides_project_material_unique` (`projectId`,`materialId`), KEY `project_material_overrides_tenant_project_idx` (`tenantId`,`projectId`,`materialId`))");
+    await connection.query("DELETE FROM project_material_overrides WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM material_masters WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS quality_inspections (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `inspectionNumber` varchar(120) NOT NULL, `inspectionType` enum('hold_point','witness','surveillance','testing') NOT NULL, `inspectedAt` timestamp NOT NULL, `outcome` enum('pass','fail','conditional') NOT NULL, `summary` text NOT NULL, `status` enum('draft','submitted','accepted','rejected') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `quality_inspections_project_number_unique` (`projectId`,`inspectionNumber`), KEY `quality_inspections_tenant_project_date_status_idx` (`tenantId`,`projectId`,`inspectedAt`,`status`))");
     await connection.query("DELETE FROM quality_inspections WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS field_reports (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `reportNumber` varchar(120) NOT NULL, `reportType` enum('daily','inspection','progress') NOT NULL, `reportedAt` timestamp NOT NULL, `shift` enum('day','night') NOT NULL DEFAULT 'day', `workforceCount` int NOT NULL DEFAULT 0, `weather` varchar(160), `summary` text NOT NULL, `status` enum('draft','submitted','reviewed','approved','rejected') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `field_reports_project_number_unique` (`projectId`,`reportNumber`), KEY `field_reports_tenant_project_date_status_idx` (`tenantId`,`projectId`,`reportedAt`,`status`), CONSTRAINT `field_reports_tenantId_companies_id_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `field_reports_projectId_projects_id_fk` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`), CONSTRAINT `field_reports_createdByUserId_users_id_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
@@ -101,9 +105,18 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM issues WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM risks WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
+    await connection.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
+    await connection.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
+    await connection.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
+    await connection.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage')");
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
     await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM membership_roles WHERE id = 'int-membership-role-b'");
+    await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-b'");
+    await connection.query("DELETE FROM memberships WHERE id = 'int-membership-b'");
+    await connection.query("DELETE FROM roles WHERE id = 'int-role-b'");
     await connection.query("DELETE FROM users WHERE openId = 'integration-test-user'");
     await connection.query("DELETE FROM users WHERE openId = 'integration-unassigned-user'");
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('integration-test-user', 'Integration Test User', 'integration@test.local', 'admin')");
@@ -140,7 +153,36 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
 
   afterEach(async () => { await connection?.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM actions WHERE tenantId IN (?, ?)", [tenantA, tenantB]); });
 
-  afterAll(async () => { await connection?.query("DELETE FROM audit_logs WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM field_reports WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM data_import_row_results WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]); await connection?.query("DELETE FROM data_import_errors WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]); await connection?.query("DELETE FROM data_imports WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM master_plan_spatial_entities WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM master_plan_versions WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM master_plans WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM project_health_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM internal_notifications WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId = ?)", [tenantA]); await connection?.query("DELETE FROM tenant_licenses WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM hse_observations WHERE id IN ('int-hse-a','int-hse-b') OR observationNumber = 'HSE-TRPC'"); await connection?.query("DELETE FROM ncrs WHERE ncrNumber = 'NCR-TRPC'"); await connection?.query("DELETE FROM rfis WHERE rfiNumber = 'RFI-TRPC'"); await connection?.query("DELETE FROM issues WHERE code = 'ISSUE-TRPC'"); await connection?.query("DELETE FROM contracts WHERE code IN ('CONTRACT-TRPC','CON-IMPORT-TRPC')"); await connection?.query("DELETE FROM project_resources WHERE resourceCode = 'RESOURCE-TRPC'"); await connection?.query("DELETE FROM budget_lines WHERE id IN ('int-budget-a','int-budget-b')"); await connection?.query("DELETE FROM cost_entries WHERE id IN ('int-cost-a','int-cost-a-void','int-cost-b')"); await connection?.query("DELETE FROM commitments WHERE id IN ('int-commitment-a','int-commitment-a-cancelled','int-commitment-b')"); await connection?.query("DELETE FROM document_versions WHERE documentId = ?", [documentA]); await connection?.query("DELETE FROM project_documents WHERE id = ?", [documentA]); await connection?.query("DELETE FROM change_requests WHERE changeNumber = 'CHANGE-TRPC'"); await connection?.query("DELETE FROM claims WHERE claimNumber = 'CLAIM-TRPC'"); await connection?.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec')"); await connection?.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec')"); await connection?.query("DELETE FROM memberships WHERE id = 'int-membership-a'"); await connection?.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec')"); await connection?.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage')"); await connection?.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM subscriptions WHERE tenantId = ?", [tenantA]); await connection?.query("DELETE FROM projects WHERE id IN (?, ?)", [projectA, projectB]); await connection?.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')"); await connection?.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user')"); await connection?.end(); });
+  afterAll(async () => {
+    await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM project_material_overrides WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM material_masters WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM data_import_row_results WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]);
+    await connection?.query("DELETE FROM data_import_errors WHERE importId IN (SELECT id FROM data_imports WHERE tenantId = ?)", [tenantA]);
+    await connection?.query("DELETE FROM data_imports WHERE tenantId = ?", [tenantA]);
+    await connection?.query("DELETE FROM master_plan_visualization_rules WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM master_plan_snapshots WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM master_plan_spatial_entities WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM master_plan_versions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM master_plans WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM document_versions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM project_documents WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
+    await connection?.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
+    await connection?.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
+    await connection?.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
+    await connection?.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
+    await connection?.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM tenant_licenses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM projects WHERE id IN (?, ?)", [projectA, projectB]);
+    await connection?.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
+    await connection?.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user')");
+    await connection?.end();
+  });
 
   it("connects exclusively to the dedicated PROJECT OS integration database", async () => {
     const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
@@ -160,6 +202,29 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(items.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-registry", "tenant-administration", "project-controls"]));
     expect(items.map(item => item.id)).not.toContain("pmo-dashboard");
     await expect(caller.navigation.get({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+  });
+
+  it("isolates the tenant material master, rejects missing entitlement, and records governed project overrides", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.materials.createMaster({ tenantId: tenantB, code: "MAT-BLOCK", description: "Blocked material", unitOfMeasure: "ea", category: "Test" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    const master = await caller.materials.createMaster({ tenantId: tenantA, code: "MAT-CONC-40", description: "Structural concrete", unitOfMeasure: "m3", category: "Concrete", referenceSpecification: "ASTM C94" });
+    await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectB, materialId: master.id, active: true })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-b', ?, 'INT_PROJECT_B', 'Integration project B', 'PROJECT')", [tenantB]);
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-b', ?, ?, 'active')", [tenantB, unassignedUserId]);
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-b', 'int-perm-write')");
+    await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-b', 'int-membership-b', 'int-role-b', 'company')");
+    const unlicensedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    await expect(appRouter.createCaller(unlicensedContext).materials.createMaster({ tenantId: tenantB, code: "MAT-NO-LICENSE", description: "No license", unitOfMeasure: "ea", category: "Test" })).rejects.toThrow("not licensed");
+    const override = await caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId: master.id, projectDescription: "Project concrete mix", referenceSpecification: "Project Spec 033000", active: true });
+    const listed = await caller.materials.list({ tenantId: tenantA, projectId: projectA });
+    expect(listed).toEqual(expect.arrayContaining([expect.objectContaining({ id: master.id, code: "MAT-CONC-40", override: expect.objectContaining({ id: override.id, projectDescription: "Project concrete mix" }) })]));
+    const [rows] = await connection.query<{ masters: number; overrides: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM material_masters WHERE id = ?) AS masters, (SELECT COUNT(*) FROM project_material_overrides WHERE id = ?) AS overrides, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action IN ('materials.master_created','materials.project_override_saved')) AS audits", [master.id, override.id, tenantA]);
+    expect(rows[0]).toMatchObject({ masters: 1, overrides: 1, audits: 2 });
+    await connection.query("DELETE FROM membership_roles WHERE id = 'int-membership-role-b'");
+    await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-b'");
+    await connection.query("DELETE FROM memberships WHERE id = 'int-membership-b'");
+    await connection.query("DELETE FROM roles WHERE id = 'int-role-b'");
   });
 
   it("isolates Master Plan snapshots by tenant, project, version, and creator while preserving a recoverable view", async () => {
@@ -597,7 +662,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(allInOne.license).toMatchObject({ planCode: "ALL_IN_ONE_STANDARD", status: "active" });
     expect(allInOneNavigation.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-controls"]));
     expect(allInOneNavigation.map(item => item.id)).not.toContain("pmo-controls");
-  });
+  }, 12_000);
 
   it("reserves commercial seats for invitations and blocks direct assignment or acceptance above the active limit", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -857,6 +922,18 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id })).resolves.toMatchObject({ id: analysis.id, status: "completed", createdRows: 1, updatedRows: 0, skippedRows: 0 });
     const [rows] = await connection.query<{ imports: number; contracts: number; completedAudits: number; uploadAudits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'contracts' AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM contracts WHERE tenantId = ? AND projectId = ? AND code = 'CON-IMPORT-TRPC' AND title = 'Civil works contract' AND counterparty = 'Main Contractor' AND contractValue = 2500000 AND currency = 'SAR') AS contracts, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS completedAudits, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_uploaded') AS uploadAudits", [analysis.id, tenantA, projectA, analysis.id, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, contracts: 1, completedAudits: 1, uploadAudits: 1 });
+  }, 12_000);
+
+  it("rejects a foreign materials import and confirms the named materials template with audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const csv = Buffer.from("Material Code,Description,Unit of Measure,Category,Reference Specification\nMAT-IMPORT-TRPC,Structural concrete,m3,Concrete,ASTM C94").toString("base64");
+    await expect(caller.dataImports.analyze({ tenantId: tenantA, projectId: projectB, moduleCode: "materials", fileName: "foreign-materials.csv", sourceFormat: "csv", base64: csv })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    const analysis = await caller.dataImports.analyze({ tenantId: tenantA, projectId: projectA, moduleCode: "materials", fileName: "integration-materials.csv", sourceFormat: "csv", base64: csv });
+    expect(analysis).toMatchObject({ status: "validated", totalRows: 1, errors: [] });
+    await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id })).resolves.toMatchObject({ id: analysis.id, status: "completed", createdRows: 1 });
+    const [rows] = await connection.query<{ imports: number; materials: number; rowResults: number; completedAudits: number; uploadAudits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'materials' AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM material_masters WHERE tenantId = ? AND code = 'MAT-IMPORT-TRPC' AND unitOfMeasure = 'm3' AND category = 'Concrete') AS materials, (SELECT COUNT(*) FROM data_import_row_results WHERE importId = ? AND rowKey = 'MAT-IMPORT-TRPC' AND action = 'created') AS rowResults, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS completedAudits, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_uploaded') AS uploadAudits", [analysis.id, tenantA, analysis.id, analysis.id, analysis.id]);
+    expect(rows[0]).toMatchObject({ imports: 1, materials: 1, rowResults: 1, completedAudits: 1, uploadAudits: 1 });
   }, 12_000);
 
   it("applies the upsert policy, persists per-row results, and rejects foreign import-result reads", async () => {

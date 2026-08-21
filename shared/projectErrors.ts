@@ -312,6 +312,14 @@ export const projectErrorMessages = {
     ar: "المورد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected resource is not available in the current project and workspace.",
   },
+  PROJECT_OS_MATERIAL_CODE_EXISTS: {
+    ar: "رمز المادة مستخدم بالفعل ضمن مساحة العمل هذه.",
+    en: "This material code is already in use in this workspace.",
+  },
+  PROJECT_OS_MATERIAL_NOT_FOUND: {
+    ar: "المادة المحددة غير متاحة ضمن مساحة العمل هذه.",
+    en: "The selected material is not available in this workspace.",
+  },
   PROJECT_OS_CLAIM_NOT_FOUND: {
     ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected claim is not available in the current project and workspace.",

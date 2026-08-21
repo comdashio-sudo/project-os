@@ -23,6 +23,7 @@ vi.mock("./ProjectPurchaseOrders", () => ({ ProjectPurchaseOrders: () => null })
 vi.mock("./ProjectChanges", () => ({ ProjectChanges: () => null }));
 vi.mock("./ProjectNotifications", () => ({ ProjectNotifications: () => null }));
 vi.mock("./ProjectResources", () => ({ ProjectResources: () => null }));
+vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
 vi.mock("./ProjectClaims", () => ({ ProjectClaims: () => null }));
 vi.mock("./ProjectAdvisor", () => ({ ProjectAdvisor: () => null }));
 vi.mock("./ProjectImports", () => ({ ProjectImports: () => null }));

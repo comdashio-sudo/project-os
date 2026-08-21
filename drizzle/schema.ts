@@ -672,6 +672,47 @@ export const purchaseOrders = mysqlTable(
   ],
 );
 
+export const materialMasters = mysqlTable(
+  "material_masters",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 120 }).notNull(),
+    description: varchar("description", { length: 255 }).notNull(),
+    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
+    category: varchar("category", { length: 120 }).notNull(),
+    referenceSpecification: varchar("referenceSpecification", { length: 255 }),
+    active: boolean("active").default(true).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("material_masters_tenant_code_unique").on(table.tenantId, table.code),
+    index("material_masters_tenant_category_active_idx").on(table.tenantId, table.category, table.active),
+  ],
+);
+
+export const projectMaterialOverrides = mysqlTable(
+  "project_material_overrides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    materialId: varchar("materialId", { length: 36 }).notNull().references(() => materialMasters.id),
+    projectDescription: varchar("projectDescription", { length: 255 }),
+    referenceSpecification: varchar("referenceSpecification", { length: 255 }),
+    active: boolean("active").default(true).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_material_overrides_project_material_unique").on(table.projectId, table.materialId),
+    index("project_material_overrides_tenant_project_idx").on(table.tenantId, table.projectId, table.materialId),
+  ],
+);
+
 export const changeRequests = mysqlTable(
   "change_requests",
   {
