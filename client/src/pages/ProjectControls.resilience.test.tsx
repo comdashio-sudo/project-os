@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 
@@ -77,5 +77,16 @@ describe("ProjectControls section resilience", () => {
     expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
     expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Project delivery board" })).toBeTruthy();
+  });
+
+  it("gives a scoped project manager a command center and opens the selected governed tool lane", () => {
+    state.performancePartial = true;
+    render(<ProjectControls />);
+    expect(within(screen.getByLabelText("PROJECT MANAGER COMMAND CENTER")).getByText("Operate the project from one control point")).toBeTruthy();
+    expect(screen.getByText("Operating scope: P-01")).toBeTruthy();
+    const commercial = document.getElementById("manager-commercial") as HTMLDetailsElement;
+    expect(commercial.open).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /Contracts & procurement/i }));
+    expect(commercial.open).toBe(true);
   });
 });
