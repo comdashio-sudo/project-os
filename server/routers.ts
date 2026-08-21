@@ -6,6 +6,7 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { reanalyzeDataImport } from "./db";
 import { createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, transitionProcurementRequisitionForTenant } from "./db";
+import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -74,6 +75,16 @@ export const appRouter = router({
     provision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), planCode: z.string().trim().min(3).max(80), status: z.enum(["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]), seats: z.number().int().min(1).max(100000), priceAmount: z.number().min(0).optional(), discountAmount: z.number().min(0).optional(), startsAt: z.date().optional(), endsAt: z.date().optional(), trialEndsAt: z.date().optional(), graceEndsAt: z.date().optional(), manualActivation: z.boolean() })).mutation(({ ctx, input }) => provisionTenantLicense({ actorUserId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), nextStatus: z.enum(["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]) })).mutation(({ ctx, input }) => transitionTenantLicenseStatus({ actorUserId: ctx.user.id, ...input })),
     setFeatureOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), featureCode: z.string().trim().min(3).max(120), active: z.boolean(), limitValue: z.number().int().min(0).optional() })).mutation(({ ctx, input }) => setTenantLicenseFeatureOverride({ actorUserId: ctx.user.id, ...input })),
+  }),
+  selfService: router({
+    plans: protectedProcedure.query(() => getPublicCommercialPlans()),
+    signup: protectedProcedure.input(z.object({ legalName: z.string().trim().min(2).max(255), slug: z.string().trim().min(3).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), planCode: z.string().trim().min(3).max(80), seats: z.number().int().min(1).max(100000) })).mutation(({ ctx, input }) => createSelfServiceTenant({ userId: ctx.user.id, ...input })),
+  }),
+  billing: router({
+    register: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantBillingForManager({ userId: ctx.user.id, ...input })),
+    issueInvoice: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), subscriptionId: z.string().uuid(), subtotalAmount: z.number().finite().min(0), sellerName: z.string().trim().min(2).max(255), sellerTaxNumber: z.string().trim().min(2).max(80), buyerName: z.string().trim().min(2).max(255), buyerTaxNumber: z.string().trim().min(2).max(80), currency: z.string().trim().regex(/^[A-Z]{3}$/).optional() })).mutation(({ ctx, input }) => issueTenantInvoice({ userId: ctx.user.id, ...input })),
+    createPayment: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), subscriptionId: z.string().uuid(), provider: z.enum(["manual", "mock"]), operation: z.enum(["create", "renew", "cancel", "refund"]), amount: z.number().finite().min(0), currency: z.string().trim().regex(/^[A-Z]{3}$/).optional(), invoiceId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createTenantPayment({ userId: ctx.user.id, ...input })),
+    confirmManualPayment: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), paymentId: z.string().uuid() })).mutation(({ ctx, input }) => confirmManualTenantPayment({ actorUserId: ctx.user.id, ...input })),
   }),
   masterPlans: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlansForTenant({ userId: ctx.user.id, ...input })),

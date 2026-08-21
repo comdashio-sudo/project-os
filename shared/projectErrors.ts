@@ -212,6 +212,22 @@ export const projectErrorMessages = {
     ar: "تم بلوغ عدد المقاعد المسموح به في الرخصة النشطة.",
     en: "The active license seat limit has been reached.",
   },
+  PROJECT_OS_SIGNUP_EMAIL_REQUIRED: {
+    ar: "يتطلب إنشاء مساحة عمل ذاتية بريدًا موثقًا في جلسة الحساب الحالية.",
+    en: "Self-service workspace creation requires an email address on the current authenticated account.",
+  },
+  PROJECT_OS_SIGNUP_RATE_LIMITED: {
+    ar: "تم بلوغ الحد المؤقت لمحاولات إنشاء مساحات العمل. حاول لاحقًا.",
+    en: "The temporary workspace-creation limit has been reached. Try again later.",
+  },
+  PROJECT_OS_BILLING_SUBSCRIPTION_NOT_FOUND: {
+    ar: "الاشتراك المحدد غير متاح ضمن مساحة العمل الحالية.",
+    en: "The selected subscription is unavailable in the current workspace.",
+  },
+  PROJECT_OS_PAYMENT_CONFIRMATION_INVALID: {
+    ar: "لا يمكن تأكيد سجل الدفع اليدوي المحدد في حالته الحالية.",
+    en: "The selected manual payment record cannot be confirmed in its current state.",
+  },
   PROJECT_OS_RFI_NOT_FOUND: {
     ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected RFI is not available in the current project and workspace.",

@@ -46,7 +46,10 @@ import {
   masterPlanSnapshots,
   masterPlanVisualizationRules,
   masterPlanSpatialEntities,
+  invoiceCounters,
+  invoices,
   materialMasters,
+  paymentRecords,
   projectMaterialOverrides,
   projectWarehouses,
   warehouseInventoryTransactions,
@@ -60,6 +63,7 @@ import {
   rolePermissions,
   roles,
   scheduledJobs,
+  selfServiceSignupAttempts,
   suppliers,
   procurementRequisitions,
   subscriptions,
@@ -82,6 +86,8 @@ import { storageGetSignedUrl, storagePut } from "./storage";
 import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
+import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
+import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -169,6 +175,14 @@ async function assertTenantManager(userId: number, tenantId: string): Promise<vo
   assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
 }
 
+async function assertTenantBillingManager(userId: number, tenantId: string): Promise<void> {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role === "admin") return;
+  const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
+  if (!snapshot || snapshot.membershipStatus !== "active" || !snapshot.permissionCodes.includes("tenant.manage")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+}
+
 async function assertPlatformAdministrator(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -222,6 +236,23 @@ type TenantLicenseStatus = "trialing" | "active" | "past_due" | "suspended" | "c
 const enabledLicenseStatuses = new Set<TenantLicenseStatus>(["trialing", "active", "grace_period"]);
 const licenseTransitions: Record<TenantLicenseStatus, readonly TenantLicenseStatus[]> = { trialing: ["active", "cancelled", "expired"], active: ["past_due", "suspended", "cancelled", "expired", "grace_period"], past_due: ["active", "suspended", "cancelled", "expired", "grace_period"], suspended: ["active", "cancelled", "expired"], cancelled: ["active"], expired: ["active"], grace_period: ["active", "cancelled", "expired"] };
 type DatabaseTransaction = Parameters<Parameters<NonNullable<Awaited<ReturnType<typeof getDb>>>["transaction"]>[0]>[0];
+
+function paymentTargetLicenseStatus(operation: PaymentOperation): TenantLicenseStatus {
+  return operation === "create" || operation === "renew" ? "active" : "cancelled";
+}
+
+async function applyConfirmedPaymentEffect(tx: DatabaseTransaction, input: { tenantId: string; subscriptionId: string; paymentId: string; operation: PaymentOperation; actorUserId: number }) {
+  const [license] = await tx.select({ id: tenantLicenses.id, status: tenantLicenses.status }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), eq(tenantLicenses.subscriptionId, input.subscriptionId))).limit(1).for("update");
+  if (!license) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_BILLING_SUBSCRIPTION_NOT_FOUND" });
+  const nextStatus = paymentTargetLicenseStatus(input.operation);
+  if (license.status !== nextStatus && !licenseTransitions[license.status].includes(nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_LICENSE_TRANSITION_INVALID" });
+  const active = enabledLicenseStatuses.has(nextStatus);
+  await tx.update(tenantLicenses).set({ status: nextStatus }).where(eq(tenantLicenses.id, license.id));
+  await tx.update(subscriptions).set({ status: nextStatus }).where(eq(subscriptions.id, input.subscriptionId));
+  await tx.update(tenantEntitlements).set({ active }).where(eq(tenantEntitlements.subscriptionId, input.subscriptionId));
+  await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "billing.subscription_state_applied", entityType: "tenant_license", entityId: license.id, metadata: JSON.stringify({ paymentId: input.paymentId, operation: input.operation, previousStatus: license.status, nextStatus, entitlementsActive: active }) });
+  return { previousStatus: license.status, status: nextStatus, entitlementsActive: active };
+}
 
 async function assertTenantSeatAvailability(db: DatabaseTransaction, tenantId: string, mode: "reserve" | "activate"): Promise<void> {
   const [license] = await db.select({ id: tenantLicenses.id, seats: tenantLicenses.seats }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
@@ -718,6 +749,83 @@ export async function createTenantForUser(input: {
     });
   });
   return { tenantId, subscriptionId };
+}
+
+const selfSignupLimitPerDay = 3;
+
+function normalizedEmailHash(email: string) {
+  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+}
+
+export async function getPublicCommercialPlans() {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await ensureDefaultCommercialCatalog(db);
+  return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
+}
+
+export async function createSelfServiceTenant(input: { userId: number; legalName: string; slug: string; planCode: string; seats: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  if (!Number.isInteger(input.seats) || input.seats < 1 || input.seats > 100000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!user?.email) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SIGNUP_EMAIL_REQUIRED" });
+  await ensureDefaultCommercialCatalog(db);
+  const [plan] = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(and(eq(commercialPlans.code, input.planCode), eq(commercialPlans.active, true))).limit(1);
+  if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND" });
+  const now = new Date(); const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000); const emailHash = normalizedEmailHash(user.email);
+  const attempts = await db.select({ id: selfServiceSignupAttempts.id }).from(selfServiceSignupAttempts).where(and(eq(selfServiceSignupAttempts.userId, input.userId), gte(selfServiceSignupAttempts.createdAt, windowStart)));
+  if (attempts.length >= selfSignupLimitPerDay) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "PROJECT_OS_SIGNUP_RATE_LIMITED" });
+  const tenantId = crypto.randomUUID(); const subscriptionId = crypto.randomUUID(); const membershipId = crypto.randomUUID(); const ownerRoleId = crypto.randomUUID(); const licenseId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(selfServiceSignupAttempts).values({ id: crypto.randomUUID(), userId: input.userId, emailHash });
+    await tx.insert(companies).values({ id: tenantId, legalName: input.legalName, slug: input.slug, status: "active", defaultLocale: "ar" });
+    await tx.insert(subscriptions).values({ id: subscriptionId, tenantId, packageCode: plan.packageCode, status: "trialing", startsAt: now });
+    await tx.insert(tenantLicenses).values({ id: licenseId, tenantId, subscriptionId, planId: plan.id, status: "trialing", seats: input.seats, priceAmount: "0", discountAmount: "0", manualActivation: false, startsAt: now, trialEndsAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000), createdByUserId: input.userId });
+    await tx.insert(tenantEntitlements).values(productsForPackage(plan.packageCode as SubscriptionPackageCode).map(productCode => ({ id: crypto.randomUUID(), tenantId, subscriptionId, productCode, active: true, startsAt: now })));
+    await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
+    await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
+    for (const permission of ownerPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+    const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
+    await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });
+  });
+  return { tenantId, subscriptionId, licenseId, status: "trialing" as const };
+}
+
+export async function getTenantBillingForManager(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertTenantBillingManager(input.userId, input.tenantId);
+  const invoicesForTenant = await db.select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber, status: invoices.status, issuedAt: invoices.issuedAt, currency: invoices.currency, subtotalAmount: invoices.subtotalAmount, vatAmount: invoices.vatAmount, totalAmount: invoices.totalAmount }).from(invoices).where(eq(invoices.tenantId, input.tenantId)).orderBy(desc(invoices.issuedAt));
+  const payments = await db.select({ id: paymentRecords.id, provider: paymentRecords.provider, operation: paymentRecords.operation, status: paymentRecords.status, providerReference: paymentRecords.providerReference, amount: paymentRecords.amount, currency: paymentRecords.currency, createdAt: paymentRecords.createdAt, confirmedAt: paymentRecords.confirmedAt }).from(paymentRecords).where(eq(paymentRecords.tenantId, input.tenantId)).orderBy(desc(paymentRecords.createdAt));
+  return { invoices: invoicesForTenant, payments };
+}
+
+export async function issueTenantInvoice(input: { userId: number; tenantId: string; subscriptionId: string; subtotalAmount: number; sellerName: string; sellerTaxNumber: string; buyerName: string; buyerTaxNumber: string; currency?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertTenantBillingManager(input.userId, input.tenantId);
+  if (!Number.isFinite(input.subtotalAmount) || input.subtotalAmount < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const [subscription] = await db.select({ id: subscriptions.id }).from(subscriptions).where(and(eq(subscriptions.id, input.subscriptionId), eq(subscriptions.tenantId, input.tenantId))).limit(1); if (!subscription) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_BILLING_SUBSCRIPTION_NOT_FOUND" });
+  const issuedAt = new Date(); const vatAmount = Math.round(input.subtotalAmount * 15) / 100; const totalAmount = Math.round((input.subtotalAmount + vatAmount) * 100) / 100; const invoiceId = crypto.randomUUID(); let invoiceNumber = "";
+  await db.transaction(async tx => {
+    const [counter] = await tx.select({ nextNumber: invoiceCounters.nextNumber }).from(invoiceCounters).where(eq(invoiceCounters.id, "SALES_INVOICE")).limit(1).for("update");
+    const sequenceNumber = counter?.nextNumber ?? 1; invoiceNumber = `INV-${String(sequenceNumber).padStart(8, "0")}`;
+    if (counter) await tx.update(invoiceCounters).set({ nextNumber: sequenceNumber + 1 }).where(eq(invoiceCounters.id, "SALES_INVOICE")); else await tx.insert(invoiceCounters).values({ id: "SALES_INVOICE", nextNumber: 2 });
+    await tx.insert(invoices).values({ id: invoiceId, tenantId: input.tenantId, subscriptionId: input.subscriptionId, sequenceNumber, invoiceNumber, status: "issued", issuedAt, currency: (input.currency ?? "SAR").toUpperCase(), sellerName: input.sellerName, sellerTaxNumber: input.sellerTaxNumber, buyerName: input.buyerName, buyerTaxNumber: input.buyerTaxNumber, subtotalAmount: String(input.subtotalAmount), vatAmount: String(vatAmount), totalAmount: String(totalAmount), renderer: "structured_json", createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "billing.invoice_issued", entityType: "invoice", entityId: invoiceId, metadata: JSON.stringify({ invoiceNumber, sequenceNumber, vatRate: 0.15, subtotalAmount: input.subtotalAmount, vatAmount, totalAmount }) });
+  });
+  return StructuredInvoiceRenderer.render({ id: invoiceId, invoiceNumber, issuedAt, currency: (input.currency ?? "SAR").toUpperCase(), seller: { name: input.sellerName, taxNumber: input.sellerTaxNumber }, buyer: { name: input.buyerName, taxNumber: input.buyerTaxNumber }, subtotalAmount: String(input.subtotalAmount), vatAmount: String(vatAmount), totalAmount: String(totalAmount) });
+}
+
+export async function createTenantPayment(input: { userId: number; tenantId: string; subscriptionId: string; provider: PaymentProviderCode; operation: PaymentOperation; amount: number; currency?: string; invoiceId?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertTenantBillingManager(input.userId, input.tenantId);
+  if (!Number.isFinite(input.amount) || input.amount < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const [subscription] = await db.select({ id: subscriptions.id }).from(subscriptions).where(and(eq(subscriptions.id, input.subscriptionId), eq(subscriptions.tenantId, input.tenantId))).limit(1); if (!subscription) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_BILLING_SUBSCRIPTION_NOT_FOUND" });
+  const provider = paymentProviderFor(input.provider); const request = { tenantId: input.tenantId, subscriptionId: input.subscriptionId, operation: input.operation, amount: input.amount, currency: (input.currency ?? "SAR").toUpperCase(), invoiceId: input.invoiceId }; const result = input.operation === "create" ? provider.createSubscription(request) : input.operation === "renew" ? provider.renewSubscription(request) : input.operation === "cancel" ? provider.cancelSubscription(request) : provider.refund(request); const paymentId = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(paymentRecords).values({ id: paymentId, tenantId: input.tenantId, subscriptionId: input.subscriptionId, invoiceId: input.invoiceId, provider: result.provider, operation: input.operation, status: result.status, providerReference: result.providerReference, amount: String(input.amount), currency: request.currency, metadata: JSON.stringify(result.metadata), confirmedAt: result.status === "confirmed" ? new Date() : null, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "billing.payment_recorded", entityType: "payment_record", entityId: paymentId, metadata: JSON.stringify({ provider: result.provider, operation: input.operation, status: result.status, providerReference: result.providerReference, invoiceId: input.invoiceId ?? null }) }); if (result.status !== "pending") await applyConfirmedPaymentEffect(tx, { tenantId: input.tenantId, subscriptionId: input.subscriptionId, paymentId, operation: input.operation, actorUserId: input.userId }); });
+  return { id: paymentId, ...result };
+}
+
+export async function confirmManualTenantPayment(input: { actorUserId: number; tenantId: string; paymentId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertPlatformAdministrator(input.actorUserId);
+  const [payment] = await db.select({ id: paymentRecords.id, provider: paymentRecords.provider, providerReference: paymentRecords.providerReference, status: paymentRecords.status, subscriptionId: paymentRecords.subscriptionId, operation: paymentRecords.operation }).from(paymentRecords).where(and(eq(paymentRecords.id, input.paymentId), eq(paymentRecords.tenantId, input.tenantId))).limit(1); if (!payment || payment.provider !== "manual" || payment.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYMENT_CONFIRMATION_INVALID" });
+  paymentProviderFor("manual").confirmWebhook({ providerReference: payment.providerReference }); let effect: { previousStatus: TenantLicenseStatus; status: TenantLicenseStatus; entitlementsActive: boolean } | undefined; await db.transaction(async tx => { await tx.update(paymentRecords).set({ status: "confirmed", confirmedAt: new Date() }).where(eq(paymentRecords.id, payment.id)); effect = await applyConfirmedPaymentEffect(tx, { tenantId: input.tenantId, subscriptionId: payment.subscriptionId, paymentId: payment.id, operation: payment.operation as PaymentOperation, actorUserId: input.actorUserId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "billing.manual_payment_confirmed", entityType: "payment_record", entityId: payment.id, metadata: JSON.stringify({ providerReference: payment.providerReference, ...effect }) }); }); return { id: payment.id, status: "confirmed" as const, subscription: effect };
 }
 
 export async function listTenantsForUser(userId: number) {

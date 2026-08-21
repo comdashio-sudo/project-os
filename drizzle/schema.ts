@@ -191,6 +191,69 @@ export const tenantLicenses = mysqlTable(
   table => [uniqueIndex("tenant_licenses_subscription_unique").on(table.subscriptionId), index("tenant_licenses_tenant_status_idx").on(table.tenantId, table.status), index("tenant_licenses_plan_idx").on(table.planId)],
 );
 
+export const selfServiceSignupAttempts = mysqlTable(
+  "self_service_signup_attempts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: int("userId").notNull().references(() => users.id),
+    emailHash: varchar("emailHash", { length: 64 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("ssa_user_created_idx").on(table.userId, table.createdAt), index("ssa_email_created_idx").on(table.emailHash, table.createdAt)],
+);
+
+export const invoiceCounters = mysqlTable("invoice_counters", {
+  id: varchar("id", { length: 40 }).primaryKey(),
+  nextNumber: int("nextNumber").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const invoices = mysqlTable(
+  "invoices",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
+    sequenceNumber: int("sequenceNumber").notNull(),
+    invoiceNumber: varchar("invoiceNumber", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["issued", "void"]).default("issued").notNull(),
+    issuedAt: timestamp("issuedAt").notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    sellerName: varchar("sellerName", { length: 255 }).notNull(),
+    sellerTaxNumber: varchar("sellerTaxNumber", { length: 80 }).notNull(),
+    buyerName: varchar("buyerName", { length: 255 }).notNull(),
+    buyerTaxNumber: varchar("buyerTaxNumber", { length: 80 }).notNull(),
+    subtotalAmount: decimal("subtotalAmount", { precision: 18, scale: 2 }).notNull(),
+    vatAmount: decimal("vatAmount", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
+    renderer: mysqlEnum("renderer", ["structured_json"]).default("structured_json").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("inv_sequence_unique").on(table.sequenceNumber), uniqueIndex("inv_number_unique").on(table.invoiceNumber), index("inv_tenant_issued_idx").on(table.tenantId, table.issuedAt)],
+);
+
+export const paymentRecords = mysqlTable(
+  "payment_records",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
+    invoiceId: varchar("invoiceId", { length: 36 }).references(() => invoices.id),
+    provider: mysqlEnum("provider", ["manual", "mock"]).notNull(),
+    operation: mysqlEnum("operation", ["create", "renew", "cancel", "refund"]).notNull(),
+    status: mysqlEnum("status", ["pending", "confirmed", "cancelled", "refunded", "failed"]).notNull(),
+    providerReference: varchar("providerReference", { length: 120 }).notNull(),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    metadata: text("metadata"),
+    confirmedAt: timestamp("confirmedAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pay_provider_ref_unique").on(table.provider, table.providerReference), index("pay_tenant_sub_idx").on(table.tenantId, table.subscriptionId)],
+);
+
 export const scheduledJobs = mysqlTable(
   "scheduled_jobs",
   {
