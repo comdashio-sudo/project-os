@@ -48,6 +48,9 @@ import {
   masterPlanSpatialEntities,
   materialMasters,
   projectMaterialOverrides,
+  projectWarehouses,
+  warehouseInventoryTransactions,
+  warehouseStockBalances,
   dataImportErrors,
   dataImportRowResults,
   dataImports,
@@ -1683,6 +1686,36 @@ export async function saveProjectMaterialOverrideForTenant(input: { userId: numb
   const id = existing?.id ?? crypto.randomUUID();
   await db.transaction(async tx => { if (existing) await tx.update(projectMaterialOverrides).set({ projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active }).where(eq(projectMaterialOverrides.id, id)); else await tx.insert(projectMaterialOverrides).values({ id, tenantId: input.tenantId, projectId: input.projectId, materialId: input.materialId, projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "materials.project_override_saved", entityType: "project_material_override", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, materialId: input.materialId, active: input.active }) }); });
   return { id };
+}
+
+export async function getProjectWarehousesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [warehouses, balances, transactions, materials] = await Promise.all([
+    db.select().from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId))).orderBy(desc(projectWarehouses.createdAt)),
+    db.select().from(warehouseStockBalances).where(and(eq(warehouseStockBalances.tenantId, input.tenantId), eq(warehouseStockBalances.projectId, input.projectId))),
+    db.select().from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId))).orderBy(desc(warehouseInventoryTransactions.occurredAt)).limit(100),
+    db.select({ id: materialMasters.id, code: materialMasters.code, description: materialMasters.description, unitOfMeasure: materialMasters.unitOfMeasure }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)),
+  ]);
+  const materialById = new Map(materials.map(item => [item.id, item])); return { warehouses, balances: balances.map(item => ({ ...item, material: materialById.get(item.materialId) ?? null })), transactions: transactions.map(item => ({ ...item, material: materialById.get(item.materialId) ?? null })) };
+}
+
+export async function createProjectWarehouseForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; name: string; locationDescription?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [duplicate] = await db.select({ id: projectWarehouses.id }).from(projectWarehouses).where(and(eq(projectWarehouses.projectId, input.projectId), eq(projectWarehouses.code, input.code))).limit(1); if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WAREHOUSE_CODE_EXISTS" });
+  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(projectWarehouses).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, name: input.name, locationDescription: input.locationDescription, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.created", entityType: "project_warehouse", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); }); return { id };
+}
+
+export async function recordWarehouseInventoryTransactionForTenant(input: { userId: number; tenantId: string; projectId: string; warehouseId: string; materialId: string; transactionType: "receipt" | "issue" | "adjustment"; quantityDelta: number; referenceNumber?: string; note?: string; occurredAt: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if ((input.transactionType === "receipt" && input.quantityDelta <= 0) || (input.transactionType === "issue" && input.quantityDelta >= 0) || (input.transactionType === "adjustment" && input.quantityDelta === 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVENTORY_DELTA_INVALID" });
+  const [[warehouse], [material]] = await Promise.all([db.select({ id: projectWarehouses.id, active: projectWarehouses.active }).from(projectWarehouses).where(and(eq(projectWarehouses.id, input.warehouseId), eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId))).limit(1), db.select({ id: materialMasters.id }).from(materialMasters).where(and(eq(materialMasters.id, input.materialId), eq(materialMasters.tenantId, input.tenantId))).limit(1)]);
+  if (!warehouse) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WAREHOUSE_NOT_FOUND" }); if (!warehouse.active) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WAREHOUSE_INACTIVE" }); if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MATERIAL_NOT_FOUND" });
+  const [existing] = await db.select({ id: warehouseStockBalances.id, quantityOnHand: warehouseStockBalances.quantityOnHand }).from(warehouseStockBalances).where(and(eq(warehouseStockBalances.warehouseId, input.warehouseId), eq(warehouseStockBalances.materialId, input.materialId))).limit(1); const previousQuantity = Number(existing?.quantityOnHand ?? 0); const nextQuantity = previousQuantity + input.quantityDelta; if (nextQuantity < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK" });
+  const id = crypto.randomUUID(); const balanceId = existing?.id ?? crypto.randomUUID(); await db.transaction(async tx => { if (existing) await tx.update(warehouseStockBalances).set({ quantityOnHand: String(nextQuantity) }).where(eq(warehouseStockBalances.id, existing.id)); else await tx.insert(warehouseStockBalances).values({ id: balanceId, tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, quantityOnHand: String(nextQuantity) }); await tx.insert(warehouseInventoryTransactions).values({ id, tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, transactionType: input.transactionType, quantityDelta: String(input.quantityDelta), referenceNumber: input.referenceNumber, note: input.note, occurredAt: input.occurredAt, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.inventory_recorded", entityType: "warehouse_inventory_transaction", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, transactionType: input.transactionType, quantityDelta: input.quantityDelta, previousQuantity, nextQuantity }) }); }); return { id, previousQuantity, nextQuantity };
 }
 
 const claimStatusTransitions: Record<string, readonly string[]> = { draft: ["submitted", "withdrawn"], submitted: ["under_review", "withdrawn"], under_review: ["approved", "rejected", "withdrawn"], approved: [], rejected: [], withdrawn: [] };

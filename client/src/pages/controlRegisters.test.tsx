@@ -87,6 +87,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: s
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, isArabic: boolean) => isArabic ? "خطأ موضّع" : "Localized error" }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: null, logout: vi.fn(), loading: false }) }));
 vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
+vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),

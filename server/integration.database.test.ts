@@ -42,6 +42,12 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM purchase_orders WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS material_masters (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `code` varchar(120) NOT NULL, `description` varchar(255) NOT NULL, `unitOfMeasure` varchar(40) NOT NULL, `category` varchar(120) NOT NULL, `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `material_masters_tenant_code_unique` (`tenantId`,`code`), KEY `material_masters_tenant_category_active_idx` (`tenantId`,`category`,`active`))");
     await connection.query("CREATE TABLE IF NOT EXISTS project_material_overrides (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `projectDescription` varchar(255), `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_material_overrides_project_material_unique` (`projectId`,`materialId`), KEY `project_material_overrides_tenant_project_idx` (`tenantId`,`projectId`,`materialId`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS project_warehouses (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `code` varchar(80) NOT NULL, `name` varchar(160) NOT NULL, `locationDescription` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_warehouses_project_code_unique` (`projectId`,`code`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS warehouse_stock_balances (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `warehouseId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `quantityOnHand` decimal(18,3) NOT NULL DEFAULT '0.000', `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `warehouse_stock_balances_warehouse_material_unique` (`warehouseId`,`materialId`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS warehouse_inventory_transactions (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `warehouseId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `transactionType` enum('receipt','issue','adjustment') NOT NULL, `quantityDelta` decimal(18,3) NOT NULL, `referenceNumber` varchar(120), `note` varchar(500), `occurredAt` timestamp NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`))");
+    await connection.query("DELETE FROM warehouse_inventory_transactions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM warehouse_stock_balances WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM project_warehouses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM project_material_overrides WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM material_masters WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("CREATE TABLE IF NOT EXISTS quality_inspections (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `inspectionNumber` varchar(120) NOT NULL, `inspectionType` enum('hold_point','witness','surveillance','testing') NOT NULL, `inspectedAt` timestamp NOT NULL, `outcome` enum('pass','fail','conditional') NOT NULL, `summary` text NOT NULL, `status` enum('draft','submitted','accepted','rejected') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `quality_inspections_project_number_unique` (`projectId`,`inspectionNumber`), KEY `quality_inspections_tenant_project_date_status_idx` (`tenantId`,`projectId`,`inspectedAt`,`status`))");
@@ -105,13 +111,15 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM issues WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM risks WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
+    await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
     await connection.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
     await connection.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage')");
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
-    await connection.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
+    await connection.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM membership_roles WHERE id = 'int-membership-role-b'");
     await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-b'");
@@ -168,7 +176,11 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM master_plans WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM document_versions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM project_documents WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM warehouse_inventory_transactions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM warehouse_stock_balances WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM project_warehouses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
+    await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
     await connection?.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection?.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
@@ -178,7 +190,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM projects WHERE id IN (?, ?)", [projectA, projectB]);
-    await connection?.query("DELETE FROM portfolios WHERE id IN ('int-portfolio-a','int-portfolio-b')");
+    await connection?.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user')");
     await connection?.end();
@@ -934,6 +947,20 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id })).resolves.toMatchObject({ id: analysis.id, status: "completed", createdRows: 1 });
     const [rows] = await connection.query<{ imports: number; materials: number; rowResults: number; completedAudits: number; uploadAudits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'materials' AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM material_masters WHERE tenantId = ? AND code = 'MAT-IMPORT-TRPC' AND unitOfMeasure = 'm3' AND category = 'Concrete') AS materials, (SELECT COUNT(*) FROM data_import_row_results WHERE importId = ? AND rowKey = 'MAT-IMPORT-TRPC' AND action = 'created') AS rowResults, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS completedAudits, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_uploaded') AS uploadAudits", [analysis.id, tenantA, analysis.id, analysis.id, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, materials: 1, rowResults: 1, completedAudits: 1, uploadAudits: 1 });
+  }, 12_000);
+
+  it("rejects a foreign warehouse, governs inventory movements, and prevents negative stock", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const material = await caller.materials.createMaster({ tenantId: tenantA, code: "MAT-WH-TRPC", description: "Warehouse concrete", unitOfMeasure: "m3", category: "Concrete" });
+    await expect(caller.warehouses.create({ tenantId: tenantA, projectId: projectB, code: "WH-BLOCKED", name: "Blocked warehouse" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    const warehouse = await caller.warehouses.create({ tenantId: tenantA, projectId: projectA, code: "WH-TRPC", name: "Integration store" });
+    await expect(caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, transactionType: "receipt", quantityDelta: 10, occurredAt: new Date("2026-08-21T00:00:00.000Z") })).resolves.toMatchObject({ previousQuantity: 0, nextQuantity: 10 });
+    await expect(caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, transactionType: "issue", quantityDelta: -4, occurredAt: new Date("2026-08-21T01:00:00.000Z") })).resolves.toMatchObject({ previousQuantity: 10, nextQuantity: 6 });
+    await expect(caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, transactionType: "issue", quantityDelta: -7, occurredAt: new Date("2026-08-21T02:00:00.000Z") })).rejects.toThrow("PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK");
+    await expect(caller.warehouses.list({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ warehouses: [expect.objectContaining({ id: warehouse.id })], balances: [expect.objectContaining({ materialId: material.id, quantityOnHand: "6.000" })], transactions: expect.arrayContaining([expect.objectContaining({ transactionType: "receipt" }), expect.objectContaining({ transactionType: "issue" })]) });
+    const [rows] = await connection.query<{ balance: string; movements: number; audits: number }[]>("SELECT (SELECT quantityOnHand FROM warehouse_stock_balances WHERE warehouseId = ? AND materialId = ?) AS balance, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE warehouseId = ?) AS movements, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'warehouse.inventory_recorded') AS audits", [warehouse.id, material.id, warehouse.id, tenantA]);
+    expect(rows[0]).toMatchObject({ balance: "6.000", movements: 2, audits: 2 });
   }, 12_000);
 
   it("applies the upsert policy, persists per-row results, and rejects foreign import-result reads", async () => {

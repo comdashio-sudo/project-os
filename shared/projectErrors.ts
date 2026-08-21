@@ -320,6 +320,26 @@ export const projectErrorMessages = {
     ar: "المادة المحددة غير متاحة ضمن مساحة العمل هذه.",
     en: "The selected material is not available in this workspace.",
   },
+  PROJECT_OS_WAREHOUSE_CODE_EXISTS: {
+    ar: "رمز المستودع مستخدم بالفعل ضمن هذا المشروع.",
+    en: "This warehouse code is already in use in this project.",
+  },
+  PROJECT_OS_WAREHOUSE_NOT_FOUND: {
+    ar: "المستودع المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected warehouse is not available in the current project and workspace.",
+  },
+  PROJECT_OS_WAREHOUSE_INACTIVE: {
+    ar: "لا يمكن تسجيل حركة على مستودع غير نشط.",
+    en: "An inventory movement cannot be recorded for an inactive warehouse.",
+  },
+  PROJECT_OS_INVENTORY_DELTA_INVALID: {
+    ar: "كمية حركة المخزون لا تتوافق مع نوع الاستلام أو الصرف أو التعديل.",
+    en: "The inventory quantity does not match the selected receipt, issue, or adjustment type.",
+  },
+  PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK: {
+    ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
+    en: "The movement cannot result in a negative stock balance.",
+  },
   PROJECT_OS_CLAIM_NOT_FOUND: {
     ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected claim is not available in the current project and workspace.",
