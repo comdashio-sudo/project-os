@@ -19,6 +19,7 @@ vi.mock("./ProjectHse", () => ({ ProjectHse: () => null }));
 vi.mock("./ProjectFieldReports", () => ({ ProjectFieldReports: () => null }));
 vi.mock("./ProjectQualityInspections", () => ({ ProjectQualityInspections: () => null }));
 vi.mock("./ProjectPurchaseOrders", () => ({ ProjectPurchaseOrders: () => null }));
+vi.mock("./ProjectProcurement", () => ({ ProjectProcurement: () => null }));
 vi.mock("./ProjectChanges", () => ({ ProjectChanges: () => null }));
 vi.mock("./ProjectNotifications", () => ({ ProjectNotifications: () => null }));
 vi.mock("./ProjectResources", () => ({ ProjectResources: () => null }));

@@ -672,6 +672,18 @@ export const purchaseOrders = mysqlTable(
   ],
 );
 
+export const suppliers = mysqlTable(
+  "suppliers",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), legalName: varchar("legalName", { length: 240 }).notNull(), contactName: varchar("contactName", { length: 160 }), contactEmail: varchar("contactEmail", { length: 254 }), contactPhone: varchar("contactPhone", { length: 60 }), active: boolean("active").default(true).notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },
+  table => [uniqueIndex("suppliers_tenant_code_unique").on(table.tenantId, table.code), index("suppliers_tenant_active_idx").on(table.tenantId, table.active), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "sup_tenant_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "sup_creator_fk" })],
+);
+
+export const procurementRequisitions = mysqlTable(
+  "procurement_requisitions",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), requisitionNumber: varchar("requisitionNumber", { length: 120 }).notNull(), supplierId: varchar("supplierId", { length: 36 }), materialId: varchar("materialId", { length: 36 }), description: text("description").notNull(), requestedQuantity: decimal("requestedQuantity", { precision: 18, scale: 3 }).notNull(), unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(), requiredAt: timestamp("requiredAt").notNull(), status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected", "cancelled"]).default("draft").notNull(), reviewedAt: timestamp("reviewedAt"), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },
+  table => [uniqueIndex("procurement_requisitions_project_number_unique").on(table.projectId, table.requisitionNumber), index("procurement_requisitions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "prq_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "prq_project_fk" }), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "prq_supplier_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "prq_material_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "prq_creator_fk" })],
+);
+
 export const materialMasters = mysqlTable(
   "material_masters",
   {

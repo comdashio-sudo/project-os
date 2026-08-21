@@ -340,6 +340,30 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
     en: "The movement cannot result in a negative stock balance.",
   },
+  PROJECT_OS_SUPPLIER_CODE_EXISTS: {
+    ar: "رمز المورد مستخدم بالفعل ضمن مساحة العمل هذه.",
+    en: "This supplier code is already in use in this workspace.",
+  },
+  PROJECT_OS_SUPPLIER_NOT_FOUND: {
+    ar: "المورد المحدد غير متاح ضمن مساحة العمل هذه.",
+    en: "The selected supplier is not available in this workspace.",
+  },
+  PROJECT_OS_SUPPLIER_INACTIVE: {
+    ar: "لا يمكن إنشاء طلب توريد لمورد غير نشط.",
+    en: "A procurement requisition cannot be created for an inactive supplier.",
+  },
+  PROJECT_OS_REQUISITION_NUMBER_EXISTS: {
+    ar: "رقم طلب التوريد مستخدم بالفعل ضمن هذا المشروع.",
+    en: "This procurement requisition number is already in use in this project.",
+  },
+  PROJECT_OS_REQUISITION_NOT_FOUND: {
+    ar: "طلب التوريد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected procurement requisition is not available in the current project and workspace.",
+  },
+  PROJECT_OS_REQUISITION_TRANSITION_INVALID: {
+    ar: "انتقال حالة طلب التوريد المحدد غير مسموح من حالته الحالية.",
+    en: "The requested procurement requisition transition is not allowed from its current status.",
+  },
   PROJECT_OS_CLAIM_NOT_FOUND: {
     ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected claim is not available in the current project and workspace.",

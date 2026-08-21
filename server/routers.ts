@@ -5,6 +5,7 @@ import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } f
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { reanalyzeDataImport } from "./db";
 import { createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant } from "./db";
+import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -264,6 +265,12 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectWarehousesForTenant({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), code: z.string().trim().min(1).max(80), name: z.string().trim().min(2).max(160), locationDescription: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createProjectWarehouseForTenant({ userId: ctx.user.id, ...input })),
     recordInventory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid(), materialId: z.string().uuid(), transactionType: z.enum(["receipt", "issue", "adjustment"]), quantityDelta: z.number().finite().refine(value => value !== 0, { message: "PROJECT_OS_INVENTORY_DELTA_INVALID" }), referenceNumber: z.string().trim().max(120).optional(), note: z.string().trim().max(500).optional(), occurredAt: z.date() })).mutation(({ ctx, input }) => recordWarehouseInventoryTransactionForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  procurement: router({
+    register: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProcurementRegisterForTenant({ userId: ctx.user.id, ...input })),
+    createSupplier: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(80), legalName: z.string().trim().min(2).max(240), contactName: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(254).optional(), contactPhone: z.string().trim().max(60).optional() })).mutation(({ ctx, input }) => createSupplierForTenant({ userId: ctx.user.id, ...input })),
+    createRequisition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionNumber: z.string().trim().min(1).max(120), supplierId: z.string().uuid().optional(), materialId: z.string().uuid().optional(), description: z.string().trim().min(5).max(10_000), requestedQuantity: z.number().finite().positive(), unitOfMeasure: z.string().trim().min(1).max(40), requiredAt: z.date() })).mutation(({ ctx, input }) => createProcurementRequisitionForTenant({ userId: ctx.user.id, ...input })),
+    transitionRequisition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]) })).mutation(({ ctx, input }) => transitionProcurementRequisitionForTenant({ userId: ctx.user.id, ...input })),
   }),
   claims: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getClaimsForTenant({ userId: ctx.user.id, ...input })),
