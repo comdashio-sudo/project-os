@@ -92,6 +92,7 @@ import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
+import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -177,6 +178,12 @@ async function assertTenantManager(userId: number, tenantId: string): Promise<vo
   const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
+}
+
+async function assertRoleProductEntitled(input: { userId: number; tenantId: string; productCode: ProductCode }): Promise<void> {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!snapshot.entitledProducts.includes(input.productCode)) throw new TRPCError({ code: "FORBIDDEN", message: `The ${input.productCode} product is not licensed for this tenant.` });
 }
 
 async function assertTenantBillingManager(userId: number, tenantId: string): Promise<void> {
@@ -421,6 +428,7 @@ export async function getTenantAdministration(input: { userId: number; tenantId:
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await assertTenantManager(input.userId, input.tenantId);
+  await ensureTenantOperationalRoles(db, input.tenantId);
   const [memberRows, roleRows, permissionRows] = await Promise.all([
     db.select({ membershipId: memberships.id, userId: users.id, name: users.name, email: users.email, status: memberships.status, joinedAt: memberships.joinedAt }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(eq(memberships.tenantId, input.tenantId)),
     db.select({ id: roles.id, code: roles.code, name: roles.name, productCode: roles.productCode, systemManaged: roles.systemManaged }).from(roles).where(eq(roles.tenantId, input.tenantId)),
@@ -510,11 +518,20 @@ export async function assignTenantMembershipRole(input: { actorUserId: number; t
   const [membership] = await db.select({ id: memberships.id, tenantId: memberships.tenantId, userId: memberships.userId }).from(memberships).where(eq(memberships.id, input.membershipId)).limit(1);
   if (!membership || membership.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MEMBER_NOT_FOUND" });
   if (membership.userId === input.actorUserId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN" });
-  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId, code: roles.code, productCode: roles.productCode }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
   if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  if (role.productCode) await assertRoleProductEntitled({ userId: input.actorUserId, tenantId: input.tenantId, productCode: role.productCode as ProductCode });
   const scopeCondition = input.scopeId ? eq(membershipRoles.scopeId, input.scopeId) : isNull(membershipRoles.scopeId);
   const [existingAssignment] = await db.select({ id: membershipRoles.id }).from(membershipRoles).where(and(eq(membershipRoles.membershipId, membership.id), eq(membershipRoles.roleId, role.id), eq(membershipRoles.scopeType, input.scopeType), scopeCondition)).limit(1);
   if (existingAssignment) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_ROLE_ASSIGNMENT_EXISTS" });
+  const currentRoles = await db.select({ code: roles.code, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).innerJoin(roles, eq(membershipRoles.roleId, roles.id)).where(eq(membershipRoles.membershipId, membership.id));
+  const overlappingRoleCodes = currentRoles.filter(current => current.scopeType === "company" || input.scopeType === "company" || (current.scopeType === input.scopeType && current.scopeId === (input.scopeId ?? null))).map(current => current.code);
+  try {
+    assertOperationalRoleSeparation(overlappingRoleCodes, role.code);
+  } catch (error) {
+    if (error instanceof Error && error.message === "PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT") throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+    throw error;
+  }
   const assignmentId = crypto.randomUUID();
   await db.transaction(async tx => {
     await tx.insert(membershipRoles).values({ id: assignmentId, membershipId: membership.id, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null });
@@ -588,8 +605,9 @@ export async function assignTenantMember(input: { actorUserId: number; tenantId:
   await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
   const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.id, input.targetUserId));
   if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_USER_NOT_FOUND" });
-  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId));
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId, productCode: roles.productCode }).from(roles).where(eq(roles.id, input.roleId));
   if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  if (role.productCode) await assertRoleProductEntitled({ userId: input.actorUserId, tenantId: input.tenantId, productCode: role.productCode as ProductCode });
   const [existing] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.targetUserId)));
   if (existing) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBER_ALREADY_EXISTS" });
   const membershipId = crypto.randomUUID();
@@ -609,8 +627,9 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   await assertTenantManager(input.actorUserId, input.tenantId);
   await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
   const email = input.email.trim().toLowerCase();
-  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
+  const [role] = await db.select({ id: roles.id, tenantId: roles.tenantId, productCode: roles.productCode }).from(roles).where(eq(roles.id, input.roleId)).limit(1);
   if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
+  if (role.productCode) await assertRoleProductEntitled({ userId: input.actorUserId, tenantId: input.tenantId, productCode: role.productCode as ProductCode });
   const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(and(eq(memberships.tenantId, input.tenantId), eq(users.email, email))).limit(1);
   if (existingMembership) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MEMBER_ALREADY_EXISTS" });
   const [pendingInvitation] = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.tenantId, input.tenantId), eq(membershipInvitations.email, email), eq(membershipInvitations.status, "pending"))).limit(1);
@@ -705,6 +724,23 @@ const ownerPermissions = [
   { code: "project.write", name: "Manage Level 3", productCode: "PROJECT" as const },
 ];
 
+const allCatalogPermissions = [...ownerPermissions, ...operationalPermissionCatalog];
+
+async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string) {
+  await db.transaction(async tx => {
+    for (const permission of allCatalogPermissions) {
+      await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+    }
+    for (const definition of operationalRoleDefinitions) {
+      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: "PROJECT", systemManaged: true }).onDuplicateKeyUpdate({ set: { name: definition.name, productCode: "PROJECT", systemManaged: true } });
+      const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
+      const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
+      if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
+      for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onDuplicateKeyUpdate({ set: { roleId: role.id } });
+    }
+  });
+}
+
 export async function createTenantForUser(input: {
   userId: number;
   legalName: string;
@@ -735,7 +771,7 @@ export async function createTenantForUser(input: {
     );
     await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
     await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
-    for (const permission of ownerPermissions) {
+    for (const permission of allCatalogPermissions) {
       await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
     }
     const permissionRows = await tx.select({ id: permissions.id }).from(permissions);
@@ -787,7 +823,7 @@ export async function createSelfServiceTenant(input: { userId: number; legalName
     await tx.insert(tenantEntitlements).values(productsForPackage(plan.packageCode as SubscriptionPackageCode).map(productCode => ({ id: crypto.randomUUID(), tenantId, subscriptionId, productCode, active: true, startsAt: now })));
     await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
     await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
-    for (const permission of ownerPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+    for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
     const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
     await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });

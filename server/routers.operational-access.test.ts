@@ -98,7 +98,7 @@ function configureAuthorizedTenantMemberAssignment() {
       idSelectionCount += 1;
       return queryResult(idSelectionCount === 1 ? [{ id: "target-user" }] : []);
     }
-    if (keys === "id,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA }]);
+    if (keys === "id,productCode,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA, productCode: null }]);
     throw new Error(`Unexpected select shape: ${keys}`);
   });
   databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
@@ -135,7 +135,8 @@ function configureAuthorizedMembershipRoleAssignment(input: { membershipTenantId
     if (keys === "code") return queryResult([{ code: "tenant.manage" }]);
     if (keys === "id") return queryResult([]);
     if (keys === "id,tenantId,userId") return queryResult([{ id: "member-target", tenantId: input.membershipTenantId ?? tenantA, userId: input.membershipUserId ?? 99 }]);
-    if (keys === "id,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA }]);
+    if (keys === "code,id,productCode,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA, code: "SITE_ENGINEER", productCode: null }]);
+    if (keys === "code,scopeId,scopeType") return queryResult([]);
     if (keys === "id") return queryResult(input.existingAssignment ? [{ id: "existing-role-assignment" }] : []);
     throw new Error(`Unexpected select shape: ${keys}`);
   });

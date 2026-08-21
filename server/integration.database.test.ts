@@ -129,8 +129,15 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM issues WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM risks WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection.query("DELETE FROM roles WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM memberships WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
     await connection.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
+    await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection.query("DELETE FROM roles WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
     await connection.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage')");
@@ -200,6 +207,10 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM suppliers WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
     await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM roles WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM memberships WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM membership_roles WHERE id IN ('int-membership-role-a','int-membership-role-pmo','int-membership-role-exec','int-membership-role-b')");
     await connection?.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection?.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
@@ -235,6 +246,44 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(items.map(item => item.id)).not.toContain("pmo-dashboard");
     await expect(caller.navigation.get({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   });
+
+  it("seeds operational roles, rejects conflicting procurement and warehouse assignments, and audits an allowed assignment", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const administration = await caller.tenant.administration({ tenantId: tenantA });
+    const warehouse = administration.roles.find(role => role.code === "WAREHOUSE_CUSTODIAN");
+    const procurement = administration.roles.find(role => role.code === "PROCUREMENT_OFFICER");
+    const planning = administration.roles.find(role => role.code === "PLANNING_ENGINEER");
+    const siteEngineer = administration.roles.find(role => role.code === "SITE_ENGINEER");
+    expect(warehouse && procurement && planning && siteEngineer).toBeTruthy();
+    if (!warehouse || !procurement || !planning || !siteEngineer) throw new Error("Operational roles were not seeded");
+
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId: warehouse.id, scopeType: "company" })).rejects.toThrow("not licensed");
+      const [unlicensedMemberships] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE tenantId = ? AND userId = ?", [tenantA, unassignedUserId]);
+      expect(Number(unlicensedMemberships[0].count)).toBe(0);
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId: siteEngineer.id, scopeType: "project", scopeId: projectB })).rejects.toThrow("PROJECT_OS_INVALID_SCOPE");
+    const [foreignScopeMemberships] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE tenantId = ? AND userId = ?", [tenantA, unassignedUserId]);
+    expect(Number(foreignScopeMemberships[0].count)).toBe(0);
+
+    const assigned = await caller.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId: warehouse.id, scopeType: "company" });
+    try {
+      await expect(caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: assigned.membershipId, roleId: procurement.id, scopeType: "company" })).rejects.toThrow("PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT");
+      const allowed = await caller.tenant.assignMembershipRole({ tenantId: tenantA, membershipId: assigned.membershipId, roleId: planning.id, scopeType: "company" });
+      expect(allowed.assignmentId).toEqual(expect.any(String));
+      const [memberAssignedAudits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'tenant.member_assigned' AND metadata LIKE ?", [tenantA, `%${unassignedUserId}%`]);
+      const [roleAssignedAudits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'tenant.membership_role_assigned' AND metadata LIKE ?", [tenantA, `%${assigned.membershipId}%`]);
+      expect(Number(memberAssignedAudits[0].count)).toBe(1);
+      expect(Number(roleAssignedAudits[0].count)).toBe(1);
+    } finally {
+      await connection.query("DELETE FROM membership_roles WHERE membershipId = ?", [assigned.membershipId]);
+      await connection.query("DELETE FROM memberships WHERE id = ?", [assigned.membershipId]);
+    }
+  }, 30_000);
 
   it("isolates the tenant material master, rejects missing entitlement, and records governed project overrides", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };

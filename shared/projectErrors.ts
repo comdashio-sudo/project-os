@@ -76,6 +76,10 @@ export const projectErrorMessages = {
     ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
     en: "This role and scope are already assigned to the selected membership.",
   },
+  PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT: {
+    ar: "لا يمكن جمع هذين الدورين المتعارضين للمستخدم نفسه ضمن نطاق متداخل.",
+    en: "The same user cannot hold these conflicting roles in overlapping scopes.",
+  },
   PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND: {
     ar: "إسناد الدور المحدد غير متاح ضمن هذه المؤسسة.",
     en: "The selected role assignment is not available in this organization.",
