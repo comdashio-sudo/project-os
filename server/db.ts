@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { createHash, randomBytes } from "node:crypto";
@@ -50,6 +50,7 @@ import {
   invoices,
   materialMasters,
   paymentRecords,
+  knowledgeArticles,
   projectMaterialOverrides,
   projectWarehouses,
   warehouseInventoryTransactions,
@@ -65,6 +66,8 @@ import {
   scheduledJobs,
   selfServiceSignupAttempts,
   suppliers,
+  supportMessages,
+  supportTickets,
   procurementRequisitions,
   subscriptions,
   tenantEntitlements,
@@ -88,6 +91,7 @@ import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
+import { validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -826,6 +830,76 @@ export async function confirmManualTenantPayment(input: { actorUserId: number; t
   const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertPlatformAdministrator(input.actorUserId);
   const [payment] = await db.select({ id: paymentRecords.id, provider: paymentRecords.provider, providerReference: paymentRecords.providerReference, status: paymentRecords.status, subscriptionId: paymentRecords.subscriptionId, operation: paymentRecords.operation }).from(paymentRecords).where(and(eq(paymentRecords.id, input.paymentId), eq(paymentRecords.tenantId, input.tenantId))).limit(1); if (!payment || payment.provider !== "manual" || payment.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYMENT_CONFIRMATION_INVALID" });
   paymentProviderFor("manual").confirmWebhook({ providerReference: payment.providerReference }); let effect: { previousStatus: TenantLicenseStatus; status: TenantLicenseStatus; entitlementsActive: boolean } | undefined; await db.transaction(async tx => { await tx.update(paymentRecords).set({ status: "confirmed", confirmedAt: new Date() }).where(eq(paymentRecords.id, payment.id)); effect = await applyConfirmedPaymentEffect(tx, { tenantId: input.tenantId, subscriptionId: payment.subscriptionId, paymentId: payment.id, operation: payment.operation as PaymentOperation, actorUserId: input.actorUserId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "billing.manual_payment_confirmed", entityType: "payment_record", entityId: payment.id, metadata: JSON.stringify({ providerReference: payment.providerReference, ...effect }) }); }); return { id: payment.id, status: "confirmed" as const, subscription: effect };
+}
+
+type SupportTicketStatus = "open" | "waiting_customer" | "in_progress" | "resolved" | "closed";
+type SupportEscalationStatus = "none" | "requested" | "escalated";
+
+async function assertSupportMembership(userId: number, tenantId: string) {
+  const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
+  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  return snapshot;
+}
+
+function canManageSupport(snapshot: TenantAccessSnapshot) { return snapshot.permissionCodes.includes("tenant.manage"); }
+
+function normalizeSupportTags(tags: string[] | undefined, automatic: string[] = []) {
+  const normalized = [...automatic, ...(tags ?? [])].map(tag => tag.trim().toLowerCase()).filter(Boolean);
+  if (normalized.length > 12 || normalized.some(tag => tag.length > 40 || !/^[a-z0-9:_-]+$/i.test(tag))) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  return Array.from(new Set(normalized)).slice(0, 12);
+}
+
+async function generateSupportReply(input: { db: NonNullable<Awaited<ReturnType<typeof getDb>>>; tenantId: string; ticketId: string; requestBody: string }) {
+  const articles = await input.db.select({ id: knowledgeArticles.id, title: knowledgeArticles.title, content: knowledgeArticles.content }).from(knowledgeArticles).where(and(eq(knowledgeArticles.tenantId, input.tenantId), eq(knowledgeArticles.status, "published"))).limit(5);
+  const articleIds = new Set(articles.map(article => article.id)); let body = "A support specialist will review this request."; let citations: string[] = []; let shouldEscalate = true;
+  if (articles.length > 0 && process.env.VITEST !== "true") {
+    try {
+      const response = await invokeLLM({ model: "gpt-5-mini", maxTokens: 450, messages: [{ role: "system", content: "You are a governed support assistant. Answer only from supplied knowledge articles. Do not add facts, policies, prices, legal claims, or instructions outside them. If they do not fully answer, set shouldEscalate=true. Reply in the request language. Cite only supplied article IDs." }, { role: "user", content: JSON.stringify({ request: input.requestBody.slice(0, 4000), articles: articles.map(article => ({ id: article.id, title: article.title, content: article.content.slice(0, 3000) })) }) }], outputSchema: { name: "support_reply", strict: true, schema: { type: "object", properties: { reply: { type: "string" }, citations: { type: "array", items: { type: "string" } }, shouldEscalate: { type: "boolean" } }, required: ["reply", "citations", "shouldEscalate"], additionalProperties: false } } });
+      const raw = response.choices[0]?.message.content; const parsed = typeof raw === "string" ? validateKnowledgeBackedSupportReply(JSON.parse(raw), articleIds) : null;
+      if (parsed) { body = parsed.reply; citations = parsed.citations; shouldEscalate = parsed.shouldEscalate; }
+    } catch { /* A conservative fallback below preserves escalation when inference is unavailable. */ }
+  }
+  await input.db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: null, senderType: "assistant", body, citationsJson: JSON.stringify(citations) }); if (shouldEscalate) await tx.update(supportTickets).set({ escalationStatus: "requested" }).where(eq(supportTickets.id, input.ticketId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: null, action: "support.auto_response_generated", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ sourceArticleIds: citations, sourceCandidateCount: articles.length, escalated: shouldEscalate }) }); });
+}
+
+export async function createSupportTicketForTenant(input: { userId: number; tenantId: string; subject: string; category: "technical" | "billing" | "account" | "general"; priority: "low" | "normal" | "high" | "urgent"; body: string; tags?: string[]; autoRespond?: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertSupportMembership(input.userId, input.tenantId); if (!input.subject.trim() || !input.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  const tags = normalizeSupportTags(input.tags, [input.category, `priority:${input.priority}`]); const ticketId = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(supportTickets).values({ id: ticketId, tenantId: input.tenantId, createdByUserId: input.userId, subject: input.subject.trim().slice(0, 255), category: input.category, priority: input.priority, status: "open", escalationStatus: input.priority === "urgent" ? "requested" : "none", tagsJson: JSON.stringify(tags) }); await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId, authorUserId: input.userId, senderType: "customer", body: input.body.trim().slice(0, 8000) }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_created", entityType: "support_ticket", entityId: ticketId, metadata: JSON.stringify({ category: input.category, priority: input.priority, tags }) }); });
+  if (input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId, requestBody: input.body }); return { id: ticketId };
+}
+
+export async function listSupportTicketsForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); const scope = canManageSupport(access) ? eq(supportTickets.tenantId, input.tenantId) : and(eq(supportTickets.tenantId, input.tenantId), eq(supportTickets.createdByUserId, input.userId)); return db.select().from(supportTickets).where(scope).orderBy(desc(supportTickets.updatedAt));
+}
+
+export async function getSupportTicketForTenant(input: { userId: number; tenantId: string; ticketId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.id, input.ticketId), eq(supportTickets.tenantId, input.tenantId))).limit(1); if (!ticket || (!canManageSupport(access) && ticket.createdByUserId !== input.userId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPORT_TICKET_NOT_FOUND" }); const messages = await db.select().from(supportMessages).where(and(eq(supportMessages.ticketId, input.ticketId), eq(supportMessages.tenantId, input.tenantId))).orderBy(asc(supportMessages.createdAt)); return { ticket, messages };
+}
+
+export async function replyToSupportTicket(input: { userId: number; tenantId: string; ticketId: string; body: string; autoRespond?: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.id, input.ticketId), eq(supportTickets.tenantId, input.tenantId))).limit(1); if (!ticket || (!canManageSupport(access) && ticket.createdByUserId !== input.userId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPORT_TICKET_NOT_FOUND" }); if (!input.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" }); const senderType = canManageSupport(access) ? "agent" : "customer";
+  await db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: input.userId, senderType, body: input.body.trim().slice(0, 8000) }); await tx.update(supportTickets).set({ status: senderType === "agent" ? "waiting_customer" : "open", escalationStatus: senderType === "agent" ? ticket.escalationStatus : "requested" }).where(eq(supportTickets.id, input.ticketId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_replied", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ senderType }) }); }); if (senderType === "customer" && input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId: input.ticketId, requestBody: input.body }); return { id: input.ticketId };
+}
+
+export async function transitionSupportTicket(input: { userId: number; tenantId: string; ticketId: string; status: SupportTicketStatus; escalationStatus?: SupportEscalationStatus; ownerUserId?: number | null; tags?: string[] }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); if (!canManageSupport(access)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" }); const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.id, input.ticketId), eq(supportTickets.tenantId, input.tenantId))).limit(1); if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPORT_TICKET_NOT_FOUND" });
+  if (input.ownerUserId !== undefined && input.ownerUserId !== null) { const [owner] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.userId, input.ownerUserId), eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"))).limit(1); if (!owner) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MEMBER_NOT_FOUND" }); }
+  const tagsJson = input.tags === undefined ? ticket.tagsJson : JSON.stringify(normalizeSupportTags(input.tags)); await db.transaction(async tx => { await tx.update(supportTickets).set({ status: input.status, escalationStatus: input.escalationStatus ?? ticket.escalationStatus, ownerUserId: input.ownerUserId === undefined ? ticket.ownerUserId : input.ownerUserId, tagsJson }).where(eq(supportTickets.id, input.ticketId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_transitioned", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ previousStatus: ticket.status, status: input.status, escalationStatus: input.escalationStatus ?? ticket.escalationStatus, tagsJson }) }); }); return { id: input.ticketId, status: input.status };
+}
+
+export async function claimSupportTicket(input: { userId: number; tenantId: string; ticketId: string }) { return transitionSupportTicket({ userId: input.userId, tenantId: input.tenantId, ticketId: input.ticketId, ownerUserId: input.userId, status: "in_progress", escalationStatus: "escalated" }); }
+
+export async function createKnowledgeArticleForTenant(input: { userId: number; tenantId: string; sourceDocumentId: string; title: string; content: string; publish: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); if (!canManageSupport(access)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" }); const [document] = await db.select({ id: projectDocuments.id }).from(projectDocuments).where(and(eq(projectDocuments.id, input.sourceDocumentId), eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.status, "approved"))).limit(1); if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPORT_SOURCE_DOCUMENT_NOT_ALLOWED" }); if (!input.title.trim() || !input.content.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" }); const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(knowledgeArticles).values({ id, tenantId: input.tenantId, sourceDocumentId: input.sourceDocumentId, title: input.title.trim().slice(0, 255), content: input.content.trim().slice(0, 12000), status: input.publish ? "published" : "draft", createdByUserId: input.userId, publishedByUserId: input.publish ? input.userId : null, publishedAt: input.publish ? new Date() : null }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.knowledge_article_created", entityType: "knowledge_article", entityId: id, metadata: JSON.stringify({ sourceDocumentId: input.sourceDocumentId, published: input.publish }) }); }); return { id };
+}
+
+export async function listKnowledgeArticlesForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); return db.select().from(knowledgeArticles).where(canManageSupport(access) ? eq(knowledgeArticles.tenantId, input.tenantId) : and(eq(knowledgeArticles.tenantId, input.tenantId), eq(knowledgeArticles.status, "published"))).orderBy(desc(knowledgeArticles.updatedAt));
+}
+
+export async function listApprovedSupportSourceDocuments(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); if (!canManageSupport(access)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" }); return db.select({ id: projectDocuments.id, projectId: projectDocuments.projectId, documentNumber: projectDocuments.documentNumber, title: projectDocuments.title }).from(projectDocuments).where(and(eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.status, "approved"))).orderBy(desc(projectDocuments.updatedAt));
 }
 
 export async function listTenantsForUser(userId: number) {

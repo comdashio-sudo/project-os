@@ -7,6 +7,7 @@ import { reanalyzeDataImport } from "./db";
 import { createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
+import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -85,6 +86,19 @@ export const appRouter = router({
     issueInvoice: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), subscriptionId: z.string().uuid(), subtotalAmount: z.number().finite().min(0), sellerName: z.string().trim().min(2).max(255), sellerTaxNumber: z.string().trim().min(2).max(80), buyerName: z.string().trim().min(2).max(255), buyerTaxNumber: z.string().trim().min(2).max(80), currency: z.string().trim().regex(/^[A-Z]{3}$/).optional() })).mutation(({ ctx, input }) => issueTenantInvoice({ userId: ctx.user.id, ...input })),
     createPayment: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), subscriptionId: z.string().uuid(), provider: z.enum(["manual", "mock"]), operation: z.enum(["create", "renew", "cancel", "refund"]), amount: z.number().finite().min(0), currency: z.string().trim().regex(/^[A-Z]{3}$/).optional(), invoiceId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createTenantPayment({ userId: ctx.user.id, ...input })),
     confirmManualPayment: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), paymentId: z.string().uuid() })).mutation(({ ctx, input }) => confirmManualTenantPayment({ actorUserId: ctx.user.id, ...input })),
+  }),
+  support: router({
+    tickets: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listSupportTicketsForTenant({ userId: ctx.user.id, ...input })),
+    ticket: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ticketId: z.string().uuid() })).query(({ ctx, input }) => getSupportTicketForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), subject: z.string().trim().min(3).max(255), category: z.enum(["technical", "billing", "account", "general"]), priority: z.enum(["low", "normal", "high", "urgent"]), body: z.string().trim().min(3).max(8000), tags: z.array(z.string().trim().min(1).max(40).regex(/^[a-zA-Z0-9:_-]+$/)).max(10).optional() })).mutation(({ ctx, input }) => createSupportTicketForTenant({ userId: ctx.user.id, ...input })),
+    reply: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ticketId: z.string().uuid(), body: z.string().trim().min(3).max(8000) })).mutation(({ ctx, input }) => replyToSupportTicket({ userId: ctx.user.id, ...input })),
+    transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ticketId: z.string().uuid(), status: z.enum(["open", "waiting_customer", "in_progress", "resolved", "closed"]), escalationStatus: z.enum(["none", "requested", "escalated"]).optional(), ownerUserId: z.number().int().positive().nullable().optional(), tags: z.array(z.string().trim().min(1).max(40).regex(/^[a-zA-Z0-9:_-]+$/)).max(10).optional() })).mutation(({ ctx, input }) => transitionSupportTicket({ userId: ctx.user.id, ...input })),
+    claim: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ticketId: z.string().uuid() })).mutation(({ ctx, input }) => claimSupportTicket({ userId: ctx.user.id, ...input })),
+    knowledge: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listKnowledgeArticlesForTenant({ userId: ctx.user.id, ...input })),
+      sources: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listApprovedSupportSourceDocuments({ userId: ctx.user.id, ...input })),
+      create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), sourceDocumentId: z.string().uuid(), title: z.string().trim().min(3).max(255), content: z.string().trim().min(3).max(12000), publish: z.boolean() })).mutation(({ ctx, input }) => createKnowledgeArticleForTenant({ userId: ctx.user.id, ...input })),
+    }),
   }),
   masterPlans: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlansForTenant({ userId: ctx.user.id, ...input })),

@@ -228,6 +228,14 @@ export const projectErrorMessages = {
     ar: "لا يمكن تأكيد سجل الدفع اليدوي المحدد في حالته الحالية.",
     en: "The selected manual payment record cannot be confirmed in its current state.",
   },
+  PROJECT_OS_SUPPORT_TICKET_NOT_FOUND: {
+    ar: "تذكرة الدعم المحددة غير متاحة ضمن مساحة العمل الحالية.",
+    en: "The selected support ticket is unavailable in the current workspace.",
+  },
+  PROJECT_OS_SUPPORT_SOURCE_DOCUMENT_NOT_ALLOWED: {
+    ar: "لا يمكن استخدام هذا المستند كمصدر للمعرفة؛ يجب أن يكون مستندًا معتمدًا ضمن مساحة العمل.",
+    en: "This document cannot be used as a knowledge source; it must be an approved document in the workspace.",
+  },
   PROJECT_OS_RFI_NOT_FOUND: {
     ar: "طلب المعلومات المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected RFI is not available in the current project and workspace.",

@@ -254,6 +254,58 @@ export const paymentRecords = mysqlTable(
   table => [uniqueIndex("pay_provider_ref_unique").on(table.provider, table.providerReference), index("pay_tenant_sub_idx").on(table.tenantId, table.subscriptionId)],
 );
 
+export const supportTickets = mysqlTable(
+  "support_tickets",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    ownerUserId: int("ownerUserId").references(() => users.id),
+    subject: varchar("subject", { length: 255 }).notNull(),
+    category: mysqlEnum("category", ["technical", "billing", "account", "general"]).notNull(),
+    priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal").notNull(),
+    status: mysqlEnum("status", ["open", "waiting_customer", "in_progress", "resolved", "closed"]).default("open").notNull(),
+    escalationStatus: mysqlEnum("escalationStatus", ["none", "requested", "escalated"]).default("none").notNull(),
+    tagsJson: varchar("tagsJson", { length: 1000 }).default("[]").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("spt_tenant_status_idx").on(table.tenantId, table.status, table.updatedAt), index("spt_owner_status_idx").on(table.ownerUserId, table.status)],
+);
+
+export const supportMessages = mysqlTable(
+  "support_messages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    ticketId: varchar("ticketId", { length: 36 }).notNull().references(() => supportTickets.id),
+    authorUserId: int("authorUserId").references(() => users.id),
+    senderType: mysqlEnum("senderType", ["customer", "agent", "assistant", "system"]).notNull(),
+    body: text("body").notNull(),
+    citationsJson: text("citationsJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("spm_ticket_created_idx").on(table.ticketId, table.createdAt), index("spm_tenant_created_idx").on(table.tenantId, table.createdAt)],
+);
+
+export const knowledgeArticles = mysqlTable(
+  "knowledge_articles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    sourceDocumentId: varchar("sourceDocumentId", { length: 36 }).notNull().references(() => projectDocuments.id),
+    title: varchar("title", { length: 255 }).notNull(),
+    content: text("content").notNull(),
+    status: mysqlEnum("status", ["draft", "published", "archived"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    publishedByUserId: int("publishedByUserId").references(() => users.id),
+    publishedAt: timestamp("publishedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("kba_document_unique").on(table.sourceDocumentId), index("kba_tenant_status_idx").on(table.tenantId, table.status, table.updatedAt)],
+);
+
 export const scheduledJobs = mysqlTable(
   "scheduled_jobs",
   {
