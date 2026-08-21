@@ -13,6 +13,28 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+
+# Credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# Database backups and exports (do not ignore tracked migration SQL)
+*.dump
+*.dump.gz
+*.backup
+*.backup.gz
+*.sql.gz
+*_dump.sql
+*_export.sql
+*_backup.sql
+backups/
+dumps/
+exports/
 
 # IDE and editor files
 .vscode/
