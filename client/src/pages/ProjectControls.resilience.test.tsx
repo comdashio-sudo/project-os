@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 
-const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false }));
+const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
@@ -12,7 +12,7 @@ vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button ty
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
-vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => null }));
+vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => { if (state.contractsRenderFailure) throw new Error("deliberate project contracts render failure"); return null; } }));
 vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => null }));
 vi.mock("./ProjectRfis", () => ({ ProjectRfis: () => null }));
 vi.mock("./ProjectNcrs", () => ({ ProjectNcrs: () => null }));
@@ -46,7 +46,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 describe("ProjectControls section resilience", () => {
-  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; });
+  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.contractsRenderFailure = false; });
 
   it("keeps project controls available when the independent performance source fails", () => {
     render(<ProjectControls />);
@@ -80,6 +80,15 @@ describe("ProjectControls section resilience", () => {
     expect(screen.getByRole("heading", { name: "Project delivery board" })).toBeTruthy();
   });
 
+  it("keeps an empty PROJECT source distinct from a source error", () => {
+    state.financialsEmpty = true;
+    state.performanceEmpty = true;
+    state.scheduleError = { message: "schedule unavailable" };
+    render(<ProjectControls />);
+    expect(screen.getAllByText("No data is available for this section in the current access scope.").length).toBeGreaterThan(0);
+    expect(screen.getByText("safe error")).toBeTruthy();
+  });
+
   it("gives a scoped project manager a command center and opens the selected governed tool lane", () => {
     state.performancePartial = true;
     render(<ProjectControls />);
@@ -89,5 +98,15 @@ describe("ProjectControls section resilience", () => {
     expect(commercial.open).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: /Contracts & procurement/i }));
     expect(commercial.open).toBe(true);
+  });
+
+  it("contains a deliberate operational render failure while the schedule section remains available", () => {
+    state.performancePartial = true;
+    state.contractsRenderFailure = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<ProjectControls />);
+    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
+    expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
+    consoleError.mockRestore();
   });
 });

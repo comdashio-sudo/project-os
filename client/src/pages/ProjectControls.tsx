@@ -8,25 +8,25 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { localizedHealthException, parseStoredHealthExceptions, parseStoredHealthSources } from "@/lib/healthPresentation";
 import { trpc } from "@/lib/trpc";
-import { ProjectContracts } from "./ProjectContracts";
-import { ProjectDocuments } from "./ProjectDocuments";
-import { ProjectRfis } from "./ProjectRfis";
-import { ProjectNcrs } from "./ProjectNcrs";
-import { ProjectHse } from "./ProjectHse";
-import { ProjectFieldReports } from "./ProjectFieldReports";
-import { ProjectQualityInspections } from "./ProjectQualityInspections";
-import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
-import { ProjectProcurement } from "./ProjectProcurement";
-import { ProjectChanges } from "./ProjectChanges";
-import { ProjectNotifications } from "./ProjectNotifications";
-import { ProjectResources } from "./ProjectResources";
-import { ProjectMaterials } from "./ProjectMaterials";
-import { ProjectWarehouses } from "./ProjectWarehouses";
-import { ProjectClaims } from "./ProjectClaims";
-import { ProjectAdvisor } from "./ProjectAdvisor";
-import { ProjectImports } from "./ProjectImports";
-import { ProjectDataExport } from "./ProjectDataExport";
-import { ProjectMasterPlan } from "./ProjectMasterPlan";
+import { ProjectContracts as ProjectContractsContent } from "./ProjectContracts";
+import { ProjectDocuments as ProjectDocumentsContent } from "./ProjectDocuments";
+import { ProjectRfis as ProjectRfisContent } from "./ProjectRfis";
+import { ProjectNcrs as ProjectNcrsContent } from "./ProjectNcrs";
+import { ProjectHse as ProjectHseContent } from "./ProjectHse";
+import { ProjectFieldReports as ProjectFieldReportsContent } from "./ProjectFieldReports";
+import { ProjectQualityInspections as ProjectQualityInspectionsContent } from "./ProjectQualityInspections";
+import { ProjectPurchaseOrders as ProjectPurchaseOrdersContent } from "./ProjectPurchaseOrders";
+import { ProjectProcurement as ProjectProcurementContent } from "./ProjectProcurement";
+import { ProjectChanges as ProjectChangesContent } from "./ProjectChanges";
+import { ProjectNotifications as ProjectNotificationsContent } from "./ProjectNotifications";
+import { ProjectResources as ProjectResourcesContent } from "./ProjectResources";
+import { ProjectMaterials as ProjectMaterialsContent } from "./ProjectMaterials";
+import { ProjectWarehouses as ProjectWarehousesContent } from "./ProjectWarehouses";
+import { ProjectClaims as ProjectClaimsContent } from "./ProjectClaims";
+import { ProjectAdvisor as ProjectAdvisorContent } from "./ProjectAdvisor";
+import { ProjectImports as ProjectImportsContent } from "./ProjectImports";
+import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExport";
+import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -35,6 +35,33 @@ import React, { useState } from "react";
 import { Link, useParams } from "wouter";
 
 const today = new Date().toISOString().slice(0, 10);
+
+function withProjectSectionBoundary<P extends object>(Component: React.ComponentType<P>, arTitle: string, enTitle: string) {
+  return function ProjectSectionBoundary(props: P) {
+    const { isArabic } = useLanguage();
+    return <SectionErrorBoundary title={isArabic ? arTitle : enTitle} isArabic={isArabic}><Component {...props} /></SectionErrorBoundary>;
+  };
+}
+
+const ProjectContracts = withProjectSectionBoundary(ProjectContractsContent, "العقود", "Contracts");
+const ProjectProcurement = withProjectSectionBoundary(ProjectProcurementContent, "طلبات التوريد", "Procurement requests");
+const ProjectPurchaseOrders = withProjectSectionBoundary(ProjectPurchaseOrdersContent, "أوامر الشراء", "Purchase orders");
+const ProjectClaims = withProjectSectionBoundary(ProjectClaimsContent, "المطالبات", "Claims");
+const ProjectDocuments = withProjectSectionBoundary(ProjectDocumentsContent, "المستندات", "Documents");
+const ProjectFieldReports = withProjectSectionBoundary(ProjectFieldReportsContent, "التقارير الميدانية", "Field reports");
+const ProjectQualityInspections = withProjectSectionBoundary(ProjectQualityInspectionsContent, "فحوص الجودة", "Quality inspections");
+const ProjectHse = withProjectSectionBoundary(ProjectHseContent, "الصحة والسلامة والبيئة", "HSE observations");
+const ProjectRfis = withProjectSectionBoundary(ProjectRfisContent, "طلبات المعلومات", "RFIs");
+const ProjectNcrs = withProjectSectionBoundary(ProjectNcrsContent, "حالات عدم المطابقة", "NCRs");
+const ProjectChanges = withProjectSectionBoundary(ProjectChangesContent, "طلبات التغيير", "Change requests");
+const ProjectResources = withProjectSectionBoundary(ProjectResourcesContent, "الموارد", "Resources");
+const ProjectMaterials = withProjectSectionBoundary(ProjectMaterialsContent, "المواد", "Materials");
+const ProjectWarehouses = withProjectSectionBoundary(ProjectWarehousesContent, "المستودعات", "Warehouses");
+const ProjectImports = withProjectSectionBoundary(ProjectImportsContent, "استيراد البيانات", "Data imports");
+const ProjectDataExport = withProjectSectionBoundary(ProjectDataExportContent, "تصدير البيانات", "Data exports");
+const ProjectMasterPlan = withProjectSectionBoundary(ProjectMasterPlanContent, "الخطة الرئيسية", "Master plan");
+const ProjectAdvisor = withProjectSectionBoundary(ProjectAdvisorContent, "المستشار", "Project advisor");
+const ProjectNotifications = withProjectSectionBoundary(ProjectNotificationsContent, "إشعارات المشروع", "Project notifications");
 
 export default function ProjectControls() {
   const { tenantId, projectId } = useParams<{ tenantId: string; projectId: string }>();

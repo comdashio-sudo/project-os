@@ -164,6 +164,7 @@ export default function ExecutiveDashboard() {
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
           <p className="mt-2 text-slate-300">{t.sub}</p>
         </section>
+        <SectionErrorBoundary title={t.title} isArabic={isArabic}>
         {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Metric
             icon={Landmark}
@@ -181,6 +182,7 @@ export default function ExecutiveDashboard() {
             value={money(data.totals.forecast)}
           />
         </div>}
+        </SectionErrorBoundary>
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
         {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" /></div> : cashFlowQuery.data.cashFlow ? (
           <Card className="mt-6 border-amber-200 bg-amber-50">
@@ -413,15 +415,18 @@ function Metric({
   label: string;
   value: string;
 }) {
+  const { isArabic } = useLanguage();
   return (
-    <Card>
-      <CardContent className="p-5">
-        <Icon className="h-5 w-5 text-[#0e6b70]" />
-        <p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">
-          {label}
-        </p>
-        <p className="mt-2 text-2xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+    <SectionErrorBoundary title={label} isArabic={isArabic}>
+      <Card>
+        <CardContent className="p-5">
+          <Icon className="h-5 w-5 text-[#0e6b70]" />
+          <p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-semibold">{value}</p>
+        </CardContent>
+      </Card>
+    </SectionErrorBoundary>
   );
 }

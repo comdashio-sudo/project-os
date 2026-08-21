@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   projectsError: null as unknown,
   cashError: null as unknown,
   cashData: undefined as unknown,
+  metricsRenderFailure: false,
 }));
 
 vi.mock("wouter", () => ({
@@ -21,7 +22,11 @@ vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button ty
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 vi.mock("./PortfolioCashFlowChart", () => ({ default: () => <div>Cash chart</div> }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Access denied safely" }));
+vi.mock("lucide-react", async importOriginal => {
+  const actual = await importOriginal<typeof import("lucide-react")>();
+  return { ...actual, Scale: (props: React.SVGProps<SVGSVGElement>) => { if (state.metricsRenderFailure) throw new Error("deliberate executive metrics render failure"); return <svg {...props} />; } };
+});
+vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: { message?: string }) => error.message === "forbidden" ? "Access denied safely" : "Executive source error safely" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({ dashboards: { invalidate: vi.fn() } }),
@@ -36,7 +41,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("ExecutiveDashboard access", () => {
-  afterEach(() => { cleanup(); state.error = { message: "forbidden" }; state.data = undefined; state.projectsError = null; state.cashError = null; state.cashData = undefined; });
+  afterEach(() => { cleanup(); state.error = { message: "forbidden" }; state.data = undefined; state.projectsError = null; state.cashError = null; state.cashData = undefined; state.metricsRenderFailure = false; });
 
   it("shows a localized denial and omits executive controls when executive data is forbidden", () => {
     render(<ExecutiveDashboard />);
@@ -77,6 +82,28 @@ describe("ExecutiveDashboard access", () => {
     render(<ExecutiveDashboard />);
     expect(screen.getByText("Leadership view")).toBeTruthy();
     expect(screen.getByText("Approve recovery")).toBeTruthy();
-    expect(screen.getByText("Access denied safely")).toBeTruthy();
+    expect(screen.getByText("Executive source error safely")).toBeTruthy();
+  });
+
+  it("keeps an empty executive section distinct from a source error and a denied dashboard", () => {
+    state.error = null;
+    state.data = { totals: { budget: 100, actual: 60, forecast: 90 }, projects: [], decisions: [] };
+    state.cashError = { message: "cash source unavailable" };
+    render(<ExecutiveDashboard />);
+    expect(screen.getAllByText("No portfolio data is available in the current access scope.").length).toBeGreaterThan(0);
+    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
+    expect(screen.queryByText("Access denied safely")).toBeNull();
+  });
+
+  it("contains a deliberate metrics render failure while decisions remain available", () => {
+    state.error = null;
+    state.metricsRenderFailure = true;
+    state.data = { totals: { budget: 100, actual: 60, forecast: 90 }, projects: [], decisions: [{ id: "decision-1", problem: "Approve recovery", status: "open" }] };
+    state.cashData = { cashFlow: { plannedBudget: 100, actualCost: 60, committedAmount: 0, remainingBudget: 40, totalExposure: 0 }, cashFlowByPortfolio: [], cashFlowByProject: [] };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<ExecutiveDashboard />);
+    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
+    expect(screen.getByText("Approve recovery")).toBeTruthy();
+    consoleError.mockRestore();
   });
 });

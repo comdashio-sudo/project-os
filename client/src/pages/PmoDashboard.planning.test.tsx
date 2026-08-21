@@ -4,14 +4,14 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
 
-const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false }));
+const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, controlLinksRenderFailure: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
-vi.mock("./PmoControlLinks", () => ({ PmoControlLinks: () => null }));
+vi.mock("./PmoControlLinks", () => ({ PmoControlLinks: () => { if (state.controlLinksRenderFailure) throw new Error("deliberate PMO control-links render failure"); return null; } }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null });
@@ -33,7 +33,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 describe("PmoDashboard planning control center", () => {
-  afterEach(() => { cleanup(); state.exceptionsError = null; state.risksError = null; state.risksLoading = false; state.setupEmpty = false; state.planningPartial = false; });
+  afterEach(() => { cleanup(); state.exceptionsError = null; state.risksError = null; state.risksLoading = false; state.setupEmpty = false; state.planningPartial = false; state.controlLinksRenderFailure = false; });
 
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
@@ -84,5 +84,22 @@ describe("PmoDashboard planning control center", () => {
     render(<PmoDashboard />);
     expect(within(screen.getByLabelText("Portfolio and program setup")).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
+  });
+
+  it("keeps an empty PMO source distinct from an errored source", () => {
+    state.setupEmpty = true;
+    state.risksError = { message: "risks unavailable" };
+    render(<PmoDashboard />);
+    expect(screen.getByText("No data is available for this section in the current access scope.")).toBeTruthy();
+    expect(screen.getAllByText("safe error").length).toBeGreaterThan(0);
+  });
+
+  it("contains a deliberate control-links render failure while planning remains available", () => {
+    state.controlLinksRenderFailure = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<PmoDashboard />);
+    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
+    consoleError.mockRestore();
   });
 });
