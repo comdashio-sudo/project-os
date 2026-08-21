@@ -114,6 +114,7 @@ vi.mock("@/lib/trpc", () => ({
       executiveProjects: { useQuery: () => ({ isLoading: false, error: null, data: { projects: state.executiveData.projects } }) },
       executiveDecisions: { useQuery: () => ({ isLoading: false, error: null, data: { decisions: state.executiveData.decisions } }) },
       executiveCashFlow: { useQuery: () => ({ isLoading: false, error: null, data: { cashFlow: state.executiveData.cashFlow, cashFlowByProject: state.executiveData.cashFlowByProject, cashFlowByPortfolio: state.executiveData.cashFlowByPortfolio } }) },
+      reportSectionIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
     },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
     masterPlans: {

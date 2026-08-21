@@ -8,6 +8,7 @@ import { createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordW
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
+import { reportDashboardSectionIssueForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -197,6 +198,7 @@ export const appRouter = router({
       const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
       return { todayExceptions: dashboard.todayExceptions };
     }),
+    reportSectionIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), product: z.enum(["EXECUTIVE", "PMO", "PROJECT"]), sectionKey: z.string().trim().min(2).max(80).regex(/^[a-z0-9:_-]+$/), state: z.enum(["error", "partial"]), projectId: z.string().uuid().optional() }).superRefine((value, context) => { if (value.product === "PROJECT" && !value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); if (value.product !== "PROJECT" && value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); })).mutation(({ ctx, input }) => reportDashboardSectionIssueForTenant({ userId: ctx.user.id, ...input })),
   }),
   pmo: router({
     createPortfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(80), name: z.string().trim().min(2).max(255) })).mutation(({ ctx, input }) => createPortfolioForTenant({ userId: ctx.user.id, ...input })),

@@ -10,6 +10,7 @@ vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
+vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => null }));
 vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => null }));

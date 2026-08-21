@@ -2172,6 +2172,34 @@ export async function captureProjectHealthSnapshot(input: { userId: number; tena
   return { id, sources, ...result };
 }
 
+type DashboardSectionProduct = "EXECUTIVE" | "PMO" | "PROJECT";
+type DashboardSectionState = "error" | "partial";
+
+export async function reportDashboardSectionIssueForTenant(input: { userId: number; tenantId: string; product: DashboardSectionProduct; sectionKey: string; state: DashboardSectionState; projectId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  const permission = input.product === "EXECUTIVE" ? "executive.read" : input.product === "PMO" ? "pmo.read" : "project.read";
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: input.product, permission, ...(input.projectId ? { scope: { type: "project" as const, id: input.projectId } } : {}) });
+  if (input.product === "PROJECT" && !input.projectId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
+  if (input.projectId) await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const managerRows = await db.select({ userId: memberships.userId }).from(memberships).innerJoin(membershipRoles, eq(membershipRoles.membershipId, memberships.id)).innerJoin(roles, eq(roles.id, membershipRoles.roleId)).innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id)).innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId)).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"), eq(permissions.code, "tenant.manage")));
+  const recipientUserIds = Array.from(new Set(managerRows.map(row => row.userId)));
+  if (!recipientUserIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND" });
+  const entityId = createHash("sha256").update(`${input.product}:${input.sectionKey}:${input.state}`).digest("hex").slice(0, 36);
+  const existing = await db.select({ id: internalNotifications.id, recipientUserId: internalNotifications.recipientUserId, acknowledgedAt: internalNotifications.acknowledgedAt, entityId: internalNotifications.entityId }).from(internalNotifications).where(and(eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.notificationCode, "DASHBOARD_SECTION_ATTENTION"), input.projectId ? eq(internalNotifications.projectId, input.projectId) : isNull(internalNotifications.projectId)));
+  const existingRecipients = new Set(existing.filter(row => row.entityId === entityId && !row.acknowledgedAt).map(row => row.recipientUserId));
+  const recipients = recipientUserIds.filter(id => !existingRecipients.has(id));
+  if (!recipients.length) return { reported: false as const, recipientCount: 0 };
+  await db.transaction(async tx => {
+    await tx.insert(internalNotifications).values(recipients.map(recipientUserId => ({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId, projectId: input.projectId ?? null, notificationCode: "DASHBOARD_SECTION_ATTENTION", entityType: "dashboard_section", entityId, payload: JSON.stringify({ product: input.product, sectionKey: input.sectionKey, state: input.state }) })));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "dashboard.section_attention_reported", entityType: "dashboard_section", entityId, metadata: JSON.stringify({ product: input.product, sectionKey: input.sectionKey, state: input.state, projectId: input.projectId ?? null, recipientCount: recipients.length }) });
+  });
+  return { reported: true as const, recipientCount: recipients.length };
+}
+
 export async function getInternalNotificationsForTenant(input: { userId: number; tenantId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });

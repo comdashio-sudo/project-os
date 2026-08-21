@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { lazy, Suspense } from "react";
 import {
@@ -152,6 +153,10 @@ export default function ExecutiveDashboard() {
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
         <EnterpriseNavigation tenantId={tenantId} context="executive" />
+        <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_metrics" state={metricsQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_projects" state={projectsQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_decisions" state={decisionsQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_cash_flow" state={cashFlowQuery.error ? "error" : null} />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">
             PROJECT OS

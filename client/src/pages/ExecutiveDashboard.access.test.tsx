@@ -19,6 +19,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
+vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 vi.mock("./PortfolioCashFlowChart", () => ({ default: () => <div>Cash chart</div> }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Access denied safely" }));
 vi.mock("@/lib/trpc", () => ({

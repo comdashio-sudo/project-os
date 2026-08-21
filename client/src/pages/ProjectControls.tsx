@@ -28,6 +28,7 @@ import { ProjectImports } from "./ProjectImports";
 import { ProjectDataExport } from "./ProjectDataExport";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { Activity, ArrowLeft, Banknote, CalendarDays, Calculator, CheckCircle2, ClipboardList, FileCheck2, HeartPulse, PackageCheck, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
@@ -115,6 +116,9 @@ export default function ProjectControls() {
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
         <EnterpriseNavigation tenantId={tenantId} projectId={projectId} context="project" />
+        <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">{t.project} · {data.project.code}</p>
           <h1 className="mt-2 text-3xl font-semibold">{data.project.name}</h1>

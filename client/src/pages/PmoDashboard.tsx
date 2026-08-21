@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { PmoControlLinks } from "./PmoControlLinks";
 import { ArrowLeft, CheckSquare, CircleAlert, Clock3, FolderTree, ShieldAlert, TriangleAlert } from "lucide-react";
@@ -131,6 +132,12 @@ export default function PmoDashboard() {
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
         <EnterpriseNavigation tenantId={tenantId} context="pmo" />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_setup" state={setupQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_risks" state={risksQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_issues" state={issuesQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_actions" state={actionsQuery.error ? "error" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_planning" state={planningQuery.error ? "error" : planningOverview.summary.dataRequiredProjects > 0 ? "partial" : null} />
+        <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_today_exceptions" state={exceptionsQuery.error ? "error" : null} />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">PROJECT OS</p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>

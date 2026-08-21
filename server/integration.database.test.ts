@@ -174,7 +174,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-a', 'int-membership-a', 'int-role-a', 'company')");
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-pmo', 'int-membership-a', 'int-role-pmo', 'company')");
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-exec', 'int-membership-a', 'int-role-exec', 'company')");
-  });
+  }, 30000);
 
   afterEach(async () => { await connection?.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM actions WHERE tenantId IN (?, ?)", [tenantA, tenantB]); });
 
@@ -1385,6 +1385,21 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ acknowledged: 1, audits: 1 });
     await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [notificationA]);
     await connection.query("DELETE FROM internal_notifications WHERE id = ?", [notificationA]);
+  });
+
+  it("rejects foreign or unentitled dashboard-section reporting and notifies the tenant owner with audit evidence", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectB, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE id = 'int-ent-a'");
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("The PROJECT product is not licensed for this tenant.");
+    await connection.query("UPDATE tenant_entitlements SET active = true WHERE id = 'int-ent-a'");
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: true, recipientCount: 1 });
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: false, recipientCount: 0 });
+    const [rows] = await connection.query<{ notifications: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM internal_notifications WHERE tenantId = ? AND projectId = ? AND notificationCode = 'DASHBOARD_SECTION_ATTENTION') AS notifications, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'dashboard.section_attention_reported' AND entityType = 'dashboard_section') AS audits", [tenantA, projectA, tenantA]);
+    expect(rows[0]).toMatchObject({ notifications: 1, audits: 1 });
+    await connection.query("DELETE FROM internal_notifications WHERE tenantId = ? AND projectId = ? AND notificationCode = 'DASHBOARD_SECTION_ATTENTION'", [tenantA, projectA]);
+    await connection.query("DELETE FROM audit_logs WHERE tenantId = ? AND action = 'dashboard.section_attention_reported'", [tenantA]);
   });
   it("creates a self-service trial, rejects foreign billing access, and records a VAT invoice with governed manual payment evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
