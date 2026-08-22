@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
 
-const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, controlLinksRenderFailure: false }));
+const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
@@ -26,14 +26,14 @@ vi.mock("@/lib/trpc", () => {
         { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red" }, evm: { cpi: 0.8, spi: 0.8 }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
         { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: state.planningPartial ? "data_required" : "on_track", health: state.planningPartial ? null : { status: "green" }, evm: state.planningPartial ? null : { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: state.planningPartial ? ["missing_evm", "missing_health"] : [] },
       ] } } }) },
-      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }] } }) },
+      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
     },
     pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: mutation }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
 });
 
 describe("PmoDashboard planning control center", () => {
-  afterEach(() => { cleanup(); state.exceptionsError = null; state.risksError = null; state.risksLoading = false; state.setupEmpty = false; state.planningPartial = false; state.controlLinksRenderFailure = false; });
+  afterEach(() => { cleanup(); state.exceptionsError = null; state.risksError = null; state.risksLoading = false; state.setupEmpty = false; state.planningPartial = false; state.materialShortage = false; state.controlLinksRenderFailure = false; });
 
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
@@ -45,6 +45,13 @@ describe("PmoDashboard planning control center", () => {
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(4);
     fireEvent.change(screen.getByLabelText("Projects"), { target: { value: "all" } });
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(5);
+  });
+
+  it("renders a material shortage in the existing today exceptions center", () => {
+    state.materialShortage = true;
+    render(<PmoDashboard />);
+    expect(within(screen.getByLabelText("Today’s exceptions")).getByText("Material reorder required")).toBeTruthy();
+    expect(within(screen.getByLabelText("Today’s exceptions")).getByText("MAT-01 · Concrete · 2/10")).toBeTruthy();
   });
 
   it("keeps the planning center and PMO register available when today exceptions fail", () => {

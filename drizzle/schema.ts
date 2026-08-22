@@ -1100,6 +1100,7 @@ export const projectMaterialOverrides = mysqlTable(
     materialId: varchar("materialId", { length: 36 }).notNull().references(() => materialMasters.id),
     projectDescription: varchar("projectDescription", { length: 255 }),
     referenceSpecification: varchar("referenceSpecification", { length: 255 }),
+    reorderLevel: decimal("reorderLevel", { precision: 18, scale: 3 }),
     active: boolean("active").default(true).notNull(),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

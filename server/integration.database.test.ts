@@ -70,6 +70,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS purchaseOrderLinkedByUserId int");
     await connection.query("ALTER TABLE procurement_requisitions MODIFY COLUMN status enum('draft','submitted','approved','partially_issued','closed','rejected','cancelled') NOT NULL DEFAULT 'draft'");
     await connection.query("CREATE TABLE IF NOT EXISTS project_material_overrides (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `projectDescription` varchar(255), `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_material_overrides_project_material_unique` (`projectId`,`materialId`), KEY `project_material_overrides_tenant_project_idx` (`tenantId`,`projectId`,`materialId`))");
+    await connection.query("ALTER TABLE project_material_overrides ADD COLUMN IF NOT EXISTS reorderLevel decimal(18,3)");
     await connection.query("CREATE TABLE IF NOT EXISTS project_warehouses (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `code` varchar(80) NOT NULL, `name` varchar(160) NOT NULL, `locationDescription` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_warehouses_project_code_unique` (`projectId`,`code`))");
     await connection.query("CREATE TABLE IF NOT EXISTS warehouse_inventory_transactions (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `warehouseId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `transactionType` enum('receipt','issue','adjustment') NOT NULL, `quantityDelta` decimal(18,3) NOT NULL, `referenceNumber` varchar(120), `note` varchar(500), `occurredAt` timestamp NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`))");
     await connection.query("ALTER TABLE warehouse_inventory_transactions ADD COLUMN IF NOT EXISTS requisitionId varchar(36)");
@@ -1201,6 +1202,65 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouse.id]);
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [destinationWarehouse.id]);
     await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
+  }, 12_000);
+
+  it("governs material reorder levels and derives PMO shortages from movements without creating read-side alerts", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const foreignMaterialId = "92929292-9292-4929-8929-929292929291";
+    const foreignOverrideId = "92929292-9292-4929-8929-929292929292";
+    const foreignWarehouseId = "92929292-9292-4929-8929-929292929293";
+    const foreignTransactionId = "92929292-9292-4929-8929-929292929294";
+    let materialId: string | null = null;
+    let overrideId: string | null = null;
+    let warehouseId: string | null = null;
+    let createdPmoReadPermission = false;
+    let pmoReadPermissionId = "int-perm-reorder-pmo-read";
+    try {
+      const [existingPermissions] = await connection.query<{ id: string }[]>("SELECT id FROM permissions WHERE code = 'pmo.read' LIMIT 1");
+      if (existingPermissions[0]) pmoReadPermissionId = existingPermissions[0].id;
+      else { await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES (?, 'pmo.read', 'Integration reorder PMO read', 'PMO')", [pmoReadPermissionId]); createdPmoReadPermission = true; }
+      await connection.query("INSERT IGNORE INTO role_permissions (roleId, permissionId) VALUES ('int-role-a', ?)", [pmoReadPermissionId]);
+      const material = await caller.materials.createMaster({ tenantId: tenantA, code: "MAT-REORDER-TRPC", description: "Reorder cement", unitOfMeasure: "bag", category: "Concrete" });
+      materialId = material.id;
+      await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectB, materialId, active: true, reorderLevel: 5 })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+      await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+      try {
+        await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId, active: true, reorderLevel: 5 })).rejects.toThrow("PROJECT product is not licensed");
+      } finally {
+        await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+      }
+      const override = await caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId, active: true, reorderLevel: 5 });
+      overrideId = override.id;
+      warehouseId = (await caller.warehouses.create({ tenantId: tenantA, projectId: projectA, code: "WH-REORDER-TRPC", name: "Reorder test store" })).id;
+      await caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId, materialId, transactionType: "receipt", quantityDelta: 3, occurredAt: new Date("2026-08-22T00:00:00.000Z") });
+      await connection.query("INSERT INTO material_masters (id, tenantId, code, description, unitOfMeasure, category, active, createdByUserId) VALUES (?, ?, 'MAT-REORDER-FOREIGN', 'Foreign material', 'bag', 'Concrete', true, ?)", [foreignMaterialId, tenantB, integrationUserId]);
+      await connection.query("INSERT INTO project_material_overrides (id, tenantId, projectId, materialId, active, reorderLevel, createdByUserId) VALUES (?, ?, ?, ?, true, 9, ?)", [foreignOverrideId, tenantB, projectB, foreignMaterialId, integrationUserId]);
+      await connection.query("INSERT INTO project_warehouses (id, tenantId, projectId, code, name, active, createdByUserId) VALUES (?, ?, ?, 'WH-REORDER-FOREIGN', 'Foreign store', true, ?)", [foreignWarehouseId, tenantB, projectB, integrationUserId]);
+      await connection.query("INSERT INTO warehouse_inventory_transactions (id, tenantId, projectId, warehouseId, materialId, transactionType, quantityDelta, occurredAt, createdByUserId) VALUES (?, ?, ?, ?, ?, 'receipt', 1, ?, ?)", [foreignTransactionId, tenantB, projectB, foreignWarehouseId, foreignMaterialId, new Date("2026-08-22T00:00:00.000Z"), integrationUserId]);
+      const [auditBeforeRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'materials.project_override_saved' AND entityId = ?", [tenantA, overrideId]);
+      expect(auditBeforeRows[0]).toMatchObject({ count: 1 });
+      const dashboard = await caller.dashboards.pmoTodayExceptions({ tenantId: tenantA });
+      expect(dashboard.todayExceptions).toEqual(expect.arrayContaining([expect.objectContaining({ id: `inventory:${projectA}:${materialId}`, category: "inventory", severity: "warning", label: "material_reorder_required", detail: "MAT-REORDER-TRPC · Reorder cement · 3/5" })]));
+      expect(dashboard.todayExceptions).not.toEqual(expect.arrayContaining([expect.objectContaining({ projectId: projectB }), expect.objectContaining({ detail: expect.stringContaining("MAT-REORDER-FOREIGN") })]));
+      const [auditAfterRows] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND action = 'materials.project_override_saved' AND entityId = ?", [tenantA, overrideId]);
+      expect(auditAfterRows[0]).toEqual(auditBeforeRows[0]);
+      await caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId, materialId, transactionType: "issue", quantityDelta: -3, occurredAt: new Date("2026-08-22T01:00:00.000Z") });
+      const criticalDashboard = await caller.dashboards.pmoTodayExceptions({ tenantId: tenantA });
+      expect(criticalDashboard.todayExceptions).toEqual(expect.arrayContaining([expect.objectContaining({ id: `inventory:${projectA}:${materialId}`, category: "inventory", severity: "critical", detail: "MAT-REORDER-TRPC · Reorder cement · 0/5" })]));
+    } finally {
+      await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?)", [materialId, overrideId, warehouseId]);
+      if (warehouseId) await connection.query("DELETE FROM warehouse_inventory_transactions WHERE warehouseId = ?", [warehouseId]);
+      if (overrideId) await connection.query("DELETE FROM project_material_overrides WHERE id = ?", [overrideId]);
+      if (warehouseId) await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouseId]);
+      if (materialId) await connection.query("DELETE FROM material_masters WHERE id = ?", [materialId]);
+      await connection.query("DELETE FROM warehouse_inventory_transactions WHERE id = ?", [foreignTransactionId]);
+      await connection.query("DELETE FROM project_material_overrides WHERE id = ?", [foreignOverrideId]);
+      await connection.query("DELETE FROM project_warehouses WHERE id = ?", [foreignWarehouseId]);
+      await connection.query("DELETE FROM material_masters WHERE id = ?", [foreignMaterialId]);
+      await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-a' AND permissionId = ?", [pmoReadPermissionId]);
+      if (createdPmoReadPermission) await connection.query("DELETE FROM permissions WHERE id = ?", [pmoReadPermissionId]);
+    }
   }, 12_000);
 
   it("governs goods receipt notes with issued purchase orders and rejection evidence", async () => {

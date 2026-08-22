@@ -1,0 +1,1 @@
+ALTER TABLE `project_material_overrides` ADD `reorderLevel` decimal(18,3);

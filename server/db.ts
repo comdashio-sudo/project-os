@@ -1202,7 +1202,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows, changeRows] = await Promise.all([
+  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows, changeRows, materialOverrideRows, inventoryTransactionRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, plannedFinishAt: projects.plannedFinishAt, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
@@ -1215,9 +1215,25 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     db.select({ projectId: evmSnapshots.projectId, cpi: evmSnapshots.cpi, spi: evmSnapshots.spi, eac: evmSnapshots.eac, vac: evmSnapshots.vac, periodAt: evmSnapshots.periodAt }).from(evmSnapshots).where(eq(evmSnapshots.tenantId, input.tenantId)).orderBy(desc(evmSnapshots.periodAt)),
     db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
     db.select({ id: changeRequests.id, projectId: changeRequests.projectId, changeNumber: changeRequests.changeNumber, title: changeRequests.title, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, currency: changeRequests.currency, status: changeRequests.status }).from(changeRequests).where(eq(changeRequests.tenantId, input.tenantId)),
+    db.select({ projectId: projectMaterialOverrides.projectId, materialId: projectMaterialOverrides.materialId, reorderLevel: projectMaterialOverrides.reorderLevel, materialCode: materialMasters.code, materialDescription: materialMasters.description }).from(projectMaterialOverrides).innerJoin(materialMasters, and(eq(materialMasters.id, projectMaterialOverrides.materialId), eq(materialMasters.tenantId, projectMaterialOverrides.tenantId))).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.active, true))),
+    db.select({ projectId: warehouseInventoryTransactions.projectId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(eq(warehouseInventoryTransactions.tenantId, input.tenantId)),
   ]);
   const latestEvmByProject = new Map<string, (typeof evmRows)[number]>(); evmRows.forEach(item => { if (!latestEvmByProject.has(item.projectId)) latestEvmByProject.set(item.projectId, item); });
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>(); healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
+  const visibleProjectIds = new Set(projectRows.map(project => project.id));
+  const stockOnHandByProjectMaterial = new Map<string, number>();
+  for (const transaction of inventoryTransactionRows) {
+    if (!visibleProjectIds.has(transaction.projectId)) continue;
+    const key = `${transaction.projectId}:${transaction.materialId}`;
+    stockOnHandByProjectMaterial.set(key, (stockOnHandByProjectMaterial.get(key) ?? 0) + Number(transaction.quantityDelta));
+  }
+  const materialShortages = materialOverrideRows.flatMap(override => {
+    if (!visibleProjectIds.has(override.projectId) || override.reorderLevel === null) return [];
+    const reorderLevel = Number(override.reorderLevel);
+    if (!Number.isFinite(reorderLevel) || reorderLevel <= 0) return [];
+    const stockOnHand = stockOnHandByProjectMaterial.get(`${override.projectId}:${override.materialId}`) ?? 0;
+    return stockOnHand < reorderLevel ? [{ projectId: override.projectId, materialId: override.materialId, materialCode: override.materialCode, materialDescription: override.materialDescription, stockOnHand, reorderLevel }] : [];
+  });
   const today = new Date();
   const planningOverview = buildPmoPlanningOverview(projectRows.map(project => {
     const evm = latestEvmByProject.get(project.id); const health = latestHealthByProject.get(project.id);
@@ -1236,6 +1252,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     issues: issueRows,
     actions: actionRows,
     changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost) })),
+    materialShortages,
     today,
   });
   return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions };
@@ -2376,7 +2393,7 @@ export async function createMaterialMasterForTenant(input: { userId: number; ten
   return { id };
 }
 
-export async function saveProjectMaterialOverrideForTenant(input: { userId: number; tenantId: string; projectId: string; materialId: string; projectDescription?: string; referenceSpecification?: string; active: boolean }) {
+export async function saveProjectMaterialOverrideForTenant(input: { userId: number; tenantId: string; projectId: string; materialId: string; projectDescription?: string; referenceSpecification?: string; reorderLevel?: number; active: boolean }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -2384,9 +2401,10 @@ export async function saveProjectMaterialOverrideForTenant(input: { userId: numb
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [material] = await db.select({ id: materialMasters.id }).from(materialMasters).where(and(eq(materialMasters.id, input.materialId), eq(materialMasters.tenantId, input.tenantId))).limit(1);
   if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MATERIAL_NOT_FOUND" });
+  if (input.reorderLevel !== undefined && (!Number.isFinite(input.reorderLevel) || input.reorderLevel <= 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REORDER_LEVEL_INVALID" });
   const [existing] = await db.select({ id: projectMaterialOverrides.id }).from(projectMaterialOverrides).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.projectId, input.projectId), eq(projectMaterialOverrides.materialId, input.materialId))).limit(1);
   const id = existing?.id ?? crypto.randomUUID();
-  await db.transaction(async tx => { if (existing) await tx.update(projectMaterialOverrides).set({ projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active }).where(eq(projectMaterialOverrides.id, id)); else await tx.insert(projectMaterialOverrides).values({ id, tenantId: input.tenantId, projectId: input.projectId, materialId: input.materialId, projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, active: input.active, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "materials.project_override_saved", entityType: "project_material_override", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, materialId: input.materialId, active: input.active }) }); });
+  await db.transaction(async tx => { if (existing) await tx.update(projectMaterialOverrides).set({ projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, reorderLevel: input.reorderLevel === undefined ? null : String(input.reorderLevel), active: input.active }).where(eq(projectMaterialOverrides.id, id)); else await tx.insert(projectMaterialOverrides).values({ id, tenantId: input.tenantId, projectId: input.projectId, materialId: input.materialId, projectDescription: input.projectDescription, referenceSpecification: input.referenceSpecification, reorderLevel: input.reorderLevel === undefined ? null : String(input.reorderLevel), active: input.active, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "materials.project_override_saved", entityType: "project_material_override", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, materialId: input.materialId, active: input.active, reorderLevel: input.reorderLevel ?? null }) }); });
   return { id };
 }
 

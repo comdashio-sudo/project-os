@@ -19,4 +19,23 @@ describe("buildPmoTodayExceptions", () => {
     const result = buildPmoTodayExceptions({ today: new Date("2026-08-20T12:00:00.000Z"), projects: [{ id: "project-a", code: "P-001", name: "Infrastructure", plannedFinishAt: null, forecastFinishAt: null, health: { status: "green" } }], risks: [{ id: "risk-a", projectId: "project-a", code: "R-01", title: "Closed", probability: 5, severity: 5, status: "closed" }], issues: [{ id: "issue-a", projectId: "project-a", code: "I-01", title: "Closed", priority: "critical", status: "closed" }], actions: [{ id: "action-a", projectId: "project-a", title: "Completed", priority: "critical", status: "completed", dueAt: new Date("2026-08-01T00:00:00.000Z") }], changes: [{ id: "change-a", projectId: "missing", changeNumber: "CR-01", title: "No project", impactScheduleDays: 20, impactCost: 1, currency: "SAR", status: "under_review" }] });
     expect(result).toEqual([]);
   });
+
+  it("adds only below-threshold material shortages with a stable identity, governed project scope, and conservative severity", () => {
+    const result = buildPmoTodayExceptions({
+      today: new Date("2026-08-20T12:00:00.000Z"),
+      projects: [{ id: "project-a", code: "P-001", name: "Infrastructure", plannedFinishAt: null, forecastFinishAt: null, health: null }],
+      risks: [], issues: [], actions: [], changes: [],
+      materialShortages: [
+        { projectId: "project-a", materialId: "material-empty", materialCode: "CEM-01", materialDescription: "Cement", stockOnHand: 0, reorderLevel: 10 },
+        { projectId: "project-a", materialId: "material-low", materialCode: "REB-01", materialDescription: "Rebar", stockOnHand: 2, reorderLevel: 8 },
+        { projectId: "project-a", materialId: "material-safe", materialCode: "SAN-01", materialDescription: "Sand", stockOnHand: 10, reorderLevel: 10 },
+        { projectId: "other-project", materialId: "material-foreign", materialCode: "STE-01", materialDescription: "Steel", stockOnHand: 1, reorderLevel: 5 },
+      ],
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: "inventory:project-a:material-empty", category: "inventory", severity: "critical", label: "material_reorder_required", detail: "CEM-01 · Cement · 0/10" }),
+      expect.objectContaining({ id: "inventory:project-a:material-low", category: "inventory", severity: "warning", label: "material_reorder_required", detail: "REB-01 · Rebar · 2/8" }),
+    ]);
+  });
 });
