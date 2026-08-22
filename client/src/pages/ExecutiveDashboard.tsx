@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
+import { GovernedProjectControlLink } from "@/components/GovernedProjectControlLink";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { lazy, Suspense } from "react";
@@ -294,9 +295,7 @@ export default function ExecutiveDashboard() {
                         {project.health?.status ?? "not assessed"}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold">
-                      {money(Number(project.forecastCost))}
-                    </p>
+                    <div className="text-end"><p className="text-sm font-semibold">{money(Number(project.forecastCost))}</p><div className="mt-2"><GovernedProjectControlLink tenantId={tenantId} projectId={project.id} compact /></div></div>
                   </div>
                 ))
               ) : (

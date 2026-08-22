@@ -36,6 +36,7 @@ vi.mock("@/lib/trpc", () => ({
       executiveDecisions: { useQuery: () => ({ isLoading: false, error: state.error, data: state.data ? { decisions: (state.data as { decisions: unknown }).decisions } : undefined }) },
       executiveCashFlow: { useQuery: () => ({ isLoading: false, error: state.cashError, data: state.cashData }) },
     },
+    navigation: { get: { useQuery: ({ tenantId, projectId }: { tenantId: string; projectId?: string }) => ({ data: projectId === "project-1" ? [{ id: "project-controls", href: `/projects/${tenantId}/${projectId}/controls` }] : [] }) } },
     executive: { createDecision: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
   },
 }));

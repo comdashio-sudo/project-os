@@ -28,6 +28,7 @@ vi.mock("@/lib/trpc", () => {
       ] } } }) },
       pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
     },
+    navigation: { get: { useQuery: ({ tenantId, projectId }: { tenantId: string; projectId?: string }) => ({ data: projectId === "critical" ? [{ id: "project-controls", href: `/projects/${tenantId}/${projectId}/controls` }] : [] }) } },
     pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: mutation }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
 });
