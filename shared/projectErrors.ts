@@ -456,6 +456,14 @@ export const projectErrorMessages = {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
     en: "The movement cannot result in a negative stock balance.",
   },
+  PROJECT_OS_MATERIAL_ISSUE_AMOUNT_INVALID: {
+    ar: "أدخل كمية صرف وتكلفة وحدة موجبتين.",
+    en: "Enter a positive issued quantity and unit cost.",
+  },
+  PROJECT_OS_MATERIAL_ISSUE_ACTIVITY_WBS_MISMATCH: {
+    ar: "النشاط المحدد لا يتبع بند WBS المختار.",
+    en: "The selected activity does not belong to the selected WBS item.",
+  },
   PROJECT_OS_SUPPLIER_CODE_EXISTS: {
     ar: "رمز المورد مستخدم بالفعل ضمن مساحة العمل هذه.",
     en: "This supplier code is already in use in this workspace.",
