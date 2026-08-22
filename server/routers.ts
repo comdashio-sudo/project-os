@@ -6,6 +6,7 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { reanalyzeDataImport } from "./db";
 import { createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
+import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
 import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { reportDashboardSectionIssueForTenant } from "./db";
@@ -344,6 +345,10 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectWarehousesForTenant({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), code: z.string().trim().min(1).max(80), name: z.string().trim().min(2).max(160), locationDescription: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createProjectWarehouseForTenant({ userId: ctx.user.id, ...input })),
     recordInventory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid(), materialId: z.string().uuid(), requisitionId: z.string().uuid().optional(), transactionType: z.enum(["receipt", "issue", "adjustment"]), quantityDelta: z.number().finite().refine(value => value !== 0, { message: "PROJECT_OS_INVENTORY_DELTA_INVALID" }), referenceNumber: z.string().trim().max(120).optional(), note: z.string().trim().max(500).optional(), occurredAt: z.date() })).mutation(({ ctx, input }) => recordWarehouseInventoryTransactionForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  goodsReceipts: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getGoodsReceiptNotesForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), grnNumber: z.string().trim().min(1).max(120), purchaseOrderId: z.string().uuid(), materialId: z.string().uuid(), receivedQuantity: z.number().finite().nonnegative(), rejectedQuantity: z.number().finite().nonnegative(), unitOfMeasure: z.string().trim().min(1).max(40), receivedAt: z.date(), qualityInspectionId: z.string().uuid().optional(), ncrId: z.string().uuid().optional(), note: z.string().trim().max(10_000).optional() }).refine(value => value.receivedQuantity + value.rejectedQuantity > 0, { message: "PROJECT_OS_GRN_QUANTITY_INVALID" }).refine(value => value.rejectedQuantity > 0 ? Boolean(value.qualityInspectionId && value.ncrId) : !value.qualityInspectionId && !value.ncrId, { message: "PROJECT_OS_GRN_REJECTION_EVIDENCE_REQUIRED" })).mutation(({ ctx, input }) => createGoodsReceiptNoteForTenant({ userId: ctx.user.id, ...input })),
   }),
   procurement: router({
     register: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProcurementRegisterForTenant({ userId: ctx.user.id, ...input })),

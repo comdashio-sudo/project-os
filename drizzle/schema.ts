@@ -1024,6 +1024,40 @@ export const purchaseOrders = mysqlTable(
   ],
 );
 
+export const goodsReceiptNotes = mysqlTable(
+  "goods_receipt_notes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    purchaseOrderId: varchar("purchaseOrderId", { length: 36 }).notNull(),
+    materialId: varchar("materialId", { length: 36 }).notNull(),
+    qualityInspectionId: varchar("qualityInspectionId", { length: 36 }),
+    ncrId: varchar("ncrId", { length: 36 }),
+    grnNumber: varchar("grnNumber", { length: 120 }).notNull(),
+    receivedQuantity: decimal("receivedQuantity", { precision: 18, scale: 3 }).notNull(),
+    rejectedQuantity: decimal("rejectedQuantity", { precision: 18, scale: 3 }).notNull(),
+    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
+    receivedAt: timestamp("receivedAt").notNull(),
+    note: text("note"),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("grn_project_number_unique").on(table.projectId, table.grnNumber),
+    index("grn_tenant_project_date_idx").on(table.tenantId, table.projectId, table.receivedAt),
+    index("grn_purchase_order_idx").on(table.purchaseOrderId),
+    index("grn_material_idx").on(table.materialId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "grn_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "grn_project_fk" }),
+    foreignKey({ columns: [table.purchaseOrderId], foreignColumns: [purchaseOrders.id], name: "grn_purchase_order_fk" }),
+    foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "grn_material_fk" }),
+    foreignKey({ columns: [table.qualityInspectionId], foreignColumns: [qualityInspections.id], name: "grn_quality_fk" }),
+    foreignKey({ columns: [table.ncrId], foreignColumns: [ncrs.id], name: "grn_ncr_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "grn_creator_fk" }),
+  ],
+);
+
 export const suppliers = mysqlTable(
   "suppliers",
   { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), legalName: varchar("legalName", { length: 240 }).notNull(), contactName: varchar("contactName", { length: 160 }), contactEmail: varchar("contactEmail", { length: 254 }), contactPhone: varchar("contactPhone", { length: 60 }), active: boolean("active").default(true).notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },

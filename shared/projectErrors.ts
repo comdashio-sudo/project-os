@@ -516,6 +516,30 @@ export const projectErrorMessages = {
     ar: "أمر الشراء المحدد ليس في حالة تسمح بربطه بطلب المواد.",
     en: "The selected purchase order is not in a state that allows linking to a material request.",
   },
+  PROJECT_OS_GRN_QUANTITY_INVALID: {
+    ar: "أدخل كمية مقبولة أو مرفوضة واحدة على الأقل بقيم غير سالبة.",
+    en: "Enter at least one accepted or rejected quantity using non-negative values.",
+  },
+  PROJECT_OS_GRN_REJECTION_EVIDENCE_REQUIRED: {
+    ar: "الكمية المرفوضة تتطلب فحص جودة وNCR من المشروع نفسه.",
+    en: "A rejected quantity requires a quality inspection and NCR from the same project.",
+  },
+  PROJECT_OS_GRN_REJECTION_EVIDENCE_NOT_ALLOWED: {
+    ar: "لا تسجل أدلة رفض عندما تكون كمية الرفض صفرًا.",
+    en: "Rejection evidence cannot be recorded when the rejected quantity is zero.",
+  },
+  PROJECT_OS_GRN_PURCHASE_ORDER_NOT_ISSUED: {
+    ar: "يجب أن يكون أمر الشراء صادرًا قبل تسجيل استلام المواد.",
+    en: "The purchase order must be issued before recording a goods receipt.",
+  },
+  PROJECT_OS_GRN_QUALITY_EVIDENCE_INVALID: {
+    ar: "فحص الجودة المحدد غير مقبول كدليل لكمية مرفوضة.",
+    en: "The selected quality inspection is not valid evidence for a rejected quantity.",
+  },
+  PROJECT_OS_GRN_NCR_EVIDENCE_INVALID: {
+    ar: "حالة عدم المطابقة المحددة غير مفتوحة لمعالجة الكمية المرفوضة.",
+    en: "The selected NCR is not open for the rejected quantity.",
+  },
   PROJECT_OS_CLAIM_NOT_FOUND: {
     ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected claim is not available in the current project and workspace.",

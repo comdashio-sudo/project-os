@@ -89,6 +89,7 @@ vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: null, logout: 
 vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
 vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
 vi.mock("./ProjectProcurement", () => ({ ProjectProcurement: () => null }));
+vi.mock("./ProjectGoodsReceipts", () => ({ ProjectGoodsReceipts: () => null }));
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),
