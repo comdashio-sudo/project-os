@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { createHash, randomBytes } from "node:crypto";
@@ -49,6 +49,8 @@ import {
   payrollAllocations,
   employeeAssignments,
   employeeAttendance,
+  employeePerformanceExclusions,
+  employeePerformanceObjections,
   employeeTimeEntries,
   masterPlans,
   masterPlanVersions,
@@ -88,6 +90,7 @@ import { productsForPackage, type TenantAccessSnapshot } from "./domain/authoriz
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
+import { calculateEmployeePerformance, type PerformanceSourceRecord, type PerformanceSourceType } from "./domain/employeePerformance";
 import { calculateOperationalCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
@@ -2007,6 +2010,98 @@ export async function transitionEmployeeTimeEntryForTenant(input: { userId: numb
   const costEntryId = input.status === "approved" ? crypto.randomUUID() : undefined; const progressEntryId = input.status === "approved" && entry.reportedProgressPercent !== null && entry.reportedProgressPercent !== undefined ? crypto.randomUUID() : undefined;
   await db.transaction(async tx => { if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, amount: String(Number(entry.actualHours) * Number(entry.unitCost)), entryType: "actual", status: "posted", incurredAt: entry.workDate }); if (progressEntryId) await tx.insert(progressEntries).values({ id: progressEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, activityId: entry.activityId, progressPercent: String(entry.reportedProgressPercent), status: "submitted", measuredAt: entry.workDate }); await tx.update(employeeTimeEntries).set({ status: input.status, reviewedByUserId: input.status === "approved" || input.status === "rejected" ? input.userId : undefined, costEntryId, progressEntryId }).where(eq(employeeTimeEntries.id, entry.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_transitioned", entityType: "employee_time_entry", entityId: entry.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId }) }); });
   return { id: entry.id, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId };
+}
+
+type PerformanceAccess = { employee: { id: string; linkedUserId: number | null; employeeNumber: string; fullName: string }; isOwn: boolean };
+
+async function assertPerformanceManager(input: { userId: number; tenantId: string; projectId: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.manage", scope: { type: "project", id: input.projectId } });
+}
+
+async function assertPerformanceAccess(input: { userId: number; tenantId: string; projectId: string; employeeId?: string }): Promise<PerformanceAccess> {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [employee] = await db.select({ id: employees.id, linkedUserId: employees.linkedUserId, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees).where(and(eq(employees.id, input.employeeId ?? ""), eq(employees.tenantId, input.tenantId))).limit(1);
+  const ownEmployee = input.employeeId ? employee : (await db.select({ id: employees.id, linkedUserId: employees.linkedUserId, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId))).limit(1))[0];
+  if (!ownEmployee) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED" });
+  const isOwn = ownEmployee.linkedUserId === input.userId;
+  if (!isOwn) {
+    assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.manage", scope: { type: "project", id: input.projectId } });
+    const [assignment] = await db.select({ id: employeeAssignments.id }).from(employeeAssignments).where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), eq(employeeAssignments.employeeId, ownEmployee.id), inArray(employeeAssignments.status, ["planned", "active"]))).limit(1);
+    if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ASSIGNMENT_NOT_FOUND" });
+  } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.read_own", scope: { type: "project", id: input.projectId } });
+  return { employee: ownEmployee, isOwn };
+}
+
+function performanceRecord(input: PerformanceSourceRecord) { return input; }
+
+export async function getEmployeePerformanceForTenant(input: { userId: number; tenantId: string; projectId: string; employeeId?: string; now?: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const access = await assertPerformanceAccess(input);
+  const [assignments, employeeMembership, rfiRows, ncrRows, qualityRows, reportRows, requisitionRows, exclusions, objections] = await Promise.all([
+    db.select({ id: employeeAssignments.id, activityId: employeeAssignments.activityId, activityCode: activities.code, activityName: activities.name, activityStatus: activities.status, plannedFinishAt: activities.plannedFinishAt, actualFinishAt: activities.actualFinishAt, createdAt: activities.createdAt, updatedAt: activities.updatedAt }).from(employeeAssignments).innerJoin(activities, eq(employeeAssignments.activityId, activities.id)).where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), eq(employeeAssignments.employeeId, access.employee.id), ne(employeeAssignments.status, "cancelled"))),
+    access.employee.linkedUserId ? db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, access.employee.linkedUserId))).limit(1) : Promise.resolve([]),
+    access.employee.linkedUserId ? db.select({ id: rfis.id, subject: rfis.subject, status: rfis.status, dueAt: rfis.dueAt, createdAt: rfis.createdAt, updatedAt: rfis.updatedAt }).from(rfis).where(and(eq(rfis.tenantId, input.tenantId), eq(rfis.projectId, input.projectId), eq(rfis.createdByUserId, access.employee.linkedUserId))) : Promise.resolve([]),
+    access.employee.linkedUserId ? db.select({ id: ncrs.id, title: ncrs.title, status: ncrs.status, dueAt: ncrs.dueAt, createdAt: ncrs.createdAt, updatedAt: ncrs.updatedAt }).from(ncrs).where(and(eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId), eq(ncrs.createdByUserId, access.employee.linkedUserId))) : Promise.resolve([]),
+    access.employee.linkedUserId ? db.select({ id: qualityInspections.id, inspectionNumber: qualityInspections.inspectionNumber, status: qualityInspections.status, inspectedAt: qualityInspections.inspectedAt, createdAt: qualityInspections.createdAt, updatedAt: qualityInspections.updatedAt }).from(qualityInspections).where(and(eq(qualityInspections.tenantId, input.tenantId), eq(qualityInspections.projectId, input.projectId), eq(qualityInspections.createdByUserId, access.employee.linkedUserId))) : Promise.resolve([]),
+    access.employee.linkedUserId ? db.select({ id: fieldReports.id, reportNumber: fieldReports.reportNumber, status: fieldReports.status, reportedAt: fieldReports.reportedAt, createdAt: fieldReports.createdAt, updatedAt: fieldReports.updatedAt }).from(fieldReports).where(and(eq(fieldReports.tenantId, input.tenantId), eq(fieldReports.projectId, input.projectId), eq(fieldReports.createdByUserId, access.employee.linkedUserId))) : Promise.resolve([]),
+    access.employee.linkedUserId ? db.select({ id: procurementRequisitions.id, requisitionNumber: procurementRequisitions.requisitionNumber, status: procurementRequisitions.status, requiredAt: procurementRequisitions.requiredAt, reviewedAt: procurementRequisitions.reviewedAt, createdAt: procurementRequisitions.createdAt, updatedAt: procurementRequisitions.updatedAt }).from(procurementRequisitions).where(and(eq(procurementRequisitions.tenantId, input.tenantId), eq(procurementRequisitions.projectId, input.projectId), eq(procurementRequisitions.createdByUserId, access.employee.linkedUserId))) : Promise.resolve([]),
+    db.select({ id: employeePerformanceExclusions.id, sourceType: employeePerformanceExclusions.sourceType, sourceId: employeePerformanceExclusions.sourceId, reason: employeePerformanceExclusions.reason, createdAt: employeePerformanceExclusions.createdAt }).from(employeePerformanceExclusions).where(and(eq(employeePerformanceExclusions.tenantId, input.tenantId), eq(employeePerformanceExclusions.projectId, input.projectId), eq(employeePerformanceExclusions.employeeId, access.employee.id))).orderBy(desc(employeePerformanceExclusions.createdAt)),
+    db.select({ id: employeePerformanceObjections.id, statement: employeePerformanceObjections.statement, status: employeePerformanceObjections.status, resolutionNote: employeePerformanceObjections.resolutionNote, createdAt: employeePerformanceObjections.createdAt, reviewedAt: employeePerformanceObjections.reviewedAt }).from(employeePerformanceObjections).where(and(eq(employeePerformanceObjections.tenantId, input.tenantId), eq(employeePerformanceObjections.projectId, input.projectId), eq(employeePerformanceObjections.employeeId, access.employee.id))).orderBy(desc(employeePerformanceObjections.createdAt)),
+  ]);
+  const actionRows = employeeMembership[0] ? await db.select({ id: actions.id, title: actions.title, status: actions.status, dueAt: actions.dueAt, createdAt: actions.createdAt, updatedAt: actions.updatedAt }).from(actions).where(and(eq(actions.tenantId, input.tenantId), eq(actions.projectId, input.projectId), eq(actions.ownerMembershipId, employeeMembership[0].id))) : [];
+  const records = [
+    ...assignments.map(row => performanceRecord({ sourceType: "activity", sourceId: row.activityId!, label: `${row.activityCode} — ${row.activityName}`, status: row.activityStatus, createdAt: row.createdAt, dueAt: row.plannedFinishAt, completedAt: row.activityStatus === "completed" ? (row.actualFinishAt ?? row.updatedAt) : null })),
+    ...actionRows.map(row => performanceRecord({ sourceType: "action", sourceId: row.id, label: row.title, status: row.status, createdAt: row.createdAt, dueAt: row.dueAt, completedAt: row.status === "completed" ? row.updatedAt : null })),
+    ...rfiRows.map(row => performanceRecord({ sourceType: "rfi", sourceId: row.id, label: row.subject, status: row.status, createdAt: row.createdAt, dueAt: row.dueAt, completedAt: ["answered", "closed"].includes(row.status) ? row.updatedAt : null })),
+    ...ncrRows.map(row => performanceRecord({ sourceType: "ncr", sourceId: row.id, label: row.title, status: row.status, createdAt: row.createdAt, dueAt: row.dueAt, completedAt: row.status === "closed" ? row.updatedAt : null })),
+    ...qualityRows.map(row => performanceRecord({ sourceType: "quality_inspection", sourceId: row.id, label: row.inspectionNumber, status: row.status, createdAt: row.createdAt, dueAt: null, completedAt: ["accepted", "rejected"].includes(row.status) ? row.updatedAt : null })),
+    ...reportRows.map(row => performanceRecord({ sourceType: "field_report", sourceId: row.id, label: row.reportNumber, status: row.status, createdAt: row.createdAt, dueAt: row.reportedAt, completedAt: ["approved", "rejected"].includes(row.status) ? row.updatedAt : null })),
+    ...requisitionRows.map(row => performanceRecord({ sourceType: "material_request", sourceId: row.id, label: row.requisitionNumber, status: row.status, createdAt: row.createdAt, dueAt: row.requiredAt, completedAt: ["approved", "rejected", "cancelled"].includes(row.status) ? (row.reviewedAt ?? row.updatedAt) : null })),
+  ];
+  const deduplicated = Array.from(new Map(records.map(record => [`${record.sourceType}:${record.sourceId}`, record])).values());
+  return { employee: { id: access.employee.id, employeeNumber: access.employee.employeeNumber, fullName: access.employee.fullName, isOwn: access.isOwn }, metrics: calculateEmployeePerformance({ records: deduplicated, excludedKeys: new Set(exclusions.map(row => `${row.sourceType}:${row.sourceId}`)), now: input.now ?? new Date() }), exclusions, objections };
+}
+
+export async function createEmployeePerformanceExclusionForTenant(input: { userId: number; tenantId: string; projectId: string; employeeId: string; sourceType: PerformanceSourceType; sourceId: string; reason: string }) {
+  if (input.reason.trim().length < 10) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PERFORMANCE_EXCLUSION_REASON_REQUIRED" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPerformanceManager(input);
+  const performance = await getEmployeePerformanceForTenant({ ...input, employeeId: input.employeeId });
+  if (!performance.metrics.sources.some(source => source.sourceType === input.sourceType && source.sourceId === input.sourceId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PERFORMANCE_SOURCE_NOT_FOUND" });
+  const id = crypto.randomUUID();
+  try { await db.transaction(async tx => { await tx.insert(employeePerformanceExclusions).values({ id, tenantId: input.tenantId, projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId, reason: input.reason.trim(), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_exclusion_created", entityType: "employee_performance_exclusion", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId }) }); }); } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PERFORMANCE_SOURCE_ALREADY_EXCLUDED" }); throw error; }
+  return { id };
+}
+
+export async function createEmployeePerformanceObjectionForTenant(input: { userId: number; tenantId: string; projectId: string; employeeId?: string; statement: string }) {
+  if (input.statement.trim().length < 20) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PERFORMANCE_OBJECTION_STATEMENT_INVALID" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const access = await assertPerformanceAccess(input);
+  if (!access.isOwn) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_SELF_SERVICE_REQUIRED" });
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(employeePerformanceObjections).values({ id, tenantId: input.tenantId, projectId: input.projectId, employeeId: access.employee.id, statement: input.statement.trim(), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_objection_submitted", entityType: "employee_performance_objection", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, employeeId: access.employee.id }) }); });
+  return { id, status: "submitted" as const };
+}
+
+const performanceObjectionTransitions = { submitted: ["under_review", "resolved", "rejected"] as const, under_review: ["resolved", "rejected"] as const, resolved: [] as const, rejected: [] as const };
+
+export async function transitionEmployeePerformanceObjectionForTenant(input: { userId: number; tenantId: string; projectId: string; objectionId: string; status: "under_review" | "resolved" | "rejected"; resolutionNote?: string }) {
+  const resolutionNote = input.resolutionNote?.trim();
+  if (["resolved", "rejected"].includes(input.status) && (!resolutionNote || resolutionNote.length < 10)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PERFORMANCE_RESOLUTION_REQUIRED" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPerformanceManager(input);
+  const [objection] = await db.select({ id: employeePerformanceObjections.id, status: employeePerformanceObjections.status }).from(employeePerformanceObjections).where(and(eq(employeePerformanceObjections.id, input.objectionId), eq(employeePerformanceObjections.tenantId, input.tenantId), eq(employeePerformanceObjections.projectId, input.projectId))).limit(1);
+  if (!objection) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PERFORMANCE_OBJECTION_NOT_FOUND" });
+  if (!(performanceObjectionTransitions[objection.status] as readonly string[]).includes(input.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PERFORMANCE_OBJECTION_TRANSITION_INVALID" });
+  const reviewedAt = new Date();
+  await db.transaction(async tx => { await tx.update(employeePerformanceObjections).set({ status: input.status, resolutionNote, reviewedByUserId: input.userId, reviewedAt }).where(eq(employeePerformanceObjections.id, objection.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_objection_transitioned", entityType: "employee_performance_objection", entityId: objection.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: objection.status, status: input.status }) }); });
+  return { id: objection.id, previousStatus: objection.status, status: input.status };
 }
 
 export async function getEmployeesForTenant(input: { userId: number; tenantId: string }) {

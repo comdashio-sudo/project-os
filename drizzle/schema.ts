@@ -255,6 +255,55 @@ export const employeeTimeEntries = mysqlTable(
   table => [uniqueIndex("employee_time_entries_assignment_day_unique").on(table.assignmentId, table.workDate), uniqueIndex("employee_time_entries_cost_entry_unique").on(table.costEntryId), index("employee_time_entries_tenant_project_idx").on(table.tenantId, table.projectId, table.status, table.workDate)],
 );
 
+export const employeePerformanceExclusions = mysqlTable(
+  "employee_performance_exclusions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    employeeId: varchar("employeeId", { length: 36 }).notNull(),
+    sourceType: mysqlEnum("sourceType", ["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]).notNull(),
+    sourceId: varchar("sourceId", { length: 36 }).notNull(),
+    reason: varchar("reason", { length: 1000 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("epe_source_unique").on(table.tenantId, table.employeeId, table.sourceType, table.sourceId),
+    index("epe_tenant_project_employee_idx").on(table.tenantId, table.projectId, table.employeeId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "epe_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "epe_project_fk" }),
+    foreignKey({ columns: [table.employeeId], foreignColumns: [employees.id], name: "epe_employee_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "epe_creator_fk" }),
+  ],
+);
+
+export const employeePerformanceObjections = mysqlTable(
+  "employee_performance_objections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    employeeId: varchar("employeeId", { length: 36 }).notNull(),
+    statement: text("statement").notNull(),
+    status: mysqlEnum("status", ["submitted", "under_review", "resolved", "rejected"]).default("submitted").notNull(),
+    resolutionNote: varchar("resolutionNote", { length: 1000 }),
+    createdByUserId: int("createdByUserId").notNull(),
+    reviewedByUserId: int("reviewedByUserId"),
+    reviewedAt: timestamp("reviewedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    index("epo_tenant_project_employee_idx").on(table.tenantId, table.projectId, table.employeeId, table.status),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "epo_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "epo_project_fk" }),
+    foreignKey({ columns: [table.employeeId], foreignColumns: [employees.id], name: "epo_employee_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "epo_creator_fk" }),
+    foreignKey({ columns: [table.reviewedByUserId], foreignColumns: [users.id], name: "epo_reviewer_fk" }),
+  ],
+);
+
 export const membershipInvitations = mysqlTable(
   "membership_invitations",
   {

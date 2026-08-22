@@ -13,6 +13,7 @@ export const operationalPermissionCatalog = [
   { code: "project.hr.sensitive.read", name: "Read protected employee identity data", productCode: "PROJECT" as const },
   { code: "project.payroll.structure", name: "Manage payroll structures", productCode: "PROJECT" as const },
   { code: "project.attendance.manage", name: "Manage attendance", productCode: "PROJECT" as const },
+  { code: "project.performance.read_own", name: "Read own performance indicators", productCode: "PROJECT" as const },
   { code: "project.performance.manage", name: "Manage performance indicators", productCode: "PROJECT" as const },
   { code: "project.wbs.manage", name: "Manage WBS", productCode: "PROJECT" as const },
   { code: "project.schedule.manage", name: "Manage schedules", productCode: "PROJECT" as const },
@@ -28,14 +29,14 @@ export const operationalPermissionCatalog = [
 ] as const;
 
 export const operationalRoleDefinitions = [
-  { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage"] },
-  { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage"] },
-  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read"] },
-  { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run"] },
-  { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage"] },
-  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.wbs.manage", "project.schedule.manage", "project.evm.manage"] },
-  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request"] },
-  { code: "PROJECT_MANAGER", name: "Project Manager", permissions: ["project.manage", "project.attendance.manage"] },
+  { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage", "project.performance.read_own"] },
+  { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage", "project.performance.read_own"] },
+  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own"] },
+  { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
+  { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
+  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
+  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
+  { code: "PROJECT_MANAGER", name: "Project Manager", permissions: ["project.manage", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
 ] as const;
 
 const conflictingOperationalRolePairs = [

@@ -392,6 +392,42 @@ export const projectErrorMessages = {
     ar: "انتقال حالة ساعات العمل المطلوب غير مسموح من حالته الحالية.",
     en: "The requested work-hours transition is not allowed from its current status.",
   },
+  PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED: {
+    ar: "يلزم ربط حسابك ببطاقة موظف نشطة لعرض مؤشراتك الفردية.",
+    en: "Your account must be linked to an active employee record to view individual indicators.",
+  },
+  PROJECT_OS_PERFORMANCE_EXCLUSION_REASON_REQUIRED: {
+    ar: "أدخل سببًا موثقًا وواضحًا لاستبعاد هذا السجل من المؤشر.",
+    en: "Enter a clear documented reason before excluding this record from the indicator.",
+  },
+  PROJECT_OS_PERFORMANCE_SOURCE_NOT_FOUND: {
+    ar: "السجل المطلوب استبعاده غير متاح ضمن مؤشر هذا الموظف والمشروع.",
+    en: "The record selected for exclusion is not available in this employee's project indicator.",
+  },
+  PROJECT_OS_PERFORMANCE_SOURCE_ALREADY_EXCLUDED: {
+    ar: "هذا السجل مستبعد بالفعل بسبب موثق.",
+    en: "This record already has a documented exclusion.",
+  },
+  PROJECT_OS_PERFORMANCE_OBJECTION_STATEMENT_INVALID: {
+    ar: "اكتب اعتراضًا واضحًا لا يقل عن 20 حرفًا قبل الإرسال.",
+    en: "Write a clear objection of at least 20 characters before submitting it.",
+  },
+  PROJECT_OS_PERFORMANCE_SELF_SERVICE_REQUIRED: {
+    ar: "لا يمكن تقديم الاعتراض إلا من الموظف صاحب المؤشر.",
+    en: "Only the employee who owns this indicator can submit an objection.",
+  },
+  PROJECT_OS_PERFORMANCE_OBJECTION_NOT_FOUND: {
+    ar: "الاعتراض المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected objection is not available in the current project and workspace.",
+  },
+  PROJECT_OS_PERFORMANCE_OBJECTION_TRANSITION_INVALID: {
+    ar: "انتقال حالة الاعتراض المطلوب غير مسموح من حالته الحالية.",
+    en: "The requested objection transition is not allowed from its current status.",
+  },
+  PROJECT_OS_PERFORMANCE_RESOLUTION_REQUIRED: {
+    ar: "أدخل ملاحظة معالجة واضحة قبل إغلاق الاعتراض أو رفضه.",
+    en: "Enter a clear resolution note before resolving or rejecting an objection.",
+  },
   PROJECT_OS_MATERIAL_CODE_EXISTS: {
     ar: "رمز المادة مستخدم بالفعل ضمن مساحة العمل هذه.",
     en: "This material code is already in use in this workspace.",

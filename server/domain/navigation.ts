@@ -17,6 +17,9 @@ export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; t
     { id: "payroll", level: "PROJECT", labelKey: "navigation.payroll", href: `/payroll/${input.tenantId}`, product: "PROJECT", permission: ["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"], scope: { type: "company", id: input.tenantId } },
     { id: "tenant-administration", level: "ADMIN", labelKey: "navigation.tenantAdministration", href: `/tenants/${input.tenantId}/administration`, product: "EXECUTIVE", permission: "tenant.manage", scope: { type: "company", id: input.tenantId } },
   ];
-  if (input.projectId) items.push({ id: "project-controls", level: "PROJECT", labelKey: "navigation.projectControls", href: `/projects/${input.tenantId}/${input.projectId}/controls`, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  if (input.projectId) {
+    items.push({ id: "project-controls", level: "PROJECT", labelKey: "navigation.projectControls", href: `/projects/${input.tenantId}/${input.projectId}/controls`, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+    items.push({ id: "my-performance", level: "PROJECT", labelKey: "navigation.myPerformance", href: `/projects/${input.tenantId}/${input.projectId}/my-performance`, product: "PROJECT", permission: "project.performance.read_own", scope: { type: "project", id: input.projectId } });
+  }
   return items.filter(item => isVisible(input.snapshot, item));
 }

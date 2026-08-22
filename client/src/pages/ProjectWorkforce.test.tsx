@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectWorkforce } from "./ProjectWorkforce";
 
-const state = vi.hoisted(() => ({ isArabic: false, attendanceTransition: vi.fn(), timeTransition: vi.fn() }));
+const state = vi.hoisted(() => ({ isArabic: false, attendanceTransition: vi.fn(), timeTransition: vi.fn(), excludePerformance: vi.fn(), objectionTransition: vi.fn() }));
 const query = (data: unknown) => ({ data, error: null, isLoading: false, refetch: vi.fn() });
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
@@ -18,17 +18,19 @@ vi.mock("@/lib/trpc", () => ({
       timeEntries: { list: { useQuery: () => query([{ id: "time-1", assignmentId: "assignment-1", employeeId: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", workDate: new Date("2026-09-07T00:00:00Z"), actualHours: "8.00", reportedProgressPercent: "25.00", status: "submitted" }]) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, transition: { useMutation: () => ({ mutate: state.timeTransition, isPending: false, error: null }) } },
     },
     employees: { attendance: { list: { useQuery: () => query([{ id: "attendance-1", employeeId: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", attendanceDate: new Date("2026-09-07T00:00:00Z"), attendanceStatus: "present", status: "draft" }]) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, transition: { useMutation: () => ({ mutate: state.attendanceTransition, isPending: false, error: null }) } } },
+    performance: { get: { useQuery: () => query({ employee: { id: "employee-1" }, metrics: { assignedCount: 4, completedCount: 2, overdueCount: 1, onTimeCompletionPercent: 100, openCount: 2, sources: [{ sourceType: "activity", sourceId: "activity-1", label: "ACT-01", status: "in_progress" }] }, objections: [] }) }, exclude: { useMutation: () => ({ mutate: state.excludePerformance, isPending: false, error: null }) }, objections: { transition: { useMutation: () => ({ mutate: state.objectionTransition, isPending: false, error: null }) } } },
   },
 }));
 
 describe("ProjectWorkforce", () => {
-  beforeEach(() => { cleanup(); state.isArabic = false; state.attendanceTransition.mockReset(); state.timeTransition.mockReset(); });
+  beforeEach(() => { cleanup(); state.isArabic = false; state.attendanceTransition.mockReset(); state.timeTransition.mockReset(); state.excludePerformance.mockReset(); state.objectionTransition.mockReset(); });
 
   it("renders governed workforce inputs and explicit workflow registers without exposing salary data", () => {
     render(<ProjectWorkforce tenantId="tenant-1" projectId="project-1" />);
     expect(screen.getByText("Workforce & assignments")).toBeTruthy();
     expect(screen.getByText("Attendance register")).toBeTruthy();
     expect(screen.getByText("Work-hours register")).toBeTruthy();
+    expect(screen.getByText("Team operating indicators")).toBeTruthy();
     expect(screen.getByText("No draft advances automatically; submit it, then explicitly approve or reject it.")).toBeTruthy();
     expect(screen.queryByText(/salary/i)).toBeNull();
   });
@@ -47,5 +49,6 @@ describe("ProjectWorkforce", () => {
     expect(screen.getByText("القوى العاملة والإسناد")).toBeTruthy();
     expect(screen.getByText("سجل الحضور")).toBeTruthy();
     expect(screen.getByText("سجل ساعات العمل")).toBeTruthy();
+    expect(screen.getByText("مؤشرات الفريق التشغيلية")).toBeTruthy();
   });
 });

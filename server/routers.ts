@@ -11,6 +11,7 @@ import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicke
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
 import { createEmployeeAssignmentForTenant, getEmployeeAssignmentOptionsForTenant, getEmployeeAssignmentsForTenant } from "./db";
+import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -295,6 +296,14 @@ export const appRouter = router({
       list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getEmployeeTimeEntriesForTenant({ userId: ctx.user.id, ...input })),
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), assignmentId: z.string().uuid(), workDate: z.date(), actualHours: z.number().finite().positive().max(24), reportedProgressPercent: z.number().finite().min(0).max(100).optional() })).mutation(({ ctx, input }) => createEmployeeTimeEntryForTenant({ userId: ctx.user.id, ...input })),
       transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), timeEntryId: z.string().uuid(), status: z.enum(["submitted", "approved", "rejected"]) })).mutation(({ ctx, input }) => transitionEmployeeTimeEntryForTenant({ userId: ctx.user.id, ...input })),
+    }),
+  }),
+  performance: router({
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid().optional() })).query(({ ctx, input }) => getEmployeePerformanceForTenant({ userId: ctx.user.id, ...input })),
+    exclude: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid(), sourceType: z.enum(["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]), sourceId: z.string().uuid(), reason: z.string().trim().min(10).max(1000) })).mutation(({ ctx, input }) => createEmployeePerformanceExclusionForTenant({ userId: ctx.user.id, ...input })),
+    objections: router({
+      create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), statement: z.string().trim().min(20).max(8000) })).mutation(({ ctx, input }) => createEmployeePerformanceObjectionForTenant({ userId: ctx.user.id, ...input })),
+      transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), objectionId: z.string().uuid(), status: z.enum(["under_review", "resolved", "rejected"]), resolutionNote: z.string().trim().min(10).max(1000).optional() })).mutation(({ ctx, input }) => transitionEmployeePerformanceObjectionForTenant({ userId: ctx.user.id, ...input })),
     }),
   }),
   employees: router({
