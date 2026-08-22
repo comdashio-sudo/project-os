@@ -9,7 +9,7 @@ import { createProcurementRequisitionForTenant, createSupplierForTenant, getProc
 import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { reportDashboardSectionIssueForTenant } from "./db";
-import { archiveEmployeeForTenant, createEmployeeForTenant, createEmploymentContractForTenant, getEmployeeIdentityForTenant, getEmployeesForTenant, getEmploymentContractsForTenant } from "./db";
+import { allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeIdentityForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionPayrollRunForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -292,6 +292,20 @@ export const appRouter = router({
     contracts: router({
       list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getEmploymentContractsForTenant({ userId: ctx.user.id, ...input })),
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid(), contractType: z.enum(["permanent", "fixed_term", "temporary", "consulting"]), startDate: z.date(), endDate: z.date().optional(), probationEndDate: z.date().optional(), renewalOfContractId: z.string().uuid().optional(), retentionPolicy: z.enum(["standard", "extended", "legal_hold"]).default("standard") }).refine(value => !value.endDate || value.endDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["endDate"] }).refine(value => !value.probationEndDate || value.probationEndDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["probationEndDate"] })).mutation(({ ctx, input }) => createEmploymentContractForTenant({ userId: ctx.user.id, ...input })),
+    }),
+    payroll: router({
+      capabilities: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPayrollCapabilitiesForTenant({ userId: ctx.user.id, ...input })),
+      runs: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPayrollRunsForTenant({ userId: ctx.user.id, ...input })),
+      allocationProjects: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPayrollAllocationProjectsForTenant({ userId: ctx.user.id, ...input })),
+      allocationOptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPayrollAllocationOptionsForTenant({ userId: ctx.user.id, ...input })),
+      salaryStructure: router({
+        get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getSalaryStructureForTenant({ userId: ctx.user.id, ...input })),
+        save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid(), baseSalary: z.number().finite().nonnegative(), housingAllowance: z.number().finite().nonnegative().default(0), transportAllowance: z.number().finite().nonnegative().default(0), hardshipAllowance: z.number().finite().nonnegative().default(0), gosiRate: z.number().finite().min(0).max(1).default(0), otherDeductions: z.number().finite().nonnegative().default(0), eosMonthlyAccrual: z.number().finite().nonnegative().default(0), currency: z.string().length(3).transform(value => value.toUpperCase()) })).mutation(({ ctx, input }) => saveSalaryStructureForTenant({ userId: ctx.user.id, ...input })),
+      }),
+      createRun: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), periodStart: z.date(), periodEnd: z.date() }).refine(value => value.periodEnd >= value.periodStart, { message: "PROJECT_OS_PAYROLL_PERIOD_INVALID", path: ["periodEnd"] })).mutation(({ ctx, input }) => createPayrollRunForTenant({ userId: ctx.user.id, ...input })),
+      details: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), payrollRunId: z.string().uuid() })).query(({ ctx, input }) => getPayrollRunDetailsForTenant({ userId: ctx.user.id, ...input })),
+      transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), payrollRunId: z.string().uuid(), status: z.enum(["review", "approved", "paid"]) })).mutation(({ ctx, input }) => transitionPayrollRunForTenant({ userId: ctx.user.id, ...input })),
+      allocateCost: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), payrollEntryId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), activityId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date() })).mutation(({ ctx, input }) => allocateApprovedPayrollCostForTenant({ userId: ctx.user.id, ...input })),
     }),
   }),
   materials: router({

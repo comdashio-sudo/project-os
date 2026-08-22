@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { evaluateTenantLicenseLifecycle } from "./db";
+import { calculateOperationalEvm } from "./domain/operationalEvm";
 
 let connection: mysql.Connection;
 const tenantA = "00000000-0000-4000-8000-0000000000a1";
@@ -17,6 +18,8 @@ const notificationA = "00000000-0000-4000-8000-0000000000f1";
 const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let integrationUserId = 0;
 let unassignedUserId = 0;
+let financeUserId = 0;
+let accountantUserId = 0;
 
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration database isolation", () => {
   beforeAll(async () => {
@@ -91,6 +94,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM project_documents WHERE id = ?", [documentA]);
     await connection.query("CREATE TABLE IF NOT EXISTS employees (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `employeeNumber` varchar(80) NOT NULL, `fullName` varchar(255) NOT NULL, `jobTitle` varchar(160) NOT NULL, `department` varchar(160) NOT NULL, `hireDate` timestamp NOT NULL, `employmentStatus` enum('active','suspended','terminated') NOT NULL DEFAULT 'active', `nationality` varchar(120), `identityDocumentType` varchar(80), `identityReference` varchar(512), `linkedUserId` int, `retentionPolicy` enum('standard','extended','legal_hold') NOT NULL DEFAULT 'standard', `archivedAt` timestamp, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `employees_tenant_number_unique` (`tenantId`,`employeeNumber`), UNIQUE KEY `employees_tenant_user_unique` (`tenantId`,`linkedUserId`), KEY `employees_tenant_status_idx` (`tenantId`,`employmentStatus`), CONSTRAINT `employees_tenantId_companies_id_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `employees_linkedUserId_users_id_fk` FOREIGN KEY (`linkedUserId`) REFERENCES `users`(`id`), CONSTRAINT `employees_createdByUserId_users_id_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
     await connection.query("CREATE TABLE IF NOT EXISTS employment_contracts (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `contractType` enum('permanent','fixed_term','temporary','consulting') NOT NULL, `startDate` timestamp NOT NULL, `endDate` timestamp, `probationEndDate` timestamp, `renewalOfContractId` varchar(36), `status` enum('active','ended','terminated') NOT NULL DEFAULT 'active', `terminationReason` varchar(1000), `retentionPolicy` enum('standard','extended','legal_hold') NOT NULL DEFAULT 'standard', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `employment_contracts_tenant_employee_idx` (`tenantId`,`employeeId`,`status`), CONSTRAINT `employment_contracts_tenantId_companies_id_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`), CONSTRAINT `employment_contracts_employeeId_employees_id_fk` FOREIGN KEY (`employeeId`) REFERENCES `employees`(`id`), CONSTRAINT `employment_contracts_createdByUserId_users_id_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS salary_structures (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `baseSalary` decimal(18,2) NOT NULL, `housingAllowance` decimal(18,2) NOT NULL DEFAULT '0', `transportAllowance` decimal(18,2) NOT NULL DEFAULT '0', `hardshipAllowance` decimal(18,2) NOT NULL DEFAULT '0', `gosiRate` decimal(7,6) NOT NULL DEFAULT '0', `otherDeductions` decimal(18,2) NOT NULL DEFAULT '0', `eosMonthlyAccrual` decimal(18,2) NOT NULL DEFAULT '0', `currency` varchar(3) NOT NULL DEFAULT 'SAR', `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `salary_structures_tenant_employee_unique` (`tenantId`,`employeeId`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS payroll_runs (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `periodStart` timestamp NOT NULL, `periodEnd` timestamp NOT NULL, `status` enum('draft','review','approved','paid') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `reviewedByUserId` int, `approvedByUserId` int, `approvedAt` timestamp, `paidAt` timestamp, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `payroll_runs_tenant_period_unique` (`tenantId`,`periodStart`,`periodEnd`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS payroll_entries (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `payrollRunId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `salaryStructureId` varchar(36) NOT NULL, `baseSalary` decimal(18,2) NOT NULL, `housingAllowance` decimal(18,2) NOT NULL, `transportAllowance` decimal(18,2) NOT NULL, `hardshipAllowance` decimal(18,2) NOT NULL, `gosiDeduction` decimal(18,2) NOT NULL, `otherDeductions` decimal(18,2) NOT NULL, `eosMonthlyAccrual` decimal(18,2) NOT NULL, `currency` varchar(3) NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `payroll_entries_run_employee_unique` (`payrollRunId`,`employeeId`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS payroll_allocations (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `payrollEntryId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `wbsItemId` varchar(36), `activityId` varchar(36), `amount` decimal(18,2) NOT NULL, `costEntryId` varchar(36), `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `payroll_allocations_cost_entry_unique` (`costEntryId`))");
+    await connection.query("DELETE FROM payroll_allocations WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM payroll_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM payroll_runs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM salary_structures WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM employment_contracts WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM employees WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM change_requests WHERE changeNumber = 'CHANGE-TRPC'");
@@ -144,7 +155,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM roles WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
     await connection.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
-    await connection.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage','int-perm-hr-manage','int-perm-hr-sensitive')");
+    await connection.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage','int-perm-hr-manage','int-perm-hr-sensitive','int-perm-payroll-structure','int-perm-payroll-run','int-perm-payroll-sensitive','int-perm-payroll-approve')");
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -154,13 +165,19 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM memberships WHERE id = 'int-membership-b'");
     await connection.query("DELETE FROM roles WHERE id = 'int-role-b'");
     await connection.query("DELETE FROM users WHERE openId = 'integration-test-user'");
-    await connection.query("DELETE FROM users WHERE openId = 'integration-unassigned-user'");
+    await connection.query("DELETE FROM users WHERE openId IN ('integration-unassigned-user','integration-finance-user','integration-accountant-user')");
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('integration-test-user', 'Integration Test User', 'integration@test.local', 'admin')");
     await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-unassigned-user', 'Unassigned Test User', 'unassigned@test.local')");
+    await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-finance-user', 'Integration Finance User', 'finance@test.local')");
+    await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-accountant-user', 'Integration Accountant User', 'accountant@test.local')");
     const [[user]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-test-user' LIMIT 1");
     integrationUserId = user.id;
     const [[unassigned]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-unassigned-user' LIMIT 1");
     unassignedUserId = unassigned.id;
+    const [[finance]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-finance-user' LIMIT 1");
+    financeUserId = finance.id;
+    const [[accountant]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-accountant-user' LIMIT 1");
+    accountantUserId = accountant.id;
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'Integration A', 'integration-a'), (?, 'Integration B', 'integration-b')", [tenantA, tenantB]);
     await connection.query("INSERT INTO portfolios (id, tenantId, code, name) VALUES ('int-portfolio-a', ?, 'INT-PORT-A', 'Integration portfolio A'), ('int-portfolio-b', ?, 'INT-PORT-B', 'Integration portfolio B')", [tenantA, tenantB]);
     await connection.query("INSERT INTO projects (id, tenantId, portfolioId, code, name, projectType) VALUES (?, ?, 'int-portfolio-a', 'INT-A', 'Integration project A', 'test'), (?, ?, 'int-portfolio-b', 'INT-B', 'Integration project B', 'test')", [projectA, tenantA, projectB, tenantB]);
@@ -175,14 +192,25 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-exec-manage', 'tenant.manage', 'Integration executive tenant management', 'EXECUTIVE')");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-hr-manage', 'project.hr.manage', 'Integration HR management', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-hr-sensitive', 'project.hr.sensitive.read', 'Integration HR protected identity', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-structure', 'project.payroll.structure', 'Integration payroll structure', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-run', 'project.payroll.run', 'Integration payroll run', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-sensitive', 'project.payroll.sensitive.read', 'Integration protected payroll reading', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-approve', 'project.payroll.approve', 'Integration payroll approval', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-a', ?, 'INT_PROJECT_WRITE', 'Integration Project Writer', 'PROJECT')", [tenantA]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-pmo', ?, 'INT_PMO_WRITE', 'Integration PMO Writer', 'PMO')", [tenantA]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-exec', ?, 'INT_EXEC_READ', 'Integration Executive Reader', 'EXECUTIVE')", [tenantA]);
+    await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-finance', ?, 'INT_PAYROLL_FINANCE', 'Integration Payroll Finance', 'PROJECT')", [tenantA]);
+    await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('int-role-accountant', ?, 'INT_PAYROLL_ACCOUNTANT', 'Integration Payroll Accountant', 'PROJECT')", [tenantA]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-a', ?, ?, 'active')", [tenantA, integrationUserId]);
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-a', 'int-perm-write')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-a', 'int-perm-read')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.hr.manage'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.hr.sensitive.read'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.payroll.structure'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.payroll.sensitive.read'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-finance', id FROM permissions WHERE code = 'project.payroll.approve'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-finance', id FROM permissions WHERE code = 'project.payroll.sensitive.read'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-accountant', id FROM permissions WHERE code = 'project.payroll.run'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-pmo', 'int-perm-pmo')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-exec', 'int-perm-exec')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-exec', 'int-perm-exec-manage')");
@@ -191,7 +219,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-exec', 'int-membership-a', 'int-role-exec', 'company')");
   }, 30000);
 
-  afterEach(async () => { await connection?.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM actions WHERE tenantId IN (?, ?)", [tenantA, tenantB]); });
+  afterEach(async () => { await connection?.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM actions WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection?.query("DELETE FROM membership_roles WHERE membershipId IN ('int-membership-finance', 'int-membership-accountant')"); await connection?.query("DELETE FROM memberships WHERE id IN ('int-membership-finance', 'int-membership-accountant')"); });
 
   afterAll(async () => {
     await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -213,6 +241,10 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM project_warehouses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM procurement_requisitions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM suppliers WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM payroll_allocations WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM payroll_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM payroll_runs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM salary_structures WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
     await connection?.query("DELETE FROM employment_contracts WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM employees WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -225,7 +257,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM role_permissions WHERE roleId IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
     await connection?.query("DELETE FROM memberships WHERE id IN ('int-membership-a','int-membership-b')");
     await connection?.query("DELETE FROM roles WHERE id IN ('int-role-a','int-role-pmo','int-role-exec','int-role-b')");
-    await connection?.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage','int-perm-hr-manage','int-perm-hr-sensitive')");
+    await connection?.query("DELETE FROM permissions WHERE id IN ('int-perm-write','int-perm-read','int-perm-pmo','int-perm-exec','int-perm-exec-manage','int-perm-hr-manage','int-perm-hr-sensitive','int-perm-payroll-structure','int-perm-payroll-sensitive')");
     await connection?.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
     await connection?.query("DELETE FROM tenant_licenses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -234,7 +266,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
-    await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user')");
+    await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user','integration-accountant-user')");
     await connection?.end();
   });
 
@@ -1424,6 +1456,61 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.employees.archive({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: employee.id, employmentStatus: "terminated" });
     const [rows] = await connection.query<{ contracts: number; archived: string; auditActions: number; identityAudit: number }[]>("SELECT (SELECT COUNT(*) FROM employment_contracts WHERE id = ?) AS contracts, (SELECT employmentStatus FROM employees WHERE id = ?) AS archived, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?)) AS auditActions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'hr.employee_identity_viewed' AND entityId = ?) AS identityAudit", [contract.id, employee.id, tenantA, employee.id, contract.id, tenantA, employee.id]);
     expect(rows[0]).toMatchObject({ contracts: 1, archived: "terminated", auditActions: 4, identityAudit: 1 });
+  }, 30000);
+
+  it("governs payroll by role, protects salary reads, separates approval, and posts allocated labor cost into numeric EVM evidence", async () => {
+    const makeContext = (id: number, openId: string, name: string): TrpcContext => ({ user: { id, openId, name, email: `${openId}@test.local`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
+    const hrCaller = appRouter.createCaller(makeContext(integrationUserId, "integration-test-user", "Integration HR User"));
+    const accountantCaller = appRouter.createCaller(makeContext(accountantUserId, "integration-accountant-user", "Integration Accountant User"));
+    const financeCaller = appRouter.createCaller(makeContext(financeUserId, "integration-finance-user", "Integration Finance User"));
+    const period = { periodStart: new Date("2026-09-01T00:00:00.000Z"), periodEnd: new Date("2026-09-30T23:59:59.000Z") };
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-finance', ?, ?, 'active')", [tenantA, financeUserId]);
+    await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-finance', 'int-membership-finance', 'int-role-finance', 'company')");
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-accountant', ?, ?, 'active')", [tenantA, accountantUserId]);
+    await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-accountant', 'int-membership-accountant', 'int-role-accountant', 'company')");
+    await expect(hrCaller.employees.payroll.capabilities({ tenantId: tenantA })).resolves.toEqual({ canManageStructure: true, canRunPayroll: false, canApprovePayroll: false, canReadSensitivePayroll: true });
+    await expect(accountantCaller.employees.payroll.capabilities({ tenantId: tenantA })).resolves.toEqual({ canManageStructure: false, canRunPayroll: true, canApprovePayroll: false, canReadSensitivePayroll: false });
+    await expect(financeCaller.employees.payroll.capabilities({ tenantId: tenantA })).resolves.toEqual({ canManageStructure: false, canRunPayroll: false, canApprovePayroll: true, canReadSensitivePayroll: true });
+
+    const employee = await hrCaller.employees.create({ tenantId: tenantA, employeeNumber: "EMP-PAYROLL-01", fullName: "Payroll Evidence Employee", jobTitle: "Planner", department: "Planning", hireDate: new Date("2026-08-01T00:00:00.000Z"), retentionPolicy: "standard" });
+    expect((await hrCaller.employees.list({ tenantId: tenantA })).find(item => item.id === employee.id)).not.toHaveProperty("baseSalary");
+    await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantB, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    const structure = await hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" });
+    await expect(hrCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: structure.id, baseSalary: "10000.00", currency: "SAR" });
+    await expect(accountantCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).rejects.toThrow("Required permission is not granted");
+    await expect(hrCaller.employees.payroll.createRun({ tenantId: tenantA, ...period })).rejects.toThrow("Required permission is not granted");
+    const run = await accountantCaller.employees.payroll.createRun({ tenantId: tenantA, ...period });
+    await expect(accountantCaller.employees.payroll.createRun({ tenantId: tenantB, ...period })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await accountantCaller.employees.payroll.transition({ tenantId: tenantA, payrollRunId: run.id, status: "review" });
+    await connection.query("INSERT INTO payroll_runs (id, tenantId, periodStart, periodEnd, status, createdByUserId, reviewedByUserId) VALUES ('00000000-0000-4000-8000-0000000000e1', ?, '2026-10-01', '2026-10-31', 'review', ?, ?)", [tenantA, financeUserId, financeUserId]);
+    await expect(financeCaller.employees.payroll.transition({ tenantId: tenantA, payrollRunId: "00000000-0000-4000-8000-0000000000e1", status: "approved" })).rejects.toThrow("PROJECT_OS_PAYROLL_APPROVER_SEPARATION");
+    await financeCaller.employees.payroll.transition({ tenantId: tenantA, payrollRunId: run.id, status: "approved" });
+    await expect(financeCaller.employees.payroll.runs({ tenantId: tenantA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: run.id, status: "approved", entryCount: 1 })]));
+    const details = await financeCaller.employees.payroll.details({ tenantId: tenantA, payrollRunId: run.id });
+    expect(details.entries).toEqual([expect.objectContaining({ employeeId: employee.id, grossPay: 13_000, gosiDeduction: 1267.5, netPay: 11_432.5, laborActualCost: 13_750 })]);
+    expect(details.payslips).toEqual([expect.objectContaining({ format: "project-os.payslip", currency: "SAR", totals: { netPay: 11_432.5, laborActualCost: 13_750, eosMonthlyAccrual: 750 } })]);
+    const payrollEntry = details.entries[0]!;
+    const wbs = await hrCaller.wbs.create({ tenantId: tenantA, projectId: projectA, code: "PAY-WBS", name: "Payroll allocation work", plannedValue: 100_000 });
+    const activity = await hrCaller.activities.create({ tenantId: tenantA, projectId: projectA, wbsItemId: wbs.id, code: "PAY-ACT", name: "Payroll allocation activity", plannedValue: 100_000, plannedStartAt: new Date("2026-09-01T00:00:00.000Z"), plannedFinishAt: new Date("2026-09-30T23:59:59.000Z") });
+    await hrCaller.budgets.create({ tenantId: tenantA, projectId: projectA, wbsItemId: wbs.id, costCode: "PAYROLL", originalAmount: 100_000, currentAmount: 100_000 });
+    await hrCaller.progress.create({ tenantId: tenantA, projectId: projectA, wbsItemId: wbs.id, percentComplete: 50, reportedAt: new Date("2026-09-30T23:59:59.000Z") });
+    await expect(financeCaller.employees.payroll.allocationProjects({ tenantId: tenantA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: projectA })]));
+    await expect(financeCaller.employees.payroll.allocationOptions({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ wbs: expect.arrayContaining([expect.objectContaining({ id: wbs.id })]), activities: expect.arrayContaining([expect.objectContaining({ id: activity.id, wbsItemId: wbs.id })]) });
+    await expect(financeCaller.employees.payroll.allocateCost({ tenantId: tenantA, payrollEntryId: payrollEntry.id, projectId: projectB, wbsItemId: wbs.id, activityId: activity.id, amount: 13_750, incurredAt: new Date("2026-09-30T23:59:59.000Z") })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    const allocation = await financeCaller.employees.payroll.allocateCost({ tenantId: tenantA, payrollEntryId: payrollEntry.id, projectId: projectA, wbsItemId: wbs.id, activityId: activity.id, amount: 13_750, incurredAt: new Date("2026-09-30T23:59:59.000Z") });
+    const [costRows] = await connection.query<{ amount: string; status: string; entryType: string; incurredAt: Date; allocations: number; auditActions: number }[]>("SELECT c.amount, c.status, c.entryType, c.incurredAt, (SELECT COUNT(*) FROM payroll_allocations WHERE id = ?) AS allocations, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action IN ('payroll.salary_structure_viewed', 'payroll.run_details_viewed', 'payroll.cost_allocated')) AS auditActions FROM cost_entries c WHERE c.id = ?", [allocation.id, tenantA, allocation.costEntryId]);
+    expect(costRows[0]).toMatchObject({ amount: "13750.00", status: "posted", entryType: "actual", allocations: 1, auditActions: 3 });
+    const evm = calculateOperationalEvm({ periodAt: new Date("2026-09-30T23:59:59.000Z"), activities: [{ plannedValue: 100_000, plannedStartAt: new Date("2026-09-01T00:00:00.000Z"), plannedFinishAt: new Date("2026-09-30T23:59:59.000Z") }], budgets: [{ currentAmount: 100_000 }], costs: [{ amount: costRows[0]!.amount, status: costRows[0]!.status, entryType: costRows[0]!.entryType, incurredAt: costRows[0]!.incurredAt }], progress: [{ wbsItemId: wbs.id, progressPercent: 50, status: "submitted", measuredAt: new Date("2026-09-30T23:59:59.000Z") }], wbs: [{ id: wbs.id, plannedValue: 100_000 }], eacMethod: "bac_over_cpi" });
+    expect(evm).toMatchObject({ ac: 13_750, cpi: 3.6364, sources: { postedActualCostEntries: 1, wbsItemsWithProgress: 1 } });
+    const [auditRows] = await connection.query<{ structure: number; details: number; allocation: number }[]>("SELECT SUM(action = 'payroll.salary_structure_viewed') AS structure, SUM(action = 'payroll.run_details_viewed') AS details, SUM(action = 'payroll.cost_allocated') AS allocation FROM audit_logs WHERE tenantId = ?", [tenantA]);
+    expect(auditRows[0]).toMatchObject({ structure: "1", details: "1", allocation: "1" });
+    expect(structure.id).toBeTruthy();
   }, 30000);
 
   it("rejects a cross-tenant claim and approves an authorized claim with audit evidence", async () => {

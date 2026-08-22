@@ -116,6 +116,84 @@ export const employmentContracts = mysqlTable(
   table => [index("employment_contracts_tenant_employee_idx").on(table.tenantId, table.employeeId, table.status)],
 );
 
+export const salaryStructures = mysqlTable(
+  "salary_structures",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    baseSalary: decimal("baseSalary", { precision: 18, scale: 2 }).notNull(),
+    housingAllowance: decimal("housingAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    transportAllowance: decimal("transportAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    hardshipAllowance: decimal("hardshipAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    gosiRate: decimal("gosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
+    otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).default("0").notNull(),
+    eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).default("0").notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("salary_structures_tenant_employee_unique").on(table.tenantId, table.employeeId), index("salary_structures_tenant_active_idx").on(table.tenantId, table.active)],
+);
+
+export const payrollRuns = mysqlTable(
+  "payroll_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    periodStart: timestamp("periodStart").notNull(),
+    periodEnd: timestamp("periodEnd").notNull(),
+    status: mysqlEnum("status", ["draft", "review", "approved", "paid"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
+    approvedByUserId: int("approvedByUserId").references(() => users.id),
+    approvedAt: timestamp("approvedAt"),
+    paidAt: timestamp("paidAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("payroll_runs_tenant_period_unique").on(table.tenantId, table.periodStart, table.periodEnd), index("payroll_runs_tenant_status_idx").on(table.tenantId, table.status)],
+);
+
+export const payrollEntries = mysqlTable(
+  "payroll_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    payrollRunId: varchar("payrollRunId", { length: 36 }).notNull().references(() => payrollRuns.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    salaryStructureId: varchar("salaryStructureId", { length: 36 }).notNull().references(() => salaryStructures.id),
+    baseSalary: decimal("baseSalary", { precision: 18, scale: 2 }).notNull(),
+    housingAllowance: decimal("housingAllowance", { precision: 18, scale: 2 }).notNull(),
+    transportAllowance: decimal("transportAllowance", { precision: 18, scale: 2 }).notNull(),
+    hardshipAllowance: decimal("hardshipAllowance", { precision: 18, scale: 2 }).notNull(),
+    gosiDeduction: decimal("gosiDeduction", { precision: 18, scale: 2 }).notNull(),
+    otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).notNull(),
+    eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("payroll_entries_run_employee_unique").on(table.payrollRunId, table.employeeId), index("payroll_entries_tenant_run_idx").on(table.tenantId, table.payrollRunId)],
+);
+
+export const payrollAllocations = mysqlTable(
+  "payroll_allocations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    payrollEntryId: varchar("payrollEntryId", { length: 36 }).notNull().references(() => payrollEntries.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("payroll_allocations_tenant_project_idx").on(table.tenantId, table.projectId), uniqueIndex("payroll_allocations_cost_entry_unique").on(table.costEntryId)],
+);
+
 export const membershipInvitations = mysqlTable(
   "membership_invitations",
   {

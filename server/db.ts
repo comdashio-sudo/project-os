@@ -43,6 +43,10 @@ import {
   documentVersions,
   employees,
   employmentContracts,
+  salaryStructures,
+  payrollRuns,
+  payrollEntries,
+  payrollAllocations,
   masterPlans,
   masterPlanVersions,
   masterPlanSnapshots,
@@ -83,6 +87,8 @@ import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
 import { calculateOperationalCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
+import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
+import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
@@ -1952,6 +1958,162 @@ export async function createEmploymentContractForTenant(input: { userId: number;
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employment_contract_created", entityType: "employment_contract", entityId: contractId, metadata: JSON.stringify({ employeeId: input.employeeId, contractType: input.contractType, renewalOfContractId: input.renewalOfContractId ?? null }) });
   });
   return { id: contractId };
+}
+
+type PayrollPermission = "project.payroll.structure" | "project.payroll.run" | "project.payroll.approve" | "project.payroll.sensitive.read";
+async function assertPayrollAccess(input: { userId: number; tenantId: string; permission: PayrollPermission }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.permission, scope: { type: "company" } });
+}
+const assertPayrollNumber = (value: number) => {
+  if (!Number.isFinite(value) || value < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_AMOUNT_INVALID" });
+};
+
+export async function saveSalaryStructureForTenant(input: { userId: number; tenantId: string; employeeId: string; baseSalary: number; housingAllowance: number; transportAllowance: number; hardshipAllowance: number; gosiRate: number; otherDeductions: number; eosMonthlyAccrual: number; currency: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.structure" });
+  [input.baseSalary, input.housingAllowance, input.transportAllowance, input.hardshipAllowance, input.gosiRate, input.otherDeductions, input.eosMonthlyAccrual].forEach(assertPayrollNumber);
+  if (input.gosiRate > 1 || !/^[A-Z]{3}$/.test(input.currency)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_STRUCTURE_INVALID" });
+  const [employee] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId), eq(employees.employmentStatus, "active"))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  const [existing] = await db.select({ id: salaryStructures.id }).from(salaryStructures).where(and(eq(salaryStructures.tenantId, input.tenantId), eq(salaryStructures.employeeId, input.employeeId))).limit(1);
+  const id = existing?.id ?? crypto.randomUUID();
+  const values = { baseSalary: String(input.baseSalary), housingAllowance: String(input.housingAllowance), transportAllowance: String(input.transportAllowance), hardshipAllowance: String(input.hardshipAllowance), gosiRate: String(input.gosiRate), otherDeductions: String(input.otherDeductions), eosMonthlyAccrual: String(input.eosMonthlyAccrual), currency: input.currency };
+  await db.transaction(async tx => {
+    if (existing) await tx.update(salaryStructures).set(values).where(and(eq(salaryStructures.id, id), eq(salaryStructures.tenantId, input.tenantId)));
+    else await tx.insert(salaryStructures).values({ id, tenantId: input.tenantId, employeeId: input.employeeId, ...values, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: existing ? "payroll.salary_structure_updated" : "payroll.salary_structure_created", entityType: "salary_structure", entityId: id, metadata: JSON.stringify({ employeeId: input.employeeId, currency: input.currency, sensitive: true }) });
+  });
+  return { id };
+}
+
+export async function getSalaryStructureForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
+  const [structure] = await db.select().from(salaryStructures).where(and(eq(salaryStructures.tenantId, input.tenantId), eq(salaryStructures.employeeId, input.employeeId))).limit(1);
+  if (!structure) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SALARY_STRUCTURE_NOT_FOUND" });
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.salary_structure_viewed", entityType: "salary_structure", entityId: structure.id, metadata: JSON.stringify({ employeeId: input.employeeId, sensitive: true }) });
+  return structure;
+}
+
+async function assertAnyPayrollAccess(input: { userId: number; tenantId: string; permissions: readonly PayrollPermission[] }) {
+  let latestError: unknown;
+  for (const permission of input.permissions) {
+    try {
+      await assertPayrollAccess({ userId: input.userId, tenantId: input.tenantId, permission });
+      return;
+    } catch (error) {
+      latestError = error;
+    }
+  }
+  throw latestError ?? new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+}
+
+export async function getPayrollCapabilitiesForTenant(input: { userId: number; tenantId: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  const activeProjectMember = snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes("PROJECT") && snapshot.scopes.some(scope => scope.scopeType === "company");
+  return {
+    canManageStructure: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.structure"),
+    canRunPayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.run"),
+    canApprovePayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.approve"),
+    canReadSensitivePayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.sensitive.read"),
+  };
+}
+
+export async function getPayrollRunsForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertAnyPayrollAccess({ ...input, permissions: ["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"] });
+  const runs = await db.select({ id: payrollRuns.id, periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd, status: payrollRuns.status, createdAt: payrollRuns.createdAt, approvedAt: payrollRuns.approvedAt, paidAt: payrollRuns.paidAt }).from(payrollRuns).where(eq(payrollRuns.tenantId, input.tenantId)).orderBy(desc(payrollRuns.periodStart));
+  const counts = await db.select({ payrollRunId: payrollEntries.payrollRunId, entryCount: sql<number>`count(*)` }).from(payrollEntries).where(eq(payrollEntries.tenantId, input.tenantId)).groupBy(payrollEntries.payrollRunId);
+  const countByRun = new Map(counts.map(item => [item.payrollRunId, Number(item.entryCount)]));
+  return runs.map(run => ({ ...run, entryCount: countByRun.get(run.id) ?? 0 }));
+}
+
+export async function getPayrollAllocationOptionsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [wbs, activityRows] = await Promise.all([
+    db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))).orderBy(asc(wbsItems.code)),
+    db.select({ id: activities.id, code: activities.code, name: activities.name, wbsItemId: activities.wbsItemId }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).orderBy(asc(activities.code)),
+  ]);
+  return { wbs, activities: activityRows };
+}
+
+export async function getPayrollAllocationProjectsForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.approve" });
+  return db.select({ id: projects.id, code: projects.code, name: projects.name }).from(projects).where(eq(projects.tenantId, input.tenantId)).orderBy(asc(projects.code));
+}
+
+export async function createPayrollRunForTenant(input: { userId: number; tenantId: string; periodStart: Date; periodEnd: Date }) {
+  if (input.periodEnd < input.periodStart) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_PERIOD_INVALID" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.run" });
+  const [duplicate] = await db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(eq(payrollRuns.tenantId, input.tenantId), eq(payrollRuns.periodStart, input.periodStart), eq(payrollRuns.periodEnd, input.periodEnd))).limit(1);
+  if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PAYROLL_PERIOD_EXISTS" });
+  const structures = await db.select({ id: salaryStructures.id, employeeId: salaryStructures.employeeId, baseSalary: salaryStructures.baseSalary, housingAllowance: salaryStructures.housingAllowance, transportAllowance: salaryStructures.transportAllowance, hardshipAllowance: salaryStructures.hardshipAllowance, gosiRate: salaryStructures.gosiRate, otherDeductions: salaryStructures.otherDeductions, eosMonthlyAccrual: salaryStructures.eosMonthlyAccrual, currency: salaryStructures.currency }).from(salaryStructures).innerJoin(employees, eq(employees.id, salaryStructures.employeeId)).where(and(eq(salaryStructures.tenantId, input.tenantId), eq(salaryStructures.active, true), eq(employees.employmentStatus, "active")));
+  const runId = crypto.randomUUID();
+  const entries = structures.map(structure => {
+    const breakdown = calculatePayrollBreakdown({ baseSalary: Number(structure.baseSalary), housingAllowance: Number(structure.housingAllowance), transportAllowance: Number(structure.transportAllowance), hardshipAllowance: Number(structure.hardshipAllowance), gosiRate: Number(structure.gosiRate), otherDeductions: Number(structure.otherDeductions), eosMonthlyAccrual: Number(structure.eosMonthlyAccrual) });
+    return { id: crypto.randomUUID(), tenantId: input.tenantId, payrollRunId: runId, employeeId: structure.employeeId, salaryStructureId: structure.id, baseSalary: String(structure.baseSalary), housingAllowance: String(structure.housingAllowance), transportAllowance: String(structure.transportAllowance), hardshipAllowance: String(structure.hardshipAllowance), gosiDeduction: String(breakdown.gosiDeduction), otherDeductions: String(structure.otherDeductions), eosMonthlyAccrual: String(structure.eosMonthlyAccrual), currency: structure.currency };
+  });
+  await db.transaction(async tx => {
+    await tx.insert(payrollRuns).values({ id: runId, tenantId: input.tenantId, periodStart: input.periodStart, periodEnd: input.periodEnd, createdByUserId: input.userId });
+    if (entries.length) await tx.insert(payrollEntries).values(entries);
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.run_created", entityType: "payroll_run", entityId: runId, metadata: JSON.stringify({ periodStart: input.periodStart.toISOString(), periodEnd: input.periodEnd.toISOString(), entryCount: entries.length }) });
+  });
+  return { id: runId, entryCount: entries.length };
+}
+
+export async function transitionPayrollRunForTenant(input: { userId: number; tenantId: string; payrollRunId: string; status: "review" | "approved" | "paid" }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: input.status === "review" ? "project.payroll.run" : "project.payroll.approve" });
+  const [run] = await db.select({ id: payrollRuns.id, status: payrollRuns.status, createdByUserId: payrollRuns.createdByUserId }).from(payrollRuns).where(and(eq(payrollRuns.id, input.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1);
+  if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_RUN_NOT_FOUND" });
+  const valid = (run.status === "draft" && input.status === "review") || (run.status === "review" && input.status === "approved") || (run.status === "approved" && input.status === "paid");
+  if (!valid) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_TRANSITION_INVALID" });
+  if (input.status === "approved" && run.createdByUserId === input.userId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PAYROLL_APPROVER_SEPARATION" });
+  const now = new Date(); const update = input.status === "review" ? { status: input.status, reviewedByUserId: input.userId } : input.status === "approved" ? { status: input.status, approvedByUserId: input.userId, approvedAt: now } : { status: input.status, paidAt: now };
+  await db.transaction(async tx => { await tx.update(payrollRuns).set(update).where(eq(payrollRuns.id, run.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.run_transitioned", entityType: "payroll_run", entityId: run.id, metadata: JSON.stringify({ from: run.status, to: input.status }) }); });
+  return { id: run.id, status: input.status };
+}
+
+export async function getPayrollRunDetailsForTenant(input: { userId: number; tenantId: string; payrollRunId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
+  const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1);
+  if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_RUN_NOT_FOUND" });
+  const entries = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, gosiDeduction: payrollEntries.gosiDeduction, otherDeductions: payrollEntries.otherDeductions, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual, currency: payrollEntries.currency }).from(payrollEntries).innerJoin(employees, eq(employees.id, payrollEntries.employeeId)).where(and(eq(payrollEntries.tenantId, input.tenantId), eq(payrollEntries.payrollRunId, run.id)));
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.run_details_viewed", entityType: "payroll_run", entityId: run.id, metadata: JSON.stringify({ sensitive: true, entryCount: entries.length }) });
+  const detailedEntries = entries.map(entry => ({ ...entry, ...calculatePayrollEntryBreakdown({ baseSalary: Number(entry.baseSalary), housingAllowance: Number(entry.housingAllowance), transportAllowance: Number(entry.transportAllowance), hardshipAllowance: Number(entry.hardshipAllowance), gosiDeduction: Number(entry.gosiDeduction), otherDeductions: Number(entry.otherDeductions), eosMonthlyAccrual: Number(entry.eosMonthlyAccrual) }) }));
+  return {
+    run,
+    entries: detailedEntries,
+    payslips: detailedEntries.map(entry => structuredPayslipRenderer.render({ payrollRunId: run.id, payrollEntryId: entry.id, employee: { id: entry.employeeId, employeeNumber: entry.employeeNumber, fullName: entry.fullName }, periodStart: run.periodStart, periodEnd: run.periodEnd, currency: entry.currency, otherDeductions: Number(entry.otherDeductions), breakdown: entry })),
+  };
+}
+
+export async function allocateApprovedPayrollCostForTenant(input: { userId: number; tenantId: string; payrollEntryId: string; projectId: string; wbsItemId?: string; activityId?: string; amount: number; incurredAt: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  assertPayrollNumber(input.amount); if (!input.amount) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_AMOUNT_INVALID" });
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  if (input.activityId) { const [activity] = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1); if (!activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); }
+  const [entry] = await db.select({ id: payrollEntries.id, payrollRunId: payrollEntries.payrollRunId, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual }).from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
+  if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_ENTRY_NOT_FOUND" });
+  const [run] = await db.select({ status: payrollRuns.status }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1); if (!run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
+  const allocated = await db.select({ amount: payrollAllocations.amount }).from(payrollAllocations).where(eq(payrollAllocations.payrollEntryId, entry.id));
+  const ceiling = Number(entry.baseSalary) + Number(entry.housingAllowance) + Number(entry.transportAllowance) + Number(entry.hardshipAllowance) + Number(entry.eosMonthlyAccrual); const used = allocated.reduce((total, item) => total + Number(item.amount), 0);
+  if (used + input.amount > ceiling + 0.0001) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST" });
+  const allocationId = crypto.randomUUID(); const costEntryId = crypto.randomUUID();
+  await db.transaction(async tx => { await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt }); await tx.insert(payrollAllocations).values({ id: allocationId, tenantId: input.tenantId, payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId, activityId: input.activityId, amount: String(input.amount), costEntryId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.cost_allocated", entityType: "payroll_allocation", entityId: allocationId, metadata: JSON.stringify({ payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, activityId: input.activityId ?? null, amount: input.amount, costEntryId }) }); });
+  return { id: allocationId, costEntryId };
 }
 
 export async function getMaterialCatalogForTenant(input: { userId: number; tenantId: string; projectId: string }) {

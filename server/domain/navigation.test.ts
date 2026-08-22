@@ -12,4 +12,9 @@ describe("buildTenantNavigation", () => {
     expect(items.map(item => item.id)).toEqual(["project-controls"]);
     expect(buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-b", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } })).toEqual([]);
   });
+
+  it.each(["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"])("reveals one governed payroll route for %s", permission => {
+    const items = buildTenantNavigation({ tenantId: "tenant-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: [permission], scopes: [{ scopeType: "company", scopeId: null }] } });
+    expect(items.filter(item => item.id === "payroll")).toEqual([expect.objectContaining({ href: "/payroll/tenant-a", labelKey: "navigation.payroll" })]);
+  });
 });
