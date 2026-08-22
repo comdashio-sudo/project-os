@@ -1,13 +1,16 @@
 import * as XLSX from "xlsx";
 
-export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials";
+export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule";
 export type ExportModuleCode = "wbs" | "budget" | "activities";
 export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
 export type MaterialImportRow = { rowNumber: number; values: { code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string } };
-export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow | MaterialImportRow;
+export type ScheduleWbsImportRow = { rowNumber: number; kind: "wbs"; values: { code: string; name: string; plannedValue: number } };
+export type ScheduleActivityImportRow = { rowNumber: number; kind: "activity"; values: { wbsCode: string; code: string; name: string; plannedStartAt: Date; plannedFinishAt: Date; plannedValue: number; status: "not_started" | "in_progress" | "completed" | "blocked" } };
+export type ScheduleImportRow = ScheduleWbsImportRow | ScheduleActivityImportRow;
+export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow | MaterialImportRow | ScheduleImportRow;
 export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
 export type MasterPlanSpatialImportRow = { rowNumber: number; values: { code: string; name: string; entityType: "block" | "building" | "zone" | "unit" | "area"; geometry: { x: number; y: number; width: number; height: number }; status: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent: number; plannedValue: number; actualValue: number; forecastValue: number; parentCode?: string; wbsCode?: string; activityCode?: string } };
 
@@ -37,6 +40,17 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "category", required: true, aliases: ["category", "classification", "تصنيف", "الفئة"] },
     { key: "referenceSpecification", required: false, aliases: ["reference specification", "specification", "المواصفة المرجعية", "المواصفة"] },
   ],
+  schedule: [
+    { key: "recordType", required: true, aliases: ["record type", "type", "نوع السجل", "النوع"] },
+    { key: "wbsCode", required: true, aliases: ["wbs code", "wbs", "رمز wbs", "رمز هيكل العمل"] },
+    { key: "wbsName", required: false, aliases: ["wbs name", "اسم wbs", "اسم هيكل العمل"] },
+    { key: "activityCode", required: false, aliases: ["activity code", "activity id", "رمز النشاط", "معرف النشاط"] },
+    { key: "activityName", required: false, aliases: ["activity name", "activity", "اسم النشاط", "النشاط"] },
+    { key: "plannedStartAt", required: false, aliases: ["planned start", "start", "target start", "البداية المخططة", "بداية النشاط"] },
+    { key: "plannedFinishAt", required: false, aliases: ["planned finish", "finish", "target finish", "النهاية المخططة", "نهاية النشاط"] },
+    { key: "plannedValue", required: false, aliases: ["planned value", "budgeted cost", "target cost", "القيمة المخططة", "التكلفة المخططة"] },
+    { key: "status", required: false, aliases: ["status", "activity status", "حالة", "الحالة"] },
+  ],
 };
 
 const normalize = (value: unknown) => String(value ?? "").replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[_\s-]+/g, " ");
@@ -55,6 +69,54 @@ const percentage = (value: unknown) => {
   const normalizedPercent = typeof value === "number" && parsed >= 0 && parsed <= 1 ? parsed * 100 : parsed;
   return Number.isFinite(normalizedPercent) && normalizedPercent >= 0 && normalizedPercent <= 100 ? normalizedPercent : undefined;
 };
+
+const scheduleStatus = (value: unknown): ScheduleActivityImportRow["values"]["status"] | "invalid" => {
+  const status = normalize(value);
+  const statuses: Record<string, ScheduleActivityImportRow["values"]["status"]> = { "not started": "not_started", not_started: "not_started", "tk notstart": "not_started", "لم يبدأ": "not_started", "in progress": "in_progress", in_progress: "in_progress", "tk active": "in_progress", "قيد التنفيذ": "in_progress", completed: "completed", "tk complete": "completed", مكتمل: "completed", blocked: "blocked", "tk suspended": "blocked", متعثر: "blocked" };
+  return statuses[status] ?? "invalid";
+};
+
+const importDate = (value: unknown) => {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+  const source = requiredText(value); const parsed = Date.parse(source.includes("T") ? source : source.replace(" ", "T"));
+  return source && Number.isFinite(parsed) ? new Date(parsed) : undefined;
+};
+
+function analyzeScheduleRows(rows: Record<string, unknown>[], headers: string[], mapping: Record<string, string>, sheetNames: string[]) {
+  const errors: ImportError[] = []; const validRows: ScheduleImportRow[] = []; const wbsCodes = new Set<string>(); const activityCodes = new Set<string>(); const activitiesToResolve: ScheduleActivityImportRow[] = [];
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2; const recordType = normalize(row[mapping.recordType]); const wbsCode = requiredText(row[mapping.wbsCode]);
+    if (recordType !== "wbs" && recordType !== "activity") { errors.push({ rowNumber, code: "SCHEDULE_RECORD_TYPE_INVALID", field: "recordType" }); return; }
+    if (!wbsCode) { errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "wbsCode" }); return; }
+    if (recordType === "wbs") {
+      const name = requiredText(row[mapping.wbsName]); const plannedValue = mapping.plannedValue ? nonnegativeNumber(row[mapping.plannedValue]) : 0;
+      if (!name) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "wbsName" }); if (plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (wbsCodes.has(wbsCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "wbsCode" });
+      if (name && plannedValue !== undefined && !wbsCodes.has(wbsCode)) { wbsCodes.add(wbsCode); validRows.push({ rowNumber, kind: "wbs", values: { code: wbsCode, name, plannedValue } }); }
+      return;
+    }
+    const code = requiredText(row[mapping.activityCode]); const name = requiredText(row[mapping.activityName]); const plannedStartAt = importDate(row[mapping.plannedStartAt]); const plannedFinishAt = importDate(row[mapping.plannedFinishAt]); const plannedValue = mapping.plannedValue ? nonnegativeNumber(row[mapping.plannedValue]) : 0; const status = mapping.status ? scheduleStatus(row[mapping.status]) : "not_started";
+    if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "activityCode" }); if (!name) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "activityName" }); if (!plannedStartAt || !plannedFinishAt || plannedFinishAt < plannedStartAt) errors.push({ rowNumber, code: "SCHEDULE_DATE_INVALID", field: "plannedFinishAt" }); if (plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (status === "invalid") errors.push({ rowNumber, code: "SCHEDULE_STATUS_INVALID", field: "status" }); if (activityCodes.has(code)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "activityCode" });
+    if (code && name && plannedStartAt && plannedFinishAt && plannedFinishAt >= plannedStartAt && plannedValue !== undefined && status !== "invalid" && !activityCodes.has(code)) { activityCodes.add(code); activitiesToResolve.push({ rowNumber, kind: "activity", values: { wbsCode, code, name, plannedStartAt, plannedFinishAt, plannedValue, status } }); }
+  });
+  activitiesToResolve.forEach(activity => { if (!wbsCodes.has(activity.values.wbsCode)) errors.push({ rowNumber: activity.rowNumber, code: "SCHEDULE_WBS_REFERENCE_UNRESOLVED", field: "wbsCode" }); else validRows.push(activity); });
+  return { sheetNames, headers, mapping, rows, validRows, errors };
+}
+
+export function analyzeScheduleImportFile(input: { format: "xlsx" | "xer"; bytes: Uint8Array }) {
+  if (input.format === "xlsx") {
+    const workbook = XLSX.read(input.bytes, { type: "array", cellDates: true });
+    if (workbook.SheetNames.length !== 1) return { sheetNames: workbook.SheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
+    const sheetName = workbook.SheetNames[0]; if (!sheetName) return { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "", raw: false }); const headers = Object.keys(rows[0] ?? {}); const mapping = Object.fromEntries(templates.schedule.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; })); const requiredErrors = templates.schedule.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const knownHeaders = new Set(templates.schedule.flatMap(field => field.aliases)); const unsupported = headers.filter(header => !knownHeaders.has(normalize(header))).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header }));
+    return requiredErrors.length || unsupported.length ? { sheetNames: workbook.SheetNames, headers, mapping, rows, validRows: [] as ScheduleImportRow[], errors: [...requiredErrors, ...unsupported] } : analyzeScheduleRows(rows, headers, mapping, workbook.SheetNames);
+  }
+  const tables = new Map<string, { fields: string[]; rows: { values: Record<string, string> }[] }>(); let active: { name: string; fields: string[]; rows: { values: Record<string, string> }[] } | undefined;
+  Buffer.from(input.bytes).toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/).forEach(line => { const [tag, ...values] = line.split("\t"); if (tag === "%T") { active = { name: values[0] ?? "", fields: [], rows: [] }; tables.set(active.name, active); } else if (tag === "%F" && active) active.fields = values; else if (tag === "%R" && active && active.fields.length) active.rows.push({ values: Object.fromEntries(active.fields.map((field, index) => [field, values[index] ?? ""])) }); });
+  const unsupportedTables = Array.from(tables.keys()).filter(table => table !== "PROJWBS" && table !== "TASK"); if (unsupportedTables.length) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: unsupportedTables.map(table => ({ rowNumber: 0, code: "XER_UNSUPPORTED_TABLE", field: table })) as ImportError[] };
+  const wbs = tables.get("PROJWBS"); const tasks = tables.get("TASK"); if (!wbs || !tasks) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "XER_REQUIRED_TABLE_MISSING" }] as ImportError[] };
+  const codeByWbsId = new Map(wbs.rows.map(row => [row.values.wbs_id, row.values.wbs_short_name])); const rows = [...wbs.rows.map(row => ({ "Record Type": "wbs", "WBS Code": row.values.wbs_short_name, "WBS Name": row.values.wbs_name, "Planned Value": row.values.wbs_cost ?? "0" })), ...tasks.rows.map(row => ({ "Record Type": "activity", "WBS Code": codeByWbsId.get(row.values.wbs_id) ?? "", "Activity Code": row.values.task_code, "Activity Name": row.values.task_name, "Planned Start": row.values.target_start_date, "Planned Finish": row.values.target_end_date, "Planned Value": row.values.target_cost ?? "0", Status: row.values.status_code }))]; const mapping = { recordType: "Record Type", wbsCode: "WBS Code", wbsName: "WBS Name", activityCode: "Activity Code", activityName: "Activity Name", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", plannedValue: "Planned Value", status: "Status" };
+  return analyzeScheduleRows(rows, Object.values(mapping), mapping, ["PROJWBS", "TASK"]);
+}
 
 const masterPlanFields: Field[] = [
   { key: "code", required: true, aliases: ["unit id", "unit", "entity id", "spatial entity", "code", "معرف الوحدة", "رقم الوحدة", "رمز الكيان", "الرمز"] },
@@ -123,7 +185,9 @@ export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "cs
   return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
 }
 
-export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
+export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv" | "xer"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
+  if (input.moduleCode === "schedule") return input.format === "xlsx" || input.format === "xer" ? analyzeScheduleImportFile({ format: input.format, bytes: input.bytes }) : { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "SCHEDULE_FORMAT_INVALID" }] as ImportError[] };
+  if (input.format === "xer") return { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_FORMAT_INVALID" }] as ImportError[] };
   const workbook = XLSX.read(input.bytes, { type: "array" });
   if (workbook.SheetNames.length !== 1) return { sheetNames: workbook.SheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
   const sheetName = workbook.SheetNames[0];

@@ -1410,7 +1410,7 @@ export const dataImports = mysqlTable(
     projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
     moduleCode: varchar("moduleCode", { length: 64 }).notNull(),
     templateCode: varchar("templateCode", { length: 64 }).notNull(),
-    sourceFormat: mysqlEnum("sourceFormat", ["xlsx", "csv"]).notNull(),
+    sourceFormat: mysqlEnum("sourceFormat", ["xlsx", "csv", "xer"]).notNull(),
     fileName: varchar("fileName", { length: 255 }).notNull(),
     fileKey: varchar("fileKey", { length: 512 }).notNull(),
     fileHash: varchar("fileHash", { length: 64 }).notNull(),

@@ -1,0 +1,1 @@
+ALTER TABLE `data_imports` MODIFY COLUMN `sourceFormat` enum('xlsx','csv','xer') NOT NULL;

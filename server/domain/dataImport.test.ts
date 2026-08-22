@@ -55,6 +55,26 @@ describe("analyzeImportFile", () => {
     const duplicate = analyzeImportFile({ moduleCode: "materials", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Material Code": "MAT-01", Description: "Concrete", "Unit of Measure": "m3", Category: "Concrete" }, { "Material Code": "MAT-01", Description: "Concrete 2", "Unit of Measure": "m3", Category: "Concrete" }])) });
     expect(unsupported.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_UNSUPPORTED_COLUMN" })); expect(duplicate.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_DUPLICATE_FILE_KEY" }));
   });
+  it("parses the explicit schedule Excel template into dependent WBS and activity rows", () => {
+    const result = analyzeImportFile({ moduleCode: "schedule", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Record Type": "WBS", "WBS Code": "1.0", "WBS Name": "Civil works", "Planned Value": 1000 }, { "Record Type": "Activity", "WBS Code": "1.0", "Activity Code": "A-100", "Activity Name": "Foundation", "Planned Start": "2026-09-01", "Planned Finish": "2026-09-05", "Planned Value": 500, Status: "In Progress" }])) });
+    expect(result.errors).toEqual([]); expect(result.validRows).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "wbs", values: expect.objectContaining({ code: "1.0" }) }), expect.objectContaining({ kind: "activity", values: expect.objectContaining({ code: "A-100", wbsCode: "1.0", status: "in_progress" }) })]));
+  });
+  it("rejects an unresolved schedule WBS reference and a missing required XER table", () => {
+    const unresolved = analyzeImportFile({ moduleCode: "schedule", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Record Type": "Activity", "WBS Code": "MISSING", "Activity Code": "A-100", "Activity Name": "Foundation", "Planned Start": "2026-09-01", "Planned Finish": "2026-09-05", "Planned Value": 500, Status: "In Progress" }])) });
+    expect(unresolved.errors).toContainEqual({ rowNumber: 2, code: "SCHEDULE_WBS_REFERENCE_UNRESOLVED", field: "wbsCode" });
+    const xer = analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes: Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t1\t1.0\tCivil") });
+    expect(xer.errors).toContainEqual({ rowNumber: 0, code: "XER_REQUIRED_TABLE_MISSING" });
+  });
+  it("parses the restricted XER WBS and TASK tables without accepting arbitrary records", () => {
+    const bytes = Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\twbs_cost\n%R\t10\t1.0\tCivil\t1000\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\ttarget_cost\tstatus_code\n%R\tA-100\tFoundation\t10\t2026-09-01 00:00:00\t2026-09-05 00:00:00\t500\tTK_Active");
+    const result = analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes });
+    expect(result.errors).toEqual([]); expect(result.validRows).toHaveLength(2); expect(result.validRows).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "activity", values: expect.objectContaining({ code: "A-100", status: "in_progress" }) })]));
+  });
+  it("rejects an XER with an extra unsupported table instead of partially importing it", () => {
+    const bytes = Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\t1.0\tCivil\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code\n%R\tA-100\tFoundation\t10\t2026-09-01 00:00:00\t2026-09-05 00:00:00\tTK_Active\n%T\tTASKPRED\n%F\ttask_id\n%R\tA-100");
+    const result = analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes });
+    expect(result.validRows).toEqual([]); expect(result.errors).toContainEqual({ rowNumber: 0, code: "XER_UNSUPPORTED_TABLE", field: "TASKPRED" });
+  });
   it("builds localized CSV headers without exposing unrequested columns", () => {
     const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] });
     const csv = result.bytes.toString("utf8");
