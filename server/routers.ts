@@ -9,6 +9,7 @@ import { createProcurementRequisitionForTenant, createSupplierForTenant, getProc
 import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { reportDashboardSectionIssueForTenant } from "./db";
+import { archiveEmployeeForTenant, createEmployeeForTenant, createEmploymentContractForTenant, getEmployeeIdentityForTenant, getEmployeesForTenant, getEmploymentContractsForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
@@ -282,6 +283,16 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectResourcesForTenant({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), resourceCode: z.string().trim().min(1).max(120), name: z.string().trim().min(2).max(255), resourceType: z.enum(["labor", "equipment", "material", "service"]), plannedUnits: z.number().finite().nonnegative(), allocatedUnits: z.number().finite().nonnegative(), unitCost: z.number().finite().nonnegative(), currency: z.string().length(3).transform(value => value.toUpperCase()) }).refine(value => value.allocatedUnits <= value.plannedUnits, { message: "PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN", path: ["allocatedUnits"] })).mutation(({ ctx, input }) => createProjectResourceForTenant({ userId: ctx.user.id, ...input })),
     updateAllocation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), resourceId: z.string().uuid(), allocatedUnits: z.number().finite().nonnegative() })).mutation(({ ctx, input }) => updateProjectResourceAllocationForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  employees: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getEmployeesForTenant({ userId: ctx.user.id, ...input })),
+    identity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getEmployeeIdentityForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeNumber: z.string().trim().min(1).max(80), fullName: z.string().trim().min(2).max(255), jobTitle: z.string().trim().min(2).max(160), department: z.string().trim().min(2).max(160), hireDate: z.date(), nationality: z.string().trim().max(120).optional(), identityDocumentType: z.string().trim().max(80).optional(), identityReference: z.string().trim().max(512).optional(), linkedUserId: z.number().int().positive().optional(), retentionPolicy: z.enum(["standard", "extended", "legal_hold"]).default("standard") })).mutation(({ ctx, input }) => createEmployeeForTenant({ userId: ctx.user.id, ...input })),
+    archive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).mutation(({ ctx, input }) => archiveEmployeeForTenant({ userId: ctx.user.id, ...input })),
+    contracts: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getEmploymentContractsForTenant({ userId: ctx.user.id, ...input })),
+      create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid(), contractType: z.enum(["permanent", "fixed_term", "temporary", "consulting"]), startDate: z.date(), endDate: z.date().optional(), probationEndDate: z.date().optional(), renewalOfContractId: z.string().uuid().optional(), retentionPolicy: z.enum(["standard", "extended", "legal_hold"]).default("standard") }).refine(value => !value.endDate || value.endDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["endDate"] }).refine(value => !value.probationEndDate || value.probationEndDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["probationEndDate"] })).mutation(({ ctx, input }) => createEmploymentContractForTenant({ userId: ctx.user.id, ...input })),
+    }),
   }),
   materials: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMaterialCatalogForTenant({ userId: ctx.user.id, ...input })),

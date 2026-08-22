@@ -67,6 +67,55 @@ export const memberships = mysqlTable(
   ],
 );
 
+export const employees = mysqlTable(
+  "employees",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    employeeNumber: varchar("employeeNumber", { length: 80 }).notNull(),
+    fullName: varchar("fullName", { length: 255 }).notNull(),
+    jobTitle: varchar("jobTitle", { length: 160 }).notNull(),
+    department: varchar("department", { length: 160 }).notNull(),
+    hireDate: timestamp("hireDate").notNull(),
+    employmentStatus: mysqlEnum("employmentStatus", ["active", "suspended", "terminated"]).default("active").notNull(),
+    nationality: varchar("nationality", { length: 120 }),
+    identityDocumentType: varchar("identityDocumentType", { length: 80 }),
+    identityReference: varchar("identityReference", { length: 512 }),
+    linkedUserId: int("linkedUserId").references(() => users.id),
+    retentionPolicy: mysqlEnum("retentionPolicy", ["standard", "extended", "legal_hold"]).default("standard").notNull(),
+    archivedAt: timestamp("archivedAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("employees_tenant_number_unique").on(table.tenantId, table.employeeNumber),
+    uniqueIndex("employees_tenant_user_unique").on(table.tenantId, table.linkedUserId),
+    index("employees_tenant_status_idx").on(table.tenantId, table.employmentStatus),
+  ],
+);
+
+export const employmentContracts = mysqlTable(
+  "employment_contracts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    contractType: mysqlEnum("contractType", ["permanent", "fixed_term", "temporary", "consulting"]).notNull(),
+    startDate: timestamp("startDate").notNull(),
+    endDate: timestamp("endDate"),
+    probationEndDate: timestamp("probationEndDate"),
+    renewalOfContractId: varchar("renewalOfContractId", { length: 36 }),
+    status: mysqlEnum("status", ["active", "ended", "terminated"]).default("active").notNull(),
+    terminationReason: varchar("terminationReason", { length: 1000 }),
+    retentionPolicy: mysqlEnum("retentionPolicy", ["standard", "extended", "legal_hold"]).default("standard").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("employment_contracts_tenant_employee_idx").on(table.tenantId, table.employeeId, table.status)],
+);
+
 export const membershipInvitations = mysqlTable(
   "membership_invitations",
   {

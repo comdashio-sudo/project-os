@@ -41,6 +41,8 @@ import {
   planFeatureEntitlements,
   evmSnapshots,
   documentVersions,
+  employees,
+  employmentContracts,
   masterPlans,
   masterPlanVersions,
   masterPlanSnapshots,
@@ -1869,6 +1871,87 @@ export async function updateProjectResourceAllocationForTenant(input: { userId: 
   if (input.allocatedUnits > Number(resource.plannedUnits)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN" });
   await db.transaction(async tx => { await tx.update(projectResources).set({ allocatedUnits: String(input.allocatedUnits) }).where(and(eq(projectResources.id, input.resourceId), eq(projectResources.tenantId, input.tenantId), eq(projectResources.projectId, input.projectId))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_allocation_updated", entityType: "project_resource", entityId: input.resourceId, metadata: JSON.stringify({ projectId: input.projectId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits }) }); });
   return { id: input.resourceId, previousAllocatedUnits: Number(resource.allocatedUnits), allocatedUnits: input.allocatedUnits };
+}
+
+async function assertHrRecordAccess(input: { userId: number; tenantId: string; permission: "project.hr.manage" | "project.hr.sensitive.read" }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.permission, scope: { type: "company" } });
+}
+
+export async function getEmployeesForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  return db.select({ id: employees.id, employeeNumber: employees.employeeNumber, fullName: employees.fullName, jobTitle: employees.jobTitle, department: employees.department, hireDate: employees.hireDate, employmentStatus: employees.employmentStatus, nationality: employees.nationality, linkedUserId: employees.linkedUserId, retentionPolicy: employees.retentionPolicy, archivedAt: employees.archivedAt, createdAt: employees.createdAt }).from(employees).where(eq(employees.tenantId, input.tenantId)).orderBy(desc(employees.createdAt));
+}
+
+export async function getEmployeeIdentityForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.sensitive.read" });
+  const [employee] = await db.select({ id: employees.id, identityDocumentType: employees.identityDocumentType, identityReference: employees.identityReference }).from(employees).where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employee_identity_viewed", entityType: "employee", entityId: employee.id, metadata: JSON.stringify({ fields: ["identityDocumentType", "identityReference"] }) });
+  return employee;
+}
+
+export async function createEmployeeForTenant(input: { userId: number; tenantId: string; employeeNumber: string; fullName: string; jobTitle: string; department: string; hireDate: Date; nationality?: string; identityDocumentType?: string; identityReference?: string; linkedUserId?: number; retentionPolicy: "standard" | "extended" | "legal_hold" }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  const [numberExists] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.employeeNumber, input.employeeNumber))).limit(1);
+  if (numberExists) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_EMPLOYEE_NUMBER_EXISTS" });
+  if (input.linkedUserId) {
+    const [linkedMembership] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.linkedUserId))).limit(1);
+    if (!linkedMembership) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYEE_LINKED_USER_INVALID" });
+    const [linkedExists] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.linkedUserId))).limit(1);
+    if (linkedExists) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_EMPLOYEE_LINKED_USER_EXISTS" });
+  }
+  const employeeId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(employees).values({ id: employeeId, tenantId: input.tenantId, employeeNumber: input.employeeNumber, fullName: input.fullName, jobTitle: input.jobTitle, department: input.department, hireDate: input.hireDate, nationality: input.nationality, identityDocumentType: input.identityDocumentType, identityReference: input.identityReference, linkedUserId: input.linkedUserId, retentionPolicy: input.retentionPolicy, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employee_created", entityType: "employee", entityId: employeeId, metadata: JSON.stringify({ employeeNumber: input.employeeNumber, linkedUser: Boolean(input.linkedUserId), identityProvided: Boolean(input.identityReference) }) });
+  });
+  return { id: employeeId };
+}
+
+export async function archiveEmployeeForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  const [employee] = await db.select({ id: employees.id, employmentStatus: employees.employmentStatus }).from(employees).where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  if (employee.employmentStatus === "terminated") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_EMPLOYEE_ALREADY_ARCHIVED" });
+  const archivedAt = new Date();
+  await db.transaction(async tx => {
+    await tx.update(employees).set({ employmentStatus: "terminated", archivedAt }).where(eq(employees.id, employee.id));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employee_archived", entityType: "employee", entityId: employee.id, metadata: JSON.stringify({ previousStatus: employee.employmentStatus, archivedAt: archivedAt.toISOString() }) });
+  });
+  return { id: employee.id, employmentStatus: "terminated" as const, archivedAt };
+}
+
+export async function getEmploymentContractsForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  const [employee] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  return db.select({ id: employmentContracts.id, contractType: employmentContracts.contractType, startDate: employmentContracts.startDate, endDate: employmentContracts.endDate, probationEndDate: employmentContracts.probationEndDate, renewalOfContractId: employmentContracts.renewalOfContractId, status: employmentContracts.status, terminationReason: employmentContracts.terminationReason, retentionPolicy: employmentContracts.retentionPolicy, createdAt: employmentContracts.createdAt }).from(employmentContracts).where(and(eq(employmentContracts.tenantId, input.tenantId), eq(employmentContracts.employeeId, input.employeeId))).orderBy(desc(employmentContracts.createdAt));
+}
+
+export async function createEmploymentContractForTenant(input: { userId: number; tenantId: string; employeeId: string; contractType: "permanent" | "fixed_term" | "temporary" | "consulting"; startDate: Date; endDate?: Date; probationEndDate?: Date; renewalOfContractId?: string; retentionPolicy: "standard" | "extended" | "legal_hold" }) {
+  if (input.endDate && input.endDate < input.startDate) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID" });
+  if (input.probationEndDate && input.probationEndDate < input.startDate) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID" });
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  const [employee] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  if (input.renewalOfContractId) {
+    const [priorContract] = await db.select({ id: employmentContracts.id }).from(employmentContracts).where(and(eq(employmentContracts.id, input.renewalOfContractId), eq(employmentContracts.tenantId, input.tenantId), eq(employmentContracts.employeeId, input.employeeId))).limit(1);
+    if (!priorContract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYMENT_CONTRACT_NOT_FOUND" });
+  }
+  const contractId = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(employmentContracts).values({ id: contractId, tenantId: input.tenantId, employeeId: input.employeeId, contractType: input.contractType, startDate: input.startDate, endDate: input.endDate, probationEndDate: input.probationEndDate, renewalOfContractId: input.renewalOfContractId, retentionPolicy: input.retentionPolicy, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employment_contract_created", entityType: "employment_contract", entityId: contractId, metadata: JSON.stringify({ employeeId: input.employeeId, contractType: input.contractType, renewalOfContractId: input.renewalOfContractId ?? null }) });
+  });
+  return { id: contractId };
 }
 
 export async function getMaterialCatalogForTenant(input: { userId: number; tenantId: string; projectId: string }) {

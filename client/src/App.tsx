@@ -15,10 +15,11 @@ import AcceptInvitation from "./pages/AcceptInvitation";
 import LicensingConsole from "./pages/LicensingConsole";
 import BillingRegister from "./pages/BillingRegister";
 import SupportCenter from "./pages/SupportCenter";
+import EmployeeRegistry from "./pages/EmployeeRegistry";
 import { Route, Switch } from "wouter";
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/evm" component={EvmCalculator} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ExecutiveDashboard} /><Route path="/pmo/:tenantId" component={PmoDashboard} /><Route path="/licensing/:tenantId" component={LicensingConsole} /><Route path="/billing/:tenantId" component={BillingRegister} /><Route path="/support/:tenantId" component={SupportCenter} /><Route path="/tenants/:tenantId/administration" component={TenantAdministration} /><Route path="/projects/:tenantId/:projectId/controls" component={ProjectControls} /><Route path="/projects/:tenantId" component={ProjectRegistry} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/evm" component={EvmCalculator} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ExecutiveDashboard} /><Route path="/pmo/:tenantId" component={PmoDashboard} /><Route path="/licensing/:tenantId" component={LicensingConsole} /><Route path="/billing/:tenantId" component={BillingRegister} /><Route path="/support/:tenantId" component={SupportCenter} /><Route path="/people/:tenantId" component={EmployeeRegistry} /><Route path="/tenants/:tenantId/administration" component={TenantAdministration} /><Route path="/projects/:tenantId/:projectId/controls" component={ProjectControls} /><Route path="/projects/:tenantId" component={ProjectRegistry} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {

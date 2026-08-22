@@ -80,6 +80,34 @@ export const projectErrorMessages = {
     ar: "لا يمكن جمع هذين الدورين المتعارضين للمستخدم نفسه ضمن نطاق متداخل.",
     en: "The same user cannot hold these conflicting roles in overlapping scopes.",
   },
+  PROJECT_OS_EMPLOYEE_NOT_FOUND: {
+    ar: "بطاقة الموظف المحددة غير متاحة ضمن مساحة العمل الحالية.",
+    en: "The selected employee record is unavailable in the current workspace.",
+  },
+  PROJECT_OS_EMPLOYEE_NUMBER_EXISTS: {
+    ar: "الرقم الوظيفي مستخدم بالفعل ضمن مساحة العمل هذه.",
+    en: "This employee number is already in use in this workspace.",
+  },
+  PROJECT_OS_EMPLOYEE_LINKED_USER_INVALID: {
+    ar: "يمكن ربط بطاقة الموظف بحساب عضو في مساحة العمل فقط.",
+    en: "An employee record can only be linked to a workspace member account.",
+  },
+  PROJECT_OS_EMPLOYEE_LINKED_USER_EXISTS: {
+    ar: "الحساب المحدد مرتبط بالفعل ببطاقة موظف ضمن مساحة العمل.",
+    en: "The selected account is already linked to an employee record in this workspace.",
+  },
+  PROJECT_OS_EMPLOYEE_ALREADY_ARCHIVED: {
+    ar: "بطاقة الموظف مؤرشفة بالفعل ولا يمكن إنهاء خدمتها مرة أخرى.",
+    en: "This employee record is already archived and cannot be terminated again.",
+  },
+  PROJECT_OS_EMPLOYMENT_CONTRACT_NOT_FOUND: {
+    ar: "عقد العمل المحدد غير متاح لهذه البطاقة ضمن مساحة العمل.",
+    en: "The selected employment contract is unavailable for this employee in the workspace.",
+  },
+  PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID: {
+    ar: "لا يمكن أن يسبق تاريخ نهاية العقد أو نهاية التجربة تاريخ بداية العقد.",
+    en: "A contract or probation end date cannot be earlier than the contract start date.",
+  },
   PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND: {
     ar: "إسناد الدور المحدد غير متاح ضمن هذه المؤسسة.",
     en: "The selected role assignment is not available in this organization.",

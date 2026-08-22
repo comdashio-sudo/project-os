@@ -253,6 +253,13 @@
       "when": 1787336208303,
       "tag": "0035_faulty_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1787345346585,
+      "tag": "0036_abandoned_shiva",
+      "breakpoints": true
     }
   ]
 }
