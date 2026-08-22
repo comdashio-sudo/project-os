@@ -4,6 +4,12 @@ export type GovernedSupportReply = {
   shouldEscalate: boolean;
 };
 
+const mandatoryEscalationPattern = /\b(price|pricing|quote|refund|compensation|reimburse(?:ment)?|repair\s*(?:date|time|timeline)|fix\s*(?:date|time|timeline)|service\s*level|sla|contract(?:ual)?\s*(?:promise|commitment)|guarantee)\b|(?:سعر|تسعير|عرض\s*سعر|استرداد|تعويض|موعد\s*(?:إصلاح|حل)|تاريخ\s*(?:إصلاح|حل)|مستوى\s*الخدمة|اتفاقية\s*مستوى\s*الخدمة|التزام\s*(?:تعاقدي|بالعقد)|ضمان)/i;
+
+export function requiresMandatoryHumanEscalation(text: string) {
+  return mandatoryEscalationPattern.test(text);
+}
+
 export function validateKnowledgeBackedSupportReply(value: unknown, allowedArticleIds: ReadonlySet<string>): GovernedSupportReply | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as { reply?: unknown; citations?: unknown; shouldEscalate?: unknown };

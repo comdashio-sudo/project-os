@@ -108,7 +108,7 @@ import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
-import { validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
+import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -904,12 +904,12 @@ function normalizeSupportTags(tags: string[] | undefined, automatic: string[] = 
 
 async function generateSupportReply(input: { db: NonNullable<Awaited<ReturnType<typeof getDb>>>; tenantId: string; ticketId: string; requestBody: string }) {
   const articles = await input.db.select({ id: knowledgeArticles.id, title: knowledgeArticles.title, content: knowledgeArticles.content }).from(knowledgeArticles).where(and(eq(knowledgeArticles.tenantId, input.tenantId), eq(knowledgeArticles.status, "published"))).limit(5);
-  const articleIds = new Set(articles.map(article => article.id)); let body = "A support specialist will review this request."; let citations: string[] = []; let shouldEscalate = true;
-  if (articles.length > 0 && process.env.VITEST !== "true") {
+  const articleIds = new Set(articles.map(article => article.id)); const mandatoryEscalation = requiresMandatoryHumanEscalation(input.requestBody); let body = "A support specialist will review this request."; let citations: string[] = []; let shouldEscalate = true;
+  if (!mandatoryEscalation && articles.length > 0 && process.env.VITEST !== "true") {
     try {
       const response = await invokeLLM({ model: "gpt-5-mini", maxTokens: 450, messages: [{ role: "system", content: "You are a governed support assistant. Answer only from supplied knowledge articles. Do not add facts, policies, prices, legal claims, or instructions outside them. If they do not fully answer, set shouldEscalate=true. Reply in the request language. Cite only supplied article IDs." }, { role: "user", content: JSON.stringify({ request: input.requestBody.slice(0, 4000), articles: articles.map(article => ({ id: article.id, title: article.title, content: article.content.slice(0, 3000) })) }) }], outputSchema: { name: "support_reply", strict: true, schema: { type: "object", properties: { reply: { type: "string" }, citations: { type: "array", items: { type: "string" } }, shouldEscalate: { type: "boolean" } }, required: ["reply", "citations", "shouldEscalate"], additionalProperties: false } } });
       const raw = response.choices[0]?.message.content; const parsed = typeof raw === "string" ? validateKnowledgeBackedSupportReply(JSON.parse(raw), articleIds) : null;
-      if (parsed) { body = parsed.reply; citations = parsed.citations; shouldEscalate = parsed.shouldEscalate; }
+      if (parsed && !requiresMandatoryHumanEscalation(parsed.reply)) { body = parsed.reply; citations = parsed.citations; shouldEscalate = parsed.shouldEscalate; }
     } catch { /* A conservative fallback below preserves escalation when inference is unavailable. */ }
   }
   await input.db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: null, senderType: "assistant", body, citationsJson: JSON.stringify(citations) }); if (shouldEscalate) await tx.update(supportTickets).set({ escalationStatus: "requested" }).where(eq(supportTickets.id, input.ticketId)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: null, action: "support.auto_response_generated", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ sourceArticleIds: citations, sourceCandidateCount: articles.length, escalated: shouldEscalate }) }); });

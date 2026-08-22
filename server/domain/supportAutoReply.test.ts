@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateKnowledgeBackedSupportReply } from "./supportAutoReply";
+import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./supportAutoReply";
 
 describe("validateKnowledgeBackedSupportReply", () => {
   const allowed = new Set(["article-a", "article-b"]);
@@ -14,5 +14,11 @@ describe("validateKnowledgeBackedSupportReply", () => {
 
   it("accepts an explicit escalation when the cited source is within the allowed set", () => {
     expect(validateKnowledgeBackedSupportReply({ reply: "A specialist should review this case.", citations: ["article-b"], shouldEscalate: true }, allowed)).toMatchObject({ shouldEscalate: true, citations: ["article-b"] });
+  });
+
+  it("requires human escalation for commercial, commitment, and repair-time requests in both supported languages", () => {
+    expect(requiresMandatoryHumanEscalation("Can you quote a price and guarantee a repair date?")).toBe(true);
+    expect(requiresMandatoryHumanEscalation("هل يمكن عرض سعر أو تحديد موعد إصلاح؟")).toBe(true);
+    expect(requiresMandatoryHumanEscalation("How do I assign an approved tenant role?")).toBe(false);
   });
 });
