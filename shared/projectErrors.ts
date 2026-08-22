@@ -480,6 +480,42 @@ export const projectErrorMessages = {
     ar: "انتقال حالة طلب التوريد المحدد غير مسموح من حالته الحالية.",
     en: "The requested procurement requisition transition is not allowed from its current status.",
   },
+  PROJECT_OS_REQUISITION_ISSUE_INVALID: {
+    ar: "يجب أن يكون صرف طلب المواد بحركة صرف سالبة فقط.",
+    en: "A material request can only be linked to a negative issue movement.",
+  },
+  PROJECT_OS_REQUISITION_MATERIAL_MISMATCH: {
+    ar: "المادة المصروفة لا تطابق مادة طلب المواد المحدد.",
+    en: "The issued material does not match the selected material request.",
+  },
+  PROJECT_OS_REQUISITION_NOT_ISSUABLE: {
+    ar: "لا يمكن صرف هذا الطلب قبل اعتماده أو بعد إغلاقه.",
+    en: "This request cannot be issued before approval or after closure.",
+  },
+  PROJECT_OS_REQUISITION_ISSUE_EXCEEDS_REQUEST: {
+    ar: "كمية الصرف تتجاوز الكمية المطلوبة في طلب المواد.",
+    en: "The issue quantity exceeds the quantity requested.",
+  },
+  PROJECT_OS_REQUISITION_CLOSURE_NOT_FULFILLED: {
+    ar: "لا يمكن إغلاق طلب المواد قبل صرف كامل كميته المطلوبة.",
+    en: "A material request cannot be closed until its full requested quantity is issued.",
+  },
+  PROJECT_OS_REQUISITION_UNIT_MISMATCH: {
+    ar: "وحدة قياس الطلب لا تطابق وحدة المادة المعتمدة.",
+    en: "The request unit of measure does not match the approved material unit.",
+  },
+  PROJECT_OS_REQUISITION_PURCHASE_ORDER_LINK_INVALID: {
+    ar: "لا يمكن ربط أمر شراء إلا بطلب مواد معتمد غير مصروف.",
+    en: "A purchase order can only be linked to an approved, unissued material request.",
+  },
+  PROJECT_OS_REQUISITION_PURCHASE_ORDER_ALREADY_LINKED: {
+    ar: "هذا الطلب مرتبط بالفعل بأمر شراء ولا يمكن ربطه مرة أخرى.",
+    en: "This request is already linked to a purchase order and cannot be linked again.",
+  },
+  PROJECT_OS_PURCHASE_ORDER_NOT_LINKABLE: {
+    ar: "أمر الشراء المحدد ليس في حالة تسمح بربطه بطلب المواد.",
+    en: "The selected purchase order is not in a state that allows linking to a material request.",
+  },
   PROJECT_OS_CLAIM_NOT_FOUND: {
     ar: "المطالبة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected claim is not available in the current project and workspace.",

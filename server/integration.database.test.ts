@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import { readFile } from "node:fs/promises";
 import * as XLSX from "xlsx";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
@@ -60,10 +61,17 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("CREATE TABLE IF NOT EXISTS material_masters (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `code` varchar(120) NOT NULL, `description` varchar(255) NOT NULL, `unitOfMeasure` varchar(40) NOT NULL, `category` varchar(120) NOT NULL, `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `material_masters_tenant_code_unique` (`tenantId`,`code`), KEY `material_masters_tenant_category_active_idx` (`tenantId`,`category`,`active`))");
     await connection.query("CREATE TABLE IF NOT EXISTS suppliers (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `code` varchar(80) NOT NULL, `legalName` varchar(240) NOT NULL, `contactName` varchar(160), `contactEmail` varchar(254), `contactPhone` varchar(60), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `suppliers_tenant_code_unique` (`tenantId`,`code`))");
     await connection.query("CREATE TABLE IF NOT EXISTS procurement_requisitions (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `requisitionNumber` varchar(120) NOT NULL, `supplierId` varchar(36), `materialId` varchar(36), `description` text NOT NULL, `requestedQuantity` decimal(18,3) NOT NULL, `unitOfMeasure` varchar(40) NOT NULL, `requiredAt` timestamp NOT NULL, `status` enum('draft','submitted','approved','rejected','cancelled') NOT NULL DEFAULT 'draft', `reviewedAt` timestamp, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `procurement_requisitions_project_number_unique` (`projectId`,`requisitionNumber`))");
+    await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS wbsItemId varchar(36)");
+    await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS activityId varchar(36)");
+    await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS purchaseOrderId varchar(36)");
+    await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS purchaseOrderLinkedAt timestamp");
+    await connection.query("ALTER TABLE procurement_requisitions ADD COLUMN IF NOT EXISTS purchaseOrderLinkedByUserId int");
+    await connection.query("ALTER TABLE procurement_requisitions MODIFY COLUMN status enum('draft','submitted','approved','partially_issued','closed','rejected','cancelled') NOT NULL DEFAULT 'draft'");
     await connection.query("CREATE TABLE IF NOT EXISTS project_material_overrides (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `projectDescription` varchar(255), `referenceSpecification` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_material_overrides_project_material_unique` (`projectId`,`materialId`), KEY `project_material_overrides_tenant_project_idx` (`tenantId`,`projectId`,`materialId`))");
     await connection.query("CREATE TABLE IF NOT EXISTS project_warehouses (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `code` varchar(80) NOT NULL, `name` varchar(160) NOT NULL, `locationDescription` varchar(255), `active` boolean NOT NULL DEFAULT true, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `project_warehouses_project_code_unique` (`projectId`,`code`))");
     await connection.query("CREATE TABLE IF NOT EXISTS warehouse_stock_balances (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `warehouseId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `quantityOnHand` decimal(18,3) NOT NULL DEFAULT '0.000', `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `warehouse_stock_balances_warehouse_material_unique` (`warehouseId`,`materialId`))");
     await connection.query("CREATE TABLE IF NOT EXISTS warehouse_inventory_transactions (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `warehouseId` varchar(36) NOT NULL, `materialId` varchar(36) NOT NULL, `transactionType` enum('receipt','issue','adjustment') NOT NULL, `quantityDelta` decimal(18,3) NOT NULL, `referenceNumber` varchar(120), `note` varchar(500), `occurredAt` timestamp NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`))");
+    await connection.query("ALTER TABLE warehouse_inventory_transactions ADD COLUMN IF NOT EXISTS requisitionId varchar(36)");
     await connection.query("DELETE FROM warehouse_inventory_transactions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM warehouse_stock_balances WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM project_warehouses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -301,6 +309,28 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user','integration-accountant-user')");
     await connection?.end();
   });
+
+  it("applies migration 0042 once to an isolated requisition-table copy", async () => {
+    const migration = await readFile(`${process.cwd()}/drizzle/0042_late_hawkeye.sql`, "utf8");
+    const statements = migration.split("--> statement-breakpoint").map(statement => statement.trim()).filter(Boolean);
+    expect(statements).toHaveLength(6);
+    expect(statements.filter(statement => statement.includes("ADD `purchaseOrderId`"))).toHaveLength(1);
+    const probeTable = "procurement_requisitions_0042_probe";
+    await connection.query(`DROP TABLE IF EXISTS \`${probeTable}\``);
+    try {
+      await connection.query(`CREATE TABLE \`${probeTable}\` (\`id\` varchar(36) NOT NULL, PRIMARY KEY (\`id\`))`);
+      for (const statement of statements) {
+        const isolatedStatement = statement.replaceAll("`procurement_requisitions`", `\`${probeTable}\``).replace("`prq_purchase_order_fk`", "`prq42_purchase_order_fk`").replace("`prq_po_linker_fk`", "`prq42_po_linker_fk`").replace("`procurement_requisitions_purchase_order_idx`", "`prq42_purchase_order_idx`");
+        await connection.query(isolatedStatement);
+      }
+      const [columns] = await connection.query<{ Field: string }[]>(`SHOW COLUMNS FROM \`${probeTable}\``);
+      const [indexes] = await connection.query<{ Key_name: string }[]>(`SHOW INDEX FROM \`${probeTable}\``);
+      expect(columns.map(column => column.Field)).toEqual(expect.arrayContaining(["purchaseOrderId", "purchaseOrderLinkedAt", "purchaseOrderLinkedByUserId"]));
+      expect(indexes.map(index => index.Key_name)).toContain("prq42_purchase_order_idx");
+    } finally {
+      await connection.query(`DROP TABLE IF EXISTS \`${probeTable}\``);
+    }
+  }, 12_000);
 
   it("connects exclusively to the dedicated PROJECT OS integration database", async () => {
     const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
@@ -1121,18 +1151,63 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ balance: "6.000", movements: 2, audits: 2 });
   }, 12_000);
 
-  it("rejects a foreign procurement requisition and governs supplier-backed approval with audit evidence", async () => {
+  it("governs site material requests through WBS/activity scope, partial issue, closure, and audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context);
     const material = await caller.materials.createMaster({ tenantId: tenantA, code: "MAT-PRQ-TRPC", description: "Procurement concrete", unitOfMeasure: "m3", category: "Concrete" });
     const supplier = await caller.procurement.createSupplier({ tenantId: tenantA, code: "SUP-TRPC", legalName: "Integration Supply Company", contactEmail: "supply@example.test" });
-    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectB, requisitionNumber: "PR-BLOCKED", supplierId: supplier.id, materialId: material.id, description: "Blocked foreign request", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
-    const requisition = await caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-TRPC", supplierId: supplier.id, materialId: material.id, description: "Procure structural concrete", requestedQuantity: 12, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") });
+    const wbs = await caller.wbs.create({ tenantId: tenantA, projectId: projectA, code: "WBS-PRQ-TRPC", name: "Procurement work package", plannedValue: 12_000 });
+    const activity = await caller.activities.create({ tenantId: tenantA, projectId: projectA, wbsItemId: wbs.id, code: "ACT-PRQ-TRPC", name: "Concrete placement", plannedValue: 12_000, plannedStartAt: new Date("2026-08-20T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-30T00:00:00.000Z") });
+    const foreignWbsId = "71717171-7171-4717-8717-717171717171";
+    const foreignPurchaseOrderId = "71717171-7171-4717-8717-717171717172";
+    await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES (?, ?, ?, 'WBS-PRQ-FOREIGN', 'Foreign work package', 1)", [foreignWbsId, tenantB, projectB]);
+    await connection.query("INSERT INTO purchase_orders (id, tenantId, projectId, purchaseOrderNumber, supplierName, orderDate, amount, currency, summary, status, createdByUserId) VALUES (?, ?, ?, 'PO-PRQ-FOREIGN', 'Foreign supplier', ?, 99, 'SAR', 'Foreign purchase order must not be linkable', 'approved', ?)", [foreignPurchaseOrderId, tenantB, projectB, new Date("2026-08-20T00:00:00.000Z"), integrationUserId]);
+    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectB, requisitionNumber: "PR-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Blocked foreign request", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-WBS-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: foreignWbsId, description: "Blocked foreign work package", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_WBS_NOT_FOUND");
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-NO-LICENSE", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Must not write without product entitlement", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    const requisition = await caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-TRPC", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Procure structural concrete", requestedQuantity: 12, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "submitted" })).resolves.toMatchObject({ status: "submitted" });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "approved" })).resolves.toMatchObject({ status: "approved" });
-    await expect(caller.procurement.register({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ suppliers: expect.arrayContaining([expect.objectContaining({ id: supplier.id })]), requisitions: expect.arrayContaining([expect.objectContaining({ id: requisition.id, status: "approved", supplier: expect.objectContaining({ id: supplier.id }), material: expect.objectContaining({ id: material.id }) })]) });
-    const [rows] = await connection.query<{ suppliers: number; requisitions: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM suppliers WHERE id = ? AND tenantId = ?) AS suppliers, (SELECT COUNT(*) FROM procurement_requisitions WHERE id = ? AND projectId = ? AND status = 'approved') AS requisitions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?) AND action IN ('procurement.supplier_created','procurement.requisition_created','procurement.requisition_transitioned')) AS audits", [supplier.id, tenantA, requisition.id, projectA, tenantA, supplier.id, requisition.id]);
-    expect(rows[0]).toMatchObject({ suppliers: 1, requisitions: 1, audits: 4 });
+    const purchaseOrder = await caller.purchaseOrders.create({ tenantId: tenantA, projectId: projectA, purchaseOrderNumber: "PO-PRQ-TRPC", supplierName: "Integration Supply Company", orderDate: new Date("2026-08-20T00:00:00.000Z"), amount: 1_200, currency: "SAR", summary: "Existing purchase order for approved material request" });
+    await caller.purchaseOrders.transitionStatus({ tenantId: tenantA, projectId: projectA, purchaseOrderId: purchaseOrder.id, nextStatus: "submitted" });
+    await caller.purchaseOrders.transitionStatus({ tenantId: tenantA, projectId: projectA, purchaseOrderId: purchaseOrder.id, nextStatus: "approved" });
+    await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: foreignPurchaseOrderId })).rejects.toThrow("PROJECT_OS_PURCHASE_ORDER_NOT_FOUND");
+    const [beforeLink] = await connection.query<{ purchaseOrders: number; purchaseOrderAmount: string; commitments: number; actualCosts: number }[]>("SELECT (SELECT COUNT(*) FROM purchase_orders WHERE projectId = ?) AS purchaseOrders, (SELECT amount FROM purchase_orders WHERE id = ?) AS purchaseOrderAmount, (SELECT COUNT(*) FROM commitments WHERE projectId = ?) AS commitments, (SELECT COUNT(*) FROM cost_entries WHERE projectId = ?) AS actualCosts", [projectA, purchaseOrder.id, projectA, projectA]);
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id })).resolves.toMatchObject({ requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id });
+    await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id })).rejects.toThrow("PROJECT_OS_REQUISITION_PURCHASE_ORDER_ALREADY_LINKED");
+    const [afterLink] = await connection.query<{ purchaseOrders: number; purchaseOrderAmount: string; commitments: number; actualCosts: number }[]>("SELECT (SELECT COUNT(*) FROM purchase_orders WHERE projectId = ?) AS purchaseOrders, (SELECT amount FROM purchase_orders WHERE id = ?) AS purchaseOrderAmount, (SELECT COUNT(*) FROM commitments WHERE projectId = ?) AS commitments, (SELECT COUNT(*) FROM cost_entries WHERE projectId = ?) AS actualCosts", [projectA, purchaseOrder.id, projectA, projectA]);
+    expect(afterLink[0]).toEqual(beforeLink[0]);
+    const warehouse = await caller.warehouses.create({ tenantId: tenantA, projectId: projectA, code: "WH-PRQ-TRPC", name: "Material request store" });
+    await caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, transactionType: "receipt", quantityDelta: 12, occurredAt: new Date("2026-08-21T00:00:00.000Z") });
+    await expect(caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, requisitionId: requisition.id, transactionType: "issue", quantityDelta: -5, occurredAt: new Date("2026-08-21T01:00:00.000Z") })).resolves.toMatchObject({ requisitionStatus: "partially_issued", issuedQuantity: 5 });
+    await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "closed" })).rejects.toThrow("PROJECT_OS_REQUISITION_CLOSURE_NOT_FULFILLED");
+    await expect(caller.warehouses.recordInventory({ tenantId: tenantA, projectId: projectA, warehouseId: warehouse.id, materialId: material.id, requisitionId: requisition.id, transactionType: "issue", quantityDelta: -7, occurredAt: new Date("2026-08-21T02:00:00.000Z") })).resolves.toMatchObject({ requisitionStatus: "closed", issuedQuantity: 12 });
+    await expect(caller.procurement.register({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ suppliers: expect.arrayContaining([expect.objectContaining({ id: supplier.id })]), requisitions: expect.arrayContaining([expect.objectContaining({ id: requisition.id, status: "closed", issuedQuantity: 12, remainingQuantity: 0, purchaseOrder: expect.objectContaining({ id: purchaseOrder.id }), wbs: expect.objectContaining({ id: wbs.id }), activity: expect.objectContaining({ id: activity.id }), material: expect.objectContaining({ id: material.id }) })]) });
+    const [rows] = await connection.query<{ suppliers: number; requisitions: number; issues: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM suppliers WHERE id = ? AND tenantId = ?) AS suppliers, (SELECT COUNT(*) FROM procurement_requisitions WHERE id = ? AND projectId = ? AND status = 'closed' AND purchaseOrderId = ?) AS requisitions, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE requisitionId = ? AND transactionType = 'issue') AS issues, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action IN ('procurement.requisition_created','procurement.requisition_transitioned','procurement.requisition_purchase_order_linked','procurement.requisition_issued')) AS audits", [supplier.id, tenantA, requisition.id, projectA, purchaseOrder.id, requisition.id, tenantA, requisition.id]);
+    expect(rows[0]).toMatchObject({ suppliers: 1, requisitions: 1, issues: 2, audits: 6 });
+    await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?)", [supplier.id, requisition.id, wbs.id, activity.id, purchaseOrder.id]);
+    await connection.query("DELETE FROM warehouse_inventory_transactions WHERE requisitionId = ? OR warehouseId = ?", [requisition.id, warehouse.id]);
+    await connection.query("DELETE FROM warehouse_stock_balances WHERE warehouseId = ?", [warehouse.id]);
+    await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouse.id]);
+    await connection.query("DELETE FROM procurement_requisitions WHERE id = ?", [requisition.id]);
+    await connection.query("DELETE FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
+    await connection.query("DELETE FROM purchase_orders WHERE id = ?", [foreignPurchaseOrderId]);
+    await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]);
+    await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
+    await connection.query("DELETE FROM wbs_items WHERE id = ?", [foreignWbsId]);
+    await connection.query("DELETE FROM suppliers WHERE id = ?", [supplier.id]);
+    await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
   }, 12_000);
 
   it("applies the upsert policy, persists per-row results, and rejects foreign import-result reads", async () => {
