@@ -98,6 +98,12 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("CREATE TABLE IF NOT EXISTS payroll_runs (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `periodStart` timestamp NOT NULL, `periodEnd` timestamp NOT NULL, `status` enum('draft','review','approved','paid') NOT NULL DEFAULT 'draft', `createdByUserId` int NOT NULL, `reviewedByUserId` int, `approvedByUserId` int, `approvedAt` timestamp, `paidAt` timestamp, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `payroll_runs_tenant_period_unique` (`tenantId`,`periodStart`,`periodEnd`))");
     await connection.query("CREATE TABLE IF NOT EXISTS payroll_entries (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `payrollRunId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `salaryStructureId` varchar(36) NOT NULL, `baseSalary` decimal(18,2) NOT NULL, `housingAllowance` decimal(18,2) NOT NULL, `transportAllowance` decimal(18,2) NOT NULL, `hardshipAllowance` decimal(18,2) NOT NULL, `gosiDeduction` decimal(18,2) NOT NULL, `otherDeductions` decimal(18,2) NOT NULL, `eosMonthlyAccrual` decimal(18,2) NOT NULL, `currency` varchar(3) NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `payroll_entries_run_employee_unique` (`payrollRunId`,`employeeId`))");
     await connection.query("CREATE TABLE IF NOT EXISTS payroll_allocations (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `payrollEntryId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `wbsItemId` varchar(36), `activityId` varchar(36), `amount` decimal(18,2) NOT NULL, `costEntryId` varchar(36), `createdAt` timestamp NOT NULL DEFAULT (now()), PRIMARY KEY (`id`), UNIQUE KEY `payroll_allocations_cost_entry_unique` (`costEntryId`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS employee_assignments (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `projectResourceId` varchar(36) NOT NULL, `wbsItemId` varchar(36), `activityId` varchar(36), `plannedStartAt` timestamp NOT NULL, `plannedFinishAt` timestamp NOT NULL, `plannedHours` decimal(12,2) NOT NULL, `status` enum('planned','active','closed','cancelled') NOT NULL DEFAULT 'planned', `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `employee_assignments_tenant_project_idx` (`tenantId`,`projectId`,`status`), KEY `employee_assignments_employee_window_idx` (`tenantId`,`employeeId`,`plannedStartAt`,`plannedFinishAt`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS employee_attendance (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `attendanceDate` timestamp NOT NULL, `attendanceStatus` enum('present','absent','leave','secondment') NOT NULL, `status` enum('draft','submitted','approved','rejected') NOT NULL DEFAULT 'draft', `note` varchar(1000), `createdByUserId` int NOT NULL, `reviewedByUserId` int, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `employee_attendance_tenant_day_unique` (`tenantId`,`employeeId`,`attendanceDate`))");
+    await connection.query("CREATE TABLE IF NOT EXISTS employee_time_entries (`id` varchar(36) NOT NULL, `tenantId` varchar(36) NOT NULL, `assignmentId` varchar(36) NOT NULL, `employeeId` varchar(36) NOT NULL, `projectId` varchar(36) NOT NULL, `workDate` timestamp NOT NULL, `actualHours` decimal(8,2) NOT NULL, `reportedProgressPercent` decimal(5,2), `status` enum('draft','submitted','approved','rejected') NOT NULL DEFAULT 'draft', `costEntryId` varchar(36), `progressEntryId` varchar(36), `createdByUserId` int NOT NULL, `reviewedByUserId` int, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `employee_time_entries_assignment_day_unique` (`assignmentId`,`workDate`), UNIQUE KEY `employee_time_entries_cost_entry_unique` (`costEntryId`))");
+    await connection.query("DELETE FROM employee_time_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM employee_attendance WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection.query("DELETE FROM employee_assignments WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM payroll_allocations WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM payroll_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM payroll_runs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -192,6 +198,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-exec-manage', 'tenant.manage', 'Integration executive tenant management', 'EXECUTIVE')");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-hr-manage', 'project.hr.manage', 'Integration HR management', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-hr-sensitive', 'project.hr.sensitive.read', 'Integration HR protected identity', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-project-manage', 'project.manage', 'Integration project management', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+    await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-attendance-manage', 'project.attendance.manage', 'Integration attendance management', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-structure', 'project.payroll.structure', 'Integration payroll structure', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-run', 'project.payroll.run', 'Integration payroll run', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('int-perm-payroll-sensitive', 'project.payroll.sensitive.read', 'Integration protected payroll reading', 'PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
@@ -206,6 +214,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-a', 'int-perm-read')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.hr.manage'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.hr.sensitive.read'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.manage'");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.attendance.manage'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.payroll.structure'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-a', id FROM permissions WHERE code = 'project.payroll.sensitive.read'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-finance', id FROM permissions WHERE code = 'project.payroll.approve'");
@@ -245,6 +255,9 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM payroll_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM payroll_runs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM salary_structures WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM employee_time_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM employee_attendance WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
+    await connection?.query("DELETE FROM employee_assignments WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
     await connection?.query("DELETE FROM employment_contracts WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM employees WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -1456,6 +1469,58 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.employees.archive({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: employee.id, employmentStatus: "terminated" });
     const [rows] = await connection.query<{ contracts: number; archived: string; auditActions: number; identityAudit: number }[]>("SELECT (SELECT COUNT(*) FROM employment_contracts WHERE id = ?) AS contracts, (SELECT employmentStatus FROM employees WHERE id = ?) AS archived, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?)) AS auditActions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'hr.employee_identity_viewed' AND entityId = ?) AS identityAudit", [contract.id, employee.id, tenantA, employee.id, contract.id, tenantA, employee.id]);
     expect(rows[0]).toMatchObject({ contracts: 1, archived: "terminated", auditActions: 4, identityAudit: 1 });
+  }, 30000);
+
+  it("governs employee assignments, attendance, capacity warnings, and approved time into cost and progress", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const employee = await caller.employees.create({ tenantId: tenantA, employeeNumber: "EMP-ASSIGN-01", fullName: "Assignment Employee", jobTitle: "Site Engineer", department: "Delivery", hireDate: new Date("2026-09-01T00:00:00.000Z"), retentionPolicy: "standard" });
+    const resource = await caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "ASSIGN-LABOR", name: "Assigned labor", resourceType: "labor", plannedUnits: 100, allocatedUnits: 0, unitCost: 150, currency: "SAR" });
+    const wbs = await caller.wbs.create({ tenantId: tenantA, projectId: projectA, code: "ASSIGN-WBS", name: "Assignment work", plannedValue: 20_000 });
+    const activity = await caller.activities.create({ tenantId: tenantA, projectId: projectA, wbsItemId: wbs.id, code: "ASSIGN-ACT", name: "Assignment activity", plannedValue: 20_000, plannedStartAt: new Date("2026-09-06T00:00:00.000Z"), plannedFinishAt: new Date("2026-09-10T23:59:59.000Z") });
+    const assignmentInput = { employeeId: employee.id, projectResourceId: resource.id, wbsItemId: wbs.id, activityId: activity.id, plannedStartAt: new Date("2026-09-06T00:00:00.000Z"), plannedFinishAt: new Date("2026-09-10T23:59:59.000Z"), plannedHours: 45 };
+    await expect(caller.assignments.create({ tenantId: tenantA, projectId: projectB, ...assignmentInput })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.assignments.create({ tenantId: tenantB, projectId: projectB, ...assignmentInput })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.assignments.create({ tenantId: tenantA, projectId: projectA, ...assignmentInput })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.employees.attendance.create({ tenantId: tenantA, projectId: projectA, employeeId: employee.id, attendanceDate: new Date("2026-09-07T00:00:00.000Z"), attendanceStatus: "present" })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    const assignment = await caller.assignments.create({ tenantId: tenantA, projectId: projectA, ...assignmentInput });
+    expect(assignment.capacity).toMatchObject({ availableHours: 40, exceedsCapacity: true, warningCode: "PROJECT_OS_EMPLOYEE_CAPACITY_EXCEEDED" });
+    await expect(caller.assignments.options({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ employees: expect.arrayContaining([expect.objectContaining({ id: employee.id })]), resources: expect.arrayContaining([expect.objectContaining({ id: resource.id })]), wbs: expect.arrayContaining([expect.objectContaining({ id: wbs.id })]), activities: expect.arrayContaining([expect.objectContaining({ id: activity.id, wbsItemId: wbs.id })]) });
+    await expect(caller.assignments.list({ tenantId: tenantA, projectId: projectA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: assignment.id, employeeId: employee.id })]));
+    await expect(caller.assignments.timeEntries.create({ tenantId: tenantA, projectId: projectA, assignmentId: assignment.id, workDate: new Date("2026-09-07T00:00:00.000Z"), actualHours: 8, reportedProgressPercent: 20 })).rejects.toThrow("PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED");
+    const attendance = await caller.employees.attendance.create({ tenantId: tenantA, projectId: projectA, employeeId: employee.id, attendanceDate: new Date("2026-09-07T00:00:00.000Z"), attendanceStatus: "present" });
+    await expect(caller.employees.attendance.list({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: attendance.id, attendanceStatus: "present" })]));
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "submitted" })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    await caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "submitted" });
+    await caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "approved" });
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.assignments.timeEntries.create({ tenantId: tenantA, projectId: projectA, assignmentId: assignment.id, workDate: new Date("2026-09-07T00:00:00.000Z"), actualHours: 8, reportedProgressPercent: 20 })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    const time = await caller.assignments.timeEntries.create({ tenantId: tenantA, projectId: projectA, assignmentId: assignment.id, workDate: new Date("2026-09-07T00:00:00.000Z"), actualHours: 8, reportedProgressPercent: 20 });
+    await expect(caller.assignments.timeEntries.list({ tenantId: tenantA, projectId: projectA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: time.id, status: "draft" })]));
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    try {
+      await expect(caller.assignments.timeEntries.transition({ tenantId: tenantA, projectId: projectA, timeEntryId: time.id, status: "submitted" })).rejects.toThrow("PROJECT product is not licensed");
+    } finally {
+      await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
+    }
+    await caller.assignments.timeEntries.transition({ tenantId: tenantA, projectId: projectA, timeEntryId: time.id, status: "submitted" });
+    const approved = await caller.assignments.timeEntries.transition({ tenantId: tenantA, projectId: projectA, timeEntryId: time.id, status: "approved" });
+    const [rows] = await connection.query<{ amount: string; posted: number; progress: number; audits: number }[]>("SELECT (SELECT amount FROM cost_entries WHERE id = ?) AS amount, (SELECT COUNT(*) FROM cost_entries WHERE id = ? AND status = 'posted' AND entryType = 'actual') AS posted, (SELECT COUNT(*) FROM progress_entries WHERE id = ? AND status = 'submitted') AS progress, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?, ?)) AS audits", [approved.costEntryId, approved.costEntryId, approved.progressEntryId, tenantA, assignment.id, attendance.id, time.id]);
+    expect(rows[0]).toMatchObject({ amount: "1200.00", posted: 1, progress: 1, audits: 7 });
   }, 30000);
 
   it("governs payroll by role, protects salary reads, separates approval, and posts allocated labor cost into numeric EVM evidence", async () => {

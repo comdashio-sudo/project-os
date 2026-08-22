@@ -368,6 +368,30 @@ export const projectErrorMessages = {
     ar: "المورد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected resource is not available in the current project and workspace.",
   },
+  PROJECT_OS_ASSIGNMENT_NOT_FOUND: {
+    ar: "الإسناد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected assignment is not available in the current project and workspace.",
+  },
+  PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED: {
+    ar: "يلزم اعتماد حضور الموظف بحالة حاضر في هذا اليوم قبل تسجيل ساعات العمل.",
+    en: "Approved present attendance for this day is required before work hours can be recorded.",
+  },
+  PROJECT_OS_ATTENDANCE_DAY_EXISTS: {
+    ar: "يوجد سجل حضور لهذا الموظف في التاريخ المحدد بالفعل.",
+    en: "An attendance record already exists for this employee on the selected date.",
+  },
+  PROJECT_OS_ATTENDANCE_TRANSITION_INVALID: {
+    ar: "انتقال حالة الحضور المطلوب غير مسموح من حالته الحالية.",
+    en: "The requested attendance transition is not allowed from its current status.",
+  },
+  PROJECT_OS_TIME_ENTRY_DAY_EXISTS: {
+    ar: "يوجد سجل ساعات لهذا الإسناد في التاريخ المحدد بالفعل.",
+    en: "A work-hours entry already exists for this assignment on the selected date.",
+  },
+  PROJECT_OS_TIME_ENTRY_TRANSITION_INVALID: {
+    ar: "انتقال حالة ساعات العمل المطلوب غير مسموح من حالته الحالية.",
+    en: "The requested work-hours transition is not allowed from its current status.",
+  },
   PROJECT_OS_MATERIAL_CODE_EXISTS: {
     ar: "رمز المادة مستخدم بالفعل ضمن مساحة العمل هذه.",
     en: "This material code is already in use in this workspace.",

@@ -194,6 +194,67 @@ export const payrollAllocations = mysqlTable(
   table => [index("payroll_allocations_tenant_project_idx").on(table.tenantId, table.projectId), uniqueIndex("payroll_allocations_cost_entry_unique").on(table.costEntryId)],
 );
 
+export const employeeAssignments = mysqlTable(
+  "employee_assignments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    projectResourceId: varchar("projectResourceId", { length: 36 }).notNull().references(() => projectResources.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
+    plannedStartAt: timestamp("plannedStartAt").notNull(),
+    plannedFinishAt: timestamp("plannedFinishAt").notNull(),
+    plannedHours: decimal("plannedHours", { precision: 12, scale: 2 }).notNull(),
+    status: mysqlEnum("status", ["planned", "active", "closed", "cancelled"]).default("planned").notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("employee_assignments_tenant_project_idx").on(table.tenantId, table.projectId, table.status), index("employee_assignments_employee_window_idx").on(table.tenantId, table.employeeId, table.plannedStartAt, table.plannedFinishAt)],
+);
+
+export const employeeAttendance = mysqlTable(
+  "employee_attendance",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    attendanceDate: timestamp("attendanceDate").notNull(),
+    attendanceStatus: mysqlEnum("attendanceStatus", ["present", "absent", "leave", "secondment"]).notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
+    note: varchar("note", { length: 1000 }),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("employee_attendance_tenant_day_unique").on(table.tenantId, table.employeeId, table.attendanceDate), index("employee_attendance_tenant_status_idx").on(table.tenantId, table.status, table.attendanceDate)],
+);
+
+export const employeeTimeEntries = mysqlTable(
+  "employee_time_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    assignmentId: varchar("assignmentId", { length: 36 }).notNull().references(() => employeeAssignments.id),
+    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    workDate: timestamp("workDate").notNull(),
+    actualHours: decimal("actualHours", { precision: 8, scale: 2 }).notNull(),
+    reportedProgressPercent: decimal("reportedProgressPercent", { precision: 5, scale: 2 }),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
+    costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    progressEntryId: varchar("progressEntryId", { length: 36 }).references(() => progressEntries.id),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("employee_time_entries_assignment_day_unique").on(table.assignmentId, table.workDate), uniqueIndex("employee_time_entries_cost_entry_unique").on(table.costEntryId), index("employee_time_entries_tenant_project_idx").on(table.tenantId, table.projectId, table.status, table.workDate)],
+);
+
 export const membershipInvitations = mysqlTable(
   "membership_invitations",
   {

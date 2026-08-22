@@ -267,6 +267,13 @@
       "when": 1787383654498,
       "tag": "0037_wealthy_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1787387390877,
+      "tag": "0038_common_invisible_woman",
+      "breakpoints": true
     }
   ]
 }
