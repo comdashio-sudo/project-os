@@ -23,7 +23,7 @@ vi.mock("@/lib/trpc", () => {
       pmoIssues: { useQuery: () => ({ isLoading: false, error: null, data: { issues: [] } }) },
       pmoActions: { useQuery: () => ({ isLoading: false, error: null, data: { actions: [] } }) },
       pmoPlanning: { useQuery: () => ({ isLoading: false, error: null, data: { planningOverview: { summary: { totalProjects: 2, criticalProjects: 1, warningProjects: 0, dataRequiredProjects: state.planningPartial ? 1 : 0, delayedProjects: 1 }, projects: [
-        { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red" }, evm: { cpi: 0.8, spi: 0.8 }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
+        { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red", overallScore: 42, periodAt: new Date("2026-08-19") }, evm: { cpi: 0.8, spi: 0.8, eac: 125, vac: -25, periodAt: new Date("2026-08-20") }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
         { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: state.planningPartial ? "data_required" : "on_track", health: state.planningPartial ? null : { status: "green" }, evm: state.planningPartial ? null : { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: state.planningPartial ? ["missing_evm", "missing_health"] : [] },
       ] } } }) },
       pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
@@ -52,6 +52,14 @@ describe("PmoDashboard planning control center", () => {
     render(<PmoDashboard />);
     expect(within(screen.getByLabelText("Today’s exceptions")).getByText("Material reorder required")).toBeTruthy();
     expect(within(screen.getByLabelText("Today’s exceptions")).getByText("MAT-01 · Concrete · 2/10")).toBeTruthy();
+  });
+
+  it("shows the numeric EVM trace, formula, and source period in the existing planning center", () => {
+    render(<PmoDashboard />);
+    const trace = screen.getByLabelText("Indicator source & formula");
+    expect(within(trace).getByText(/SPI = EV\/PV · CPI = EV\/AC/)).toBeTruthy();
+    expect(within(trace).getByText(/EAC 125\.00; VAC -25\.00/)).toBeTruthy();
+    expect(within(trace).getByText(/P-01/)).toBeTruthy();
   });
 
   it("keeps the planning center and PMO register available when today exceptions fail", () => {
