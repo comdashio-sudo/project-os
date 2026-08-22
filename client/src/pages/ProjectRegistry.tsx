@@ -6,8 +6,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
-import { ArrowLeft, FolderKanban, Plus } from "lucide-react";
-import React, { useState } from "react";
+import { ArrowLeft, FolderKanban, Plus, Search, X } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 
 type LifecycleStage = "opportunity" | "pre_award" | "tender" | "award" | "mobilization" | "planning" | "design" | "procurement" | "execution" | "commissioning" | "handover" | "closeout" | "post_project_review";
@@ -40,6 +40,7 @@ export default function ProjectRegistry() {
   const [form, setForm] = useState({ code: "", name: "", projectType: "Infrastructure", currency: "USD" });
   const [nextStages, setNextStages] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<LifecycleFeedback | null>(null);
+  const [projectSearch, setProjectSearch] = useState("");
   const createProject = trpc.projects.create.useMutation({ onSuccess: () => projects.refetch() });
   const transition = trpc.projects.transitionLifecycle.useMutation({
     onSuccess: (_result, input) => {
@@ -50,12 +51,17 @@ export default function ProjectRegistry() {
   });
   const t = isArabic
     ? {
-        workspace: "مساحة العمل", level: "المستوى 3 · سجل المشاريع", tag: "تسليم المشاريع", title: "سجل المشاريع", intro: "أنشئ وراجع المشاريع ضمن حدود المستأجر المحدد.", loading: "جارٍ تحميل المشاريع…", none: "لم يتم إنشاء مشاريع لهذا المستأجر.", budget: "الميزانية", actual: "الفعلي", forecast: "التوقع", open: "فتح مركز قيادة المشروع", create: "إنشاء مشروع", code: "رمز المشروع", name: "اسم المشروع", type: "نوع المشروع", currency: "العملة", creating: "جارٍ إنشاء المشروع…", lifecycle: "دورة الحياة", chooseStage: "اختر المرحلة التالية", transition: "تحديث المرحلة", transitioning: "جارٍ التحديث…", transitioned: "تم تحديث مرحلة المشروع وتسجيل الدليل التدقيقي.",
+        workspace: "مساحة العمل", level: "المستوى 3 · سجل المشاريع", tag: "تسليم المشاريع", title: "سجل المشاريع", intro: "ابحث أو انتقل مباشرة إلى المشروع الذي تحتاجه ضمن حدود المستأجر المحدد.", loading: "جارٍ تحميل المشاريع…", none: "لم يتم إنشاء مشاريع لهذا المستأجر.", search: "ابحث بالرمز أو الاسم أو النوع", searchResults: "مشروع مطابق", noSearchResults: "لا توجد مشاريع مطابقة للبحث.", clearSearch: "مسح البحث", budget: "الميزانية", actual: "الفعلي", forecast: "التوقع", open: "فتح مركز قيادة المشروع", create: "إنشاء مشروع", code: "رمز المشروع", name: "اسم المشروع", type: "نوع المشروع", currency: "العملة", creating: "جارٍ إنشاء المشروع…", lifecycle: "دورة الحياة", chooseStage: "اختر المرحلة التالية", transition: "تحديث المرحلة", transitioning: "جارٍ التحديث…", transitioned: "تم تحديث مرحلة المشروع وتسجيل الدليل التدقيقي.",
       }
     : {
-        workspace: "Workspace", level: "Level 3 · Project Registry", tag: "PROJECT DELIVERY", title: "Project registry", intro: "Create and review projects inside the selected tenant boundary.", loading: "Loading projects…", none: "No projects have been created for this tenant.", budget: "Budget", actual: "Actual", forecast: "Forecast", open: "Open project command center", create: "Create project", code: "Project code", name: "Project name", type: "Project type", currency: "Currency", creating: "Creating project…", lifecycle: "Lifecycle", chooseStage: "Choose next stage", transition: "Update stage", transitioning: "Updating…", transitioned: "The project stage was updated with audit evidence.",
+        workspace: "Workspace", level: "Level 3 · Project Registry", tag: "PROJECT DELIVERY", title: "Project registry", intro: "Search or go directly to the project you need inside the selected tenant boundary.", loading: "Loading projects…", none: "No projects have been created for this tenant.", search: "Search code, name, or type", searchResults: "matching projects", noSearchResults: "No projects match this search.", clearSearch: "Clear search", budget: "Budget", actual: "Actual", forecast: "Forecast", open: "Open project command center", create: "Create project", code: "Project code", name: "Project name", type: "Project type", currency: "Currency", creating: "Creating project…", lifecycle: "Lifecycle", chooseStage: "Choose next stage", transition: "Update stage", transitioning: "Updating…", transitioned: "The project stage was updated with audit evidence.",
       };
   const readDenied = Boolean(projects.error);
+  const filteredProjects = useMemo(() => {
+    const search = projectSearch.trim().toLocaleLowerCase();
+    if (!search) return projects.data ?? [];
+    return (projects.data ?? []).filter(project => `${project.code} ${project.name} ${project.projectType} ${project.lifecycleStage}`.toLocaleLowerCase().includes(search));
+  }, [projectSearch, projects.data]);
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
@@ -73,8 +79,8 @@ export default function ProjectRegistry() {
             {projects.isLoading ? <p className="text-slate-500">{t.loading}</p> : null}
             {projects.error ? <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{getLocalizedProjectError(projects.error, isArabic)}</p> : null}
             {!projects.isLoading && !projects.error && projects.data?.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {projects.data.map(project => (
+              <><div className="mb-4 rounded-[var(--radius-md)] border border-border bg-card p-3 shadow-sm"><div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={projectSearch} onChange={event => setProjectSearch(event.target.value)} aria-label={t.search} placeholder={t.search} className="ps-9 pe-10" />{projectSearch ? <Button type="button" size="icon" variant="ghost" className="absolute end-1 top-1/2 h-8 w-8 -translate-y-1/2" aria-label={t.clearSearch} title={t.clearSearch} onClick={() => setProjectSearch("")}><X className="h-4 w-4" /></Button> : null}</div><p aria-live="polite" className="mt-2 text-xs text-muted-foreground">{filteredProjects.length} {t.searchResults}</p></div>{filteredProjects.length ? <div className="grid gap-4 md:grid-cols-2">
+                {filteredProjects.map(project => (
                   <article key={project.id} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
                     <div className="flex items-start justify-between"><FolderKanban className="h-5 w-5 text-[#0e6b70]" /><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{project.status}</span></div>
                     <p className="mt-6 text-xs font-bold tracking-[.14em] text-slate-500">{project.code}</p><h2 className="mt-2 text-xl font-semibold">{project.name}</h2><p className="mt-1 text-sm text-slate-500">{project.projectType} · {project.lifecycleStage}</p>
@@ -83,7 +89,7 @@ export default function ProjectRegistry() {
                     <Link href={`/projects/${tenantId}/${project.id}/controls`} className="mt-6 inline-flex text-sm font-semibold text-[#0e6b70] hover:underline">{t.open}<ArrowLeft className="ms-1 h-4 w-4" /></Link>
                   </article>
                 ))}
-              </div>
+              </div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">{t.noSearchResults}</div>}</>
             ) : null}
             {!projects.isLoading && !projects.error && !projects.data?.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">{t.none}</div> : null}
           </section>
