@@ -37,6 +37,15 @@ describe("CommercialChain", () => {
     expect(screen.getByText("سلسلة الضبط التجاري")).toBeTruthy();
     expect(screen.getByText("بنود الحصر BOQ")).toBeTruthy();
     expect(screen.getByText("عقود المقاولين")).toBeTruthy();
+    expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
     state.arabic = false;
+  });
+  it("keeps the BOQ action keyboard reachable", () => {
+    state.arabic = false;
+    render(<CommercialChain />);
+    const action = screen.getByRole("button", { name: "Add BOQ line" });
+    action.focus();
+    expect(document.activeElement).toBe(action);
+    expect(action.tabIndex).toBeGreaterThanOrEqual(0);
   });
 });

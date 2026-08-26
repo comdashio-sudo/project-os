@@ -164,6 +164,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM budget_lines WHERE projectId = ?", [projectC]);
     await connection.query("DELETE FROM activities WHERE projectId = ?", [projectC]);
     await connection.query("DELETE FROM wbs_items WHERE projectId = ?", [projectC]);
+    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM control_record_links WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM purchase_orders WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM commitments WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
@@ -196,6 +197,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM memberships WHERE userId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
     await connection.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user')))");
     await connection.query("DELETE FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
+    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);

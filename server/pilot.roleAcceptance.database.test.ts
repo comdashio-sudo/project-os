@@ -30,6 +30,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
     await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM membership_roles WHERE membershipId LIKE 'pilot-role-%'");
     await connection.query("DELETE FROM memberships WHERE id LIKE 'pilot-role-%'");
@@ -62,20 +63,26 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('pilot-role-exec-a','pilot-role-exec','pilot-role-exec','company'),('pilot-role-pmo-a','pilot-role-pmo','pilot-role-pmo','company'),('pilot-role-project-a','pilot-role-project','pilot-role-project','company')");
   }, 30_000);
 
-  it("executes full allowed effects and rejects forbidden contexts for executive, PMO, project, and low-privilege accounts", async () => {
+  it("allows EXECUTIVE decisions only in the owned project and records the effect", async () => {
     const executive = callerFor(executiveId, "pilot-executive");
-    const pmo = callerFor(pmoId, "pilot-pmo");
-    const project = callerFor(projectIdUser, "pilot-project");
-    const low = callerFor(lowPrivilegeId, "pilot-low");
-
     await expect(executive.dashboards.executive({ tenantId })).resolves.toBeDefined();
     await expect(executive.executive.createDecision({ tenantId, projectId: foreignProjectId, problem: "Foreign decision", options: "Reject", recommendation: "Reject" })).rejects.toThrow();
-    const decision = await executive.executive.createDecision({ tenantId, projectId, problem: "Pilot decision", options: "Option A; Option B", recommendation: "Option A" });
+    const decision = await executive.executive.createDecision({ tenantId, projectId, problem: "Pilot executive decision", options: "Option A; Option B", recommendation: "Option A" });
+    const [rows] = await connection.query<{ decisions: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM decisions WHERE id = ?) AS decisions, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ?) AS audits", [decision.id, decision.id]);
+    expect(rows[0]).toMatchObject({ decisions: 1, audits: 1 });
+  }, 30_000);
 
+  it("allows PMO risk management only in the owned project and records the effect", async () => {
+    const pmo = callerFor(pmoId, "pilot-pmo");
     await expect(pmo.dashboards.pmo({ tenantId })).resolves.toBeDefined();
     await expect(pmo.pmo.createRisk({ tenantId, projectId: foreignProjectId, code: "PILOT-FOR", title: "Foreign risk", probability: 3, severity: 3 })).rejects.toThrow();
     const risk = await pmo.pmo.createRisk({ tenantId, projectId, code: "PILOT-RISK", title: "Pilot governed risk", probability: 4, severity: 4 });
+    const [rows] = await connection.query<{ risks: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM risks WHERE id = ?) AS risks, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ?) AS audits", [risk.id, risk.id]);
+    expect(rows[0]).toMatchObject({ risks: 1, audits: 1 });
+  }, 30_000);
 
+  it("allows PROJECT delivery writes only in the owned project and records all effects", async () => {
+    const project = callerFor(projectIdUser, "pilot-project");
     await expect(project.projects.getControls({ tenantId, projectId })).resolves.toBeDefined();
     await expect(project.wbs.create({ tenantId, projectId: foreignProjectId, code: "PILOT-FOR", name: "Foreign WBS", plannedValue: 100 })).rejects.toThrow();
     const wbs = await project.wbs.create({ tenantId, projectId, code: "PILOT-WBS", name: "Pilot work package", plannedValue: 100 });
@@ -83,13 +90,15 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
     await project.costs.createActual({ tenantId, projectId, wbsItemId: wbs.id, amount: 40, incurredAt: new Date("2026-08-20T00:00:00.000Z") });
     await project.progress.create({ tenantId, projectId, wbsItemId: wbs.id, percentComplete: 50, reportedAt: new Date("2026-08-20T00:00:00.000Z") });
     const document = await project.documents.createWithVersion({ tenantId, projectId, documentNumber: "PILOT-DOC", title: "Pilot evidence document", category: "report", originalName: "pilot.txt", mimeType: "text/plain", contentBase64: Buffer.from("Pilot acceptance evidence").toString("base64") });
+    const [effects] = await connection.query<{ decisions: number; risks: number; wbs: number; documents: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM decisions WHERE id = ?) AS decisions, (SELECT COUNT(*) FROM risks WHERE id = ?) AS risks, (SELECT COUNT(*) FROM wbs_items WHERE id = ?) AS wbs, (SELECT COUNT(*) FROM project_documents WHERE id = ?) AS documents, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?, ?, ?)) AS audits", ["missing", "missing", wbs.id, document.id, wbs.id, document.id, wbs.id, document.id]);
+    expect(effects[0]).toMatchObject({ decisions: 0, risks: 0, wbs: 1, documents: 1, audits: 2 });
+  }, 30_000);
 
+  it("rejects EXECUTIVE and PROJECT reads for the low-privilege account", async () => {
+    const low = callerFor(lowPrivilegeId, "pilot-low");
     await expect(low.dashboards.executive({ tenantId })).rejects.toThrow();
     await expect(low.projects.getControls({ tenantId, projectId })).rejects.toThrow();
-
-    const [effects] = await connection.query<{ decisions: number; risks: number; wbs: number; documents: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM decisions WHERE id = ?) AS decisions, (SELECT COUNT(*) FROM risks WHERE id = ?) AS risks, (SELECT COUNT(*) FROM wbs_items WHERE id = ?) AS wbs, (SELECT COUNT(*) FROM project_documents WHERE id = ?) AS documents, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?, ?, ?)) AS audits", [decision.id, risk.id, wbs.id, document.id, decision.id, risk.id, wbs.id, document.id]);
-    expect(effects[0]).toMatchObject({ decisions: 1, risks: 1, wbs: 1, documents: 1, audits: 4 });
-  }, 60_000);
+  }, 30_000);
 
   afterAll(async () => {
     await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
@@ -100,6 +109,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
     await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+    await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
     await connection.query("DELETE FROM membership_roles WHERE membershipId LIKE 'pilot-role-%'");
     await connection.query("DELETE FROM memberships WHERE id LIKE 'pilot-role-%'");

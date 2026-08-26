@@ -17,7 +17,11 @@ const procedures = Object.entries(appRouter._def.procedures)
   }))
   .sort((left, right) => left.path.localeCompare(right.path));
 
-const integrationSource = await readFile(new URL("../server/integration.database.test.ts", import.meta.url), "utf8");
+const integrationSources = await Promise.all([
+  readFile(new URL("../server/integration.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/commercial_chain.database.test.ts", import.meta.url), "utf8"),
+]);
+const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));
 const references = new Set();
 for (const path of procedurePaths) {
