@@ -195,3 +195,5 @@
 أعيدت بوابة الجودة بعد تطبيق الترحيل وإنشاء الدعوة: `pnpm test` = 359 ناجحًا و79 متخطى، و`pnpm check` و`pnpm build` ناجحان، و`pnpm coverage:trpc` = 185/180/5/0، و`pnpm verify:audit-grants` = `approved: true`، والمشغل الحي = 79/79 خلال 227.35 ثانية. تدقيق الإنتاج عند مستوى high لا يعرض high أو critical؛ يتبقى تحذير moderate واحد موثق في ExcelJS/UUID.
 
 حُفظ إصلاح الدعوة وصلاحيات المالك في الالتزام `766905721748497cb2374b4f8616663c8469211b` بعنوان `fix: restore tenant owner access for governed invites` قبل دفعه إلى `github/main`.
+
+صُحح مرجع العهدة في `REMAINING_INVENTORY.md` إلى الالتزام `1a850ab576c7bddf9e30ae8f7b5857a83e537ba3` قبل دفعه إلى `github/main`، حتى لا تشير وثيقة المتبقي إلى رأس أقدم من المرجع الحاكم.
