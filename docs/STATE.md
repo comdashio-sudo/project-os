@@ -162,3 +162,7 @@
 أزيل `xlsx@0.18.5` بالكامل من المصدر والحزمة وقفل الاعتماديات، واستبدلت جميع محللات XLSX/CSV ومولدات التصدير وfixtures التكامل ومولد قالب الجدول الأمامي بـ`exceljs@4.4.0` و`jszip@3.10.1`. صارت المحللات والمصدّر غير متزامنة ويَنتظرها `server/db.ts` قبل فتح المعاملات. تحافظ القراءة على مفاتيح CSV النصية مثل `1.0`، وتبقى قوالب XER محدودة. يثبت `dataImport.test.ts` حاوية ZIP، ورفض VBA، وحد 5MiB، و10,000 صف، و60 عمودًا، والملف المعطوب، وتحييد صيغ التصدير؛ ونجحت 21 حالة مركزة.
 
 البوابة النهائية في هذه الشجرة: `pnpm test` = 355 ناجحًا و79 متخطى، و`pnpm check` و`pnpm build` ناجحان، و`pnpm coverage:trpc` = 185/180/5/0، و`pnpm verify:audit-grants` أعاد `approved: true`، والمشغل الحي = 79/79 خلال 239.29 ثانية. ينجح `pnpm audit --prod --audit-level=high` بلا نتائج high أو critical بعد رفع `mdast-util-to-hast@13.2.1`. تبقى نتيجة واحدة **moderate** من `exceljs@4.4.0 > uuid@8.3.2`؛ لا يُفرض تجاوز major على اعتماد ExcelJS من دون تحقق توافق مستقل، ولذلك يسجل هذا كمتابعة أمنية `OPEN` لا كادعاء نظافة كاملة.
+
+## إثبات دفعة ExcelJS والعهدة — 26 أغسطس 2026
+
+دُفعت دفعة استبدال SheetJS إلى `github/main` في الالتزام `7cd99c89ffbe70dbc853d58dbd2a5b5eff991701` بعنوان `security: replace sheetjs with controlled exceljs import`. بعد `git fetch github --prune` كانت النتيجة `ahead/behind = 0/0`، والرأس المحلي و`github/main` متطابقان. المستودع الخاص بقي `ramezsamerr-collab/project-os` والفرع الافتراضي هو `main`.
