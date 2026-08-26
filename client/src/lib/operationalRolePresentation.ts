@@ -6,6 +6,8 @@ const operationalRoleNames = {
   HR_MANAGER: { ar: "مدير الموارد البشرية", en: "HR Manager" },
   PLANNING_ENGINEER: { ar: "مهندس التخطيط", en: "Planning Engineer" },
   SITE_ENGINEER: { ar: "مهندس الموقع", en: "Site Engineer" },
+  QA_QC_MANAGER: { ar: "مدير الجودة وضبط الجودة", en: "QA/QC Manager" },
+  HSE_MANAGER: { ar: "مدير الصحة والسلامة والبيئة", en: "HSE Manager" },
   PROJECT_MANAGER: { ar: "مدير المشروع", en: "Project Manager" },
 } as const;
 
@@ -21,6 +23,14 @@ export const operationalRoleProfiles = {
   SITE_ENGINEER: {
     ar: { purpose: "تشغيل الموقع والإبلاغ", focus: "التقدم والتقارير والجودة وHSE وRFI/NCR", boundary: "لا يغير الخط الأساس أو ميزانية المشروع" },
     en: { purpose: "Run site operations and reporting", focus: "Progress, field reports, quality, HSE, RFIs, and NCRs", boundary: "Does not change baselines or project budget" },
+  },
+  QA_QC_MANAGER: {
+    ar: { purpose: "ضبط الجودة وعدم المطابقة", focus: "الفحوصات وNCR", boundary: "لا يدير الميزانية أو التكلفة أو المشتريات" },
+    en: { purpose: "Control quality and nonconformance", focus: "Inspections and NCRs", boundary: "Does not manage budget, cost, or procurement" },
+  },
+  HSE_MANAGER: {
+    ar: { purpose: "إدارة الصحة والسلامة والبيئة", focus: "ملاحظات HSE وتقارير الموقع", boundary: "لا يدير الجودة التعاقدية أو الميزانية أو المشتريات" },
+    en: { purpose: "Manage health, safety, and environment", focus: "HSE observations and field reports", boundary: "Does not manage contractual quality, budget, or procurement" },
   },
   PROCUREMENT_OFFICER: {
     ar: { purpose: "تنفيذ التوريد المحكوم", focus: "طلبات وأوامر الشراء", boundary: "لا يكون أمين المستودع لنطاقه نفسه" },

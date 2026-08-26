@@ -36,6 +36,8 @@ export const operationalRoleDefinitions = [
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
+  { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.quality.manage", "project.ncr.manage", "project.performance.read_own"] },
+  { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
   {
     code: "PROJECT_MANAGER",
     name: "Project Manager",

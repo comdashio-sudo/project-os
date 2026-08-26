@@ -12,9 +12,19 @@ describe("operational role separation", () => {
 
   it("grants the project manager coordinated controls without conflicting execution approvals", () => {
     expect(() => assertOperationalRoleSeparation(["WAREHOUSE_CUSTODIAN"], "SITE_ENGINEER")).not.toThrow();
-    expect(operationalRoleDefinitions.map(role => role.code)).toEqual(expect.arrayContaining(["WAREHOUSE_CUSTODIAN", "PROCUREMENT_OFFICER", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "PLANNING_ENGINEER", "SITE_ENGINEER", "PROJECT_MANAGER"]));
+    expect(operationalRoleDefinitions.map(role => role.code)).toEqual(expect.arrayContaining(["WAREHOUSE_CUSTODIAN", "PROCUREMENT_OFFICER", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "PLANNING_ENGINEER", "SITE_ENGINEER", "QA_QC_MANAGER", "HSE_MANAGER", "PROJECT_MANAGER"]));
     const projectManager = operationalRoleDefinitions.find(role => role.code === "PROJECT_MANAGER");
     expect(projectManager?.permissions).toEqual(expect.arrayContaining(["project.manage", "project.budget.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.progress.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.performance.manage"]));
     expect(projectManager?.permissions).not.toEqual(expect.arrayContaining(["project.procurement.manage", "project.inventory.manage", "project.payroll.run", "project.payroll.approve"]));
+  });
+
+  it("keeps quality and HSE roles focused on their operational domains", () => {
+    const quality = operationalRoleDefinitions.find(role => role.code === "QA_QC_MANAGER");
+    const hse = operationalRoleDefinitions.find(role => role.code === "HSE_MANAGER");
+    expect(quality?.permissions).toEqual(expect.arrayContaining(["project.quality.manage", "project.ncr.manage"]));
+    expect(hse?.permissions).toEqual(expect.arrayContaining(["project.hse.manage", "project.field.manage"]));
+    for (const role of [quality, hse]) {
+      expect(role?.permissions).not.toEqual(expect.arrayContaining(["project.budget.manage", "project.cost.enter", "project.procurement.manage", "project.inventory.manage", "project.payroll.run", "project.payroll.approve"]));
+    }
   });
 });
