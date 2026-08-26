@@ -17,31 +17,36 @@ let lowPrivilegeId = 0;
 
 const callerFor = (id: number, openId: string) => appRouter.createCaller({ user: { id, openId, name: openId, email: `${openId}@pilot.local`, loginMethod: "pilot-acceptance", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
+async function clearPilotFixtures() {
+  await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM document_versions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM project_documents WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM risks WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM membership_roles WHERE membershipId LIKE 'pilot-role-%'");
+  await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM roles WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM memberships WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM permissions WHERE id LIKE 'pilot-perm-%'");
+  await connection.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM projects WHERE id IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantId, foreignTenantId]);
+  await connection.query("DELETE FROM users WHERE openId IN ('pilot-executive','pilot-pmo','pilot-project','pilot-low')");
+}
+
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structured role acceptance", () => {
   beforeAll(async () => {
     connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
-    await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM document_versions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM project_documents WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM risks WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM membership_roles WHERE membershipId LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM memberships WHERE id LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM role_permissions WHERE roleId LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM roles WHERE id LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM permissions WHERE id LIKE 'pilot-perm-%'");
-    await connection.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM projects WHERE id IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM users WHERE openId IN ('pilot-executive','pilot-pmo','pilot-project','pilot-low')");
+    await clearPilotFixtures();
 
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pilot-executive','Pilot Executive','pilot-executive@pilot.local','user'),('pilot-pmo','Pilot PMO','pilot-pmo@pilot.local','user'),('pilot-project','Pilot Project','pilot-project@pilot.local','user'),('pilot-low','Pilot Low','pilot-low@pilot.local','user')");
     const [users] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId IN ('pilot-executive','pilot-pmo','pilot-project','pilot-low')");
@@ -101,27 +106,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
   }, 30_000);
 
   afterAll(async () => {
-    await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM document_versions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM project_documents WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM risks WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM membership_roles WHERE membershipId LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM memberships WHERE id LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM role_permissions WHERE roleId LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM roles WHERE id LIKE 'pilot-role-%'");
-    await connection.query("DELETE FROM permissions WHERE id LIKE 'pilot-perm-%'");
-    await connection.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM projects WHERE id IN (?, ?)", [projectId, foreignProjectId]);
-    await connection.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantId, foreignTenantId]);
-    await connection.query("DELETE FROM users WHERE openId IN ('pilot-executive','pilot-pmo','pilot-project','pilot-low')");
+    await clearPilotFixtures();
     await connection.end();
   });
 });

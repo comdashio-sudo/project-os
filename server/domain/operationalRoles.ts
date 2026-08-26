@@ -36,7 +36,30 @@ export const operationalRoleDefinitions = [
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
-  { code: "PROJECT_MANAGER", name: "Project Manager", permissions: ["project.manage", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
+  {
+    code: "PROJECT_MANAGER",
+    name: "Project Manager",
+    permissions: [
+      "project.manage",
+      "project.budget.manage",
+      "project.cost.enter",
+      "project.cashflow.read",
+      "project.commitment.manage",
+      "project.wbs.manage",
+      "project.schedule.manage",
+      "project.evm.manage",
+      "project.progress.manage",
+      "project.field.manage",
+      "project.quality.manage",
+      "project.hse.manage",
+      "project.rfi.manage",
+      "project.ncr.manage",
+      "project.material.request",
+      "project.attendance.manage",
+      "project.performance.manage",
+      "project.performance.read_own",
+    ],
+  },
 ] as const;
 
 const conflictingOperationalRolePairs = [
