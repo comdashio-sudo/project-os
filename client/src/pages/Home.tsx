@@ -10,7 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { Activity, ArrowUpRight, Building2, CircleAlert, Gauge, Layers3, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link } from "wouter";
 
 function GuestLanding() {
