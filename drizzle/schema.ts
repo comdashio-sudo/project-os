@@ -1491,6 +1491,140 @@ export const dataImportRowResults = mysqlTable(
   ],
 );
 
+export const boqItems = mysqlTable(
+  "boq_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    wbsItemId: varchar("wbsItemId", { length: 36 }),
+    code: varchar("code", { length: 80 }).notNull(),
+    description: text("description").notNull(),
+    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
+    quantity: decimal("quantity", { precision: 18, scale: 3 }).notNull(),
+    unitRate: decimal("unitRate", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("boq_project_code_unique").on(table.projectId, table.code),
+    index("boq_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "boq_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "boq_project_fk" }),
+    foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "boq_wbs_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "boq_creator_fk" }),
+  ]
+);
+
+export const subcontractContracts = mysqlTable(
+  "subcontract_contracts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    code: varchar("code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    subcontractorName: varchar("subcontractorName", { length: 255 }).notNull(),
+    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).notNull(),
+    retentionPercent: decimal("retentionPercent", { precision: 5, scale: 2 }).default("0").notNull(),
+    advancePaymentPercent: decimal("advancePercent", { precision: 5, scale: 2 }).default("0").notNull(),
+    status: mysqlEnum("status", ["draft", "active", "suspended", "closed", "cancelled"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("subcontract_project_code_unique").on(table.projectId, table.code),
+    index("subcontract_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "subcon_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "subcon_project_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "subcon_creator_fk" }),
+  ]
+);
+
+export const subcontractCertificates = mysqlTable(
+  "subcontract_certificates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    subcontractId: varchar("subcontractId", { length: 36 }).notNull(),
+    certificateNumber: varchar("certificateNumber", { length: 80 }).notNull(),
+    periodStart: timestamp("periodStart").notNull(),
+    periodEnd: timestamp("periodEnd").notNull(),
+    grossAmount: decimal("grossAmount", { precision: 18, scale: 2 }).notNull(),
+    retentionAmount: decimal("retentionAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    advanceRecoveryAmount: decimal("advanceRecoveryAmount", { precision: 18, scale: 2 }).default("0").notNull(),
+    netAmount: decimal("netAmount", { precision: 18, scale: 2 }).notNull(),
+    status: mysqlEnum("status", ["draft", "submitted", "approved", "paid", "cancelled"]).default("draft").notNull(),
+    approvedByUserId: int("approvedByUserId"),
+    approvedAt: timestamp("approvedAt"),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("subcert_project_number_unique").on(table.projectId, table.certificateNumber),
+    index("subcert_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "subcert_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "subcert_project_fk" }),
+    foreignKey({ columns: [table.subcontractId], foreignColumns: [subcontractContracts.id], name: "subcert_contract_fk" }),
+    foreignKey({ columns: [table.approvedByUserId], foreignColumns: [users.id], name: "subcert_approver_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "subcert_creator_fk" }),
+  ]
+);
+
+export const subcontractCertificateLines = mysqlTable(
+  "subcontract_certificate_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    certificateId: varchar("certificateId", { length: 36 }).notNull(),
+    boqItemId: varchar("boqItemId", { length: 36 }).notNull(),
+    previousQuantity: decimal("previousQuantity", { precision: 18, scale: 3 }).notNull(),
+    currentQuantity: decimal("currentQuantity", { precision: 18, scale: 3 }).notNull(),
+    cumulativeQuantity: decimal("cumulativeQuantity", { precision: 18, scale: 3 }).notNull(),
+    unitRate: decimal("unitRate", { precision: 18, scale: 2 }).notNull(),
+    currentAmount: decimal("currentAmount", { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("subcert_line_unique").on(table.certificateId, table.boqItemId),
+    foreignKey({ columns: [table.certificateId], foreignColumns: [subcontractCertificates.id], name: "subline_cert_fk" }),
+    foreignKey({ columns: [table.boqItemId], foreignColumns: [boqItems.id], name: "subline_boq_fk" }),
+  ]
+);
+
+export const projectCommercialInvoices = mysqlTable(
+  "project_commercial_invoices",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    projectId: varchar("projectId", { length: 36 }).notNull(),
+    invoiceNumber: varchar("invoiceNumber", { length: 80 }).notNull(),
+    invoiceDate: timestamp("invoiceDate").notNull(),
+    clientName: varchar("clientName", { length: 255 }).notNull(),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    vatAmount: decimal("vatAmount", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    status: mysqlEnum("status", ["draft", "issued", "paid", "void"]).default("draft").notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("proj_inv_project_number_unique").on(table.projectId, table.invoiceNumber),
+    index("proj_inv_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "proinv_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "proinv_project_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "proinv_creator_fk" }),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ProductCode = (typeof productCodes)[number];

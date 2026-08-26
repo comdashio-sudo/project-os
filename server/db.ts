@@ -7,6 +7,7 @@ import {
   type ProductCode,
   type SubscriptionPackageCode,
   auditLogs,
+  boqItems,
   companies,
   claims,
   commitments,
@@ -42,6 +43,7 @@ import {
   planFeatureEntitlements,
   evmSnapshots,
   documentVersions,
+  projectCommercialInvoices,
   employees,
   employmentContracts,
   salaryStructures,
@@ -78,6 +80,9 @@ import {
   roles,
   scheduledJobs,
   selfServiceSignupAttempts,
+  subcontractCertificateLines,
+  subcontractCertificates,
+  subcontractContracts,
   suppliers,
   supportMessages,
   supportTickets,
@@ -3062,4 +3067,252 @@ export async function createDataExport(input: { userId: number; tenantId: string
   const exportId = crypto.randomUUID();
   await db.transaction(async tx => { await tx.insert(auditLogs).values({ id: exportId, tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "data_export", entityId: exportId, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, format: input.format, locale: input.locale, rowCount: rows.length }) }); });
   return { id: exportId, fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64"), rowCount: rows.length };
+}
+
+// --- Commercial Chain: BOQ, Subcontracts, Certificates, Project Invoices ---
+
+export async function getBoqItemsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select().from(boqItems).where(and(eq(boqItems.tenantId, input.tenantId), eq(boqItems.projectId, input.projectId))).orderBy(boqItems.code);
+}
+
+export async function createBoqItemForTenant(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; code: string; description: string; unitOfMeasure: string; quantity: number; unitRate: number; currency?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [duplicate] = await db.select({ id: boqItems.id }).from(boqItems).where(and(eq(boqItems.projectId, input.projectId), eq(boqItems.code, input.code))).limit(1);
+  if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_BOQ_CODE_EXISTS" });
+
+  const id = crypto.randomUUID();
+  const totalAmount = input.quantity * input.unitRate;
+  await db.transaction(async tx => {
+    await tx.insert(boqItems).values({
+      id,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      wbsItemId: input.wbsItemId,
+      code: input.code,
+      description: input.description,
+      unitOfMeasure: input.unitOfMeasure,
+      quantity: String(input.quantity),
+      unitRate: String(input.unitRate),
+      totalAmount: String(totalAmount),
+      currency: input.currency ?? "SAR",
+      createdByUserId: input.userId
+    });
+    await tx.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      tenantId: input.tenantId,
+      actorUserId: input.userId,
+      action: "project.boq_item_created",
+      entityType: "boq_item",
+      entityId: id,
+      metadata: JSON.stringify({ projectId: input.projectId, code: input.code, quantity: input.quantity, unitRate: input.unitRate })
+    });
+  });
+  return { id };
+}
+
+export async function getSubcontractContractsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select().from(subcontractContracts).where(and(eq(subcontractContracts.tenantId, input.tenantId), eq(subcontractContracts.projectId, input.projectId))).orderBy(desc(subcontractContracts.createdAt));
+}
+
+export async function createSubcontractContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; subcontractorName: string; contractValue: number; retentionPercent?: number; advancePercent?: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [duplicate] = await db.select({ id: subcontractContracts.id }).from(subcontractContracts).where(and(eq(subcontractContracts.projectId, input.projectId), eq(subcontractContracts.code, input.code))).limit(1);
+  if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SUBCONTRACT_CODE_EXISTS" });
+
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(subcontractContracts).values({
+      id,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      code: input.code,
+      title: input.title,
+      subcontractorName: input.subcontractorName,
+      contractValue: String(input.contractValue),
+      retentionPercent: String(input.retentionPercent ?? 0),
+      advancePaymentPercent: String(input.advancePercent ?? 0),
+      createdByUserId: input.userId
+    });
+    await tx.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      tenantId: input.tenantId,
+      actorUserId: input.userId,
+      action: "project.subcontract_created",
+      entityType: "subcontract_contract",
+      entityId: id,
+      metadata: JSON.stringify({ projectId: input.projectId, code: input.code, subcontractorName: input.subcontractorName, contractValue: input.contractValue })
+    });
+  });
+  return { id };
+}
+
+export async function getSubcontractCertificatesForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  
+  const where = [eq(subcontractCertificates.tenantId, input.tenantId), eq(subcontractCertificates.projectId, input.projectId)];
+  if (input.subcontractId) where.push(eq(subcontractCertificates.subcontractId, input.subcontractId));
+  
+  const certificates = await db.select().from(subcontractCertificates).where(and(...where)).orderBy(desc(subcontractCertificates.createdAt));
+  const lines = await db.select().from(subcontractCertificateLines).where(inArray(subcontractCertificateLines.certificateId, certificates.map(c => c.id).length ? certificates.map(c => c.id) : ['none']));
+  
+  return certificates.map(cert => ({
+    ...cert,
+    lines: lines.filter(l => l.certificateId === cert.id)
+  }));
+}
+
+export async function createSubcontractCertificateForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId: string; certificateNumber: string; periodStart: Date; periodEnd: Date; lines: { boqItemId: string; currentQuantity: number }[] }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [subcontract] = await db.select().from(subcontractContracts).where(and(eq(subcontractContracts.id, input.subcontractId), eq(subcontractContracts.tenantId, input.tenantId))).limit(1);
+  if (!subcontract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUBCONTRACT_NOT_FOUND" });
+
+  const [duplicate] = await db.select({ id: subcontractCertificates.id }).from(subcontractCertificates).where(and(eq(subcontractCertificates.projectId, input.projectId), eq(subcontractCertificates.certificateNumber, input.certificateNumber))).limit(1);
+  if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_CERTIFICATE_NUMBER_EXISTS" });
+
+  const boqIds = input.lines.map(l => l.boqItemId);
+  const boqRows = await db.select().from(boqItems).where(and(eq(boqItems.projectId, input.projectId), inArray(boqItems.id, boqIds)));
+  const boqMap = new Map(boqRows.map(b => [b.id, b]));
+
+  // Get previous cumulative quantities
+  const prevLines = await db.select({ boqItemId: subcontractCertificateLines.boqItemId, cumulativeQuantity: sql<string>`SUM(currentQuantity)` })
+    .from(subcontractCertificateLines)
+    .innerJoin(subcontractCertificates, eq(subcontractCertificates.id, subcontractCertificateLines.certificateId))
+    .where(and(eq(subcontractCertificates.subcontractId, input.subcontractId), eq(subcontractCertificates.status, 'approved')))
+    .groupBy(subcontractCertificateLines.boqItemId);
+  const prevQtyMap = new Map(prevLines.map(p => [p.boqItemId, Number(p.cumulativeQuantity)]));
+
+  let grossAmount = 0;
+  const certificateId = crypto.randomUUID();
+  const processedLines = input.lines.map(line => {
+    const boq = boqMap.get(line.boqItemId);
+    if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: `BOQ item ${line.boqItemId} not found` });
+    const prevQty = prevQtyMap.get(line.boqItemId) ?? 0;
+    const cumulativeQty = prevQty + line.currentQuantity;
+    const amount = line.currentQuantity * Number(boq.unitRate);
+    grossAmount += amount;
+    return {
+      id: crypto.randomUUID(),
+      certificateId,
+      boqItemId: line.boqItemId,
+      previousQuantity: String(prevQty),
+      currentQuantity: String(line.currentQuantity),
+      cumulativeQuantity: String(cumulativeQty),
+      unitRate: boq.unitRate,
+      currentAmount: String(amount)
+    };
+  });
+
+  const retentionAmount = grossAmount * (Number(subcontract.retentionPercent) / 100);
+  const netAmount = grossAmount - retentionAmount; // Simplified recovery logic
+
+  await db.transaction(async tx => {
+    await tx.insert(subcontractCertificates).values({
+      id: certificateId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      subcontractId: input.subcontractId,
+      certificateNumber: input.certificateNumber,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      grossAmount: String(grossAmount),
+      retentionAmount: String(retentionAmount),
+      netAmount: String(netAmount),
+      createdByUserId: input.userId
+    });
+    for (const line of processedLines) {
+      await tx.insert(subcontractCertificateLines).values(line);
+    }
+    await tx.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      tenantId: input.tenantId,
+      actorUserId: input.userId,
+      action: "project.subcontract_certificate_created",
+      entityType: "subcontract_certificate",
+      entityId: certificateId,
+      metadata: JSON.stringify({ projectId: input.projectId, subcontractId: input.subcontractId, certificateNumber: input.certificateNumber, grossAmount })
+    });
+  });
+
+  return { id: certificateId };
+}
+
+export async function getProjectCommercialInvoicesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select().from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId))).orderBy(desc(projectCommercialInvoices.invoiceDate));
+}
+
+export async function createProjectCommercialInvoiceForTenant(input: { userId: number; tenantId: string; projectId: string; invoiceNumber: string; invoiceDate: Date; clientName: string; amount: number; vatAmount: number; currency?: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [duplicate] = await db.select({ id: projectCommercialInvoices.id }).from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.projectId, input.projectId), eq(projectCommercialInvoices.invoiceNumber, input.invoiceNumber))).limit(1);
+  if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_INVOICE_NUMBER_EXISTS" });
+
+  const id = crypto.randomUUID();
+  const totalAmount = input.amount + input.vatAmount;
+  await db.transaction(async tx => {
+    await tx.insert(projectCommercialInvoices).values({
+      id,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      invoiceNumber: input.invoiceNumber,
+      invoiceDate: input.invoiceDate,
+      clientName: input.clientName,
+      amount: String(input.amount),
+      vatAmount: String(input.vatAmount),
+      totalAmount: String(totalAmount),
+      currency: input.currency ?? "SAR",
+      createdByUserId: input.userId
+    });
+    
+    // Post to cost entries as project revenue (negative cost or separate bucket)
+    // For now, just audit. In P&L, we will use this as Revenue.
+    
+    await tx.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      tenantId: input.tenantId,
+      actorUserId: input.userId,
+      action: "project.commercial_invoice_created",
+      entityType: "project_commercial_invoice",
+      entityId: id,
+      metadata: JSON.stringify({ projectId: input.projectId, invoiceNumber: input.invoiceNumber, totalAmount })
+    });
+  });
+  return { id };
 }
