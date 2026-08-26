@@ -163,6 +163,8 @@
 
 البوابة النهائية في هذه الشجرة: `pnpm test` = 355 ناجحًا و79 متخطى، و`pnpm check` و`pnpm build` ناجحان، و`pnpm coverage:trpc` = 185/180/5/0، و`pnpm verify:audit-grants` أعاد `approved: true`، والمشغل الحي = 79/79 خلال 239.29 ثانية. ينجح `pnpm audit --prod --audit-level=high` بلا نتائج high أو critical بعد رفع `mdast-util-to-hast@13.2.1`. تبقى نتيجة واحدة **moderate** من `exceljs@4.4.0 > uuid@8.3.2`؛ لا يُفرض تجاوز major على اعتماد ExcelJS من دون تحقق توافق مستقل، ولذلك يسجل هذا كمتابعة أمنية `OPEN` لا كادعاء نظافة كاملة.
 
+تفصل [مراجعة توافق ExcelJS وUUID](./EXCELJS_UUID_COMPATIBILITY_REVIEW_2026-08-26.md) مصدر النتيجة، واستعمال ExcelJS المباشر لـv4، وسبب عدم فرض override غير مدعوم، وشرط إغلاق هذا البند.
+
 ## إثبات دفعة ExcelJS والعهدة — 26 أغسطس 2026
 
 دُفعت دفعة استبدال SheetJS إلى `github/main` في الالتزام `7cd99c89ffbe70dbc853d58dbd2a5b5eff991701` بعنوان `security: replace sheetjs with controlled exceljs import`. بعد `git fetch github --prune` كانت النتيجة `ahead/behind = 0/0`، والرأس المحلي و`github/main` متطابقان. المستودع الخاص بقي `ramezsamerr-collab/project-os` والفرع الافتراضي هو `main`.
