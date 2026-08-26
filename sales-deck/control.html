@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; background: #E8ECEF; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background: #E8ECEF;
+            color: #111111;
+            padding-top: 64px;
+            padding-left: 84px;
+            padding-right: 84px;
+            position: relative;
+        }
+        .kicker {
+            color: #D9B310;
+            font-weight: 900;
+            font-size: 20px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .header {
+            font-size: 54px;
+            font-weight: 900;
+            margin-top: 10px;
+            line-height: 1.1;
+        }
+        /* Reduced vertical gaps to fit within 720px */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px; /* reduced from 40px */
+            margin-top: 60px;
+        }
+        .feature-box {
+            border-top: 6px solid #111111;
+            padding-top: 16px; /* reduced from 24px */
+        }
+        .badge {
+            width: 48px;
+            height: 48px;
+            background: #D9B310;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 20px;
+            margin-bottom: 12px; /* reduced from 20px */
+        }
+        .feature-title {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 12px;
+        }
+        .feature-desc {
+            font-size: 19px;
+            color: #2C3E50;
+            line-height: 1.5;
+        }
+        .ar {
+            display: block;
+            margin-top: 8px;
+            font-size: 18px;
+            color: #4A5568;
+        }
+        .footer-note {
+            position: absolute;
+            bottom: 40px;
+            left: 84px;
+            right: 84px;
+            border-top: 1px solid #CBD5E0;
+            padding-top: 20px;
+            font-size: 16px;
+            color: #718096;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="kicker">05 · Built for Control</div>
+        <h1 class="header">Governance by design,<br>not by accident.</h1>
+        
+        <div class="grid">
+            <div class="feature-box">
+                <div class="badge">01</div>
+                <h2 class="feature-title">Isolation</h2>
+                <p class="feature-desc">Strict tenant and project boundaries enforced at the API layer.
+                    <span class="ar" dir="rtl">عزل كامل للمستأجر والمشروع على مستوى الواجهة البرمجية.</span>
+                </p>
+            </div>
+            <div class="feature-box">
+                <div class="badge">02</div>
+                <h2 class="feature-title">RBAC & Scope</h2>
+                <p class="feature-desc">Role-based access controls tied to specific project scopes.
+                    <span class="ar" dir="rtl">صلاحيات مبنية على الأدوار ومرتبطة بنطاق المشروع.</span>
+                </p>
+            </div>
+            <div class="feature-box">
+                <div class="badge">03</div>
+                <h2 class="feature-title">Central EVM</h2>
+                <p class="feature-desc">Unified Earned Value Management signals from digital sources.
+                    <span class="ar" dir="rtl">مؤشرات إدارة القيمة المكتسبة موحدة من مصادر رقمية.</span>
+                </p>
+            </div>
+            <div class="feature-box">
+                <div class="badge">04</div>
+                <h2 class="feature-title">Atomic Audit</h2>
+                <p class="feature-desc">Every sensitive write produces an immutable audit trail.
+                    <span class="ar" dir="rtl">كل عملية كتابة حساسة تنتج سجل تدقيق غير قابل للتعديل.</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            <div>Status: Audit grants verified (INSERT/SELECT only).</div>
+            <div dir="rtl">الحالة: تم التحقق من منح التدقيق (إدخال وقراءة فقط).</div>
+        </div>
+    </div>
+</body>
+</html>

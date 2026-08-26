@@ -1,0 +1,122 @@
+{
+  "project_info": {
+    "title": "PROJECT OS",
+    "created": 1787728721.603,
+    "last_updated": 1787728810.712,
+    "total_slides": 10
+  },
+  "slides": [
+    {
+      "id": "cover",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "problem",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "governed_layer",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "three_levels",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "signal_action",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "control",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "commercial_path",
+      "state": "edited",
+      "pageNum": 7
+    },
+    {
+      "id": "adoption",
+      "state": "edited",
+      "pageNum": 8
+    },
+    {
+      "id": "market_need",
+      "state": "edited",
+      "pageNum": 9
+    },
+    {
+      "id": "commercial_model",
+      "state": "edited",
+      "pageNum": 10
+    }
+  ],
+  "outline": [
+    {
+      "id": "cover",
+      "title": "PROJECT OS",
+      "summary": "تشغيل المشاريع محكومًا من الشركة إلى الموقع؛ رؤية الاستثناءات قبل تحولها إلى خسائر.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "problem",
+      "title": "The operating problem",
+      "summary": "بيانات الجدول والتكلفة والموقع والمشتريات والموارد والمستندات موزعة، والقرار يصل بعد ظهور الانحراف.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "governed_layer",
+      "title": "One governed operating layer",
+      "summary": "طبقة واحدة تربط الشركة والمحفظة والمشروع مع فحص المستأجر والدور والاستحقاق.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "three_levels",
+      "title": "Three levels, one language",
+      "summary": "EXECUTIVE وPMO وPROJECT، لكل مستوى نقطة بداية واضحة داخل نظام واحد.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "signal_action",
+      "title": "From signal to action",
+      "summary": "من بطاقة الاستثناء إلى المشروع المحكوم فالإجراء المسموح ثم التحقق من الأثر والتدقيق.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "control",
+      "title": "Built for control",
+      "summary": "عزل المستأجر والمشروع، EVM، RBAC، سجل التدقيق، وحالات خطأ صريحة.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "commercial_path",
+      "title": "Materials and commercial path",
+      "summary": "ركائز المواد والمخازن والمشتريات موجودة؛ BOQ–المشتريات–المستخلص–الربحية هو مسار التطوير التجاري التالي.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "adoption",
+      "title": "Practical adoption",
+      "summary": "ابدأ بمشروع أو محفظة واحدة، استخدم قوالب Excel، عيّن مالكي الأدوار، وقس القبول.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "market_need",
+      "title": "Why the market needs it",
+      "summary": "السوق يتحرك إلى السحابة والاشتراك بينما تبقى البيانات المعزولة وتكلفة التنفيذ تحديين.",
+      "image_plan": "Use a suitable image if needed"
+    },
+    {
+      "id": "commercial_model",
+      "title": "Commercial model and next step",
+      "summary": "خطط حسب المستوى مع تهيئة وترحيل وتدريب بعرض مستقل، ثم Discovery وPilot محدود بمعايير قبول مكتوبة.",
+      "image_plan": "Use a suitable image if needed"
+    }
+  ]
+}

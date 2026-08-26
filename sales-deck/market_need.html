@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; background-color: #E8ECEF; color: #111111; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            position: relative;
+        }
+        .header-section {
+            margin-bottom: 60px;
+        }
+        .section-number {
+            font-size: 90px;
+            font-weight: 900;
+            color: #D9B310;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 48px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+        }
+        .subtitle {
+            font-size: 24px;
+            color: #2C3E50;
+            margin-top: 10px;
+            font-weight: 400;
+        }
+        .grid-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            margin-top: 40px;
+        }
+        .column {
+            display: flex;
+            flex-direction: column;
+            border-top: 8px solid #111111;
+            padding-top: 25px;
+        }
+        .badge {
+            width: 60px;
+            height: 60px;
+            background-color: #D9B310;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+        .badge i {
+            color: #111111;
+            font-size: 24px;
+        }
+        .col-title {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        .col-text {
+            font-size: 19px;
+            line-height: 1.6;
+            color: #2C3E50;
+        }
+        .ar-text {
+            display: block;
+            margin-top: 15px;
+            font-size: 20px;
+            font-weight: 500;
+            text-align: right;
+        }
+        .footer-note {
+            position: absolute;
+            bottom: 40px;
+            left: 80px;
+            right: 80px;
+            font-size: 16px;
+            color: #7F8C8D;
+            border-top: 1px solid #BDC3C7;
+            padding-top: 20px;
+        }
+    </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header-section">
+            <div class="section-number">09</div>
+            <h1 class="title">Why the market needs it</h1>
+            <p class="subtitle">Bridging the gap between cloud adoption and operational reality.</p>
+        </div>
+
+        <div class="grid-layout">
+            <!-- Column 1: Market Trend -->
+            <div class="column">
+                <div class="badge"><i class="fas fa-cloud-upload-alt"></i></div>
+                <h2 class="col-title">Market Shift</h2>
+                <p class="col-text">
+                    The market is moving rapidly toward cloud and subscription models to lower upfront costs.
+                    <span class="ar-text" dir="rtl">السوق يتحرك بسرعة نحو نماذج السحابة والاشتراك لتقليل التكاليف الرأسمالية.</span>
+                </p>
+            </div>
+
+            <!-- Column 2: The Challenge -->
+            <div class="column">
+                <div class="badge"><i class="fas fa-exclamation-triangle"></i></div>
+                <h2 class="col-title">The Challenge</h2>
+                <p class="col-text">
+                    Fragmented data and high implementation costs remain the primary barriers to digital success.
+                    <span class="ar-text" dir="rtl">تشتت البيانات وتكاليف التنفيذ العالية تظل العوائق الرئيسية أمام النجاح الرقمي.</span>
+                </p>
+            </div>
+
+            <!-- Column 3: The Value -->
+            <div class="column">
+                <div class="badge"><i class="fas fa-bolt"></i></div>
+                <h2 class="col-title">The Value</h2>
+                <p class="col-text">
+                    PROJECT OS reduces manual re-entry and accelerates variance visibility for faster action.
+                    <span class="ar-text" dir="rtl">يقلل PROJECT OS من إعادة الإدخال اليدوي ويسرع رؤية الانحراف لاتخاذ إجراءات أسرع.</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            * Based on 2026 market research indicators. Implementation and migration are scoped separately.
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background: #E8ECEF;
+            color: #111111;
+            font-family: 'Inter', sans-serif;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+            position: relative;
+        }
+        .kicker {
+            color: #D9B310;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 56px;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 60px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            align-items: start;
+        }
+        .column {
+            border-top: 4px solid #111111;
+            padding-top: 30px;
+        }
+        .step-num {
+            font-size: 80px;
+            font-weight: 900;
+            color: #D9B310;
+            line-height: 1;
+            margin-bottom: 20px;
+        }
+        .step-title {
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+        .step-desc {
+            font-size: 18px;
+            color: #2C3E50;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        .ar-text {
+            display: block;
+            margin-top: 10px;
+            font-size: 18px;
+            color: #2C3E50;
+        }
+        .badge-container {
+            position: absolute;
+            bottom: 60px;
+            right: 80px;
+            display: flex;
+            gap: 15px;
+        }
+        .badge {
+            width: 60px;
+            height: 60px;
+            background: #111111;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #D9B310;
+            font-weight: 900;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="kicker">08 · PRACTICAL ADOPTION</div>
+        <div class="title">Start small, govern early,<br>scale with confidence.</div>
+        
+        <div class="grid">
+            <div class="column">
+                <div class="step-num">01</div>
+                <div class="step-title">Discovery</div>
+                <div class="step-desc">
+                    Identify one project or portfolio. Define role owners and data sources.
+                    <span class="ar-text" dir="rtl">حدد مشروعًا أو محفظة واحدة. عيّن مالكي الأدوار ومصادر البيانات.</span>
+                </div>
+            </div>
+            <div class="column">
+                <div class="step-num">02</div>
+                <div class="step-title">Onboarding</div>
+                <div class="step-desc">
+                    Use approved Excel templates. Map WBS and budget lines to the governed layer.
+                    <span class="ar-text" dir="rtl">استخدم قوالب Excel المعتمدة. اربط WBS وبنود الميزانية بالطبقة المحكومة.</span>
+                </div>
+            </div>
+            <div class="column">
+                <div class="step-num">03</div>
+                <div class="step-title">Acceptance</div>
+                <div class="step-desc">
+                    Measure role-based acceptance. Verify audit trails before broader rollout.
+                    <span class="ar-text" dir="rtl">قس القبول بناءً على الأدوار. تحقق من سجلات التدقيق قبل التوسع.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="badge-container">
+            <div class="badge">PILOT</div>
+            <div class="badge">GOV</div>
+            <div class="badge">SCALE</div>
+        </div>
+    </div>
+</body>
+</html>

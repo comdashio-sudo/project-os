@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #E8ECEF;
+            color: #2C3E50;
+            font-family: 'Inter', sans-serif;
+            position: relative;
+        }
+        .header-section {
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .section-number {
+            font-size: 120px;
+            font-weight: 900;
+            color: #D9B310;
+            line-height: 1;
+            margin-bottom: -20px;
+        }
+        .main-title {
+            font-size: 64px;
+            font-weight: 900;
+            color: #111111;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            font-size: 24px;
+            font-weight: 400;
+            color: #2C3E50;
+            margin-bottom: 60px;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            padding-top: 20px;
+        }
+        .column {
+            display: flex;
+            flex-direction: column;
+            border-top: 8px solid #111111;
+            padding-top: 30px;
+        }
+        .step-badge {
+            width: 60px;
+            height: 60px;
+            background-color: #D9B310;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #111111;
+            font-weight: 900;
+            font-size: 24px;
+            margin-bottom: 25px;
+        }
+        .col-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #111111;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        .col-text {
+            font-size: 20px;
+            line-height: 1.6;
+            color: #2C3E50;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header-section">
+            <div class="section-number">04</div>
+            <h1 class="main-title">From Signal to Action</h1>
+            <p class="subtitle">A closed-loop governed workflow / دورة عمل محكومة ومغلقة</p>
+        </div>
+
+        <div class="content-grid">
+            <!-- Step 1: Signal -->
+            <div class="column">
+                <div class="step-badge">01</div>
+                <h2 class="col-title">The Signal</h2>
+                <p class="col-text">
+                    Start with an exception card. Identify risks, delays, or health issues directly from the dashboard.
+                </p>
+            </div>
+
+            <!-- Step 2: Action -->
+            <div class="column">
+                <div class="step-badge">02</div>
+                <h2 class="col-title">The Action</h2>
+                <p class="col-text">
+                    Open the governed project context. Execute permitted actions within strict RBAC and tenant boundaries.
+                </p>
+            </div>
+
+            <!-- Step 3: Verification -->
+            <div class="column">
+                <div class="step-badge">03</div>
+                <h2 class="col-title">The Audit</h2>
+                <p class="col-text">
+                    Verify downstream effects. Every sensitive write produces an atomic, immutable audit trail.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
