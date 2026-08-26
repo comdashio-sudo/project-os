@@ -1,6 +1,6 @@
 import mysql from "mysql2/promise";
 import { readFile } from "node:fs/promises";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -21,6 +21,16 @@ let integrationUserId = 0;
 let unassignedUserId = 0;
 let financeUserId = 0;
 let accountantUserId = 0;
+
+async function readExcelRows(bytes: Buffer, sheetName: string) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(bytes);
+  const worksheet = workbook.getWorksheet(sheetName);
+  if (!worksheet) throw new Error(`Worksheet ${sheetName} is absent`);
+  const headers = (worksheet.getRow(1).values as ExcelJS.CellValue[]).slice(1).map(value => String(value ?? ""));
+  const rows = worksheet.getRows(2, Math.max(worksheet.rowCount - 1, 0)) ?? [];
+  return { sheetNames: workbook.worksheets.map(sheet => sheet.name), rows: rows.map(row => Object.fromEntries(headers.map((header, index) => [header, row.getCell(index + 1).value ?? ""]))) };
+}
 
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration database isolation", () => {
   beforeAll(async () => {
@@ -1068,9 +1078,9 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       const exported = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "wbs", format: "xlsx", locale: "ar" });
       exportId = exported.id;
       expect(exported).toMatchObject({ fileName: "wbs-export.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", rowCount: expect.any(Number) });
-      const workbook = XLSX.read(Buffer.from(exported.base64, "base64"), { type: "buffer" });
-      expect(workbook.SheetNames).toEqual(["WBS"]);
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.WBS, { defval: "" });
+      const workbook = await readExcelRows(Buffer.from(exported.base64, "base64"), "WBS");
+      expect(workbook.sheetNames).toEqual(["WBS"]);
+      const rows = workbook.rows;
       expect(rows).toContainEqual(expect.objectContaining({ "رمز WBS": "WBS-XLSX-AUDIT", "اسم WBS": "XLSX audit work package", "القيمة المخططة": 350 }));
       const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE id = ? AND tenantId = ? AND action = 'data_export_generated' AND entityType = 'data_export'", [exportId, tenantA]);
       expect(Number(audits[0].count)).toBe(1);
@@ -1094,8 +1104,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       expect(Buffer.from(budgetExport.base64, "base64").toString("utf8")).toContain("BUD-EXPORT-AUDIT");
       const activityExport = await caller.dataImports.export({ tenantId: tenantA, projectId: projectA, moduleCode: "activities", format: "xlsx", locale: "ar" });
       exportIds.push(activityExport.id);
-      const workbook = XLSX.read(Buffer.from(activityExport.base64, "base64"), { type: "buffer" });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.ACTIVITIES, { defval: "" });
+      const workbook = await readExcelRows(Buffer.from(activityExport.base64, "base64"), "ACTIVITIES");
+      const rows = workbook.rows;
       expect(rows).toContainEqual(expect.objectContaining({ "رمز النشاط": "ACT-EXPORT-AUDIT", "اسم النشاط": "Activity export evidence", "القيمة المخططة": 275, "الحالة": "in_progress" }));
       const [audits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE id IN (?, ?) AND tenantId = ? AND action = 'data_export_generated'", [budgetExport.id, activityExport.id, tenantA]);
       expect(Number(audits[0].count)).toBe(2);

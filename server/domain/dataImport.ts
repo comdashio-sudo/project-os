@@ -1,8 +1,4 @@
-import * as XLSX from "xlsx";
-
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
-const MAX_IMPORT_ROWS = 10_000;
-const MAX_IMPORT_COLUMNS = 60;
+import { buildSpreadsheet, readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
 export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule";
 export type ExportModuleCode = "wbs" | "budget" | "activities";
@@ -87,29 +83,6 @@ const importDate = (value: unknown) => {
   return source && Number.isFinite(parsed) ? new Date(parsed) : undefined;
 };
 
-type SafeWorkbookResult = { ok: true; workbook: XLSX.WorkBook } | { ok: false; error: ImportError };
-
-function readWorkbookSafely(input: Uint8Array | string, type: "array" | "string", cellDates = false, raw = false): SafeWorkbookResult {
-  const byteLength = typeof input === "string" ? Buffer.byteLength(input, "utf8") : input.byteLength;
-  if (byteLength > MAX_IMPORT_BYTES) return { ok: false, error: { rowNumber: 0, code: "IMPORT_FILE_TOO_LARGE" } };
-  if (type === "array" && (!(input instanceof Uint8Array) || input[0] !== 0x50 || input[1] !== 0x4b || input[2] !== 0x03 || input[3] !== 0x04)) {
-    return { ok: false, error: { rowNumber: 0, code: "IMPORT_WORKBOOK_INVALID" } };
-  }
-  try {
-    const workbook = XLSX.read(input, { type, cellDates, raw, bookVBA: true, WTF: false });
-    if (workbook.vbaraw) return { ok: false, error: { rowNumber: 0, code: "IMPORT_MACRO_WORKBOOK_REJECTED" } };
-    return { ok: true, workbook };
-  } catch {
-    return { ok: false, error: { rowNumber: 0, code: "IMPORT_WORKBOOK_INVALID" } };
-  }
-}
-
-function importBoundsError(rows: Record<string, unknown>[], headers: string[]): ImportError | undefined {
-  if (headers.length > MAX_IMPORT_COLUMNS) return { rowNumber: 0, code: "IMPORT_TOO_MANY_COLUMNS" };
-  if (rows.length > MAX_IMPORT_ROWS) return { rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" };
-  return undefined;
-}
-
 function analyzeScheduleRows(rows: Record<string, unknown>[], headers: string[], mapping: Record<string, string>, sheetNames: string[]) {
   const errors: ImportError[] = []; const validRows: ScheduleImportRow[] = []; const wbsCodes = new Set<string>(); const activityCodes = new Set<string>(); const activitiesToResolve: ScheduleActivityImportRow[] = [];
   rows.forEach((row, index) => {
@@ -130,16 +103,17 @@ function analyzeScheduleRows(rows: Record<string, unknown>[], headers: string[],
   return { sheetNames, headers, mapping, rows, validRows, errors };
 }
 
-export function analyzeScheduleImportFile(input: { format: "xlsx" | "xer"; bytes: Uint8Array }) {
+export async function analyzeScheduleImportFile(input: { format: "xlsx" | "xer"; bytes: Uint8Array }) {
   if (input.format === "xlsx") {
-    const parsed = readWorkbookSafely(input.bytes, "array", true);
-    if (!parsed.ok) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [parsed.error] };
+    const parsed = await readSpreadsheetSafely(input.bytes, "xlsx");
+    if (!parsed.ok) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: parsed.code }] };
     const workbook = parsed.workbook;
-    if (workbook.SheetNames.length !== 1) return { sheetNames: workbook.SheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
-    const sheetName = workbook.SheetNames[0]; if (!sheetName) return { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "", raw: false }); const headers = Object.keys(rows[0] ?? {}); const mapping = Object.fromEntries(templates.schedule.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; })); const requiredErrors = templates.schedule.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const knownHeaders = new Set(templates.schedule.flatMap(field => field.aliases)); const unsupported = headers.filter(header => !knownHeaders.has(normalize(header))).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header }));
-    const boundsError = importBoundsError(rows, headers); if (boundsError) return { sheetNames: workbook.SheetNames, headers, mapping, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [boundsError] };
-    return requiredErrors.length || unsupported.length ? { sheetNames: workbook.SheetNames, headers, mapping, rows, validRows: [] as ScheduleImportRow[], errors: [...requiredErrors, ...unsupported] } : analyzeScheduleRows(rows, headers, mapping, workbook.SheetNames);
+    const sheetNames = workbook.worksheets.map(sheet => sheet.name);
+    if (sheetNames.length !== 1) return { sheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
+    const sheet = workbook.worksheets[0]; if (!sheet) return { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+    const { rows, headers } = worksheetToRows(sheet); const mapping = Object.fromEntries(templates.schedule.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; })); const requiredErrors = templates.schedule.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const knownHeaders = new Set(templates.schedule.flatMap(field => field.aliases)); const unsupported = headers.filter(header => !knownHeaders.has(normalize(header))).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header }));
+    const boundsError = spreadsheetBoundsError(sheet, rows); if (boundsError) return { sheetNames, headers, mapping, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: boundsError }] };
+    return requiredErrors.length || unsupported.length ? { sheetNames, headers, mapping, rows, validRows: [] as ScheduleImportRow[], errors: [...requiredErrors, ...unsupported] } : analyzeScheduleRows(rows, headers, mapping, sheetNames);
   }
   const tables = new Map<string, { fields: string[]; rows: { values: Record<string, string> }[] }>(); let active: { name: string; fields: string[]; rows: { values: Record<string, string> }[] } | undefined;
   Buffer.from(input.bytes).toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/).forEach(line => { const [tag, ...values] = line.split("\t"); if (tag === "%T") { active = { name: values[0] ?? "", fields: [], rows: [] }; tables.set(active.name, active); } else if (tag === "%F" && active) active.fields = values; else if (tag === "%R" && active && active.fields.length) active.rows.push({ values: Object.fromEntries(active.fields.map((field, index) => [field, values[index] ?? ""])) }); });
@@ -188,13 +162,14 @@ function normalizeMasterPlanEntityType(value: unknown): MasterPlanSpatialImportR
   return types[normalize(value)] ?? "invalid";
 }
 
-export function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
-  const parsed = readWorkbookSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format === "csv" ? "string" : "array", false, input.format === "csv");
-  if (!parsed.ok) return { sheetNames: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [parsed.error] };
-  const workbook = parsed.workbook; const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" }); const headers = Object.keys(rows[0] ?? {});
-  const boundsError = importBoundsError(rows, headers); if (boundsError) return { sheetNames: workbook.SheetNames, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [boundsError] };
+export async function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
+  const parsed = await readSpreadsheetSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format);
+  if (!parsed.ok) return { sheetNames: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [{ rowNumber: 0, code: parsed.code }] };
+  const workbook = parsed.workbook; const sheet = workbook.worksheets[0];
+  const sheetNames = workbook.worksheets.map(item => item.name);
+  if (!sheet) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+  const { rows, headers } = worksheetToRows(sheet);
+  const boundsError = spreadsheetBoundsError(sheet, rows); if (boundsError) return { sheetNames, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanMappingRow[], errors: [{ rowNumber: 0, code: boundsError }] };
   const mapping = Object.fromEntries(masterPlanFields.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; }));
   const errors: ImportError[] = masterPlanFields.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const validRows: MasterPlanMappingRow[] = [];
   if (!errors.length) rows.forEach((row, index) => {
@@ -202,16 +177,16 @@ export function analyzeMasterPlanMappingFile(input: { format: "xlsx" | "csv"; by
     if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (status === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" }); if (mapping.progressPercent && progressPercent === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "progressPercent" }); if (mapping.plannedValue && plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (mapping.actualValue && actualValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "actualValue" }); if (mapping.forecastValue && forecastValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "forecastValue" });
     if (code && status !== "invalid" && (!mapping.progressPercent || progressPercent !== undefined) && (!mapping.plannedValue || plannedValue !== undefined) && (!mapping.actualValue || actualValue !== undefined) && (!mapping.forecastValue || forecastValue !== undefined)) validRows.push({ rowNumber, values: { code, ...(status ? { status } : {}), ...(progressPercent !== undefined ? { progressPercent } : {}), ...(plannedValue !== undefined ? { plannedValue } : {}), ...(actualValue !== undefined ? { actualValue } : {}), ...(forecastValue !== undefined ? { forecastValue } : {}) } });
   });
-  return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
+  return { sheetNames, mapping, rows, validRows, errors };
 }
 
-export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
-  const parsed = readWorkbookSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format === "csv" ? "string" : "array", false, input.format === "csv");
-  if (!parsed.ok) return { sheetNames: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [parsed.error] };
-  const workbook = parsed.workbook; const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" }); const headers = Object.keys(rows[0] ?? {});
-  const boundsError = importBoundsError(rows, headers); if (boundsError) return { sheetNames: workbook.SheetNames, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [boundsError] };
+export async function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "csv"; bytes: Uint8Array }) {
+  const parsed = await readSpreadsheetSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format);
+  if (!parsed.ok) return { sheetNames: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [{ rowNumber: 0, code: parsed.code }] };
+  const workbook = parsed.workbook; const sheet = workbook.worksheets[0]; const sheetNames = workbook.worksheets.map(item => item.name);
+  if (!sheet) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+  const { rows, headers } = worksheetToRows(sheet);
+  const boundsError = spreadsheetBoundsError(sheet, rows); if (boundsError) return { sheetNames, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as MasterPlanSpatialImportRow[], errors: [{ rowNumber: 0, code: boundsError }] };
   const mapping = Object.fromEntries(masterPlanSpatialFields.flatMap(field => { const header = headers.find(candidate => field.aliases.includes(normalize(candidate))); return header ? [[field.key, header]] : []; }));
   const errors: ImportError[] = masterPlanSpatialFields.filter(field => field.required && !mapping[field.key]).map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })); const validRows: MasterPlanSpatialImportRow[] = [];
   if (!errors.length) rows.forEach((row, index) => {
@@ -219,22 +194,22 @@ export function analyzeMasterPlanSpatialEntityFile(input: { format: "xlsx" | "cs
     if (!code) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "code" }); if (!name) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "name" }); if (entityType === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_SPATIAL_TYPE_INVALID", field: "entityType" }); if (x === undefined || y === undefined || width === undefined || height === undefined || width <= 0 || height <= 0 || x + width > 100 || y + height > 100) errors.push({ rowNumber, code: "MASTER_PLAN_SPATIAL_GEOMETRY_INVALID", field: "geometry" }); if (status === "invalid") errors.push({ rowNumber, code: "MASTER_PLAN_MAPPING_STATUS_INVALID", field: "status" }); if (progressPercent === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "progressPercent" }); if (plannedValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedValue" }); if (actualValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "actualValue" }); if (forecastValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "forecastValue" });
     if (code && name && entityType !== "invalid" && x !== undefined && y !== undefined && width !== undefined && height !== undefined && width > 0 && height > 0 && x + width <= 100 && y + height <= 100 && status !== "invalid" && progressPercent !== undefined && plannedValue !== undefined && actualValue !== undefined && forecastValue !== undefined) validRows.push({ rowNumber, values: { code, name, entityType, geometry: { x, y, width, height }, status: status ?? "not_started", progressPercent, plannedValue, actualValue, forecastValue, ...(parentCode ? { parentCode } : {}), ...(wbsCode ? { wbsCode } : {}), ...(activityCode ? { activityCode } : {}) } });
   });
-  return { sheetNames: workbook.SheetNames, mapping, rows, validRows, errors };
+  return { sheetNames, mapping, rows, validRows, errors };
 }
 
-export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv" | "xer"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
-  if (input.moduleCode === "schedule") return input.format === "xlsx" || input.format === "xer" ? analyzeScheduleImportFile({ format: input.format, bytes: input.bytes }) : { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "SCHEDULE_FORMAT_INVALID" }] as ImportError[] };
+export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; format: "xlsx" | "csv" | "xer"; bytes: Uint8Array; mappingOverride?: Record<string, string> }) {
+  if (input.moduleCode === "schedule") return input.format === "xlsx" || input.format === "xer" ? await analyzeScheduleImportFile({ format: input.format, bytes: input.bytes }) : { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ScheduleImportRow[], errors: [{ rowNumber: 0, code: "SCHEDULE_FORMAT_INVALID" }] as ImportError[] };
   if (input.format === "xer") return { sheetNames: [], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_FORMAT_INVALID" }] as ImportError[] };
-  const parsed = readWorkbookSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format === "csv" ? "string" : "array", false, input.format === "csv");
-  if (!parsed.ok) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [parsed.error] };
+  const parsed = await readSpreadsheetSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format);
+  if (!parsed.ok) return { sheetNames: [] as string[], headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: parsed.code }] };
   const workbook = parsed.workbook;
-  if (workbook.SheetNames.length !== 1) return { sheetNames: workbook.SheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
+  const sheetNames = workbook.worksheets.map(sheet => sheet.name);
+  if (sheetNames.length !== 1) return { sheetNames, headers: [] as string[], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_SINGLE_SHEET_REQUIRED" }] as ImportError[] };
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return { sheetNames: [], mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: "IMPORT_EMPTY_WORKBOOK" }] as ImportError[] };
 
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" });
-  const headers = Object.keys(rows[0] ?? {});
-  const boundsError = importBoundsError(rows, headers); if (boundsError) return { sheetNames: workbook.SheetNames, headers, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [boundsError] };
+  const { rows, headers } = worksheetToRows(sheet);
+  const boundsError = spreadsheetBoundsError(sheet, rows); if (boundsError) return { sheetNames, headers, mapping: {} as Record<string, string>, rows: [] as Record<string, unknown>[], validRows: [] as ValidatedImportRow[], errors: [{ rowNumber: 0, code: boundsError }] };
   const inferredMapping = Object.fromEntries(
     templates[input.moduleCode].flatMap(field => {
       const header = headers.find(candidate => field.aliases.includes(normalize(candidate)));
@@ -305,7 +280,7 @@ export function analyzeImportFile(input: { moduleCode: ImportModuleCode; format:
     });
   }
 
-  return { sheetNames: workbook.SheetNames, headers, mapping, rows, validRows, errors };
+  return { sheetNames, headers, mapping, rows, validRows, errors };
 }
 
 const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string, string>>> = {
@@ -314,12 +289,10 @@ const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string,
   activities: { ar: { code: "رمز النشاط", name: "اسم النشاط", plannedValue: "القيمة المخططة", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" }, en: { code: "Activity Code", name: "Activity Name", plannedValue: "Planned Value", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", status: "Status" } },
 };
 
-export function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en"; rows: Record<string, unknown>[] }) {
+export async function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en"; rows: Record<string, unknown>[] }) {
   const headers = exportHeaders[input.moduleCode][input.locale];
-  const exportRows = input.rows.map(row => Object.fromEntries(Object.entries(headers).map(([key, label]) => [label, safeSpreadsheetValue(row[key] ?? "")] )));
-  const sheet = XLSX.utils.json_to_sheet(exportRows, { header: Object.values(headers) });
-  const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, input.moduleCode.toUpperCase());
-  const bytes = input.format === "csv" ? Buffer.from(XLSX.utils.sheet_to_csv(sheet), "utf8") : Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+  const exportRows = input.rows.map(row => Object.keys(headers).map(key => safeSpreadsheetValue(row[key] ?? "")));
+  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: Object.values(headers), rows: exportRows, format: input.format });
   const extension = input.format === "csv" ? "csv" : "xlsx";
   return { bytes, fileName: `${input.moduleCode}-export.${extension}`, contentType: input.format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 }
