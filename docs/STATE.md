@@ -193,3 +193,5 @@
 البريد `ramezsamerr@gmail.com` عضو مالك نشط قائم، ولذلك لا تنشأ له دعوة مكررة أو كلمة مرور. تظل ملكية البريد غير مثبتة لأن OAuth لا يقدم `email_verified` موثقًا، وتظل الدعوة غير مرسلة آليًا لغياب مزود بريد معتمد. لا يعد أي من ذلك قبول Pilot أو GO لبيانات عميل حقيقية.
 
 أعيدت بوابة الجودة بعد تطبيق الترحيل وإنشاء الدعوة: `pnpm test` = 359 ناجحًا و79 متخطى، و`pnpm check` و`pnpm build` ناجحان، و`pnpm coverage:trpc` = 185/180/5/0، و`pnpm verify:audit-grants` = `approved: true`، والمشغل الحي = 79/79 خلال 227.35 ثانية. تدقيق الإنتاج عند مستوى high لا يعرض high أو critical؛ يتبقى تحذير moderate واحد موثق في ExcelJS/UUID.
+
+حُفظ إصلاح الدعوة وصلاحيات المالك في الالتزام `766905721748497cb2374b4f8616663c8469211b` بعنوان `fix: restore tenant owner access for governed invites` قبل دفعه إلى `github/main`.
