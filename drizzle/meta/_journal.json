@@ -358,6 +358,13 @@
       "when": 1787729545301,
       "tag": "0050_left_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "5",
+      "when": 1787767900000,
+      "tag": "0051_restore_tenant_owner_permissions",
+      "breakpoints": true
     }
   ]
 }
