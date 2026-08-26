@@ -168,3 +168,7 @@
 ## إثبات دفعة ExcelJS والعهدة — 26 أغسطس 2026
 
 دُفعت دفعة استبدال SheetJS إلى `github/main` في الالتزام `7cd99c89ffbe70dbc853d58dbd2a5b5eff991701` بعنوان `security: replace sheetjs with controlled exceljs import`. بعد `git fetch github --prune` كانت النتيجة `ahead/behind = 0/0`، والرأس المحلي و`github/main` متطابقان. المستودع الخاص بقي `ramezsamerr-collab/project-os` والفرع الافتراضي هو `main`.
+
+## توحيد جرد المتبقي — 26 أغسطس 2026
+
+أعيد بناء [REMAINING_INVENTORY.md](./REMAINING_INVENTORY.md) من نتائج البوابة الحية الحالية بدل النسخة المؤرخة التي كانت تسجل مهلات تكامل وميزات تجارية وFPAC كفجوات رغم إثبات إغلاقها لاحقًا. يحصر الجرد الحالي ما يتطلب مالكًا أو جلسة بشرية أو فترة Pilot أو قرار مورد، ولا يعيد فتح ميزات ثبتت آليًا.
