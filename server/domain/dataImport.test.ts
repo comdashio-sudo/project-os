@@ -33,6 +33,14 @@ describe("analyzeImportFile", () => {
     const extraColumn = analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "WBS Code": "1.0", "WBS Name": "Civil", Notes: "Do not import" }])) });
     expect(extraColumn.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: "Notes" });
   });
+  it("rejects oversized or malformed workbooks before extracting any row", () => {
+    const oversized = analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(5 * 1024 * 1024 + 1) });
+    const malformed = analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: Buffer.from("not-a-workbook") });
+    expect(oversized.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_FILE_TOO_LARGE" });
+    expect(oversized.validRows).toEqual([]);
+    expect(malformed.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_WORKBOOK_INVALID" });
+    expect(malformed.validRows).toEqual([]);
+  });
   it("rejects repeated business keys inside the same file instead of choosing a row silently", () => {
     const result = analyzeImportFile({ moduleCode: "budget", format: "xlsx", bytes: new Uint8Array(workbookBytes([{ "Cost Code": "CIVIL", "Original Amount": 10, "Current Amount": 12 }, { "Cost Code": "CIVIL", "Original Amount": 20, "Current Amount": 25 }])) });
     expect(result.errors).toContainEqual({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
@@ -80,6 +88,12 @@ describe("analyzeImportFile", () => {
     const csv = result.bytes.toString("utf8");
     expect(result).toMatchObject({ fileName: "wbs-export.csv", contentType: "text/csv;charset=utf-8" });
     expect(csv).toContain("رمز WBS"); expect(csv).toContain("أعمال مدنية"); expect(csv).not.toContain("must-not-export");
+  });
+  it("neutralizes formula-like export cells before building CSV or Excel", () => {
+    const result = buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "en", rows: [{ code: "=HYPERLINK(\"https://untrusted.example\")", name: "+unsafe", plannedValue: 100 }] });
+    const csv = result.bytes.toString("utf8");
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain("'+unsafe");
   });
 });
 

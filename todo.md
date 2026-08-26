@@ -365,3 +365,5 @@
 - [x] Verify commercial logic with integration tests.
 - [x] تنفيذ واجهة موحدة للسلسلة التجارية داخل المشروع: BOQ، عقود الباطن، المستخلصات، وفواتير المشروع، مع حالات التحميل/الفراغ/الخطأ وتعريب RTL/LTR واختبارات DOM. الدليل: `CommercialChain.tsx` و`CommercialChain.interaction.test.tsx`، 2/2 DOM، و6/6 مع اختبار التكامل التجاري.
 - [x] تنفيذ شاشة ربحية المشروع FPAC فوق بيانات BOQ والتكلفة الفعلية والفواتير، مع مؤشرات مصدرها موثق واختبارات DOM. الدليل: `ProjectProfitability.tsx` و`ProjectProfitability.test.tsx`، 2/2 DOM، مع توضيح أن مؤشر القيمة المفوترة ناقص التكلفة الفعلية تقريبي وليس قائمة ربح نظامية.
+
+- [x] معالجة الثغرات الحرجة والعالية في اعتماديات الإنتاج التي كشفها `pnpm audit --prod`: رُقيت Drizzle وAxios وAWS S3 وtRPC وStreamdown وRecharts وExpress، وعادت بوابة الجودة ومشغل TiDB 79/79. لا توجد critical في تدقيق الإنتاج؛ بقي `xlsx@0.18.5` (2 high و1 moderate، بلا نسخة مورد مصححة) موثقًا كـ`VENDOR_UNPATCHED` مع حراسة حجم 5MiB وفحص ZIP ورفض الماكرو/الملف المعطوب/الحدود وتحييد صيغ التصدير واختبار مباشر.
