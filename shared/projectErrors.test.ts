@@ -48,4 +48,21 @@ describe("project error map", () => {
       },
     });
   });
+
+  it("returns a precise bilingual response for workspace-slug and provisioning failures", () => {
+    expect(getProjectError("PROJECT_OS_WORKSPACE_SLUG_EXISTS")).toEqual({
+      code: "PROJECT_OS_WORKSPACE_SLUG_EXISTS",
+      messages: {
+        ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
+        en: "This workspace slug is already in use. Choose a different workspace slug.",
+      },
+    });
+    expect(getProjectError("PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE")).toEqual({
+      code: "PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE",
+      messages: {
+        ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",
+        en: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
+      },
+    });
+  });
 });

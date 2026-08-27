@@ -825,6 +825,18 @@ export async function getPublicCommercialPlans() {
   return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
 }
 
+function isDuplicateEntryError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === "ER_DUP_ENTRY" || (typeof candidate.message === "string" && candidate.message.includes("Duplicate entry"));
+}
+
+function safeDatabaseErrorCode(error: unknown) {
+  if (!error || typeof error !== "object") return "UNKNOWN";
+  const candidate = error as { code?: unknown };
+  return typeof candidate.code === "string" ? candidate.code : "UNKNOWN";
+}
+
 export async function createSelfServiceTenant(input: { userId: number; legalName: string; slug: string; planCode: string; seats: number }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   if (!Number.isInteger(input.seats) || input.seats < 1 || input.seats > 100000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
@@ -833,23 +845,32 @@ export async function createSelfServiceTenant(input: { userId: number; legalName
   await ensureDefaultCommercialCatalog(db);
   const [plan] = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(and(eq(commercialPlans.code, input.planCode), eq(commercialPlans.active, true))).limit(1);
   if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND" });
+  const [existingCompany] = await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, input.slug)).limit(1);
+  if (existingCompany) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORKSPACE_SLUG_EXISTS" });
   const now = new Date(); const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000); const emailHash = normalizedEmailHash(user.email);
   const attempts = await db.select({ id: selfServiceSignupAttempts.id }).from(selfServiceSignupAttempts).where(and(eq(selfServiceSignupAttempts.userId, input.userId), gte(selfServiceSignupAttempts.createdAt, windowStart)));
   if (attempts.length >= selfSignupLimitPerDay) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "PROJECT_OS_SIGNUP_RATE_LIMITED" });
   const tenantId = crypto.randomUUID(); const subscriptionId = crypto.randomUUID(); const membershipId = crypto.randomUUID(); const ownerRoleId = crypto.randomUUID(); const licenseId = crypto.randomUUID();
-  await db.transaction(async tx => {
-    await tx.insert(selfServiceSignupAttempts).values({ id: crypto.randomUUID(), userId: input.userId, emailHash });
-    await tx.insert(companies).values({ id: tenantId, legalName: input.legalName, slug: input.slug, status: "active", defaultLocale: "ar" });
-    await tx.insert(subscriptions).values({ id: subscriptionId, tenantId, packageCode: plan.packageCode, status: "trialing", startsAt: now });
-    await tx.insert(tenantLicenses).values({ id: licenseId, tenantId, subscriptionId, planId: plan.id, status: "trialing", seats: input.seats, priceAmount: "0", discountAmount: "0", manualActivation: false, startsAt: now, trialEndsAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000), createdByUserId: input.userId });
-    await tx.insert(tenantEntitlements).values(productsForPackage(plan.packageCode as SubscriptionPackageCode).map(productCode => ({ id: crypto.randomUUID(), tenantId, subscriptionId, productCode, active: true, startsAt: now })));
-    await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
-    await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
-    for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
-    const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
-    await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });
-  });
+  try {
+    await db.transaction(async tx => {
+      await tx.insert(selfServiceSignupAttempts).values({ id: crypto.randomUUID(), userId: input.userId, emailHash });
+      await tx.insert(companies).values({ id: tenantId, legalName: input.legalName, slug: input.slug, status: "active", defaultLocale: "ar" });
+      await tx.insert(subscriptions).values({ id: subscriptionId, tenantId, packageCode: plan.packageCode, status: "trialing", startsAt: now });
+      await tx.insert(tenantLicenses).values({ id: licenseId, tenantId, subscriptionId, planId: plan.id, status: "trialing", seats: input.seats, priceAmount: "0", discountAmount: "0", manualActivation: false, startsAt: now, trialEndsAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000), createdByUserId: input.userId });
+      await tx.insert(tenantEntitlements).values(productsForPackage(plan.packageCode as SubscriptionPackageCode).map(productCode => ({ id: crypto.randomUUID(), tenantId, subscriptionId, productCode, active: true, startsAt: now })));
+      await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
+      await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
+      for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+      const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
+      await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
+      await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });
+    });
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+    if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORKSPACE_SLUG_EXISTS" });
+    console.error("[Self-service signup] provisioning failed", { code: safeDatabaseErrorCode(error), userId: input.userId, planCode: input.planCode, seats: input.seats, slugHash: createHash("sha256").update(input.slug).digest("hex") });
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE" });
+  }
   return { tenantId, subscriptionId, licenseId, status: "trialing" as const };
 }
 

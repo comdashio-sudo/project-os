@@ -252,6 +252,14 @@ export const projectErrorMessages = {
     ar: "تم بلوغ الحد المؤقت لمحاولات إنشاء مساحات العمل. حاول لاحقًا.",
     en: "The temporary workspace-creation limit has been reached. Try again later.",
   },
+  PROJECT_OS_WORKSPACE_SLUG_EXISTS: {
+    ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
+    en: "This workspace slug is already in use. Choose a different workspace slug.",
+  },
+  PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE: {
+    ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",
+    en: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
+  },
   PROJECT_OS_BILLING_SUBSCRIPTION_NOT_FOUND: {
     ar: "الاشتراك المحدد غير متاح ضمن مساحة العمل الحالية.",
     en: "The selected subscription is unavailable in the current workspace.",

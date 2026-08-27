@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "./Home";
 
-const state = vi.hoisted(() => ({ signup: vi.fn(), refetch: vi.fn() }));
+const state = vi.hoisted(() => ({
+  signup: vi.fn(),
+  refetch: vi.fn(),
+  tenantQuery: { data: [] as Array<unknown>, isLoading: false, isSuccess: true, isError: false, refetch: vi.fn() },
+  signupError: null as unknown,
+  signupOptions: null as { onSuccess?: (result: { tenantId: string }) => void } | null,
+}));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { name: "Pilot Owner", email: "owner@example.test" }, loading: false, isAuthenticated: true, logout: vi.fn() }),
@@ -25,15 +31,15 @@ vi.mock("@/components/ui/select", () => ({
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    tenant: { mine: { useQuery: () => ({ data: [], isLoading: false, refetch: state.refetch }) } },
+    tenant: { mine: { useQuery: () => ({ ...state.tenantQuery, refetch: state.refetch }) } },
     selfService: {
       plans: { useQuery: () => ({ data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false }) },
-      signup: { useMutation: () => ({ mutate: state.signup, isPending: false, error: null }) },
+      signup: { useMutation: (options: { onSuccess?: (result: { tenantId: string }) => void }) => { state.signupOptions = options; return { mutate: state.signup, isPending: false, error: state.signupError }; } },
     },
   },
 }));
 
-afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); });
+afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.signupOptions = null; });
 
 describe("Home self-service", () => {
   it("submits the server-catalog plan with company and seat boundaries", async () => {
@@ -46,6 +52,26 @@ describe("Home self-service", () => {
     await user.type(screen.getByLabelText("Seats"), "5");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
     expect(state.signup).toHaveBeenCalledWith({ legalName: "Pilot Company", slug: "pilot-company", planCode: "PROJECT_STANDARD", seats: 5 });
+  });
+
+  it("hides self-service creation when the current workspace query failed", () => {
+    state.tenantQuery = { data: [], isLoading: false, isSuccess: false, isError: true, refetch: state.refetch };
+    render(<Home />);
+    expect(screen.getByText("Your current workspaces could not be loaded. The creation form is hidden to avoid creating a duplicate workspace.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
+  });
+
+  it("surfaces the localized safe signup error", () => {
+    state.signupError = { data: { projectError: { code: "PROJECT_OS_WORKSPACE_SLUG_EXISTS" } } };
+    render(<Home />);
+    expect(screen.getByText("Safe error")).toBeTruthy();
+  });
+
+  it("confirms creation immediately with a governed project-registry route", () => {
+    render(<Home />);
+    act(() => state.signupOptions?.onSuccess?.({ tenantId: "00000000-0000-4000-8000-000000000123" }));
+    expect(screen.getByText("The trial workspace was created. You can now open its project registry.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open project registry" }).getAttribute("href")).toBe("/projects/00000000-0000-4000-8000-000000000123");
   });
 });
 
