@@ -10,15 +10,15 @@
 
 | المجال | الحالة | الدليل القابل لإعادة التشغيل |
 |---|---|---|
-| بوابة الجودة | `PROVEN` | `pnpm test`: 359 ناجحًا و79 متخطى؛ `pnpm check` و`pnpm build` ناجحان. |
-| عزل TiDB وقبول الأدوار والنسخ المنطقي | `PROVEN` | `node scripts/run-integration-database-test.mjs`: 79/79 في 227.35 ثانية (74 تكامل، 1 نسخ/استعادة، 4 أدوار). |
+| بوابة الجودة | `PROVEN` | `pnpm test`: 363 ناجحًا و79 متخطى؛ `pnpm check` و`pnpm build` ناجحان. |
+| عزل TiDB وقبول الأدوار والنسخ المنطقي | `PROVEN` | `node scripts/run-integration-database-test.mjs`: 79/79 في 173.68 ثانية (74 تكامل، 1 نسخ/استعادة، 4 أدوار). |
 | جرد عقود الأعمال | `PROVEN` | `pnpm coverage:trpc`: 185 إجراءً و180 مرجعًا مباشرًا و5 استثناءات إطار مسماة وصفر غير مصنف. |
 | حماية سجل التدقيق | `PROVEN` | `pnpm verify:audit-grants`: `approved: true` مع رفض UPDATE وDELETE لحساب التطبيق المقيد. |
 | الاستيراد والتصدير المنضبط | `PROVEN` | 21 حالة في `server/domain/dataImport.test.ts`؛ ZIP وVBA و5MiB و10,000 صف و60 عمودًا والملف المعطوب وتحييد الصيغ. |
 | إزالة SheetJS | `PROVEN` | لا يظهر `xlsx` في المصدر أو `package.json` أو `pnpm-lock.yaml`؛ استبدل بـExcelJS/JSZip. |
 | الاستيراد الزمني وXER | `PROVEN` | قالب XLSX أحادي الورقة وXER مقيد بـ`PROJWBS` و`TASK`، مع رفض الغموض والتكرار والمراجع غير المحلولة. |
 | العمليات التجارية وFPAC | `PROVEN` | BOQ والمشتريات وعقود الباطن والمستخلصات وفواتير المشروع وشاشة الربحية التشغيلية، مع تكامل حي وDOM موثقين. |
-| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `8242bae…` و`ahead/behind = 0/0`. |
+| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `b954682…` و`ahead/behind = 0/0`. |
 
 ## 2. ما لا يمكن إغلاقه آليًا
 
