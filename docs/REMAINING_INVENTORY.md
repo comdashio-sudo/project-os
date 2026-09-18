@@ -18,7 +18,7 @@
 | إزالة SheetJS | `PROVEN` | لا يظهر `xlsx` في المصدر أو `package.json` أو `pnpm-lock.yaml`؛ استبدل بـExcelJS/JSZip. |
 | الاستيراد الزمني وXER | `PROVEN` | قالب XLSX أحادي الورقة وXER مقيد بـ`PROJWBS` و`TASK`، مع رفض الغموض والتكرار والمراجع غير المحلولة. |
 | العمليات التجارية وFPAC | `PROVEN` | BOQ والمشتريات وعقود الباطن والمستخلصات وفواتير المشروع وشاشة الربحية التشغيلية، مع تكامل حي وDOM موثقين. |
-| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `8b83c31…` و`ahead/behind = 0/0`. |
+| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `9d7ace3…` و`ahead/behind = 0/0`. |
 
 ## 2. ما لا يمكن إغلاقه آليًا
 
