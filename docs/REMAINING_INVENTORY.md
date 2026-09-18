@@ -1,6 +1,6 @@
 # جرد المتبقي الحي — PROJECT OS
 
-**آخر تحديث:** 27 أغسطس 2026
+**آخر تحديث:** 18 سبتمبر 2026
 **المصدر الحاكم:** [STATE.md](./STATE.md) على `github/main`؛ عند التعارض تتقدم الحالة الحاكمة على هذا الجرد.
 **القاعدة:** لا يعد نجاح البناء أو الاختبار الآلي قبولًا بشريًا أو تفويضًا تجاريًا أو قانونيًا.
 
@@ -11,14 +11,14 @@
 | المجال | الحالة | الدليل القابل لإعادة التشغيل |
 |---|---|---|
 | بوابة الجودة | `PROVEN` | `pnpm test`: 363 ناجحًا و79 متخطى؛ `pnpm check` و`pnpm build` ناجحان. |
-| عزل TiDB وقبول الأدوار والنسخ المنطقي | `PROVEN` | `node scripts/run-integration-database-test.mjs`: 79/79 في 173.68 ثانية (74 تكامل، 1 نسخ/استعادة، 4 أدوار). |
+| عزل TiDB وقبول الأدوار والنسخ المنطقي | `PROVEN` | `node scripts/run-integration-database-test.mjs`: 79/79 في 1322.96 ثانية (74 تكامل، 1 نسخ/استعادة، 4 أدوار)، بعد توحيد مهلات TiDB وترتيب تنظيف `change_requests` قبل `projects`. |
 | جرد عقود الأعمال | `PROVEN` | `pnpm coverage:trpc`: 185 إجراءً و180 مرجعًا مباشرًا و5 استثناءات إطار مسماة وصفر غير مصنف. |
 | حماية سجل التدقيق | `PROVEN` | `pnpm verify:audit-grants`: `approved: true` مع رفض UPDATE وDELETE لحساب التطبيق المقيد. |
 | الاستيراد والتصدير المنضبط | `PROVEN` | 21 حالة في `server/domain/dataImport.test.ts`؛ ZIP وVBA و5MiB و10,000 صف و60 عمودًا والملف المعطوب وتحييد الصيغ. |
 | إزالة SheetJS | `PROVEN` | لا يظهر `xlsx` في المصدر أو `package.json` أو `pnpm-lock.yaml`؛ استبدل بـExcelJS/JSZip. |
 | الاستيراد الزمني وXER | `PROVEN` | قالب XLSX أحادي الورقة وXER مقيد بـ`PROJWBS` و`TASK`، مع رفض الغموض والتكرار والمراجع غير المحلولة. |
 | العمليات التجارية وFPAC | `PROVEN` | BOQ والمشتريات وعقود الباطن والمستخلصات وفواتير المشروع وشاشة الربحية التشغيلية، مع تكامل حي وDOM موثقين. |
-| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `b954682…` و`ahead/behind = 0/0`. |
+| العهدة | `PROVEN` | `github/main` الخاص في `ramezsamerr-collab/project-os` متطابق مع المحلي عند `8b83c31…` و`ahead/behind = 0/0`. |
 
 ## 2. ما لا يمكن إغلاقه آليًا
 
@@ -44,7 +44,7 @@
 |---|---|---|
 | حذف `_deprecated_warehouse_stock_balances` | `OPEN` | ينفذ فقط بعد فترة Pilot بلا رجوع؛ لا يوجد مصدر رصيد ثانٍ نشط في التطبيق أو Drizzle. |
 | لقطة رصيد دورية | `OPEN` | تقاس أحجام الحركات أولًا في تشغيل Pilot؛ أي لقطة مستقبلية لا تكون قيمة قابلة للتحرير. |
-| `exceljs > uuid@8.3.2` | `OPEN` | لا توجد نتائج high أو critical، لكن توجد moderate واحدة. تفاصيل المورد والتوافق في [مراجعة ExcelJS/UUID](./EXCELJS_UUID_COMPATIBILITY_REVIEW_2026-08-26.md). |
+| `exceljs > uuid@8.3.2` | `OPEN` | لا توجد نتائج high أو critical، لكن توجد moderate واحدة. يؤكد تحقق 28 أغسطس أن ExcelJS `v4.4.0` ما يزال أحدث إصدار رسمي، ونجحت تجربة XLSX معزولة على uuid `11.1.1` دون اعتمادها في شجرة الإنتاج. يلزم إصدار مورد مدعوم أو اعتماد override مع إعادة البوابات كاملة؛ التفاصيل في [مراجعة ExcelJS/UUID](./EXCELJS_UUID_COMPATIBILITY_REVIEW_2026-08-26.md). |
 
 ## 3.1 تحديث التسجيل الذاتي بعد الدخول — 27 أغسطس 2026
 

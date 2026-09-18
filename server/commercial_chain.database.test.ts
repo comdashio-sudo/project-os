@@ -120,7 +120,7 @@ describe("Commercial Chain Integration", () => {
       res: { clearCookie: () => {} } as any,
     };
     caller = appRouter.createCaller(ctx);
-  });
+  }, 30_000);
 
   it("should create and list BOQ items", async () => {
     const boqId = randomUUID();
@@ -136,7 +136,7 @@ describe("Commercial Chain Integration", () => {
 
     const items = await caller.boq.list({ tenantId, projectId });
     expect(items.some((i: any) => i.code === "BOQ-001")).toBe(true);
-  });
+  }, 15_000);
 
   it("should create and list subcontract contracts", async () => {
     await caller.subcontracts.create({
@@ -151,7 +151,7 @@ describe("Commercial Chain Integration", () => {
 
     const contracts = await caller.subcontracts.list({ tenantId, projectId });
     expect(contracts.some((c: any) => c.code === "SUB-01")).toBe(true);
-  });
+  }, 15_000);
 
   it("should create subcontract certificate", async () => {
     const [subcon] = await caller.subcontracts.list({ tenantId, projectId });
@@ -177,7 +177,7 @@ describe("Commercial Chain Integration", () => {
     expect(Number(certs[0].grossAmount)).toBe(10000); // 200 * 50
     expect(Number(certs[0].retentionAmount)).toBe(1000); // 10%
     expect(Number(certs[0].netAmount)).toBe(9000);
-  });
+  }, 15_000);
 
   it("should create and list project commercial invoices", async () => {
     await caller.projectInvoices.create({
@@ -192,7 +192,7 @@ describe("Commercial Chain Integration", () => {
 
     const invoices = await caller.projectInvoices.list({ tenantId, projectId });
     expect(invoices.some((i: any) => i.invoiceNumber === "INV-PROJ-01")).toBe(true);
-  });
+  }, 15_000);
 
   afterAll(async () => {
     const db = await getDb();
@@ -225,5 +225,5 @@ describe("Commercial Chain Integration", () => {
       await db.delete(auditLogs).where(eq(auditLogs.tenantId, tenantId));
       await db.delete(companies).where(eq(companies.id, tenantId));
     }
-  });
+  }, 30_000);
 });

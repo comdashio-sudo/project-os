@@ -1,7 +1,7 @@
 import mysql from "mysql2/promise";
 import { readFile } from "node:fs/promises";
 import ExcelJS from "exceljs";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { evaluateTenantLicenseLifecycle } from "./db";
@@ -17,6 +17,7 @@ const documentA = "00000000-0000-4000-8000-0000000000d1";
 const changeRequestA = "00000000-0000-4000-8000-0000000000c1";
 const notificationA = "00000000-0000-4000-8000-0000000000f1";
 const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 let integrationUserId = 0;
 let unassignedUserId = 0;
 let financeUserId = 0;
@@ -207,6 +208,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM memberships WHERE userId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
     await connection.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user')))");
     await connection.query("DELETE FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
+    await connection.query("DELETE FROM change_requests WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM project_resources WHERE projectId IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [projectA, projectB, projectC]);
     await connection.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -371,7 +373,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     } finally {
       await connection.query(`DROP TABLE IF EXISTS \`${probeTable}\``);
     }
-  }, 12_000);
+  }, 120_000);
 
   it("connects exclusively to the dedicated PROJECT OS integration database", async () => {
     const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
@@ -429,7 +431,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       await connection.query("DELETE FROM membership_roles WHERE membershipId = ?", [assigned.membershipId]);
       await connection.query("DELETE FROM memberships WHERE id = ?", [assigned.membershipId]);
     }
-  }, 30_000);
+  }, 120_000);
 
   it("isolates the tenant material master, rejects missing entitlement, and records governed project overrides", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -521,7 +523,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs tenant invitations with scope, email, one-time acceptance, and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -562,7 +564,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs tenant membership suspension and reactivation with scope, self-protection, and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -604,7 +606,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM roles WHERE id = ?", [roleId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("creates an isolated tenant with subscription, owner access, audit evidence, and cleanup", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -641,7 +643,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM companies WHERE id = ?", [createdTenantId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs document creation and versioning with isolation, storage evidence, and audit cleanup", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -676,7 +678,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM project_documents WHERE id = ?", [documentId]);
       }
     }
-  }, 15_000);
+  }, 120_000);
 
   it("governs remaining operational wrapper reads with authorized scope and foreign rejection", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -708,7 +710,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rfis).toEqual(expect.any(Array));
     expect(administration).toEqual(expect.objectContaining({ members: expect.arrayContaining([expect.objectContaining({ userId: integrationUserId })]), roles: expect.arrayContaining([expect.objectContaining({ id: "int-role-a" })]) }));
     expect(assignable).toBeNull();
-  }, 30_000);
+  }, 120_000);
 
   it("returns a tenant-scoped planning control center with latest EVM, health, schedule, and exception signals", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -749,7 +751,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       await connection.query("DELETE FROM project_health_snapshots WHERE id = 'int-health-plan'");
       await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs project creation and lifecycle transitions with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -777,7 +779,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM projects WHERE id = ?", [projectId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs manual EVM calculation and snapshot persistence with isolation and audit evidence", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -803,7 +805,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [snapshotId]);
       }
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs change-request and HSE transitions with isolation, reads, and audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -839,7 +841,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
         await connection.query("DELETE FROM hse_observations WHERE id = ?", [observationId]);
       }
     }
-  }, 15_000);
+  }, 120_000);
 
   it("rejects a foreign master plan and creates versioned spatial records with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -865,7 +867,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM master_plan_spatial_entities WHERE masterPlanVersionId = ?", [plan.versionId]);
     await connection.query("DELETE FROM activities WHERE id = ?", [linkedActivity.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [linkedWbs.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("provisions a manual license, enforces its feature limit, governs status changes, and rejects a foreign tenant license view", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -889,7 +891,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(allInOne.license).toMatchObject({ planCode: "ALL_IN_ONE_STANDARD", status: "active" });
     expect(allInOneNavigation.map(item => item.id)).toEqual(expect.arrayContaining(["executive-dashboard", "project-controls"]));
     expect(allInOneNavigation.map(item => item.id)).not.toContain("pmo-controls");
-  }, 12_000);
+  }, 120_000);
 
   it("reserves commercial seats for invitations and blocks direct assignment or acceptance above the active limit", async () => {
     const ownerContext: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -932,7 +934,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       if (roleId) { await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [roleId]); await connection.query("DELETE FROM role_permissions WHERE roleId = ?", [roleId]); await connection.query("DELETE FROM roles WHERE id = ?", [roleId]); }
       await owner.licensing.provision({ tenantId: tenantA, planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 3, manualActivation: true });
     }
-  }, 12_000);
+  }, 120_000);
 
   it("enforces the licensed project limit before project creation and allows a governed project after capacity is restored", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -957,7 +959,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
       if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "PROJECT_LIMIT", active: true, limitValue: 20 });
     }
-  }, 12_000);
+  }, 120_000);
 
   it("enforces the licensed document-storage limit before uploading a document or version and allows them after capacity is restored", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -992,7 +994,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
       if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 1_073_741_824 });
     }
-  }, 15_000);
+  }, 120_000);
 
   it("blocks an AI advisory request at the monthly commercial limit before any model call or usage audit", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1008,7 +1010,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
       if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "AI_ADVISORY_MONTHLY", active: true, limitValue: 100 });
     }
-  }, 12_000);
+  }, 120_000);
 
   it("expires an ended tenant license, deactivates its entitlement, and records an auditable lifecycle transition", async () => {
     await connection.query("CREATE TABLE IF NOT EXISTS scheduled_jobs (`id` varchar(64) NOT NULL, `purpose` enum('license_lifecycle') NOT NULL, `scheduleCronTaskUid` varchar(65), `enabled` boolean NOT NULL DEFAULT true, `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY (`scheduleCronTaskUid`), KEY `scheduled_jobs_task_uid_idx` (`scheduleCronTaskUid`))");
@@ -1067,7 +1069,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(Number(rows[0].audits)).toBe(1);
     await connection.query("DELETE FROM audit_logs WHERE id = ?", [exported.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = 'int-wbs-export-audit'");
-  }, 12_000);
+  }, 120_000);
 
   it("generates an authorized Arabic XLSX export with localized content and audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1088,7 +1090,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       if (exportId) await connection.query("DELETE FROM audit_logs WHERE id = ?", [exportId]);
       await connection.query("DELETE FROM wbs_items WHERE id = 'int-wbs-xlsx-audit'");
     }
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a foreign budget export and generates authorized budget CSV and activity XLSX exports with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1114,7 +1116,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       await connection.query("DELETE FROM activities WHERE id = 'int-activity-export-audit'");
       await connection.query("DELETE FROM budget_lines WHERE id = 'int-budget-export-audit'");
     }
-  }, 12_000);
+  }, 120_000);
 
   it("analyzes and confirms an authorized WBS import with atomic business and audit writes", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1137,7 +1139,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [remapAudit] = await connection.query<{ imports: number; wbs: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND status = 'completed') AS imports, (SELECT COUNT(*) FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-REMAP-TRPC' AND plannedValue = 175) AS wbs, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_reanalyzed') AS audits", [needsMapping.id, tenantA, projectA, needsMapping.id]);
     expect(remapAudit[0]).toMatchObject({ imports: 1, wbs: 1, audits: 1 });
     const [exportAudit] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE entityId = ? AND action = 'data_export_generated'", [exported.id]); expect(exportAudit[0]).toMatchObject({ count: 1 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects unlicensed or foreign schedule imports and atomically confirms a restricted XER WBS and activity set", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1152,7 +1154,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(analysis).toMatchObject({ status: "validated", totalRows: 2, errors: [] }); const completion = await caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id }); expect(completion).toMatchObject({ status: "completed", createdRows: 2, updatedRows: 0, skippedRows: 0 });
     const [rows] = await connection.query<{ imports: number; wbs: number; activities: number; results: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'schedule' AND sourceFormat = 'xer' AND status = 'completed' AND createdRows = 2) AS imports, (SELECT COUNT(*) FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-SCHEDULE-TRPC') AS wbs, (SELECT COUNT(*) FROM activities WHERE tenantId = ? AND projectId = ? AND code = 'ACT-SCHEDULE-TRPC' AND status = 'in_progress' AND wbsItemId = (SELECT id FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-SCHEDULE-TRPC')) AS activities, (SELECT COUNT(*) FROM data_import_row_results WHERE importId = ? AND action = 'created') AS results, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS audits", [analysis.id, tenantA, projectA, tenantA, projectA, tenantA, projectA, analysis.id, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, wbs: 1, activities: 1, results: 2, audits: 1 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a foreign contracts import and confirms an approved contracts template with independent audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1164,7 +1166,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id })).resolves.toMatchObject({ id: analysis.id, status: "completed", createdRows: 1, updatedRows: 0, skippedRows: 0 });
     const [rows] = await connection.query<{ imports: number; contracts: number; completedAudits: number; uploadAudits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'contracts' AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM contracts WHERE tenantId = ? AND projectId = ? AND code = 'CON-IMPORT-TRPC' AND title = 'Civil works contract' AND counterparty = 'Main Contractor' AND contractValue = 2500000 AND currency = 'SAR') AS contracts, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS completedAudits, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_uploaded') AS uploadAudits", [analysis.id, tenantA, projectA, analysis.id, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, contracts: 1, completedAudits: 1, uploadAudits: 1 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a foreign materials import and confirms the named materials template with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1176,7 +1178,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: analysis.id })).resolves.toMatchObject({ id: analysis.id, status: "completed", createdRows: 1 });
     const [rows] = await connection.query<{ imports: number; materials: number; rowResults: number; completedAudits: number; uploadAudits: number }[]>("SELECT (SELECT COUNT(*) FROM data_imports WHERE id = ? AND moduleCode = 'materials' AND status = 'completed' AND createdRows = 1) AS imports, (SELECT COUNT(*) FROM material_masters WHERE tenantId = ? AND code = 'MAT-IMPORT-TRPC' AND unitOfMeasure = 'm3' AND category = 'Concrete') AS materials, (SELECT COUNT(*) FROM data_import_row_results WHERE importId = ? AND rowKey = 'MAT-IMPORT-TRPC' AND action = 'created') AS rowResults, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_completed') AS completedAudits, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'data_import_uploaded') AS uploadAudits", [analysis.id, tenantA, analysis.id, analysis.id, analysis.id]);
     expect(rows[0]).toMatchObject({ imports: 1, materials: 1, rowResults: 1, completedAudits: 1, uploadAudits: 1 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a foreign warehouse, governs inventory movements, and prevents negative stock", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1218,7 +1220,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouse.id]);
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [destinationWarehouse.id]);
     await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("governs material reorder levels and derives PMO shortages from movements without creating read-side alerts", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1277,7 +1279,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       await connection.query("DELETE FROM role_permissions WHERE roleId = 'int-role-a' AND permissionId = ?", [pmoReadPermissionId]);
       if (createdPmoReadPermission) await connection.query("DELETE FROM permissions WHERE id = ?", [pmoReadPermissionId]);
     }
-  }, 12_000);
+  }, 120_000);
 
   it("governs goods receipt notes with issued purchase orders and rejection evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] }; const caller = appRouter.createCaller(context);
@@ -1300,7 +1302,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ grns: number; audits: number; inventory: number; actualCosts: number; actualAmount: string; commitmentOpen: string }[]>("SELECT (SELECT COUNT(*) FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC' AND unitCost = 100) AS grns, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'procurement.goods_receipt_note_created' AND entityId IN (SELECT id FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC')) AS audits, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE projectId = ? AND materialId = ?) AS inventory, (SELECT COUNT(*) FROM cost_entries WHERE projectId = ?) AS actualCosts, (SELECT amount FROM cost_entries WHERE id = (SELECT costEntryId FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC')) AS actualAmount, (SELECT c.amount - COALESCE(SUM(g.receivedQuantity * g.unitCost), 0) FROM commitments c LEFT JOIN purchase_orders p ON p.commitmentId = c.id LEFT JOIN goods_receipt_notes g ON g.purchaseOrderId = p.id WHERE c.id = ? GROUP BY c.id) AS commitmentOpen", [projectA, tenantA, projectA, projectA, material.id, projectA, projectA, commitmentId]);
     expect(rows[0]).toMatchObject({ grns: 1, audits: 1, inventory: 0, actualCosts: actualCostsBefore + 1, actualAmount: "800.00", commitmentOpen: "200.00000" });
     await connection.query("DELETE FROM audit_logs WHERE entityId IN (SELECT id FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC') OR entityId IN (?, ?, ?, ?)", [projectA, purchaseOrder.id, inspection.id, ncr.id, material.id]); await connection.query("DELETE FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC'", [projectA]); await connection.query("DELETE FROM cost_entries WHERE projectId = ? AND amount = 800 AND incurredAt = ?", [projectA, input.receivedAt]); await connection.query("DELETE FROM purchase_orders WHERE id IN (?, ?)", [purchaseOrder.id, foreignPurchaseOrderId]); await connection.query("DELETE FROM commitments WHERE id = ?", [commitmentId]); await connection.query("DELETE FROM quality_inspections WHERE id = ?", [inspection.id]); await connection.query("DELETE FROM ncrs WHERE id = ?", [ncr.id]); await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("governs site material requests through WBS/activity scope, partial issue, closure, and audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1359,7 +1361,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [foreignWbsId]);
     await connection.query("DELETE FROM suppliers WHERE id = ?", [supplier.id]);
     await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("applies the upsert policy, persists per-row results, and rejects foreign import-result reads", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1379,7 +1381,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ updatedValue: "300.00", created: 1, results: 2, audit: 1 });
     const [modeRows] = await connection.query<{ updateOnlyValue: string; skipCreated: number; updateSkipped: number }[]>("SELECT (SELECT plannedValue FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-UPSERT-TRPC') AS updateOnlyValue, (SELECT COUNT(*) FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-SKIP-CREATED') AS skipCreated, (SELECT COUNT(*) FROM wbs_items WHERE tenantId = ? AND projectId = ? AND code = 'WBS-UPDATE-SKIPPED') AS updateSkipped", [tenantA, projectA, tenantA, projectA, tenantA, projectA]);
     expect(modeRows[0]).toMatchObject({ updateOnlyValue: "140.00", skipCreated: 1, updateSkipped: 0 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a cross-tenant field report and governs an authorized report lifecycle with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1400,7 +1402,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(notifications).toEqual(expect.arrayContaining([expect.objectContaining({ notificationCode: "FIELD_REPORT_REVIEWED", entityId: report.id }), expect.objectContaining({ notificationCode: "FIELD_REPORT_REVIEWED", entityId: rejectedReport.id })]));
     const [rows] = await connection.query<{ approved: number; rejected: number; audits: number; notifications: number }[]>("SELECT (SELECT COUNT(*) FROM field_reports WHERE id = ? AND status = 'approved') AS approved, (SELECT COUNT(*) FROM field_reports WHERE id = ? AND status = 'rejected') AS rejected, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?) AND entityType = 'field_report') AS audits, (SELECT COUNT(*) FROM internal_notifications WHERE entityId IN (?, ?) AND notificationCode = 'FIELD_REPORT_REVIEWED' AND recipientUserId = ?) AS notifications", [report.id, rejectedReport.id, report.id, rejectedReport.id, report.id, rejectedReport.id, integrationUserId]);
     expect(rows[0]).toMatchObject({ approved: 1, rejected: 1, audits: 7, notifications: 2 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects a cross-tenant quality inspection and governs its authorized acceptance lifecycle", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1414,7 +1416,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(inspections.find(item => item.id === inspection.id)).toMatchObject({ inspectionNumber: "QI-TRPC", inspectionType: "testing", outcome: "conditional", status: "accepted" });
     const [rows] = await connection.query<{ inspections: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM quality_inspections WHERE id = ? AND status = 'accepted') AS inspections, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND entityType = 'quality_inspection') AS audits", [inspection.id, inspection.id]);
     expect(rows[0]).toMatchObject({ inspections: 1, audits: 3 });
-  }, 12_000);
+  }, 120_000);
 
   it("rejects cross-project procurement references and governs linked purchase-order receipt", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1441,7 +1443,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
     await connection.query("DELETE FROM commitments WHERE id IN (?, '00000000-0000-4000-8000-0000000000e2')", [commitment.id]);
     await connection.query("DELETE FROM contracts WHERE id IN (?, ?, '00000000-0000-4000-8000-0000000000e1')", [contract.id, alternateContract.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("rejects foreign, self, and duplicate control links while recording authorized PMO relationships", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1465,7 +1467,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM issues WHERE id = ?", [issue.id]);
     await connection.query("DELETE FROM actions WHERE id = ?", [action.id]);
     await connection.query("DELETE FROM decisions WHERE id = ?", [decision.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("links a governed risk to authorized RFI and NCR targets with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1484,7 +1486,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM rfis WHERE id = ?", [rfi.id]);
     await connection.query("DELETE FROM ncrs WHERE id = ?", [ncr.id]);
     await connection.query("DELETE FROM risks WHERE id = ?", [risk.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("rejects cross-tenant EVM and health snapshot captures before writing snapshots", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1513,7 +1515,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ evm: number; health: number; audits: number; pv: string; ev: string; ac: string; bac: string; sourceAudit: number; notifications: number }[]>("SELECT (SELECT COUNT(*) FROM evm_snapshots WHERE id = ?) AS evm, (SELECT COUNT(*) FROM project_health_snapshots WHERE id = ?) AS health, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?)) AS audits, (SELECT pv FROM evm_snapshots WHERE id = ?) AS pv, (SELECT ev FROM evm_snapshots WHERE id = ?) AS ev, (SELECT ac FROM evm_snapshots WHERE id = ?) AS ac, (SELECT bac FROM evm_snapshots WHERE id = ?) AS bac, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'evm.operational_snapshot_created' AND metadata LIKE '%operational_records%') AS sourceAudit, (SELECT COUNT(*) FROM internal_notifications WHERE entityId = ? AND notificationCode = 'PROJECT_HEALTH_EXCEPTION') AS notifications", [evm.id, health.id, evm.id, health.id, evm.id, evm.id, evm.id, evm.id, evm.id, health.id]);
     expect(rows[0]).toMatchObject({ evm: 1, health: 1, audits: 2, pv: "200.00", ev: "100.00", ac: "120.00", bac: "350.00", sourceAudit: 1, notifications: 1 });
     await connection.query("DELETE FROM internal_notifications WHERE entityId = ?", [health.id]); await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [evm.id, health.id, wbs.id, activity.id, progress.id, budget.id, cost.id, risk.id, action.id, rfi.id, ncr.id, hse.id]); await connection.query("DELETE FROM project_health_snapshots WHERE id = ?", [health.id]); await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [evm.id]); await connection.query("DELETE FROM hse_observations WHERE id = ?", [hse.id]); await connection.query("DELETE FROM ncrs WHERE id = ?", [ncr.id]); await connection.query("DELETE FROM rfis WHERE id = ?", [rfi.id]); await connection.query("DELETE FROM actions WHERE id = ?", [action.id]); await connection.query("DELETE FROM risks WHERE id = ?", [risk.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]); await connection.query("DELETE FROM progress_entries WHERE id = ?", [progress.id]); await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]); await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
-  }, 12_000);
+  }, 120_000);
 
   it("rejects cross-tenant WBS creation and creates governed WBS activity and progress records with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1550,7 +1552,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ budget: number; cost: number; progress: number; forbiddenWrites: number }[]>("SELECT (SELECT COUNT(*) FROM budget_lines WHERE id = ?) AS budget, (SELECT COUNT(*) FROM cost_entries WHERE id = ?) AS cost, (SELECT COUNT(*) FROM progress_entries WHERE id = ?) AS progress, (SELECT COUNT(*) FROM budget_lines WHERE wbsItemId = ?) + (SELECT COUNT(*) FROM cost_entries WHERE wbsItemId = ?) + (SELECT COUNT(*) FROM progress_entries WHERE wbsItemId = ?) AS forbiddenWrites", [budget.id, cost.id, progress.id, siblingWbs.id, siblingWbs.id, siblingWbs.id]);
     expect(rows[0]).toMatchObject({ budget: 1, cost: 1, progress: 1, forbiddenWrites: 0 });
     await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?)", [siblingWbs.id, ownedWbs.id, budget.id, cost.id, progress.id]); await connection.query("DELETE FROM progress_entries WHERE id = ?", [progress.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]); await connection.query("DELETE FROM wbs_items WHERE id IN (?, ?)", [siblingWbs.id, ownedWbs.id]); await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
-  }, 12_000);
+  }, 120_000);
 
   it("does not return an HSE observation outside the requested tenant and project", async () => {
     const [[user]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE openId = 'integration-test-user' LIMIT 1");
@@ -1729,7 +1731,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.employees.archive({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: employee.id, employmentStatus: "terminated" });
     const [rows] = await connection.query<{ contracts: number; archived: string; auditActions: number; identityAudit: number }[]>("SELECT (SELECT COUNT(*) FROM employment_contracts WHERE id = ?) AS contracts, (SELECT employmentStatus FROM employees WHERE id = ?) AS archived, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?)) AS auditActions, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'hr.employee_identity_viewed' AND entityId = ?) AS identityAudit", [contract.id, employee.id, tenantA, employee.id, contract.id, tenantA, employee.id]);
     expect(rows[0]).toMatchObject({ contracts: 1, archived: "terminated", auditActions: 4, identityAudit: 1 });
-  }, 30000);
+  }, 120_000);
 
   it("governs employee assignments, attendance, capacity warnings, and approved time into cost and progress", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1805,7 +1807,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.performance.objections.transition({ tenantId: tenantA, projectId: projectA, objectionId: objection.id, status: "resolved", resolutionNote: "The documented external dependency has been recorded for the review." })).resolves.toMatchObject({ previousStatus: "submitted", status: "resolved" });
     const [performanceAudits] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?)", [tenantA, exclusion.id, objection.id]);
     expect(performanceAudits[0].count).toBe(3);
-  }, 30000);
+  }, 120_000);
 
   it("governs payroll by role, protects salary reads, separates approval, and posts allocated labor cost into numeric EVM evidence", async () => {
     const makeContext = (id: number, openId: string, name: string): TrpcContext => ({ user: { id, openId, name, email: `${openId}@test.local`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
@@ -1860,7 +1862,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [auditRows] = await connection.query<{ structure: number; details: number; allocation: number }[]>("SELECT SUM(action = 'payroll.salary_structure_viewed') AS structure, SUM(action = 'payroll.run_details_viewed') AS details, SUM(action = 'payroll.cost_allocated') AS allocation FROM audit_logs WHERE tenantId = ?", [tenantA]);
     expect(auditRows[0]).toMatchObject({ structure: "1", details: "1", allocation: "1" });
     expect(structure.id).toBeTruthy();
-  }, 30000);
+  }, 120_000);
 
   it("rejects a cross-tenant claim and approves an authorized claim with audit evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
@@ -1944,7 +1946,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       if (tenantId) { await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [tenantId]); if (paymentId) await connection.query("DELETE FROM payment_records WHERE id = ?", [paymentId]); if (invoiceId) await connection.query("DELETE FROM invoices WHERE id = ?", [invoiceId]); await connection.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId = ?)", [tenantId]); await connection.query("DELETE FROM tenant_licenses WHERE tenantId = ?", [tenantId]); await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [tenantId]); await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [tenantId]); await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [tenantId]); await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [tenantId]); await connection.query("DELETE FROM memberships WHERE tenantId = ?", [tenantId]); await connection.query("DELETE FROM roles WHERE tenantId = ?", [tenantId]); await connection.query("DELETE FROM companies WHERE id = ?", [tenantId]); }
       await connection.query("DELETE FROM self_service_signup_attempts WHERE userId = ?", [integrationUserId]);
     }
-  }, 12_000);
+  }, 120_000);
   it("rejects foreign support access and governs knowledge-backed ticket conversation with escalation evidence", async () => {
     const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
     const caller = appRouter.createCaller(context); const sourceA = "00000000-0000-4000-8000-0000000000e1"; const sourceB = "00000000-0000-4000-8000-0000000000e2"; let ticketId: string | undefined; let articleId: string | undefined;
@@ -1963,5 +1965,5 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     } finally {
       await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?) AND action LIKE 'support.%'", [tenantA, tenantB]); await connection.query("DELETE FROM support_messages WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection.query("DELETE FROM support_tickets WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection.query("DELETE FROM knowledge_articles WHERE tenantId IN (?, ?)", [tenantA, tenantB]); await connection.query("DELETE FROM project_documents WHERE id IN (?, ?)", [sourceA, sourceB]);
     }
-  }, 12_000);
+  }, 120_000);
 });
