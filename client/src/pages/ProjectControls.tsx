@@ -29,6 +29,8 @@ import { ProjectAdvisor as ProjectAdvisorContent } from "./ProjectAdvisor";
 import { ProjectImports as ProjectImportsContent } from "./ProjectImports";
 import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExport";
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
+import { PlanningControlCenter } from "@/components/PlanningControlCenter";
+import { calculatePlanningControl } from "@/lib/planningControl";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -37,6 +39,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "wouter";
 
 const today = new Date().toISOString().slice(0, 10);
+const emptyPlanningQuery = { data: undefined, isLoading: false, error: null, refetch: async () => undefined };
 
 function withProjectSectionBoundary<P extends object>(Component: React.ComponentType<P>, arTitle: string, enTitle: string) {
   return function ProjectSectionBoundary(props: P) {
@@ -73,7 +76,11 @@ export default function ProjectControls() {
   const scheduleQuery = trpc.projects.getControlsSchedule.useQuery({ tenantId, projectId });
   const financialsQuery = trpc.projects.getControlsFinancials.useQuery({ tenantId, projectId });
   const performanceQuery = trpc.projects.getControlsPerformance.useQuery({ tenantId, projectId });
-  const refresh = () => { scheduleQuery.refetch(); financialsQuery.refetch(); performanceQuery.refetch(); };
+  const boqQuery = (trpc.boq?.list?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
+  const procurementQuery = (trpc.procurement?.register?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
+  const warehouseQuery = (trpc.warehouses?.list?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
+  const contractsQuery = (trpc.contracts?.getProjectRegister?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
+  const refresh = () => { scheduleQuery.refetch(); financialsQuery.refetch(); performanceQuery.refetch(); boqQuery.refetch(); procurementQuery.refetch(); warehouseQuery.refetch(); contractsQuery.refetch(); };
   const createWbs = trpc.wbs.create.useMutation({ onSuccess: refresh });
   const createActivity = trpc.activities.create.useMutation({ onSuccess: refresh });
   const createBudget = trpc.budgets.create.useMutation({ onSuccess: refresh });
@@ -124,6 +131,15 @@ export default function ProjectControls() {
   const latestEvm = performanceQuery.data?.latestEvm ?? null;
   const cashFlow = performanceQuery.data?.cashFlow ?? null;
   const data = { ...baseData, latestHealth, latestEvm, cashFlow };
+  const planningControl = calculatePlanningControl({
+    activities: data.activities,
+    boq: boqQuery.data ?? [],
+    requisitions: procurementQuery.data?.requisitions ?? [],
+    budgets: data.budgets,
+    costs: data.costs,
+    commitments: contractsQuery.data?.commitments ?? [],
+    warehouseBalances: warehouseQuery.data?.balances ?? [],
+  });
   const latestHealthExceptions = latestHealth ? parseStoredHealthExceptions(latestHealth.exceptions) : [];
   const latestHealthSources = latestHealth ? parseStoredHealthSources(latestHealth.drivers) : { overdueRfiCount: 0, overdueNcrCount: 0, overdueHseCount: 0 };
   const disabled = createWbs.isPending || createActivity.isPending || createBudget.isPending || createCost.isPending || createProgress.isPending || saveEvm.isPending || captureOperationalEvm.isPending || captureProjectHealth.isPending;
@@ -161,6 +177,10 @@ export default function ProjectControls() {
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><ManagerMetric label={manager.health} value={latestHealth ? healthStatusLabel(latestHealth.status) : manager.noSnapshot} detail={latestHealth ? `${t.score}: ${latestHealth.overallScore}` : manager.noData} tone={latestHealth?.status === "red" ? "danger" : latestHealth?.status === "amber" ? "warning" : "default"} /><ManagerMetric label={manager.evm} value={latestEvm ? `${t.cpi} ${latestEvm.cpi ?? "—"} · ${t.spi} ${latestEvm.spi ?? "—"}` : manager.noSnapshot} detail={latestEvm ? `${t.eac}: ${latestEvm.eac}` : manager.noData} /><ManagerMetric label={manager.remaining} value={cashFlow ? String(cashFlow.remainingBudget) : manager.noData} detail={cashFlow ? `${isArabic ? "الالتزامات" : "Commitments"}: ${cashFlow.committedAmount}` : ""} /><ManagerMetric label={manager.activities} value={String(data.activities.length)} detail={`${manager.blocked}: ${data.activities.filter(item => item.status === "blocked").length}`} tone={data.activities.some(item => item.status === "blocked") ? "warning" : "default"} /><ManagerMetric label={t.wbs} value={String(data.wbs.length)} detail={`${t.progress}: ${data.progress.length}`} /></div>
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ManagerLane icon={CalendarDays} title={manager.schedule} detail={isArabic ? "WBS، الأنشطة، الميزانية، التكلفة والتقدم" : "WBS, activities, budget, actual cost and progress"} onClick={() => jumpToManagerLane("manager-schedule")} action={manager.open} /><ManagerLane icon={PackageCheck} title={manager.commercial} detail={isArabic ? "العقود، طلبات التوريد، أوامر الشراء والمطالبات" : "Contracts, requisitions, purchase orders and claims"} onClick={() => jumpToManagerLane("manager-commercial")} action={manager.open} /><ManagerLane icon={ShieldCheck} title={manager.field} detail={isArabic ? "التقارير الميدانية والجودة وHSE وRFI وNCR والموارد" : "Field reports, quality, HSE, RFIs, NCRs and resources"} onClick={() => jumpToManagerLane("manager-site")} action={manager.open} /><ManagerLane icon={FileCheck2} title={manager.assurance} detail={isArabic ? "المستندات وExcel وMaster Plan والإشعارات والاستشارة" : "Documents, Excel, Master Plan, notifications and advisory"} onClick={() => jumpToManagerLane("manager-assurance")} action={manager.open} /></div>
         </section>
+
+        <div className="mt-6">
+          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} />
+        </div>
 
         {apiError && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={isArabic ? "الجدولة وWBS" : "Schedule and WBS"} isArabic={isArabic} kind="loading" /></div>}

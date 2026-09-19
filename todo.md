@@ -388,3 +388,5 @@
 - [x] معالجة نتيجة تدقيق اعتماديات `mysql2`: رُقيت الحزمة إلى `^3.24.4`، وثبت `qs` على `6.16.0` مع ضبط overrides عبر `pnpm-workspace.yaml`. أعيدت الاختبارات والأنواع والبناء وجرد tRPC وفحص منح التدقيق؛ `pnpm audit --prod --audit-level=high` لا يعرض high/critical وتبقى moderate واحدة موثقة تحت ExcelJS/UUID.
 
 - [x] إصلاح فشل التكامل الحي في `server/integration.database.test.ts`: صار cleanup يحذف `change_requests` قبل `projects`، ووُحدت مهلات اختبارات TiDB الصريحة إلى 120 ثانية مع مهلة hook مقدارها 120 ثانية. الدليل القابل لإعادة التشغيل: مشغل TiDB `3 ملفات، 79/79`، وبوابة الجودة `363/363` غير متخطاة و79 متخطى داخل الوحدة، وفحص المنح `approved: true`.
+
+- [x] مراجعة أعمال مهندس التخطيط والكوست كنترول وحساب الكميات: أضيف مركز قراءة موحد داخل Project Controls يربط WBS/البرنامج والميزانية والتكلفة والالتزامات والـBOQ وطلبات المواد والمستودعات، ويكشف فجوات الربط دون اختلاق أرقام. الدليل: `PlanningControlCenter.tsx` و`planningControl.ts` و`planningControl.test.tsx`؛ 3/3 اختبارات حسابية، ونجاح `pnpm check` و`pnpm build`.
