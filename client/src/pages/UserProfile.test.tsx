@@ -27,8 +27,10 @@ describe("UserProfile", () => {
     await user.type(screen.getByLabelText("Task name"), "Review cost report");
     await user.type(screen.getByLabelText("Project or scope"), "Warehouse project");
     await user.click(screen.getByRole("button", { name: /^Add$/ }));
-    expect(screen.getByText("Review cost report")).toBeTruthy();
+    expect(screen.getAllByText("Review cost report").length).toBeGreaterThan(0);
+    expect(screen.getByText("Follow-up task added")).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("project-os-profile-tasks") ?? "[]")).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem("project-os-profile-activity") ?? "[]")).toHaveLength(2);
   });
 
   it("renders the complete profile experience in Arabic", () => {
@@ -37,5 +39,6 @@ describe("UserProfile", () => {
     expect(screen.getByRole("heading", { name: "الملف الشخصي" })).toBeTruthy();
     expect(screen.getByText("الأدوار والصلاحيات")).toBeTruthy();
     expect(screen.getByText("مهام المتابعة")).toBeTruthy();
+    expect(screen.getByText("سجل النشاطات")).toBeTruthy();
   });
 });
