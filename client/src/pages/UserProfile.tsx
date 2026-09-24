@@ -1,0 +1,72 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { BrandIcon, BrandMark } from "@/components/BrandMark";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { ClipboardCheck, Mail, MapPin, Pencil, Plus, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
+import React from "react";
+import { useMemo, useState } from "react";
+import { Link } from "wouter";
+
+type TaskStatus = "open" | "in_progress" | "done";
+type PersonalTask = { id: string; title: string; project: string; dueDate: string; status: TaskStatus };
+type ProfileDraft = { name: string; jobTitle: string; phone: string; location: string; bio: string };
+
+const profileKey = "project-os-profile";
+const taskKey = "project-os-profile-tasks";
+
+function readStored<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export default function UserProfile() {
+  const { user, loading, logout } = useAuth();
+  const { isArabic } = useLanguage();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<ProfileDraft>(() => readStored(profileKey, { name: "", jobTitle: "", phone: "", location: "", bio: "" }));
+  const [tasks, setTasks] = useState<PersonalTask[]>(() => readStored(taskKey, []));
+  const [newTask, setNewTask] = useState({ title: "", project: "", dueDate: "" });
+  const [showTaskForm, setShowTaskForm] = useState(false);
+
+  const t = isArabic
+    ? { profile: "الملف الشخصي", subtitle: "إدارة بياناتك ومهام متابعتك وأدوارك من مكان واحد.", signOut: "تسجيل الخروج", back: "العودة إلى مساحة العمل", identity: "بيانات المستخدم", identityHint: "تُحفظ هذه البيانات محليًا في هذا المتصفح إلى أن يتوفر مسار حساب مركزي معتمد.", name: "الاسم الظاهر", jobTitle: "المسمى الوظيفي", phone: "رقم الهاتف", location: "الموقع", bio: "نبذة مهنية", edit: "تعديل البيانات", save: "حفظ البيانات", cancel: "إلغاء", email: "البريد الإلكتروني", roles: "الأدوار والصلاحيات", rolesHint: "الأدوار الفعلية تُعرض من عضويات المستأجر ونطاق المشروع بعد ربط الحساب بها.", noRoles: "لا توجد أدوار محملة لهذا الحساب في الجلسة الحالية.", taskTitle: "مهام المتابعة", taskHint: "سجل شخصي لمتابعة ما تحتاج إنجازه. لا يُعامل كسجل مهام تشغيلي إلا بعد ربطه بمصدر مشروع معتمد.", addTask: "إضافة مهمة", taskName: "اسم المهمة", project: "المشروع أو النطاق", dueDate: "تاريخ الاستحقاق", create: "إضافة", emptyTasks: "لا توجد مهام متابعة بعد.", open: "مفتوحة", inProgress: "قيد التنفيذ", done: "مكتملة", delete: "حذف", unauth: "سجّل الدخول لفتح ملفك الشخصي.", user: "مستخدم PROJECT OS", saved: "تم حفظ بيانات الملف الشخصي." }
+    : { profile: "User profile", subtitle: "Manage your identity, follow-up tasks and role context in one place.", signOut: "Sign out", back: "Back to workspace", identity: "User details", identityHint: "These editable details are stored locally in this browser until an approved central account-profile flow is available.", name: "Display name", jobTitle: "Job title", phone: "Phone", location: "Location", bio: "Professional summary", edit: "Edit details", save: "Save details", cancel: "Cancel", email: "Email", roles: "Roles and access", rolesHint: "Authoritative roles are shown from tenant memberships and project scope once this account is linked.", noRoles: "No roles are loaded for this account in the current session.", taskTitle: "Follow-up tasks", taskHint: "A personal follow-up list. It is not treated as an operational task source until linked to an approved project record.", addTask: "Add task", taskName: "Task name", project: "Project or scope", dueDate: "Due date", create: "Add", emptyTasks: "No follow-up tasks yet.", open: "Open", inProgress: "In progress", done: "Done", delete: "Delete", unauth: "Sign in to open your profile.", user: "PROJECT OS user", saved: "Profile details saved." };
+
+  const displayName = draft.name || user?.name || user?.email || t.user;
+  const initials = useMemo(() => displayName.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase(), [displayName]);
+  const taskCounts = { open: tasks.filter(task => task.status === "open").length, in_progress: tasks.filter(task => task.status === "in_progress").length, done: tasks.filter(task => task.status === "done").length };
+
+  if (loading) return <main className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">{isArabic ? "جارٍ تحميل الملف…" : "Loading profile…"}</main>;
+  if (!user) return <main className="flex min-h-screen items-center justify-center bg-background p-6 text-center"><Card><CardContent className="p-8"><UserRound className="mx-auto h-8 w-8 text-primary" /><p className="mt-4">{t.unauth}</p></CardContent></Card></main>;
+
+  const saveProfile = (event: React.FormEvent) => { event.preventDefault(); window.localStorage.setItem(profileKey, JSON.stringify(draft)); setEditing(false); };
+  const addTask = (event: React.FormEvent) => { event.preventDefault(); if (!newTask.title.trim()) return; const next = [{ ...newTask, id: crypto.randomUUID(), status: "open" as const }, ...tasks]; setTasks(next); window.localStorage.setItem(taskKey, JSON.stringify(next)); setNewTask({ title: "", project: "", dueDate: "" }); setShowTaskForm(false); };
+  const updateTask = (id: string, status: TaskStatus) => { const next = tasks.map(task => task.id === id ? { ...task, status } : task); setTasks(next); window.localStorage.setItem(taskKey, JSON.stringify(next)); };
+  const removeTask = (id: string) => { const next = tasks.filter(task => task.id !== id); setTasks(next); window.localStorage.setItem(taskKey, JSON.stringify(next)); };
+
+  return <main className="min-h-screen bg-[var(--dashio-paper)] text-foreground" dir={isArabic ? "rtl" : "ltr"}>
+    <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4"><Link href="/" aria-label={t.back}><BrandMark className="h-8 w-auto max-w-36" /></Link><div className="flex items-center gap-2"><LanguageToggle /><Button variant="ghost" onClick={() => void logout()}>{t.signOut}</Button></div></div></header>
+    <div className="mx-auto max-w-7xl space-y-6 px-5 py-8">
+      <section className="relative overflow-hidden rounded-[24px] bg-[var(--dashio-bg-dark)] p-6 text-white shadow-xl sm:p-8"><div aria-hidden="true" className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(46,211,198,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(46,211,198,.06)_1px,transparent_1px)] [background-size:38px_38px]" /><div className="relative flex flex-wrap items-center justify-between gap-6"><div><p className="text-xs font-bold tracking-[.16em] text-[var(--dashio-aqua)]">PROJECT OS · PROFILE</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{t.profile}</h1><p className="mt-3 max-w-2xl leading-7 text-slate-300">{t.subtitle}</p></div><div className="flex items-center gap-3"><div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--dashio-aqua)] text-lg font-bold text-[var(--dashio-ink)]">{initials || <BrandIcon className="h-6 w-6" alt="Dashio" />}</div><div><p className="font-semibold">{displayName}</p><p className="text-sm text-slate-400">{user.email}</p></div></div></div></section>
+      <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
+        <Card><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" />{t.identity}</CardTitle><CardDescription className="mt-2">{t.identityHint}</CardDescription></div>{!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="me-1.5 h-4 w-4" />{t.edit}</Button>}</div></CardHeader><CardContent>{editing ? <form className="space-y-4" onSubmit={saveProfile}><ProfileField label={t.name} value={draft.name} onChange={value => setDraft(current => ({ ...current, name: value }))} /><ProfileField label={t.jobTitle} value={draft.jobTitle} onChange={value => setDraft(current => ({ ...current, jobTitle: value }))} /><div className="grid gap-4 sm:grid-cols-2"><ProfileField label={t.phone} value={draft.phone} onChange={value => setDraft(current => ({ ...current, phone: value }))} /><ProfileField label={t.location} value={draft.location} onChange={value => setDraft(current => ({ ...current, location: value }))} /></div><div><Label htmlFor="profile-bio">{t.bio}</Label><Textarea id="profile-bio" className="mt-1.5" value={draft.bio} onChange={event => setDraft(current => ({ ...current, bio: event.target.value }))} /></div><div className="flex gap-2"><Button type="submit">{t.save}</Button><Button type="button" variant="ghost" onClick={() => setEditing(false)}>{t.cancel}</Button></div></form> : <div className="space-y-4"><ProfileValue icon={Mail} label={t.email} value={user.email ?? "—"} /><ProfileValue icon={UserRound} label={t.name} value={displayName} /><ProfileValue icon={ShieldCheck} label={t.jobTitle} value={draft.jobTitle || "—"} /><ProfileValue icon={MapPin} label={t.location} value={draft.location || "—"} />{draft.bio && <p className="border-t pt-4 text-sm leading-7 text-muted-foreground">{draft.bio}</p>}</div>}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[var(--dashio-aqua-deep)]" />{t.roles}</CardTitle><CardDescription>{t.rolesHint}</CardDescription></CardHeader><CardContent><div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center"><ShieldCheck className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 font-medium">{t.noRoles}</p><p className="mt-2 text-sm text-muted-foreground">{user.email}</p></div></CardContent></Card>
+      </div>
+      <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />{t.taskTitle}</CardTitle><CardDescription className="mt-2 max-w-2xl">{t.taskHint}</CardDescription></div><Button onClick={() => setShowTaskForm(current => !current)}>{showTaskForm ? <X className="me-1.5 h-4 w-4" /> : <Plus className="me-1.5 h-4 w-4" />}{showTaskForm ? t.cancel : t.addTask}</Button></div></CardHeader><CardContent><div className="mb-5 grid grid-cols-3 gap-3"><Summary label={t.open} value={taskCounts.open} /><Summary label={t.inProgress} value={taskCounts.in_progress} /><Summary label={t.done} value={taskCounts.done} /></div>{showTaskForm && <form className="mb-5 grid gap-3 rounded-xl border bg-muted/30 p-4 md:grid-cols-[1.2fr_1fr_160px_auto]" onSubmit={addTask}><Input aria-label={t.taskName} placeholder={t.taskName} value={newTask.title} onChange={event => setNewTask(current => ({ ...current, title: event.target.value }))} required /><Input aria-label={t.project} placeholder={t.project} value={newTask.project} onChange={event => setNewTask(current => ({ ...current, project: event.target.value }))} /><Input aria-label={t.dueDate} type="date" value={newTask.dueDate} onChange={event => setNewTask(current => ({ ...current, dueDate: event.target.value }))} /><Button type="submit">{t.create}</Button></form>}{tasks.length === 0 ? <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">{t.emptyTasks}</p> : <div className="space-y-3">{tasks.map(task => <div key={task.id} className="flex flex-wrap items-center gap-3 rounded-xl border p-4"><div className="min-w-0 flex-1"><p className={`font-medium ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{task.project || "—"}{task.dueDate ? ` · ${task.dueDate}` : ""}</p></div><select aria-label={`${task.title} status`} value={task.status} onChange={event => updateTask(task.id, event.target.value as TaskStatus)} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option value="open">{t.open}</option><option value="in_progress">{t.inProgress}</option><option value="done">{t.done}</option></select><Button aria-label={`${t.delete} ${task.title}`} variant="ghost" size="icon" onClick={() => removeTask(task.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>)}</div>}</CardContent></Card>
+    </div>
+  </main>;
+}
+
+function ProfileField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { const id = `profile-${label.replace(/\s+/g, "-")}`; return <div><Label htmlFor={id}>{label}</Label><Input id={id} className="mt-1.5" value={value} onChange={event => onChange(event.target.value)} /></div>; }
+function ProfileValue({ icon: Icon, label, value }: { icon: typeof Mail; label: string; value: string }) { return <div className="flex items-center gap-3"><Icon className="h-4 w-4 text-primary" /><div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div></div>; }
+function Summary({ label, value }: { label: string; value: number }) { return <div className="rounded-xl bg-muted/50 p-3 text-center"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>; }

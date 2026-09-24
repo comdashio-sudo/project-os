@@ -1,0 +1,41 @@
+// @vitest-environment jsdom
+import React from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import UserProfile from "./UserProfile";
+
+const state = vi.hoisted(() => ({ isArabic: false, user: { name: "Project Manager", email: "pm@example.test" } }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user, loading: false, logout: vi.fn() }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/components/BrandMark", () => ({ BrandIcon: () => <span>Dashio icon</span>, BrandMark: () => <span>Dashio</span> }));
+vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
+vi.mock("wouter", () => ({ Link: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => <a href={href} {...props}>{children}</a> }));
+
+beforeEach(() => { localStorage.clear(); state.isArabic = false; });
+afterEach(() => cleanup());
+
+describe("UserProfile", () => {
+  it("updates profile details and adds a follow-up task", async () => {
+    const user = userEvent.setup();
+    render(<UserProfile />);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    await user.type(screen.getByLabelText("Job title"), "Project Manager");
+    await user.click(screen.getByRole("button", { name: "Save details" }));
+    expect(screen.getAllByText("Project Manager").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    await user.type(screen.getByLabelText("Task name"), "Review cost report");
+    await user.type(screen.getByLabelText("Project or scope"), "Warehouse project");
+    await user.click(screen.getByRole("button", { name: /^Add$/ }));
+    expect(screen.getByText("Review cost report")).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("project-os-profile-tasks") ?? "[]")).toHaveLength(1);
+  });
+
+  it("renders the complete profile experience in Arabic", () => {
+    state.isArabic = true;
+    render(<UserProfile />);
+    expect(screen.getByRole("heading", { name: "الملف الشخصي" })).toBeTruthy();
+    expect(screen.getByText("الأدوار والصلاحيات")).toBeTruthy();
+    expect(screen.getByText("مهام المتابعة")).toBeTruthy();
+  });
+});
