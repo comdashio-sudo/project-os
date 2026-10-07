@@ -1629,3 +1629,194 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ProductCode = (typeof productCodes)[number];
 export type SubscriptionPackageCode = (typeof subscriptionPackageCodes)[number];
+
+
+export const pmcZones = mysqlTable(
+  "pmc_zones",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_zones_project_code_unique").on(table.projectId, table.code), index("pmc_zones_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const pmcBlocks = mysqlTable(
+  "pmc_blocks",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    zoneId: varchar("zoneId", { length: 36 }).notNull().references(() => pmcZones.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_blocks_project_code_unique").on(table.projectId, table.code), index("pmc_blocks_tenant_project_zone_idx").on(table.tenantId, table.projectId, table.zoneId)],
+);
+
+export const pmcUnits = mysqlTable(
+  "pmc_units",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    blockId: varchar("blockId", { length: 36 }).notNull().references(() => pmcBlocks.id),
+    unitNumber: int("unitNumber").notNull(),
+    modelCode: varchar("modelCode", { length: 80 }).notNull(),
+    saleStatus: varchar("saleStatus", { length: 80 }),
+    geometryJson: text("geometryJson"),
+    unitWeight: decimal("unitWeight", { precision: 12, scale: 4 }).default("1").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+);
+
+export const pmcActivityGroups = mysqlTable(
+  "pmc_activity_groups",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_groups_project_code_unique").on(table.projectId, table.code), index("pmc_groups_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const pmcActivityStages = mysqlTable(
+  "pmc_activity_stages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    groupId: varchar("groupId", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_stages_project_code_unique").on(table.projectId, table.code), index("pmc_stages_tenant_project_group_idx").on(table.tenantId, table.projectId, table.groupId)],
+);
+
+export const pmcActivityDefinitions = mysqlTable(
+  "pmc_activity_definitions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    groupId: varchar("groupId", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
+    stageId: varchar("stageId", { length: 36 }).notNull().references(() => pmcActivityStages.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    modelCode: varchar("modelCode", { length: 80 }).notNull(),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    weightPercent: decimal("weightPercent", { precision: 7, scale: 4 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_activity_defs_model_code_unique").on(table.projectId, table.modelCode, table.code), index("pmc_activity_defs_tenant_project_model_idx").on(table.tenantId, table.projectId, table.modelCode)],
+);
+
+export const pmcUnitActivityProgress = mysqlTable(
+  "pmc_unit_activity_progress",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unitId", { length: 36 }).notNull().references(() => pmcUnits.id),
+    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
+    status: mysqlEnum("status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).default("NOT_STARTED").notNull(),
+    assignedUserId: int("assignedUserId").references(() => users.id),
+    lastChangedByUserId: int("lastChangedByUserId").references(() => users.id),
+    lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_unit_activity_unique").on(table.unitId, table.activityDefinitionId), index("pmc_unit_progress_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_progress_activity_fk" })],
+);
+
+export const pmcUnitActivityHistory = mysqlTable(
+  "pmc_unit_activity_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    unitActivityProgressId: varchar("unitActivityProgressId", { length: 36 }).notNull(),
+    fromStatus: mysqlEnum("fromStatus", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]),
+    toStatus: mysqlEnum("toStatus", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).notNull(),
+    changedByUserId: int("changedByUserId").notNull().references(() => users.id),
+    changedAt: timestamp("changedAt").defaultNow().notNull(),
+    note: varchar("note", { length: 1000 }),
+  },
+  table => [index("pmc_history_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt), foreignKey({ columns: [table.unitActivityProgressId], foreignColumns: [pmcUnitActivityProgress.id], name: "pmc_hist_progress_fk" })],
+);
+
+export const pmcVerificationStatuses = mysqlTable(
+  "pmc_verification_statuses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    label: varchar("label", { length: 160 }).notNull(),
+    sortOrder: int("sortOrder").default(0).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_verification_status_project_code_unique").on(table.projectId, table.code), index("pmc_verification_status_tenant_project_idx").on(table.tenantId, table.projectId, table.active)],
+);
+
+export const pmcInspectionRequests = mysqlTable(
+  "pmc_inspection_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    requestCode: varchar("requestCode", { length: 80 }).notNull(),
+    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
+    unitIdsJson: text("unitIdsJson").notNull(),
+    consultantLabel: varchar("consultantLabel", { length: 255 }),
+    responseCode: mysqlEnum("responseCode", ["A", "B", "C", "UR"]),
+    requestedAt: timestamp("requestedAt").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_inspections_project_code_unique").on(table.projectId, table.requestCode), index("pmc_inspections_tenant_project_activity_idx").on(table.tenantId, table.projectId, table.activityDefinitionId), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_insp_activity_fk" })],
+);
+
+export const pmcInspectionSteps = mysqlTable(
+  "pmc_inspection_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    inspectionRequestId: varchar("inspectionRequestId", { length: 36 }).notNull(),
+    stepCode: varchar("stepCode", { length: 80 }).notNull(),
+    status: mysqlEnum("status", ["pending", "in_progress", "complete", "rejected"]).default("pending").notNull(),
+    completedAt: timestamp("completedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_inspection_step_unique").on(table.inspectionRequestId, table.stepCode), index("pmc_inspection_steps_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.inspectionRequestId], foreignColumns: [pmcInspectionRequests.id], name: "pmc_step_request_fk" })],
+);
+
+export const pmcBaselines = mysqlTable(
+  "pmc_baselines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
+    periodAt: timestamp("periodAt").notNull(),
+    plannedPercent: decimal("plannedPercent", { precision: 7, scale: 4 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_baseline_activity_period_unique").on(table.activityDefinitionId, table.periodAt), index("pmc_baselines_tenant_project_period_idx").on(table.tenantId, table.projectId, table.periodAt), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_base_activity_fk" })],
+);
