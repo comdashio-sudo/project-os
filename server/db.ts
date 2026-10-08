@@ -92,6 +92,18 @@ import {
   tenantLicenseFeatureOverrides,
   tenantLicenses,
   users,
+  pmcZones,
+  pmcBlocks,
+  pmcUnits,
+  pmcActivityGroups,
+  pmcActivityStages,
+  pmcActivityDefinitions,
+  pmcUnitActivityProgress,
+  pmcUnitActivityHistory,
+  pmcVerificationStatuses,
+  pmcInspectionRequests,
+  pmcInspectionSteps,
+  pmcBaselines,
 } from "../drizzle/schema";
 import { productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
 import { assertTenantAccess } from "./domain/authorization";
@@ -716,6 +728,36 @@ async function assertProjectWithinTenant(input: { tenantId: string; projectId: s
     .limit(1);
 
   if (!project[0]) throw new Error("PROJECT_OS_PROJECT_NOT_FOUND");
+}
+
+export async function getPmcProjectSummaryForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+
+  const [zones, blocks, units, groups, stages, activities, progress, history, verificationStatuses, inspections, inspectionSteps, baselines] = await Promise.all([
+    db.select({ id: pmcZones.id }).from(pmcZones).where(and(eq(pmcZones.tenantId, input.tenantId), eq(pmcZones.projectId, input.projectId))),
+    db.select({ id: pmcBlocks.id }).from(pmcBlocks).where(and(eq(pmcBlocks.tenantId, input.tenantId), eq(pmcBlocks.projectId, input.projectId))),
+    db.select({ id: pmcUnits.id }).from(pmcUnits).where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId))),
+    db.select({ id: pmcActivityGroups.id }).from(pmcActivityGroups).where(and(eq(pmcActivityGroups.tenantId, input.tenantId), eq(pmcActivityGroups.projectId, input.projectId))),
+    db.select({ id: pmcActivityStages.id }).from(pmcActivityStages).where(and(eq(pmcActivityStages.tenantId, input.tenantId), eq(pmcActivityStages.projectId, input.projectId))),
+    db.select({ id: pmcActivityDefinitions.id }).from(pmcActivityDefinitions).where(and(eq(pmcActivityDefinitions.tenantId, input.tenantId), eq(pmcActivityDefinitions.projectId, input.projectId))),
+    db.select({ id: pmcUnitActivityProgress.id }).from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))),
+    db.select({ id: pmcUnitActivityHistory.id }).from(pmcUnitActivityHistory).where(and(eq(pmcUnitActivityHistory.tenantId, input.tenantId), eq(pmcUnitActivityHistory.projectId, input.projectId))),
+    db.select({ id: pmcVerificationStatuses.id }).from(pmcVerificationStatuses).where(and(eq(pmcVerificationStatuses.tenantId, input.tenantId), eq(pmcVerificationStatuses.projectId, input.projectId))),
+    db.select({ id: pmcInspectionRequests.id }).from(pmcInspectionRequests).where(and(eq(pmcInspectionRequests.tenantId, input.tenantId), eq(pmcInspectionRequests.projectId, input.projectId))),
+    db.select({ id: pmcInspectionSteps.id }).from(pmcInspectionSteps).where(and(eq(pmcInspectionSteps.tenantId, input.tenantId), eq(pmcInspectionSteps.projectId, input.projectId))),
+    db.select({ id: pmcBaselines.id }).from(pmcBaselines).where(and(eq(pmcBaselines.tenantId, input.tenantId), eq(pmcBaselines.projectId, input.projectId))),
+  ]);
+  return {
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    counts: { zones: zones.length, blocks: blocks.length, units: units.length, groups: groups.length, stages: stages.length, activities: activities.length, progress: progress.length, history: history.length, verificationStatuses: verificationStatuses.length, inspections: inspections.length, inspectionSteps: inspectionSteps.length, baselines: baselines.length },
+    totalRows: zones.length + blocks.length + units.length + groups.length + stages.length + activities.length + progress.length + history.length + verificationStatuses.length + inspections.length + inspectionSteps.length + baselines.length,
+  };
 }
 
 async function assertWbsItemWithinProject(input: { tenantId: string; projectId: string; wbsItemId: string }): Promise<void> {

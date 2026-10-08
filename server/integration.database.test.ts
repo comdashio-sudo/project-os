@@ -33,12 +33,19 @@ async function readExcelRows(bytes: Buffer, sheetName: string) {
   return { sheetNames: workbook.worksheets.map(sheet => sheet.name), rows: rows.map(row => Object.fromEntries(headers.map((header, index) => [header, row.getCell(index + 1).value ?? ""]))) };
 }
 
+async function cleanupPmcFixture() {
+  for (const table of ["pmc_inspection_steps", "pmc_inspection_requests", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_baselines", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "pmc_verification_statuses"]) {
+    await connection?.query(`DELETE FROM \`${table}\` WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
+  }
+}
+
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration database isolation", () => {
   beforeAll(async () => {
     const url = process.env.TEST_DATABASE_URL;
     if (!isIntegrationUrl(url)) return;
     if (!url) throw new Error("TEST_DATABASE_URL is required for integration tests");
     connection = await mysql.createConnection(url);
+    await cleanupPmcFixture();
     await connection.query("DROP TABLE IF EXISTS support_messages");
     await connection.query("DROP TABLE IF EXISTS support_tickets");
     await connection.query("DROP TABLE IF EXISTS knowledge_articles");
@@ -294,6 +301,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
   });
 
   afterAll(async () => {
+    await cleanupPmcFixture();
     await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM project_material_overrides WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM material_masters WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -379,6 +387,48 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
     expect(rows[0]).toMatchObject({ database_name: "project_os_integration_test" });
     expect(Number(rows[0].table_count)).toBeGreaterThanOrEqual(32);
+  });
+
+  it("isolates PMC summary reads by tenant and project across all 12 tables", async () => {
+    const ids = {
+      zoneA: "00000000-0000-4000-8000-00000000c001",
+      blockA: "00000000-0000-4000-8000-00000000c002",
+      unitA: "00000000-0000-4000-8000-00000000c003",
+      groupA: "00000000-0000-4000-8000-00000000c004",
+      stageA: "00000000-0000-4000-8000-00000000c005",
+      activityA: "00000000-0000-4000-8000-00000000c006",
+      progressA: "00000000-0000-4000-8000-00000000c007",
+      historyA: "00000000-0000-4000-8000-00000000c008",
+      verificationA: "00000000-0000-4000-8000-00000000c009",
+      inspectionA: "00000000-0000-4000-8000-00000000c00a",
+      stepA: "00000000-0000-4000-8000-00000000c00b",
+      baselineA: "00000000-0000-4000-8000-00000000c00c",
+      zoneB: "00000000-0000-4000-8000-00000000c101",
+      blockB: "00000000-0000-4000-8000-00000000c102",
+      unitB: "00000000-0000-4000-8000-00000000c103",
+      groupB: "00000000-0000-4000-8000-00000000c104",
+      stageB: "00000000-0000-4000-8000-00000000c105",
+      activityB: "00000000-0000-4000-8000-00000000c106",
+    };
+    await connection.query("INSERT INTO pmc_zones (id, tenantId, projectId, code, name) VALUES (?, ?, ?, 'ZONE-SYN-A', 'Synthetic zone A'), (?, ?, ?, 'ZONE-SYN-B', 'Synthetic zone B')", [ids.zoneA, tenantA, projectA, ids.zoneB, tenantB, projectB]);
+    await connection.query("INSERT INTO pmc_blocks (id, tenantId, projectId, zoneId, code, name) VALUES (?, ?, ?, ?, 'BLOCK-SYN-A', 'Synthetic block A'), (?, ?, ?, ?, 'BLOCK-SYN-B', 'Synthetic block B')", [ids.blockA, tenantA, projectA, ids.zoneA, ids.blockB, tenantB, projectB, ids.zoneB]);
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode) VALUES (?, ?, ?, ?, 1, 'SYN-A'), (?, ?, ?, ?, 1, 'SYN-B')", [ids.unitA, tenantA, projectA, ids.blockA, ids.unitB, tenantB, projectB, ids.blockB]);
+    await connection.query("INSERT INTO pmc_activity_groups (id, tenantId, projectId, code, name) VALUES (?, ?, ?, 'GROUP-SYN-A', 'Synthetic group A'), (?, ?, ?, 'GROUP-SYN-B', 'Synthetic group B')", [ids.groupA, tenantA, projectA, ids.groupB, tenantB, projectB]);
+    await connection.query("INSERT INTO pmc_activity_stages (id, tenantId, projectId, groupId, code, name) VALUES (?, ?, ?, ?, 'STAGE-SYN-A', 'Synthetic stage A'), (?, ?, ?, ?, 'STAGE-SYN-B', 'Synthetic stage B')", [ids.stageA, tenantA, projectA, ids.groupA, ids.stageB, tenantB, projectB, ids.groupB]);
+    await connection.query("INSERT INTO pmc_activity_definitions (id, tenantId, projectId, groupId, stageId, modelCode, code, name, weightPercent) VALUES (?, ?, ?, ?, ?, 'SYN-A', 'ACT-SYN-A', 'Synthetic activity A', 100), (?, ?, ?, ?, ?, 'SYN-B', 'ACT-SYN-B', 'Synthetic activity B', 100)", [ids.activityA, tenantA, projectA, ids.groupA, ids.stageA, ids.activityB, tenantB, projectB, ids.groupB, ids.stageB]);
+    await connection.query("INSERT INTO pmc_unit_activity_progress (id, tenantId, projectId, unitId, activityDefinitionId, status, lastChangedByUserId) VALUES (?, ?, ?, ?, ?, 'COMPLETE', ?), (?, ?, ?, ?, ?, 'COMPLETE', ?)", [ids.progressA, tenantA, projectA, ids.unitA, ids.activityA, integrationUserId, "00000000-0000-4000-8000-00000000c107", tenantB, projectB, ids.unitB, ids.activityB, integrationUserId]);
+    await connection.query("INSERT INTO pmc_unit_activity_history (id, tenantId, projectId, unitActivityProgressId, toStatus, changedByUserId) VALUES (?, ?, ?, ?, 'COMPLETE', ?), (?, ?, ?, ?, 'COMPLETE', ?)", [ids.historyA, tenantA, projectA, ids.progressA, integrationUserId, "00000000-0000-4000-8000-00000000c108", tenantB, projectB, "00000000-0000-4000-8000-00000000c107", integrationUserId]);
+    await connection.query("INSERT INTO pmc_verification_statuses (id, tenantId, projectId, code, label) VALUES (?, ?, ?, 'SYN-OK-A', 'Synthetic OK A'), (?, ?, ?, 'SYN-OK-B', 'Synthetic OK B')", [ids.verificationA, tenantA, projectA, "00000000-0000-4000-8000-00000000c109", tenantB, projectB]);
+    await connection.query("INSERT INTO pmc_inspection_requests (id, tenantId, projectId, requestCode, activityDefinitionId, unitIdsJson, requestedAt) VALUES (?, ?, ?, 'INSP-SYN-A', ?, ?, NOW()), (?, ?, ?, 'INSP-SYN-B', ?, ?, NOW())", [ids.inspectionA, tenantA, projectA, ids.activityA, JSON.stringify([ids.unitA]), "00000000-0000-4000-8000-00000000c10a", tenantB, projectB, ids.activityB, JSON.stringify([ids.unitB])]);
+    await connection.query("INSERT INTO pmc_inspection_steps (id, tenantId, projectId, inspectionRequestId, stepCode) VALUES (?, ?, ?, ?, 'STEP-SYN-A'), (?, ?, ?, ?, 'STEP-SYN-B')", [ids.stepA, tenantA, projectA, ids.inspectionA, "00000000-0000-4000-8000-00000000c10b", tenantB, projectB, "00000000-0000-4000-8000-00000000c10a"]);
+    await connection.query("INSERT INTO pmc_baselines (id, tenantId, projectId, activityDefinitionId, periodAt, plannedPercent) VALUES (?, ?, ?, ?, '2026-01-01', 100), (?, ?, ?, ?, '2026-01-01', 100)", [ids.baselineA, tenantA, projectA, ids.activityA, "00000000-0000-4000-8000-00000000c10c", tenantB, projectB, ids.activityB]);
+
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Synthetic Integration User", email: "integration@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const own = await caller.pmc.summary({ tenantId: tenantA, projectId: projectA });
+    expect(own.totalRows).toBe(12);
+    expect(Object.values(own.counts)).toEqual(Array(12).fill(1));
+    await expect(caller.pmc.summary({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   });
 
   it("rejects a cross-tenant advisory request before any model invocation", async () => {
