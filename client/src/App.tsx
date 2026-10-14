@@ -21,10 +21,34 @@ import PayrollWorkspace from "./pages/PayrollWorkspace";
 import CommercialChain from "./pages/CommercialChain";
 import ProjectProfitability from "./pages/ProjectProfitability";
 import UserProfile from "./pages/UserProfile";
+import RequireAuth from "./components/RequireAuth";
+import type { ComponentType } from "react";
 import { Route, Switch } from "wouter";
 
+function withAuth(Component: ComponentType<any>) {
+  return function AuthenticatedRoute(props: any) {
+    return <RequireAuth><Component {...props} /></RequireAuth>;
+  };
+}
+
+const ProtectedProfile = withAuth(UserProfile);
+const ProtectedEvm = withAuth(EvmCalculator);
+const ProtectedExecutive = withAuth(ExecutiveDashboard);
+const ProtectedPmo = withAuth(PmoDashboard);
+const ProtectedLicensing = withAuth(LicensingConsole);
+const ProtectedBilling = withAuth(BillingRegister);
+const ProtectedSupport = withAuth(SupportCenter);
+const ProtectedPeople = withAuth(EmployeeRegistry);
+const ProtectedPayroll = withAuth(PayrollWorkspace);
+const ProtectedAdministration = withAuth(TenantAdministration);
+const ProtectedMyPerformance = withAuth(MyPerformance);
+const ProtectedControls = withAuth(ProjectControls);
+const ProtectedCommercial = withAuth(CommercialChain);
+const ProtectedProfitability = withAuth(ProjectProfitability);
+const ProtectedProjects = withAuth(ProjectRegistry);
+
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/profile" component={UserProfile} /><Route path="/evm" component={EvmCalculator} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ExecutiveDashboard} /><Route path="/pmo/:tenantId" component={PmoDashboard} /><Route path="/licensing/:tenantId" component={LicensingConsole} /><Route path="/billing/:tenantId" component={BillingRegister} /><Route path="/support/:tenantId" component={SupportCenter} /><Route path="/people/:tenantId" component={EmployeeRegistry} /><Route path="/payroll/:tenantId" component={PayrollWorkspace} /><Route path="/tenants/:tenantId/administration" component={TenantAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={MyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProjectControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={CommercialChain} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProjectProfitability} /><Route path="/projects/:tenantId" component={ProjectRegistry} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {

@@ -5,6 +5,19 @@ import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
+export function getSafeOAuthRedirect(redirectUri: string | undefined, request: Request) {
+  if (!redirectUri) return "/";
+  if (!redirectUri.startsWith("/") && !/^https?:\/\//i.test(redirectUri)) return "/";
+  try {
+    const requestOrigin = `${request.protocol}://${request.get("host")}`;
+    const target = new URL(redirectUri, requestOrigin);
+    if (target.origin !== requestOrigin) return "/";
+    return `${target.pathname}${target.search}${target.hash}` || "/";
+  } catch {
+    return "/";
+  }
+}
+
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
@@ -23,7 +36,7 @@ export function registerOAuthRoutes(app: Express) {
     // CSRF guard: the nonce in `state` must match the one-time cookie that
     // startLogin set in the browser that began this login. An attacker can
     // forge `state`, but cannot plant this cookie in the victim's browser.
-    const { nonce } = decodeOAuthState(state);
+    const { nonce, redirectUri } = decodeOAuthState(state);
     const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
     if (!nonce || nonce !== expectedNonce) {
       res.status(403).json({ error: "invalid oauth state" });
@@ -56,7 +69,7 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      res.redirect(302, "/");
+      res.redirect(302, getSafeOAuthRedirect(redirectUri, req));
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
