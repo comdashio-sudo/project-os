@@ -24,6 +24,7 @@ async function clearPilotFixtures() {
   await connection.query("DELETE FROM project_documents WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
   await connection.query("DELETE FROM risks WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
   await connection.query("DELETE FROM decisions WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
+  await connection.query("DELETE FROM evm_wbs_snapshots WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
   await connection.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
   await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);
   await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectId, foreignProjectId]);

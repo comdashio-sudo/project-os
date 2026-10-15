@@ -115,6 +115,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM progress_entries WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM cost_entries WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM budget_lines WHERE projectId IN (?, ?)", [projectA, projectB]);
+    await connection.query("DELETE FROM evm_wbs_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM project_health_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM internal_notifications WHERE projectId IN (?, ?)", [projectA, projectB]);
@@ -277,7 +278,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM employee_time_entries WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM employee_attendance WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM employee_assignments WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
-    for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
+    for (const table of ["progress_entries", "cost_entries", "budget_lines", "evm_wbs_snapshots", "evm_snapshots", "project_health_snapshots", "internal_notifications", "purchase_orders", "commitments", "contracts", "field_reports", "quality_inspections", "hse_observations", "ncrs", "rfis", "change_requests", "claims", "project_resources", "activities", "wbs_items", "actions", "decisions", "issues", "risks"]) await connection?.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, [tenantA, tenantB]);
     await connection?.query("DELETE FROM employment_contracts WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM employees WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -720,6 +721,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       else { await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES (?, 'pmo.read', 'Integration PMO read', 'PMO')", [pmoReadPermissionId]); createdPermission = true; }
       await connection.query("INSERT IGNORE INTO role_permissions (roleId, permissionId) VALUES ('int-role-pmo', ?)", [pmoReadPermissionId]);
       await connection.query("DELETE FROM actions WHERE projectId = ?", [projectC]);
+      await connection.query("DELETE FROM evm_wbs_snapshots WHERE projectId = ?", [projectC]);
       await connection.query("DELETE FROM evm_snapshots WHERE projectId = ?", [projectC]);
       await connection.query("DELETE FROM project_health_snapshots WHERE projectId = ?", [projectC]);
       await connection.query("DELETE FROM projects WHERE id = ?", [projectC]);
@@ -799,6 +801,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     } finally {
       if (snapshotId) {
         await connection.query("DELETE FROM audit_logs WHERE entityId = ?", [snapshotId]);
+        await connection.query("DELETE FROM evm_wbs_snapshots WHERE snapshotId = ?", [snapshotId]);
         await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [snapshotId]);
       }
     }
@@ -863,6 +866,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ plans: 1, versions: 2, entities: 3, audits: 6, progress: "84.00", actual: "90.00", status: "completed" });
     await connection.query("DELETE FROM master_plan_spatial_entities WHERE masterPlanVersionId = ?", [plan.versionId]);
     await connection.query("DELETE FROM activities WHERE id = ?", [linkedActivity.id]);
+    await connection.query("DELETE FROM evm_wbs_snapshots WHERE wbsItemId = ?", [linkedWbs.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [linkedWbs.id]);
   }, 120_000);
 
@@ -1212,6 +1216,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM warehouse_inventory_transfers WHERE id = ?", [transfer.id]);
     await connection.query("DELETE FROM warehouse_inventory_transactions WHERE warehouseId = ?", [warehouse.id]);
     await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]);
+    await connection.query("DELETE FROM evm_wbs_snapshots WHERE wbsItemId = ?", [wbs.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouse.id]);
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [destinationWarehouse.id]);
@@ -1353,7 +1358,9 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
     await connection.query("DELETE FROM purchase_orders WHERE id = ?", [foreignPurchaseOrderId]);
     await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]);
+    await connection.query("DELETE FROM evm_wbs_snapshots WHERE wbsItemId = ?", [wbs.id]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
+    await connection.query("DELETE FROM evm_wbs_snapshots WHERE wbsItemId = ?", [foreignWbsId]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [foreignWbsId]);
     await connection.query("DELETE FROM suppliers WHERE id = ?", [supplier.id]);
     await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
@@ -1510,7 +1517,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(health.sources).toMatchObject({ latestEvmFound: true, highRiskCount: 1, overdueActionCount: 1, overdueRfiCount: 1, overdueNcrCount: 1, overdueHseCount: 1 });
     const [rows] = await connection.query<{ evm: number; health: number; audits: number; pv: string; ev: string; ac: string; bac: string; sourceAudit: number; notifications: number }[]>("SELECT (SELECT COUNT(*) FROM evm_snapshots WHERE id = ?) AS evm, (SELECT COUNT(*) FROM project_health_snapshots WHERE id = ?) AS health, (SELECT COUNT(*) FROM audit_logs WHERE entityId IN (?, ?)) AS audits, (SELECT pv FROM evm_snapshots WHERE id = ?) AS pv, (SELECT ev FROM evm_snapshots WHERE id = ?) AS ev, (SELECT ac FROM evm_snapshots WHERE id = ?) AS ac, (SELECT bac FROM evm_snapshots WHERE id = ?) AS bac, (SELECT COUNT(*) FROM audit_logs WHERE entityId = ? AND action = 'evm.operational_snapshot_created' AND metadata LIKE '%operational_records%') AS sourceAudit, (SELECT COUNT(*) FROM internal_notifications WHERE entityId = ? AND notificationCode = 'PROJECT_HEALTH_EXCEPTION') AS notifications", [evm.id, health.id, evm.id, health.id, evm.id, evm.id, evm.id, evm.id, evm.id, health.id]);
     expect(rows[0]).toMatchObject({ evm: 1, health: 1, audits: 2, pv: "200.00", ev: "100.00", ac: "120.00", bac: "350.00", sourceAudit: 1, notifications: 1 });
-    await connection.query("DELETE FROM internal_notifications WHERE entityId = ?", [health.id]); await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [evm.id, health.id, wbs.id, activity.id, progress.id, budget.id, cost.id, risk.id, action.id, rfi.id, ncr.id, hse.id]); await connection.query("DELETE FROM project_health_snapshots WHERE id = ?", [health.id]); await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [evm.id]); await connection.query("DELETE FROM hse_observations WHERE id = ?", [hse.id]); await connection.query("DELETE FROM ncrs WHERE id = ?", [ncr.id]); await connection.query("DELETE FROM rfis WHERE id = ?", [rfi.id]); await connection.query("DELETE FROM actions WHERE id = ?", [action.id]); await connection.query("DELETE FROM risks WHERE id = ?", [risk.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]); await connection.query("DELETE FROM progress_entries WHERE id = ?", [progress.id]); await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]); await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
+    await connection.query("DELETE FROM internal_notifications WHERE entityId = ?", [health.id]); await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [evm.id, health.id, wbs.id, activity.id, progress.id, budget.id, cost.id, risk.id, action.id, rfi.id, ncr.id, hse.id]); await connection.query("DELETE FROM project_health_snapshots WHERE id = ?", [health.id]); await connection.query("DELETE FROM evm_wbs_snapshots WHERE snapshotId = ?", [evm.id]); await connection.query("DELETE FROM evm_snapshots WHERE id = ?", [evm.id]); await connection.query("DELETE FROM hse_observations WHERE id = ?", [hse.id]); await connection.query("DELETE FROM ncrs WHERE id = ?", [ncr.id]); await connection.query("DELETE FROM rfis WHERE id = ?", [rfi.id]); await connection.query("DELETE FROM actions WHERE id = ?", [action.id]); await connection.query("DELETE FROM risks WHERE id = ?", [risk.id]); await connection.query("DELETE FROM cost_entries WHERE id = ?", [cost.id]); await connection.query("DELETE FROM budget_lines WHERE id = ?", [budget.id]); await connection.query("DELETE FROM progress_entries WHERE id = ?", [progress.id]); await connection.query("DELETE FROM activities WHERE id = ?", [activity.id]); await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
   }, 120_000);
 
   it("rejects cross-tenant WBS creation and creates governed WBS activity and progress records with audit evidence", async () => {

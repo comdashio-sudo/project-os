@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
+import { PortfolioProfitability } from "./PortfolioProfitability";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
@@ -184,6 +185,7 @@ export default function ExecutiveDashboard() {
           />
         </div>}
         </SectionErrorBoundary>
+        {metricsQuery.data && <SectionErrorBoundary title={isArabic ? "ربحية المشاريع" : "Project profitability"} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
         {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" /></div> : cashFlowQuery.data.cashFlow ? (
           <Card className="mt-6 border-amber-200 bg-amber-50">

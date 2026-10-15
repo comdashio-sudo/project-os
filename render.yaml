@@ -1,5 +1,5 @@
 # Render Blueprint for PROJECT OS: one Express server that serves the built
-# client and the tRPC API, plus a daily cron job for license expiry.
+# client and the tRPC API, plus a daily cron job for license expiry and the monthly profit snapshots.
 #
 # Nothing here deploys by itself: autoDeploy is off, so a deploy is the owner
 # pressing the button. Values marked `sync: false` are asked for in the Render
@@ -66,7 +66,7 @@ services:
     region: frankfurt
     schedule: "0 2 * * *"
     buildCommand: "true"
-    startCommand: 'curl --fail --silent --show-error --max-time 60 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/licenseExpiry"'
+    startCommand: 'curl --fail --silent --show-error --max-time 60 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/licenseExpiry" && curl --fail --silent --show-error --max-time 300 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/profitabilitySnapshots"'
     envVars:
       - key: CRON_SECRET
         fromService:

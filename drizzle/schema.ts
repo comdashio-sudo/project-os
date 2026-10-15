@@ -1150,6 +1150,9 @@ export const changeRequests = mysqlTable(
     description: text("description").notNull(),
     impactScheduleDays: int("impactScheduleDays").default(0).notNull(),
     impactCost: decimal("impactCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    // Effect of an APPROVED change order on the client contract value (can be negative).
+    // impactCost is the cost side; this is the price side the profitability screen adds.
+    contractValueImpact: decimal("contractValueImpact", { precision: 18, scale: 2 }).default("0").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
     status: mysqlEnum("status", ["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]).default("draft").notNull(),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
@@ -1273,6 +1276,10 @@ export const costEntries = mysqlTable(
     entryType: mysqlEnum("entryType", ["actual", "accrual", "adjustment"]).notNull(),
     status: mysqlEnum("status", ["draft", "posted", "void"]).default("draft").notNull(),
     incurredAt: timestamp("incurredAt").notNull(),
+    // What the cost is and the document it came from, so profit can be drilled down to its source.
+    category: mysqlEnum("category", ["materials", "labour", "subcontract", "other"]).default("other").notNull(),
+    sourceType: varchar("sourceType", { length: 40 }),
+    sourceId: varchar("sourceId", { length: 36 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [index("cost_entries_tenant_project_date_idx").on(table.tenantId, table.projectId, table.incurredAt)],
@@ -1314,6 +1321,9 @@ export const evmSnapshots = mysqlTable(
     vac: decimal("vac", { precision: 18, scale: 2 }).notNull(),
     tcpi: decimal("tcpi", { precision: 12, scale: 4 }),
     eacMethod: mysqlEnum("eacMethod", ["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]).notNull(),
+    // Profitability extension (null on snapshots taken before it existed).
+    adjustedContractValue: decimal("adjustedContractValue", { precision: 18, scale: 2 }),
+    fpac: decimal("fpac", { precision: 18, scale: 2 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [uniqueIndex("evm_snapshots_project_period_unique").on(table.projectId, table.periodAt), index("evm_snapshots_tenant_project_idx").on(table.tenantId, table.projectId)],
@@ -1835,4 +1845,25 @@ export const loginCodes = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [index("login_codes_email_created_idx").on(table.emailHash, table.createdAt)],
+);
+
+// Per-WBS EAC captured with each profitability snapshot: the history that lets
+// the screen say which work items moved the profit since the last snapshot.
+export const evmWbsSnapshots = mysqlTable(
+  "evm_wbs_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    snapshotId: varchar("snapshotId", { length: 36 }).notNull().references(() => evmSnapshots.id),
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    bac: decimal("bac", { precision: 18, scale: 2 }).notNull(),
+    ac: decimal("ac", { precision: 18, scale: 2 }).notNull(),
+    eac: decimal("eac", { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("evm_wbs_snapshots_unique").on(table.snapshotId, table.wbsItemId),
+    index("evm_wbs_snapshots_project_idx").on(table.tenantId, table.projectId),
+  ],
 );
