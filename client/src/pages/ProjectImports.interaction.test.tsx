@@ -36,4 +36,13 @@ describe("ProjectImports", () => {
     const user = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />); await user.click(screen.getByRole("button", { name: "Contracts" })); expect(screen.getAllByText("Contract Title").length).toBeGreaterThan(0); expect(screen.getAllByText("Counterparty").length).toBeGreaterThan(0); expect(screen.getAllByText("Currency").length).toBeGreaterThan(0);
     cleanup(); state.arabic = true; const arabicUser = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />); await arabicUser.click(screen.getByRole("button", { name: "العقود" })); expect(screen.getAllByText("اسم العقد").length).toBeGreaterThan(0); expect(screen.getAllByText("الطرف المتعاقد").length).toBeGreaterThan(0); expect(screen.getAllByText("العملة").length).toBeGreaterThan(0);
   });
+
+  it("offers the opening-balances template, explains it is the first movement, and sends that module (G-105)", async () => {
+    const user = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />); await user.click(screen.getByRole("button", { name: "Opening balances" }));
+    expect(screen.getAllByText("Warehouse Code").length).toBeGreaterThan(0); expect(screen.getAllByText("Material Code").length).toBeGreaterThan(0); expect(screen.getAllByText("Quantity").length).toBeGreaterThan(0);
+    expect(screen.getByText(/never edits stock that has a history/)).toBeTruthy();
+    await user.upload(screen.getByLabelText("Choose a file"), new File(["Warehouse Code,Material Code,Quantity\nWH-01,CEM,10"], "opening.csv", { type: "text/csv" })); await user.click(screen.getByRole("button", { name: "Analyze file" }));
+    expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "openingBalances", sourceFormat: "csv" }));
+    cleanup(); state.arabic = true; const arabicUser = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />); await arabicUser.click(screen.getByRole("button", { name: "الأرصدة الافتتاحية" })); expect(screen.getAllByText("رمز المستودع").length).toBeGreaterThan(0);
+  });
 });
