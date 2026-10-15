@@ -56,8 +56,12 @@ export const governedActionPermissions = {
   transitionRfiStatus: ["project.rfi.manage"],
   createNcrForTenant: ["project.ncr.manage"],
   transitionNcrStatus: ["project.ncr.manage"],
+  // tenant settings: how labour is loaded and which days are worked
+  saveTenantLabourSettings: ["project.settings.labour"],
+  getTenantLabourSettings: ["project.settings.labour", "project.cashflow.read"],
   // cash-flow figures
   getProjectProfitabilityForTenant: ["project.cashflow.read"],
+  getProjectLabourCostForTenant: ["project.cashflow.read"],
   getProfitabilityCostBreakdownForTenant: ["project.cashflow.read"],
   getProfitabilityHistoryForTenant: ["project.cashflow.read"],
 } as const satisfies Record<string, readonly string[]>;

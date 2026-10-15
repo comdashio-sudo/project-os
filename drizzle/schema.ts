@@ -138,6 +138,23 @@ export const salaryStructures = mysqlTable(
   table => [uniqueIndex("salary_structures_tenant_employee_unique").on(table.tenantId, table.employeeId), index("salary_structures_tenant_active_idx").on(table.tenantId, table.active)],
 );
 
+export const tenantSettings = mysqlTable(
+  "tenant_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    // Labour loading and the working calendar (G-015, G-016, G-124). Defaults load nothing and use the Sunday-Thursday week.
+    employerGosiRate: decimal("employerGosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
+    indirectLoadingPercent: decimal("indirectLoadingPercent", { precision: 7, scale: 4 }).default("0").notNull(),
+    hoursPerDay: decimal("hoursPerDay", { precision: 5, scale: 2 }).default("8").notNull(),
+    workingDays: varchar("workingDays", { length: 20 }).default("0,1,2,3,4").notNull(),
+    updatedByUserId: int("updatedByUserId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tenant_settings_tenant_unique").on(table.tenantId)],
+);
+
 export const payrollRuns = mysqlTable(
   "payroll_runs",
   {
@@ -246,6 +263,8 @@ export const employeeTimeEntries = mysqlTable(
     reportedProgressPercent: decimal("reportedProgressPercent", { precision: 5, scale: 2 }),
     status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
     costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    // How the cost of the approved hours was priced: from payroll (loaded) or from the resource plan rate. The rate itself is not kept here: it would reveal pay.
+    rateSource: mysqlEnum("rateSource", ["loaded", "resource"]),
     progressEntryId: varchar("progressEntryId", { length: 36 }).references(() => progressEntries.id),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     reviewedByUserId: int("reviewedByUserId").references(() => users.id),

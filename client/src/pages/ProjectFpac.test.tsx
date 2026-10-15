@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectFpac } from "./ProjectFpac";
 
 const state = vi.hoisted(() => ({ arabic: false, report: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, history: { data: [] } as Record<string, unknown>, breakdown: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, refetch: vi.fn() }));
+vi.mock("./LabourLoadingCard", () => ({ default: () => null })); // tested on its own
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { project: { useQuery: () => ({ ...state.report, refetch: state.refetch }) }, history: { useQuery: () => state.history }, costBreakdown: { useQuery: () => state.breakdown } } } }));
 afterEach(() => { cleanup(); state.arabic = false; state.report = { data: undefined, isLoading: false, error: null }; state.history = { data: [] }; state.breakdown = { data: undefined, isLoading: false, error: null }; state.refetch.mockReset(); });

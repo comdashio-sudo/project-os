@@ -407,6 +407,13 @@
       "when": 1792076850739,
       "tag": "0057_pmc_site_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1792091898399,
+      "tag": "0058_tenant_settings_labour_loading",
+      "breakpoints": true
     }
   ]
 }
