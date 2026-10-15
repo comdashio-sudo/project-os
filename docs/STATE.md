@@ -57,6 +57,10 @@
 | هوية المنتج | Dashio هي هوية PROJECT OS، وPROJECT OS تسمية المنصة في سياق المنتج والحوكمة. | `SOURCE_VERIFIED` |
 | محرك قاعدة البيانات | القرار الحاكم: PROJECT OS يعمل على MySQL/TiDB Serverless؛ لا يوجد مسار توحيد أو انتقال قاعدة بيانات معتمد. | `SOURCE_VERIFIED` |
 
+## حارس قاعدة الاختبار — 15 أكتوبر 2026
+
+لا يعمل أي اختبار قاعدة بيانات إلا على `project_os_integration_test`: حارس vitest عام (`server/testing/databaseGuard.setup.ts`) يوقف التشغيل كله إن سمّى `DATABASE_URL` أو `TEST_DATABASE_URL` أي قاعدة غيرها، و`getDb()` يكرر الفحص تحت vitest ولم يعد يستعمل حساب الإدارة إلا بـ`PROJECT_OS_USE_ADMIN_DATABASE_URL=true` صراحةً. `server/commercial_chain.database.test.ts` يتخطى نفسه بلا قاعدة اختبار، ويتحقق من القاعدة والحساب قبل الكتابة، ولم يعد يحذف من `audit_logs`. الدليل: `pnpm test` = 80 ملفًا ناجحًا و6 متخطاة، 378 اختبارًا ناجحًا و86 متخطى، صفر فاشل (قبله: ملف فاشل و374)؛ ومع `DATABASE_URL` اسم قاعدته `project_os` يتوقف التشغيل قبل أي اختبار. تشغيل اختبار السلسلة التجارية على TiDB حي لم يتم (لا قاعدة) ويبقى `UNVERIFIED`.
+
 ## سجل الحالة الموحد
 
 | البند | التصنيف | الدليل أو سبب عدم الإغلاق | رقم الدليل/التاريخ/الهاش |

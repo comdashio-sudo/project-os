@@ -185,7 +185,7 @@ function configureAuthorizedRoleUpdate(input: { systemManaged?: boolean; actorHa
 
 describe("operational API authorization", () => {
   beforeEach(() => {
-    process.env.DATABASE_URL = "mysql://router-access-test";
+    process.env.DATABASE_URL = "mysql://router-access-test/project_os_integration_test";
     databaseDouble.select.mockReset();
     databaseDouble.transaction.mockReset();
     storageDouble.storagePut.mockClear();

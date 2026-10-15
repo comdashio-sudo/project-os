@@ -14,6 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: ["server/testing/databaseGuard.setup.ts"],
     include: ["server/**/*.test.ts", "server/**/*.spec.ts", "client/**/*.test.tsx", "shared/**/*.test.ts"],
   },
 });
