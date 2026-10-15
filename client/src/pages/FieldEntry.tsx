@@ -237,7 +237,7 @@ function TeamHoursEntry({ tenantId, projectId, t, isArabic, keepOffline, online 
   const finish = (count: number, queued: boolean) => { setDone({ count, queued }); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); };
   const save = trpc.teamHours.save.useMutation({
     ...attempt,
-    onSuccess: (result, variables) => { setNotKept(false); if (result.errors.length) { setRowErrors(result.errors); return; } finish(result.saved, false); void sheet.refetch(); void variables; },
+    onSuccess: result => { setNotKept(false); if (result.errors.length) { setRowErrors(result.errors); requestId.current = newId(); return; } /* the server stored this answer under the old identifier, so the corrected sheet must go out under a new one */ finish(result.saved, false); void sheet.refetch(); },
     onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "team", payload: variables, summary: `${t.team} ${date}: ${variables.entries.length} ${t.rows}` })) { setNotKept(false); finish(variables.entries.length, true); } else setNotKept(true); },
   });
   const label = (assignmentId: string) => { const row = rows?.find(entry => entry.assignmentId === assignmentId); return row ? `${row.employeeNumber} · ${row.fullName}` : assignmentId; };
@@ -289,12 +289,16 @@ function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, 
 }
 
 // The queue belongs to one project on one phone. Online again, it is sent by itself, one request at a time.
+// It also tries again every RETRY_MS while something waits and the phone believes it is online: "online" can stay true
+// while the server is unreachable, and no event fires when it comes back.
+const RETRY_MS = 30_000;
 function useOfflineQueue(scope: string) {
   const client = trpc.useUtils().client;
   const [items, setItems] = useState<QueueItem[]>(() => loadQueue(scope));
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
   const [flushing, setFlushing] = useState(false);
   const refresh = useCallback(() => setItems(loadQueue(scope)), [scope]);
+  // The sender is read through a ref so that `flush` keeps one identity: a changing client must not re-arm the effects below on every render.
   const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
     const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
     if (item.kind === "progress") await client.progress.create.mutate(payload);
@@ -302,7 +306,9 @@ function useOfflineQueue(scope: string) {
     else if (item.kind === "receipt") await client.goodsReceipts.create.mutate(payload);
     else { const result = await client.teamHours.save.mutate(payload); if (result.errors.length) return { rejected: result.errors[0].code }; }
   }, [client]);
-  const flush = useCallback(async () => { setFlushing(true); try { await flushQueue(scope, send); } finally { setFlushing(false); refresh(); } }, [scope, send, refresh]);
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const flush = useCallback(async () => { setFlushing(true); try { await flushQueue(scope, item => sendRef.current(item)); } finally { setFlushing(false); refresh(); } }, [scope, refresh]);
   useEffect(() => {
     const goOnline = () => { setOnline(true); void flush(); };
     const goOffline = () => setOnline(false);
@@ -310,6 +316,12 @@ function useOfflineQueue(scope: string) {
     if (navigator.onLine !== false && loadQueue(scope).some(item => item.status === "pending")) void flush();
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, [scope, flush]);
+  const waiting = items.some(item => item.status === "pending");
+  useEffect(() => {
+    if (!waiting || !online) return undefined;
+    const timer = setInterval(() => { void flush(); }, RETRY_MS);
+    return () => clearInterval(timer);
+  }, [waiting, online, flush]);
   const keep: KeepOffline = useCallback(item => { const kept = enqueue(scope, item); refresh(); return kept; }, [scope, refresh]);
   return { items, online, flushing, flush, keep, discard: (id: string) => { discard(scope, id); refresh(); }, retry: (id: string) => { retryFailed(scope, id); refresh(); void flush(); } };
 }
