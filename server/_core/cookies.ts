@@ -42,7 +42,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Lax: the cookie is not sent on cross-site sub-requests, and it works over
+    // plain http on localhost (SameSite=None would require Secure).
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

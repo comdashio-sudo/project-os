@@ -124,6 +124,7 @@ import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpati
 import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
 import { assertTestDatabaseUrl } from "./testing/testDatabase";
+import { openIdForEmail } from "./_core/auth/emailCode";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
@@ -162,7 +163,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet[field] = user[field] ?? null;
     }
   }
-  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
+  values.role = user.role ?? (ENV.ownerEmail && user.openId === openIdForEmail(ENV.ownerEmail) ? "admin" : "user");
   updateSet.role = values.role;
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
