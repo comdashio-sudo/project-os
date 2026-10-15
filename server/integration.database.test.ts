@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import ExcelJS from "exceljs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
+import { isLlmEnabled } from "./_core/llm";
 import { appRouter } from "./routers";
 import { evaluateTenantLicenseLifecycle } from "./db";
 import { calculateOperationalEvm } from "./domain/operationalEvm";
@@ -1044,6 +1045,15 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       const licenseRegister = await caller.licensing.tenantLicense({ tenantId: tenantA });
       if (licenseRegister.license) await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license.id, featureCode: "STORAGE_BYTES", active: true, limitValue: 1_073_741_824 });
     }
+  }, 120_000);
+
+  it.skipIf(isLlmEnabled())("refuses an advisory request while the model is disabled without spending the monthly quota", async () => {
+    const context: TrpcContext = { user: { id: integrationUserId, openId: "integration-test-user", name: "Integration Test User", email: "integration@test.local", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const caller = appRouter.createCaller(context);
+    const usage = async () => { const [rows] = await connection.query<{ usageAudits: number }[]>("SELECT COUNT(*) AS usageAudits FROM audit_logs WHERE tenantId = ? AND action = 'advisor.usage_consumed'", [tenantA]); return Number(rows[0].usageAudits); };
+    const before = await usage();
+    await expect(caller.advisor.project({ tenantId: tenantA, projectId: projectA, locale: "en" })).rejects.toThrow("PROJECT_OS_ADVISOR_UNAVAILABLE");
+    expect(await usage()).toBe(before);
   }, 120_000);
 
   it("blocks an AI advisory request at the monthly commercial limit before any model call or usage audit", async () => {
