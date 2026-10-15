@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-<<<<<<< HEAD
 import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, programme, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
-=======
-import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
->>>>>>> origin/main
 
 // The dataset and every expected number below are worked by hand in
 // docs/PMC_PHASE_C_HAND_CHECKS.md. Four units of one model (WALLS 60, PAINT 40).
@@ -145,7 +141,6 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(unitCard(ds, 4)!.activities.find(a => a.code === "WALLS")).toMatchObject({ status: "NOT_STARTED", verificationStatus: null, engineer: null });
     expect(unitCard(ds, 99)).toBeNull();
   });
-<<<<<<< HEAD
 
   it("screen 10: planned against actual by month, cumulative and per month, matching docs/PMC_PHASE_D_HAND_CHECKS.md", () => {
     const result = programme(ds);
@@ -171,7 +166,4 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(unrecorded.actualToDate).toBe(65); // the history still says 65 ...
     expect(unrecorded.progressFromCells).toBe(75); // ... while the cells say 75: the gap is visible, not hidden
   });
-=======
->>>>>>> origin/main
 });
-

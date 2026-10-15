@@ -106,17 +106,10 @@ Phase A is "closed" in STATE/closeout. Present: 12 tables w/ tenant+project, FKs
 | ID | Source | Promise | Status | Evidence / what was searched | Live DB | Size |
 |---|---|---|---|---|---|---|
 | G-075 | PMC:54 | S3 Site plan: user-uploaded plan image + GeoJSON polygons; units coloured by status of chosen activity; click opens unit card | CLOSED (D1) | `pmc_site_plans` (0057) + `pmcGeometry.ts` + `pmcPlanService.ts` + `pmc.siteMap/unitCard/uploadSitePlan/saveUnitGeometries` + `PmcSitePlan.tsx`; polygons normalised 0..1 on the plan image, independent of the Master Plan rectangles; live test `pmc.plan.database.test.ts` (5). Not seen in a real browser. | yes | L |
-<<<<<<< HEAD
 | G-076 | PMC:61 | S10 Programme: planned vs actual monthly + cumulative S-curve + cards Paid / confirmed invoicing / target | CLOSED (D2) | `programme()` + `pmc.programme` + `PmcProgramme.tsx`: monthly planned vs actual, cumulative S-curve, and Paid / confirmed / target cards from `project_commercial_invoices` and `projects.contractValue`. | yes | L |
 | G-077 | PMC:89 | S-curve matches imported baseline | CLOSED (D2) | Live test imports a baseline through the API and asserts planned 12/40/68 by hand calculation. | yes | S |
 | G-078 | PMC:42 (rule 7) | Each Group/Activity linked to a WBS item so EVM snapshot updates directly from PMC | CLOSED (D2) | `pmcEvmBridge.ts`: linked WBS items get a `submitted` progress entry from the cells, in the same transaction, on every path that moves PMC progress. | yes | L |
 | G-079 | PMC:89 | EVM snapshot changes when an activity status changes, before/after numbers shown | CLOSED (D2) | `setUnitActivityStatus` returns `evm {evBefore, evAfter, changed}`; the unit card shows it; live test cross-checks every step against `liveEvm`. | yes | M |
-=======
-| G-076 | PMC:61 | S10 Programme: planned vs actual monthly + cumulative S-curve + cards Paid / confirmed invoicing / target | MISSING | recharts present; PortfolioCashFlowChart.tsx is a precedent; no PMC series; cards depend on G-043. | yes | L |
-| G-077 | PMC:89 | S-curve matches imported baseline | MISSING | needs G-055 baseline import. | yes | S |
-| G-078 | PMC:42 (rule 7) | Each Group/Activity linked to a WBS item so EVM snapshot updates directly from PMC | PARTIAL | `pmc_activity_definitions.wbsItemId` exists (schema.ts:1717); `calculateEarnedValue` unused; operational EVM reads only `progress_entries` status='submitted' (operationalEvm.ts:~55) - no PMC->progress bridge. | yes | L |
-| G-079 | PMC:89 | EVM snapshot changes when an activity status changes, before/after numbers shown | MISSING | depends on G-078. | yes | M |
->>>>>>> origin/main
 
 ## C. WORK_ORDER_EXTENDED.md
 
@@ -263,7 +256,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 | G-071 (لقطة لكل شاشة بالعربية وعلى الجوال + رقمان بحساب يدوي) | أُغلق | `docs/screenshots/pmc/` (عشر شاشات × سطح مكتب وجوال 390px، بيانات 500×60 مستوردة عبر الواجهة البرمجية نفسها)؛ و`docs/PMC_PHASE_C_HAND_CHECKS.md` يحسب بالقلم أكثر من رقمين لكل شاشة، ويطابقها اختبار الدوال النقية واختبار القاعدة الحية. |
 | G-051 (تبويب «ضبط المشروع PMC»، عربي أولًا، جوال) | جزئي | الصفحة وروابطها من رأس ضوابط المشروع، تتبع لغة الواجهة (عربية RTL عند اختيارها)؛ لم تُدمج كتبويب داخل صفحة الضوابط نفسها. |
 | G-075 (مخطط الموقع: صورة + GeoJSON + بطاقة الوحدة) | أُغلق | `PmcSitePlan.tsx` + أربعة إجراءات `pmc.*` + الترحيل `0057`؛ حي 5 + DOM 5 + وحدة 5؛ لم يُرَ في متصفح حقيقي، والرفع جُرّب على تخزين ذاكرة لا R2. |
-<<<<<<< HEAD
 | G-076..G-079 (البرنامج الزمني، مطابقة خط الأساس، ربط WBS، EV قبل/بعد) | أُغلقت | `programme()` + `pmcEvmBridge.ts` + `pmc.programme`؛ حي 5 + وحدة 7 + DOM؛ لقطات `d-11…d-14`. «المستهدفة» تعريف مني لا معتمَد من المالك، والمبالغ قبل الضريبة. |
-=======
->>>>>>> origin/main
