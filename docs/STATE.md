@@ -314,3 +314,4 @@
 | الطلب | التصنيف | ما تغيّر والدليل |
 |---|---|---|
 | CI + ماسح الأسرار | `PROVEN` | `.github/workflows/ci.yml` (check وbuild وtest بلا قاعدة وبلا أسرار، وفحص أسرار على الفرق وعلى الشجرة)؛ `scripts/scan-secrets.mjs` واختبارها `server/testing/secretScan.test.ts`؛ `node scripts/scan-secrets.mjs --all` = 0 نتيجة؛ تاريخ المستودع كله فيه تطابقان وهميان من اختبار PR #2 (`root-user:secret-value`) فلا سر حي؛ `pnpm test` = 81 ملفًا ناجحًا و6 متخطاة، 382 اختبارًا ناجحًا و86 متخطى. شروط التوقف في أمري العمل تقرأ `origin/main` بدل `github/main`. |
+| `docs/OWNER_ACTIONS.md` | `WRITTEN` | كل ما يحتاجه المالك مرتبًا بالأهمية بخطوات نقر بالعربية، وأسماء المتغيرات بلا قيم وأين توضع: قاعدة TiDB، Render، Resend، R2، أصول الهوية، Google (اختياري)، إجراءات أمان، قرارات معلَّقة. كل بند فيه `BLOCKED_BY_OWNER`. لا اختبار يغطي وثيقة؛ تُراجع مع كل ميزة تضيف متغيرًا. |

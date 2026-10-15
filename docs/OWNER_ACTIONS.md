@@ -56,7 +56,7 @@
 متغيرات Render الثابتة (تُولَّد أو تُكتب في `render.yaml`، لا قيمة منك): `NODE_ENV`, `PORT`.
 متغيرات من عندك (ب): `DATABASE_URL`, `PROJECT_OS_APP_DB_PASSWORD`, `JWT_SECRET`, `OWNER_EMAIL`, `APP_BASE_URL`.
 
-- `JWT_SECRET`: في `render.yaml` سيُولَّد تلقائيًا (`generateValue: true`) فلا تحتاج فعل شيء.
+- `JWT_SECRET` و`CRON_SECRET`: في `render.yaml` يُولَّدان تلقائيًا (`generateValue: true`) فلا تحتاج فعل شيء. `CRON_SECRET` يستعمله مهمة Render المجدولة لاستدعاء `/api/scheduled/licenseExpiry`؛ بدونه يرفض الخادم كل استدعاء مجدول.
 - `OWNER_EMAIL`: بريدك الذي تدخل به؛ هو من يصير مدير المنصة الأول.
 - `APP_BASE_URL`: رابط الخدمة النهائي مثل `https://<اسم-الخدمة>.onrender.com` (يُستعمل في روابط الدخول).
 
