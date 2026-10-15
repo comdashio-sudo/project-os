@@ -1044,6 +1044,8 @@ export const purchaseOrders = mysqlTable(
     commitmentId: varchar("commitmentId", { length: 36 }).references(() => commitments.id),
     // The WBS item the order is for, so its open commitment can be shown beside plan, actual and forecast at that level.
     wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    // The supplier register entry the order is placed with (G-103); supplierName stays as the name printed on the order and is copied from the register when an entry is chosen.
+    supplierId: varchar("supplierId", { length: 36 }),
     purchaseOrderNumber: varchar("purchaseOrderNumber", { length: 120 }).notNull(),
     supplierName: varchar("supplierName", { length: 240 }).notNull(),
     orderDate: timestamp("orderDate").notNull(),
@@ -1062,6 +1064,8 @@ export const purchaseOrders = mysqlTable(
     index("purchase_orders_contract_idx").on(table.contractId),
     index("purchase_orders_commitment_idx").on(table.commitmentId),
     index("purchase_orders_wbs_idx").on(table.wbsItemId),
+    index("purchase_orders_supplier_idx").on(table.supplierId),
+    foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "purchase_orders_supplier_fk" }),
   ],
 );
 
