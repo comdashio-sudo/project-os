@@ -1,0 +1,49 @@
+name: CI
+
+# No database and no secrets: this workflow reads none and has none. The live
+# TiDB suites are skipped by design (see server/testing/databaseGuard.setup.ts).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: check, build, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: pnpm test
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Added lines on a pull request
+        if: github.event_name == 'pull_request'
+        run: node scripts/scan-secrets.mjs --diff "origin/${{ github.base_ref }}"
+      - name: Whole tree
+        run: node scripts/scan-secrets.mjs --all
