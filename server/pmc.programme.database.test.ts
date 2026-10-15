@@ -146,6 +146,34 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC programme and EVM br
     expect(result.cards).toEqual({ currency: "SAR", contractValue: 1000000, paid: { amount: 100000, percent: 10 }, confirmed: { amount: 150000, percent: 15 }, target: { amount: 680000, percent: 68 } });
   }, 60_000);
 
+  it("draws the same curve from a baseline given as start and end dates (G-042), and refuses a file whose end precedes its start", async () => {
+    const manager = callerFor(users.manager, "pmcg-manager");
+    // PAINT now runs from the first day of two months ago to the last day of this month; WALLS keeps its monthly points (20 / 50 / 80).
+    const now = new Date();
+    const first = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1);
+    const last = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0);
+    const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const DAY = 86_400_000;
+    const total = (last - first) / DAY + 1;
+    const byEndOf = (back: number) => Math.round((((Math.min(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back + 1, 0), last) - first) / DAY + 1) / total) * 1_000_000) / 10_000;
+    const file = await sheet(["Model", "Activity", "Start", "End"], [["A", "PAINT", iso(first), iso(last)]]);
+    const analysed = await manager.pmc.analyzeImport({ ...scope, kind: "baselineDates", format: "xlsx", base64: file });
+    expect(analysed.errorCount).toBe(0);
+    expect(analysed.counts).toEqual({ create: 0, update: 3, unchanged: 0 }); // the three months already held monthly points
+    await manager.pmc.confirmImport({ ...scope, kind: "baselineDates", format: "xlsx", base64: file, approvedHash: analysed.fileHash });
+    const result = await manager.pmc.programme(scope);
+    const r4 = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 10000;
+    const expected = [2, 1, 0].map(back => r4(0.6 * [20, 50, 80][2 - back] + 0.4 * byEndOf(back)));
+    expect(result.months.map(m => m.planned)).toEqual(expected);
+    expect(expected[2]).toBe(r4(48 + 40)); // by the end of this month PAINT is complete: 0.6 x 80 + 0.4 x 100
+    // the same file with the end before the start is refused whole, and nothing is saved
+    const bad = await sheet(["Model", "Activity", "Start", "End"], [["A", "PAINT", iso(last), iso(first)]]);
+    const refused = await manager.pmc.analyzeImport({ ...scope, kind: "baselineDates", format: "xlsx", base64: bad });
+    expect(refused.errors.map(error => error.code)).toEqual(["PMC_BASELINE_END_BEFORE_START"]);
+    await expect(manager.pmc.confirmImport({ ...scope, kind: "baselineDates", format: "xlsx", base64: bad, approvedHash: refused.fileHash })).rejects.toThrow("PROJECT_OS_IMPORT_VALIDATION_FAILED");
+    expect((await manager.pmc.programme(scope)).months.map(m => m.planned)).toEqual(expected);
+  }, 60_000);
+
   it("lets a reader see the programme but not change a status, closes it to a role without the permission and to another tenant's project, and writes no EVM entry for a refused change", async () => {
     const [[before]] = await connection.query<{ n: number }[][]>("SELECT COUNT(*) AS n FROM progress_entries WHERE projectId = ?", [P]);
     const reader = callerFor(users.reader, "pmcg-reader");

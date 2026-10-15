@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSpreadsheet } from "./excelWorkbook";
-import { parsePmcImportFile, parsePmcStatus, parseUnitList, pmcDefinitionKey, planBaseline, planCatalog, planLocations, planRequests, planStatus, type ParsedRow } from "./pmcImport";
+import { parsePmcImportFile, parsePmcStatus, parseUnitList, pmcDefinitionKey, planBaseline, planBaselineDates, planCatalog, planLocations, planRequests, planStatus, type ParsedRow } from "./pmcImport";
 
 const rows = (...cells: Array<Record<string, unknown>>): ParsedRow[] => cells.map((cell, index) => ({ rowNumber: index + 2, cells: cell }));
 const codes = (errors: Array<{ code: string }>) => errors.map(error => error.code);
@@ -222,5 +222,57 @@ describe("PMC import: baseline", () => {
       { modelCode: "A", activityCode: "WALLS", period: "2026-04-20", plannedPercent: "60" },
     ), context);
     expect(codes(plan.errors)).toEqual(["PMC_ACTIVITY_NOT_FOUND", "IMPORT_INVALID_NUMBER", "PMC_DATE_INVALID", "IMPORT_DUPLICATE_FILE_KEY"]);
+  });
+});
+
+// Hand calculation (docs/PMC_BASELINE_DATES_HAND_CHECKS.md): 16 Sep to 15 Nov 2026 is 15 + 31 + 15 = 61 days, both ends included.
+describe("PMC import: baseline given as start and end dates (G-042)", () => {
+  const context = { definitions: new Map([[pmcDefinitionKey("A", "WALLS"), "d1"], [pmcDefinitionKey("A", "PAINT"), "d2"]]), stored: new Map() };
+  const dated = (activityCode: string, startDate: string, endDate: string) => ({ modelCode: "A", activityCode, startDate, endDate });
+
+  it("expands one activity into the planned completion by the end of each month, by calendar days", () => {
+    const plan = planBaselineDates(rows(dated("WALLS", "2026-09-16", "2026-11-15")), context);
+    expect(plan.errors).toEqual([]);
+    // by 30 Sep: 15 of 61 days; by 31 Oct: 46 of 61; by the end: all 61
+    expect(plan.creates.map(row => [row.periodAt.toISOString().slice(0, 7), row.plannedPercent])).toEqual([["2026-09", 24.5902], ["2026-10", 75.4098], ["2026-11", 100]]);
+    expect(plan.counts).toEqual({ create: 3, update: 0, unchanged: 0 });
+  });
+
+  it("an activity inside one month is 100% for that month, and a one-day activity too", () => {
+    const plan = planBaselineDates(rows(dated("WALLS", "2026-10-05", "2026-10-20"), dated("PAINT", "2026-10-31", "2026-10-31")), context);
+    expect(plan.creates.map(row => [row.activityDefinitionId, row.periodAt.toISOString().slice(0, 7), row.plannedPercent])).toEqual([["d1", "2026-10", 100], ["d2", "2026-10", 100]]);
+  });
+
+  it("is cumulative by construction and ends at exactly 100 across a year end", () => {
+    const plan = planBaselineDates(rows(dated("WALLS", "2026-12-20", "2027-01-10")), context);
+    const values = plan.creates.map(row => row.plannedPercent);
+    expect(values).toEqual([54.5455, 100]); // 12 of 22 days by 31 Dec (12 to 31 Dec, 10 in January)
+    expect(values.every((value, index) => index === 0 || value >= values[index - 1])).toBe(true);
+  });
+
+  it("re-importing the same dates changes nothing, and moving the end date updates only the months that move", () => {
+    const first = planBaselineDates(rows(dated("WALLS", "2026-09-16", "2026-11-15")), context);
+    const stored = new Map([["d1", new Map(first.creates.map((row, index) => [row.periodAt.toISOString(), { id: `s${index}`, plannedPercent: row.plannedPercent }]))]]);
+    expect(planBaselineDates(rows(dated("WALLS", "2026-09-16", "2026-11-15")), { ...context, stored }).counts).toEqual({ create: 0, update: 0, unchanged: 3 });
+    // ends 30 Nov instead: 76 days; Sep 15/76 = 19.7368 and Oct 46/76 = 60.5263 move, Nov is 100 either way
+    const moved = planBaselineDates(rows(dated("WALLS", "2026-09-16", "2026-11-30")), { ...context, stored });
+    expect(moved.counts).toEqual({ create: 0, update: 2, unchanged: 1 });
+    expect(moved.updates.map(row => row.plannedPercent)).toEqual([19.7368, 60.5263]);
+  });
+
+  it("refuses an end before the start, a bad date and a repeated activity (every later repeat), each with its row", () => {
+    const plan = planBaselineDates(rows(dated("WALLS", "2026-10-10", "2026-10-01"), dated("PAINT", "soon", "2026-10-01"), dated("GHOST", "2026-10-01", "2026-10-02"), dated("WALLS", "2026-10-01", "2026-10-02"), dated("WALLS", "2026-10-03", "2026-10-04")), context);
+    expect(plan.errors.map(error => [error.rowNumber, error.code, error.field])).toEqual([[2, "PMC_BASELINE_END_BEFORE_START", "endDate"], [3, "PMC_DATE_INVALID", "startDate"], [5, "IMPORT_DUPLICATE_FILE_KEY", "activityCode"], [6, "IMPORT_DUPLICATE_FILE_KEY", "activityCode"]]);
+    expect(plan.creates).toEqual([]);
+  });
+
+  it("an unknown activity is reported once the file itself is sound", () => {
+    expect(codes(planBaselineDates(rows(dated("GHOST", "2026-10-01", "2026-10-02")), context).errors)).toEqual(["PMC_ACTIVITY_NOT_FOUND"]);
+  });
+
+  it("reads Arabic headers", async () => {
+    const parsed = await parsePmcImportFile({ kind: "baselineDates", format: "csv", bytes: Buffer.from("النموذج,النشاط,تاريخ البداية,تاريخ النهاية\nA,WALLS,2026-09-16,2026-11-15\n", "utf8") });
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0].cells).toMatchObject({ modelCode: "A", activityCode: "WALLS", startDate: "2026-09-16", endDate: "2026-11-15" });
   });
 });
