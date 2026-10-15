@@ -79,6 +79,7 @@ export const importModulePermissions = {
   budget: ["project.budget.manage"],
   contracts: ["project.commitment.manage"],
   materials: ["project.procurement.manage", "project.inventory.manage"],
+  openingBalances: ["project.inventory.manage"],
   schedule: ["project.schedule.manage", "project.wbs.manage"],
 } as const satisfies Record<string, readonly string[]>;
 

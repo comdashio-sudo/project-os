@@ -1,16 +1,17 @@
 import { buildSpreadsheet, readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
-export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule";
+export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule" | "openingBalances";
 export type ExportModuleCode = "wbs" | "budget" | "activities";
 export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
 export type MaterialImportRow = { rowNumber: number; values: { code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string } };
+export type OpeningBalanceImportRow = { rowNumber: number; values: { warehouseCode: string; materialCode: string; quantity: number } };
 export type ScheduleWbsImportRow = { rowNumber: number; kind: "wbs"; values: { code: string; name: string; plannedValue: number } };
 export type ScheduleActivityImportRow = { rowNumber: number; kind: "activity"; values: { wbsCode: string; code: string; name: string; plannedStartAt: Date; plannedFinishAt: Date; plannedValue: number; status: "not_started" | "in_progress" | "completed" | "blocked" } };
 export type ScheduleImportRow = ScheduleWbsImportRow | ScheduleActivityImportRow;
-export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow | MaterialImportRow | ScheduleImportRow;
+export type ValidatedImportRow = WbsImportRow | BudgetImportRow | ContractImportRow | MaterialImportRow | ScheduleImportRow | OpeningBalanceImportRow;
 export type MasterPlanMappingRow = { rowNumber: number; values: { code: string; status?: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent?: number; plannedValue?: number; actualValue?: number; forecastValue?: number } };
 export type MasterPlanSpatialImportRow = { rowNumber: number; values: { code: string; name: string; entityType: "block" | "building" | "zone" | "unit" | "area"; geometry: { x: number; y: number; width: number; height: number }; status: "not_started" | "in_progress" | "completed" | "blocked"; progressPercent: number; plannedValue: number; actualValue: number; forecastValue: number; parentCode?: string; wbsCode?: string; activityCode?: string } };
 
@@ -39,6 +40,12 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "unitOfMeasure", required: true, aliases: ["unit of measure", "uom", "unit", "وحدة القياس", "الوحدة"] },
     { key: "category", required: true, aliases: ["category", "classification", "تصنيف", "الفئة"] },
     { key: "referenceSpecification", required: false, aliases: ["reference specification", "specification", "المواصفة المرجعية", "المواصفة"] },
+  ],
+  // Opening stock (G-105): how much of each material is already in each warehouse the day the project starts using the system.
+  openingBalances: [
+    { key: "warehouseCode", required: true, aliases: ["warehouse code", "warehouse", "رمز المستودع", "المستودع"] },
+    { key: "materialCode", required: true, aliases: ["material code", "material", "رمز المادة", "المادة"] },
+    { key: "quantity", required: true, aliases: ["quantity", "opening quantity", "qty", "الكمية", "الرصيد الافتتاحي"] },
   ],
   schedule: [
     { key: "recordType", required: true, aliases: ["record type", "type", "نوع السجل", "النوع"] },
@@ -255,6 +262,16 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
         if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
         if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
         if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
+        return;
+      }
+      if (input.moduleCode === "openingBalances") {
+        const warehouseCode = requiredText(row[mapping.warehouseCode]); const materialCode = requiredText(row[mapping.materialCode]); const quantity = nonnegativeNumber(row[mapping.quantity]);
+        const key = `${warehouseCode}|${materialCode}`;
+        if (!warehouseCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "warehouseCode" });
+        if (!materialCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "materialCode" });
+        if (quantity === undefined || quantity <= 0) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "quantity" }); // an opening balance of zero or less is not a balance
+        if (warehouseCode && materialCode && fileKeys.has(key)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "materialCode" });
+        if (warehouseCode && materialCode && quantity !== undefined && quantity > 0 && !fileKeys.has(key)) { fileKeys.add(key); validRows.push({ rowNumber, values: { warehouseCode, materialCode, quantity } }); }
         return;
       }
       if (input.moduleCode === "materials") {
