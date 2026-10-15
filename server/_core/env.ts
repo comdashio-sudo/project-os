@@ -9,6 +9,9 @@ export const ENV = {
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
   r2Bucket: process.env.R2_BUCKET ?? "",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // The language model is off unless the owner turns it on AND configures a
+  // provider. LLM_BASE_URL is an OpenAI-compatible base such as https://host/v1.
+  llmEnabled: process.env.LLM_ENABLED === "true",
+  llmApiKey: process.env.LLM_API_KEY ?? "",
+  llmBaseUrl: (process.env.LLM_BASE_URL ?? "").replace(/\/+$/, ""),
 };
