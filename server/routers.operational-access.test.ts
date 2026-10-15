@@ -1264,6 +1264,9 @@ describe("operational API authorization", () => {
     ["activity", (caller: ReturnType<typeof appRouter.createCaller>) => caller.activities.create({ tenantId: tenantA, projectId: projectB, code: "A-01", name: "Activity without project entitlement", plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") })],
     ["progress", (caller: ReturnType<typeof appRouter.createCaller>) => caller.progress.create({ tenantId: tenantA, projectId: projectB, wbsItemId: wbsB, percentComplete: 50, reportedAt: new Date("2026-08-17T00:00:00.000Z") })],
     ["budget", (caller: ReturnType<typeof appRouter.createCaller>) => caller.budgets.create({ tenantId: tenantA, projectId: projectB, costCode: "CIVIL", originalAmount: 100, currentAmount: 100 })],
+    ["profitability report", (caller: ReturnType<typeof appRouter.createCaller>) => caller.profitability.project({ tenantId: tenantA, projectId: projectB })],
+    ["profitability cost breakdown", (caller: ReturnType<typeof appRouter.createCaller>) => caller.profitability.costBreakdown({ tenantId: tenantA, projectId: projectB })],
+    ["profitability history", (caller: ReturnType<typeof appRouter.createCaller>) => caller.profitability.history({ tenantId: tenantA, projectId: projectB })],
   ])("rejects %s through the API when the PROJECT entitlement is absent", async (_operation, execute) => {
     configureActiveMembershipWithoutProjectEntitlement();
     const caller = appRouter.createCaller(context());

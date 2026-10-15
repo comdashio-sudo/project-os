@@ -1,6 +1,9 @@
 import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
+import { buildProfitabilityReport } from "./domain/profitabilityReport";
+import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
+import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
 import { createHash, randomBytes } from "node:crypto";
 import {
   type InsertUser,
@@ -42,6 +45,7 @@ import {
   progressEntries,
   planFeatureEntitlements,
   evmSnapshots,
+  evmWbsSnapshots,
   documentVersions,
   projectCommercialInvoices,
   employees,
@@ -105,7 +109,7 @@ import {
   pmcInspectionSteps,
   pmcBaselines,
 } from "../drizzle/schema";
-import { productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
+import { hasScopeAccess, productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
@@ -720,7 +724,7 @@ export async function writeAuditLog(input: {
   await db.insert(auditLogs).values(input);
 }
 
-async function assertProjectWithinTenant(input: { tenantId: string; projectId: string }): Promise<void> {
+export async function assertProjectWithinTenant(input: { tenantId: string; projectId: string }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
 
@@ -1768,17 +1772,17 @@ export async function getChangeRequestsForTenant(input: { userId: number; tenant
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select({ id: changeRequests.id, changeNumber: changeRequests.changeNumber, title: changeRequests.title, description: changeRequests.description, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, currency: changeRequests.currency, status: changeRequests.status, createdAt: changeRequests.createdAt }).from(changeRequests).where(and(eq(changeRequests.tenantId, input.tenantId), eq(changeRequests.projectId, input.projectId))).orderBy(desc(changeRequests.createdAt));
+  return db.select({ id: changeRequests.id, changeNumber: changeRequests.changeNumber, title: changeRequests.title, description: changeRequests.description, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, contractValueImpact: changeRequests.contractValueImpact, currency: changeRequests.currency, status: changeRequests.status, createdAt: changeRequests.createdAt }).from(changeRequests).where(and(eq(changeRequests.tenantId, input.tenantId), eq(changeRequests.projectId, input.projectId))).orderBy(desc(changeRequests.createdAt));
 }
 
-export async function createChangeRequestForTenant(input: { userId: number; tenantId: string; projectId: string; changeNumber: string; title: string; description: string; impactScheduleDays: number; impactCost: number; currency: string }) {
+export async function createChangeRequestForTenant(input: { userId: number; tenantId: string; projectId: string; changeNumber: string; title: string; description: string; impactScheduleDays: number; impactCost: number; contractValueImpact?: number; currency: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(changeRequests).values({ id, tenantId: input.tenantId, projectId: input.projectId, changeNumber: input.changeNumber, title: input.title, description: input.description, impactScheduleDays: input.impactScheduleDays, impactCost: String(input.impactCost), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.change_request_created", entityType: "change_request", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, changeNumber: input.changeNumber, impactScheduleDays: input.impactScheduleDays, impactCost: input.impactCost, currency: input.currency }) }); });
+  await db.transaction(async tx => { await tx.insert(changeRequests).values({ id, tenantId: input.tenantId, projectId: input.projectId, changeNumber: input.changeNumber, title: input.title, description: input.description, impactScheduleDays: input.impactScheduleDays, impactCost: String(input.impactCost), contractValueImpact: String(input.contractValueImpact ?? 0), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.change_request_created", entityType: "change_request", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, changeNumber: input.changeNumber, impactScheduleDays: input.impactScheduleDays, impactCost: input.impactCost, currency: input.currency }) }); });
   return { id, status: "draft" as const };
 }
 
@@ -1971,7 +1975,7 @@ export async function createGoodsReceiptNoteForTenant(input: { userId: number; t
       commitmentOpenBefore = Number(commitment.amount) - settledAmount;
       if (actualCost > commitmentOpenBefore) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_GRN_COMMITMENT_INSUFFICIENT" });
     }
-    if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, amount: actualCost.toFixed(2), entryType: "actual", status: "posted", incurredAt: input.receivedAt });
+    if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, amount: actualCost.toFixed(2), entryType: "actual", status: "posted", incurredAt: input.receivedAt, category: "materials", sourceType: "goods_receipt_note", sourceId: id });
     await tx.insert(goodsReceiptNotes).values({ id, tenantId: input.tenantId, projectId: input.projectId, grnNumber: input.grnNumber, purchaseOrderId: input.purchaseOrderId, materialId: input.materialId, qualityInspectionId: input.qualityInspectionId, ncrId: input.ncrId, receivedQuantity: input.receivedQuantity.toFixed(3), rejectedQuantity: input.rejectedQuantity.toFixed(3), unitCost: input.unitCost.toFixed(2), unitOfMeasure: input.unitOfMeasure, receivedAt: input.receivedAt, note: input.note?.trim() || null, costEntryId, createdByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.goods_receipt_note_created", entityType: "goods_receipt_note", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, grnNumber: input.grnNumber, purchaseOrderId: input.purchaseOrderId, materialId: input.materialId, receivedQuantity: input.receivedQuantity, rejectedQuantity: input.rejectedQuantity, unitCost: input.unitCost, actualCost, costEntryId, commitmentId: purchaseOrder.commitmentId, commitmentOpenBefore, commitmentOpenAfter: commitmentOpenBefore === null ? null : commitmentOpenBefore - actualCost, qualityInspectionId: input.qualityInspectionId, ncrId: input.ncrId }) });
   }); return { id, costEntryId, actualCost };
@@ -2133,7 +2137,7 @@ export async function transitionEmployeeTimeEntryForTenant(input: { userId: numb
   if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TIME_ENTRY_NOT_FOUND" });
   if (!(timeEntryTransitions[entry.status] as readonly string[]).includes(input.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_TIME_ENTRY_TRANSITION_INVALID" });
   const costEntryId = input.status === "approved" ? crypto.randomUUID() : undefined; const progressEntryId = input.status === "approved" && entry.reportedProgressPercent !== null && entry.reportedProgressPercent !== undefined ? crypto.randomUUID() : undefined;
-  await db.transaction(async tx => { if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, amount: String(Number(entry.actualHours) * Number(entry.unitCost)), entryType: "actual", status: "posted", incurredAt: entry.workDate }); if (progressEntryId) await tx.insert(progressEntries).values({ id: progressEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, activityId: entry.activityId, progressPercent: String(entry.reportedProgressPercent), status: "submitted", measuredAt: entry.workDate }); await tx.update(employeeTimeEntries).set({ status: input.status, reviewedByUserId: input.status === "approved" || input.status === "rejected" ? input.userId : undefined, costEntryId, progressEntryId }).where(eq(employeeTimeEntries.id, entry.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_transitioned", entityType: "employee_time_entry", entityId: entry.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId }) }); });
+  await db.transaction(async tx => { if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, amount: String(Number(entry.actualHours) * Number(entry.unitCost)), entryType: "actual", status: "posted", incurredAt: entry.workDate, category: "labour", sourceType: "time_entry", sourceId: entry.id }); if (progressEntryId) await tx.insert(progressEntries).values({ id: progressEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, activityId: entry.activityId, progressPercent: String(entry.reportedProgressPercent), status: "submitted", measuredAt: entry.workDate }); await tx.update(employeeTimeEntries).set({ status: input.status, reviewedByUserId: input.status === "approved" || input.status === "rejected" ? input.userId : undefined, costEntryId, progressEntryId }).where(eq(employeeTimeEntries.id, entry.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_transitioned", entityType: "employee_time_entry", entityId: entry.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId }) }); });
   return { id: entry.id, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId };
 }
 
@@ -2456,7 +2460,7 @@ export async function allocateApprovedPayrollCostForTenant(input: { userId: numb
   const ceiling = Number(entry.baseSalary) + Number(entry.housingAllowance) + Number(entry.transportAllowance) + Number(entry.hardshipAllowance) + Number(entry.eosMonthlyAccrual); const used = allocated.reduce((total, item) => total + Number(item.amount), 0);
   if (used + input.amount > ceiling + 0.0001) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST" });
   const allocationId = crypto.randomUUID(); const costEntryId = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt }); await tx.insert(payrollAllocations).values({ id: allocationId, tenantId: input.tenantId, payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId, activityId: input.activityId, amount: String(input.amount), costEntryId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.cost_allocated", entityType: "payroll_allocation", entityId: allocationId, metadata: JSON.stringify({ payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, activityId: input.activityId ?? null, amount: input.amount, costEntryId }) }); });
+  await db.transaction(async tx => { await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt, category: "labour", sourceType: "payroll_allocation", sourceId: allocationId }); await tx.insert(payrollAllocations).values({ id: allocationId, tenantId: input.tenantId, payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId, activityId: input.activityId, amount: String(input.amount), costEntryId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.cost_allocated", entityType: "payroll_allocation", entityId: allocationId, metadata: JSON.stringify({ payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, activityId: input.activityId ?? null, amount: input.amount, costEntryId }) }); });
   return { id: allocationId, costEntryId };
 }
 
@@ -2589,7 +2593,7 @@ export async function createMaterialIssueForTenant(input: { userId: number; tena
   const [[warehouse], [material], [wbs], [activity]] = await Promise.all([db.select({ id: projectWarehouses.id, active: projectWarehouses.active }).from(projectWarehouses).where(and(eq(projectWarehouses.id, input.warehouseId), eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId))).limit(1), db.select({ id: materialMasters.id }).from(materialMasters).where(and(eq(materialMasters.id, input.materialId), eq(materialMasters.tenantId, input.tenantId))).limit(1), db.select({ id: wbsItems.id }).from(wbsItems).where(and(eq(wbsItems.id, input.wbsItemId), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))).limit(1), input.activityId ? db.select({ id: activities.id, wbsItemId: activities.wbsItemId }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1) : Promise.resolve([])]);
   if (!warehouse) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WAREHOUSE_NOT_FOUND" }); if (!warehouse.active) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WAREHOUSE_INACTIVE" }); if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MATERIAL_NOT_FOUND" }); if (!wbs) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WBS_NOT_FOUND" }); if (input.activityId && !activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); if (activity && activity.wbsItemId !== input.wbsItemId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MATERIAL_ISSUE_ACTIVITY_WBS_MISMATCH" });
   const transactionId = crypto.randomUUID(); const costEntryId = crypto.randomUUID(); const issueId = crypto.randomUUID(); const totalCost = Number((input.issuedQuantity * input.unitCost).toFixed(2)); let previousQuantity = 0; let nextQuantity = 0;
-  await db.transaction(async tx => { await tx.execute(sql`SELECT id FROM project_warehouses WHERE id = ${input.warehouseId} FOR UPDATE`); const balanceRows = await tx.select({ quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId), eq(warehouseInventoryTransactions.warehouseId, input.warehouseId), eq(warehouseInventoryTransactions.materialId, input.materialId))); previousQuantity = balanceRows.reduce((total, row) => total + Number(row.quantityDelta), 0); nextQuantity = previousQuantity - input.issuedQuantity; if (nextQuantity < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK" }); await tx.insert(warehouseInventoryTransactions).values({ id: transactionId, tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, transactionType: "issue", quantityDelta: String(-input.issuedQuantity), referenceNumber: input.referenceNumber, note: input.note, occurredAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(totalCost), entryType: "actual", status: "posted", incurredAt: input.issuedAt }); await tx.insert(materialIssues).values({ id: issueId, tenantId: input.tenantId, projectId: input.projectId, inventoryTransactionId: transactionId, costEntryId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId, issuedQuantity: String(input.issuedQuantity), unitCost: String(input.unitCost), totalCost: String(totalCost), issuedAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.material_issued_to_work", entityType: "material_issue", entityId: issueId, metadata: JSON.stringify({ projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId ?? null, issuedQuantity: input.issuedQuantity, unitCost: input.unitCost, totalCost, inventoryTransactionId: transactionId, costEntryId, previousQuantity, nextQuantity }) }); });
+  await db.transaction(async tx => { await tx.execute(sql`SELECT id FROM project_warehouses WHERE id = ${input.warehouseId} FOR UPDATE`); const balanceRows = await tx.select({ quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId), eq(warehouseInventoryTransactions.warehouseId, input.warehouseId), eq(warehouseInventoryTransactions.materialId, input.materialId))); previousQuantity = balanceRows.reduce((total, row) => total + Number(row.quantityDelta), 0); nextQuantity = previousQuantity - input.issuedQuantity; if (nextQuantity < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK" }); await tx.insert(warehouseInventoryTransactions).values({ id: transactionId, tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, transactionType: "issue", quantityDelta: String(-input.issuedQuantity), referenceNumber: input.referenceNumber, note: input.note, occurredAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(totalCost), entryType: "actual", status: "posted", incurredAt: input.issuedAt, category: "materials", sourceType: "material_issue", sourceId: issueId }); await tx.insert(materialIssues).values({ id: issueId, tenantId: input.tenantId, projectId: input.projectId, inventoryTransactionId: transactionId, costEntryId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId, issuedQuantity: String(input.issuedQuantity), unitCost: String(input.unitCost), totalCost: String(totalCost), issuedAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.material_issued_to_work", entityType: "material_issue", entityId: issueId, metadata: JSON.stringify({ projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId ?? null, issuedQuantity: input.issuedQuantity, unitCost: input.unitCost, totalCost, inventoryTransactionId: transactionId, costEntryId, previousQuantity, nextQuantity }) }); });
   return { id: issueId, inventoryTransactionId: transactionId, costEntryId, totalCost, previousQuantity, nextQuantity };
 }
 
@@ -2821,21 +2825,119 @@ export async function captureOperationalEvmSnapshot(input: { userId: number; ten
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return captureOperationalEvmSnapshotCore(db, { actorUserId: input.userId, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, eacMethod: input.eacMethod, source: "operational_records" });
+}
 
-  const [activityRows, budgetRows, costRows, progressRows, wbsRows] = await Promise.all([
-    db.select({ plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))),
-    db.select({ currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))),
-    db.select({ amount: costEntries.amount, status: costEntries.status, entryType: costEntries.entryType, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId))),
-    db.select({ wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, status: progressEntries.status, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(eq(progressEntries.tenantId, input.tenantId), eq(progressEntries.projectId, input.projectId))),
-    db.select({ id: wbsItems.id, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))),
-  ]);
-  const result = calculateOperationalEvm({ periodAt: input.periodAt, activities: activityRows, budgets: budgetRows, costs: costRows, progress: progressRows, wbs: wbsRows, eacMethod: input.eacMethod });
+/**
+ * Writes the snapshot for a project the caller has already been authorized for.
+ * `actorUserId` is null only for the scheduled job, which is authorized by the
+ * shared cron secret and is recorded in the audit row as source "scheduled".
+ */
+export async function captureOperationalEvmSnapshotCore(db: ProfitabilityDb, input: { actorUserId: number | null; tenantId: string; projectId: string; periodAt: Date; eacMethod: "bac_over_cpi" | "ac_plus_remaining" | "ac_plus_remaining_over_cpi_spi"; source: "operational_records" | "scheduled" }): Promise<{ id: string; sources: OperationalEvmSources } & ReturnType<typeof calculateOperationalEvm>> {
+  const rows = await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: input.projectId });
+  const result = calculateOperationalEvm({ periodAt: input.periodAt, activities: rows.activityRows, budgets: rows.budgetRows, costs: rows.costRows, progress: rows.progressRows, wbs: rows.wbsRows.map(w => ({ id: w.id, plannedValue: w.plannedValue })), eacMethod: input.eacMethod });
+  const profit = snapshotExtension(rows, input.periodAt, input.eacMethod, result);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
-    await tx.insert(evmSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, pv: String(result.pv), ev: String(result.ev), ac: String(result.ac), bac: String(result.bac), cv: String(result.cv), sv: String(result.sv), cpi: result.cpi === null ? null : String(result.cpi), spi: result.spi === null ? null : String(result.spi), eac: String(result.eac), etc: String(result.etc), vac: String(result.vac), tcpi: result.tcpi === null ? null : String(result.tcpi), eacMethod: result.eacMethod });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "evm.operational_snapshot_created", entityType: "evm_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), source: "operational_records", sources: result.sources }) });
+    await tx.insert(evmSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, pv: String(result.pv), ev: String(result.ev), ac: String(result.ac), bac: String(result.bac), cv: String(result.cv), sv: String(result.sv), cpi: result.cpi === null ? null : String(result.cpi), spi: result.spi === null ? null : String(result.spi), eac: String(result.eac), etc: String(result.etc), vac: String(result.vac), tcpi: result.tcpi === null ? null : String(result.tcpi), eacMethod: result.eacMethod, adjustedContractValue: String(profit.adjustedContractValue), fpac: String(profit.fpac) });
+    if (profit.wbsRows.length) await tx.insert(evmWbsSnapshots).values(profit.wbsRows.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, snapshotId: id, wbsItemId: row.wbsItemId, bac: String(row.bac), ac: String(row.ac), eac: String(row.eac) })));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "evm.operational_snapshot_created", entityType: "evm_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), source: input.source, sources: result.sources }) });
   });
   return { id, ...result };
+}
+
+type ProfitabilityMethod = "bac_over_cpi" | "ac_plus_remaining" | "ac_plus_remaining_over_cpi_spi";
+
+/** One project's profitability: FPAC, its movement and causes, commitments, cash, freshness. */
+export async function getProjectProfitabilityForTenant(input: { userId: number; tenantId: string; projectId: string; eacMethod?: ProfitabilityMethod; now?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const rows = await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: input.projectId });
+  return buildProfitabilityReport(reportInputFor(rows, input.now ?? new Date(), input.eacMethod ?? DEFAULT_EAC_METHOD));
+}
+
+/** Where a WBS item's actual cost came from (category and source document), for the drill-down. */
+export async function getProfitabilityCostBreakdownForTenant(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const where = and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId), eq(costEntries.status, "posted"), eq(costEntries.entryType, "actual"), input.wbsItemId ? eq(costEntries.wbsItemId, input.wbsItemId) : undefined);
+  const lines = await db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt)).limit(500);
+  const byCategory = new Map<string, number>();
+  for (const line of lines) byCategory.set(line.category, round2((byCategory.get(line.category) ?? 0) + Number(line.amount)));
+  return { truncated: lines.length === 500, byCategory: Array.from(byCategory, ([category, amount]) => ({ category, amount })), lines: lines.slice(0, 100).map(line => ({ ...line, amount: Number(line.amount) })) };
+}
+
+/** FPAC over the stored snapshots (oldest first), for the trend line. */
+export async function getProfitabilityHistoryForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const rows = await db.select({ periodAt: evmSnapshots.periodAt, fpac: evmSnapshots.fpac, adjustedContractValue: evmSnapshots.adjustedContractValue }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId), sql`${evmSnapshots.fpac} IS NOT NULL`)).orderBy(desc(evmSnapshots.periodAt)).limit(24);
+  return rows.reverse().map(row => ({ periodAt: row.periodAt, fpac: Number(row.fpac), adjustedContractValue: Number(row.adjustedContractValue) }));
+}
+
+/** Every project the caller may see, losing projects first; one project failing does not blank the rest. */
+export async function getPortfolioProfitabilityForTenant(input: { userId: number; tenantId: string; now?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "executive.read" });
+  const all = await db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency }).from(projects).where(and(eq(projects.tenantId, input.tenantId), eq(projects.status, "active")));
+  const visible = all.filter(project => hasScopeAccess(snapshot.scopes, { type: "project", id: project.id }));
+  const now = input.now ?? new Date();
+  type Entry = { projectId: string; code: string; name: string; currency: string; fpac: number; movement: number | null };
+  const settled = await Promise.all(visible.map(async (project): Promise<{ entry: Entry } | { failure: { projectId: string; code: string; name: string; reason: string } }> => {
+    const failure = (reason: string) => ({ failure: { projectId: project.id, code: project.code, name: project.name, reason } });
+    try {
+      const report = buildProfitabilityReport(reportInputFor(await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: project.id }), now, DEFAULT_EAC_METHOD));
+      if (report.headline.status !== "ok") return failure(report.headline.reason);
+      return { entry: { projectId: project.id, code: project.code, name: project.name, currency: project.currency, fpac: report.headline.data.fpac, movement: report.movement.status === "ok" ? report.movement.data.delta : null } };
+    } catch {
+      return failure("PROFITABILITY_UNAVAILABLE");
+    }
+  }));
+  const entries = settled.flatMap(item => ("entry" in item ? [item.entry] : []));
+  const currencies = new Set(entries.map(item => item.currency));
+  return {
+    // Summing across currencies would be a number in no currency, so the total is withheld.
+    total: currencies.size <= 1 ? { currency: entries[0]?.currency ?? null, fpac: portfolioFpac(entries) } : null,
+    projects: orderProjectsByRisk(entries),
+    unavailable: settled.flatMap(item => ("failure" in item ? [item.failure] : [])),
+  };
+}
+
+/** Monthly job: one profit snapshot per active project per calendar month (UTC), no actor. */
+export async function captureScheduledProfitabilitySnapshots(now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const periodAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const targets = await db.select({ id: projects.id, tenantId: projects.tenantId }).from(projects).innerJoin(companies, eq(companies.id, projects.tenantId)).where(and(eq(projects.status, "active"), eq(companies.status, "active")));
+  const done: string[] = [];
+  const skipped: string[] = [];
+  const failed: string[] = [];
+  for (const target of targets) {
+    try {
+      const [existing] = await db.select({ id: evmSnapshots.id }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, target.tenantId), eq(evmSnapshots.projectId, target.id), eq(evmSnapshots.periodAt, periodAt), sql`${evmSnapshots.fpac} IS NOT NULL`)).limit(1);
+      if (existing) { skipped.push(target.id); continue; }
+      await captureOperationalEvmSnapshotCore(db, { actorUserId: null, tenantId: target.tenantId, projectId: target.id, periodAt, eacMethod: DEFAULT_EAC_METHOD, source: "scheduled" });
+      done.push(target.id);
+    } catch {
+      failed.push(target.id);
+    }
+  }
+  return { periodAt, captured: done.length, skipped: skipped.length, failed: failed.length };
 }
 
 export async function captureProjectHealthSnapshot(input: { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
@@ -2953,7 +3055,7 @@ export async function createActivity(input: { userId: number; tenantId: string; 
   return { id };
 }
 
-export async function createCostEntry(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; amount: number; incurredAt: Date }) {
+export async function createCostEntry(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; amount: number; incurredAt: Date; category?: "materials" | "labour" | "subcontract" | "other" }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -2965,7 +3067,7 @@ export async function createCostEntry(input: { userId: number; tenantId: string;
   }
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
-    await tx.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt });
+    await tx.insert(costEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt, category: input.category ?? "other", sourceType: "manual_entry" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.cost_entry_created", entityType: "cost_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, amount: input.amount, incurredAt: input.incurredAt.toISOString() }) });
   });
   return { id };

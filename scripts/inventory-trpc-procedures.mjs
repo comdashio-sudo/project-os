@@ -19,6 +19,7 @@ const procedures = Object.entries(appRouter._def.procedures)
 const integrationSources = await Promise.all([
   readFile(new URL("../server/integration.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/commercial_chain.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/profitability.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/fieldEntry.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");

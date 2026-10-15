@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
+import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -42,6 +43,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerDefaultAuthRoutes(app);
   app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
+  app.post("/api/scheduled/profitabilitySnapshots", scheduledProfitabilitySnapshotsHandler);
   // tRPC API
   app.use(
     "/api/trpc",

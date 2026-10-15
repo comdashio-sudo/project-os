@@ -69,6 +69,7 @@ describe("render.yaml", () => {
 
   it("calls the scheduled endpoint with the shared secret", () => {
     expect(cron.fields.startCommand).toContain("/api/scheduled/licenseExpiry");
+    expect(cron.fields.startCommand).toContain("/api/scheduled/profitabilitySnapshots");
     expect(cron.fields.startCommand).toContain("Authorization: Bearer $CRON_SECRET");
     expect(cron.env.map(e => e.key).sort()).toEqual(["APP_BASE_URL", "CRON_SECRET"]);
     expect(web.env.find(e => e.key === "CRON_SECRET")?.generateValue).toBe(true);
