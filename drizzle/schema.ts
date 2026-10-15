@@ -1820,3 +1820,19 @@ export const pmcBaselines = mysqlTable(
   },
   table => [uniqueIndex("pmc_baseline_activity_period_unique").on(table.activityDefinitionId, table.periodAt), index("pmc_baselines_tenant_project_period_idx").on(table.tenantId, table.projectId, table.periodAt), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_base_activity_fk" })],
 );
+
+// One-time e-mail sign-in codes. The table holds a hash of the normalized
+// address and an HMAC of the code, never either value itself.
+export const loginCodes = mysqlTable(
+  "login_codes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    emailHash: varchar("emailHash", { length: 64 }).notNull(),
+    codeHash: varchar("codeHash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    consumedAt: timestamp("consumedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("login_codes_email_created_idx").on(table.emailHash, table.createdAt)],
+);
