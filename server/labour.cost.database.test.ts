@@ -12,6 +12,7 @@ const T_OTHER = "73000000-0000-4000-8000-0000000000b1";
 const P = "73000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `73000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [WBS, RES, EMP_A, EMP_B, ASG_A, ASG_B, TE1, TE2, TE3, SAL_A] = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110].map(uid);
+const [EMP_C, EMP_D, ASG_C, ASG_D, TE4, TE5, SAL_C, SAL_D, RUN_NOV, PE_C, PE_D] = [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121].map(uid); // G-123: November payroll, one employee costed by time first, one by payroll first
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 let connection: mysql.Connection;
@@ -24,7 +25,7 @@ async function clear() {
   const t = [T, T_OTHER];
   await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", t);
   await connection.query("UPDATE employee_time_entries SET costEntryId = NULL, progressEntryId = NULL WHERE tenantId IN (?, ?)", t);
-  for (const table of ["employee_time_entries", "employee_assignments", "cost_entries", "progress_entries", "budget_lines", "project_resources", "salary_structures", "employees", "tenant_settings", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, t);
+  for (const table of ["employee_time_entries", "employee_assignments", "payroll_allocations", "payroll_entries", "payroll_runs", "cost_entries", "progress_entries", "budget_lines", "project_resources", "salary_structures", "employees", "tenant_settings", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, t);
   await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId IN (?, ?)", t);
   await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId IN (?, ?)", t);
   await connection.query("DELETE FROM roles WHERE tenantId IN (?, ?)", t);
@@ -48,12 +49,12 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a 
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'LB-A', 'Labour project', 'villas', 'SAR', 'active')", [P, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('lab-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('lab-ent', ?, 'lab-sub', 'PROJECT', true, NOW())", [T]);
-    const codes = ["project.read", "project.manage", "project.cashflow.read", "project.settings.labour"];
+    const codes = ["project.read", "project.manage", "project.cashflow.read", "project.settings.labour", "project.payroll.approve"];
     for (const code of codes) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('lab-role-manager', ?, 'LAB_MANAGER','Manager','PROJECT'), ('lab-role-finance', ?, 'LAB_FINANCE','Finance','PROJECT'), ('lab-role-plain', ?, 'LAB_PLAIN','Plain','PROJECT')", [T, T, T]);
     const grant = (role: string, list: string[]) => connection.query(`INSERT INTO role_permissions (roleId, permissionId) SELECT ?, id FROM permissions WHERE code IN (${list.map(() => "?").join(",")})`, [role, ...list]);
     await grant("lab-role-manager", ["project.read", "project.manage", "project.cashflow.read"]);
-    await grant("lab-role-finance", ["project.read", "project.cashflow.read", "project.settings.labour"]);
+    await grant("lab-role-finance", ["project.read", "project.cashflow.read", "project.settings.labour", "project.payroll.approve"]);
     await grant("lab-role-plain", ["project.read"]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('lab-m-manager', ?, ?, 'active'),('lab-m-finance', ?, ?, 'active'),('lab-m-plain', ?, ?, 'active')", [T, users.manager, T, users.finance, T, users.plain]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('lab-mr-manager','lab-m-manager','lab-role-manager','company'),('lab-mr-finance','lab-m-finance','lab-role-finance','company'),('lab-mr-plain','lab-m-plain','lab-role-plain','company')");
@@ -68,6 +69,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a 
     await connection.query("INSERT INTO employee_assignments (id, tenantId, projectId, employeeId, projectResourceId, wbsItemId, plannedStartAt, plannedFinishAt, plannedHours, status, createdByUserId) VALUES (?, ?, ?, ?, ?, ?, '2026-10-01', '2026-10-31', 100, 'active', ?), (?, ?, ?, ?, ?, ?, '2026-10-01', '2026-10-31', 100, 'active', ?)", [ASG_A, T, P, EMP_A, RES, WBS, users.manager, ASG_B, T, P, EMP_B, RES, WBS, users.manager]);
     const entry = (id: string, assignment: string, employee: string, date: string) => connection.query("INSERT INTO employee_time_entries (id, tenantId, assignmentId, employeeId, projectId, workDate, actualHours, status, createdByUserId) VALUES (?, ?, ?, ?, ?, ?, 8, 'submitted', ?)", [id, T, assignment, employee, P, date, users.manager]);
     await entry(TE1, ASG_A, EMP_A, "2026-10-04"); await entry(TE2, ASG_A, EMP_A, "2026-10-05"); await entry(TE3, ASG_B, EMP_B, "2026-10-04");
+    // G-123 fixture: two more employees on a salary, an approved November payroll run covering both, and one submitted time entry each
+    await connection.query("INSERT INTO employees (id, tenantId, employeeNumber, fullName, jobTitle, department, hireDate, employmentStatus, createdByUserId) VALUES (?, ?, 'E-C', 'Employee C', 'Mason', 'Site', '2024-01-01', 'active', ?), (?, ?, 'E-D', 'Employee D', 'Mason', 'Site', '2024-01-01', 'active', ?)", [EMP_C, T, users.manager, EMP_D, T, users.manager]);
+    await connection.query("INSERT INTO salary_structures (id, tenantId, employeeId, baseSalary, housingAllowance, transportAllowance, hardshipAllowance, gosiRate, otherDeductions, eosMonthlyAccrual, currency, active, createdByUserId) VALUES (?, ?, ?, 5000, 0, 0, 0, 0.09, 0, 0, 'SAR', true, ?), (?, ?, ?, 5000, 0, 0, 0, 0.09, 0, 0, 'SAR', true, ?)", [SAL_C, T, EMP_C, users.manager, SAL_D, T, EMP_D, users.manager]);
+    await connection.query("INSERT INTO employee_assignments (id, tenantId, projectId, employeeId, projectResourceId, wbsItemId, plannedStartAt, plannedFinishAt, plannedHours, status, createdByUserId) VALUES (?, ?, ?, ?, ?, ?, '2026-11-01', '2026-11-30', 100, 'active', ?), (?, ?, ?, ?, ?, ?, '2026-11-01', '2026-11-30', 100, 'active', ?)", [ASG_C, T, P, EMP_C, RES, WBS, users.manager, ASG_D, T, P, EMP_D, RES, WBS, users.manager]);
+    await connection.query("INSERT INTO employee_time_entries (id, tenantId, assignmentId, employeeId, projectId, workDate, actualHours, status, createdByUserId) VALUES (?, ?, ?, ?, ?, '2026-11-04', 8, 'submitted', ?), (?, ?, ?, ?, ?, '2026-11-05', 8, 'submitted', ?)", [TE4, T, ASG_C, EMP_C, P, users.manager, TE5, T, ASG_D, EMP_D, P, users.manager]);
+    await connection.query("INSERT INTO payroll_runs (id, tenantId, periodStart, periodEnd, status, createdByUserId, approvedByUserId, approvedAt) VALUES (?, ?, '2026-11-01', '2026-11-30', 'approved', ?, ?, NOW())", [RUN_NOV, T, users.manager, users.finance]);
+    await connection.query("INSERT INTO payroll_entries (id, tenantId, payrollRunId, employeeId, salaryStructureId, baseSalary, housingAllowance, transportAllowance, hardshipAllowance, gosiDeduction, otherDeductions, eosMonthlyAccrual, currency) VALUES (?, ?, ?, ?, ?, 5000, 0, 0, 0, 450, 0, 0, 'SAR'), (?, ?, ?, ?, ?, 5000, 0, 0, 0, 450, 0, 0, 'SAR')", [PE_C, T, RUN_NOV, EMP_C, SAL_C, PE_D, T, RUN_NOV, EMP_D, SAL_D]);
   }, 60_000);
 
   afterAll(async () => { await clear(); await connection.end(); });
@@ -144,5 +152,31 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a 
     expect(await manager.labourSettings.get({ tenantId: T })).toMatchObject({ canEdit: false, hoursPerDay: 10 });
     // the refused saves changed nothing
     expect(await finance.labourSettings.get({ tenantId: T })).toMatchObject({ employerGosiRate: 0.1175, indirectLoadingPercent: 10, hoursPerDay: 10, workingDays: [1, 2, 3, 4, 5] });
+  });
+
+  // G-123: the same worker-hours must cost the project once, whichever route reaches them first.
+  it("refuses to allocate payroll for an employee whose hours in the period are already costed through approved time entries", async () => {
+    const finance = callerFor(users.finance, "lab-finance");
+    await transition(TE4); // November 4, employee C: priced and posted as labour cost
+    const [[before]] = await connection.query<any[]>("SELECT (SELECT COUNT(*) FROM payroll_allocations WHERE tenantId = ?) AS allocations, (SELECT COUNT(*) FROM cost_entries WHERE tenantId = ? AND sourceType = 'payroll_allocation') AS costs", [T, T]);
+    await expect(finance.employees.payroll.allocateCost({ tenantId: T, payrollEntryId: PE_C, projectId: P, wbsItemId: WBS, amount: 5000, incurredAt: day("2026-11-30") })).rejects.toThrow("PROJECT_OS_PAYROLL_ALLOCATION_TIME_COSTED");
+    const [[after]] = await connection.query<any[]>("SELECT (SELECT COUNT(*) FROM payroll_allocations WHERE tenantId = ?) AS allocations, (SELECT COUNT(*) FROM cost_entries WHERE tenantId = ? AND sourceType = 'payroll_allocation') AS costs", [T, T]);
+    expect(after).toEqual(before); // nothing written by the refused allocation
+  });
+
+  it("refuses to approve hours for an employee whose pay for that period is already allocated from payroll", async () => {
+    const finance = callerFor(users.finance, "lab-finance");
+    const allocation = await finance.employees.payroll.allocateCost({ tenantId: T, payrollEntryId: PE_D, projectId: P, wbsItemId: WBS, amount: 5000, incurredAt: day("2026-11-30") }); // employee D has no approved time yet: allowed
+    expect(allocation.costEntryId).toBeTruthy();
+    await expect(transition(TE5)).rejects.toThrow("PROJECT_OS_TIME_ENTRY_PAYROLL_ALLOCATED");
+    const [rows] = await connection.query<{ status: string; costEntryId: string | null }[]>("SELECT status, costEntryId FROM employee_time_entries WHERE id = ?", [TE5]);
+    expect(rows[0]).toEqual({ status: "submitted", costEntryId: null }); // still waiting, no second cost
+  });
+
+  it("leaves other employees and other periods alone: employee C (time-costed) is not blocked by employee D's allocation, and a different month is a different cost", async () => {
+    const [[sum]] = await connection.query<any[]>("SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE tenantId = ? AND category = 'labour' AND incurredAt >= '2026-11-01' AND incurredAt < '2026-12-01'", [T]);
+    expect(Number(sum.total)).toBeGreaterThan(5000); // D's payroll allocation (5000) plus C's one time-entry cost: each counted once
+    expect((await connection.query<any[]>("SELECT COUNT(*) AS n FROM cost_entries WHERE tenantId = ? AND sourceType = 'time_entry' AND incurredAt >= '2026-11-01'", [T]))[0][0].n).toBe(1);
+    expect((await connection.query<any[]>("SELECT COUNT(*) AS n FROM cost_entries WHERE tenantId = ? AND sourceType = 'payroll_allocation'", [T]))[0][0].n).toBe(1);
   });
 });

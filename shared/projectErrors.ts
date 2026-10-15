@@ -892,6 +892,14 @@ export const projectErrorMessages = {
     ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
     en: "Give the reason for the transfer or adjustment (at least 3 characters).",
   },
+  PROJECT_OS_PAYROLL_ALLOCATION_TIME_COSTED: {
+    ar: "ساعات هذا الموظف في فترة المسير محتسبة تكلفتها فعلًا عبر إدخالات الوقت المعتمدة؛ تخصيص الراتب نفسه يعدّ التكلفة مرتين.",
+    en: "This employee's hours in the payroll period were already costed through approved time entries; allocating the same pay would count the cost twice.",
+  },
+  PROJECT_OS_TIME_ENTRY_PAYROLL_ALLOCATED: {
+    ar: "راتب هذا الموظف في هذه الفترة مخصَّص للمشاريع من مسير الرواتب؛ اعتماد ساعاته يعدّ التكلفة مرتين.",
+    en: "This employee's pay for the period is already allocated to projects from payroll; approving these hours would count the cost twice.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
