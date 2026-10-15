@@ -7,11 +7,12 @@ import FieldEntry from "./FieldEntry";
 const state = vi.hoisted(() => ({
   arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
-  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown,
+  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null,
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
+  auth: { me: { useQuery: () => ({ data: state.me }) } },
   fieldEntry: { context: { useQuery: () => ({ ...state.query, refetch: state.refetch }) } },
   useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return state.sendError ? Promise.reject(state.sendError) : Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } }, goodsReceipts: { create: { mutate: (input: unknown) => { state.sent("receipt", input); return Promise.resolve({}); } } } } }),
   goodsReceipts: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.receipt(input); if (state.receiptError) options.onError(state.receiptError, input); else options.onSuccess(); }, isPending: false, error: state.receiptError }) } },
@@ -34,7 +35,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
+afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.me = { id: 7 }; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
@@ -136,7 +137,7 @@ describe("FieldEntry (phone entry)", () => {
   });
 });
 
-const QUEUE_KEY = "projectOs.offlineQueue.v1:t:p";
+const QUEUE_KEY = "projectOs.offlineQueue.v1:7:t:p"; // person 7, tenant t, project p
 const queued = () => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]") as Array<{ id: string; kind: string; status: string; error?: string; payload: Record<string, unknown> }>;
 const setOnline = (value: boolean) => Object.defineProperty(navigator, "onLine", { configurable: true, get: () => value });
 const sheet = {
@@ -422,6 +423,28 @@ describe("FieldEntry: the queue keeps trying, without looping (hardening)", () =
     const second = (state.team.mock.calls[1][0] as { clientRequestId: string }).clientRequestId;
     expect(second).toMatch(/^[0-9a-f-]{36}$/);
     expect(second).not.toBe(first); // the old identifier would have replayed the stored errors
+  });
+});
+
+describe("FieldEntry: one person's queue is not another's", () => {
+  it("does not send what person 7 left waiting when person 8 signs in on the same phone, and still sends it for person 7", async () => {
+    localStorage.setItem("projectOs.offlineQueue.v1:7:t:p", JSON.stringify([{ id: "66666666-6666-4666-8666-666666666666", kind: "progress", payload: { tenantId: "t", projectId: "p", wbsItemId: "x1", percentComplete: 20, reportedAt: "2026-10-15T08:00:00.000Z" }, summary: "1 → 20%", createdAt: "2026-10-15T08:00:00.000Z", status: "pending" }]));
+    state.me = { id: 8 };
+    load();
+    await act(async () => { await Promise.resolve(); });
+    expect(state.sent).not.toHaveBeenCalled(); // person 8 sees an empty queue and sends nothing of person 7's
+    expect(screen.getByTestId("queue-status").textContent).toBe("Online");
+    cleanup();
+    state.me = { id: 7 };
+    load();
+    await waitFor(() => expect(state.sent).toHaveBeenCalledTimes(1)); // person 7's own queue goes out under person 7
+  });
+  it("keeps nothing offline, and says so, until the signed-in person is known", () => {
+    state.me = null; state.progressError = new TypeError("Failed to fetch");
+    load();
+    fireEvent.click(screen.getByText("1 · Foundations")); fireEvent.click(screen.getByText("75%")); fireEvent.click(screen.getByText("Save"));
+    expect(screen.getByRole("alert").textContent).toContain("Could not keep it on this phone");
+    expect(Object.keys(localStorage).filter(key => key.startsWith("projectOs.offlineQueue"))).toEqual([]);
   });
 });
 });

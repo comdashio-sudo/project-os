@@ -292,12 +292,15 @@ function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, 
 // It also tries again every RETRY_MS while something waits and the phone believes it is online: "online" can stay true
 // while the server is unreachable, and no event fires when it comes back.
 const RETRY_MS = 30_000;
-function useOfflineQueue(scope: string) {
+// `scope` names the person as well as the project (null until the signed-in person is known): a phone shared on site must never
+// send one person's waiting requests under the next person's sign-in.
+function useOfflineQueue(scope: string | null) {
   const client = trpc.useUtils().client;
-  const [items, setItems] = useState<QueueItem[]>(() => loadQueue(scope));
+  const [items, setItems] = useState<QueueItem[]>(() => (scope ? loadQueue(scope) : []));
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
   const [flushing, setFlushing] = useState(false);
-  const refresh = useCallback(() => setItems(loadQueue(scope)), [scope]);
+  const refresh = useCallback(() => setItems(scope ? loadQueue(scope) : []), [scope]);
+  useEffect(() => { refresh(); }, [refresh]); // a different person on the same phone sees their own queue
   // The sender is read through a ref so that `flush` keeps one identity: a changing client must not re-arm the effects below on every render.
   const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
     const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
@@ -308,12 +311,12 @@ function useOfflineQueue(scope: string) {
   }, [client]);
   const sendRef = useRef(send);
   sendRef.current = send;
-  const flush = useCallback(async () => { setFlushing(true); try { await flushQueue(scope, item => sendRef.current(item)); } finally { setFlushing(false); refresh(); } }, [scope, refresh]);
+  const flush = useCallback(async () => { if (!scope) return; setFlushing(true); try { await flushQueue(scope, item => sendRef.current(item)); } finally { setFlushing(false); refresh(); } }, [scope, refresh]);
   useEffect(() => {
     const goOnline = () => { setOnline(true); void flush(); };
     const goOffline = () => setOnline(false);
     window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
-    if (navigator.onLine !== false && loadQueue(scope).some(item => item.status === "pending")) void flush();
+    if (scope && navigator.onLine !== false && loadQueue(scope).some(item => item.status === "pending")) void flush();
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, [scope, flush]);
   const waiting = items.some(item => item.status === "pending");
@@ -322,8 +325,8 @@ function useOfflineQueue(scope: string) {
     const timer = setInterval(() => { void flush(); }, RETRY_MS);
     return () => clearInterval(timer);
   }, [waiting, online, flush]);
-  const keep: KeepOffline = useCallback(item => { const kept = enqueue(scope, item); refresh(); return kept; }, [scope, refresh]);
-  return { items, online, flushing, flush, keep, discard: (id: string) => { discard(scope, id); refresh(); }, retry: (id: string) => { retryFailed(scope, id); refresh(); void flush(); } };
+  const keep: KeepOffline = useCallback(item => { if (!scope) return false; const kept = enqueue(scope, item); refresh(); return kept; }, [scope, refresh]);
+  return { items, online, flushing, flush, keep, discard: (id: string) => { if (scope) { discard(scope, id); refresh(); } }, retry: (id: string) => { if (scope) { retryFailed(scope, id); refresh(); void flush(); } } };
 }
 
 export default function FieldEntry() {
@@ -331,7 +334,8 @@ export default function FieldEntry() {
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
-  const queue = useOfflineQueue(`${tenantId}:${projectId}`);
+  const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null);
   const contextKey = `fieldEntry:context:${tenantId}:${projectId}`;
   const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), ...attempt, retry: 1 });
   useEffect(() => { if (context.data) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey]);
