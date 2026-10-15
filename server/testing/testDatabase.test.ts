@@ -19,7 +19,7 @@ describe("test database guard", () => {
   });
 
   it("names the database in the refusal but never the credentials", () => {
-    const productionUrl = `mysql://root-user:secret-value@${host}/project_os`;
+    const productionUrl = `mysql://root-user:secret-value@${host}/project_os`; // secret-scan:allow fake value
     expect(() => assertTestDatabaseUrl(productionUrl, "DATABASE_URL")).toThrow(/"project_os"/);
     try {
       assertTestDatabaseUrl(productionUrl, "DATABASE_URL");
