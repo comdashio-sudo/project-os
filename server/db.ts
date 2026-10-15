@@ -2837,6 +2837,18 @@ export async function getProfitabilityCostBreakdownForTenant(input: { userId: nu
   return { truncated: lines.length === 500, byCategory: Array.from(byCategory, ([category, amount]) => ({ category, amount })), lines: lines.slice(0, 100).map(line => ({ ...line, amount: Number(line.amount) })) };
 }
 
+/** FPAC over the stored snapshots (oldest first), for the trend line. */
+export async function getProfitabilityHistoryForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const rows = await db.select({ periodAt: evmSnapshots.periodAt, fpac: evmSnapshots.fpac, adjustedContractValue: evmSnapshots.adjustedContractValue }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId), sql`${evmSnapshots.fpac} IS NOT NULL`)).orderBy(desc(evmSnapshots.periodAt)).limit(24);
+  return rows.reverse().map(row => ({ periodAt: row.periodAt, fpac: Number(row.fpac), adjustedContractValue: Number(row.adjustedContractValue) }));
+}
+
 /** Every project the caller may see, losing projects first; one project failing does not blank the rest. */
 export async function getPortfolioProfitabilityForTenant(input: { userId: number; tenantId: string; now?: Date }) {
   const db = await getDb();

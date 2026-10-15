@@ -37,6 +37,7 @@ vi.mock("@/lib/trpc", () => ({
       executiveCashFlow: { useQuery: () => ({ isLoading: false, error: state.cashError, data: state.cashData }) },
     },
     navigation: { get: { useQuery: ({ tenantId, projectId }: { tenantId: string; projectId?: string }) => ({ data: projectId === "project-1" ? [{ id: "project-controls", href: `/projects/${tenantId}/${projectId}/controls` }] : [] }) } },
+    profitability: { portfolio: { useQuery: () => ({ isLoading: false, error: null, data: { total: { currency: "SAR", fpac: 0 }, projects: [], unavailable: [] } }) } },
     executive: { createDecision: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false }) } },
   },
 }));

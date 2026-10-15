@@ -104,6 +104,7 @@ vi.mock("@/lib/trpc", () => ({
         administration: { invalidate: vi.fn() },
       },
     }),
+    profitability: { portfolio: { useQuery: () => ({ isLoading: false, error: null, data: { total: { currency: "SAR", fpac: 0 }, projects: [], unavailable: [] } }) } },
     dashboards: {
       pmoPortfolioSetup: { useQuery: () => ({ isLoading: false, error: null, data: { portfolios: state.pmoData.portfolios, programs: state.pmoData.programs, projects: state.pmoData.projects, decisions: state.pmoData.decisions, rfis: state.pmoData.rfis, ncrs: state.pmoData.ncrs } }) },
       pmoRisks: { useQuery: () => ({ isLoading: false, error: null, data: { risks: state.pmoData.risks } }) },
