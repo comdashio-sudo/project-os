@@ -6,6 +6,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import EvmCalculator from "./pages/EvmCalculator";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ProjectControls from "./pages/ProjectControls";
 import MyPerformance from "./pages/MyPerformance";
@@ -48,7 +49,7 @@ const ProtectedProfitability = withAuth(ProjectProfitability);
 const ProtectedProjects = withAuth(ProjectRegistry);
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {

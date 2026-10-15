@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { registerDefaultAuthRoutes } from "./auth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -32,11 +32,13 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Behind Render's proxy: one hop, so req.ip is the client address.
+  app.set("trust proxy", 1);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
-  registerOAuthRoutes(app);
+  registerDefaultAuthRoutes(app);
   app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
   // tRPC API
   app.use(

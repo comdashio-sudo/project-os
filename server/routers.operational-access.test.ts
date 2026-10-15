@@ -43,7 +43,7 @@ function context(): TrpcContext {
       openId: "operational-access-user",
       email: "user@example.com",
       name: "Operational Access User",
-      loginMethod: "manus",
+      loginMethod: "email",
       role: "user",
       createdAt: new Date(),
       updatedAt: new Date(),
