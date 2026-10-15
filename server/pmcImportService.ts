@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
+import { syncPmcProgressToEvm } from "./pmcEvmBridge";
 import {
   auditLogs,
   memberships,
@@ -252,6 +253,8 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
   const apply = prepared.apply;
   await db.transaction(async tx => {
     await apply(tx);
+    // Statuses, catalog weights/links and the unit list all move PMC progress; the other kinds do not.
+    if (input.kind === "status" || input.kind === "catalog" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows }) });
   });
   return { kind: input.kind, counts: prepared.report.counts, totalRows: prepared.report.totalRows, fileHash: prepared.report.fileHash };

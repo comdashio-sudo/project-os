@@ -15,7 +15,7 @@ export type PmcWeightedUnit = {
   unitWeight?: number;
 };
 
-const DEFAULT_STATUS_FACTORS: Record<PmcUnitActivityStatus, number> = {
+export const DEFAULT_STATUS_FACTORS: Record<PmcUnitActivityStatus, number> = {
   NOT_STARTED: 0,
   IN_PROGRESS: 0,
   UNDER_REVIEW: 0,
@@ -101,4 +101,12 @@ export function assertActivityClassification(input: { groupCode?: string; stageC
   if (!input.groupCode?.trim() || !input.stageCode?.trim() || !input.activityCode?.trim()) {
     throw new RangeError("Every activity must have a group, stage, and activity classification.");
   }
+}
+
+
+/** The tenant's stored factors laid over the defaults. */
+export function effectiveStatusFactors(rows: ReadonlyArray<{ status: PmcUnitActivityStatus; factor: string | number }>): Record<PmcUnitActivityStatus, number> {
+  const factors = { ...DEFAULT_STATUS_FACTORS };
+  for (const row of rows) factors[row.status] = Number(row.factor);
+  return factors;
 }

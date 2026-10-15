@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   withoutPolygon: 1,
   fail: false,
   upload: vi.fn(),
+  setStatus: vi.fn(),
+  evm: null as null | { evBefore: number; evAfter: number; changed: unknown[] },
   save: vi.fn(),
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
@@ -23,6 +25,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
     if (h.fail) return { isLoading: false, error: new Error("x"), data: undefined, refetch: vi.fn() };
     const byActivity = !!input.activityCode;
     return { isLoading: false, error: null, refetch: vi.fn(), data: {
+      currency: "SAR",
       plan: h.plan ? { url: "https://files.example.test/plan.png", widthPx: 1000, heightPx: 500, fileName: "plan.png", uploadedAt: new Date() } : null,
       activities: [{ code: "WALLS", name: "Walls" }],
       withoutPolygon: h.withoutPolygon,
@@ -36,13 +39,14 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
   unitCard: { useQuery: (input: { unitNumber: number }, options: { enabled: boolean }) => {
     h.cardInputs.push({ input, options });
     if (!options.enabled) return { isLoading: false, error: null, data: undefined };
-    return { isLoading: false, error: null, data: { unitNumber: input.unitNumber, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 40, activities: [{ code: "WALLS", name: "Walls", groupName: "Civil", stageName: "Internal", weightPercent: 10, status: "IN_PROGRESS", verificationStatus: "Verifier pending", engineer: "Eng One", lastChangedAt: null }] } };
+    return { isLoading: false, error: null, refetch: vi.fn(), data: { unitId: "unit-id", unitNumber: input.unitNumber, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 40, activities: [{ definitionId: "def-id", code: "WALLS", name: "Walls", groupName: "Civil", stageName: "Internal", weightPercent: 10, status: "IN_PROGRESS", verificationStatus: "Verifier pending", engineer: "Eng One", lastChangedAt: null }] } };
   } },
+  setUnitActivityStatus: { useMutation: (options: { onSuccess?: (result: unknown) => void }) => ({ mutate: (input: unknown) => { h.setStatus(input); options.onSuccess?.({ evm: h.evm }); }, error: null, isPending: false }) },
   uploadSitePlan: { useMutation: () => ({ mutate: h.upload, error: null }) },
   saveUnitGeometries: { useMutation: () => ({ mutate: h.save, error: null, data: h.saveResult }) },
 } } }));
 
-afterEach(() => { cleanup(); Object.assign(h, { arabic: false, inputs: [], cardInputs: [], plan: true, withoutPolygon: 1, fail: false, saveResult: undefined }); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); Object.assign(h, { arabic: false, inputs: [], cardInputs: [], plan: true, withoutPolygon: 1, fail: false, saveResult: undefined, evm: null }); vi.clearAllMocks(); });
 const polygons = () => Array.from(document.querySelectorAll("polygon"));
 
 describe("PmcSitePlan", () => {
@@ -93,5 +97,25 @@ describe("PmcSitePlan", () => {
     render(<PmcSitePlan tenantId="t" projectId="p" />);
     expect(screen.getByLabelText("النشاط")).toBeTruthy();
     expect(screen.getByText("1 وحدة بلا مضلع على المخطط")).toBeTruthy();
+  });
+
+  it("changes an activity's status from the unit card and shows the earned value before and after", () => {
+    h.evm = { evBefore: 250, evAfter: 500, changed: [{ code: "WBS-WALLS" }] };
+    render(<PmcSitePlan tenantId="t" projectId="p" />);
+    fireEvent.click(polygons()[1]);
+    fireEvent.change(screen.getByLabelText("Change status: WALLS"), { target: { value: "COMPLETE" } });
+    expect(h.setStatus).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", unitId: "unit-id", activityDefinitionId: "def-id", status: "COMPLETE" });
+    expect(screen.getByTestId("evm-effect").textContent).toBe("Earned value: 250 SAR → 500 SAR · 1 WBS item(s) moved");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(polygons()[0]);
+    expect(screen.queryByTestId("evm-effect")).toBeNull(); // the previous unit's effect is not left on another unit's card
+  });
+
+  it("says plainly when no linked WBS item moved", () => {
+    h.evm = { evBefore: 0, evAfter: 0, changed: [] };
+    render(<PmcSitePlan tenantId="t" projectId="p" />);
+    fireEvent.click(polygons()[1]);
+    fireEvent.change(screen.getByLabelText("Change status: WALLS"), { target: { value: "IN_PROGRESS" } });
+    expect(screen.getByTestId("evm-effect").textContent).toBe("No linked WBS item changed its progress");
   });
 });

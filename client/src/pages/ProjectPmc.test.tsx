@@ -40,6 +40,12 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
   monthlyReport: { useQuery: h.screenQuery({ period: "month", periods: [{ from: "2026-10-01", updates: 5, addedProjectPercent: 55, byGroup: [], byStatus: [], rows: [] }] }, { period: "month", periods: [] }) },
   pendingAtVerifier: { useQuery: h.screenQuery({ total: 2, buckets: [{ label: "0-7", count: 2 }], rows: [{ unitNumber: 2, activityCode: "WALLS", activityName: "Walls", verificationStatus: "Verifier pending", engineer: "Eng One", since: new Date("2026-10-13"), ageDays: 2 }] }, { total: 0, buckets: [], rows: [] }) },
   stagesView: { useQuery: h.screenQuery({ stages: [{ stageCode: "INT", stageName: "Internal", total: 4, byStatus: [{ status: "NOT_STARTED", count: 1, weightPoints: 60, percent: 25, weightSharePercent: 25 }, { status: "COMPLETE", count: 3, weightPoints: 180, percent: 75, weightSharePercent: 75 }], lateActivities: [{ activityCode: "WALLS", actualPercent: 75, plannedPercent: 80 }] }] }, { stages: [] }) },
+  programme: { useQuery: () => ({ isLoading: true, error: null, data: undefined, refetch: () => undefined }) },
+  siteMap: { useQuery: () => ({ isLoading: true, error: null, data: undefined, refetch: () => undefined }) },
+  unitCard: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: () => undefined }) },
+  setUnitActivityStatus: { useMutation: () => ({ mutate: () => undefined, error: null, isPending: false }) },
+  uploadSitePlan: { useMutation: () => ({ mutate: () => undefined, error: null }) },
+  saveUnitGeometries: { useMutation: () => ({ mutate: () => undefined, error: null, data: undefined }) },
   exportScreen: { useMutation: () => ({ mutate: state.exportScreen, isPending: false, error: null }) },
   analyzeImport: { useMutation: () => ({ mutate: (input: unknown) => state.analyze(input), data: state.report ?? undefined, error: null, isPending: false, reset: vi.fn() }) },
   confirmImport: { useMutation: () => ({ mutate: (input: unknown) => state.confirm(input), data: undefined, error: null, isPending: false, reset: vi.fn() }) },
@@ -148,5 +154,15 @@ describe("ProjectPmc import", () => {
     await choose("units.csv");
     fireEvent.click(screen.getByText("Check the file"));
     expect(screen.getByText("The file matches what is stored: nothing to save.")).toBeTruthy();
+  });
+
+  it("has the site plan and programme tabs, and they replace the filters and the export (they are not filtered screens)", () => {
+    render(<ProjectPmc />);
+    open("Site plan");
+    expect(screen.getByRole("status").textContent).toBe("Loading…");
+    expect(screen.queryByLabelText("Zone")).toBeNull();
+    open("Programme");
+    expect(screen.getByRole("status").textContent).toBe("Loading…");
+    expect(screen.queryByLabelText("Zone")).toBeNull();
   });
 });

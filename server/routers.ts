@@ -4,6 +4,7 @@ import { acceptMembershipInvitation, acknowledgeInternalNotification, addProject
 import { PMC_IMPORT_KINDS } from "./domain/pmcImport";
 import { exportPmcScreen, getPmcScreen } from "./pmcScreensService";
 import { getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
+import { getPmcProgramme } from "./pmcProgrammeService";
 import { PMC_SCREEN_NAMES, type PmcScreenName } from "./domain/pmcScreenExport";
 import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
 import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmcInspectionRequest, getPmcProgress, getPmcStatusFactors, listPmcInspectionRequests, listPmcVerificationStatuses, respondPmcInspection, savePmcVerificationStatuses, setPmcStatusFactors, setPmcUnitActivityStatus } from "./pmcService";
@@ -90,6 +91,7 @@ export const appRouter = router({
     monthlyReport: pmcScreen("monthly"),
     pendingAtVerifier: pmcScreen("pending"),
     stagesView: pmcScreen("stages"),
+    programme: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgramme({ userId: ctx.user.id, ...input })),
     siteMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().max(80).optional() })).query(({ ctx, input }) => getPmcSiteMap({ userId: ctx.user.id, ...input })),
     unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0) })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255), base64: z.string().min(1).max(12_000_000) })).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),

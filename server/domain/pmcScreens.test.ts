@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
+import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, programme, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
 
 // The dataset and every expected number below are worked by hand in
 // docs/PMC_PHASE_C_HAND_CHECKS.md. Four units of one model (WALLS 60, PAINT 40).
@@ -141,5 +141,29 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(unitCard(ds, 4)!.activities.find(a => a.code === "WALLS")).toMatchObject({ status: "NOT_STARTED", verificationStatus: null, engineer: null });
     expect(unitCard(ds, 99)).toBeNull();
   });
-});
 
+  it("screen 10: planned against actual by month, cumulative and per month, matching docs/PMC_PHASE_D_HAND_CHECKS.md", () => {
+    const result = programme(ds);
+    expect(result.hasBaseline).toBe(true);
+    // Planned: WALLS 50/80/100 x 60 and PAINT 50 from October x 40 -> 30, 48 + 20 = 68, 60 + 20 = 80.
+    // Actual: September 10 (one PAINT cell), October 10 + 30 + 15 = 55 -> cumulative 10 and 65.
+    expect(result.months).toEqual([
+      { month: "2026-09-01", planned: 30, actual: 10, plannedInMonth: 30, actualInMonth: 10, variance: -20 },
+      { month: "2026-10-01", planned: 68, actual: 65, plannedInMonth: 38, actualInMonth: 55, variance: -3 },
+      { month: "2026-11-01", planned: 80, actual: null, plannedInMonth: 12, actualInMonth: null, variance: null },
+    ]);
+    expect(result).toMatchObject({ plannedToDate: 68, actualToDate: 65, progressFromCells: 65, cellsWithoutHistory: 0 });
+  });
+
+  it("screen 10: says there is no baseline instead of drawing a flat zero line, and flags cells that have no history", () => {
+    const noBaseline = programme({ ...ds, baselines: new Map() });
+    expect(noBaseline.hasBaseline).toBe(false);
+    expect(noBaseline.months.every(m => m.planned === null && m.variance === null)).toBe(true);
+    expect(noBaseline.months.find(m => m.month === "2026-10-01")?.actual).toBe(65);
+    // A cell that was set without a history row (it would not be in the cumulative actual) is counted.
+    const unrecorded = programme({ ...ds, cells: [...ds.cells, { id: "c9", unitId: "u2", definitionId: "d2", status: "COMPLETE", verificationStatusId: null, assignedUserId: null, lastChangedAt: null }] });
+    expect(unrecorded.cellsWithoutHistory).toBe(1);
+    expect(unrecorded.actualToDate).toBe(65); // the history still says 65 ...
+    expect(unrecorded.progressFromCells).toBe(75); // ... while the cells say 75: the gap is visible, not hidden
+  });
+});

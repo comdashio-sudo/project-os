@@ -17,13 +17,13 @@ import {
   pmcUnits,
   pmcVerificationStatuses,
 } from "../drizzle/schema";
+import { syncPmcProgressToEvm } from "./pmcEvmBridge";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
-import { calculateActivityCompletion, calculateProjectProgress, calculateUnitProgress, type PmcUnitActivityStatus } from "./domain/pmc";
+import { calculateActivityCompletion, calculateProjectProgress, calculateUnitProgress, DEFAULT_STATUS_FACTORS, effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 
 export const PMC_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"] as const;
 export const PMC_INSPECTION_STEPS = ["CONFIGURATIONS", "MANAGER_APPROVAL", "TECHNICAL_ASSISTANT", "WAITING_CONSULTANT", "RESULT_RECEIVING"] as const;
 export type PmcInspectionStepCode = (typeof PMC_INSPECTION_STEPS)[number];
-const DEFAULT_FACTORS: Record<PmcUnitActivityStatus, number> = { NOT_STARTED: 0, IN_PROGRESS: 0, UNDER_REVIEW: 0, COMPLETE: 1 };
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
@@ -47,11 +47,7 @@ export async function getPmcStatusFactors(input: Scope) {
   return effectiveFactors(rows);
 }
 
-function effectiveFactors(rows: ReadonlyArray<{ status: PmcUnitActivityStatus; factor: string | number }>) {
-  const factors = { ...DEFAULT_FACTORS };
-  for (const row of rows) factors[row.status] = Number(row.factor);
-  return factors;
-}
+const effectiveFactors = effectiveStatusFactors;
 
 /** A later status can never earn less credit than an earlier one, and none can exceed 100%. */
 export function assertValidFactors(factors: Record<PmcUnitActivityStatus, number>) {
@@ -70,6 +66,7 @@ export async function setPmcStatusFactors(input: Scope & { factors: Partial<Reco
       await tx.insert(pmcStatusFactors).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, status, factor: String(next[status]), updatedByUserId: input.userId }).onDuplicateKeyUpdate({ set: { factor: String(next[status]), updatedByUserId: input.userId } });
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.status_factors_changed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ before: current, after: next }) });
+    await syncPmcProgressToEvm(tx, input, new Date());
   });
   return next;
 }
@@ -118,7 +115,7 @@ export async function setPmcUnitActivityStatus(input: Scope & { unitId: string; 
   return db.transaction(async tx => {
     const [existing] = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.unitId, input.unitId), eq(pmcUnitActivityProgress.activityDefinitionId, input.activityDefinitionId), eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))).for("update").limit(1);
     const verificationStatusId = input.verificationStatusId === undefined ? (existing?.verificationStatusId ?? null) : input.verificationStatusId;
-    if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const };
+    if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const, evm: null };
     const progressId = existing?.id ?? crypto.randomUUID();
     const now = new Date();
     if (existing) await tx.update(pmcUnitActivityProgress).set({ status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now }).where(eq(pmcUnitActivityProgress.id, existing.id));
@@ -126,7 +123,9 @@ export async function setPmcUnitActivityStatus(input: Scope & { unitId: string; 
     const from = existing?.status ?? null;
     if (from !== input.status) await tx.insert(pmcUnitActivityHistory).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: input.unitId, activityDefinitionId: input.activityDefinitionId, from, to: input.status, verificationStatusId }) });
-    return { progressId, from, to: input.status, changed: true as const };
+    // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction.
+    const evm = await syncPmcProgressToEvm(tx, input, now);
+    return { progressId, from, to: input.status, changed: true as const, evm };
   });
 }
 
