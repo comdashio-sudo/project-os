@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, stagesView, zones, type PmcDataset } from "./pmcScreens";
+import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
 
 // The dataset and every expected number below are worked by hand in
 // docs/PMC_PHASE_C_HAND_CHECKS.md. Four units of one model (WALLS 60, PAINT 40).
@@ -126,4 +126,20 @@ describe("PMC screens, checked against the hand calculations", () => {
   it("freshness lists each source with its age, and 'never' as null", () => {
     expect(freshnessOf(ds)).toEqual([{ source: "cells", lastAt: new Date("2026-10-15T08:00:00.000Z"), ageDays: 0 }, { source: "baseline", lastAt: null, ageDays: null }]);
   });
+
+  it("screen 3: each unit coloured by the chosen activity, or by its overall progress", () => {
+    expect(siteMap(ds, "WALLS").map(u => [u.unitNumber, u.status, u.progressPercent])).toEqual([[1, "COMPLETE", null], [2, "COMPLETE", null], [3, "COMPLETE", null], [4, "NOT_STARTED", null]]);
+    // Overall: unit 1 has WALLS 60 + PAINT 40 = 100; units 2 and 3 only WALLS = 60; unit 4 only PAINT = 40.
+    expect(siteMap(ds).map(u => [u.unitNumber, u.status, u.progressPercent])).toEqual([[1, null, 100], [2, null, 60], [3, null, 60], [4, null, 40]]);
+    expect(siteMap(ds, "NOPE").every(u => u.status === null)).toBe(true);
+  });
+
+  it("the unit card lists every activity of the unit's model with its status, verification and engineer", () => {
+    const card = unitCard(ds, 1)!;
+    expect(card).toMatchObject({ unitNumber: 1, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 100 });
+    expect(card.activities.map(a => [a.code, a.status, a.verificationStatus, a.engineer])).toEqual([["WALLS", "COMPLETE", "Paid", "Eng One"], ["PAINT", "COMPLETE", "Paid", "Eng Two"]]);
+    expect(unitCard(ds, 4)!.activities.find(a => a.code === "WALLS")).toMatchObject({ status: "NOT_STARTED", verificationStatus: null, engineer: null });
+    expect(unitCard(ds, 99)).toBeNull();
+  });
 });
+

@@ -31,7 +31,7 @@ const DEFAULT_FACTORS: Record<PmcUnitActivityStatus, number> = { NOT_STARTED: 0,
 const DAY = 86_400_000;
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
-async function authorize(input: Scope) {
+export async function authorizePmcRead(input: Scope) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
@@ -40,11 +40,11 @@ async function authorize(input: Scope) {
   return db;
 }
 
-async function loadDataset(db: Db, input: Scope, now: Date): Promise<PmcDataset> {
+export async function loadPmcDataset(db: Db, input: Scope, now: Date): Promise<PmcDataset> {
   const [zoneRows, blockRows, unitRows, groupRows, stageRows, defRows, cellRows, historyRows, verificationRows, requestRows, requestUnitRows, stepRows, baselineRows, factorRows] = await Promise.all([
     db.select({ id: pmcZones.id, code: pmcZones.code }).from(pmcZones).where(mine(pmcZones, input)),
     db.select({ id: pmcBlocks.id, code: pmcBlocks.code, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(mine(pmcBlocks, input)),
-    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, unitWeight: pmcUnits.unitWeight, blockId: pmcUnits.blockId, updatedAt: pmcUnits.updatedAt }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, unitWeight: pmcUnits.unitWeight, blockId: pmcUnits.blockId, updatedAt: pmcUnits.updatedAt, geometryJson: pmcUnits.geometryJson }).from(pmcUnits).where(mine(pmcUnits, input)),
     db.select({ id: pmcActivityGroups.id, code: pmcActivityGroups.code, name: pmcActivityGroups.name }).from(pmcActivityGroups).where(mine(pmcActivityGroups, input)),
     db.select({ id: pmcActivityStages.id, code: pmcActivityStages.code, name: pmcActivityStages.name }).from(pmcActivityStages).where(mine(pmcActivityStages, input)),
     db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId, updatedAt: pmcActivityDefinitions.updatedAt }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)),
@@ -76,7 +76,7 @@ async function loadDataset(db: Db, input: Scope, now: Date): Promise<PmcDataset>
   return {
     now,
     factors,
-    units: unitRows.map(u => ({ id: u.id, number: u.unitNumber, modelCode: u.modelCode, weight: Number(u.unitWeight), zoneCode: blockById.get(u.blockId)?.zoneCode ?? "", blockCode: blockById.get(u.blockId)?.code ?? "" })),
+    units: unitRows.map(u => ({ id: u.id, number: u.unitNumber, modelCode: u.modelCode, weight: Number(u.unitWeight), zoneCode: blockById.get(u.blockId)?.zoneCode ?? "", blockCode: blockById.get(u.blockId)?.code ?? "", geometry: u.geometryJson ? JSON.parse(u.geometryJson) : null })),
     definitions: defRows.map(d => ({ id: d.id, modelCode: d.modelCode, code: d.code, name: d.name, weightPercent: Number(d.weightPercent), groupCode: groupById.get(d.groupId)?.code ?? "", groupName: groupById.get(d.groupId)?.name ?? "", stageCode: stageById.get(d.stageId)?.code ?? "", stageName: stageById.get(d.stageId)?.name ?? "" })),
     cells: cellRows.map(c => ({ id: c.id, unitId: c.unitId, definitionId: c.definitionId, status: c.status as PmcUnitActivityStatus, verificationStatusId: c.verificationStatusId, assignedUserId: c.assignedUserId, lastChangedAt: c.lastChangedAt })),
     history: historyRows.flatMap(h => { const cell = cellById.get(h.cellId); return cell ? [{ unitId: cell.unitId, definitionId: cell.definitionId, from: h.from as PmcUnitActivityStatus | null, to: h.to as PmcUnitActivityStatus, userId: h.userId, at: h.at }] : []; }),
@@ -102,11 +102,11 @@ const DEFAULT_DAYS: Partial<Record<PmcScreenName, number>> = { latestUpdates: 7,
 
 export async function getPmcScreen<N extends PmcScreenName>(input: Scope & { screen: N; filters?: PmcFilterInput; now?: Date }) {
   if (!PMC_SCREEN_NAMES.includes(input.screen)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_SCREEN_UNKNOWN" });
-  const db = await authorize(input);
+  const db = await authorizePmcRead(input);
   const now = input.now ?? new Date();
   const filters: PmcFilterInput = { ...input.filters };
   if (!filters.since && DEFAULT_DAYS[input.screen]) filters.since = new Date(now.getTime() - DEFAULT_DAYS[input.screen]! * DAY);
-  const dataset = await loadDataset(db, input, now);
+  const dataset = await loadPmcDataset(db, input, now);
   const filtered = filterDataset(dataset, filters);
   return { screen: input.screen, generatedAt: now, filters, freshness: freshnessOf(dataset), data: compute[input.screen](filtered) as ScreenData[N], options: { zones: Array.from(new Set(dataset.units.map(u => u.zoneCode))).sort(), blocks: Array.from(new Set(dataset.units.map(u => u.blockCode))).sort(), groups: Array.from(new Set(dataset.definitions.map(d => d.groupCode))).sort(), stages: Array.from(new Set(dataset.definitions.map(d => d.stageCode))).sort(), activities: Array.from(new Set(dataset.definitions.map(d => d.code))).sort() } };
 }
