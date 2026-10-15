@@ -12,8 +12,11 @@ const h = vi.hoisted(() => ({
   withoutPolygon: 1,
   fail: false,
   upload: vi.fn(),
+<<<<<<< HEAD
   setStatus: vi.fn(),
   evm: null as null | { evBefore: number; evAfter: number; changed: unknown[] },
+=======
+>>>>>>> origin/main
   save: vi.fn(),
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
@@ -25,7 +28,10 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
     if (h.fail) return { isLoading: false, error: new Error("x"), data: undefined, refetch: vi.fn() };
     const byActivity = !!input.activityCode;
     return { isLoading: false, error: null, refetch: vi.fn(), data: {
+<<<<<<< HEAD
       currency: "SAR",
+=======
+>>>>>>> origin/main
       plan: h.plan ? { url: "https://files.example.test/plan.png", widthPx: 1000, heightPx: 500, fileName: "plan.png", uploadedAt: new Date() } : null,
       activities: [{ code: "WALLS", name: "Walls" }],
       withoutPolygon: h.withoutPolygon,
@@ -39,14 +45,23 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
   unitCard: { useQuery: (input: { unitNumber: number }, options: { enabled: boolean }) => {
     h.cardInputs.push({ input, options });
     if (!options.enabled) return { isLoading: false, error: null, data: undefined };
+<<<<<<< HEAD
     return { isLoading: false, error: null, refetch: vi.fn(), data: { unitId: "unit-id", unitNumber: input.unitNumber, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 40, activities: [{ definitionId: "def-id", code: "WALLS", name: "Walls", groupName: "Civil", stageName: "Internal", weightPercent: 10, status: "IN_PROGRESS", verificationStatus: "Verifier pending", engineer: "Eng One", lastChangedAt: null }] } };
   } },
   setUnitActivityStatus: { useMutation: (options: { onSuccess?: (result: unknown) => void }) => ({ mutate: (input: unknown) => { h.setStatus(input); options.onSuccess?.({ evm: h.evm }); }, error: null, isPending: false }) },
+=======
+    return { isLoading: false, error: null, data: { unitNumber: input.unitNumber, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 40, activities: [{ code: "WALLS", name: "Walls", groupName: "Civil", stageName: "Internal", weightPercent: 10, status: "IN_PROGRESS", verificationStatus: "Verifier pending", engineer: "Eng One", lastChangedAt: null }] } };
+  } },
+>>>>>>> origin/main
   uploadSitePlan: { useMutation: () => ({ mutate: h.upload, error: null }) },
   saveUnitGeometries: { useMutation: () => ({ mutate: h.save, error: null, data: h.saveResult }) },
 } } }));
 
+<<<<<<< HEAD
 afterEach(() => { cleanup(); Object.assign(h, { arabic: false, inputs: [], cardInputs: [], plan: true, withoutPolygon: 1, fail: false, saveResult: undefined, evm: null }); vi.clearAllMocks(); });
+=======
+afterEach(() => { cleanup(); Object.assign(h, { arabic: false, inputs: [], cardInputs: [], plan: true, withoutPolygon: 1, fail: false, saveResult: undefined }); vi.clearAllMocks(); });
+>>>>>>> origin/main
 const polygons = () => Array.from(document.querySelectorAll("polygon"));
 
 describe("PmcSitePlan", () => {
@@ -98,6 +113,7 @@ describe("PmcSitePlan", () => {
     expect(screen.getByLabelText("النشاط")).toBeTruthy();
     expect(screen.getByText("1 وحدة بلا مضلع على المخطط")).toBeTruthy();
   });
+<<<<<<< HEAD
 
   it("changes an activity's status from the unit card and shows the earned value before and after", () => {
     h.evm = { evBefore: 250, evAfter: 500, changed: [{ code: "WBS-WALLS" }] };
@@ -118,4 +134,6 @@ describe("PmcSitePlan", () => {
     fireEvent.change(screen.getByLabelText("Change status: WALLS"), { target: { value: "IN_PROGRESS" } });
     expect(screen.getByTestId("evm-effect").textContent).toBe("No linked WBS item changed its progress");
   });
+=======
+>>>>>>> origin/main
 });

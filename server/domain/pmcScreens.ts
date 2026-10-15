@@ -274,6 +274,7 @@ export function unitCard(ds: PmcDataset, unitNumber: number) {
   const cellOf = new Map(ds.cells.filter(c => c.unitId === unit.id).map(c => [c.definitionId, c]));
   const verification = new Map(ds.verification.map(v => [v.id, v.label]));
   return {
+<<<<<<< HEAD
     unitId: unit.id, unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
     activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { definitionId: d.id, code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
   };
@@ -356,3 +357,9 @@ export function programme(ds: PmcDataset) {
   const current = rows.find(r => r.month === nowKey);
   return { hasBaseline, months: rows, plannedToDate: current?.planned ?? null, actualToDate: current?.actual ?? 0, progressFromCells, cellsWithoutHistory };
 }
+=======
+    unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
+    activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
+  };
+}
+>>>>>>> origin/main

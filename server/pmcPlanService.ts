@@ -4,7 +4,11 @@
 import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
+<<<<<<< HEAD
 import { auditLogs, pmcSitePlans, pmcUnits, projects } from "../drizzle/schema";
+=======
+import { auditLogs, pmcSitePlans, pmcUnits } from "../drizzle/schema";
+>>>>>>> origin/main
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { imageSize, parseGeoJsonUnits } from "./domain/pmcGeometry";
 import { siteMap, unitCard } from "./domain/pmcScreens";
@@ -69,9 +73,13 @@ export async function getPmcSiteMap(input: Scope & { activityCode?: string; now?
   const db = await authorizePmcRead(input);
   const [plan] = await db.select().from(pmcSitePlans).where(and(eq(pmcSitePlans.tenantId, input.tenantId), eq(pmcSitePlans.projectId, input.projectId))).orderBy(desc(pmcSitePlans.createdAt)).limit(1);
   const dataset = await loadPmcDataset(db, input, input.now ?? new Date());
+<<<<<<< HEAD
   const [project] = await db.select({ currency: projects.currency }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
   return {
     currency: project?.currency ?? "SAR",
+=======
+  return {
+>>>>>>> origin/main
     plan: plan ? { url: await storageGetSignedUrl(plan.fileKey), widthPx: plan.widthPx, heightPx: plan.heightPx, fileName: plan.fileName, uploadedAt: plan.createdAt } : null,
     activities: Array.from(new Map(dataset.definitions.map(d => [d.code, { code: d.code, name: d.name }])).values()).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
     units: siteMap(dataset, input.activityCode),

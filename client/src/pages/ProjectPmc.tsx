@@ -5,13 +5,20 @@ import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Download, FileUp, Printer } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
+<<<<<<< HEAD
 import { PmcProgramme } from "./PmcProgramme";
+=======
+>>>>>>> origin/main
 import { PmcSitePlan } from "./PmcSitePlan";
 
 const text = {
   ar: {
     title: "ضبط المشروع PMC", back: "العودة إلى ضوابط المشروع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noData: "لا توجد بيانات", export: "تصدير Excel", pdf: "PDF (طباعة)",
+<<<<<<< HEAD
     tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", programme: "البرنامج الزمني", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", import: "الاستيراد" },
+=======
+    tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", import: "الاستيراد" },
+>>>>>>> origin/main
     filters: { zone: "المنطقة", block: "البلوك", unitFrom: "من وحدة", unitTo: "إلى وحدة", group: "المجموعة", stage: "المرحلة", activity: "النشاط", period: "الفترة", all: "الكل", default: "الافتراضية", d7: "آخر 7 أيام", d30: "آخر 30 يومًا", d90: "آخر 90 يومًا", d365: "آخر 12 شهرًا", everything: "كل الفترة", contractor: "المقاول", consultant: "الاستشاري" },
     freshness: "حداثة البيانات", sources: { locations: "المواقع", catalog: "الكتالوج", status: "حالة الأنشطة", requests: "الطلبات", baseline: "خط الأساس" }, never: "لا تحديث بعد", today: "اليوم", daysAgo: (n: number) => `قبل ${n} يومًا`,
     engineer: "المهندس", updates: "التحديثات", activeDays: "أيام نشطة", unitRange: "نطاق الوحدات", added: "النسبة المضافة", byGroup: "حسب المجموعة", total: "الإجمالي",
@@ -26,7 +33,11 @@ const text = {
   },
   en: {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF (print)",
+<<<<<<< HEAD
     tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
+=======
+    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
+>>>>>>> origin/main
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
     freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
     engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
@@ -41,7 +52,11 @@ const text = {
   },
 };
 type T = typeof text.en;
+<<<<<<< HEAD
 const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "import"] as const;
+=======
+const TABS = ["latestUpdates", "approvals", "sitePlan", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "import"] as const;
+>>>>>>> origin/main
 type Tab = (typeof TABS)[number];
 type Filters = { zone?: string; block?: string; unitFrom?: number; unitTo?: number; group?: string; stage?: string; activity?: string; contractor?: string; consultant?: string; since?: Date };
 const field = "min-h-[44px] rounded-lg border bg-white px-2 text-sm";
@@ -81,7 +96,11 @@ function ReplyTable({ title, rows, t }: { title: string; rows: Array<{ key: stri
   return <div><h3 className="mb-1 font-semibold">{title}</h3><Table headers={["", "A", "B", "C", "UR", t.pendingReply, t.total]} rows={rows.map(r => [r.key, r.A, r.B, r.C, r.UR, r.pending, r.total])} /></div>;
 }
 
+<<<<<<< HEAD
 function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
+=======
+function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
+>>>>>>> origin/main
   const input = { tenantId, projectId, filters };
   const common = { t, isArabic, onOptions: onData };
   if (tab === "latestUpdates") {
@@ -201,7 +220,11 @@ export default function ProjectPmc() {
   const exportScreen = trpc.pmc.exportScreen.useMutation({
     onSuccess: file => { const bytes = Uint8Array.from(atob(file.base64), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const link = document.createElement("a"); link.href = url; link.download = file.fileName; link.click(); URL.revokeObjectURL(url); },
   });
+<<<<<<< HEAD
   const screenOfTab: Record<Exclude<Tab, "import" | "sitePlan" | "programme">, "latestUpdates" | "approvals" | "inspections" | "activities" | "zones" | "weekly" | "monthly" | "pending" | "stages"> = { latestUpdates: "latestUpdates", approvals: "approvals", inspections: "inspections", activities: "activities", zones: "zones", weekly: "weekly", monthly: "monthly", pending: "pending", stages: "stages" };
+=======
+  const screenOfTab: Record<Exclude<Tab, "import" | "sitePlan">, "latestUpdates" | "approvals" | "inspections" | "activities" | "zones" | "weekly" | "monthly" | "pending" | "stages"> = { latestUpdates: "latestUpdates", approvals: "approvals", inspections: "inspections", activities: "activities", zones: "zones", weekly: "weekly", monthly: "monthly", pending: "pending", stages: "stages" };
+>>>>>>> origin/main
   const select = (key: keyof Filters, label: string, values: string[]) => (
     <label className="text-xs">{label}<select aria-label={label} className={`${field} mt-1 block`} value={(filters[key] as string | undefined) ?? ""} onChange={event => setFilters({ ...filters, [key]: event.target.value || undefined })}><option value="">{t.filters.all}</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
   );
@@ -210,13 +233,21 @@ export default function ProjectPmc() {
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><h1 className="text-2xl font-semibold">{t.title}</h1></div>
+<<<<<<< HEAD
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && <div className="flex gap-2">
+=======
+          {tab !== "import" && tab !== "sitePlan" && <div className="flex gap-2">
+>>>>>>> origin/main
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: isArabic ? "ar" : "en", filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.pdf}</Button>
           </div>}
         </header>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
+<<<<<<< HEAD
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
+=======
+        {tab !== "import" && tab !== "sitePlan" && (
+>>>>>>> origin/main
           <section aria-label="filters" className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
             <label className="text-xs">{t.filters.unitFrom}<input aria-label={t.filters.unitFrom} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitFrom ?? ""} onChange={event => setFilters({ ...filters, unitFrom: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
@@ -225,7 +256,11 @@ export default function ProjectPmc() {
           </section>
         )}
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+<<<<<<< HEAD
           {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+=======
+          {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+>>>>>>> origin/main
         </section>
       </div>
     </main>
