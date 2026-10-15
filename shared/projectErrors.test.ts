@@ -1,5 +1,7 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getProjectError } from "./projectErrors";
+import { getProjectError, projectErrorMessages } from "./projectErrors";
 
 describe("project error map", () => {
   it("returns Arabic and English messages for a guarded WBS scope failure", () => {
@@ -64,5 +66,41 @@ describe("project error map", () => {
         en: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
       },
     });
+  });
+});
+
+// Gate 5 (G-109): a code the server can throw must have an Arabic and an English message, or the person sees the generic
+// fallback. The scan reads every quoted PROJECT_OS_ code in the server sources (tests excluded), so a new code added
+// without a message fails here rather than in front of a user.
+const NOT_SHOWN_TO_USERS = new Set([
+  "PROJECT_OS_LICENSE_LIFECYCLE_EVALUATED", "PROJECT_OS_PROFITABILITY_SNAPSHOTS_CAPTURED", // success markers returned by cron endpoints
+  "PROJECT_OS_SCHEDULED_EXECUTION_FAILED", "PROJECT_OS_SCHEDULED_UNAUTHORIZED", // cron endpoints answer a scheduler, not a person
+]);
+function serverSources(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "testing" ? [] : serverSources(path);
+    return /\.ts$/.test(name) && !/\.(test|spec)\.ts$/.test(name) ? [path] : [];
+  });
+}
+
+describe("every server error code has a bilingual message (G-109)", () => {
+  const thrown = new Set<string>();
+  for (const file of serverSources(join(__dirname, "..", "server"))) for (const match of readFileSync(file, "utf8").matchAll(/["'`](PROJECT_OS_[A-Z0-9_]+)["'`]/g)) thrown.add(match[1]);
+
+  it("finds the codes it is meant to guard (the scan is not vacuous)", () => {
+    expect(thrown.size).toBeGreaterThan(150);
+    expect(thrown.has("PROJECT_OS_PAYROLL_APPROVER_SEPARATION")).toBe(true);
+  });
+  it("has no thrown code without a message", () => {
+    const missing = Array.from(thrown).filter(code => !(code in projectErrorMessages) && !NOT_SHOWN_TO_USERS.has(code)).sort();
+    expect(missing).toEqual([]);
+  });
+  it("has a non-empty Arabic and English text for every message, and the Arabic is actually Arabic", () => {
+    const bad = Object.entries(projectErrorMessages).filter(([, m]) => !m.en.trim() || !/[\u0600-\u06FF]/.test(m.ar)).map(([code]) => code);
+    expect(bad).toEqual([]);
+  });
+  it("does not exempt a code that already has a message (the exemption list stays honest)", () => {
+    expect(Array.from(NOT_SHOWN_TO_USERS).filter(code => code in projectErrorMessages)).toEqual([]);
   });
 });

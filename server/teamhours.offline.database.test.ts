@@ -21,6 +21,7 @@ const db = serverDb as unknown as Record<string, (input: unknown) => Promise<any
 async function clear() {
   await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM client_requests WHERE tenantId = ?", [T]);
+  await connection.query("DELETE FROM internal_notifications WHERE tenantId = ?", [T]);
   for (const table of ["employee_time_entries", "employee_attendance", "employee_assignments", "progress_entries", "project_resources", "employees", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [T]);
   await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId = ?", [T]);
   await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [T]);
@@ -142,5 +143,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("team hours and idempoten
     const plain = callerFor(users.plain, "tmh-plain");
     await expect(plain.teamHours.sheet({ ...scope, workDate: day("2026-10-14") })).rejects.toThrow("Required permission is not granted.");
     await expect(plain.teamHours.save({ ...scope, workDate: day("2026-10-14"), entries: [{ assignmentId: A1, actualHours: 8 }] })).rejects.toThrow("Required permission is not granted.");
+  });
+
+  // G-130 found these two reads answering to a membership that was no longer active.
+  it("does not let a suspended member read or acknowledge the tenant's notifications", async () => {
+    const other = callerFor(users.other, "tmh-other");
+    await connection.query("INSERT INTO internal_notifications (id, tenantId, recipientUserId, notificationCode, payload) VALUES ('tmh-n1', ?, ?, 'TEST', '{}')", [T, users.other]);
+    expect((await other.notifications.list({ tenantId: T })).map(row => row.id)).toEqual(["tmh-n1"]); // active: sees its own
+    await connection.query("UPDATE memberships SET status = 'suspended' WHERE id = 'tmh-m-other'");
+    try {
+      await expect(other.notifications.list({ tenantId: T })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      await expect(other.notifications.acknowledge({ tenantId: T, notificationId: "75000000-0000-4000-8000-0000000000ff" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+      const [rows] = await connection.query<{ acknowledgedAt: Date | null }[]>("SELECT acknowledgedAt FROM internal_notifications WHERE id = 'tmh-n1'");
+      expect(rows[0].acknowledgedAt).toBeNull(); // nothing changed
+    } finally { await connection.query("UPDATE memberships SET status = 'active' WHERE id = 'tmh-m-other'"); }
   });
 });
