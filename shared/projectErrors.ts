@@ -76,6 +76,10 @@ export const projectErrorMessages = {
     ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
     en: "This role and scope are already assigned to the selected membership.",
   },
+  PROJECT_OS_LABOUR_SETTINGS_INVALID: {
+    ar: "إعدادات التكلفة غير صالحة: نسب موجبة معقولة، ساعات اليوم بين 1 و24، ويوم عمل واحد على الأقل بلا تكرار.",
+    en: "The cost settings are not valid: sensible positive rates, 1 to 24 hours a day, and at least one working day with no repeats.",
+  },
   PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT: {
     ar: "لا يمكن جمع هذين الدورين المتعارضين للمستخدم نفسه ضمن نطاق متداخل.",
     en: "The same user cannot hold these conflicting roles in overlapping scopes.",

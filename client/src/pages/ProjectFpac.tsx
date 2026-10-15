@@ -5,6 +5,7 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
+import LabourLoadingCard from "./LabourLoadingCard";
 
 const text = {
   ar: {
@@ -196,6 +197,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
+      <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />
     </section>
   );
 }
