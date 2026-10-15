@@ -616,6 +616,278 @@ export const projectErrorMessages = {
     ar: "تعذر إنشاء النصيحة الاستشارية الآن. لا يغير ذلك أي بيانات للمشروع.",
     en: "The advisory could not be generated now. No project data was changed.",
   },
+  PROJECT_OS_ACTIVITY_NOT_FOUND: {
+    ar: "النشاط غير موجود في هذا المشروع.",
+    en: "The activity was not found in this project.",
+  },
+  PROJECT_OS_ACTIVITY_WBS_MISMATCH: {
+    ar: "النشاط لا يتبع بند العمل المختار.",
+    en: "The activity does not belong to the selected work item.",
+  },
+  PROJECT_OS_ASSIGNMENT_WINDOW_INVALID: {
+    ar: "فترة الإسناد غير صالحة: يجب ألا تسبق النهاية البداية.",
+    en: "The assignment window is invalid: the end must not be before the start.",
+  },
+  PROJECT_OS_ATTENDANCE_NOT_FOUND: {
+    ar: "سجل الحضور غير موجود.",
+    en: "The attendance record was not found.",
+  },
+  PROJECT_OS_AUTH_FAILED: {
+    ar: "تعذّر تسجيل الدخول. حاول مرة أخرى.",
+    en: "Sign-in failed. Please try again.",
+  },
+  PROJECT_OS_AUTH_RATE_LIMITED: {
+    ar: "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
+    en: "Too many attempts. Wait a moment and try again.",
+  },
+  PROJECT_OS_BOQ_CODE_EXISTS: {
+    ar: "رمز بند جدول الكميات مستعمل في هذا المشروع.",
+    en: "This BOQ item code is already used in this project.",
+  },
+  PROJECT_OS_CERTIFICATE_NUMBER_EXISTS: {
+    ar: "رقم المستخلص مستعمل في هذا المشروع.",
+    en: "This certificate number is already used in this project.",
+  },
+  PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND: {
+    ar: "لا مستلم مؤهل لهذا التنبيه في الشركة.",
+    en: "No eligible recipient for this alert was found in the company.",
+  },
+  PROJECT_OS_EMPLOYEE_CAPACITY_EXCEEDED: {
+    ar: "الإسناد يتجاوز طاقة الموظف في هذه الفترة.",
+    en: "The assignment exceeds the employee's capacity for this period.",
+  },
+  PROJECT_OS_EMPLOYEE_NOT_ACTIVE: {
+    ar: "الموظف غير فعّال.",
+    en: "The employee is not active.",
+  },
+  PROJECT_OS_EXPORT_FILE_TOO_LARGE: {
+    ar: "ملف التصدير أكبر من الحد المسموح (10 ميغابايت).",
+    en: "The export file is larger than the allowed limit (10 MB).",
+  },
+  PROJECT_OS_GRN_COMMITMENT_INSUFFICIENT: {
+    ar: "قيمة الاستلام تتجاوز الرصيد المفتوح من الالتزام.",
+    en: "The receipt value exceeds the open balance of the commitment.",
+  },
+  PROJECT_OS_GRN_COMMITMENT_INVALID: {
+    ar: "التزام أمر الشراء غير معتمد أو بعملة مختلفة.",
+    en: "The purchase order's commitment is not approved or is in a different currency.",
+  },
+  PROJECT_OS_GRN_PURCHASE_ORDER_COMMITMENT_REQUIRED: {
+    ar: "أمر الشراء بلا التزام؛ اربطه بالتزام قبل تسجيل الاستلام.",
+    en: "The purchase order has no commitment; link one before recording a receipt.",
+  },
+  PROJECT_OS_GRN_UNIT_COST_INVALID: {
+    ar: "تكلفة الوحدة يجب أن تكون رقمًا أكبر من صفر.",
+    en: "The unit cost must be a number above zero.",
+  },
+  PROJECT_OS_IMPORT_DUPLICATE_DETECTED: {
+    ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
+    en: "This file was already imported into this project.",
+  },
+  PROJECT_OS_IMPORT_FILE_INVALID: {
+    ar: "الملف غير صالح أو غير مقروء.",
+    en: "The file is invalid or unreadable.",
+  },
+  PROJECT_OS_IMPORT_FILE_UNAVAILABLE: {
+    ar: "تعذّر قراءة الملف المرفوع من التخزين.",
+    en: "The uploaded file could not be read from storage.",
+  },
+  PROJECT_OS_IMPORT_FORMAT_INVALID: {
+    ar: "صيغة الملف غير مدعومة.",
+    en: "The file format is not supported.",
+  },
+  PROJECT_OS_IMPORT_MAPPING_INVALID: {
+    ar: "ربط الأعمدة غير صالح.",
+    en: "The column mapping is invalid.",
+  },
+  PROJECT_OS_IMPORT_MODULE_INVALID: {
+    ar: "نوع الاستيراد غير معروف.",
+    en: "The import type is not recognised.",
+  },
+  PROJECT_OS_IMPORT_NOT_CONFIRMABLE: {
+    ar: "لا يمكن اعتماد هذا الاستيراد في حالته الحالية.",
+    en: "This import cannot be confirmed in its current state.",
+  },
+  PROJECT_OS_IMPORT_NOT_FOUND: {
+    ar: "عملية الاستيراد غير موجودة.",
+    en: "The import was not found.",
+  },
+  PROJECT_OS_IMPORT_VALIDATION_FAILED: {
+    ar: "الملف لم يجتز الفحص؛ راجع تقرير الأخطاء ولم يُحفظ شيء.",
+    en: "The file did not pass validation; see the error report. Nothing was saved.",
+  },
+  PROJECT_OS_INVENTORY_TRANSFER_QUANTITY_INVALID: {
+    ar: "كمية التحويل يجب أن تكون أكبر من صفر.",
+    en: "The transfer quantity must be above zero.",
+  },
+  PROJECT_OS_INVENTORY_TRANSFER_SAME_WAREHOUSE: {
+    ar: "مستودع المصدر والوجهة متطابقان.",
+    en: "The source and destination warehouses are the same.",
+  },
+  PROJECT_OS_INVOICE_NUMBER_EXISTS: {
+    ar: "رقم الفاتورة مستعمل في هذا المشروع.",
+    en: "This invoice number is already used in this project.",
+  },
+  PROJECT_OS_LABOR_RESOURCE_REQUIRED: {
+    ar: "يجب أن يكون المورد المختار من نوع عمالة.",
+    en: "The selected resource must be a labour resource.",
+  },
+  PROJECT_OS_MASTER_PLAN_RULES_INVALID: {
+    ar: "قواعد الخطة الرئيسية غير صالحة.",
+    en: "The master plan rules are invalid.",
+  },
+  PROJECT_OS_MASTER_PLAN_RULE_SAVE_FAILED: {
+    ar: "تعذّر حفظ قاعدة الخطة الرئيسية.",
+    en: "The master plan rule could not be saved.",
+  },
+  PROJECT_OS_NOTIFICATION_NOT_FOUND: {
+    ar: "التنبيه غير موجود.",
+    en: "The notification was not found.",
+  },
+  PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID: {
+    ar: "كتالوج الأدوار التشغيلية غير مكتمل؛ تواصل مع الدعم.",
+    en: "The operational role catalogue is incomplete; contact support.",
+  },
+  PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST: {
+    ar: "مجموع التخصيصات يتجاوز تكلفة الراتب.",
+    en: "The allocations exceed the payroll cost.",
+  },
+  PROJECT_OS_PAYROLL_AMOUNT_INVALID: {
+    ar: "مبلغ الراتب غير صالح.",
+    en: "The payroll amount is invalid.",
+  },
+  PROJECT_OS_PAYROLL_APPROVER_SEPARATION: {
+    ar: "لا يعتمد مسير الرواتب من أنشأه.",
+    en: "A payroll run cannot be approved by the person who created it.",
+  },
+  PROJECT_OS_PAYROLL_ENTRY_NOT_FOUND: {
+    ar: "بند الراتب غير موجود.",
+    en: "The payroll entry was not found.",
+  },
+  PROJECT_OS_PAYROLL_NOT_APPROVED: {
+    ar: "مسير الرواتب غير معتمد بعد.",
+    en: "The payroll run is not approved yet.",
+  },
+  PROJECT_OS_PAYROLL_PERIOD_EXISTS: {
+    ar: "يوجد مسير رواتب لهذه الفترة.",
+    en: "A payroll run already exists for this period.",
+  },
+  PROJECT_OS_PAYROLL_PERIOD_INVALID: {
+    ar: "فترة الرواتب غير صالحة.",
+    en: "The payroll period is invalid.",
+  },
+  PROJECT_OS_PAYROLL_RUN_NOT_FOUND: {
+    ar: "مسير الرواتب غير موجود.",
+    en: "The payroll run was not found.",
+  },
+  PROJECT_OS_PAYROLL_STRUCTURE_INVALID: {
+    ar: "هيكل الراتب غير صالح.",
+    en: "The salary structure is invalid.",
+  },
+  PROJECT_OS_PAYROLL_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل المسير إلى هذه الحالة من حالته الحالية.",
+    en: "The payroll run cannot move to that status from its current one.",
+  },
+  PROJECT_OS_PMC_ACTIVITY_NOT_FOUND: {
+    ar: "نشاط الفحص غير موجود.",
+    en: "The inspection activity was not found.",
+  },
+  PROJECT_OS_PMC_ACTIVITY_NOT_IN_UNIT_MODEL: {
+    ar: "النشاط ليس من نموذج هذه الوحدة.",
+    en: "The activity is not part of this unit's model.",
+  },
+  PROJECT_OS_PMC_IMPORT_FILE_CHANGED: {
+    ar: "تغيّر الملف منذ المعاينة؛ أعد رفعه ومعاينته.",
+    en: "The file changed since the preview; upload and preview it again.",
+  },
+  PROJECT_OS_PMC_INSPECTION_ALREADY_ANSWERED: {
+    ar: "طلب الفحص أُجيب عنه سابقًا.",
+    en: "The inspection request has already been answered.",
+  },
+  PROJECT_OS_PMC_INSPECTION_CODE_DUPLICATE: {
+    ar: "رمز طلب الفحص مستعمل.",
+    en: "The inspection request code is already used.",
+  },
+  PROJECT_OS_PMC_INSPECTION_NOT_AT_RESULT_STEP: {
+    ar: "طلب الفحص ليس في خطوة النتيجة.",
+    en: "The inspection request is not at the result step.",
+  },
+  PROJECT_OS_PMC_INSPECTION_NOT_FOUND: {
+    ar: "طلب الفحص غير موجود.",
+    en: "The inspection request was not found.",
+  },
+  PROJECT_OS_PMC_INSPECTION_STEP_NOT_ACTIVE: {
+    ar: "خطوة طلب الفحص غير فعّالة.",
+    en: "The inspection request step is not active.",
+  },
+  PROJECT_OS_PMC_INSPECTION_UNITS_REQUIRED: {
+    ar: "اختر وحدة واحدة على الأقل لطلب الفحص.",
+    en: "Select at least one unit for the inspection request.",
+  },
+  PROJECT_OS_PMC_PLAN_DIMENSIONS_INVALID: {
+    ar: "أبعاد صورة المخطط غير صالحة.",
+    en: "The site plan image dimensions are invalid.",
+  },
+  PROJECT_OS_PMC_PLAN_FILE_INVALID: {
+    ar: "ملف المخطط غير صالح.",
+    en: "The site plan file is invalid.",
+  },
+  PROJECT_OS_PMC_PLAN_FORMAT_UNSUPPORTED: {
+    ar: "صيغة المخطط غير مدعومة.",
+    en: "The site plan format is not supported.",
+  },
+  PROJECT_OS_PMC_SCREEN_UNKNOWN: {
+    ar: "شاشة PMC غير معروفة.",
+    en: "Unknown PMC screen.",
+  },
+  PROJECT_OS_PMC_STATUS_CODE_DUPLICATE: {
+    ar: "رمز الحالة مستعمل.",
+    en: "The status code is already used.",
+  },
+  PROJECT_OS_PMC_STATUS_FACTORS_INVALID: {
+    ar: "معاملات الحالات غير صالحة: يجب ألا تتناقص بتقدّم الحالة وأن تكون بين 0 و1.",
+    en: "The status factors are invalid: they must not decrease as the status advances and must be between 0 and 1.",
+  },
+  PROJECT_OS_PMC_UNIT_NOT_FOUND: {
+    ar: "الوحدة غير موجودة.",
+    en: "The unit was not found.",
+  },
+  PROJECT_OS_PMC_VERIFICATION_STATUS_INACTIVE: {
+    ar: "حالة التحقق غير فعّالة.",
+    en: "The verification status is not active.",
+  },
+  PROJECT_OS_PMC_VERIFICATION_STATUS_NOT_FOUND: {
+    ar: "حالة التحقق غير موجودة.",
+    en: "The verification status was not found.",
+  },
+  PROJECT_OS_REORDER_LEVEL_INVALID: {
+    ar: "حد إعادة الطلب يجب أن يكون أكبر من صفر.",
+    en: "The reorder level must be above zero.",
+  },
+  PROJECT_OS_SALARY_STRUCTURE_NOT_FOUND: {
+    ar: "هيكل الراتب غير موجود.",
+    en: "The salary structure was not found.",
+  },
+  PROJECT_OS_SCHEDULE_FORMAT_INVALID: {
+    ar: "صيغة ملف الجدول غير مدعومة.",
+    en: "The schedule file format is not supported.",
+  },
+  PROJECT_OS_SUBCONTRACT_CODE_EXISTS: {
+    ar: "رمز عقد المقاول من الباطن مستعمل.",
+    en: "The subcontract code is already used.",
+  },
+  PROJECT_OS_SUBCONTRACT_NOT_FOUND: {
+    ar: "عقد المقاول من الباطن غير موجود.",
+    en: "The subcontract was not found.",
+  },
+  PROJECT_OS_TIME_ENTRY_NOT_FOUND: {
+    ar: "إدخال الوقت غير موجود.",
+    en: "The time entry was not found.",
+  },
+  PROJECT_OS_WBS_NOT_FOUND: {
+    ar: "بند العمل غير موجود في هذا المشروع.",
+    en: "The work item was not found in this project.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
