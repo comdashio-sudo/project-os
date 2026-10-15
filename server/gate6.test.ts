@@ -1,0 +1,65 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+// G-110 (Gate 6), the part a scan can prove for every record at once. For each server function a router calls:
+//   - a mutation leaves an audit row;
+//   - a function that takes a projectId proves the project belongs to the caller's tenant (a role scope of "company"
+//     matches any project id, so the scope check alone does not keep one tenant out of another's project).
+// The tenant, licence and permission checks are `entitlementGate.test.ts` (G-130). What a scan cannot prove — that the
+// refusal really happens and the allowed path really works — stays in the live tests; docs/GATE6_RECORDS.md lists which.
+const dir = __dirname;
+const sources = Object.fromEntries(readdirSync(dir).filter(name => /\.ts$/.test(name) && !/\.(test|spec)\.ts$/.test(name)).map(name => [name, readFileSync(join(dir, name), "utf8")]));
+const routers = sources["routers.ts"];
+
+function bodyOf(name: string): string | null {
+  for (const source of Object.values(sources)) {
+    const match = new RegExp(`export (?:async )?function ${name}\\b`).exec(source);
+    if (!match) continue;
+    const rest = source.slice(match.index + match[0].length);
+    const next = rest.search(/\nexport (?:async )?function /);
+    return source.slice(match.index, match.index + match[0].length + (next === -1 ? rest.length : next));
+  }
+  return null;
+}
+
+// Mutation procedures and the function each one calls (directly, or inside withClientRequest).
+const mutations = Array.from(routers.matchAll(/(\w+): protectedProcedure[\s\S]*?\.mutation\(\(\{[^\n]*?\}\) => (?:withClientRequest\([^\n]*?\(\) => )?(\w+)\(/g)).map(match => ({ procedure: match[1], fn: match[2] }));
+const calledNames = new Set(Array.from(routers.matchAll(/\b([a-zA-Z]+)\(\{/g)).map(match => match[1]));
+
+const NO_AUDIT_BY_DESIGN: Record<string, string> = {
+  analyzePmcImport: "analysis only: nothing is written until the approved file is confirmed, and confirmation is audited",
+  exportPmcScreen: "a read-only export; PMC reads are not audited (listed as a gap in docs/GATE6_RECORDS.md)",
+  claimSupportTicket: "delegates to transitionSupportTicket, which writes the audit row",
+  generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
+};
+const PROJECT_GUARD = /assertProjectWithinTenant|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+
+describe("Gate 6, static part (G-110)", () => {
+  it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {
+    expect(mutations.length).toBeGreaterThan(100);
+    expect(mutations.map(m => m.fn)).toEqual(expect.arrayContaining(["createProgressEntry", "createTeamTimeEntriesForTenant", "allocateApprovedPayrollCostForTenant"]));
+  });
+
+  it("every mutation writes an audit row, or is listed with the reason it does not", () => {
+    const missing = mutations.map(m => m.fn).filter(fn => { const body = bodyOf(fn); return body !== null && !/auditLogs|audit/i.test(body) && !(fn in NO_AUDIT_BY_DESIGN); });
+    expect(Array.from(new Set(missing))).toEqual([]);
+  });
+
+  it("every function that takes a project proves the project belongs to the caller's tenant", () => {
+    const unguarded: string[] = [];
+    for (const name of calledNames) {
+      const body = bodyOf(name); if (!body) continue;
+      const firstLine = body.split("\n")[0];
+      if (!(firstLine.includes("projectId") && firstLine.includes("tenantId"))) continue;
+      if (!PROJECT_GUARD.test(body)) unguarded.push(name);
+    }
+    expect(unguarded).toEqual([]);
+  });
+
+  it("keeps the audit exemption list honest", () => {
+    const names = new Set(mutations.map(m => m.fn));
+    const stale = Object.keys(NO_AUDIT_BY_DESIGN).filter(fn => names.has(fn) && bodyOf(fn) !== null && /auditLogs/.test(bodyOf(fn)!));
+    expect(stale).toEqual([]);
+  });
+});
