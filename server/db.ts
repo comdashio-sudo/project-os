@@ -3199,14 +3199,14 @@ export async function reportDashboardSectionIssueForTenant(input: { userId: numb
 export async function getInternalNotificationsForTenant(input: { userId: number; tenantId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   return db.select({ id: internalNotifications.id, notificationCode: internalNotifications.notificationCode, projectId: internalNotifications.projectId, entityType: internalNotifications.entityType, entityId: internalNotifications.entityId, payload: internalNotifications.payload, acknowledgedAt: internalNotifications.acknowledgedAt, createdAt: internalNotifications.createdAt }).from(internalNotifications).where(and(eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))).orderBy(desc(internalNotifications.createdAt));
 }
 
 export async function acknowledgeInternalNotification(input: { userId: number; tenantId: string; notificationId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   const [notification] = await db.select({ id: internalNotifications.id, acknowledgedAt: internalNotifications.acknowledgedAt }).from(internalNotifications).where(and(eq(internalNotifications.id, input.notificationId), eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))).limit(1);
   if (!notification) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_NOTIFICATION_NOT_FOUND" });
   if (notification.acknowledgedAt) return { id: notification.id, acknowledgedAt: notification.acknowledgedAt };

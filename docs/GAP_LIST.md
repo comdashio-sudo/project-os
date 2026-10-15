@@ -141,7 +141,7 @@ Phase A is "closed" in STATE/closeout. Present: 12 tables w/ tenant+project, FKs
 
 | ID | Source | Promise | Status | Evidence / what was searched | Live DB | Size |
 |---|---|---|---|---|---|---|
-| G-130 | ACC:20 | Entitlement check on all actions | PARTIAL | self-declared "partial" (ACC:20); G-049/G-120 show new cases. | yes | M |
+| G-130 | ACC:20 | Entitlement check on all actions | CLOSED (WO2) | `entitlementGate.test.ts` scans every server function a router calls with a tenant (>150) and fails by name when one reaches no entitlement gate; 17 deliberate exceptions (support, billing, platform admin, own notifications) are on a closed list with reasons. Found and fixed: notification list/acknowledge answered a suspended member. Live + negative check. | yes | M |
 | G-131 | ACC:22, 71 | App DB account has only SELECT+INSERT on audit_logs; SHOW GRANTS + denial test before Pilot | PARTIAL | scripts/verify-audit-log-grants.mjs and provision scripts exist; execution is DBA-owned (BLOCKED_BY_OWNER in STATE). | yes | S |
 | G-132 | ACC:24, 72 | Screen-reader / manual keyboard review; manual role rounds with real accounts | MISSING | todo.md:347,350 unchecked; MANUAL_ACCESSIBILITY_ACCEPTANCE.md is a protocol only. HANDOFF_REQUIRED. | no | M |
 | G-133 | ACC:73 | External notifications (email) with delivery policy | MISSING | grep smtp/nodemailer/resend/sendgrid in server/, package.json = 0 hits (secretScan test only). BLOCKED_BY_OWNER. | yes | M |
@@ -276,3 +276,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 | G-030 (ساعات فريق كامل دفعة واحدة) | أُغلق | تبويب «ساعات الفريق» بحفظ واحد، والخادم يحفظ الكل أو لا شيء ويسمّي كل صف فاسد. الزمن ≤45 ث بنية لا بقياس بشري. |
 | G-033 (حفظ محلي وإرسال عند العودة) | أُغلق مع حد | مفتاح تكرار في الخادم (`client_requests`) + طابور على الهاتف يُرسل بالترتيب بالمعرّف نفسه؛ حالة الاتصال والمعلّق والمرفوض ظاهرة. `localStorage` فقط: لا إرسال والتبويب مغلق. |
 | G-109 (رسالة محلية لكل رمز خطأ في الخادم) | أُغلق | كانت 72 رمزًا بلا رسالة (الرواتب، الاستيراد، الاستلام، PMC، التحويل…) فيرى المستخدم نصًّا عامًّا؛ أُضيفت 68 رسالة عربية وإنجليزية، واستُثني 4 رموز ليست للمستخدم (علامات نجاح وأخطاء مجدول). اختبار يمسح المصدر فيفشل عند رمز جديد بلا رسالة (فحص سلبي: حذف رسالة واحدة يُفشله). |
+| G-130 (فحص الترخيص على كل الإجراءات) | أُغلق | اختبار مسح مصدري: كل دالة خادم يستدعيها الموجّه بمستأجر تبلغ بوابة ترخيص (عضوية فعّالة + منتج مرخَّص + صلاحية + نطاق) أو تكون في قائمة مغلقة معلَّلة (الدعم والفوترة ومدير المنصة وإشعارات المستخدم نفسه). وجد عيبًا حقيقيًا: قراءة الإشعارات وإقرارها كانا يجيبان عضوًا معلَّقًا؛ أُصلحا بدليل حي وفحص سلبي. |
