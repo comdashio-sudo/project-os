@@ -219,7 +219,7 @@ describe("FieldEntry: requests that survive a lost connection (G-033)", () => {
 
   it("opens from the last data saved on the phone when the connection is gone", () => {
     setOnline(false);
-    localStorage.setItem("fieldEntry:context:t:p", JSON.stringify(context));
+    localStorage.setItem("fieldEntry:context:7:t:p", JSON.stringify(context));
     state.query = { data: undefined, isLoading: false, error: null };
     render(<FieldEntry />);
     expect(screen.getByText(/last data saved on the phone/)).toBeTruthy();
@@ -294,7 +294,7 @@ describe("FieldEntry: team hours in one go (G-030)", () => {
     cleanup();
     setOnline(false);
     const iso = new Date(); const day = `${iso.getFullYear()}-${String(iso.getMonth() + 1).padStart(2, "0")}-${String(iso.getDate()).padStart(2, "0")}`;
-    localStorage.setItem(`fieldEntry:sheet:p:${day}`, JSON.stringify(sheet));
+    localStorage.setItem("fieldEntry:sheet:7:p", JSON.stringify({ date: day, sheet }));
     state.sheet = { data: undefined, isLoading: false, error: null };
     load(withTeam);
     fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
@@ -445,6 +445,31 @@ describe("FieldEntry: one person's queue is not another's", () => {
     fireEvent.click(screen.getByText("1 · Foundations")); fireEvent.click(screen.getByText("75%")); fireEvent.click(screen.getByText("Save"));
     expect(screen.getByRole("alert").textContent).toContain("Could not keep it on this phone");
     expect(Object.keys(localStorage).filter(key => key.startsWith("projectOs.offlineQueue"))).toEqual([]);
+  });
+});
+
+describe("FieldEntry: what is kept on the phone belongs to a person (names are personal data)", () => {
+  it("keeps only the latest team sheet, for the signed-in person only, and does not show another person's or another day's", () => {
+    state.sheet = { data: sheet, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    const keys = Object.keys(localStorage).filter(key => key.startsWith("fieldEntry:sheet:"));
+    expect(keys).toEqual(["fieldEntry:sheet:7:p"]); // one key, no date in it: tomorrow's sheet replaces today's
+    cleanup();
+    // person 8 is offline on the same phone: person 7's stored sheet is not shown to them
+    setOnline(false);
+    state.me = { id: 8 }; state.sheet = { data: undefined, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    expect(screen.queryByText("E-1 · Worker One")).toBeNull();
+    cleanup();
+    // person 7 is offline on another day: yesterday's sheet is not shown as today's
+    state.me = { id: 7 };
+    localStorage.setItem("fieldEntry:sheet:7:p", JSON.stringify({ date: "2000-01-01", sheet }));
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    expect(screen.queryByText("E-1 · Worker One")).toBeNull();
+    setOnline(true);
   });
 });
 });

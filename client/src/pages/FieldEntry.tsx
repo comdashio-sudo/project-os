@@ -218,7 +218,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
   );
 }
 
-function TeamHoursEntry({ tenantId, projectId, t, isArabic, keepOffline, online }: { tenantId: string; projectId: string; t: T; isArabic: boolean; keepOffline: KeepOffline; online: boolean }) {
+function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, keepOffline, online }: { tenantId: string; projectId: string; personId: number | null; t: T; isArabic: boolean; keepOffline: KeepOffline; online: boolean }) {
   const [date, setDate] = useState(todayIso);
   const [hours, setHours] = useState<Record<string, string>>({});
   const [unticked, setUnticked] = useState<Set<string>>(new Set());
@@ -226,10 +226,12 @@ function TeamHoursEntry({ tenantId, projectId, t, isArabic, keepOffline, online 
   const [done, setDone] = useState<{ count: number; queued: boolean } | null>(null);
   const [notKept, setNotKept] = useState(false);
   const requestId = useRef(newId());
-  const sheetKey = `fieldEntry:sheet:${projectId}:${date}`;
+  // The sheet carries employees' names, so it is kept for the signed-in person only and only the latest one (a new one replaces it).
+  const sheetKey = `fieldEntry:sheet:${personId ?? "anon"}:${projectId}`;
   const sheet = trpc.teamHours.sheet.useQuery({ tenantId, projectId, workDate: dayOf(date) }, { ...attempt, retry: 1 });
-  useEffect(() => { if (sheet.data) remember(sheetKey, JSON.stringify(sheet.data)); }, [sheet.data, sheetKey]);
-  const cached = !sheet.data && (!online || (sheet.error && isNetworkError(sheet.error))) ? readCache<Sheet>(sheetKey) : null;
+  useEffect(() => { if (sheet.data && personId !== null) remember(sheetKey, JSON.stringify({ date, sheet: sheet.data })); }, [sheet.data, sheetKey, date, personId]);
+  const cachedEntry = !sheet.data && personId !== null && (!online || (sheet.error && isNetworkError(sheet.error))) ? readCache<{ date: string; sheet: Sheet }>(sheetKey) : null;
+  const cached = cachedEntry && cachedEntry.date === date ? cachedEntry.sheet : null;
   const rows = (sheet.data ?? cached)?.rows ?? null;
   const hoursOf = (assignmentId: string) => hours[assignmentId] ?? "8";
   const eligible = (rows ?? []).filter(row => row.attendanceApproved && !row.entered);
@@ -336,10 +338,10 @@ export default function FieldEntry() {
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null);
-  const contextKey = `fieldEntry:context:${tenantId}:${projectId}`;
+  const contextKey = `fieldEntry:context:${me.data?.id ?? "anon"}:${tenantId}:${projectId}`;
   const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), ...attempt, retry: 1 });
-  useEffect(() => { if (context.data) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey]);
-  const cachedContext = !context.data && (!queue.online || (context.error && isNetworkError(context.error))) ? readCache<Context>(contextKey) : null;
+  useEffect(() => { if (context.data && me.data?.id) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey, me.data?.id]);
+  const cachedContext = !context.data && Boolean(me.data?.id) && (!queue.online || (context.error && isNetworkError(context.error))) ? readCache<Context>(contextKey) : null;
   const data = context.data ?? cachedContext;
   const can = { progress: data ? data.can.logProgress : true, issue: data ? data.can.issueMaterial : true, receive: data ? Boolean(data.can.receiveMaterial) : false, team: data ? Boolean(data.can.logTeamHours) : false };
   const tabs = (["progress", "issue", ...(can.receive ? ["receive"] : []), ...(can.team ? ["team"] : [])] as Array<"progress" | "issue" | "receive" | "team">);
@@ -364,7 +366,7 @@ export default function FieldEntry() {
             ? <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
             : tab === "receive"
               ? <ReceiptEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
-              : <TeamHoursEntry tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
+              : <TeamHoursEntry tenantId={tenantId} projectId={projectId} personId={me.data?.id ?? null} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
       </div>
     </main>
   );
