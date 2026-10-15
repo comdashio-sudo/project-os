@@ -37,14 +37,17 @@ export async function readSpreadsheetSafely(input: Uint8Array | string, format: 
   }
 }
 
-export function worksheetToRows(sheet: ExcelJS.Worksheet): { headers: string[]; rows: Record<string, unknown>[] } {
+export type SpreadsheetLimits = { maxRows: number; maxColumns: number };
+const defaultLimits: SpreadsheetLimits = { maxRows: MAX_IMPORT_ROWS, maxColumns: MAX_IMPORT_COLUMNS };
+
+export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLimits = defaultLimits): { headers: string[]; rows: Record<string, unknown>[] } {
   const headerRow = sheet.getRow(1);
-  const headers = Array.from({ length: Math.min(sheet.columnCount, MAX_IMPORT_COLUMNS + 1) }, (_unused, index) => {
+  const headers = Array.from({ length: Math.min(sheet.columnCount, limits.maxColumns + 1) }, (_unused, index) => {
     const cell = headerRow.getCell(index + 1);
     return String(cell.text ?? "").trim();
   });
   const rows: Record<string, unknown>[] = [];
-  const lastRow = Math.min(sheet.rowCount, MAX_IMPORT_ROWS + 2);
+  const lastRow = Math.min(sheet.rowCount, limits.maxRows + 2);
   for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     const values = Object.fromEntries(headers.map((header, index) => {
@@ -59,9 +62,9 @@ export function worksheetToRows(sheet: ExcelJS.Worksheet): { headers: string[]; 
   return { headers, rows };
 }
 
-export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<string, unknown>[]) {
-  if (sheet.columnCount > MAX_IMPORT_COLUMNS) return "IMPORT_TOO_MANY_COLUMNS" as const;
-  if (sheet.rowCount - 1 > MAX_IMPORT_ROWS) return "IMPORT_TOO_MANY_ROWS" as const;
+export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<string, unknown>[], limits: SpreadsheetLimits = defaultLimits) {
+  if (sheet.columnCount > limits.maxColumns) return "IMPORT_TOO_MANY_COLUMNS" as const;
+  if (sheet.rowCount - 1 > limits.maxRows) return "IMPORT_TOO_MANY_ROWS" as const;
   return undefined;
 }
 
