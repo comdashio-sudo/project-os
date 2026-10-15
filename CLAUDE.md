@@ -9,9 +9,8 @@
 - `docs/STATE.md` هو المرجع الحاكم. يتقدم عند التعارض على `todo.md` و`PROJECT_STATUS.md` و`TEST_EVIDENCE_MATRIX.md` و`ACCEPTANCE_CRITERIA.md` (`STATE.md:3`).
 - اقرأه أولًا قبل أي عمل. إن عارضت حالته افتراض العمل المحلي، توقف وأبلغ المالك (`STATE.md:14`).
 - المستودع الحاكم هو `github.com/comdashio-sudo/project-os` على الفرع `main`، ونُقل إليه من `ramezsamerr-collab/project-os` في 2026-10-15.
-  - **تنبيه:** الوثائق تسمّي المرجع `github/main`، وتصف `origin` بأنه قناة Manus الداخلية على `artifacts.cloudflare.net`.
-  - في النسخ المأخوذة بعد النقل، `origin` **هو** GitHub الحاكم، ولا يوجد remote باسم `github`.
-  - تحقق بـ`git remote -v` قبل أي fetch أو push. لا تدفع إلى أي remote يشير إلى `artifacts.cloudflare.net`.
+  - **قاعدة `origin` (قرار المالك، 2026-10-15):** `origin` هو GitHub الحاكم. الدفع إليه على الفروع مسموح، والدمج إلى `main` بقرار المالك فقط (`STATE.md:12`).
+  - ما تذكره السجلات القديمة عن remote `github` وعن `origin` بوصفه قناة Manus وصفٌ تاريخي. لا تدفع إلى أي remote يشير إلى `artifacts.cloudflare.net`.
 - مفردات الحالة قائمة مغلقة: `PROVEN`، `PROVEN_ON_STAGING`، `SOURCE_VERIFIED`، `WRITTEN`، `UNVERIFIED`، `OPEN`، `BLOCKED_BY_OWNER`، `BLOCKED_BY_PLATFORM`، `BLOCKED_BY_CLAUDE_CODE`، `HANDOFF_REQUIRED` (`STATE.md:16`).
   - لا `COMPLETE` ولا `GO`. القبول النهائي يتطلب جولات أدوار يدوية بحسابات حقيقية، بلا SQL مباشر (`STATE.md:8`).
 - `PROVEN` تعني دليلًا آليًا قابلًا لإعادة التشغيل **داخل الصف نفسه**: الأمر والعدد والتاريخ والـhash (`STATE.md:18`، `WORK_ORDER_EXTENDED.md:27`).
