@@ -275,5 +275,7 @@ function ManagerLane({ icon: Icon, title, detail, action, onClick }: { icon: typ
 }
 
 function OperationsGroup({ id, title, children, defaultOpen = false }: { id?: string; title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{children}</div></details>;
+  // A link such as /controls#manager-commercial (from a cost line's source document) opens the section it names.
+  const linked = typeof window !== "undefined" && Boolean(id) && window.location.hash === `#${id}`;
+  return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{children}</div></details>;
 }

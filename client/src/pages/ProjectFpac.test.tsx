@@ -6,12 +6,14 @@ import { ProjectFpac } from "./ProjectFpac";
 
 const state = vi.hoisted(() => ({ arabic: false, report: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, history: { data: [] } as Record<string, unknown>, breakdown: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, refetch: vi.fn() }));
 vi.mock("./LabourLoadingCard", () => ({ default: () => null })); // tested on its own
+vi.mock("./CashFlowMonthly", () => ({ default: () => null }));
+vi.mock("./ProjectInvoicesPanel", () => ({ default: () => null }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { project: { useQuery: () => ({ ...state.report, refetch: state.refetch }) }, history: { useQuery: () => state.history }, costBreakdown: { useQuery: () => state.breakdown } } } }));
 afterEach(() => { cleanup(); state.arabic = false; state.report = { data: undefined, isLoading: false, error: null }; state.history = { data: [] }; state.breakdown = { data: undefined, isLoading: false, error: null }; state.refetch.mockReset(); });
 
 const ok = <T,>(data: T) => ({ status: "ok" as const, data });
-const wbsRow = (id: string, code: string, planned: number, actual: number, forecast: number) => ({ wbsItemId: id, code, name: `Item ${code}`, planned, actual, forecast, variance: planned - forecast });
+const wbsRow = (id: string, code: string, planned: number, actual: number, forecast: number, committed = 0) => ({ wbsItemId: id, code, name: `Item ${code}`, planned, actual, committed, forecast, variance: planned - forecast });
 function report(overrides: Record<string, unknown> = {}) {
   const freshness = { level: "fresh", staleAfterDays: 7, perSource: [{ source: "progress", lastUpdatedAt: new Date(), ageDays: 0 }, { source: "materials", lastUpdatedAt: new Date(), ageDays: 2 }, { source: "labour", lastUpdatedAt: new Date(), ageDays: 3 }], percentWbsUpdated: 62, staleSources: [], neverUpdated: [], stalestSource: "labour", oldestAgeDays: 3 };
   return {
@@ -21,7 +23,7 @@ function report(overrides: Record<string, unknown> = {}) {
     movement: ok({ since: "2026-09-30T00:00:00.000Z", fpacNow: 250, fpacLast: 300, delta: -50, deltaPercent: -16.67, direction: "down", causes: { contractValue: 50, actualCost: -100, forecastToComplete: 0 }, dominantCause: "actualCost", wbs: { rows: [], raisedProfit: [], loweredProfit: [{ wbsItemId: "w1", code: "1", name: "Foundations", eacNow: 700, eacLast: 600, eacDelta: 100, profitEffect: -100, isNew: false, isRemoved: false }], totalEacDelta: 100 } }),
     cash: ok({ openCommitment: 40, receipts: 100, outflows: 400, netCashFlow: -300, warning: true }),
     freshness,
-    drill: ok({ items: [wbsRow("w1", "1", 600, 400, 700), wbsRow("w2", "2", 400, 100, 300)], unallocatedActual: 0, reconciliationDifference: 0 }),
+    drill: ok({ items: [wbsRow("w1", "1", 600, 400, 700, 150), wbsRow("w2", "2", 400, 100, 300, 50)], totals: { planned: 1000, actual: 500, committed: 200, forecast: 1000, variance: 0 }, unallocatedActual: 0, reconciliationDifference: 0 }),
     ...overrides,
   };
 }
@@ -83,7 +85,7 @@ describe("ProjectFpac (real profitability)", () => {
   });
 
   it("explains an unavailable headline instead of showing a number, and an empty drill-down", () => {
-    show(report({ headline: { status: "unavailable", reason: "EVM_INPUTS_INCONSISTENT" }, drill: ok({ items: [], unallocatedActual: 0, reconciliationDifference: null }) }));
+    show(report({ headline: { status: "unavailable", reason: "EVM_INPUTS_INCONSISTENT" }, drill: ok({ items: [], totals: { planned: 0, actual: 0, committed: 0, forecast: 0, variance: 0 }, unallocatedActual: 0, reconciliationDifference: null }) }));
     expect(screen.queryByTestId("fpac-value")).toBeNull();
     expect(screen.getByText(/Cost and progress inputs are inconsistent/)).toBeTruthy();
     expect(screen.getByText(/Not enough data yet/)).toBeTruthy();
@@ -95,7 +97,18 @@ describe("ProjectFpac (real profitability)", () => {
     fireEvent.click(screen.getAllByText("Show sources")[0]);
     expect(screen.getByText("Where the actual cost came from")).toBeTruthy();
     expect(screen.getByText(/Materials:/).textContent).toContain("300 SAR");
-    expect(screen.getByText(/goods_receipt_note abcdef12/)).toBeTruthy();
+    // the source document is a link to the screen that holds it
+    const link = screen.getByRole("link", { name: /Goods receipt abcdef12/ });
+    expect(link.getAttribute("href")).toBe("/projects/t/p/controls#manager-commercial");
+  });
+
+  it("reads the same five figures at every level: a project row over the items, with the open commitment beside the actual", () => {
+    show(report());
+    const totals = screen.getByTestId("drill-totals");
+    expect(Array.from(totals.querySelectorAll("td")).map(td => td.textContent)).toEqual(["Whole project", "1,000 SAR", "500 SAR", "200 SAR", "1,000 SAR", "0 SAR", ""]);
+    expect(screen.getByText("Committed (open)")).toBeTruthy();
+    const firstItem = screen.getByText("1 · Item 1").closest("tr")!;
+    expect(Array.from(firstItem.querySelectorAll("td")).slice(0, 5).map(td => td.textContent)).toEqual(["1 · Item 1", "600 SAR", "400 SAR", "150 SAR", "700 SAR"]);
   });
 
   it("renders in Arabic", () => {

@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { ageSentence, formatMoney, formatPercent, sourceAnchor, sparklinePoints, trend, type Source } from "@/lib/profitabilityView";
+import { ageSentence, formatMoney, formatPercent, sourceAnchor, sourceRoute, sparklinePoints, trend, type Source } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
+import CashFlowMonthly from "./CashFlowMonthly";
 import LabourLoadingCard from "./LabourLoadingCard";
+import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
 
 const text = {
   ar: {
@@ -17,7 +19,7 @@ const text = {
     cash: "الربح ليس نقدًا", openCommitment: "الالتزام المفتوح", receipts: "المقبوضات", outflows: "المصروفات", netCash: "صافي التدفق النقدي", cashWarning: "الربح موجب لكن صافي التدفق النقدي سالب: المشروع يربح على الورق ويستهلك سيولة.",
     confidence: "ثقة الرقم", staleWarning: (age: number, source: string) => `هذا الرقم مبني على ${source} آخر تحديثه قبل ${age} يومًا`, neverWarning: (source: string) => `هذا الرقم لا يتضمن ${source}: لم يُسجَّل أي إدخال بعد`, dominant: "● السبب الأكبر", percentWbs: (n: number) => `${n}% من البنود محدّثة خلال 7 أيام`, openSource: "افتح المصدر الأقدم تحديثًا",
     progress: "التقدم", materials: "المواد", labour: "العمالة", unknownFreshness: "لا توجد بيانات كافية لتقدير حداثة الرقم.",
-    drill: "أعلى 5 بنود WBS بانحراف", item: "البند", planned: "المخطط", actual: "الفعلي", forecast: "المتوقع", gap: "الانحراف", unallocated: "تكلفة فعلية غير موزعة على بند", reconciliation: "فرق التسوية بين البنود والمشروع",
+    drill: "أعلى 5 بنود WBS بانحراف", item: "البند", planned: "المخطط", actual: "الفعلي", committed: "الملتزَم (مفتوح)", whole: "المشروع كله", forecast: "المتوقع", gap: "الانحراف", unallocated: "تكلفة فعلية غير موزعة على بند", reconciliation: "فرق التسوية بين البنود والمشروع",
     breakdown: "من أين جاءت التكلفة الفعلية", category: "الفئة", materialsC: "مواد", labourC: "عمالة", subcontractC: "عقود باطن", otherC: "أخرى", sourceDoc: "المستند المصدر", noBreakdown: "لا قيود تكلفة فعلية لهذا البند.", open: "عرض المصادر",
     unavailable: "غير متاح", reasons: { NO_PREVIOUS_SNAPSHOT: "لا توجد لقطة سابقة للمقارنة بعد. تُحفظ لقطة شهرية تلقائيًا.", EVM_INPUTS_INCONSISTENT: "مدخلات التكلفة والتقدم غير متسقة، راجع الميزانية والتقدم.", EVM_UNAVAILABLE: "تعذر احتساب القيمة المكتسبة لهذا المشروع.", CASH_SOURCES_UNAVAILABLE: "تعذر قراءة أوامر الشراء أو المقبوضات.", WBS_UNAVAILABLE: "تعذر تفصيل البنود." } as Record<string, string>,
     empty: "لا بيانات كافية بعد: أضف ميزانية وتقدمًا وتكلفة فعلية لتظهر الربحية.",
@@ -33,7 +35,7 @@ const text = {
     cash: "Profit is not cash", openCommitment: "Open commitment", receipts: "Receipts", outflows: "Outflows", netCash: "Net cash flow", cashWarning: "Profit is positive but net cash flow is negative: the project earns on paper and consumes liquidity.",
     confidence: "Confidence in the number", staleWarning: (age: number, source: string) => `This number rests on ${source} last updated ${age} days ago`, neverWarning: (source: string) => `This number has no ${source} behind it: nothing has been recorded yet`, dominant: "● largest cause", percentWbs: (n: number) => `${n}% of items updated within 7 days`, openSource: "Open the stalest source",
     progress: "progress", materials: "materials", labour: "labour", unknownFreshness: "There is not enough data to judge how fresh the number is.",
-    drill: "Top 5 WBS items by variance", item: "Item", planned: "Planned", actual: "Actual", forecast: "Forecast", gap: "Variance", unallocated: "Actual cost not allocated to any item", reconciliation: "Reconciliation difference between items and project",
+    drill: "Top 5 WBS items by variance", item: "Item", planned: "Planned", actual: "Actual", committed: "Committed (open)", whole: "Whole project", forecast: "Forecast", gap: "Variance", unallocated: "Actual cost not allocated to any item", reconciliation: "Reconciliation difference between items and project",
     breakdown: "Where the actual cost came from", category: "Category", materialsC: "Materials", labourC: "Labour", subcontractC: "Subcontract", otherC: "Other", sourceDoc: "Source document", noBreakdown: "No actual cost entries for this item.", open: "Show sources",
     unavailable: "Unavailable", reasons: { NO_PREVIOUS_SNAPSHOT: "There is no earlier snapshot to compare with yet. One is saved automatically every month.", EVM_INPUTS_INCONSISTENT: "Cost and progress inputs are inconsistent; review the budget and progress.", EVM_UNAVAILABLE: "Earned value could not be calculated for this project.", CASH_SOURCES_UNAVAILABLE: "Purchase orders or receipts could not be read.", WBS_UNAVAILABLE: "The item breakdown could not be produced." } as Record<string, string>,
     empty: "Not enough data yet: add a budget, progress and actual cost for profitability to appear.",
@@ -166,24 +168,28 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th /></tr></thead>
+              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th /></tr></thead>
               <tbody>
+                <tr className="border-t bg-slate-50 font-semibold" data-testid="drill-totals">
+                  <td className="py-1.5 pe-3">{t.whole}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.planned)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.actual)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.committed)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.forecast)}</td>
+                  <td className={`whitespace-nowrap pe-3 ${toneClass[trend(data.drill.data.totals.variance).tone]}`}>{money(data.drill.data.totals.variance)}</td><td />
+                </tr>
                 {data.drill.data.items.map(item => (
                   <React.Fragment key={item.wbsItemId}>
                     <tr className="border-t">
-                      <td className="py-1.5 pe-3">{item.code} · {item.name}</td><td className="whitespace-nowrap pe-3">{money(item.planned)}</td><td className="whitespace-nowrap pe-3">{money(item.actual)}</td><td className="whitespace-nowrap pe-3">{money(item.forecast)}</td>
+                      <td className="py-1.5 pe-3">{item.code} · {item.name}</td><td className="whitespace-nowrap pe-3">{money(item.planned)}</td><td className="whitespace-nowrap pe-3">{money(item.actual)}</td><td className="whitespace-nowrap pe-3">{money(item.committed)}</td><td className="whitespace-nowrap pe-3">{money(item.forecast)}</td>
                       <td className={`whitespace-nowrap pe-3 ${toneClass[trend(item.variance).tone]}`}>{money(item.variance)}</td>
                       <td><Button size="sm" variant="outline" aria-expanded={openItem === item.wbsItemId} onClick={() => setOpenItem(openItem === item.wbsItemId ? null : item.wbsItemId)}>{t.open}</Button></td>
                     </tr>
                     {openItem === item.wbsItemId && (
-                      <tr><td colSpan={6} className="bg-slate-50 p-3">
+                      <tr><td colSpan={7} className="bg-slate-50 p-3">
                         <p className="text-xs text-slate-500">{t.breakdown}</p>
                         {breakdown.isLoading && <p role="status" className="text-sm">{t.loading}</p>}
                         {breakdown.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(breakdown.error, isArabic)}</p>}
                         {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-slate-500">{t.noBreakdown}</p> : (
                           <>
                             <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-white px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
-                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {line.sourceType ?? "—"}{line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""}</li>)}</ul>
+                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (isArabic ? route.label.ar : route.label.en) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-[#0e6b70] underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
                           </>
                         ))}
                       </td></tr>
@@ -197,6 +203,8 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
+      <CashFlowMonthly tenantId={tenantId} projectId={projectId} currency={currency} />
+      <ProjectInvoicesPanel tenantId={tenantId} projectId={projectId} currency={currency} />
       <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />
     </section>
   );
