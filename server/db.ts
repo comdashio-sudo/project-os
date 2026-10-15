@@ -2715,14 +2715,15 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
-  const [warehouses, materials, movements, issues, receipts, wbs, progress] = await Promise.all([
+  const [warehouses, materials, movements, issues, receipts, wbs, progress, issuedOrders] = await Promise.all([
     db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name }).from(projectWarehouses).where(and(mine(projectWarehouses), eq(projectWarehouses.active, true))).orderBy(asc(projectWarehouses.code)),
     db.select({ id: materialMasters.id, code: materialMasters.code, description: materialMasters.description, unitOfMeasure: materialMasters.unitOfMeasure }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)).orderBy(asc(materialMasters.code)),
     db.select({ warehouseId: warehouseInventoryTransactions.warehouseId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(mine(warehouseInventoryTransactions)),
     db.select({ materialId: materialIssues.materialId, unitCost: materialIssues.unitCost, issuedAt: materialIssues.issuedAt, wbsItemId: materialIssues.wbsItemId }).from(materialIssues).where(mine(materialIssues)).orderBy(desc(materialIssues.issuedAt)).limit(200),
-    db.select({ materialId: goodsReceiptNotes.materialId, unitCost: goodsReceiptNotes.unitCost, receivedAt: goodsReceiptNotes.receivedAt }).from(goodsReceiptNotes).where(mine(goodsReceiptNotes)).orderBy(desc(goodsReceiptNotes.receivedAt)).limit(200),
+    db.select({ materialId: goodsReceiptNotes.materialId, purchaseOrderId: goodsReceiptNotes.purchaseOrderId, unitCost: goodsReceiptNotes.unitCost, receivedAt: goodsReceiptNotes.receivedAt }).from(goodsReceiptNotes).where(mine(goodsReceiptNotes)).orderBy(desc(goodsReceiptNotes.receivedAt)).limit(200),
     db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(mine(wbsItems)).orderBy(asc(wbsItems.code)),
     db.select({ wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(mine(progressEntries), eq(progressEntries.status, "submitted"))).orderBy(desc(progressEntries.measuredAt)),
+    db.select({ id: purchaseOrders.id, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, supplierName: purchaseOrders.supplierName, currency: purchaseOrders.currency, commitmentId: purchaseOrders.commitmentId }).from(purchaseOrders).where(and(mine(purchaseOrders), eq(purchaseOrders.status, "issued"))).orderBy(desc(purchaseOrders.orderDate)),
   ]);
   const onHand = new Map<string, number>();
   movements.forEach(m => onHand.set(`${m.warehouseId}:${m.materialId}`, (onHand.get(`${m.warehouseId}:${m.materialId}`) ?? 0) + Number(m.quantityDelta)));
@@ -2738,8 +2739,10 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
     materials: materials.map(m => ({ ...m, lastUnitCost: lastCost.get(`issue:${m.id}`) ?? lastCost.get(m.id) ?? null, timesIssued: lastIssued.get(m.id) ?? 0, onHand: warehouses.map(w => ({ warehouseId: w.id, quantity: Number((onHand.get(`${w.id}:${m.id}`) ?? 0).toFixed(3)) })) })).sort((a, b) => b.timesIssued - a.timesIssued || a.code.localeCompare(b.code)),
     wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null })),
     lastIssuedWbsItemId: issues[0]?.wbsItemId ?? null,
+    // Issued purchase orders a storekeeper can receive against, each with the material last received on it (the likely next one).
+    purchaseOrders: issuedOrders.map(order => ({ id: order.id, purchaseOrderNumber: order.purchaseOrderNumber, supplierName: order.supplierName, currency: order.currency, hasCommitment: Boolean(order.commitmentId), lastReceivedMaterialId: receipts.find(receipt => receipt.purchaseOrderId === order.id)?.materialId ?? null })),
     // What the caller may actually do here, so the screen offers only that. The server still enforces each write.
-    can: { logProgress: snapshot.permissionCodes.includes("project.progress.manage"), issueMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), logTeamHours: snapshot.permissionCodes.includes("project.manage") },
+    can: { logProgress: snapshot.permissionCodes.includes("project.progress.manage"), issueMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), receiveMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), logTeamHours: snapshot.permissionCodes.includes("project.manage") },
   };
 }
 

@@ -2,12 +2,12 @@
 // with the identifier it was first sent with, and is sent again, one at a time and in order, when the phone is back
 // online. The server answers a repeated identifier with the stored first answer (client_requests), so a request whose
 // reply was lost on the way back is never applied twice.
-export type QueueKind = "progress" | "issue" | "team";
+export type QueueKind = "progress" | "issue" | "team" | "receipt";
 export type QueueItem = { id: string; kind: QueueKind; payload: Record<string, unknown>; summary: string; createdAt: string; status: "pending" | "failed"; error?: string };
 export type SendResult = void | { rejected: string };
 export type QueueStore = Pick<Storage, "getItem" | "setItem">;
 
-const DATE_FIELDS = ["reportedAt", "issuedAt", "workDate"];
+const DATE_FIELDS = ["reportedAt", "issuedAt", "workDate", "receivedAt"];
 const keyFor = (scope: string) => `projectOs.offlineQueue.v1:${scope}`;
 const defaultStore = (): QueueStore | null => { try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; } };
 

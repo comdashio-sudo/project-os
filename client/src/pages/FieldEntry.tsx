@@ -20,6 +20,7 @@ const text = {
     pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
     team: "ساعات الفريق", workDate: "يوم العمل", teamEmpty: "لا إسناد يغطي هذا اليوم.", attendanceMissing: "الحضور غير معتمد بعد", entered: "مُدخَلة", hours: "ساعات", saveTeam: "حفظ ساعات الفريق", teamSaved: "حُفظت ساعات", rows: "صفوف", rowErrors: "لم يُحفظ شيء. صحّح الصفوف التالية:",
     queuedSaved: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال", queueNotSaved: "تعذّر الحفظ على الهاتف (مساحة التخزين ممتلئة أو محظورة). أعد الإرسال حين يعود الاتصال.", offline: "لا اتصال", online: "متصل", pending: "بانتظار الإرسال", sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", failedItems: "طلبات رفضها الخادم", discard: "حذف", retryItem: "إعادة", cachedNotice: "لا اتصال: هذه آخر بيانات محفوظة على الهاتف.",
+    receive: "استلام مواد", pickOrder: "اختر أمر الشراء", receivedQty: "الكمية المستلمة", noOrders: "لا أوامر شراء صادرة لهذا المشروع.", received: "استُلمت", from: "من", grn: "إذن الاستلام", rejectedHint: "الكمية المرفوضة تُسجَّل من شاشة الاستلام المكتبية بدليلها.",
   },
   en: {
     title: "Quick site entry", back: "Back to project controls", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
@@ -27,6 +28,7 @@ const text = {
     pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
     team: "Team hours", workDate: "Work day", teamEmpty: "No assignment covers this day.", attendanceMissing: "Attendance not approved yet", entered: "Entered", hours: "hours", saveTeam: "Save team hours", teamSaved: "Hours saved", rows: "rows", rowErrors: "Nothing was saved. Fix these rows:",
     queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
+    receive: "Receive material", pickOrder: "Pick the purchase order", receivedQty: "Quantity received", noOrders: "This project has no issued purchase orders.", received: "Received", from: "from", grn: "Receipt note", rejectedHint: "Rejected quantity, with its evidence, is recorded from the desk receipt screen.",
   },
 };
 type T = typeof text.en;
@@ -155,6 +157,67 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   );
 }
 
+function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
+  const orders = context.purchaseOrders ?? [];
+  const [orderId, setOrderId] = useState(orders.length === 1 ? orders[0].id : "");
+  const [materialId, setMaterialId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [done, setDone] = useState<{ text: string; queued: boolean } | null>(null);
+  const [notKept, setNotKept] = useState(false);
+  const requestId = useRef(newId());
+  const grnNumber = useRef<string | null>(null); // fixed for one intended save, so a resend carries the same number
+  const order = orders.find(o => o.id === orderId) ?? null;
+  const chosenMaterialId = materialId ?? order?.lastReceivedMaterialId ?? null;
+  const material = context.materials.find(m => m.id === chosenMaterialId) ?? null;
+  const summary = `${t.received}: ${quantity} ${material?.unitOfMeasure ?? ""} ${material?.code ?? ""} ${t.from} ${order?.purchaseOrderNumber ?? ""}`;
+  const finish = (queued: boolean) => { setDone({ text: summary, queued }); setQuantity(""); setUnitCost(""); setMaterialId(null); requestId.current = newId(); grnNumber.current = null; };
+  const receive = trpc.goodsReceipts.create.useMutation({
+    ...attempt,
+    onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
+    onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "receipt", payload: variables, summary })) { setNotKept(false); finish(true); } else setNotKept(true); },
+  });
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  if (orders.length === 0) return <p className="text-sm text-slate-500">{t.noOrders}</p>;
+  const qty = Number(quantity);
+  const cost = Number(unitCost || material?.lastUnitCost || 0);
+  const ready = Boolean(order && material && qty > 0 && cost > 0);
+  const submit = () => {
+    if (!grnNumber.current) { const now = new Date(); grnNumber.current = `GRN-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${now.toISOString().slice(11, 19).replace(/:/g, "")}-${requestId.current.slice(0, 4).toUpperCase()}`; }
+    receive.mutate({ tenantId, projectId, grnNumber: grnNumber.current, purchaseOrderId: order!.id, materialId: material!.id, receivedQuantity: qty, rejectedQuantity: 0, unitCost: cost, unitOfMeasure: material!.unitOfMeasure, receivedAt: new Date(), clientRequestId: requestId.current });
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-slate-600">{t.pickOrder}</p>
+      <ul className="space-y-2">
+        {orders.map(item => (
+          <li key={item.id}>
+            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-[#0e6b70] bg-teal-50" : "bg-white"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
+              <span className="font-semibold">{item.purchaseOrderNumber}</span>
+              <span className="block text-xs text-slate-500">{item.supplierName}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {order && (
+        <>
+          <label className="block text-sm">{t.pickMaterial}<select aria-label={t.pickMaterial} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={chosenMaterialId ?? ""} onChange={event => { setMaterialId(event.target.value || null); setUnitCost(""); }}><option value="">—</option>{context.materials.map(m => <option key={m.id} value={m.id}>{m.code} · {m.description}</option>)}</select></label>
+          {material && (
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+              <label className="text-sm">{t.receivedQty} ({material.unitOfMeasure})<input aria-label={t.receivedQty} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
+              <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" placeholder={material.lastUnitCost === null ? "" : String(material.lastUnitCost)} value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
+              <p className="col-span-2 text-xs text-slate-600">{qty > 0 && cost > 0 && <>{t.total}: <b>{(qty * cost).toFixed(2)}</b> {order.currency} · </>}{t.rejectedHint}</p>
+            </div>
+          )}
+        </>
+      )}
+      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
+      {receive.error && !isNetworkError(receive.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(receive.error, isArabic)}</p>}
+      <Button className={`${tap} w-full text-base`} disabled={!ready || receive.isPending} onClick={submit}>{receive.isPending ? t.saving : t.save}</Button>
+    </div>
+  );
+}
+
 function TeamHoursEntry({ tenantId, projectId, t, isArabic, keepOffline, online }: { tenantId: string; projectId: string; t: T; isArabic: boolean; keepOffline: KeepOffline; online: boolean }) {
   const [date, setDate] = useState(todayIso);
   const [hours, setHours] = useState<Record<string, string>>({});
@@ -236,6 +299,7 @@ function useOfflineQueue(scope: string) {
     const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
     if (item.kind === "progress") await client.progress.create.mutate(payload);
     else if (item.kind === "issue") await client.warehouses.issueToWork.mutate(payload);
+    else if (item.kind === "receipt") await client.goodsReceipts.create.mutate(payload);
     else { const result = await client.teamHours.save.mutate(payload); if (result.errors.length) return { rejected: result.errors[0].code }; }
   }, [client]);
   const flush = useCallback(async () => { setFlushing(true); try { await flushQueue(scope, send); } finally { setFlushing(false); refresh(); } }, [scope, send, refresh]);
@@ -254,24 +318,24 @@ export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
-  const [chosen, setTab] = useState<"progress" | "issue" | "team" | null>(null);
+  const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const queue = useOfflineQueue(`${tenantId}:${projectId}`);
   const contextKey = `fieldEntry:context:${tenantId}:${projectId}`;
   const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), ...attempt, retry: 1 });
   useEffect(() => { if (context.data) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey]);
   const cachedContext = !context.data && (!queue.online || (context.error && isNetworkError(context.error))) ? readCache<Context>(contextKey) : null;
   const data = context.data ?? cachedContext;
-  const can = { progress: data ? data.can.logProgress : true, issue: data ? data.can.issueMaterial : true, team: data ? Boolean(data.can.logTeamHours) : false };
-  const tabs = (["progress", "issue", ...(can.team ? ["team"] : [])] as Array<"progress" | "issue" | "team">);
-  const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.team ? "team" : "progress";
-  const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.team;
+  const can = { progress: data ? data.can.logProgress : true, issue: data ? data.can.issueMaterial : true, receive: data ? Boolean(data.can.receiveMaterial) : false, team: data ? Boolean(data.can.logTeamHours) : false };
+  const tabs = (["progress", "issue", ...(can.receive ? ["receive"] : []), ...(can.team ? ["team"] : [])] as Array<"progress" | "issue" | "receive" | "team">);
+  const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.receive ? "receive" : can.team ? "team" : "progress";
+  const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
   return (
     <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} />
-        <div role="tablist" className={`grid gap-2 ${tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
           {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
         </div>
         {cachedContext && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cachedNotice}</p>}
@@ -282,7 +346,9 @@ export default function FieldEntry() {
           ? <ProgressEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
           : tab === "issue"
             ? <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
-            : <TeamHoursEntry tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
+            : tab === "receive"
+              ? <ReceiptEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
+              : <TeamHoursEntry tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
       </div>
     </main>
   );
