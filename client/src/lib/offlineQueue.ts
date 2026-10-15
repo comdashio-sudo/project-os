@@ -3,10 +3,13 @@
 // online. The server answers a repeated identifier with the stored first answer (client_requests), so a request whose
 // reply was lost on the way back is never applied twice.
 export type QueueKind = "progress" | "issue" | "team" | "receipt";
-export type QueueItem = { id: string; kind: QueueKind; payload: Record<string, unknown>; summary: string; createdAt: string; status: "pending" | "failed"; error?: string };
+export type QueueItem = { id: string; kind: QueueKind; payload: Record<string, unknown>; summary: string; createdAt: string; status: "pending" | "failed"; error?: string; busyAnswers?: number };
 export type SendResult = void | { rejected: string };
 export type QueueStore = Pick<Storage, "getItem" | "setItem">;
 
+/** The server says the same request is still running (or its outcome is not known). Asked again a few times before it is shown to the person as failed. */
+export const IN_PROGRESS_CODE = "PROJECT_OS_CLIENT_REQUEST_IN_PROGRESS";
+export const MAX_BUSY_ANSWERS = 5;
 const DATE_FIELDS = ["reportedAt", "issuedAt", "workDate", "receivedAt"];
 const keyFor = (scope: string) => `projectOs.offlineQueue.v1:${scope}`;
 const defaultStore = (): QueueStore | null => { try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; } };
@@ -69,6 +72,11 @@ export async function flushQueue(scope: string, send: (item: QueueItem) => Promi
         else { discard(scope, id, store); outcome.sent += 1; }
       } catch (error) {
         if (isNetworkError(error)) { outcome.stoppedOffline = true; break; }
+        if ((error as { message?: string } | null)?.message === IN_PROGRESS_CODE && (item.busyAnswers ?? 0) + 1 < MAX_BUSY_ANSWERS) {
+          // Likely the first attempt is still being processed: keep it pending, count the answer, and stop here so the order is kept.
+          saveQueue(scope, loadQueue(scope, store).map(entry => entry.id === id ? { ...entry, busyAnswers: (entry.busyAnswers ?? 0) + 1 } : entry), store);
+          outcome.stoppedOffline = true; break;
+        }
         saveQueue(scope, loadQueue(scope, store).map(entry => entry.id === id ? { ...entry, status: "failed" as const, error: (error as { message?: string })?.message ?? "UNKNOWN" } : entry), store);
         outcome.failed += 1;
       }

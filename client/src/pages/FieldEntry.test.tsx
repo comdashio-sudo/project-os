@@ -7,13 +7,13 @@ import FieldEntry from "./FieldEntry";
 const state = vi.hoisted(() => ({
   arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
-  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown,
+  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown,
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   fieldEntry: { context: { useQuery: () => ({ ...state.query, refetch: state.refetch }) } },
-  useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } }, goodsReceipts: { create: { mutate: (input: unknown) => { state.sent("receipt", input); return Promise.resolve({}); } } } } }),
+  useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return state.sendError ? Promise.reject(state.sendError) : Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } }, goodsReceipts: { create: { mutate: (input: unknown) => { state.sent("receipt", input); return Promise.resolve({}); } } } } }),
   goodsReceipts: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.receipt(input); if (state.receiptError) options.onError(state.receiptError, input); else options.onSuccess(); }, isPending: false, error: state.receiptError }) } },
   teamHours: {
     sheet: { useQuery: (input: unknown) => { state.sheetCalls(input); return { ...state.sheet, refetch: state.sheetRefetch }; } },
@@ -34,7 +34,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
+afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
@@ -377,4 +377,51 @@ describe("FieldEntry: receiving against a purchase order (G-031)", () => {
     load(withReceive);
     expect(screen.getByRole("tab", { name: "استلام مواد" })).toBeTruthy();
   });
+
+describe("FieldEntry: the queue keeps trying, without looping (hardening)", () => {
+  const pendingItem = { id: "55555555-5555-4555-8555-555555555555", kind: "progress", payload: { tenantId: "t", projectId: "p", wbsItemId: "x1", percentComplete: 60, reportedAt: "2026-10-15T08:00:00.000Z" }, summary: "1 → 60%", createdAt: "2026-10-15T08:00:00.000Z", status: "pending" };
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("does not re-send in a loop while the server stays unreachable (one attempt per trigger, even though the client object changes on every render)", async () => {
+    state.sendError = new TypeError("Failed to fetch");
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([pendingItem]));
+    load();
+    await waitFor(() => expect(state.sent).toHaveBeenCalledTimes(1));
+    for (let i = 0; i < 5; i += 1) await act(async () => { await Promise.resolve(); });
+    expect(state.sent).toHaveBeenCalledTimes(1);
+    expect(queued()).toMatchObject([{ id: pendingItem.id, status: "pending" }]); // still kept
+  });
+
+  it("tries again every 30 seconds while something waits and the phone believes it is online, and stops once it got through", async () => {
+    vi.useFakeTimers();
+    state.sendError = new TypeError("Failed to fetch");
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([pendingItem]));
+    load();
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(state.sent).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(state.sent).toHaveBeenCalledTimes(2);
+    state.sendError = null; // the server is back
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(state.sent).toHaveBeenCalledTimes(3);
+    expect(queued()).toEqual([]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+    expect(state.sent).toHaveBeenCalledTimes(3); // nothing left to send, no more attempts
+  });
+
+  it("sends a corrected team sheet under a new identifier after the server answered with row errors", () => {
+    state.teamResult = { saved: 0, errors: [{ index: 0, assignmentId: "a1", code: "PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED" }] };
+    state.sheet = { data: sheet, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    fireEvent.click(screen.getByText("Save team hours (2)"));
+    const first = (state.team.mock.calls[0][0] as { clientRequestId: string }).clientRequestId;
+    state.teamResult = { saved: 1, errors: [] };
+    fireEvent.click(screen.getByLabelText("E-1 Worker One")); // correct the sheet: leave E-1 out
+    fireEvent.click(screen.getByText("Save team hours (1)"));
+    const second = (state.team.mock.calls[1][0] as { clientRequestId: string }).clientRequestId;
+    expect(second).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).not.toBe(first); // the old identifier would have replayed the stored errors
+  });
+});
 });
