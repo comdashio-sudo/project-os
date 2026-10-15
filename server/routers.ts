@@ -387,7 +387,7 @@ export const appRouter = router({
   }),
   changes: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getChangeRequestsForTenant({ userId: ctx.user.id, ...input })),
-    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), changeNumber: z.string().trim().min(1).max(120), title: z.string().trim().min(2).max(255), description: z.string().trim().min(5).max(10_000), impactScheduleDays: z.number().int().min(0).max(3650), impactCost: z.number().finite().nonnegative(), currency: z.string().length(3).transform(value => value.toUpperCase()) })).mutation(({ ctx, input }) => createChangeRequestForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), changeNumber: z.string().trim().min(1).max(120), title: z.string().trim().min(2).max(255), description: z.string().trim().min(5).max(10_000), impactScheduleDays: z.number().int().min(0).max(3650), impactCost: z.number().finite().nonnegative(), contractValueImpact: z.number().finite().min(-1_000_000_000_000).max(1_000_000_000_000).optional(), currency: z.string().length(3).transform(value => value.toUpperCase()) })).mutation(({ ctx, input }) => createChangeRequestForTenant({ userId: ctx.user.id, ...input })),
     transitionStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), changeRequestId: z.string().uuid(), nextStatus: z.enum(["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]) })).mutation(({ ctx, input }) => transitionChangeRequestStatus({ userId: ctx.user.id, ...input })),
   }),
   wbs: router({
@@ -397,7 +397,7 @@ export const appRouter = router({
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), code: z.string().trim().min(1).max(80), name: z.string().trim().min(2).max(255), plannedValue: z.number().finite().nonnegative().optional(), plannedStartAt: z.date(), plannedFinishAt: z.date() })).mutation(({ ctx, input }) => createActivity({ userId: ctx.user.id, ...input })),
   }),
   costs: router({
-    createActual: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date() })).mutation(({ ctx, input }) => createCostEntry({ userId: ctx.user.id, ...input })),
+    createActual: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date(), category: z.enum(["materials", "labour", "subcontract", "other"]).optional() })).mutation(({ ctx, input }) => createCostEntry({ userId: ctx.user.id, ...input })),
   }),
   progress: router({
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid(), percentComplete: z.number().min(0).max(100), reportedAt: z.date() })).mutation(({ ctx, input }) => createProgressEntry({ userId: ctx.user.id, ...input })),
