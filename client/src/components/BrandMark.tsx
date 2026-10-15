@@ -1,9 +1,9 @@
 import React from "react";
 
 const BRAND_ASSETS = {
-  horizontal: "/manus-storage/logo-horizontal_2c69258c.svg",
-  horizontalOnDark: "/manus-storage/logo-horizontal-on-dark_d91963f2.svg",
-  icon: "/manus-storage/icon-primary_92c0b589.svg",
+  horizontal: "/brand/logo-horizontal.svg",
+  horizontalOnDark: "/brand/logo-horizontal-on-dark.svg",
+  icon: "/brand/icon-primary.svg",
 } as const;
 
 export function BrandMark({ onDark = false, className = "" }: { onDark?: boolean; className?: string }) {
