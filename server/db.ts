@@ -1,6 +1,9 @@
 import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
+import { buildProfitabilityReport } from "./domain/profitabilityReport";
+import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
+import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
 import { createHash, randomBytes } from "node:crypto";
 import {
   type InsertUser,
@@ -42,6 +45,7 @@ import {
   progressEntries,
   planFeatureEntitlements,
   evmSnapshots,
+  evmWbsSnapshots,
   documentVersions,
   projectCommercialInvoices,
   employees,
@@ -105,7 +109,7 @@ import {
   pmcInspectionSteps,
   pmcBaselines,
 } from "../drizzle/schema";
-import { productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
+import { hasScopeAccess, productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
@@ -2780,21 +2784,107 @@ export async function captureOperationalEvmSnapshot(input: { userId: number; ten
   if (!snapshot) throw new Error("Tenant membership is not available");
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return captureOperationalEvmSnapshotCore(db, { actorUserId: input.userId, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, eacMethod: input.eacMethod, source: "operational_records" });
+}
 
-  const [activityRows, budgetRows, costRows, progressRows, wbsRows] = await Promise.all([
-    db.select({ plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))),
-    db.select({ currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))),
-    db.select({ amount: costEntries.amount, status: costEntries.status, entryType: costEntries.entryType, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId))),
-    db.select({ wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, status: progressEntries.status, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(eq(progressEntries.tenantId, input.tenantId), eq(progressEntries.projectId, input.projectId))),
-    db.select({ id: wbsItems.id, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))),
-  ]);
-  const result = calculateOperationalEvm({ periodAt: input.periodAt, activities: activityRows, budgets: budgetRows, costs: costRows, progress: progressRows, wbs: wbsRows, eacMethod: input.eacMethod });
+/**
+ * Writes the snapshot for a project the caller has already been authorized for.
+ * `actorUserId` is null only for the scheduled job, which is authorized by the
+ * shared cron secret and is recorded in the audit row as source "scheduled".
+ */
+export async function captureOperationalEvmSnapshotCore(db: ProfitabilityDb, input: { actorUserId: number | null; tenantId: string; projectId: string; periodAt: Date; eacMethod: "bac_over_cpi" | "ac_plus_remaining" | "ac_plus_remaining_over_cpi_spi"; source: "operational_records" | "scheduled" }): Promise<{ id: string; sources: OperationalEvmSources } & ReturnType<typeof calculateOperationalEvm>> {
+  const rows = await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: input.projectId });
+  const result = calculateOperationalEvm({ periodAt: input.periodAt, activities: rows.activityRows, budgets: rows.budgetRows, costs: rows.costRows, progress: rows.progressRows, wbs: rows.wbsRows.map(w => ({ id: w.id, plannedValue: w.plannedValue })), eacMethod: input.eacMethod });
+  const profit = snapshotExtension(rows, input.periodAt, input.eacMethod, result);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
-    await tx.insert(evmSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, pv: String(result.pv), ev: String(result.ev), ac: String(result.ac), bac: String(result.bac), cv: String(result.cv), sv: String(result.sv), cpi: result.cpi === null ? null : String(result.cpi), spi: result.spi === null ? null : String(result.spi), eac: String(result.eac), etc: String(result.etc), vac: String(result.vac), tcpi: result.tcpi === null ? null : String(result.tcpi), eacMethod: result.eacMethod });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "evm.operational_snapshot_created", entityType: "evm_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), source: "operational_records", sources: result.sources }) });
+    await tx.insert(evmSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, pv: String(result.pv), ev: String(result.ev), ac: String(result.ac), bac: String(result.bac), cv: String(result.cv), sv: String(result.sv), cpi: result.cpi === null ? null : String(result.cpi), spi: result.spi === null ? null : String(result.spi), eac: String(result.eac), etc: String(result.etc), vac: String(result.vac), tcpi: result.tcpi === null ? null : String(result.tcpi), eacMethod: result.eacMethod, adjustedContractValue: String(profit.adjustedContractValue), fpac: String(profit.fpac) });
+    if (profit.wbsRows.length) await tx.insert(evmWbsSnapshots).values(profit.wbsRows.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, snapshotId: id, wbsItemId: row.wbsItemId, bac: String(row.bac), ac: String(row.ac), eac: String(row.eac) })));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "evm.operational_snapshot_created", entityType: "evm_snapshot", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, periodAt: input.periodAt.toISOString(), source: input.source, sources: result.sources }) });
   });
   return { id, ...result };
+}
+
+type ProfitabilityMethod = "bac_over_cpi" | "ac_plus_remaining" | "ac_plus_remaining_over_cpi_spi";
+
+/** One project's profitability: FPAC, its movement and causes, commitments, cash, freshness. */
+export async function getProjectProfitabilityForTenant(input: { userId: number; tenantId: string; projectId: string; eacMethod?: ProfitabilityMethod; now?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const rows = await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: input.projectId });
+  return buildProfitabilityReport(reportInputFor(rows, input.now ?? new Date(), input.eacMethod ?? DEFAULT_EAC_METHOD));
+}
+
+/** Where a WBS item's actual cost came from (category and source document), for the drill-down. */
+export async function getProfitabilityCostBreakdownForTenant(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const where = and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId), eq(costEntries.status, "posted"), eq(costEntries.entryType, "actual"), input.wbsItemId ? eq(costEntries.wbsItemId, input.wbsItemId) : undefined);
+  const lines = await db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt)).limit(500);
+  const byCategory = new Map<string, number>();
+  for (const line of lines) byCategory.set(line.category, round2((byCategory.get(line.category) ?? 0) + Number(line.amount)));
+  return { truncated: lines.length === 500, byCategory: Array.from(byCategory, ([category, amount]) => ({ category, amount })), lines: lines.slice(0, 100).map(line => ({ ...line, amount: Number(line.amount) })) };
+}
+
+/** Every project the caller may see, losing projects first; one project failing does not blank the rest. */
+export async function getPortfolioProfitabilityForTenant(input: { userId: number; tenantId: string; now?: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "executive.read" });
+  const all = await db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency }).from(projects).where(and(eq(projects.tenantId, input.tenantId), eq(projects.status, "active")));
+  const visible = all.filter(project => hasScopeAccess(snapshot.scopes, { type: "project", id: project.id }));
+  const now = input.now ?? new Date();
+  type Entry = { projectId: string; code: string; name: string; currency: string; fpac: number; movement: number | null };
+  const settled = await Promise.all(visible.map(async (project): Promise<{ entry: Entry } | { failure: { projectId: string; code: string; name: string; reason: string } }> => {
+    const failure = (reason: string) => ({ failure: { projectId: project.id, code: project.code, name: project.name, reason } });
+    try {
+      const report = buildProfitabilityReport(reportInputFor(await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: project.id }), now, DEFAULT_EAC_METHOD));
+      if (report.headline.status !== "ok") return failure(report.headline.reason);
+      return { entry: { projectId: project.id, code: project.code, name: project.name, currency: project.currency, fpac: report.headline.data.fpac, movement: report.movement.status === "ok" ? report.movement.data.delta : null } };
+    } catch {
+      return failure("PROFITABILITY_UNAVAILABLE");
+    }
+  }));
+  const entries = settled.flatMap(item => ("entry" in item ? [item.entry] : []));
+  const currencies = new Set(entries.map(item => item.currency));
+  return {
+    // Summing across currencies would be a number in no currency, so the total is withheld.
+    total: currencies.size <= 1 ? { currency: entries[0]?.currency ?? null, fpac: portfolioFpac(entries) } : null,
+    projects: orderProjectsByRisk(entries),
+    unavailable: settled.flatMap(item => ("failure" in item ? [item.failure] : [])),
+  };
+}
+
+/** Monthly job: one profit snapshot per active project per calendar month (UTC), no actor. */
+export async function captureScheduledProfitabilitySnapshots(now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const periodAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const targets = await db.select({ id: projects.id, tenantId: projects.tenantId }).from(projects).innerJoin(companies, eq(companies.id, projects.tenantId)).where(and(eq(projects.status, "active"), eq(companies.status, "active")));
+  const done: string[] = [];
+  const skipped: string[] = [];
+  const failed: string[] = [];
+  for (const target of targets) {
+    try {
+      const [existing] = await db.select({ id: evmSnapshots.id }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, target.tenantId), eq(evmSnapshots.projectId, target.id), eq(evmSnapshots.periodAt, periodAt), sql`${evmSnapshots.fpac} IS NOT NULL`)).limit(1);
+      if (existing) { skipped.push(target.id); continue; }
+      await captureOperationalEvmSnapshotCore(db, { actorUserId: null, tenantId: target.tenantId, projectId: target.id, periodAt, eacMethod: DEFAULT_EAC_METHOD, source: "scheduled" });
+      done.push(target.id);
+    } catch {
+      failed.push(target.id);
+    }
+  }
+  return { periodAt, captured: done.length, skipped: skipped.length, failed: failed.length };
 }
 
 export async function captureProjectHealthSnapshot(input: { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
