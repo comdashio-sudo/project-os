@@ -263,10 +263,11 @@ const defaultCommercialFeatures = [
   { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
   { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
   { code: "STORAGE_BYTES", name: "Document storage bytes", productCode: "PROJECT" as ProductCode },
+  { code: "PMC", name: "Project control (PMC)", productCode: "PROJECT" as ProductCode },
   { code: "AI_ADVISORY_MONTHLY", name: "Monthly AI advisory requests", productCode: "PROJECT" as ProductCode },
 ];
 
-async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+export async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
   await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
   const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));

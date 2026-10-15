@@ -1743,13 +1743,15 @@ export const pmcUnitActivityProgress = mysqlTable(
     unitId: varchar("unitId", { length: 36 }).notNull().references(() => pmcUnits.id),
     activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
     status: mysqlEnum("status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).default("NOT_STARTED").notNull(),
+    // Where the cell stands in the verifier / disbursement list the project configured.
+    verificationStatusId: varchar("verificationStatusId", { length: 36 }),
     assignedUserId: int("assignedUserId").references(() => users.id),
     lastChangedByUserId: int("lastChangedByUserId").references(() => users.id),
     lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
-  table => [uniqueIndex("pmc_unit_activity_unique").on(table.unitId, table.activityDefinitionId), index("pmc_unit_progress_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_progress_activity_fk" })],
+  table => [uniqueIndex("pmc_unit_activity_unique").on(table.unitId, table.activityDefinitionId), index("pmc_unit_progress_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_progress_activity_fk" }), foreignKey({ columns: [table.verificationStatusId], foreignColumns: [pmcVerificationStatuses.id], name: "pmc_progress_verification_fk" })],
 );
 
 export const pmcUnitActivityHistory = mysqlTable(
@@ -1791,7 +1793,9 @@ export const pmcInspectionRequests = mysqlTable(
     projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
     requestCode: varchar("requestCode", { length: 80 }).notNull(),
     activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
-    unitIdsJson: text("unitIdsJson").notNull(),
+    // Superseded by pmc_inspection_request_units; kept so rows written before 0055 stay readable.
+    unitIdsJson: text("unitIdsJson"),
+    contractorLabel: varchar("contractorLabel", { length: 255 }),
     consultantLabel: varchar("consultantLabel", { length: 255 }),
     responseCode: mysqlEnum("responseCode", ["A", "B", "C", "UR"]),
     requestedAt: timestamp("requestedAt").notNull(),
@@ -1810,6 +1814,8 @@ export const pmcInspectionSteps = mysqlTable(
     projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
     inspectionRequestId: varchar("inspectionRequestId", { length: 36 }).notNull(),
     stepCode: varchar("stepCode", { length: 80 }).notNull(),
+    stepOrder: int("stepOrder").default(0).notNull(),
+    holderLabel: varchar("holderLabel", { length: 255 }),
     status: mysqlEnum("status", ["pending", "in_progress", "complete", "rejected"]).default("pending").notNull(),
     completedAt: timestamp("completedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1829,6 +1835,40 @@ export const pmcBaselines = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_baseline_activity_period_unique").on(table.activityDefinitionId, table.periodAt), index("pmc_baselines_tenant_project_period_idx").on(table.tenantId, table.projectId, table.periodAt), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_base_activity_fk" })],
+);
+
+export const pmcInspectionRequestUnits = mysqlTable(
+  "pmc_inspection_request_units",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    inspectionRequestId: varchar("inspectionRequestId", { length: 36 }).notNull(),
+    unitId: varchar("unitId", { length: 36 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_inspection_unit_unique").on(table.inspectionRequestId, table.unitId),
+    index("pmc_inspection_units_tenant_project_idx").on(table.tenantId, table.projectId, table.unitId),
+    foreignKey({ columns: [table.inspectionRequestId], foreignColumns: [pmcInspectionRequests.id], name: "pmc_inspection_unit_request_fk" }),
+    foreignKey({ columns: [table.unitId], foreignColumns: [pmcUnits.id], name: "pmc_inspection_unit_unit_fk" }),
+  ],
+);
+
+// Tenant decision per project: how much of an activity's weight counts at each
+// status (for example UNDER_REVIEW = 0.9). Absent rows mean the defaults in domain/pmc.ts.
+export const pmcStatusFactors = mysqlTable(
+  "pmc_status_factors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    status: mysqlEnum("status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).notNull(),
+    factor: decimal("factor", { precision: 5, scale: 4 }).notNull(),
+    updatedByUserId: int("updatedByUserId").references(() => users.id),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_status_factor_unique").on(table.projectId, table.status), index("pmc_status_factors_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
 // One-time e-mail sign-in codes. The table holds a hash of the normalized
