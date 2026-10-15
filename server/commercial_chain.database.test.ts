@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { companies, projects, users, memberships, tenantEntitlements, subscriptions, roles, permissions, rolePermissions, membershipRoles, boqItems, subcontractContracts, subcontractCertificates, subcontractCertificateLines, projectCommercialInvoices } from "../drizzle/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getDb, getTenantAccessSnapshot } from "./db";
 import { randomUUID } from "node:crypto";
 import { assertTestDatabaseUrl, isTestDatabaseUrl, INTEGRATION_TEST_DATABASE } from "./testing/testDatabase";
@@ -31,8 +31,9 @@ describe.skipIf(!canRun)("Commercial Chain Integration", () => {
     expect(identityRows[0].databaseName).toBe(INTEGRATION_TEST_DATABASE);
     expect(identityRows[0].currentUser).toMatch(/\.project_os_app@/);
 
-    // Reuse owner user or create test user
-    const [user] = await db.select().from(users).limit(1);
+    // A synthetic user of its own: the test must not depend on a seeded database.
+    await db.insert(users).values({ openId: `commercial-test-${randomUUID()}`, name: "Commercial Test User", email: "commercial-test@example.test", loginMethod: "test", role: "admin" });
+    const [user] = await db.select().from(users).where(eq(users.email, "commercial-test@example.test")).orderBy(desc(users.id)).limit(1);
     userId = user.id;
 
     tenantId = randomUUID();
