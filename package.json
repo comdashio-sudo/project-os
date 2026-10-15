@@ -15,7 +15,8 @@
     "verify:pmc-schema": "node scripts/verify-pmc-schema.mjs",
     "provision:audit-app": "node scripts/provision-audit-app-account.mjs",
     "provision:audit-admin": "node scripts/provision-audit-admin-account.mjs",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "check:secrets": "node scripts/scan-secrets.mjs --all"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1118.0",

@@ -306,3 +306,11 @@
 | خط الأساس الحي على TiDB بعد الخروج من Manus | `BLOCKED_BY_OWNER` | ينتظر `DATABASE_URL` لقاعدة TiDB جديدة يملكها المالك، ثم `node scripts/run-integration-database-test.mjs`. |
 
 خُفِّض 26 صفًا من `PROVEN` إلى `UNVERIFIED` وصفٌّ واحد إلى `SOURCE_VERIFIED`، وسبب كل منها مكتوب في الصف نفسه بتاريخ 2026-10-15. لم يُرفع أي صف إلى `PROVEN`. الأرقام التاريخية في الصفوف الباقية على `PROVEN` صحيحة عند تاريخها وهاشها، وبعضها تغيّر منذ ذلك (مثل جرد tRPC: 177 ثم 186).
+
+## سجل أمر العمل المستمر — من 15 أكتوبر 2026
+
+كل طلب يضيف سطره هنا في الطلب نفسه. الأرقام أرقام `pnpm test` عند رأس الفرع قبل الدمج.
+
+| الطلب | التصنيف | ما تغيّر والدليل |
+|---|---|---|
+| CI + ماسح الأسرار | `PROVEN` | `.github/workflows/ci.yml` (check وbuild وtest بلا قاعدة وبلا أسرار، وفحص أسرار على الفرق وعلى الشجرة)؛ `scripts/scan-secrets.mjs` واختبارها `server/testing/secretScan.test.ts`؛ `node scripts/scan-secrets.mjs --all` = 0 نتيجة؛ تاريخ المستودع كله فيه تطابقان وهميان من اختبار PR #2 (`root-user:secret-value`) فلا سر حي؛ `pnpm test` = 81 ملفًا ناجحًا و6 متخطاة، 382 اختبارًا ناجحًا و86 متخطى. شروط التوقف في أمري العمل تقرأ `origin/main` بدل `github/main`. |
