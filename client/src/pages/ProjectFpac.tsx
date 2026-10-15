@@ -14,7 +14,7 @@ const text = {
     movement: "الحركة منذ آخر لقطة", since: "منذ", delta: "التغير", causes: "أسباب الحركة (تجمع التغير كاملًا)", contractValue: "قيمة العقد (أوامر التغيير)", actualCost: "التكلفة الفعلية", forecastToComplete: "التكلفة المتبقية المتوقعة",
     raised: "بنود رفعت الربح", lowered: "بنود خفّضت الربح", trend: "منحنى FPAC عبر اللقطات",
     cash: "الربح ليس نقدًا", openCommitment: "الالتزام المفتوح", receipts: "المقبوضات", outflows: "المصروفات", netCash: "صافي التدفق النقدي", cashWarning: "الربح موجب لكن صافي التدفق النقدي سالب: المشروع يربح على الورق ويستهلك سيولة.",
-    confidence: "ثقة الرقم", staleWarning: (age: number, source: string) => `هذا الرقم مبني على ${source} آخر تحديثه قبل ${age} يومًا`, percentWbs: (n: number) => `${n}% من البنود محدّثة خلال 7 أيام`, openSource: "افتح المصدر الأقدم تحديثًا",
+    confidence: "ثقة الرقم", staleWarning: (age: number, source: string) => `هذا الرقم مبني على ${source} آخر تحديثه قبل ${age} يومًا`, neverWarning: (source: string) => `هذا الرقم لا يتضمن ${source}: لم يُسجَّل أي إدخال بعد`, dominant: "● السبب الأكبر", percentWbs: (n: number) => `${n}% من البنود محدّثة خلال 7 أيام`, openSource: "افتح المصدر الأقدم تحديثًا",
     progress: "التقدم", materials: "المواد", labour: "العمالة", unknownFreshness: "لا توجد بيانات كافية لتقدير حداثة الرقم.",
     drill: "أعلى 5 بنود WBS بانحراف", item: "البند", planned: "المخطط", actual: "الفعلي", forecast: "المتوقع", gap: "الانحراف", unallocated: "تكلفة فعلية غير موزعة على بند", reconciliation: "فرق التسوية بين البنود والمشروع",
     breakdown: "من أين جاءت التكلفة الفعلية", category: "الفئة", materialsC: "مواد", labourC: "عمالة", subcontractC: "عقود باطن", otherC: "أخرى", sourceDoc: "المستند المصدر", noBreakdown: "لا قيود تكلفة فعلية لهذا البند.", open: "عرض المصادر",
@@ -30,7 +30,7 @@ const text = {
     movement: "Movement since the last snapshot", since: "since", delta: "Change", causes: "Why it moved (the three add up to the whole change)", contractValue: "Contract value (change orders)", actualCost: "Actual cost", forecastToComplete: "Forecast cost to complete",
     raised: "Items that raised profit", lowered: "Items that lowered profit", trend: "FPAC across snapshots",
     cash: "Profit is not cash", openCommitment: "Open commitment", receipts: "Receipts", outflows: "Outflows", netCash: "Net cash flow", cashWarning: "Profit is positive but net cash flow is negative: the project earns on paper and consumes liquidity.",
-    confidence: "Confidence in the number", staleWarning: (age: number, source: string) => `This number rests on ${source} last updated ${age} days ago`, percentWbs: (n: number) => `${n}% of items updated within 7 days`, openSource: "Open the stalest source",
+    confidence: "Confidence in the number", staleWarning: (age: number, source: string) => `This number rests on ${source} last updated ${age} days ago`, neverWarning: (source: string) => `This number has no ${source} behind it: nothing has been recorded yet`, dominant: "● largest cause", percentWbs: (n: number) => `${n}% of items updated within 7 days`, openSource: "Open the stalest source",
     progress: "progress", materials: "materials", labour: "labour", unknownFreshness: "There is not enough data to judge how fresh the number is.",
     drill: "Top 5 WBS items by variance", item: "Item", planned: "Planned", actual: "Actual", forecast: "Forecast", gap: "Variance", unallocated: "Actual cost not allocated to any item", reconciliation: "Reconciliation difference between items and project",
     breakdown: "Where the actual cost came from", category: "Category", materialsC: "Materials", labourC: "Labour", subcontractC: "Subcontract", otherC: "Other", sourceDoc: "Source document", noBreakdown: "No actual cost entries for this item.", open: "Show sources",
@@ -81,7 +81,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
       {stale && (
         <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="h-4 w-4" />
-          {staleAge === null ? t.unknownFreshness : t.staleWarning(staleAge, t[stalest as Source])}
+          {staleAge === null ? t.neverWarning(t[stalest as Source]) : t.staleWarning(staleAge, t[stalest as Source])}
           <a className="font-semibold underline" href={sourceAnchor[stalest]}>{t.openSource}</a>
         </p>
       )}
@@ -93,7 +93,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
           {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-start text-sm">
+            <table className="w-full min-w-[34rem] text-start text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
                 {headline.data.rows.map(row => {
@@ -101,7 +101,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                   return (
                     <tr key={row.key} className="border-t">
                       <td className="py-1.5 font-medium">{labels[0]}</td>
-                      <td>{row.key === "margin" ? formatPercent(row.value, isArabic) : row.value === null ? "—" : money(row.value)}</td>
+                      <td className="whitespace-nowrap pe-3">{row.key === "margin" ? formatPercent(row.value, isArabic) : row.value === null ? "—" : money(row.value)}</td>
                       <td className="text-xs text-slate-600">{labels[1]}</td>
                       <td className="text-xs text-slate-600">{t.sources[row.source] ?? row.source}</td>
                       <td className="text-xs text-slate-600">{row.asOf ? row.asOf.slice(0, 10) : "—"}</td>
@@ -123,7 +123,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
             return (
               <>
                 <p className={`text-lg font-bold ${toneClass[tr.tone]}`}>{tr.arrow} {money(m.delta)}{m.deltaPercent !== null && <span className="text-sm"> ({formatPercent(m.deltaPercent, isArabic)})</span>} <span className="text-xs font-normal text-slate-500">{t.since} {m.since.slice(0, 10)}</span></p>
-                <p className="mt-2 text-xs text-slate-500">{t.causes}</p>
+                <p className="mt-2 text-xs text-slate-500">{t.causes} · {t.dominant}</p>
                 <ul className="mt-1 grid gap-1 text-sm md:grid-cols-3">
                   {(["contractValue", "actualCost", "forecastToComplete"] as const).map(cause => <li key={cause} className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t[cause]}</span><br /><b className={toneClass[trend(m.causes[cause]).tone]}>{money(m.causes[cause])}</b>{m.dominantCause === cause && <span className="ms-1 text-xs">●</span>}</li>)}
                 </ul>
@@ -164,14 +164,14 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
       {data.drill.status === "ok" ? (
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[34rem] text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th /></tr></thead>
               <tbody>
                 {data.drill.data.items.map(item => (
                   <React.Fragment key={item.wbsItemId}>
                     <tr className="border-t">
-                      <td className="py-1.5">{item.code} · {item.name}</td><td>{money(item.planned)}</td><td>{money(item.actual)}</td><td>{money(item.forecast)}</td>
-                      <td className={toneClass[trend(item.variance).tone]}>{money(item.variance)}</td>
+                      <td className="py-1.5 pe-3">{item.code} · {item.name}</td><td className="whitespace-nowrap pe-3">{money(item.planned)}</td><td className="whitespace-nowrap pe-3">{money(item.actual)}</td><td className="whitespace-nowrap pe-3">{money(item.forecast)}</td>
+                      <td className={`whitespace-nowrap pe-3 ${toneClass[trend(item.variance).tone]}`}>{money(item.variance)}</td>
                       <td><Button size="sm" variant="outline" aria-expanded={openItem === item.wbsItemId} onClick={() => setOpenItem(openItem === item.wbsItemId ? null : item.wbsItemId)}>{t.open}</Button></td>
                     </tr>
                     {openItem === item.wbsItemId && (

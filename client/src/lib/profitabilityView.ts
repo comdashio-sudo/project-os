@@ -3,12 +3,19 @@
 
 export type Source = "progress" | "materials" | "labour";
 
+// Inside right-to-left text a figure such as "-90,000 SAR" is reordered by the bidi
+// algorithm ("SAR 90,000-"). Wrapping it in a left-to-right isolate keeps the sign,
+// the number and the currency in reading order.
+const LRI = "\u2066";
+const PDI = "\u2069";
+const isolate = (text: string, isArabic: boolean) => (isArabic ? `${LRI}${text}${PDI}` : text);
+
 export function formatMoney(value: number, currency: string, isArabic: boolean) {
   const number = new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { maximumFractionDigits: 0 }).format(Math.abs(value));
-  return `${value < 0 ? "-" : ""}${number} ${currency}`;
+  return isolate(`${value < 0 ? "-" : ""}${number} ${currency}`, isArabic);
 }
 
-export const formatPercent = (value: number | null, isArabic: boolean) => (value === null ? "—" : `${new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { maximumFractionDigits: 1 }).format(value)}%`);
+export const formatPercent = (value: number | null, isArabic: boolean) => (value === null ? "—" : isolate(`${new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { signDisplay: "negative", maximumFractionDigits: 1 }).format(value)}%`, isArabic));
 
 /** Colour and arrow for a profit change: profit going up is good, down is bad. */
 export function trend(delta: number): { tone: "good" | "bad" | "flat"; arrow: "▲" | "▼" | "■" } {

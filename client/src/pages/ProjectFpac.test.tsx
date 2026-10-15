@@ -65,6 +65,12 @@ describe("ProjectFpac (real profitability)", () => {
     expect(screen.getByText("Open the stalest source").getAttribute("href")).toBe("#manager-schedule");
   });
 
+  it("says plainly when a source has never been recorded", () => {
+    const base = report();
+    show({ ...base, freshness: { ...base.freshness, level: "stale", stalestSource: "materials", neverUpdated: ["materials"], perSource: base.freshness.perSource.map(s => (s.source === "materials" ? { ...s, ageDays: null, lastUpdatedAt: null } : s)) } });
+    expect(screen.getAllByRole("alert").some(node => node.textContent?.includes("no materials behind it: nothing has been recorded yet"))).toBe(true);
+  });
+
   it("marks a loss and keeps the other sections when one is unavailable", () => {
     const base = report();
     show({ ...base, headline: ok({ ...(base.headline.data), fpac: -120, isLoss: true, marginPercent: -9.2 }), movement: { status: "unavailable", reason: "NO_PREVIOUS_SNAPSHOT" }, cash: { status: "unavailable", reason: "CASH_SOURCES_UNAVAILABLE" } });

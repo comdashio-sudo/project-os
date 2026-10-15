@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ageSentence, formatMoney, sparklinePoints, trend } from "./profitabilityView";
+import { ageSentence, formatMoney, formatPercent, sparklinePoints, trend } from "./profitabilityView";
 
 describe("profitability view helpers", () => {
   it("formats money with a sign and the currency, in both languages", () => {
     expect(formatMoney(1234567, "SAR", false)).toBe("1,234,567 SAR");
     expect(formatMoney(-250, "SAR", false)).toBe("-250 SAR");
-    expect(formatMoney(-250, "SAR", true)).toBe("-250 SAR");
+    expect(formatMoney(-250, "SAR", true)).toBe("\u2066-250 SAR\u2069");
+    expect(formatPercent(-95.5, true)).toMatch(/^\u2066\u200e?-95\.5%\u2069$/);
+    expect(formatPercent(null, true)).toBe("—");
   });
   it("reads a profit change as good, bad or flat", () => {
     expect(trend(10)).toEqual({ tone: "good", arrow: "▲" });
