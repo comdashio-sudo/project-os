@@ -33,6 +33,10 @@ async function startServer() {
   const server = createServer(app);
   // Behind Render's proxy: one hop, so req.ip is the client address.
   app.set("trust proxy", 1);
+  // Liveness probe for the host. Public, no database, no data: it only says the process answers.
+  app.get("/healthz", (_req, res) => {
+    res.set("Cache-Control", "no-store").status(200).type("text/plain").send("ok");
+  });
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
