@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -119,6 +119,7 @@ import { calculateOperationalCashFlow, monthlyNetCashFlow } from "./domain/cashF
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
 import { assessEmployeeCapacity } from "./domain/employeeCapacity";
+import { cumulativeEosLiability } from "./domain/eosLiability";
 import { assertValidLabourSettings, DEFAULT_LABOUR_SETTINGS, loadedRateForMonth, parseWorkingDays, type TenantLabourSettings } from "./domain/labourCost";
 import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
@@ -2306,6 +2307,9 @@ export async function transitionEmployeeTimeEntryForTenant(input: { userId: numb
   // Approved hours are priced from payroll when the employee has a salary structure (loaded with the tenant's own factors); otherwise from the resource plan rate.
   let hourlyRate = Number(entry.unitCost); let rateSource: "loaded" | "resource" = "resource";
   if (input.status === "approved") {
+    // The sibling of the payroll-allocation guard (G-123): a payroll run that already allocated this employee's pay for the month has costed these hours.
+    const [allocatedByPayroll] = await db.select({ n: sql<number>`count(*)` }).from(payrollAllocations).innerJoin(payrollEntries, eq(payrollAllocations.payrollEntryId, payrollEntries.id)).innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id)).where(and(eq(payrollAllocations.tenantId, input.tenantId), eq(payrollEntries.employeeId, entry.employeeId), lte(payrollRuns.periodStart, entry.workDate), gte(payrollRuns.periodEnd, entry.workDate)));
+    if (Number(allocatedByPayroll?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_PAYROLL_ALLOCATED" });
     const [structure] = await db.select({ baseSalary: salaryStructures.baseSalary, housingAllowance: salaryStructures.housingAllowance, transportAllowance: salaryStructures.transportAllowance, hardshipAllowance: salaryStructures.hardshipAllowance, eosMonthlyAccrual: salaryStructures.eosMonthlyAccrual }).from(salaryStructures).where(and(eq(salaryStructures.tenantId, input.tenantId), eq(salaryStructures.employeeId, entry.employeeId), eq(salaryStructures.active, true))).limit(1);
     if (structure) {
       const loaded = loadedRateForMonth({ salary: { baseSalary: Number(structure.baseSalary), housingAllowance: Number(structure.housingAllowance), transportAllowance: Number(structure.transportAllowance), hardshipAllowance: Number(structure.hardshipAllowance), eosMonthlyAccrual: Number(structure.eosMonthlyAccrual) }, settings: await readTenantLabourSettings(db, input.tenantId), workDate: entry.workDate });
@@ -2607,6 +2611,24 @@ export async function transitionPayrollRunForTenant(input: { userId: number; ten
   return { id: run.id, status: input.status };
 }
 
+/**
+ * The end-of-service liability carried at each month end: the running sum of the accruals booked in approved or paid
+ * payroll runs (G-122). Draft and review runs are not counted until approved. Sensitive (it exposes pay), so it needs the
+ * sensitive-read permission and leaves an audit row.
+ */
+export async function getEndOfServiceLiabilityForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
+  const rows = await db.select({ employeeId: payrollEntries.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, periodEnd: payrollRuns.periodEnd, amount: payrollEntries.eosMonthlyAccrual, currency: payrollEntries.currency })
+    .from(payrollEntries).innerJoin(payrollRuns, eq(payrollRuns.id, payrollEntries.payrollRunId)).innerJoin(employees, eq(employees.id, payrollEntries.employeeId))
+    .where(and(eq(payrollEntries.tenantId, input.tenantId), eq(payrollRuns.tenantId, input.tenantId), inArray(payrollRuns.status, ["approved", "paid"])));
+  const currencies = Array.from(new Set(rows.map(row => row.currency)));
+  const liability = cumulativeEosLiability(rows.map(row => ({ employeeId: row.employeeId, periodEnd: row.periodEnd, amount: Number(row.amount) })));
+  const people = new Map(rows.map(row => [row.employeeId, { employeeNumber: row.employeeNumber, fullName: row.fullName }]));
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.eos_liability_viewed", entityType: "company", entityId: input.tenantId, metadata: JSON.stringify({ sensitive: true, entryCount: rows.length }) });
+  return { months: liability.months, total: liability.total, employees: liability.employees.map(row => ({ ...row, ...(people.get(row.employeeId) ?? { employeeNumber: "", fullName: "" }) })), currencies };
+}
+
 export async function getPayrollRunDetailsForTenant(input: { userId: number; tenantId: string; payrollRunId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
@@ -2629,9 +2651,12 @@ export async function allocateApprovedPayrollCostForTenant(input: { userId: numb
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
   if (input.activityId) { const [activity] = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1); if (!activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); }
-  const [entry] = await db.select({ id: payrollEntries.id, payrollRunId: payrollEntries.payrollRunId, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual }).from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
+  const [entry] = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, payrollRunId: payrollEntries.payrollRunId, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual }).from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
   if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_ENTRY_NOT_FOUND" });
-  const [run] = await db.select({ status: payrollRuns.status }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1); if (!run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
+  const [run] = await db.select({ status: payrollRuns.status, periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1); if (!run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
+  // The same worker-hours must cost a project once (G-123): hours priced through approved time entries and the payroll run that pays them are two routes to one cost.
+  const [alreadyCosted] = await db.select({ n: sql<number>`count(*)` }).from(employeeTimeEntries).where(and(eq(employeeTimeEntries.tenantId, input.tenantId), eq(employeeTimeEntries.employeeId, entry.employeeId), eq(employeeTimeEntries.status, "approved"), isNotNull(employeeTimeEntries.costEntryId), gte(employeeTimeEntries.workDate, run.periodStart), lte(employeeTimeEntries.workDate, run.periodEnd)));
+  if (Number(alreadyCosted?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PAYROLL_ALLOCATION_TIME_COSTED" });
   const allocated = await db.select({ amount: payrollAllocations.amount }).from(payrollAllocations).where(eq(payrollAllocations.payrollEntryId, entry.id));
   const ceiling = Number(entry.baseSalary) + Number(entry.housingAllowance) + Number(entry.transportAllowance) + Number(entry.hardshipAllowance) + Number(entry.eosMonthlyAccrual); const used = allocated.reduce((total, item) => total + Number(item.amount), 0);
   if (used + input.amount > ceiling + 0.0001) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST" });
