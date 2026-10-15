@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { discard, enqueue, flushQueue, isNetworkError, loadQueue, retryFailed, reviveDates, saveQueue, type QueueItem, type QueueStore } from "./offlineQueue";
+import { discard, enqueue, flushQueue, IN_PROGRESS_CODE, isNetworkError, loadQueue, MAX_BUSY_ANSWERS, retryFailed, reviveDates, saveQueue, type QueueItem, type QueueStore } from "./offlineQueue";
 
 const memory = (): QueueStore & { data: Map<string, string> } => { const data = new Map<string, string>(); return { data, getItem: key => data.get(key) ?? null, setItem: (key, value) => { data.set(key, value); } }; };
 const item = (id: string, over: Partial<QueueItem> = {}) => ({ id, kind: "progress" as const, payload: { reportedAt: "2026-10-15T08:00:00.000Z", percentComplete: 30 }, summary: `item ${id}`, ...over });
@@ -88,5 +88,19 @@ describe("flushing", () => {
     expect(second).toEqual({ sent: 0, failed: 0, stoppedOffline: false });
     release(); await first;
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats 'the same request is still running' as not answered yet: pending, counted, and shown as failed only after several answers", async () => {
+    enqueue("s", item("a"), store); enqueue("s", item("b"), store);
+    const calls: string[] = [];
+    const sender = async (entry: QueueItem) => { calls.push(entry.id); if (entry.id === "a") throw Object.assign(new Error(IN_PROGRESS_CODE), { data: { code: "CONFLICT" } }); };
+    for (let round = 1; round < MAX_BUSY_ANSWERS; round += 1) {
+      await flushQueue("s", sender, store);
+      expect(loadQueue("s", store).map(entry => [entry.id, entry.status, entry.busyAnswers])).toEqual([["a", "pending", round], ["b", "pending", undefined]]); // b waits behind a
+    }
+    expect(calls.every(id => id === "a")).toBe(true); // b was never tried while a held the line
+    await flushQueue("s", sender, store); // the fifth busy answer: a is shown as failed and b, behind it, goes
+    expect(loadQueue("s", store).map(entry => [entry.id, entry.status, entry.error])).toEqual([["a", "failed", IN_PROGRESS_CODE]]);
+    expect(calls.filter(id => id === "b")).toHaveLength(1);
   });
 });
