@@ -7,11 +7,7 @@ import FieldEntry from "./FieldEntry";
 const state = vi.hoisted(() => ({
   arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
-<<<<<<< HEAD
   teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null,
-=======
-  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown,
->>>>>>> origin/main
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
@@ -39,11 +35,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-<<<<<<< HEAD
 afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.me = { id: 7 }; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
-=======
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
->>>>>>> origin/main
 
 describe("FieldEntry (phone entry)", () => {
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
@@ -433,7 +425,6 @@ describe("FieldEntry: the queue keeps trying, without looping (hardening)", () =
     expect(second).not.toBe(first); // the old identifier would have replayed the stored errors
   });
 });
-<<<<<<< HEAD
 
 describe("FieldEntry: one person's queue is not another's", () => {
   it("does not send what person 7 left waiting when person 8 signs in on the same phone, and still sends it for person 7", async () => {
@@ -481,6 +472,4 @@ describe("FieldEntry: what is kept on the phone belongs to a person (names are p
     setOnline(true);
   });
 });
-=======
->>>>>>> origin/main
 });
