@@ -119,6 +119,7 @@ import { calculateOperationalCashFlow, monthlyNetCashFlow } from "./domain/cashF
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
 import { assessEmployeeCapacity } from "./domain/employeeCapacity";
+import { cumulativeEosLiability } from "./domain/eosLiability";
 import { assertValidLabourSettings, DEFAULT_LABOUR_SETTINGS, loadedRateForMonth, parseWorkingDays, type TenantLabourSettings } from "./domain/labourCost";
 import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
@@ -2608,6 +2609,24 @@ export async function transitionPayrollRunForTenant(input: { userId: number; ten
   const now = new Date(); const update = input.status === "review" ? { status: input.status, reviewedByUserId: input.userId } : input.status === "approved" ? { status: input.status, approvedByUserId: input.userId, approvedAt: now } : { status: input.status, paidAt: now };
   await db.transaction(async tx => { await tx.update(payrollRuns).set(update).where(eq(payrollRuns.id, run.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.run_transitioned", entityType: "payroll_run", entityId: run.id, metadata: JSON.stringify({ from: run.status, to: input.status }) }); });
   return { id: run.id, status: input.status };
+}
+
+/**
+ * The end-of-service liability carried at each month end: the running sum of the accruals booked in approved or paid
+ * payroll runs (G-122). Draft and review runs are not counted until approved. Sensitive (it exposes pay), so it needs the
+ * sensitive-read permission and leaves an audit row.
+ */
+export async function getEndOfServiceLiabilityForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
+  const rows = await db.select({ employeeId: payrollEntries.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, periodEnd: payrollRuns.periodEnd, amount: payrollEntries.eosMonthlyAccrual, currency: payrollEntries.currency })
+    .from(payrollEntries).innerJoin(payrollRuns, eq(payrollRuns.id, payrollEntries.payrollRunId)).innerJoin(employees, eq(employees.id, payrollEntries.employeeId))
+    .where(and(eq(payrollEntries.tenantId, input.tenantId), eq(payrollRuns.tenantId, input.tenantId), inArray(payrollRuns.status, ["approved", "paid"])));
+  const currencies = Array.from(new Set(rows.map(row => row.currency)));
+  const liability = cumulativeEosLiability(rows.map(row => ({ employeeId: row.employeeId, periodEnd: row.periodEnd, amount: Number(row.amount) })));
+  const people = new Map(rows.map(row => [row.employeeId, { employeeNumber: row.employeeNumber, fullName: row.fullName }]));
+  await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.eos_liability_viewed", entityType: "company", entityId: input.tenantId, metadata: JSON.stringify({ sensitive: true, entryCount: rows.length }) });
+  return { months: liability.months, total: liability.total, employees: liability.employees.map(row => ({ ...row, ...(people.get(row.employeeId) ?? { employeeNumber: "", fullName: "" }) })), currencies };
 }
 
 export async function getPayrollRunDetailsForTenant(input: { userId: number; tenantId: string; payrollRunId: string }) {
