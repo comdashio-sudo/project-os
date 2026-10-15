@@ -3,7 +3,7 @@
 **أُصدر:** 21 أغسطس 2026  
 **المالك:** dashio  
 **المنفّذ:** Manus  
-**المرجع الحاكم:** `docs/STATE.md` على `github/main` (`ramezsamerr-collab/project-os`)
+**المرجع الحاكم:** `docs/STATE.md` على `github/main` (`comdashio-sudo/project-os`؛ نُقل من `ramezsamerr-collab/project-os` في 2026-10-15)
 
 يُحفظ هذا الملف في المستودع باسم `docs/WORK_ORDER_EXTENDED.md` ويُدفع مع أول دفعة. هو التعريف الوحيد لنطاق الدفعات 0–5. أي عمل خارج ما هو مذكور هنا يحتاج إذنًا صريحًا من المالك.
 

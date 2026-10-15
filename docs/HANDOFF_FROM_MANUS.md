@@ -1,7 +1,7 @@
 # HANDOFF_FROM_MANUS — PROJECT OS
 
 **تاريخ التسليم:** 8 أكتوبر 2026  
-**المستودع الحاكم:** `github.com/ramezsamerr-collab/project-os`، الفرع `main`  
+**المستودع الحاكم:** `github.com/comdashio-sudo/project-os` (نُقل من `ramezsamerr-collab/project-os` في 2026-10-15)، الفرع `main`  
 **حالة PMC:** المرحلة A مغلقة ومثبتة؛ المرحلة B لم تبدأ.
 
 ## 1. الخلاصة التنفيذية
@@ -50,7 +50,7 @@ PROJECT OS مستقل عن TASLEEM. المحرك الفعلي هو **MySQL/TiDB 
   - `PROJECT_OS_APP_DB_PASSWORD` — كلمة مرور حساب التطبيق المقيد عند provisioning.
   - `PROJECT_OS_AUDIT_ADMIN_PASSWORD` — كلمة مرور حساب الإدارة المنفصل عند provisioning.
   - `PROJECT_OS_USE_ADMIN_DATABASE_URL` — مفتاح صريح لتشغيل مسار إداري، ولا ينبغي تفعيله للتطبيق العادي.
-- **الملكية:** المستودع يثبت أن قاعدة PROJECT OS هي MySQL/TiDB وأن الاتصال يحقن في بيئة Manus WebDev. لا يثبت المستودع وحده اسم مالك حساب TiDB أو عقد الفوترة؛ لذلك لا ينبغي افتراض أن حساب قاعدة البيانات مملوك للمالك النهائي قبل التحقق المباشر من مزود TiDB. حساب GitHub والمستودع مملوكان لحساب `ramezsamerr-collab` وفق اعتماد المالك.
+- **الملكية:** المستودع يثبت أن قاعدة PROJECT OS هي MySQL/TiDB وأن الاتصال يحقن في بيئة Manus WebDev. لا يثبت المستودع وحده اسم مالك حساب TiDB أو عقد الفوترة؛ لذلك لا ينبغي افتراض أن حساب قاعدة البيانات مملوك للمالك النهائي قبل التحقق المباشر من مزود TiDB. المستودع مملوك لحساب `comdashio-sudo` بعد نقله من `ramezsamerr-collab` في 2026-10-15.
 - **قيد التدقيق:** TiDB Serverless لا يوفر Triggers اللازمة لمنع `UPDATE/DELETE` على `audit_logs`. الحماية المعتمدة هي حساب تطبيق بصلاحيات `SELECT/INSERT` وحساب إداري منفصل ومراقَب، موثقة في `ADR-0001-AUDIT-LOG-ACCESS-CONTROL.md` وفحص `pnpm verify:audit-grants`.
 
 ### 2.3 التخزين للملفات
@@ -154,7 +154,7 @@ pnpm build
 
 ## 4. حالة Git والتسليم
 
-- المستودع الخاص: `ramezsamerr-collab/project-os`.
+- المستودع الخاص: `comdashio-sudo/project-os` (نُقل من `ramezsamerr-collab/project-os` في 2026-10-15).
 - المرجع الحاكم: `github/main`.
 - تم تنظيف تاريخ `github/main` من `docs/WORK_ORDER_PMC_assets` بإعادة كتابة مصرح بها ودفع `--force-with-lease` لهذه الحالة فقط.
 - نتيجة `git log github/main --oneline -- docs/WORK_ORDER_PMC_assets`: فارغة.

@@ -9,7 +9,7 @@
 
 ## قاعدة القراءة والتحديث
 
-المصدر الحاكم لحالة PROJECT OS هو `docs/STATE.md` على `github/main` في `ramezsamerr-collab/project-os`. يمثل remote `origin` على `artifacts.cloudflare.net` قناة نشر داخلية لمانوس، وليس مرجع عهدة ولا مصدرًا حاكمًا.
+المصدر الحاكم لحالة PROJECT OS هو `docs/STATE.md` على `github/main` في `comdashio-sudo/project-os` (نُقل من `ramezsamerr-collab/project-os` في 2026-10-15). يمثل remote `origin` على `artifacts.cloudflare.net` قناة نشر داخلية لمانوس، وليس مرجع عهدة ولا مصدرًا حاكمًا.
 
 يُجلب `github` ويُقرأ هذا الملف أولًا قبل أي عمل. إن عارضت حالته افتراض العمل المحلي، تتوقف المهمة ويُبلغ المالك. بعد أي عمل، يُحدّث هذا الملف ويُدفع إلى `github/main` ضمن الدفعة نفسها. أي فجوة تتجاوز عشرة التزامات بين `main` و`github/main` تسجل `UNVERIFIED` هنا إلى أن تغلق.
 
@@ -28,7 +28,7 @@
 | المجال | المالك/المسؤول المثبت اليوم | الدليل | الحالة |
 |---|---|---|---|
 | واجهة PROJECT OS وخادم التطبيق | مشروع PROJECT OS المدار في مساحة Manus؛ الشيفرة المحلية على `main` مع نسخة عهدة مستقلة في GitHub. | `github/main` عند `6c10041` وتحقق `ahead/behind = 0` بعد الدفعة 4 وقبل التزام الدفعة 5. | `PROVEN` |
-| مصدر العهدة الحاكم | GitHub الخاص `ramezsamerr-collab/project-os`؛ الفرع `main`. | `gh repo view` أكد `isPrivate: true`، وتحقق `6c10041` برأس متطابق و`ahead/behind = 0` بعد الدفعة 4 وقبل التزام الدفعة 5. | `PROVEN` |
+| مصدر العهدة الحاكم | GitHub الخاص `comdashio-sudo/project-os` (نُقل من `ramezsamerr-collab/project-os` في 2026-10-15)؛ الفرع `main`. | `gh repo view` أكد `isPrivate: true`، وتحقق `6c10041` برأس متطابق و`ahead/behind = 0` بعد الدفعة 4 وقبل التزام الدفعة 5. | `PROVEN` |
 | مخطط قاعدة البيانات والترحيلات في المصدر | مستودع PROJECT OS؛ Drizzle وملفات `drizzle/`. | `drizzle/schema.ts` و`drizzle/0035_faulty_queen_noir.sql`. | `SOURCE_VERIFIED` |
 | مالك حساب إدارة قاعدة البيانات ومنح المستخدمين | غير مسمى في المستودع. | لا توجد هوية مسؤول أو دليل منح محلي. | `BLOCKED_BY_OWNER` |
 | النشر الإنتاجي | **الإنتاج غير محكوم ببوابة مالك — كل نقطة تحقق تصل النطاق العام تلقائيًا.** لا يعد `origin` مرجع العهدة. | لم يظهر في إعدادات المشروع أو `manus-config` مسار مدعوم لتعطيل هذا السلوك؛ لا تنشأ نقطة تحقق قبل موافقة المالك الصريحة على النشر. | `BLOCKED_BY_PLATFORM` |
