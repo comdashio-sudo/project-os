@@ -16,7 +16,7 @@ vi.mock("@/lib/trpc", () => ({
       transitionStatus: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) },
     },
     contracts: {
-      getProjectRegister: { useQuery: () => ({ data: { contracts: [{ id: "00000000-0000-4000-8000-0000000000c0", code: "CON-001", title: "Concrete Contract" }], commitments: [{ id: "00000000-0000-4000-8000-0000000000b0", code: "COM-001", description: "Concrete commitment" }] }, error: null, isLoading: false }) },
+      getProjectRegister: { useQuery: () => ({ data: { contracts: [{ id: "00000000-0000-4000-8000-0000000000c0", code: "CON-001", title: "Concrete Contract" }], commitments: [{ id: "00000000-0000-4000-8000-0000000000b0", code: "COM-001", description: "Concrete commitment" }], wbsItems: [{ id: "00000000-0000-4000-8000-0000000000a1", code: "1.1", name: "Foundations" }] }, error: null, isLoading: false }) },
     },
   },
 }));
@@ -30,12 +30,13 @@ describe("ProjectPurchaseOrders", () => {
     await user.type(screen.getByLabelText("Supplier"), "Steel Supply Co");
     await user.selectOptions(screen.getByLabelText("Contract"), "00000000-0000-4000-8000-0000000000c0");
     await user.selectOptions(screen.getByLabelText("Commitment"), "00000000-0000-4000-8000-0000000000b0");
+    await user.selectOptions(screen.getByLabelText("WBS item"), "00000000-0000-4000-8000-0000000000a1");
     await user.type(screen.getByLabelText("Amount"), "8800.25");
     await user.clear(screen.getByLabelText("Currency"));
     await user.type(screen.getByLabelText("Currency"), "sar");
     await user.type(screen.getByLabelText("Order summary"), "Authorized purchase of structural steel components.");
     await user.click(screen.getByRole("button", { name: "Save purchase order" }));
-    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", contractId: "00000000-0000-4000-8000-0000000000c0", commitmentId: "00000000-0000-4000-8000-0000000000b0", purchaseOrderNumber: "PO-002", supplierName: "Steel Supply Co", amount: 8800.25, currency: "SAR" }));
+    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", contractId: "00000000-0000-4000-8000-0000000000c0", commitmentId: "00000000-0000-4000-8000-0000000000b0", wbsItemId: "00000000-0000-4000-8000-0000000000a1", purchaseOrderNumber: "PO-002", supplierName: "Steel Supply Co", amount: 8800.25, currency: "SAR" }));
     await user.click(screen.getByRole("button", { name: "Update status: Submitted" }));
     expect(state.transition).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", purchaseOrderId: "00000000-0000-4000-8000-0000000000f0", nextStatus: "submitted" });
     await user.click(screen.getByRole("button", { name: "Update status: Received" }));

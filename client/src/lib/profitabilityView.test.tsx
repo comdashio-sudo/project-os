@@ -29,3 +29,17 @@ describe("profitability view helpers", () => {
     expect(sparklinePoints([3, 3, 3], 100, 20)).toBe("0,20 50,20 100,20");
   });
 });
+
+describe("sourceRoute (G-023)", () => {
+  it("leads each kind of cost source to the screen that holds the document, in both languages", async () => {
+    const { sourceRoute } = await import("./profitabilityView");
+    expect(sourceRoute("goods_receipt_note", "t", "p")).toEqual({ href: "/projects/t/p/controls#manager-commercial", label: { ar: "إيصال استلام", en: "Goods receipt" } });
+    expect(sourceRoute("purchase_order", "t", "p")?.href).toBe("/projects/t/p/controls#manager-commercial");
+    expect(sourceRoute("material_issue", "t", "p")?.href).toBe("/projects/t/p/controls#manager-site");
+    expect(sourceRoute("time_entry", "t", "p")?.href).toBe("/projects/t/p/controls#manager-site");
+    expect(sourceRoute("payroll_allocation", "t", "p")?.href).toBe("/payroll/t");
+    // a cost typed in by hand has no document, and an unknown kind is not guessed at
+    expect(sourceRoute(null, "t", "p")).toBeNull();
+    expect(sourceRoute("something_new", "t", "p")).toBeNull();
+  });
+});

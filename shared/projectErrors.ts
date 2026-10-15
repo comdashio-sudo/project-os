@@ -76,6 +76,18 @@ export const projectErrorMessages = {
     ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
     en: "This role and scope are already assigned to the selected membership.",
   },
+  PROJECT_OS_INVOICE_NOT_FOUND: {
+    ar: "الفاتورة المطلوبة غير متاحة ضمن هذا المشروع.",
+    en: "The requested invoice is not available in this project.",
+  },
+  PROJECT_OS_INVOICE_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل الفاتورة إلى هذه الحالة من حالتها الحالية: المسودة تصدر أو تلغى، والصادرة تُسدَّد أو تلغى، والمسدَّدة لا تتغير.",
+    en: "The invoice cannot move to that status from its current one: a draft is issued or voided, an issued invoice is paid or voided, a paid invoice does not change.",
+  },
+  PROJECT_OS_INVOICE_PAID_DATE_INVALID: {
+    ar: "تاريخ السداد لا يسبق تاريخ الفاتورة ولا يكون في المستقبل البعيد.",
+    en: "The payment date cannot be before the invoice date or far in the future.",
+  },
   PROJECT_OS_LABOUR_SETTINGS_INVALID: {
     ar: "إعدادات التكلفة غير صالحة: نسب موجبة معقولة، ساعات اليوم بين 1 و24، ويوم عمل واحد على الأقل بلا تكرار.",
     en: "The cost settings are not valid: sensible positive rates, 1 to 24 hours a day, and at least one working day with no repeats.",
