@@ -144,7 +144,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC screens read from a 
   it("is available through the API to a reader, and closed to a role without the permission and to another tenant's project", async () => {
     const reader = callerFor(users.reader, "pmcs-reader");
     const none = callerFor(users.none, "pmcs-none");
-    for (const call of [reader.pmc.latestUpdates, reader.pmc.approvals, reader.pmc.inspectionFlow, reader.pmc.activitiesMatrix, reader.pmc.zonesView, reader.pmc.weeklyReport, reader.pmc.monthlyReport, reader.pmc.pendingAtVerifier, reader.pmc.stagesView]) await expect(call({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.latestUpdates({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.approvals({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.inspectionFlow({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.activitiesMatrix({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.zonesView({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.weeklyReport({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.monthlyReport({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.pendingAtVerifier({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
+    await expect(reader.pmc.stagesView({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
     await expect(none.pmc.approvals(scope)).rejects.toThrow("Required permission is not granted.");
     await expect(reader.pmc.approvals({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     // Export is a read and needs only the read permission; the file holds this project's rows.

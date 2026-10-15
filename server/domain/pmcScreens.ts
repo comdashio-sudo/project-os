@@ -80,8 +80,8 @@ export function latestUpdates(ds: PmcDataset) {
       byGroup.set(def.groupCode, { groupName: group.groupName, added: group.added + projectPoints, updates: group.updates + 1 });
     }
     const range = normalizeUnitRange(rows.map(h => unitById.get(h.unitId)!.number));
-    return { userId, name: personName(ds, userId)!, updates: rows.length, activeDays: perDay.size, perDay: Array.from(perDay, ([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)), unitFrom: range.from, unitTo: range.to, addedProjectPercent: r4(added), byGroup: Array.from(byGroup, ([groupCode, v]) => ({ groupCode, groupName: v.groupName, addedProjectPercent: r4(v.added), updates: v.updates })).sort((a, b) => a.groupCode.localeCompare(b.groupCode)) };
-  }).sort((a, b) => b.updates - a.updates || a.name.localeCompare(b.name));
+    return { userId, name: personName(ds, userId)!, updates: rows.length, activeDays: perDay.size, perDay: Array.from(perDay, ([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date, undefined, { numeric: true })), unitFrom: range.from, unitTo: range.to, addedProjectPercent: r4(added), byGroup: Array.from(byGroup, ([groupCode, v]) => ({ groupCode, groupName: v.groupName, addedProjectPercent: r4(v.added), updates: v.updates })).sort((a, b) => a.groupCode.localeCompare(b.groupCode, undefined, { numeric: true })) };
+  }).sort((a, b) => b.updates - a.updates || a.name.localeCompare(b.name, undefined, { numeric: true }));
   return { engineers, totals: { updates: ds.history.length, addedProjectPercent: r4(engineers.reduce((s, e) => s + e.addedProjectPercent, 0)) } };
 }
 
@@ -96,10 +96,10 @@ export function approvals(ds: PmcDataset) {
   const bucket = <K extends string>(key: (r: PmcRequest) => K) => {
     const map = new Map<K, ReturnType<typeof emptyReplies>>();
     for (const r of ds.requests) { const entry = map.get(key(r)) ?? emptyReplies(); entry[replyOf(r)] += 1; entry.total += 1; map.set(key(r), entry); }
-    return Array.from(map, ([k, counts]) => ({ key: k, ...counts })).sort((a, b) => a.key.localeCompare(b.key));
+    return Array.from(map, ([k, counts]) => ({ key: k, ...counts })).sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
   };
   return {
-    requests: ds.requests.slice().sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime() || a.code.localeCompare(b.code)).map(r => ({ code: r.code, activityCode: defById.get(r.definitionId)?.code ?? "", activityName: defById.get(r.definitionId)?.name ?? "", requestedAt: r.requestedAt, contractor: r.contractor, consultant: r.consultant, response: r.response, units: r.unitNumbers.length })),
+    requests: ds.requests.slice().sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime() || a.code.localeCompare(b.code, undefined, { numeric: true })).map(r => ({ code: r.code, activityCode: defById.get(r.definitionId)?.code ?? "", activityName: defById.get(r.definitionId)?.name ?? "", requestedAt: r.requestedAt, contractor: r.contractor, consultant: r.consultant, response: r.response, units: r.unitNumbers.length })),
     byConsultant: bucket(r => r.consultant ?? "—"),
     byDay: bucket(r => day(r.requestedAt)),
     byActivity: bucket(r => defById.get(r.definitionId)?.code ?? "—"),
@@ -131,15 +131,15 @@ export function inspections(ds: PmcDataset) {
   return {
     total,
     byStage: order.filter(s => stages.has(s)).map(stage => ({ stage, count: stages.get(stage)!, percent: r2((stages.get(stage)! / total) * 100) })),
-    heldBy: Array.from(holders, ([holder, count]) => ({ holder, count })).sort((a, b) => b.count - a.count || a.holder.localeCompare(b.holder)),
-    stalledActivities: Array.from(stalled, ([activityCode, v]) => ({ activityCode, activityName: v.name, open: v.open, oldestDays: Math.floor((ds.now.getTime() - v.oldest.getTime()) / 86_400_000) })).sort((a, b) => b.open - a.open || b.oldestDays - a.oldestDays || a.activityCode.localeCompare(b.activityCode)),
+    heldBy: Array.from(holders, ([holder, count]) => ({ holder, count })).sort((a, b) => b.count - a.count || a.holder.localeCompare(b.holder, undefined, { numeric: true })),
+    stalledActivities: Array.from(stalled, ([activityCode, v]) => ({ activityCode, activityName: v.name, open: v.open, oldestDays: Math.floor((ds.now.getTime() - v.oldest.getTime()) / 86_400_000) })).sort((a, b) => b.open - a.open || b.oldestDays - a.oldestDays || a.activityCode.localeCompare(b.activityCode, undefined, { numeric: true })),
   };
 }
 
 // ---------------------------------------------------------------- screen 5
 
 export function activitiesMatrix(ds: PmcDataset) {
-  const columns = [...ds.verification.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code)).map(v => ({ id: v.id as string | null, code: v.code, label: v.label })), { id: null as string | null, code: "—", label: "—" }];
+  const columns = [...ds.verification.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code, undefined, { numeric: true })).map(v => ({ id: v.id as string | null, code: v.code, label: v.label })), { id: null as string | null, code: "—", label: "—" }];
   const cells = grid(ds);
   const groups = new Map<string, { groupName: string; activities: Map<string, { name: string; cells: Map<string | null, { count: number; weight: number }>; total: number; weight: number }> }>();
   for (const { definition, cell } of cells) {
@@ -161,7 +161,7 @@ export function activitiesMatrix(ds: PmcDataset) {
       let groupWeight = 0;
       g.activities.forEach(a => { groupWeight += a.weight; a.cells.forEach((slot, key) => { const m = merged.get(key) ?? { count: 0, weight: 0 }; merged.set(key, { count: m.count + slot.count, weight: m.weight + slot.weight }); }); });
       return { groupCode, groupName: g.groupName, cells: render(merged, groupWeight), activities: Array.from(g.activities, ([code, a]) => ({ code, name: a.name, total: a.total, cells: render(a.cells, a.weight) })).sort((x, y) => x.code.localeCompare(y.code)) };
-    }).sort((a, b) => a.groupCode.localeCompare(b.groupCode)),
+    }).sort((a, b) => a.groupCode.localeCompare(b.groupCode, undefined, { numeric: true })),
   };
 }
 
@@ -177,7 +177,7 @@ export function zones(ds: PmcDataset) {
     if (status === "COMPLETE") { row.complete += 1; row.weightComplete += definition.weightPercent; }
     rows.set(key, row);
   }
-  return { rows: Array.from(rows.values()).map(r => ({ zoneCode: r.zoneCode, stageCode: r.stageCode, stageName: r.stageName, engineer: personName(ds, r.userId), cells: r.cells, completeCells: r.complete, weightComplete: r2(r.weightComplete), completionPercent: r2((r.complete / r.cells) * 100) })).sort((a, b) => a.zoneCode.localeCompare(b.zoneCode) || a.stageCode.localeCompare(b.stageCode) || (a.engineer ?? "").localeCompare(b.engineer ?? "")) };
+  return { rows: Array.from(rows.values()).map(r => ({ zoneCode: r.zoneCode, stageCode: r.stageCode, stageName: r.stageName, engineer: personName(ds, r.userId), cells: r.cells, completeCells: r.complete, weightComplete: r2(r.weightComplete), completionPercent: r2((r.complete / r.cells) * 100) })).sort((a, b) => a.zoneCode.localeCompare(b.zoneCode, undefined, { numeric: true }) || a.stageCode.localeCompare(b.stageCode, undefined, { numeric: true }) || (a.engineer ?? "").localeCompare(b.engineer ?? "", undefined, { numeric: true })) };
 }
 
 // ---------------------------------------------------------------- screens 7 and 8
@@ -205,7 +205,7 @@ export function periodReport(ds: PmcDataset, period: "week" | "month") {
     p.rows.set(rowKey, { ...row, updates: row.updates + 1, units: row.units + 1 });
     periods.set(key, p);
   }
-  return { period, periods: Array.from(periods, ([from, p]) => ({ from, updates: p.updates, addedProjectPercent: r4(p.added), byGroup: Array.from(p.byGroup, ([groupCode, v]) => ({ groupCode, addedProjectPercent: r4(v) })).sort((a, b) => a.groupCode.localeCompare(b.groupCode)), byStatus: SCREEN_STATUSES.filter(s => p.byStatus.has(s)).map(status => ({ status, updates: p.byStatus.get(status)! })), rows: Array.from(p.rows.values()).sort((a, b) => a.engineer.localeCompare(b.engineer) || a.activityCode.localeCompare(b.activityCode)) })).sort((a, b) => b.from.localeCompare(a.from)) };
+  return { period, periods: Array.from(periods, ([from, p]) => ({ from, updates: p.updates, addedProjectPercent: r4(p.added), byGroup: Array.from(p.byGroup, ([groupCode, v]) => ({ groupCode, addedProjectPercent: r4(v) })).sort((a, b) => a.groupCode.localeCompare(b.groupCode, undefined, { numeric: true })), byStatus: SCREEN_STATUSES.filter(s => p.byStatus.has(s)).map(status => ({ status, updates: p.byStatus.get(status)! })), rows: Array.from(p.rows.values()).sort((a, b) => a.engineer.localeCompare(b.engineer, undefined, { numeric: true }) || a.activityCode.localeCompare(b.activityCode, undefined, { numeric: true })) })).sort((a, b) => b.from.localeCompare(a.from)) };
 }
 
 // ---------------------------------------------------------------- screen 9
@@ -215,7 +215,7 @@ export function pendingAtVerifier(ds: PmcDataset) {
   const labelOf = new Map(ds.verification.map(v => [v.id, v.label]));
   const unitById = new Map(ds.units.map(u => [u.id, u]));
   const defById = new Map(ds.definitions.map(d => [d.id, d]));
-  const rows = ds.cells.filter(c => c.verificationStatusId && pendingIds.has(c.verificationStatusId)).map(c => ({ unitNumber: unitById.get(c.unitId)!.number, activityCode: defById.get(c.definitionId)!.code, activityName: defById.get(c.definitionId)!.name, verificationStatus: labelOf.get(c.verificationStatusId!)!, engineer: personName(ds, c.assignedUserId), since: c.lastChangedAt, ageDays: Math.max(0, Math.floor((ds.now.getTime() - c.lastChangedAt.getTime()) / 86_400_000)) })).sort((a, b) => b.ageDays - a.ageDays || a.unitNumber - b.unitNumber || a.activityCode.localeCompare(b.activityCode));
+  const rows = ds.cells.filter(c => c.verificationStatusId && pendingIds.has(c.verificationStatusId)).map(c => ({ unitNumber: unitById.get(c.unitId)!.number, activityCode: defById.get(c.definitionId)!.code, activityName: defById.get(c.definitionId)!.name, verificationStatus: labelOf.get(c.verificationStatusId!)!, engineer: personName(ds, c.assignedUserId), since: c.lastChangedAt, ageDays: Math.max(0, Math.floor((ds.now.getTime() - c.lastChangedAt.getTime()) / 86_400_000)) })).sort((a, b) => b.ageDays - a.ageDays || a.unitNumber - b.unitNumber || a.activityCode.localeCompare(b.activityCode, undefined, { numeric: true }));
   const buckets = [{ label: "0-7", from: 0, to: 7 }, { label: "8-14", from: 8, to: 14 }, { label: "15-30", from: 15, to: 30 }, { label: "31+", from: 31, to: Infinity }];
   return { total: rows.length, buckets: buckets.map(b => ({ label: b.label, count: rows.filter(r => r.ageDays >= b.from && r.ageDays <= b.to).length })), rows };
 }
@@ -243,7 +243,7 @@ export function stagesView(ds: PmcDataset) {
     const actual = a.included === 0 ? 0 : r2((a.complete / a.included) * 100);
     if (planned !== null && actual < planned - 0.0001) late.set(a.definition.stageCode, [...(late.get(a.definition.stageCode) ?? []), { activityCode: a.definition.code, actualPercent: actual, plannedPercent: planned }]);
   });
-  return { stages: Array.from(stages, ([stageCode, s]) => { const total = SCREEN_STATUSES.reduce((sum, st) => sum + s.counts[st], 0); const totalWeight = SCREEN_STATUSES.reduce((sum, st) => sum + s.weight[st], 0); return { stageCode, stageName: s.stageName, total, byStatus: SCREEN_STATUSES.map(status => ({ status, count: s.counts[status], weightPoints: r2(s.weight[status]), percent: total ? r2((s.counts[status] / total) * 100) : 0, weightSharePercent: totalWeight ? r2((s.weight[status] / totalWeight) * 100) : 0 })), lateActivities: (late.get(stageCode) ?? []).sort((a, b) => a.activityCode.localeCompare(b.activityCode)) }; }).sort((a, b) => a.stageCode.localeCompare(b.stageCode)) };
+  return { stages: Array.from(stages, ([stageCode, s]) => { const total = SCREEN_STATUSES.reduce((sum, st) => sum + s.counts[st], 0); const totalWeight = SCREEN_STATUSES.reduce((sum, st) => sum + s.weight[st], 0); return { stageCode, stageName: s.stageName, total, byStatus: SCREEN_STATUSES.map(status => ({ status, count: s.counts[status], weightPoints: r2(s.weight[status]), percent: total ? r2((s.counts[status] / total) * 100) : 0, weightSharePercent: totalWeight ? r2((s.weight[status] / totalWeight) * 100) : 0 })), lateActivities: (late.get(stageCode) ?? []).sort((a, b) => a.activityCode.localeCompare(b.activityCode, undefined, { numeric: true })) }; }).sort((a, b) => a.stageCode.localeCompare(b.stageCode, undefined, { numeric: true })) };
 }
 
 export const freshnessOf = (ds: PmcDataset) => ds.sources.map(s => ({ source: s.source, lastAt: s.lastAt, ageDays: s.lastAt ? Math.max(0, Math.floor((ds.now.getTime() - s.lastAt.getTime()) / 86_400_000)) : null }));
