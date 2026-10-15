@@ -912,10 +912,11 @@ export async function getPublicCommercialPlans() {
   return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
 }
 
-function isDuplicateEntryError(error: unknown) {
+function isDuplicateEntryError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const candidate = error as { code?: unknown; message?: unknown };
-  return candidate.code === "ER_DUP_ENTRY" || (typeof candidate.message === "string" && candidate.message.includes("Duplicate entry"));
+  const candidate = error as { code?: unknown; message?: unknown; cause?: unknown };
+  // The query layer wraps the driver's error ("Failed query: ..."); the duplicate-key code is on its cause.
+  return candidate.code === "ER_DUP_ENTRY" || (typeof candidate.message === "string" && candidate.message.includes("Duplicate entry")) || isDuplicateEntryError(candidate.cause);
 }
 
 function safeDatabaseErrorCode(error: unknown) {
@@ -3427,7 +3428,10 @@ export async function createAndAnalyzeDataImport(input: { userId: number; tenant
   const analysis = await analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, analysis }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : input.sourceFormat === "xer" ? "text/plain" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   const duplicateMode = input.duplicateMode ?? "fail_on_duplicate";
+  // The same file cannot be uploaded twice by one tenant (unique file hash): say so by name instead of a generic failure, and point to re-analysis for a file that is still waiting.
+  try {
   await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode, totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, duplicateMode, totalRows: analysis.rows.length }) }); });
+  } catch (error) { if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" }); throw error; }
   return { id, status: analysis.errors.length ? "uploaded" : "validated", headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
 
