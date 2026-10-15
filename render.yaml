@@ -1,0 +1,80 @@
+# Render Blueprint for PROJECT OS: one Express server that serves the built
+# client and the tRPC API, plus a daily cron job for license expiry.
+#
+# Nothing here deploys by itself: autoDeploy is off, so a deploy is the owner
+# pressing the button. Values marked `sync: false` are asked for in the Render
+# dashboard (see docs/OWNER_ACTIONS.md); none is stored in this file.
+services:
+  - type: web
+    name: project-os
+    runtime: node
+    plan: starter
+    region: frankfurt
+    autoDeploy: false
+    # NODE_ENV=production would make pnpm skip the dev dependencies the build needs.
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm build
+    # Applies pending schema migrations before the new version takes traffic.
+    preDeployCommand: node scripts/migrate.mjs
+    startCommand: pnpm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: LLM_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: PROJECT_OS_APP_DB_PASSWORD
+        sync: false
+      - key: OWNER_EMAIL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      # Optional: Google sign-in appears only when both are set.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Optional: the language model stays off unless all three are set.
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+
+  - type: cron
+    name: project-os-license-expiry
+    runtime: node
+    plan: starter
+    region: frankfurt
+    schedule: "0 2 * * *"
+    buildCommand: "true"
+    startCommand: 'curl --fail --silent --show-error --max-time 60 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/licenseExpiry"'
+    envVars:
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: CRON_SECRET
+      - key: APP_BASE_URL
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: APP_BASE_URL

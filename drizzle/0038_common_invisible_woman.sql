@@ -71,7 +71,7 @@ ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_project_fk` FOREIGN KEY 
 ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_cost_fk` FOREIGN KEY (`costEntryId`) REFERENCES `cost_entries`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_progress_fk` FOREIGN KEY (`progressEntryId`) REFERENCES `progress_entries`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_creator_fk` FOREIGN KEY (`createdByUserId`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_reviewer_fk` FOREIGN KEY (`reviewedByUserId`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
+ALTER TABLE `employee_time_entries` ADD CONSTRAINT `ete_reviewer_fk` FOREIGN KEY (`reviewedByUserId`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX `employee_assignments_tenant_project_idx` ON `employee_assignments` (`tenantId`,`projectId`,`status`);--> statement-breakpoint
 CREATE INDEX `employee_assignments_employee_window_idx` ON `employee_assignments` (`tenantId`,`employeeId`,`plannedStartAt`,`plannedFinishAt`);--> statement-breakpoint
 CREATE INDEX `employee_attendance_tenant_status_idx` ON `employee_attendance` (`tenantId`,`status`,`attendanceDate`);--> statement-breakpoint
