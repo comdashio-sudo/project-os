@@ -2,6 +2,7 @@ import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { grantOperationalPermissions } from "./testing/grantOperational";
 vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
 const tenantId = "10000000-0000-4000-8000-0000000000a1";
@@ -66,6 +67,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structu
     expect(["executive.read", "tenant.manage", "pmo.read", "pmo.write", "project.read", "project.write"].every(code => Boolean(permissionId(code)))).toBe(true);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('pilot-role-exec', ?, 'PILOT_EXEC','Pilot Executive','EXECUTIVE'),('pilot-role-pmo', ?, 'PILOT_PMO','Pilot PMO','PMO'),('pilot-role-project', ?, 'PILOT_PROJECT','Pilot Project','PROJECT')", [tenantId, tenantId, tenantId]);
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('pilot-role-exec', ?),('pilot-role-exec', ?),('pilot-role-pmo', ?),('pilot-role-pmo', ?),('pilot-role-project', ?),('pilot-role-project', ?)", [permissionId("executive.read"), permissionId("tenant.manage"), permissionId("pmo.read"), permissionId("pmo.write"), permissionId("project.read"), permissionId("project.write")]);
+    await grantOperationalPermissions(connection, "pilot-role-project");
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('pilot-role-exec', ?, ?, 'active'),('pilot-role-pmo', ?, ?, 'active'),('pilot-role-project', ?, ?, 'active'),('pilot-role-low', ?, ?, 'active')", [tenantId, executiveId, tenantId, pmoId, tenantId, projectIdUser, tenantId, lowPrivilegeId]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('pilot-role-exec-a','pilot-role-exec','pilot-role-exec','company'),('pilot-role-pmo-a','pilot-role-pmo','pilot-role-pmo','company'),('pilot-role-project-a','pilot-role-project','pilot-role-project','company')");
   }, 30_000);

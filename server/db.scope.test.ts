@@ -10,6 +10,10 @@ vi.mock("drizzle-orm/mysql2", () => ({
 }));
 
 import { createBudgetLine, createCostEntry, createProgressEntry, createWbsItem } from "./db";
+import { operationalPermissionCatalog } from "./domain/operationalRoles";
+
+// The fully authorised user of these doubles is the tenant owner: the generic write permission plus every operational one.
+const ownerPermissionRows = [{ code: "project.write" }, ...operationalPermissionCatalog.map(permission => ({ code: permission.code }))];
 
 function queryResult<T>(result: T) {
   const query = {
@@ -33,7 +37,7 @@ function configureTenantAndProjectWithForeignWbs() {
     if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
     if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
     if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-    if (keys === "code") return queryResult([{ code: "project.write" }]);
+    if (keys === "code") return queryResult(ownerPermissionRows);
 
     if (keys === "id") {
       idSelectionCount += 1;

@@ -21,6 +21,7 @@ const context = {
   ],
   wbs: [{ id: "x1", code: "1", name: "Foundations", lastPercent: 40, lastMeasuredAt: new Date() }, { id: "x2", code: "2", name: "Structure", lastPercent: null, lastMeasuredAt: null }],
   lastIssuedWbsItemId: "x2",
+  can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
 afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
@@ -112,5 +113,15 @@ describe("FieldEntry (phone entry)", () => {
     expect(screen.getByText("إدخال سريع من الموقع")).toBeTruthy();
     expect(screen.getByText("تسجيل تقدم")).toBeTruthy();
     expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
+  });
+
+  it("offers only what the role may do: a storekeeper lands on issue with progress disabled, and a role with neither sees why", () => {
+    load({ ...context, can: { logProgress: false, issueMaterial: true } });
+    expect((screen.getByRole("tab", { name: "Log progress" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("tab", { name: "Issue material" }).getAttribute("aria-selected")).toBe("true");
+    cleanup();
+    load({ ...context, can: { logProgress: false, issueMaterial: false } });
+    expect(screen.getByRole("alert").textContent).toContain("Your role does not allow");
+    expect(screen.queryByText("Save")).toBeNull();
   });
 });

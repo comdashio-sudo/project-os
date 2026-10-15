@@ -28,7 +28,7 @@ export function productsForPackage(packageCode: SubscriptionPackageCode): readon
 
 export function assertTenantAccess(
   snapshot: TenantAccessSnapshot,
-  request: { tenantId: string; product: ProductCode; permission: string; scope?: { type: ScopeType; id?: string } },
+  request: { tenantId: string; product: ProductCode; permission: string | readonly string[]; scope?: { type: ScopeType; id?: string } },
 ): void {
   if (!request.tenantId || request.tenantId !== snapshot.tenantId) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Tenant scope is invalid." });
@@ -39,7 +39,8 @@ export function assertTenantAccess(
   if (!snapshot.entitledProducts.includes(request.product)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `The ${request.product} product is not licensed for this tenant.` });
   }
-  if (!snapshot.permissionCodes.includes(request.permission)) {
+  const accepted = typeof request.permission === "string" ? [request.permission] : request.permission;
+  if (!accepted.some(code => snapshot.permissionCodes.includes(code))) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Required permission is not granted." });
   }
   if (request.scope && !hasScopeAccess(snapshot.scopes, request.scope)) {

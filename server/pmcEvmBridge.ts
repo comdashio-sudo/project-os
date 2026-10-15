@@ -39,10 +39,11 @@ export async function syncPmcProgressToEvm(tx: Tx, scope: Scope, now: Date): Pro
   const plan = planEvmBridge({ wbs: wbs.map(item => ({ id: item.id, code: item.code, plannedValue: Number(item.plannedValue) })), latest, computed });
   if (plan.changed.length) {
     await tx.insert(progressEntries).values(plan.changed.map(change => {
-      // EVM keeps the first of two entries with the same timestamp, and timestamps have one-second
-      // resolution: an entry is always stamped after the one it supersedes.
+      // EVM keeps the first of two entries with the same timestamp: an entry is always stamped after the one it supersedes.
+      // Stamped in whole seconds: the database stores seconds (rounding any fraction), so a millisecond comparison could still tie.
+      const wholeSecond = new Date(Math.floor(now.getTime() / 1000) * 1000);
       const previous = latestAt.get(change.wbsItemId);
-      const measuredAt = previous && previous >= now ? new Date(previous.getTime() + 1000) : now;
+      const measuredAt = previous && previous >= wholeSecond ? new Date(previous.getTime() + 1000) : wholeSecond;
       return { id: crypto.randomUUID(), tenantId: scope.tenantId, projectId: scope.projectId, wbsItemId: change.wbsItemId, progressPercent: String(change.after), status: "submitted" as const, measuredAt };
     }));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: scope.tenantId, actorUserId: scope.userId, action: "pmc.evm_bridge_synced", entityType: "project", entityId: scope.projectId, metadata: JSON.stringify({ items: plan.changed.map(change => ({ wbs: change.code, before: change.before, after: change.after })), evBefore: plan.evBefore, evAfter: plan.evAfter }) });

@@ -13,6 +13,10 @@ vi.mock("./storage", () => ({ storagePut: storageDouble.storagePut }));
 
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { operationalPermissionCatalog } from "./domain/operationalRoles";
+
+// The fully authorised user of these doubles is the tenant owner: the generic write permission plus every operational one.
+const ownerPermissionRows = [{ code: "project.write" }, ...operationalPermissionCatalog.map(permission => ({ code: permission.code }))];
 
 const tenantA = "11111111-1111-4111-8111-111111111111";
 const tenantB = "22222222-2222-4222-8222-222222222222";
@@ -60,7 +64,7 @@ function configureActiveMembershipWithoutProjectEntitlement() {
     if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
     if (keys === "productCode") return queryResult([]);
     if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-    if (keys === "code") return queryResult([{ code: "project.write" }]);
+    if (keys === "code") return queryResult(ownerPermissionRows);
     throw new Error(`Unexpected select shape: ${keys}`);
   });
 }
@@ -74,7 +78,7 @@ function configureAuthorizedOperationalAccess(input: { productCode: "PMO" | "EXE
     if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
     if (keys === "productCode") return queryResult([{ productCode: input.productCode }]);
     if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-    if (keys === "code") return queryResult([{ code: input.permissionCode }]);
+    if (keys === "code") return queryResult(input.permissionCode === "project.write" ? ownerPermissionRows : [{ code: input.permissionCode }]);
     if (keys === "id") return queryResult([{ id: projectB }]);
     throw new Error(`Unexpected select shape: ${keys}`);
   });
@@ -138,6 +142,10 @@ function configureAuthorizedMembershipRoleAssignment(input: { membershipTenantId
     if (keys === "code,id,productCode,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA, code: "SITE_ENGINEER", productCode: null }]);
     if (keys === "code,scopeId,scopeType") return queryResult([]);
     if (keys === "id") return queryResult(input.existingAssignment ? [{ id: "existing-role-assignment" }] : []);
+    // separation-of-duties lookups added with G-120: the member holds no other role, the role has no conflicting power
+    if (keys === "code,roleId,scopeId,scopeType") return queryResult([]);
+    if (keys === "membershipId,scopeId,scopeType") return queryResult([]);
+    if (keys === "permissionCode") return queryResult([{ permissionCode: "project.field.manage" }]);
     throw new Error(`Unexpected select shape: ${keys}`);
   });
   databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
@@ -177,6 +185,10 @@ function configureAuthorizedRoleUpdate(input: { systemManaged?: boolean; actorHa
     if (keys === "id,productCode,systemManaged,tenantId") return queryResult([{ id: "55555555-5555-4555-8555-555555555555", tenantId: tenantA, productCode: "EXECUTIVE", systemManaged: input.systemManaged ?? false }]);
     if (keys === "membershipId") return queryResult(input.actorHasRole ? [{ membershipId: "membership-a" }] : []);
     if (keys === "code,id,productCode") return queryResult([{ id: "permission-1", code: "tenant.manage", productCode: "EXECUTIVE" }]);
+    // separation-of-duties lookups added with G-120: the member holds no other role, the role has no conflicting power
+    if (keys === "code,roleId,scopeId,scopeType") return queryResult([]);
+    if (keys === "membershipId,scopeId,scopeType") return queryResult([]);
+    if (keys === "permissionCode") return queryResult([{ permissionCode: "project.field.manage" }]);
     throw new Error(`Unexpected select shape: ${keys}`);
   });
   databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
@@ -303,7 +315,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id,lifecycleStage") return queryResult([{ id: projectA, lifecycleStage: "planning" }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -321,7 +333,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id,lifecycleStage") return queryResult([{ id: projectA, lifecycleStage: "planning" }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -363,7 +375,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -384,7 +396,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") { idSelectionCount += 1; return queryResult([{ id: idSelectionCount === 1 ? projectA : "99999999-9999-4999-8999-999999999999" }]); }
       if (keys === "versionNumber") return queryResult([{ versionNumber: 1 }]);
       throw new Error(`Unexpected select shape: ${keys}`);
@@ -417,7 +429,7 @@ describe("operational API authorization", () => {
       }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -438,7 +450,7 @@ describe("operational API authorization", () => {
       }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -463,7 +475,7 @@ describe("operational API authorization", () => {
       }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -500,7 +512,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: projectA }] : []); }
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -529,7 +541,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "ncr-a", status: "open" }]); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -547,7 +559,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -566,7 +578,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "ncr-a", status: "open" }]); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -601,7 +613,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idStatusSelectionCount += 1; return queryResult(idStatusSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : []); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -628,7 +640,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "rfi-a", status: "draft" }]); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -646,7 +658,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -666,7 +678,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: "membership-a", status: "active" }] : [{ id: "rfi-a", status: "draft" }]); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -712,7 +724,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") { idStatusCount += 1; return queryResult(idStatusCount === 1 ? [{ id: "membership-a", status: "active" }] : []); }
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -740,7 +752,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "bac,cpi,eac,spi") return queryResult([{ cpi: "0.88", spi: "0.95", eac: "120", bac: "100" }]);
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
@@ -766,7 +778,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "bac,cpi,eac,spi") return queryResult([{ cpi: "0.88", spi: "0.95", eac: "120", bac: "100" }]);
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
@@ -792,7 +804,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "bac,cpi,eac,spi") return queryResult([{ cpi: "0.88", spi: "0.95", eac: "120", bac: "100" }]);
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
@@ -818,7 +830,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "bac,cpi,eac,spi") return queryResult([{ cpi: "0.88", spi: "0.95", eac: "120", bac: "100" }]);
       if (keys === "probability,severity,status") return queryResult([{ probability: 4, severity: 4, status: "open" }]);
@@ -841,7 +853,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") { idSelectionCount += 1; return queryResult(idSelectionCount === 1 ? [{ id: projectA }] : []); }
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -859,7 +871,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -879,7 +891,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") { idSelectionCount += 1; return queryResult([{ id: idSelectionCount === 1 ? projectA : "contract-a" }]); }
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -1441,7 +1453,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -1476,7 +1488,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       throw new Error(`Unexpected select shape: ${keys}`);
     });
@@ -1493,7 +1505,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "allocatedUnits,id,plannedUnits") return queryResult([{ id: "99999999-9999-4999-8999-999999999999", plannedUnits: "10.00", allocatedUnits: "5.00" }]);
       throw new Error(`Unexpected select shape: ${keys}`);
@@ -1511,7 +1523,7 @@ describe("operational API authorization", () => {
       if (keys === "id,status") return queryResult([{ id: "membership-a", status: "active" }]);
       if (keys === "productCode") return queryResult([{ productCode: "PROJECT" }]);
       if (keys === "scopeId,scopeType") return queryResult([{ scopeType: "company", scopeId: null }]);
-      if (keys === "code") return queryResult([{ code: "project.write" }]);
+      if (keys === "code") return queryResult(ownerPermissionRows);
       if (keys === "id") return queryResult([{ id: projectA }]);
       if (keys === "allocatedUnits,id,plannedUnits") return queryResult([{ id: "99999999-9999-4999-8999-999999999999", plannedUnits: "10.00", allocatedUnits: "5.00" }]);
       throw new Error(`Unexpected select shape: ${keys}`);

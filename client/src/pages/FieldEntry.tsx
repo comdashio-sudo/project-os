@@ -13,12 +13,12 @@ import { Link, useParams } from "wouter";
 // save needs three taps: pick, choose, save.
 const text = {
   ar: {
-    title: "إدخال سريع من الموقع", back: "العودة إلى ضوابط المشروع", progress: "تسجيل تقدم", issue: "صرف مادة", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
+    title: "إدخال سريع من الموقع", back: "العودة إلى ضوابط المشروع", notAllowed: "دورك لا يتيح تسجيل التقدم ولا صرف المواد من هذه الشاشة.", progress: "تسجيل تقدم", issue: "صرف مادة", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     pickItem: "اختر بند العمل", nowAt: "التقدم الآن", never: "لم يُسجَّل", save: "حفظ", saving: "جارٍ الحفظ…", saved: "تم الحفظ", another: "تسجيل آخر", noWbs: "لا بنود عمل في هذا المشروع بعد.", plus5: "+5", minus5: "−5",
     pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
   },
   en: {
-    title: "Quick site entry", back: "Back to project controls", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
+    title: "Quick site entry", back: "Back to project controls", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
     pickItem: "Pick the work item", nowAt: "Now at", never: "not recorded", save: "Save", saving: "Saving…", saved: "Saved", another: "Record another", noWbs: "This project has no work items yet.", plus5: "+5", minus5: "−5",
     pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
   },
@@ -125,19 +125,23 @@ export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
-  const [tab, setTab] = useState<"progress" | "issue">("progress");
+  const [chosen, setTab] = useState<"progress" | "issue" | null>(null);
   const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
+  const can = { progress: context.data ? context.data.can.logProgress : true, issue: context.data ? context.data.can.issueMaterial : true };
+  const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : "progress";
+  const nothingAllowed = Boolean(context.data) && !can.progress && !can.issue;
   return (
     <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <div role="tablist" className="grid grid-cols-2 gap-2">
-          {(["progress", "issue"] as const).map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`${tap} rounded-xl border text-base font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
+          {(["progress", "issue"] as const).map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
         </div>
         {context.isLoading && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
         {context.error && <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(context.error, isArabic)}</p><Button className={`${tap} mt-2`} variant="outline" onClick={() => context.refetch()}>{t.retry}</Button></div>}
-        {context.data && (tab === "progress"
+        {nothingAllowed && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.notAllowed}</p>}
+        {context.data && !nothingAllowed && (tab === "progress"
           ? <ProgressEntry tenantId={tenantId} projectId={projectId} context={context.data} t={t} isArabic={isArabic} onSaved={() => context.refetch()} />
           : <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={context.data} t={t} isArabic={isArabic} onSaved={() => context.refetch()} />)}
       </div>
