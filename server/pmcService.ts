@@ -78,17 +78,17 @@ export async function setPmcStatusFactors(input: Scope & { factors: Partial<Reco
 
 export async function listPmcVerificationStatuses(input: Scope) {
   const db = await authorize(input, "project.pmc.read");
-  return db.select({ id: pmcVerificationStatuses.id, code: pmcVerificationStatuses.code, label: pmcVerificationStatuses.label, sortOrder: pmcVerificationStatuses.sortOrder, active: pmcVerificationStatuses.active }).from(pmcVerificationStatuses).where(mine(pmcVerificationStatuses, input)).orderBy(asc(pmcVerificationStatuses.sortOrder), asc(pmcVerificationStatuses.code));
+  return db.select({ id: pmcVerificationStatuses.id, code: pmcVerificationStatuses.code, label: pmcVerificationStatuses.label, sortOrder: pmcVerificationStatuses.sortOrder, active: pmcVerificationStatuses.active, pending: pmcVerificationStatuses.pending }).from(pmcVerificationStatuses).where(mine(pmcVerificationStatuses, input)).orderBy(asc(pmcVerificationStatuses.sortOrder), asc(pmcVerificationStatuses.code));
 }
 
 /** The list is the tenant's decision: names are never fixed in code. A status in use can be deactivated but not deleted. */
-export async function savePmcVerificationStatuses(input: Scope & { statuses: Array<{ code: string; label: string; sortOrder: number; active: boolean }> }) {
+export async function savePmcVerificationStatuses(input: Scope & { statuses: Array<{ code: string; label: string; sortOrder: number; active: boolean; pending?: boolean }> }) {
   const db = await authorize(input, "project.pmc.manage");
   const codes = input.statuses.map(status => status.code);
   if (new Set(codes).size !== codes.length) throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_STATUS_CODE_DUPLICATE");
   await db.transaction(async tx => {
     for (const status of input.statuses) {
-      await tx.insert(pmcVerificationStatuses).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: status.code, label: status.label, sortOrder: status.sortOrder, active: status.active }).onDuplicateKeyUpdate({ set: { label: status.label, sortOrder: status.sortOrder, active: status.active } });
+      await tx.insert(pmcVerificationStatuses).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: status.code, label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false }).onDuplicateKeyUpdate({ set: { label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false } });
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.verification_statuses_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ codes }) });
   });

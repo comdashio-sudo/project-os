@@ -1780,6 +1780,8 @@ export const pmcVerificationStatuses = mysqlTable(
     label: varchar("label", { length: 160 }).notNull(),
     sortOrder: int("sortOrder").default(0).notNull(),
     active: boolean("active").default(true).notNull(),
+    // A status that means "waiting on the verifier"; screen 9 lists cells in these and how long they have waited.
+    pending: boolean("pending").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_verification_status_project_code_unique").on(table.projectId, table.code), index("pmc_verification_status_tenant_project_idx").on(table.tenantId, table.projectId, table.active)],
