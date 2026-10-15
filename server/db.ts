@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -115,7 +115,7 @@ import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
 import { calculateEmployeePerformance, type PerformanceSourceRecord, type PerformanceSourceType } from "./domain/employeePerformance";
-import { calculateOperationalCashFlow } from "./domain/cashFlow";
+import { calculateOperationalCashFlow, monthlyNetCashFlow } from "./domain/cashFlow";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
 import { assessEmployeeCapacity } from "./domain/employeeCapacity";
@@ -1203,6 +1203,18 @@ export async function listProjectsForTenant(input: { userId: number; tenantId: s
   return db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId));
 }
 
+/** Per commitment, the cost already booked from goods received against its purchase orders (so exposure does not count it twice). */
+async function settledAmountsByCommitment(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, projectIds: string[]) {
+  const settled = new Map<string, number>();
+  if (!projectIds.length) return settled;
+  const rows = await db.select({ commitmentId: purchaseOrders.commitmentId, amount: costEntries.amount, status: costEntries.status }).from(goodsReceiptNotes)
+    .innerJoin(purchaseOrders, eq(goodsReceiptNotes.purchaseOrderId, purchaseOrders.id))
+    .innerJoin(costEntries, eq(goodsReceiptNotes.costEntryId, costEntries.id))
+    .where(and(eq(purchaseOrders.tenantId, tenantId), inArray(purchaseOrders.projectId, projectIds), isNotNull(purchaseOrders.commitmentId)));
+  for (const row of rows) if (row.commitmentId && row.status !== "void") settled.set(row.commitmentId, (settled.get(row.commitmentId) ?? 0) + Number(row.amount));
+  return settled;
+}
+
 export async function getProjectControlsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -1224,7 +1236,8 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
     db.select({ id: commitments.id, amount: commitments.amount, status: commitments.status }).from(commitments).where(and(eq(commitments.tenantId, input.tenantId), eq(commitments.projectId, input.projectId))),
   ]);
 
-  const cashFlow = calculateOperationalCashFlow({ budgetAmounts: budgets.map(row => Number(row.currentAmount)), costEntries: costs.map(row => ({ amount: Number(row.amount), status: row.status })), commitments: commitmentRows.map(row => ({ amount: Number(row.amount), status: row.status })) });
+  const settledByCommitment = await settledAmountsByCommitment(db, input.tenantId, [input.projectId]);
+  const cashFlow = calculateOperationalCashFlow({ budgetAmounts: budgets.map(row => Number(row.currentAmount)), costEntries: costs.map(row => ({ amount: Number(row.amount), status: row.status })), commitments: commitmentRows.map(row => ({ amount: Number(row.amount), status: row.status, settledAmount: settledByCommitment.get(row.id) ?? 0 })) });
   return { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null, cashFlow };
 }
 
@@ -1288,7 +1301,7 @@ export async function getExecutiveDashboard(input: { userId: number; tenantId: s
     db.select({ id: decisions.id, projectId: decisions.projectId, problem: decisions.problem, status: decisions.status, costImpact: decisions.costImpact, scheduleImpactDays: decisions.scheduleImpactDays, createdAt: decisions.createdAt }).from(decisions).where(eq(decisions.tenantId, input.tenantId)).orderBy(desc(decisions.createdAt)),
     db.select({ projectId: budgetLines.projectId, amount: budgetLines.currentAmount }).from(budgetLines).where(eq(budgetLines.tenantId, input.tenantId)),
     db.select({ projectId: costEntries.projectId, amount: costEntries.amount, status: costEntries.status }).from(costEntries).where(eq(costEntries.tenantId, input.tenantId)),
-    db.select({ projectId: commitments.projectId, amount: commitments.amount, status: commitments.status }).from(commitments).where(eq(commitments.tenantId, input.tenantId)),
+    db.select({ id: commitments.id, projectId: commitments.projectId, amount: commitments.amount, status: commitments.status }).from(commitments).where(eq(commitments.tenantId, input.tenantId)),
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
   ]);
 
@@ -1298,7 +1311,8 @@ export async function getExecutiveDashboard(input: { userId: number; tenantId: s
   const totals = projectRows.reduce((accumulator, project) => ({ budget: accumulator.budget + Number(project.currentBudget), actual: accumulator.actual + Number(project.actualCost), forecast: accumulator.forecast + Number(project.forecastCost) }), { budget: 0, actual: 0, forecast: 0 });
   const budgetsByProject = new Map<string, number[]>(); budgetRows.forEach(item => budgetsByProject.set(item.projectId, [...(budgetsByProject.get(item.projectId) ?? []), Number(item.amount)]));
   const costsByProject = new Map<string, { amount: number; status: "draft" | "posted" | "void" }[]>(); costRows.forEach(item => costsByProject.set(item.projectId, [...(costsByProject.get(item.projectId) ?? []), { amount: Number(item.amount), status: item.status }]));
-  const commitmentsByProject = new Map<string, { amount: number; status: string }[]>(); commitmentRows.forEach(item => commitmentsByProject.set(item.projectId, [...(commitmentsByProject.get(item.projectId) ?? []), { amount: Number(item.amount), status: item.status }]));
+  const settledByCommitment = await settledAmountsByCommitment(db, input.tenantId, projectRows.map(project => project.id));
+  const commitmentsByProject = new Map<string, { amount: number; status: string; settledAmount: number }[]>(); commitmentRows.forEach(item => commitmentsByProject.set(item.projectId, [...(commitmentsByProject.get(item.projectId) ?? []), { amount: Number(item.amount), status: item.status, settledAmount: settledByCommitment.get(item.id) ?? 0 }]));
   const cashFlowByProject = projectRows.map(project => ({ id: project.id, code: project.code, name: project.name, ...calculateOperationalCashFlow({ budgetAmounts: budgetsByProject.get(project.id) ?? [], costEntries: costsByProject.get(project.id) ?? [], commitments: commitmentsByProject.get(project.id) ?? [] }) }));
   const cashFlow = cashFlowByProject.reduce((accumulator, project) => ({ plannedBudget: accumulator.plannedBudget + project.plannedBudget, actualCost: accumulator.actualCost + project.actualCost, committedAmount: accumulator.committedAmount + project.committedAmount, totalExposure: accumulator.totalExposure + project.totalExposure, remainingBudget: accumulator.remainingBudget + project.remainingBudget }), { plannedBudget: 0, actualCost: 0, committedAmount: 0, totalExposure: 0, remainingBudget: 0 });
   const portfolioById = new Map(portfolioRows.map(item => [item.id, item]));
@@ -1957,15 +1971,16 @@ async function assertPurchaseOrderReferencesWithinProject(input: { tenantId: str
   if (!contractExists || (input.commitmentId && !commitment) || (input.contractId && commitment?.contractId && commitment.contractId !== input.contractId)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PURCHASE_ORDER_REFERENCE_INVALID" });
 }
 
-export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; commitmentId?: string; purchaseOrderNumber: string; supplierName: string; orderDate: Date; amount: number; currency: string; summary: string }) {
+export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; commitmentId?: string; wbsItemId?: string; purchaseOrderNumber: string; supplierName: string; orderDate: Date; amount: number; currency: string; summary: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.procurement.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertPurchaseOrderReferencesWithinProject(input);
+  if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
+  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, wbsItemId: input.wbsItemId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
   return { id, status: "draft" as const };
 }
 
@@ -3591,6 +3606,48 @@ export async function getProjectCommercialInvoicesForTenant(input: { userId: num
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return db.select().from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId))).orderBy(desc(projectCommercialInvoices.invoiceDate));
+}
+
+const invoiceTransitions: Record<string, readonly string[]> = { draft: ["issued", "void"], issued: ["paid", "void"], paid: [], void: [] };
+
+/** draft -> issued -> paid (or void before payment). Paying records the day the money arrived: that is what places it in a month of the cash flow. */
+export async function transitionProjectCommercialInvoiceStatus(input: { userId: number; tenantId: string; projectId: string; invoiceId: string; nextStatus: "issued" | "paid" | "void"; paidAt?: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.invoice.match", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [invoice] = await db.select({ id: projectCommercialInvoices.id, status: projectCommercialInvoices.status, invoiceDate: projectCommercialInvoices.invoiceDate, totalAmount: projectCommercialInvoices.totalAmount }).from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.id, input.invoiceId), eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId))).limit(1);
+  if (!invoice) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_INVOICE_NOT_FOUND" });
+  if (!(invoiceTransitions[invoice.status] ?? []).includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVOICE_TRANSITION_INVALID" });
+  const paidAt = input.nextStatus === "paid" ? (input.paidAt ?? new Date()) : null;
+  if (paidAt && (paidAt < invoice.invoiceDate || paidAt.getTime() > Date.now() + 24 * 60 * 60 * 1000)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVOICE_PAID_DATE_INVALID" });
+  await db.transaction(async tx => {
+    await tx.update(projectCommercialInvoices).set({ status: input.nextStatus, paidAt }).where(eq(projectCommercialInvoices.id, invoice.id));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.invoice_status_changed", entityType: "project_commercial_invoice", entityId: invoice.id, metadata: JSON.stringify({ projectId: input.projectId, from: invoice.status, to: input.nextStatus, totalAmount: invoice.totalAmount, paidAt }) });
+  });
+  return { id: invoice.id, previousStatus: invoice.status, status: input.nextStatus, paidAt };
+}
+
+/**
+ * Net cash flow by month: paid invoices (with VAT, by the day paid) against posted actual cost (by the day incurred).
+ * Cost is the platform's only record of money going out, so the outflow is an accrual proxy for payments: payments to
+ * suppliers are not recorded. The response says so.
+ */
+export async function getProjectCashFlowForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cashflow.read", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [receipts, outflows] = await Promise.all([
+    db.select({ amount: projectCommercialInvoices.totalAmount, paidAt: projectCommercialInvoices.paidAt, updatedAt: projectCommercialInvoices.updatedAt }).from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId), eq(projectCommercialInvoices.status, "paid"))),
+    db.select({ amount: costEntries.amount, incurredAt: costEntries.incurredAt }).from(costEntries).where(and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId), eq(costEntries.status, "posted"), eq(costEntries.entryType, "actual"))),
+  ]);
+  return {
+    ...monthlyNetCashFlow({ receipts: receipts.map(row => ({ amount: Number(row.amount), at: row.paidAt ?? row.updatedAt })), outflows: outflows.map(row => ({ amount: Number(row.amount), at: row.incurredAt })) }),
+    basis: { receipts: "paid_invoices_with_vat_by_payment_date", outflows: "posted_actual_cost_by_incurred_date_accrual_proxy" },
+  };
 }
 
 export async function createProjectCommercialInvoiceForTenant(input: { userId: number; tenantId: string; projectId: string; invoiceNumber: string; invoiceDate: Date; clientName: string; amount: number; vatAmount: number; currency?: string }) {

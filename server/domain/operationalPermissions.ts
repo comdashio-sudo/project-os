@@ -33,6 +33,7 @@ export const governedActionPermissions = {
   createClaimForTenant: ["project.commitment.manage"],
   transitionClaimStatus: ["project.commitment.manage"],
   createProjectCommercialInvoiceForTenant: ["project.invoice.match"],
+  transitionProjectCommercialInvoiceStatus: ["project.invoice.match"],
   createChangeRequestForTenant: ["project.manage", "project.commitment.manage"],
   transitionChangeRequestStatus: ["project.manage", "project.commitment.manage"],
   // planning and progress
@@ -62,6 +63,7 @@ export const governedActionPermissions = {
   // cash-flow figures
   getProjectProfitabilityForTenant: ["project.cashflow.read"],
   getProjectLabourCostForTenant: ["project.cashflow.read"],
+  getProjectCashFlowForTenant: ["project.cashflow.read"],
   getProfitabilityCostBreakdownForTenant: ["project.cashflow.read"],
   getProfitabilityHistoryForTenant: ["project.cashflow.read"],
 } as const satisfies Record<string, readonly string[]>;

@@ -1023,6 +1023,8 @@ export const purchaseOrders = mysqlTable(
     projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
     contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
     commitmentId: varchar("commitmentId", { length: 36 }).references(() => commitments.id),
+    // The WBS item the order is for, so its open commitment can be shown beside plan, actual and forecast at that level.
+    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
     purchaseOrderNumber: varchar("purchaseOrderNumber", { length: 120 }).notNull(),
     supplierName: varchar("supplierName", { length: 240 }).notNull(),
     orderDate: timestamp("orderDate").notNull(),
@@ -1040,6 +1042,7 @@ export const purchaseOrders = mysqlTable(
     index("purchase_orders_tenant_project_date_status_idx").on(table.tenantId, table.projectId, table.orderDate, table.status),
     index("purchase_orders_contract_idx").on(table.contractId),
     index("purchase_orders_commitment_idx").on(table.commitmentId),
+    index("purchase_orders_wbs_idx").on(table.wbsItemId),
   ],
 );
 
@@ -1641,6 +1644,8 @@ export const projectCommercialInvoices = mysqlTable(
     totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
     status: mysqlEnum("status", ["draft", "issued", "paid", "void"]).default("draft").notNull(),
+    // When the money arrived: what places a receipt in a month of the cash flow.
+    paidAt: timestamp("paidAt"),
     createdByUserId: int("createdByUserId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

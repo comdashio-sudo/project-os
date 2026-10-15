@@ -88,6 +88,8 @@ export type ProfitabilityReportInput = {
   evm: { eac: number; ac: number; etc: number; bac: number } | { error: string };
   wbs: { rows: readonly WbsEacRow[]; unallocatedActual: number } | null;
   lastSnapshot: SnapshotInput | null;
+  /** The open (ordered, not yet received) part of purchase orders, per WBS item and without one. Null when the sources cannot be read. */
+  wbsCommitted?: { byWbs: Record<string, number>; unallocated: number; total: number } | null;
   /** Purchase orders: value ordered, received and invoiced. Null when the sources cannot be read. */
   commitments: { orderValue: number; receivedValue: number; invoicedValue: number } | null;
   cash: { receipts: number; outflows: number } | null;
@@ -158,11 +160,16 @@ export function buildProfitabilityReport(input: ProfitabilityReportInput) {
   const drill = (() => {
     if (!input.wbs) return unavailable("WBS_UNAVAILABLE");
     const items = input.wbs.rows
-      .map(row => ({ wbsItemId: row.wbsItemId, code: row.code, name: row.name, planned: row.bac, actual: row.ac, forecast: row.eac, variance: round2(row.bac - row.eac) }))
+      .map(row => ({ wbsItemId: row.wbsItemId, code: row.code, name: row.name, planned: row.bac, actual: row.ac, committed: round2(input.wbsCommitted?.byWbs[row.wbsItemId] ?? 0), forecast: row.eac, variance: round2(row.bac - row.eac) }))
       .sort((a, b) => a.variance - b.variance || a.code.localeCompare(b.code))
       .slice(0, 5);
+    // The top of the drill: the whole project with the same five figures, so every level reads the same way.
+    const planned = round2(input.wbs.rows.reduce((t, r) => t + r.bac, 0));
+    const actual = round2(input.wbs.rows.reduce((t, r) => t + r.ac, 0) + input.wbs.unallocatedActual);
+    const forecast = round2(input.wbs.rows.reduce((t, r) => t + r.eac, 0) + input.wbs.unallocatedActual);
+    const totals = { planned, actual, committed: round2(input.wbsCommitted?.total ?? 0), forecast, variance: round2(planned - forecast) };
     const reconciliation = "error" in input.evm ? null : round2(input.evm.eac - (input.wbs.rows.reduce((t, r) => t + r.eac, 0) + input.wbs.unallocatedActual));
-    return ok({ items, unallocatedActual: input.wbs.unallocatedActual, reconciliationDifference: reconciliation });
+    return ok({ items, totals, unallocatedActual: input.wbs.unallocatedActual, reconciliationDifference: reconciliation });
   })();
 
   return { project: { id: input.project.id, code: input.project.code, name: input.project.name, currency: input.project.currency }, generatedAt: asOf, headline, movement, cash, freshness, drill };
