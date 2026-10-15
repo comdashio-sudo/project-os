@@ -137,6 +137,7 @@
 |---|---:|
 | `PROVEN_ON_STAGING` | 0 |
 | `PROVEN` | 51 |
+| `PROVEN` | 51 |
 | `SOURCE_VERIFIED` | 6 |
 | `WRITTEN` | 5 |
 | `UNVERIFIED` | 21 |
