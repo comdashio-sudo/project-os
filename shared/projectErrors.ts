@@ -904,6 +904,10 @@ export const projectErrorMessages = {
     ar: "أكّد بريدك الإلكتروني أولًا: سجّل الدخول برمز يصلك على بريدك أو بحساب Google ثم أعد إنشاء مساحة العمل.",
     en: "Verify your email first: sign in with the code sent to your address or with Google, then create the workspace again.",
   },
+  PROJECT_OS_PURCHASE_ORDER_SUPPLIER_REQUIRED: {
+    ar: "اختر المورد من سجل الموردين أو اكتب اسم المورد.",
+    en: "Choose the supplier from the supplier register or type the supplier's name.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

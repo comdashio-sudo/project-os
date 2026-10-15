@@ -1978,7 +1978,7 @@ export async function getPurchaseOrdersForTenant(input: { userId: number; tenant
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select({ id: purchaseOrders.id, contractId: purchaseOrders.contractId, commitmentId: purchaseOrders.commitmentId, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, supplierName: purchaseOrders.supplierName, orderDate: purchaseOrders.orderDate, amount: purchaseOrders.amount, currency: purchaseOrders.currency, summary: purchaseOrders.summary, status: purchaseOrders.status, receivedAt: purchaseOrders.receivedAt, createdAt: purchaseOrders.createdAt }).from(purchaseOrders).where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
+  return db.select({ id: purchaseOrders.id, contractId: purchaseOrders.contractId, commitmentId: purchaseOrders.commitmentId, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, supplierId: purchaseOrders.supplierId, supplierName: purchaseOrders.supplierName, orderDate: purchaseOrders.orderDate, amount: purchaseOrders.amount, currency: purchaseOrders.currency, summary: purchaseOrders.summary, status: purchaseOrders.status, receivedAt: purchaseOrders.receivedAt, createdAt: purchaseOrders.createdAt }).from(purchaseOrders).where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).orderBy(desc(purchaseOrders.orderDate), desc(purchaseOrders.createdAt));
 }
 
 async function assertPurchaseOrderReferencesWithinProject(input: { tenantId: string; projectId: string; contractId?: string; commitmentId?: string }) {
@@ -1993,7 +1993,7 @@ async function assertPurchaseOrderReferencesWithinProject(input: { tenantId: str
   if (!contractExists || (input.commitmentId && !commitment) || (input.contractId && commitment?.contractId && commitment.contractId !== input.contractId)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PURCHASE_ORDER_REFERENCE_INVALID" });
 }
 
-export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; commitmentId?: string; wbsItemId?: string; purchaseOrderNumber: string; supplierName: string; orderDate: Date; amount: number; currency: string; summary: string }) {
+export async function createPurchaseOrderForTenant(input: { userId: number; tenantId: string; projectId: string; contractId?: string; commitmentId?: string; wbsItemId?: string; supplierId?: string; purchaseOrderNumber: string; supplierName?: string; orderDate: Date; amount: number; currency: string; summary: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -2001,8 +2001,17 @@ export async function createPurchaseOrderForTenant(input: { userId: number; tena
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertPurchaseOrderReferencesWithinProject(input);
   if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  // An order is placed with a supplier from the tenant's register (G-103): the name on the order is the register's, so the two cannot disagree. A free-text name is still accepted for a one-off supplier that is not registered.
+  let supplierName = input.supplierName?.trim();
+  if (input.supplierId) {
+    const [supplier] = await db.select({ legalName: suppliers.legalName, active: suppliers.active }).from(suppliers).where(and(eq(suppliers.id, input.supplierId), eq(suppliers.tenantId, input.tenantId))).limit(1);
+    if (!supplier) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPLIER_NOT_FOUND" });
+    if (!supplier.active) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SUPPLIER_INACTIVE" });
+    supplierName = supplier.legalName;
+  }
+  if (!supplierName || supplierName.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PURCHASE_ORDER_SUPPLIER_REQUIRED" });
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, wbsItemId: input.wbsItemId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
+  await db.transaction(async tx => { await tx.insert(purchaseOrders).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, wbsItemId: input.wbsItemId, supplierId: input.supplierId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName, orderDate: input.orderDate, amount: input.amount.toFixed(2), currency: input.currency, summary: input.summary, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "procurement.purchase_order_created", entityType: "purchase_order", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId, commitmentId: input.commitmentId, purchaseOrderNumber: input.purchaseOrderNumber, supplierName: input.supplierName, amount: input.amount, currency: input.currency, orderDate: input.orderDate.toISOString() }) }); });
   return { id, status: "draft" as const };
 }
 

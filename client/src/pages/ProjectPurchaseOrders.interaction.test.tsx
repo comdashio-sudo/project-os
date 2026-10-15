@@ -15,6 +15,7 @@ vi.mock("@/lib/trpc", () => ({
       create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) },
       transitionStatus: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) },
     },
+    procurement: { register: { useQuery: () => ({ data: { suppliers: [{ id: "00000000-0000-4000-8000-0000000000d1", code: "SUP-1", legalName: "Registered Steel Co", active: true }, { id: "00000000-0000-4000-8000-0000000000d2", code: "SUP-2", legalName: "Retired Supplier", active: false }] } }) } },
     contracts: {
       getProjectRegister: { useQuery: () => ({ data: { contracts: [{ id: "00000000-0000-4000-8000-0000000000c0", code: "CON-001", title: "Concrete Contract" }], commitments: [{ id: "00000000-0000-4000-8000-0000000000b0", code: "COM-001", description: "Concrete commitment" }], wbsItems: [{ id: "00000000-0000-4000-8000-0000000000a1", code: "1.1", name: "Foundations" }] }, error: null, isLoading: false }) },
     },
@@ -41,6 +42,21 @@ describe("ProjectPurchaseOrders", () => {
     expect(state.transition).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", purchaseOrderId: "00000000-0000-4000-8000-0000000000f0", nextStatus: "submitted" });
     await user.click(screen.getByRole("button", { name: "Update status: Received" }));
     expect(state.transition).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", purchaseOrderId: "00000000-0000-4000-8000-0000000000f3", nextStatus: "received" });
+  });
+
+  it("places the order with a supplier from the register: the name is not typed and only active suppliers are offered (G-103)", async () => {
+    cleanup(); state.create.mockClear(); state.arabic = false;
+    const user = userEvent.setup();
+    render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);
+    const options = Array.from((screen.getByLabelText("Supplier from the register") as HTMLSelectElement).options).map(option => option.text);
+    expect(options).toEqual(["Unregistered supplier (type the name)", "SUP-1 · Registered Steel Co"]); // the inactive supplier is not offered
+    await user.type(screen.getByLabelText("Purchase-order number"), "PO-003");
+    await user.selectOptions(screen.getByLabelText("Supplier from the register"), "00000000-0000-4000-8000-0000000000d1");
+    expect(screen.queryByLabelText("Supplier")).toBeNull(); // no free-text name once a register entry is chosen
+    await user.type(screen.getByLabelText("Amount"), "100");
+    await user.type(screen.getByLabelText("Order summary"), "Authorized purchase of fixings.");
+    await user.click(screen.getByRole("button", { name: "Save purchase order" }));
+    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ purchaseOrderNumber: "PO-003", supplierId: "00000000-0000-4000-8000-0000000000d1", supplierName: undefined }));
   });
 
   it("localizes the purchase-order register and transition control in Arabic", () => {

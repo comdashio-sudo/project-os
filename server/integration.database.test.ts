@@ -1340,7 +1340,17 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const requisition = await caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-TRPC", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Procure structural concrete", requestedQuantity: 12, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "submitted" })).resolves.toMatchObject({ status: "submitted" });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "approved" })).resolves.toMatchObject({ status: "approved" });
-    const purchaseOrder = await caller.purchaseOrders.create({ tenantId: tenantA, projectId: projectA, purchaseOrderNumber: "PO-PRQ-TRPC", supplierName: "Integration Supply Company", orderDate: new Date("2026-08-20T00:00:00.000Z"), amount: 1_200, currency: "SAR", summary: "Existing purchase order for approved material request" });
+    // G-103: the order is placed with a register supplier; the name on the order is the register's, and the register's rules apply
+    const retiredSupplierId = "71717171-7171-4717-8717-717171717173"; const foreignSupplierId = "71717171-7171-4717-8717-717171717174";
+    await connection.query("INSERT INTO suppliers (id, tenantId, code, legalName, active, createdByUserId) VALUES (?, ?, 'SUP-RETIRED', 'Retired Supplier', false, ?), (?, ?, 'SUP-FOREIGN', 'Foreign Supplier', true, ?)", [retiredSupplierId, tenantA, integrationUserId, foreignSupplierId, tenantB, integrationUserId]);
+    const poBase = { tenantId: tenantA, projectId: projectA, orderDate: new Date("2026-08-20T00:00:00.000Z"), amount: 1_200, currency: "SAR", summary: "Existing purchase order for approved material request" };
+    await expect(caller.purchaseOrders.create({ ...poBase, purchaseOrderNumber: "PO-SUP-RETIRED", supplierId: retiredSupplierId })).rejects.toThrow("PROJECT_OS_SUPPLIER_INACTIVE");
+    await expect(caller.purchaseOrders.create({ ...poBase, purchaseOrderNumber: "PO-SUP-FOREIGN", supplierId: foreignSupplierId })).rejects.toThrow("PROJECT_OS_SUPPLIER_NOT_FOUND");
+    await expect(caller.purchaseOrders.create({ ...poBase, purchaseOrderNumber: "PO-SUP-NONE" })).rejects.toThrow("PROJECT_OS_PURCHASE_ORDER_SUPPLIER_REQUIRED");
+    const purchaseOrder = await caller.purchaseOrders.create({ ...poBase, purchaseOrderNumber: "PO-PRQ-TRPC", supplierId: supplier.id, supplierName: "A name that must not win" });
+    const [[placed]] = await connection.query<any[]>("SELECT supplierId, supplierName FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
+    expect(placed).toEqual({ supplierId: supplier.id, supplierName: "Integration Supply Company" }); // the register's name, not the typed one
+    await expect(caller.purchaseOrders.list({ tenantId: tenantA, projectId: projectA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: purchaseOrder.id, supplierId: supplier.id })]));
     await caller.purchaseOrders.transitionStatus({ tenantId: tenantA, projectId: projectA, purchaseOrderId: purchaseOrder.id, nextStatus: "submitted" });
     await caller.purchaseOrders.transitionStatus({ tenantId: tenantA, projectId: projectA, purchaseOrderId: purchaseOrder.id, nextStatus: "approved" });
     await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: foreignPurchaseOrderId })).rejects.toThrow("PROJECT_OS_PURCHASE_ORDER_NOT_FOUND");
@@ -1375,7 +1385,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbs.id]);
     await connection.query("DELETE FROM evm_wbs_snapshots WHERE wbsItemId = ?", [foreignWbsId]);
     await connection.query("DELETE FROM wbs_items WHERE id = ?", [foreignWbsId]);
-    await connection.query("DELETE FROM suppliers WHERE id = ?", [supplier.id]);
+    await connection.query("DELETE FROM suppliers WHERE id IN (?, ?, ?)", [supplier.id, retiredSupplierId, foreignSupplierId]);
     await connection.query("DELETE FROM material_masters WHERE id = ?", [material.id]);
   }, 120_000);
 
