@@ -12,7 +12,7 @@ ALTER TABLE `project_commercial_invoices` DROP FOREIGN KEY `project_commercial_i
 --> statement-breakpoint
 ALTER TABLE `project_commercial_invoices` DROP FOREIGN KEY `project_commercial_invoices_createdByUserId_users_id_fk`;
 --> statement-breakpoint
-ALTER TABLE `subcontract_certificate_lines` DROP FOREIGN KEY `subcontract_certificate_lines_certificateId_subcontract_certificates_id_fk`;
+ALTER TABLE `subcontract_certificate_lines` DROP FOREIGN KEY `subcontract_cert_lines_certificate_fk`;
 --> statement-breakpoint
 ALTER TABLE `subcontract_certificate_lines` DROP FOREIGN KEY `subcontract_certificate_lines_boqItemId_boq_items_id_fk`;
 --> statement-breakpoint
@@ -20,7 +20,7 @@ ALTER TABLE `subcontract_certificates` DROP FOREIGN KEY `subcontract_certificate
 --> statement-breakpoint
 ALTER TABLE `subcontract_certificates` DROP FOREIGN KEY `subcontract_certificates_projectId_projects_id_fk`;
 --> statement-breakpoint
-ALTER TABLE `subcontract_certificates` DROP FOREIGN KEY `subcontract_certificates_subcontractId_subcontract_contracts_id_fk`;
+ALTER TABLE `subcontract_certificates` DROP FOREIGN KEY `subcontract_certificates_contract_fk`;
 --> statement-breakpoint
 ALTER TABLE `subcontract_certificates` DROP FOREIGN KEY `subcontract_certificates_approvedByUserId_users_id_fk`;
 --> statement-breakpoint
