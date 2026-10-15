@@ -105,7 +105,7 @@ Phase A is "closed" in STATE/closeout. Present: 12 tables w/ tenant+project, FKs
 ### Phase D - site plan, programme, EVM link
 | ID | Source | Promise | Status | Evidence / what was searched | Live DB | Size |
 |---|---|---|---|---|---|---|
-| G-075 | PMC:54 | S3 Site plan: user-uploaded plan image + GeoJSON polygons; units coloured by status of chosen activity; click opens unit card | PARTIAL | Image upload exists in Master Plan (ProjectMasterPlan.tsx, PNG/JPG/WEBP) but its entities are axis-aligned rectangles in 0-100 space (`master_plan_spatial_entities` schema.ts:871), unrelated to `pmc_units`. `pmc_units.geometryJson` (schema.ts:1672) is a text column with no reader/validator. No unit card. | yes | L |
+| G-075 | PMC:54 | S3 Site plan: user-uploaded plan image + GeoJSON polygons; units coloured by status of chosen activity; click opens unit card | CLOSED (D1) | `pmc_site_plans` (0057) + `pmcGeometry.ts` + `pmcPlanService.ts` + `pmc.siteMap/unitCard/uploadSitePlan/saveUnitGeometries` + `PmcSitePlan.tsx`; polygons normalised 0..1 on the plan image, independent of the Master Plan rectangles; live test `pmc.plan.database.test.ts` (5). Not seen in a real browser. | yes | L |
 | G-076 | PMC:61 | S10 Programme: planned vs actual monthly + cumulative S-curve + cards Paid / confirmed invoicing / target | MISSING | recharts present; PortfolioCashFlowChart.tsx is a precedent; no PMC series; cards depend on G-043. | yes | L |
 | G-077 | PMC:89 | S-curve matches imported baseline | MISSING | needs G-055 baseline import. | yes | S |
 | G-078 | PMC:42 (rule 7) | Each Group/Activity linked to a WBS item so EVM snapshot updates directly from PMC | PARTIAL | `pmc_activity_definitions.wbsItemId` exists (schema.ts:1717); `calculateEarnedValue` unused; operational EVM reads only `progress_entries` status='submitted' (operationalEvm.ts:~55) - no PMC->progress bridge. | yes | L |
@@ -255,4 +255,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 | G-070 (حداثة البيانات؛ القسم الناقص يقول «لا توجد بيانات») | أُغلق | كل شاشة تعرض عمر آخر تحديث لكل مصدر (المواقع، الكتالوج، حالة الأنشطة، الطلبات، خط الأساس)، وحالات تحميل/خطأ مع إعادة محاولة/«لا توجد بيانات» لكل شاشة على حدة. |
 | G-071 (لقطة لكل شاشة بالعربية وعلى الجوال + رقمان بحساب يدوي) | أُغلق | `docs/screenshots/pmc/` (عشر شاشات × سطح مكتب وجوال 390px، بيانات 500×60 مستوردة عبر الواجهة البرمجية نفسها)؛ و`docs/PMC_PHASE_C_HAND_CHECKS.md` يحسب بالقلم أكثر من رقمين لكل شاشة، ويطابقها اختبار الدوال النقية واختبار القاعدة الحية. |
 | G-051 (تبويب «ضبط المشروع PMC»، عربي أولًا، جوال) | جزئي | الصفحة وروابطها من رأس ضوابط المشروع، تتبع لغة الواجهة (عربية RTL عند اختيارها)؛ لم تُدمج كتبويب داخل صفحة الضوابط نفسها. |
-
+| G-075 (مخطط الموقع: صورة + GeoJSON + بطاقة الوحدة) | أُغلق | `PmcSitePlan.tsx` + أربعة إجراءات `pmc.*` + الترحيل `0057`؛ حي 5 + DOM 5 + وحدة 5؛ لم يُرَ في متصفح حقيقي، والرفع جُرّب على تخزين ذاكرة لا R2. |
