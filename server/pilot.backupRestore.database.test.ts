@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
 const tenantId = "e1000000-0000-4000-8000-000000000001";
 const ownerOpenId = "pilot-backup-owner";
@@ -77,7 +78,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot logical
     await connection.query("INSERT INTO users (id, openId, name, email, role) VALUES (?, ?, ?, ?, ?)", [restore.users[0].id, restore.users[0].openId, restore.users[0].name, restore.users[0].email, restore.users[0].role]);
     await connection.query("INSERT INTO companies (id, legalName, slug, status, defaultLocale) VALUES (?, ?, ?, ?, ?)", [restore.company[0].id, restore.company[0].legalName, restore.company[0].slug, restore.company[0].status, restore.company[0].defaultLocale]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode, description, systemManaged) VALUES (?, ?, ?, ?, ?, ?, ?)", [restore.roles[0].id, restore.roles[0].tenantId, restore.roles[0].code, restore.roles[0].name, restore.roles[0].productCode, restore.roles[0].description, restore.roles[0].systemManaged]);
-    await connection.query("INSERT INTO memberships (id, tenantId, userId, status, joinedAt) VALUES (?, ?, ?, ?, ?)", [restore.memberships[0].id, restore.memberships[0].tenantId, restore.memberships[0].userId, restore.memberships[0].status, restore.memberships[0].joinedAt]);
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status, joinedAt) VALUES (?, ?, ?, ?, ?)", [restore.memberships[0].id, restore.memberships[0].tenantId, restore.memberships[0].userId, restore.memberships[0].status, new Date(restore.memberships[0].joinedAt)]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType, scopeId) VALUES (?, ?, ?, ?, ?)", [restore.membershipRoles[0].id, restore.membershipRoles[0].membershipId, restore.membershipRoles[0].roleId, restore.membershipRoles[0].scopeType, restore.membershipRoles[0].scopeId]);
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, lifecycleStage, status, currency, contractValue, originalBudget, currentBudget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [restore.projects[0].id, restore.projects[0].tenantId, restore.projects[0].code, restore.projects[0].name, restore.projects[0].projectType, restore.projects[0].lifecycleStage, restore.projects[0].status, restore.projects[0].currency, restore.projects[0].contractValue, restore.projects[0].originalBudget, restore.projects[0].currentBudget]);
     await connection.query("INSERT INTO contracts (id, tenantId, projectId, code, title, counterparty, contractValue, currency, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [restore.contracts[0].id, restore.contracts[0].tenantId, restore.contracts[0].projectId, restore.contracts[0].code, restore.contracts[0].title, restore.contracts[0].counterparty, restore.contracts[0].contractValue, restore.contracts[0].currency, restore.contracts[0].status]);

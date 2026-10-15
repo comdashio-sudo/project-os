@@ -1,7 +1,8 @@
 import mysql from "mysql2/promise";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
 const tenantId = "10000000-0000-4000-8000-0000000000a1";
 const foreignTenantId = "10000000-0000-4000-8000-0000000000b1";
