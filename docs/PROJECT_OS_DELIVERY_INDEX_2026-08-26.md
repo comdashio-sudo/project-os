@@ -1,7 +1,7 @@
 # فهرس تسليم PROJECT OS
 
 **آخر تحديث:** 28 أغسطس 2026
-**المرجع الحاكم:** [`STATE.md`](./STATE.md) على `github/main` في `ramezsamerr-collab/project-os`.
+**المرجع الحاكم:** [`STATE.md`](./STATE.md) على `github/main` في `comdashio-sudo/project-os` (نُقل من `ramezsamerr-collab/project-os` في 2026-10-15).
 **رأس العهدة عند الإصدار:** `8b83c31` مع `ahead/behind = 0/0` وقت التحقق.
 
 > هذا الفهرس هو نقطة البداية الوحيدة لمراجعة ملفات PROJECT OS. لا يحتوي كلمات مرور أو رموز قبول أو بيانات اعتماد. عند تعارض أي ملف مع `STATE.md`، تتقدم `STATE.md`.
