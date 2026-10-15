@@ -6,7 +6,6 @@ const allowedFrameworkExceptions = new Map([
   ["auth.me", "قراءة جلسة OAuth؛ تغطيها طبقة المصادقة لا قاعدة أعمال."],
   ["auth.logout", "إلغاء جلسة؛ له اختبار وحدة مستقل لمسح ملف الارتباط."],
   ["system.health", "فحص مراقبة عام بلا نطاق أعمال أو كتابة."],
-  ["system.notifyOwner", "إرسال إشعار خارجي لا يستدعى آليًا لتجنب إشعار المالك الحقيقي."],
 ]);
 const validate = process.argv.includes("--validate");
 
