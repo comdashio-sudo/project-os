@@ -32,6 +32,7 @@ import {
   parsePmcImportFile,
   pmcDefinitionKey,
   planBaseline,
+  planBaselineDates,
   planCatalog,
   planLocations,
   planRequests,
@@ -223,10 +224,10 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   const stored = await db.select({ id: pmcBaselines.id, activityDefinitionId: pmcBaselines.activityDefinitionId, periodAt: pmcBaselines.periodAt, plannedPercent: pmcBaselines.plannedPercent }).from(pmcBaselines).where(mine(pmcBaselines, scope));
   const storedByDefinition = new Map<string, Map<string, { id: string; plannedPercent: number }>>();
   for (const row of stored) storedByDefinition.set(row.activityDefinitionId, (storedByDefinition.get(row.activityDefinitionId) ?? new Map()).set(monthStart(row.periodAt).toISOString(), { id: row.id, plannedPercent: Number(row.plannedPercent) }));
-  const plan = planBaseline(parsed.rows, { definitions: new Map(definitions.map(definition => [pmcDefinitionKey(definition.modelCode, definition.code), definition.id])), stored: storedByDefinition });
-  if (plan.errors.length) return { report: report("baseline", fileHash, total, plan.errors, plan.counts), apply: null };
+  const plan = (input.kind === "baselineDates" ? planBaselineDates : planBaseline)(parsed.rows, { definitions: new Map(definitions.map(definition => [pmcDefinitionKey(definition.modelCode, definition.code), definition.id])), stored: storedByDefinition });
+  if (plan.errors.length) return { report: report(input.kind, fileHash, total, plan.errors, plan.counts), apply: null };
   return {
-    report: report("baseline", fileHash, total, [], plan.counts),
+    report: report(input.kind, fileHash, total, [], plan.counts),
     apply: async tx => {
       for (const batch of chunks(plan.creates)) await tx.insert(pmcBaselines).values(batch.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, activityDefinitionId: row.activityDefinitionId, periodAt: row.periodAt, plannedPercent: String(row.plannedPercent) })));
       for (const row of plan.updates) await tx.update(pmcBaselines).set({ plannedPercent: String(row.plannedPercent) }).where(eq(pmcBaselines.id, row.id));

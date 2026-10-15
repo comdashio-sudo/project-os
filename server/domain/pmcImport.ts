@@ -6,7 +6,7 @@
 import { readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
 export const PMC_IMPORT_LIMITS = { maxRows: 60_000, maxColumns: 20 } as const;
-export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline"] as const;
+export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline", "baselineDates"] as const;
 export type PmcImportKind = (typeof PMC_IMPORT_KINDS)[number];
 export type PmcImportError = { rowNumber: number; code: string; field?: string; detail?: string };
 export type PmcStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE";
@@ -58,6 +58,13 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "activityCode", required: true, aliases: ["activity code", "activity", "رمز النشاط", "النشاط"] },
     { key: "period", required: true, aliases: ["period", "month", "الشهر", "الفترة"] },
     { key: "plannedPercent", required: true, aliases: ["planned percent", "planned", "النسبة المخططة", "المخطط"] },
+  ],
+  // The other way to give a baseline: when each activity starts and ends (G-042). It is expanded into the same monthly points.
+  baselineDates: [
+    { key: "modelCode", required: true, aliases: ["model", "model code", "النموذج", "رمز النموذج", "الطراز"] },
+    { key: "activityCode", required: true, aliases: ["activity code", "activity", "رمز النشاط", "النشاط"] },
+    { key: "startDate", required: true, aliases: ["start", "start date", "planned start", "البداية", "تاريخ البداية", "بداية"] },
+    { key: "endDate", required: true, aliases: ["end", "end date", "finish", "finish date", "planned finish", "planned end", "النهاية", "تاريخ النهاية", "نهاية"] },
   ],
 };
 
@@ -474,6 +481,51 @@ export function planBaseline(rows: ParsedRow[], context: BaselineContext): Basel
     else updates.push({ id: stored.id, plannedPercent: row.percent });
   }
   return { errors, creates, updates, counts: { create: creates.length, update: updates.length, unchanged } };
+}
+
+/**
+ * A baseline given as start and end dates per activity, expanded into the monthly cumulative points the screens read:
+ * the planned completion by the end of each month is the share of the activity's calendar days (both ends included)
+ * that has passed by then, 0 before the start (no point) and 100 from the month of the end. The expanded points go
+ * through exactly the checks a monthly file does, so the two formats can never disagree about what a baseline is.
+ */
+export function planBaselineDates(rows: ParsedRow[], context: BaselineContext): BaselinePlan {
+  const errors: PmcImportError[] = [];
+  const expanded: ParsedRow[] = [];
+  const seen = new Set<string>();
+  const DAY = 86_400_000;
+  const utcDay = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  for (const { rowNumber, cells } of rows) {
+    const before = errors.length;
+    const modelCode = text(cells.modelCode);
+    const activityCode = text(cells.activityCode);
+    required(errors, rowNumber, "modelCode", modelCode);
+    required(errors, rowNumber, "activityCode", activityCode);
+    const start = importDate(cells.startDate);
+    const end = importDate(cells.endDate);
+    if (!start) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "startDate" });
+    if (!end) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "endDate" });
+    if (start && end && utcDay(end) < utcDay(start)) errors.push({ rowNumber, code: "PMC_BASELINE_END_BEFORE_START", field: "endDate", detail: `${modelCode}/${activityCode}` });
+    const key = defKey(modelCode, activityCode);
+    if (modelCode && activityCode) {
+      if (seen.has(key)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "activityCode", detail: `${modelCode}/${activityCode}` });
+      else seen.add(key);
+    }
+    if (errors.length > before || !start || !end) continue;
+    const first = utcDay(start);
+    const last = utcDay(end);
+    const total = (last - first) / DAY + 1;
+    for (let month = monthStart(start); month.getTime() <= last; month = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1))) {
+      const monthEnd = Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0);
+      const elapsed = (Math.min(monthEnd, last) - first) / DAY + 1;
+      expanded.push({ rowNumber, cells: { modelCode, activityCode, period: month, plannedPercent: Math.round((elapsed / total) * 1_000_000) / 10_000 } });
+    }
+  }
+  if (errors.length) {
+    // The file's own problems come first; the expanded points are only checked against what is stored when the file itself is sound.
+    return { errors, creates: [], updates: [], counts: { create: 0, update: 0, unchanged: 0 } };
+  }
+  return planBaseline(expanded, context);
 }
 
 export { defKey as pmcDefinitionKey };

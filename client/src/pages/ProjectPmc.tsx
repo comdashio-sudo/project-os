@@ -21,7 +21,7 @@ const text = {
     group: "المجموعة", weight: "الوزن", share: "النسبة من الوزن", zone: "المنطقة", cells: "الخلايا", complete: "المكتمل", completion: "الإنجاز", unassigned: "غير مسند",
     period: "الفترة من", status: "الحالة", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" } as Record<string, string>,
     unit: "الوحدة", verification: "حالة التحقق", since: "منذ", age: "العمر (أيام)", buckets: "أعمار الانتظار", late: "أنشطة متأخرة", planned: "المخطط", actual: "الفعلي", noLate: "لا أنشطة متأخرة",
-    importKinds: { locations: "المواقع", catalog: "الكتالوج والأوزان", status: "حالة الوحدة-النشاط", requests: "الطلبات والردود", baseline: "خط الأساس" } as Record<string, string>,
+    importKinds: { locations: "المواقع", catalog: "الكتالوج والأوزان", status: "حالة الوحدة-النشاط", requests: "الطلبات والردود", baseline: "خط الأساس", baselineDates: "خط الأساس بتواريخ البداية والنهاية" } as Record<string, string>,
     importKind: "نوع الملف", chooseFile: "اختر ملف Excel أو CSV", analyze: "فحص الملف", confirm: "حفظ الملف الموافَق عليه", report: "تقرير التحقق", rows: "الصفوف", create: "سيُنشأ", update: "سيُحدَّث", unchanged: "بلا تغيير", errorsFound: "صفوف مرفوضة", row: "الصف", reason: "السبب", saved: "تم الحفظ", nothingSaved: "لم يُحفظ شيء قبل موافقتك.", alreadyUpToDate: "الملف مطابق لما هو محفوظ: لا شيء ليُحفظ.",
   },
   en: {
@@ -36,7 +36,7 @@ const text = {
     group: "Group", weight: "Weight", share: "Share of weight", zone: "Zone", cells: "Cells", complete: "Complete", completion: "Completion", unassigned: "Unassigned",
     period: "Period from", status: "Status", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
     unit: "Unit", verification: "Verification status", since: "Since", age: "Age (days)", buckets: "Waiting age", late: "Late activities", planned: "Planned", actual: "Actual", noLate: "No late activities",
-    importKinds: { locations: "Locations", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline" } as Record<string, string>,
+    importKinds: { locations: "Locations", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>,
     importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
   },
 };
@@ -150,7 +150,7 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
 }
 
 function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; projectId: string; t: T; isArabic: boolean }) {
-  const [kind, setKind] = useState<"locations" | "catalog" | "status" | "requests" | "baseline">("locations");
+  const [kind, setKind] = useState<"locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("locations");
   const [file, setFile] = useState<{ name: string; format: "xlsx" | "csv"; base64: string } | null>(null);
   const analyze = trpc.pmc.analyzeImport.useMutation();
   const confirm = trpc.pmc.confirmImport.useMutation();

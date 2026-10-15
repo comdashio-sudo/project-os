@@ -137,6 +137,15 @@ describe("ProjectPmc import", () => {
     expect((screen.getByText("Save the approved file").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("offers the baseline as start and end dates too, and sends that kind", async () => {
+    render(<ProjectPmc />);
+    await choose("dates.csv");
+    expect(Array.from((screen.getByLabelText("File type") as HTMLSelectElement).options).map(option => option.textContent)).toContain("Baseline by start and end dates");
+    fireEvent.change(screen.getByLabelText("File type"), { target: { value: "baselineDates" } });
+    fireEvent.click(screen.getByText("Check the file"));
+    expect(state.analyze).toHaveBeenCalledWith(expect.objectContaining({ kind: "baselineDates" }));
+  });
+
   it("saves only after the report is clean, sending the hash that was approved", async () => {
     const fileHash = "b".repeat(64);
     state.report = { kind: "locations", fileHash, totalRows: 500, errorCount: 0, errors: [], counts: { create: 500, update: 0, unchanged: 0 }, details: {}, canConfirm: true };
