@@ -28,13 +28,14 @@ export const operationalPermissionCatalog = [
   { code: "project.pmc.read", name: "View project control (PMC)", productCode: "PROJECT" as const },
   { code: "project.pmc.update", name: "Update unit-activity status (PMC)", productCode: "PROJECT" as const },
   { code: "project.pmc.manage", name: "Manage the PMC catalogue, baselines and imports", productCode: "PROJECT" as const },
+  { code: "project.settings.labour", name: "Configure labour cost loading and the working calendar", productCode: "PROJECT" as const },
   { code: "project.manage", name: "Manage governed project operations", productCode: "PROJECT" as const },
 ] as const;
 
 export const operationalRoleDefinitions = [
   { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage", "project.performance.read_own"] },
   { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage", "project.performance.read_own"] },
-  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own"] },
+  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
   { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
