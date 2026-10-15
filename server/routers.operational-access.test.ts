@@ -4,7 +4,7 @@ const databaseDouble = vi.hoisted(() => ({
   select: vi.fn(),
   transaction: vi.fn(),
 }));
-const storageDouble = vi.hoisted(() => ({ storagePut: vi.fn(async () => ({ key: "tenant/project/document.bin", url: "/manus-storage/tenant/project/document.bin" })) }));
+const storageDouble = vi.hoisted(() => ({ storagePut: vi.fn(async () => ({ key: "tenant/project/document.bin", url: "https://files.example.test/tenant/project/document.bin" })) }));
 
 vi.mock("drizzle-orm/mysql2", () => ({
   drizzle: vi.fn(() => databaseDouble),
