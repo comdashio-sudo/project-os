@@ -9,9 +9,8 @@
 - `docs/STATE.md` هو المرجع الحاكم. يتقدم عند التعارض على `todo.md` و`PROJECT_STATUS.md` و`TEST_EVIDENCE_MATRIX.md` و`ACCEPTANCE_CRITERIA.md` (`STATE.md:3`).
 - اقرأه أولًا قبل أي عمل. إن عارضت حالته افتراض العمل المحلي، توقف وأبلغ المالك (`STATE.md:14`).
 - المستودع الحاكم هو `github.com/comdashio-sudo/project-os` على الفرع `main`، ونُقل إليه من `ramezsamerr-collab/project-os` في 2026-10-15.
-  - **تنبيه:** الوثائق تسمّي المرجع `github/main`، وتصف `origin` بأنه قناة Manus الداخلية على `artifacts.cloudflare.net`.
-  - في النسخ المأخوذة بعد النقل، `origin` **هو** GitHub الحاكم، ولا يوجد remote باسم `github`.
-  - تحقق بـ`git remote -v` قبل أي fetch أو push. لا تدفع إلى أي remote يشير إلى `artifacts.cloudflare.net`.
+  - **قاعدة `origin` (قرار المالك، 2026-10-15):** `origin` هو GitHub الحاكم. الدفع إليه على الفروع مسموح، والدمج إلى `main` وفق §5 (`STATE.md:12`).
+  - ما تذكره السجلات القديمة عن remote `github` وعن `origin` بوصفه قناة Manus وصفٌ تاريخي. لا تدفع إلى أي remote يشير إلى `artifacts.cloudflare.net`.
 - مفردات الحالة قائمة مغلقة: `PROVEN`، `PROVEN_ON_STAGING`، `SOURCE_VERIFIED`، `WRITTEN`، `UNVERIFIED`، `OPEN`، `BLOCKED_BY_OWNER`، `BLOCKED_BY_PLATFORM`، `BLOCKED_BY_CLAUDE_CODE`، `HANDOFF_REQUIRED` (`STATE.md:16`).
   - لا `COMPLETE` ولا `GO`. القبول النهائي يتطلب جولات أدوار يدوية بحسابات حقيقية، بلا SQL مباشر (`STATE.md:8`).
 - `PROVEN` تعني دليلًا آليًا قابلًا لإعادة التشغيل **داخل الصف نفسه**: الأمر والعدد والتاريخ والـhash (`STATE.md:18`، `WORK_ORDER_EXTENDED.md:27`).
@@ -56,8 +55,8 @@
   - لا `DROP` ولا تغيير إنتاجي هدّام بلا خطة رجوع مكتوبة (`DEPLOYMENT.md:23-32`).
   - **لا تشغّل `pnpm db:push`** على أي اتصال قبل مراجعة الـSQL: هو يطبّق مباشرة على `DATABASE_URL`.
 - **قاعدة الاختبار الوحيدة هي `project_os_integration_test`.** لا يُشغَّل أي اختبار ولا probe على قاعدة الإنتاج (`DEPLOYMENT.md:14`، `:38`).
-  - **تحذير:** `server/commercial_chain.database.test.ts` غير محروس بمتغير قاعدة اختبار، ويكتب ويحذف (ومنه `audit_logs`) على أي `DATABASE_URL` موجود عند `pnpm test`.
-  - لا تشغّل `pnpm test` و`DATABASE_URL` يشير إلى الإنتاج.
+  - حارس vitest العام (`server/testing/databaseGuard.setup.ts`) يوقف التشغيل كله إن سمّى `DATABASE_URL` أو `TEST_DATABASE_URL` قاعدة غير هذه، و`server/commercial_chain.database.test.ts` يتخطى نفسه بلا قاعدة اختبار ولا يحذف من `audit_logs`.
+  - مع ذلك لا تضع في بيئتك `DATABASE_URL` يشير إلى الإنتاج أصلًا.
 - اختبار التكامل لا يُستبدل بـmock (`DEPLOYMENT.md:55`).
 
 ## 5. الدمج والنشر
