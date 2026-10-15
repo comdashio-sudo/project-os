@@ -274,7 +274,85 @@ export function unitCard(ds: PmcDataset, unitNumber: number) {
   const cellOf = new Map(ds.cells.filter(c => c.unitId === unit.id).map(c => [c.definitionId, c]));
   const verification = new Map(ds.verification.map(v => [v.id, v.label]));
   return {
-    unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
-    activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
+    unitId: unit.id, unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
+    activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { definitionId: d.id, code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
   };
+}
+
+// ---------------------------------------------------------------- screen 10
+
+const monthKeyOf = (date: Date) => monthStartOf(date).toISOString().slice(0, 10);
+const nextMonthKey = (key: string) => { const d = new Date(`${key}T00:00:00.000Z`); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString().slice(0, 10); };
+
+/**
+ * Planned against actual project progress by month, cumulative and per month.
+ * Planned = the imported baseline: each activity's planned completion (carried forward from its latest
+ * point at or before the month) x its weight in the unit x the unit's weight, over the project.
+ * Actual = the credit the status history added up to the end of the month (the same credit screens 1, 7 and 8 sum),
+ * so the last point equals the project's progress whenever every cell has history.
+ */
+export function programme(ds: PmcDataset) {
+  const totalUnitWeight = ds.units.reduce((sum, u) => sum + u.weight, 0) || 1;
+  const unitById = new Map(ds.units.map(u => [u.id, u]));
+  const defById = new Map(ds.definitions.map(d => [d.id, d]));
+  const nowKey = monthKeyOf(ds.now);
+
+  const points = Array.from(ds.baselines.entries()).flatMap(([definitionId, list]) => (defById.has(definitionId) ? list.map(p => ({ definitionId, key: monthKeyOf(p.at), percent: p.percent })) : []));
+  const hasBaseline = points.length > 0;
+  const historyKeys = ds.history.map(h => monthKeyOf(h.at));
+  const allKeys = [...points.map(p => p.key), ...historyKeys, nowKey].sort();
+  if (!allKeys.length) return { hasBaseline, months: [] as Array<{ month: string; planned: number | null; actual: number | null; plannedInMonth: number | null; actualInMonth: number | null; variance: number | null }>, plannedToDate: null as number | null, actualToDate: 0, progressFromCells: 0, cellsWithoutHistory: 0 };
+  const months: string[] = [];
+  for (let key = allKeys[0]; key <= allKeys[allKeys.length - 1]; key = nextMonthKey(key)) months.push(key);
+
+  const byDefinition = new Map<string, Array<{ key: string; percent: number }>>();
+  for (const p of points) byDefinition.set(p.definitionId, [...(byDefinition.get(p.definitionId) ?? []), { key: p.key, percent: p.percent }]);
+  byDefinition.forEach(list => list.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)));
+  const unitsByModel = new Map<string, number>();
+  for (const u of ds.units) unitsByModel.set(u.modelCode, (unitsByModel.get(u.modelCode) ?? 0) + u.weight);
+  const plannedAt = (key: string) => {
+    let total = 0;
+    for (const [definitionId, list] of Array.from(byDefinition.entries())) {
+      const definition = defById.get(definitionId)!;
+      let percent = 0;
+      for (const p of list) { if (p.key <= key) percent = p.percent; else break; }
+      total += ((unitsByModel.get(definition.modelCode) ?? 0) * definition.weightPercent * percent) / 100;
+    }
+    return total / totalUnitWeight;
+  };
+
+  const addedInMonth = new Map<string, number>();
+  for (const h of ds.history) {
+    const unit = unitById.get(h.unitId);
+    const def = defById.get(h.definitionId);
+    if (!unit || !def) continue;
+    const key = monthKeyOf(h.at);
+    addedInMonth.set(key, (addedInMonth.get(key) ?? 0) + (unit.weight * def.weightPercent * credit(ds, h)) / totalUnitWeight);
+  }
+
+  let cumulativeActual = 0;
+  let previousPlanned = 0;
+  const rows = months.map(month => {
+    const inMonth = addedInMonth.get(month) ?? 0;
+    cumulativeActual += inMonth;
+    const planned = hasBaseline ? plannedAt(month) : null;
+    const future = month > nowKey;
+    const row = {
+      month,
+      planned: planned === null ? null : r4(planned),
+      actual: future ? null : r4(cumulativeActual),
+      plannedInMonth: planned === null ? null : r4(planned - previousPlanned),
+      actualInMonth: future ? null : r4(inMonth),
+      variance: planned === null || future ? null : r4(cumulativeActual - planned),
+    };
+    if (planned !== null) previousPlanned = planned;
+    return row;
+  });
+
+  const cellOf = new Set(ds.history.map(h => `${h.unitId}:${h.definitionId}`));
+  const cellsWithoutHistory = ds.cells.filter(c => c.status !== "NOT_STARTED" && !cellOf.has(`${c.unitId}:${c.definitionId}`)).length;
+  const unitProgress = ds.units.map(u => ({ weight: u.weight, progress: unitProgressOf(ds, u) }));
+  const progressFromCells = r4(unitProgress.reduce((sum, u) => sum + u.weight * (u.progress ?? 0), 0) / totalUnitWeight);
+  const current = rows.find(r => r.month === nowKey);
+  return { hasBaseline, months: rows, plannedToDate: current?.planned ?? null, actualToDate: current?.actual ?? 0, progressFromCells, cellsWithoutHistory };
 }
