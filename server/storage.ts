@@ -1,97 +1,106 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uploads via Forge Server presigned URL to S3 (PUT direct).
-// Downloads return /manus-storage/{key} paths served via 307 redirect.
-
+// Object storage on Cloudflare R2 through its S3-compatible API.
+//
+// Files are stored by key; the database keeps the key, never a URL. A download
+// is a short-lived signed URL minted for a caller that already passed the
+// authorization checks in db.ts. There is no unauthenticated download route.
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { randomUUID } from "node:crypto";
 import { ENV } from "./_core/env";
 
-function getForgeConfig() {
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
+export const SIGNED_URL_TTL_SECONDS = 900;
+const MAX_KEY_LENGTH = 1024;
 
-  if (!forgeUrl || !forgeKey) {
-    throw new Error(
-      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
-    );
-  }
+export type StorageBody = Buffer | Uint8Array | string;
 
-  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
+export type StorageDependencies = {
+  bucket: string;
+  send: (command: PutObjectCommand | DeleteObjectCommand) => Promise<unknown>;
+  presign: (command: GetObjectCommand, options: { expiresIn: number }) => Promise<string>;
+};
+
+export function normalizeKey(relKey: string): string {
+  const key = relKey.replace(/^\/+/, "");
+  if (!key || key.length > MAX_KEY_LENGTH) throw new Error("Storage key is empty or too long");
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(key)) throw new Error("Storage key contains control characters");
+  if (key.split("/").some(segment => segment === ".." || segment === ".")) throw new Error("Storage key contains a relative path segment");
+  return key;
 }
 
-function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
-}
-
-function appendHashSuffix(relKey: string): string {
-  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+export function appendHashSuffix(relKey: string, hash = randomUUID().replace(/-/g, "").slice(0, 8)): string {
+  const lastSlash = relKey.lastIndexOf("/");
   const lastDot = relKey.lastIndexOf(".");
-  if (lastDot === -1) return `${relKey}_${hash}`;
+  if (lastDot <= lastSlash + 1) return `${relKey}_${hash}`;
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
-export async function storagePut(
-  relKey: string,
-  data: Buffer | Uint8Array | string,
-  contentType = "application/octet-stream",
-): Promise<{ key: string; url: string }> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
-  const key = appendHashSuffix(normalizeKey(relKey));
+export function createStorage(dependencies: StorageDependencies) {
+  const signedGetUrl = (key: string) =>
+    dependencies.presign(new GetObjectCommand({ Bucket: dependencies.bucket, Key: key }), { expiresIn: SIGNED_URL_TTL_SECONDS });
 
-  // 1. Get presigned PUT URL from Forge
-  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
-  presignUrl.searchParams.set("path", key);
+  return {
+    async storagePut(relKey: string, data: StorageBody, contentType = "application/octet-stream"): Promise<{ key: string; url: string }> {
+      const key = appendHashSuffix(normalizeKey(relKey));
+      await dependencies.send(
+        new PutObjectCommand({
+          Bucket: dependencies.bucket,
+          Key: key,
+          Body: typeof data === "string" ? data : Buffer.from(data),
+          ContentType: contentType,
+        }),
+      );
+      return { key, url: await signedGetUrl(key) };
+    },
 
-  const presignResp = await fetch(presignUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
-  });
+    async storageGet(relKey: string): Promise<{ key: string; url: string }> {
+      const key = normalizeKey(relKey);
+      return { key, url: await signedGetUrl(key) };
+    },
 
-  if (!presignResp.ok) {
-    const msg = await presignResp.text().catch(() => presignResp.statusText);
-    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
-  }
+    async storageGetSignedUrl(relKey: string): Promise<string> {
+      return signedGetUrl(normalizeKey(relKey));
+    },
 
-  const { url: s3Url } = (await presignResp.json()) as { url: string };
-  if (!s3Url) throw new Error("Forge returned empty presign URL");
-
-  // 2. PUT file directly to S3
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
-
-  const uploadResp = await fetch(s3Url, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: blob,
-  });
-
-  if (!uploadResp.ok) {
-    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
-  }
-
-  return { key, url: `/manus-storage/${key}` };
+    async storageDelete(relKey: string): Promise<void> {
+      await dependencies.send(new DeleteObjectCommand({ Bucket: dependencies.bucket, Key: normalizeKey(relKey) }));
+    },
+  };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
-  const key = normalizeKey(relKey);
-  return { key, url: `/manus-storage/${key}` };
+export function r2Configuration(env: Pick<typeof ENV, "r2AccountId" | "r2AccessKeyId" | "r2SecretAccessKey" | "r2Bucket"> = ENV) {
+  const missing = (
+    [
+      ["R2_ACCOUNT_ID", env.r2AccountId],
+      ["R2_ACCESS_KEY_ID", env.r2AccessKeyId],
+      ["R2_SECRET_ACCESS_KEY", env.r2SecretAccessKey],
+      ["R2_BUCKET", env.r2Bucket],
+    ] as const
+  )
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+  if (missing.length) throw new Error(`Storage config missing: set ${missing.join(", ")}`);
+  return { accountId: env.r2AccountId, accessKeyId: env.r2AccessKeyId, secretAccessKey: env.r2SecretAccessKey, bucket: env.r2Bucket };
 }
 
-export async function storageGetSignedUrl(relKey: string): Promise<string> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
-  const key = normalizeKey(relKey);
-
-  const getUrl = new URL("v1/storage/presign/get", forgeUrl + "/");
-  getUrl.searchParams.set("path", key);
-
-  const resp = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
+export function createR2Storage(configuration = r2Configuration()) {
+  const client = new S3Client({
+    region: "auto",
+    endpoint: `https://${configuration.accountId}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
+    credentials: { accessKeyId: configuration.accessKeyId, secretAccessKey: configuration.secretAccessKey },
   });
-
-  if (!resp.ok) {
-    const msg = await resp.text().catch(() => resp.statusText);
-    throw new Error(`Storage signed URL failed (${resp.status}): ${msg}`);
-  }
-
-  const { url } = (await resp.json()) as { url: string };
-  return url;
+  return createStorage({
+    bucket: configuration.bucket,
+    send: command => client.send(command as never),
+    presign: (command, options) => getSignedUrl(client, command, options),
+  });
 }
+
+let defaultStorage: ReturnType<typeof createR2Storage> | null = null;
+const storage = () => (defaultStorage ??= createR2Storage());
+
+export const storagePut = (relKey: string, data: StorageBody, contentType?: string) => storage().storagePut(relKey, data, contentType);
+export const storageGet = (relKey: string) => storage().storageGet(relKey);
+export const storageGetSignedUrl = (relKey: string) => storage().storageGetSignedUrl(relKey);
+export const storageDelete = (relKey: string) => storage().storageDelete(relKey);
