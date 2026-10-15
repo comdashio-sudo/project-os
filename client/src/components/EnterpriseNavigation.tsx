@@ -14,7 +14,7 @@ export function EnterpriseNavigation({ tenantId, projectId, context }: { tenantI
   const contextLabel = { executive: t.executive, pmo: t.pmo, project: t.controls, administration: t.administration }[context];
   const unreadNotifications = notifications.data?.filter(notification => !notification.acknowledgedAt) ?? [];
   const acknowledgeNotification = trpc.notifications.acknowledge.useMutation({ onSuccess: () => notifications.refetch() });
-  const notificationLabel = (code: string) => code === "PROJECT_HEALTH_EXCEPTION" ? t.healthNotification : code === "FIELD_REPORT_REVIEWED" ? t.reportNotification : code === "DASHBOARD_SECTION_ATTENTION" ? t.sectionAttentionNotification : t.genericNotification;
+  const notificationLabel = (code: string) => code === "PROJECT_HEALTH_EXCEPTION" ? t.healthNotification : code === "FIELD_REPORT_REVIEWED" ? t.reportNotification : code === "DASHBOARD_SECTION_ATTENTION" ? t.sectionAttentionNotification : code === "SUPPORT_TICKET_ESCALATED" ? (isArabic ? "تذكرة دعم تحتاج متابعتك" : "A support ticket needs you") : t.genericNotification;
   const filteredNavigation = (navigation.data ?? []).filter(item => `${labels[item.labelKey] ?? item.id} ${item.id}`.toLocaleLowerCase().includes(searchTerm.trim().toLocaleLowerCase()));
   return <nav aria-label={isArabic ? "الملاحة المؤسسية" : "Enterprise navigation"} className="mb-5 rounded-[var(--radius-lg)] bg-card p-3 shadow-sm ring-1 ring-border">
     <div className="flex flex-wrap items-center gap-2">
