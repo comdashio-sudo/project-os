@@ -120,6 +120,7 @@ import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
 import { assessEmployeeCapacity } from "./domain/employeeCapacity";
 import { cumulativeEosLiability } from "./domain/eosLiability";
+import { VERIFIED_LOGIN_METHODS } from "./domain/loginMethods";
 import { assertValidLabourSettings, DEFAULT_LABOUR_SETTINGS, loadedRateForMonth, parseWorkingDays, type TenantLabourSettings } from "./domain/labourCost";
 import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
@@ -926,8 +927,10 @@ function safeDatabaseErrorCode(error: unknown) {
 export async function createSelfServiceTenant(input: { userId: number; legalName: string; slug: string; planCode: string; seats: number }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   if (!Number.isInteger(input.seats) || input.seats < 1 || input.seats > 100000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
-  const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1);
+  const [user] = await db.select({ email: users.email, loginMethod: users.loginMethod }).from(users).where(eq(users.id, input.userId)).limit(1);
   if (!user?.email) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SIGNUP_EMAIL_REQUIRED" });
+  // Self-signup needs a verified email (G-107). The only sign-in routes that create a session prove the address first: a one-time code sent to it ("email") or Google's verified claim ("google"). A user row that came any other way has not proved it.
+  if (!VERIFIED_LOGIN_METHODS.includes(user.loginMethod ?? "")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_SIGNUP_EMAIL_NOT_VERIFIED" });
   await ensureDefaultCommercialCatalog(db);
   const [plan] = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(and(eq(commercialPlans.code, input.planCode), eq(commercialPlans.active, true))).limit(1);
   if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND" });

@@ -900,6 +900,10 @@ export const projectErrorMessages = {
     ar: "راتب هذا الموظف في هذه الفترة مخصَّص للمشاريع من مسير الرواتب؛ اعتماد ساعاته يعدّ التكلفة مرتين.",
     en: "This employee's pay for the period is already allocated to projects from payroll; approving these hours would count the cost twice.",
   },
+  PROJECT_OS_SIGNUP_EMAIL_NOT_VERIFIED: {
+    ar: "أكّد بريدك الإلكتروني أولًا: سجّل الدخول برمز يصلك على بريدك أو بحساب Google ثم أعد إنشاء مساحة العمل.",
+    en: "Verify your email first: sign in with the code sent to your address or with Google, then create the workspace again.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

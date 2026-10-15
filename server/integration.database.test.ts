@@ -176,7 +176,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM roles WHERE id = 'int-role-b'");
     await connection.query("DELETE FROM users WHERE openId = 'integration-test-user'");
     await connection.query("DELETE FROM users WHERE openId IN ('integration-unassigned-user','integration-finance-user','integration-accountant-user')");
-    await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('integration-test-user', 'Integration Test User', 'integration@test.local', 'admin')");
+    await connection.query("INSERT INTO users (openId, name, email, role, loginMethod) VALUES ('integration-test-user', 'Integration Test User', 'integration@test.local', 'admin', 'email')");
     await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-unassigned-user', 'Unassigned Test User', 'unassigned@test.local')");
     await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-finance-user', 'Integration Finance User', 'finance@test.local')");
     await connection.query("INSERT INTO users (openId, name, email) VALUES ('integration-accountant-user', 'Integration Accountant User', 'accountant@test.local')");
@@ -1944,6 +1944,10 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const caller = appRouter.createCaller(context); const slug = `self-signup-${Date.now()}`; let tenantId: string | undefined; let subscriptionId: string | undefined; let invoiceId: string | undefined; let paymentId: string | undefined;
     try {
       const plans = await caller.selfService.plans(); expect(plans.some(plan => plan.code === "ALL_IN_ONE_STANDARD" && plan.packageCode === "ALL-IN-ONE")).toBe(true);
+      // G-107: a user whose address was never proved (no verified sign-in method) cannot open a workspace
+      await connection.query("UPDATE users SET loginMethod = NULL WHERE id = ?", [integrationUserId]);
+      await expect(caller.selfService.signup({ legalName: "Unverified workspace", slug: `unverified-${Date.now()}`, planCode: "ALL_IN_ONE_STANDARD", seats: 2 })).rejects.toThrow("PROJECT_OS_SIGNUP_EMAIL_NOT_VERIFIED");
+      await connection.query("UPDATE users SET loginMethod = 'email' WHERE id = ?", [integrationUserId]);
       await expect(caller.selfService.signup({ legalName: "Duplicate workspace", slug: "integration-a", planCode: "ALL_IN_ONE_STANDARD", seats: 2 })).rejects.toThrow("PROJECT_OS_WORKSPACE_SLUG_EXISTS");
       const signup = await caller.selfService.signup({ legalName: "Self-service integration tenant", slug, planCode: "ALL_IN_ONE_STANDARD", seats: 2 }); tenantId = signup.tenantId; subscriptionId = signup.subscriptionId;
       const [signupRows] = await connection.query<{ activeEntitlements: number; ownerMemberships: number; ownerRoles: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM tenant_entitlements WHERE tenantId = ? AND active = true) AS activeEntitlements, (SELECT COUNT(*) FROM memberships WHERE tenantId = ? AND userId = ? AND status = 'active') AS ownerMemberships, (SELECT COUNT(*) FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId INNER JOIN roles r ON r.id = mr.roleId WHERE m.tenantId = ? AND m.userId = ? AND r.code = 'TENANT_OWNER' AND mr.scopeType = 'company') AS ownerRoles, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'self_service.tenant_created') AS audits", [tenantId, tenantId, integrationUserId, tenantId, integrationUserId, tenantId]);
