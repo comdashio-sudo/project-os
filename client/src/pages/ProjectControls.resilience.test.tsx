@@ -40,7 +40,7 @@ vi.mock("@/lib/trpc", () => {
       getControls: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { project: { code: "P-01", name: "Delivery evidence" }, wbs: [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null } }) },
       getControlsSchedule: { useQuery: () => ({ isLoading: state.scheduleLoading, error: state.scheduleError, refetch: vi.fn(), data: state.scheduleError || state.scheduleLoading ? undefined : { project: { code: "P-01", name: "Delivery evidence" }, wbs: state.scheduleEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [] } }) },
       getControlsFinancials: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { wbs: state.financialsEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], budgets: [], costs: [], progress: [] } }) },
-      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0 }, latestHealth: null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
+      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0, periodAt: new Date("2026-09-30T00:00:00.000Z") }, latestHealth: null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
     },
     wbs: { create: { useMutation: mutation } }, activities: { create: { useMutation: mutation } }, budgets: { create: { useMutation: mutation } }, costs: { createActual: { useMutation: mutation } }, progress: { create: { useMutation: mutation } }, controls: { saveEvmSnapshot: { useMutation: mutation }, captureOperationalEvmSnapshot: { useMutation: mutation }, captureProjectHealthSnapshot: { useMutation: mutation } },
   } };
@@ -109,5 +109,17 @@ describe("ProjectControls section resilience", () => {
     expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
     consoleError.mockRestore();
+  });
+
+  it("shows the formula and the date beside each manager indicator (G-106)", () => {
+    state.performancePartial = true;
+    render(<ProjectControls />);
+    const lines = screen.getAllByTestId("indicator-basis").map(node => node.textContent ?? "");
+    expect(lines).toHaveLength(5);
+    expect(lines[0]).toContain("no snapshot saved yet"); // health: no snapshot in this fixture
+    expect(lines[1]).toContain("CPI = EV ÷ AC"); expect(lines[1]).toContain("as of 30/09/2026"); // EVM: its snapshot date
+    expect(lines[2]).toContain("Remaining = planned budget"); expect(lines[2]).toContain("as of now");
+    expect(lines[3]).toContain("blocked"); expect(lines[4]).toContain("WBS");
+    expect(lines.every(line => line.startsWith("Formula: ") && line.includes("Source: "))).toBe(true);
   });
 });

@@ -25,12 +25,13 @@ import FieldEntry from "./pages/FieldEntry";
 import ProjectPmc from "./pages/ProjectPmc";
 import UserProfile from "./pages/UserProfile";
 import RequireAuth from "./components/RequireAuth";
+import { RouteBoundary } from "./components/RouteBoundary";
 import type { ComponentType } from "react";
 import { Route, Switch } from "wouter";
 
 function withAuth(Component: ComponentType<any>) {
   return function AuthenticatedRoute(props: any) {
-    return <RequireAuth><Component {...props} /></RequireAuth>;
+    return <RequireAuth><RouteBoundary><Component {...props} /></RouteBoundary></RequireAuth>;
   };
 }
 
