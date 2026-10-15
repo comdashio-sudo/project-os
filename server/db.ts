@@ -123,6 +123,7 @@ import { storageGetSignedUrl, storagePut } from "./storage";
 import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
+import { assertTestDatabaseUrl } from "./testing/testDatabase";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
@@ -132,8 +133,13 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
+    // Under vitest the connection must name the test database; a production
+    // URL in the environment fails the test instead of being written to.
+    if (process.env.VITEST === "true") assertTestDatabaseUrl(process.env.DATABASE_URL, "DATABASE_URL");
     try {
-      const useAdministrativeConnection = process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true" || process.env.VITEST === "true";
+      // Tests get the administrative account only when the integration runner
+      // asks for it explicitly; otherwise they use the restricted app account.
+      const useAdministrativeConnection = process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true";
       _db = drizzle(buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD, useAdministrativeConnection));
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

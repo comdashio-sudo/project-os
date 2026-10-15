@@ -1,20 +1,35 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
-import { companies, projects, users, memberships, tenantEntitlements, subscriptions, roles, permissions, rolePermissions, membershipRoles, boqItems, subcontractContracts, subcontractCertificates, subcontractCertificateLines, projectCommercialInvoices, auditLogs } from "../drizzle/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { companies, projects, users, memberships, tenantEntitlements, subscriptions, roles, permissions, rolePermissions, membershipRoles, boqItems, subcontractContracts, subcontractCertificates, subcontractCertificateLines, projectCommercialInvoices } from "../drizzle/schema";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { getDb, getTenantAccessSnapshot } from "./db";
 import { randomUUID } from "node:crypto";
+import { assertTestDatabaseUrl, isTestDatabaseUrl, INTEGRATION_TEST_DATABASE } from "./testing/testDatabase";
 
-describe("Commercial Chain Integration", () => {
+// Runs only against the named test database, and only as the restricted app
+// account (SELECT/INSERT on audit_logs). It never runs on DATABASE_URL alone.
+const canRun = isTestDatabaseUrl(process.env.TEST_DATABASE_URL) && Boolean(process.env.PROJECT_OS_APP_DB_PASSWORD);
+
+describe.skipIf(!canRun)("Commercial Chain Integration", () => {
   let tenantId: string;
   let projectId: string;
   let userId: number;
   let caller: any;
 
   beforeAll(async () => {
+    assertTestDatabaseUrl(process.env.TEST_DATABASE_URL, "TEST_DATABASE_URL");
+    assertTestDatabaseUrl(process.env.DATABASE_URL, "DATABASE_URL");
+    if (process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true") {
+      throw new Error("Commercial chain test must run as the restricted app account; unset PROJECT_OS_USE_ADMIN_DATABASE_URL.");
+    }
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+
+    // Prove the connection before writing: the test database, the app account.
+    const [identityRows] = (await db.execute(sql`SELECT CURRENT_USER() AS currentUser, DATABASE() AS databaseName`)) as unknown as [Array<{ currentUser: string; databaseName: string }>];
+    expect(identityRows[0].databaseName).toBe(INTEGRATION_TEST_DATABASE);
+    expect(identityRows[0].currentUser).toMatch(/\.project_os_app@/);
 
     // Reuse owner user or create test user
     const [user] = await db.select().from(users).limit(1);
@@ -222,8 +237,8 @@ describe("Commercial Chain Integration", () => {
         await db.delete(roles).where(inArray(roles.id, roleRows.map(r => r.id)));
       }
       
-      await db.delete(auditLogs).where(eq(auditLogs.tenantId, tenantId));
-      await db.delete(companies).where(eq(companies.id, tenantId));
+      // audit_logs is append-only for the app account, and its rows keep the
+      // test company referenced, so both stay in the test database.
     }
   }, 30_000);
 });
