@@ -155,6 +155,25 @@ export const tenantSettings = mysqlTable(
   table => [uniqueIndex("tenant_settings_tenant_unique").on(table.tenantId)],
 );
 
+/**
+ * A request the phone sent with its own identifier (G-033). A retry after a lost answer carries the same identifier and gets
+ * the stored result back instead of running again, so a queued item sent twice never makes two records.
+ */
+export const clientRequests = mysqlTable(
+  "client_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    userId: int("userId").notNull().references(() => users.id),
+    action: varchar("action", { length: 60 }).notNull(),
+    status: mysqlEnum("status", ["started", "done"]).default("started").notNull(),
+    resultJson: text("resultJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("client_requests_tenant_created_idx").on(table.tenantId, table.createdAt)],
+);
+
 export const payrollRuns = mysqlTable(
   "payroll_runs",
   {

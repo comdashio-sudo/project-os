@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
+import { discard, enqueue, flushQueue, isNetworkError, loadQueue, retryFailed, reviveDates, type QueueItem, type SendResult } from "@/lib/offlineQueue";
 import { trpc } from "@/lib/trpc";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
-import React, { useState } from "react";
+import { getProjectError } from "@shared/projectErrors";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 
 // Phone entry for the two things a site engineer does all day: log progress and
@@ -16,11 +18,15 @@ const text = {
     title: "إدخال سريع من الموقع", back: "العودة إلى ضوابط المشروع", notAllowed: "دورك لا يتيح تسجيل التقدم ولا صرف المواد من هذه الشاشة.", progress: "تسجيل تقدم", issue: "صرف مادة", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     pickItem: "اختر بند العمل", nowAt: "التقدم الآن", never: "لم يُسجَّل", save: "حفظ", saving: "جارٍ الحفظ…", saved: "تم الحفظ", another: "تسجيل آخر", noWbs: "لا بنود عمل في هذا المشروع بعد.", plus5: "+5", minus5: "−5",
     pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
+    team: "ساعات الفريق", workDate: "يوم العمل", teamEmpty: "لا إسناد يغطي هذا اليوم.", attendanceMissing: "الحضور غير معتمد بعد", entered: "مُدخَلة", hours: "ساعات", saveTeam: "حفظ ساعات الفريق", teamSaved: "حُفظت ساعات", rows: "صفوف", rowErrors: "لم يُحفظ شيء. صحّح الصفوف التالية:",
+    queuedSaved: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال", queueNotSaved: "تعذّر الحفظ على الهاتف (مساحة التخزين ممتلئة أو محظورة). أعد الإرسال حين يعود الاتصال.", offline: "لا اتصال", online: "متصل", pending: "بانتظار الإرسال", sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", failedItems: "طلبات رفضها الخادم", discard: "حذف", retryItem: "إعادة", cachedNotice: "لا اتصال: هذه آخر بيانات محفوظة على الهاتف.",
   },
   en: {
     title: "Quick site entry", back: "Back to project controls", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
     pickItem: "Pick the work item", nowAt: "Now at", never: "not recorded", save: "Save", saving: "Saving…", saved: "Saved", another: "Record another", noWbs: "This project has no work items yet.", plus5: "+5", minus5: "−5",
     pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
+    team: "Team hours", workDate: "Work day", teamEmpty: "No assignment covers this day.", attendanceMissing: "Attendance not approved yet", entered: "Entered", hours: "hours", saveTeam: "Save team hours", teamSaved: "Hours saved", rows: "rows", rowErrors: "Nothing was saved. Fix these rows:",
+    queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
   },
 };
 type T = typeof text.en;
@@ -30,13 +36,31 @@ const remembered = (key: string) => { try { return localStorage.getItem(key); } 
 const remember = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* storage may be unavailable; defaults then fall back to the first item */ } };
 
 type Context = inferRouterOutputs<AppRouter>["fieldEntry"]["context"];
+type Sheet = inferRouterOutputs<AppRouter>["teamHours"]["sheet"];
+type KeepOffline = (item: Pick<QueueItem, "id" | "kind" | "payload" | "summary">) => boolean;
 
-function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean }) {
+const newId = () => globalThis.crypto.randomUUID();
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const dayOf = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+const readCache = <V,>(key: string): V | null => { const raw = remembered(key); if (!raw) return null; try { return JSON.parse(raw) as V; } catch { return null; } };
+// The phone may be offline while a form is open, and the library would then wait for the network instead of failing, so
+// field requests ask to be attempted either way; a failed attempt is what puts the request in the queue.
+const attempt = { networkMode: "always" as const };
+const localized = (code: string, isArabic: boolean) => { const messages = getProjectError(code).messages; return isArabic ? messages.ar : messages.en; };
+
+function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
-  const [done, setDone] = useState<{ name: string; percent: number } | null>(null);
-  const create = trpc.progress.create.useMutation({ onSuccess: () => { const item = context.wbs.find(w => w.id === itemId)!; setDone({ name: `${item.code} · ${item.name}`, percent: percent! }); setItemId(null); setPercent(null); onSaved(); } });
-  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{t.saved}: {done.name} → {done.percent}%</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  const [done, setDone] = useState<{ name: string; percent: number; queued: boolean } | null>(null);
+  const [notKept, setNotKept] = useState(false);
+  const requestId = useRef(newId()); // one identifier per intended save: a resend reuses it, so the server applies it once
+  const finish = (queued: boolean) => { const item = context.wbs.find(w => w.id === itemId)!; setDone({ name: `${item.code} · ${item.name}`, percent: percent!, queued }); setItemId(null); setPercent(null); requestId.current = newId(); };
+  const create = trpc.progress.create.useMutation({
+    ...attempt,
+    onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
+    onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "progress", payload: variables, summary: `${context.wbs.find(w => w.id === variables.wbsItemId)?.code ?? ""} → ${variables.percentComplete}%` })) { setNotKept(false); finish(true); } else setNotKept(true); },
+  });
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.name} → {done.percent}%</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
   if (context.wbs.length === 0) return <p className="text-sm text-slate-500">{t.noWbs}</p>;
   const selected = context.wbs.find(w => w.id === itemId) ?? null;
   return (
@@ -64,13 +88,14 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic }: {
           </li>
         ))}
       </ul>
-      {create.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(create.error, isArabic)}</p>}
-      <Button className={`${tap} w-full text-base`} disabled={itemId === null || percent === null || create.isPending} onClick={() => create.mutate({ tenantId, projectId, wbsItemId: itemId!, percentComplete: percent!, reportedAt: new Date() })}>{create.isPending ? t.saving : t.save}</Button>
+      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
+      {create.error && !isNetworkError(create.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(create.error, isArabic)}</p>}
+      <Button className={`${tap} w-full text-base`} disabled={itemId === null || percent === null || create.isPending} onClick={() => create.mutate({ tenantId, projectId, wbsItemId: itemId!, percentComplete: percent!, reportedAt: new Date(), clientRequestId: requestId.current })}>{create.isPending ? t.saving : t.save}</Button>
     </div>
   );
 }
 
-function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean }) {
+function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const rememberedWarehouse = remembered(`fieldEntry:${projectId}:warehouse`);
   const rememberedWbs = remembered(`fieldEntry:${projectId}:wbs`);
   const [warehouseId, setWarehouseId] = useState(context.warehouses.find(w => w.id === rememberedWarehouse)?.id ?? context.warehouses[0]?.id ?? "");
@@ -78,12 +103,20 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   const [materialId, setMaterialId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<{ text: string; queued: boolean } | null>(null);
+  const [notKept, setNotKept] = useState(false);
+  const requestId = useRef(newId());
   const material = context.materials.find(m => m.id === materialId) ?? null;
   const wbsItem = context.wbs.find(w => w.id === wbsItemId);
   const warehouse = context.warehouses.find(w => w.id === warehouseId);
-  const issue = trpc.warehouses.issueToWork.useMutation({ onSuccess: () => { remember(`fieldEntry:${projectId}:warehouse`, warehouseId); remember(`fieldEntry:${projectId}:wbs`, wbsItemId); setDone(`${t.issued}: ${quantity} ${material?.unitOfMeasure ?? ""} ${material?.code ?? ""} ${t.to} ${wbsItem?.code ?? ""}`); setMaterialId(null); setQuantity(""); setUnitCost(""); onSaved(); } });
-  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{t.saved}: {done}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  const summary = `${t.issued}: ${quantity} ${material?.unitOfMeasure ?? ""} ${material?.code ?? ""} ${t.to} ${wbsItem?.code ?? ""}`;
+  const finish = (queued: boolean) => { remember(`fieldEntry:${projectId}:warehouse`, warehouseId); remember(`fieldEntry:${projectId}:wbs`, wbsItemId); setDone({ text: summary, queued }); setMaterialId(null); setQuantity(""); setUnitCost(""); requestId.current = newId(); };
+  const issue = trpc.warehouses.issueToWork.useMutation({
+    ...attempt,
+    onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
+    onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "issue", payload: variables, summary })) { setNotKept(false); finish(true); } else setNotKept(true); },
+  });
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
   if (context.materials.length === 0) return <p className="text-sm text-slate-500">{t.noMaterials}</p>;
   if (context.warehouses.length === 0) return <p className="text-sm text-slate-500">{t.noWarehouses}</p>;
   const qty = Number(quantity);
@@ -115,35 +148,141 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
         <label className="mt-2 block">{t.warehouse}<select aria-label={t.warehouse} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={warehouseId} onChange={event => setWarehouseId(event.target.value)}>{context.warehouses.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select></label>
         <label className="mt-2 block">{t.workItem}<select aria-label={t.workItem} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={wbsItemId} onChange={event => setWbsItemId(event.target.value)}>{context.wbs.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select></label>
       </details>
-      {issue.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(issue.error, isArabic)}</p>}
-      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: cost, issuedAt: new Date() })}>{issue.isPending ? t.saving : t.save}</Button>
+      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
+      {issue.error && !isNetworkError(issue.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(issue.error, isArabic)}</p>}
+      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: cost, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
+}
+
+function TeamHoursEntry({ tenantId, projectId, t, isArabic, keepOffline, online }: { tenantId: string; projectId: string; t: T; isArabic: boolean; keepOffline: KeepOffline; online: boolean }) {
+  const [date, setDate] = useState(todayIso);
+  const [hours, setHours] = useState<Record<string, string>>({});
+  const [unticked, setUnticked] = useState<Set<string>>(new Set());
+  const [rowErrors, setRowErrors] = useState<Array<{ index: number; assignmentId: string; code: string }>>([]);
+  const [done, setDone] = useState<{ count: number; queued: boolean } | null>(null);
+  const [notKept, setNotKept] = useState(false);
+  const requestId = useRef(newId());
+  const sheetKey = `fieldEntry:sheet:${projectId}:${date}`;
+  const sheet = trpc.teamHours.sheet.useQuery({ tenantId, projectId, workDate: dayOf(date) }, { ...attempt, retry: 1 });
+  useEffect(() => { if (sheet.data) remember(sheetKey, JSON.stringify(sheet.data)); }, [sheet.data, sheetKey]);
+  const cached = !sheet.data && (!online || (sheet.error && isNetworkError(sheet.error))) ? readCache<Sheet>(sheetKey) : null;
+  const rows = (sheet.data ?? cached)?.rows ?? null;
+  const hoursOf = (assignmentId: string) => hours[assignmentId] ?? "8";
+  const eligible = (rows ?? []).filter(row => row.attendanceApproved && !row.entered);
+  const entries = eligible.filter(row => !unticked.has(row.assignmentId) && Number(hoursOf(row.assignmentId)) > 0 && Number(hoursOf(row.assignmentId)) <= 24).map(row => ({ assignmentId: row.assignmentId, actualHours: Number(hoursOf(row.assignmentId)) }));
+  const finish = (count: number, queued: boolean) => { setDone({ count, queued }); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); };
+  const save = trpc.teamHours.save.useMutation({
+    ...attempt,
+    onSuccess: (result, variables) => { setNotKept(false); if (result.errors.length) { setRowErrors(result.errors); return; } finish(result.saved, false); void sheet.refetch(); void variables; },
+    onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "team", payload: variables, summary: `${t.team} ${date}: ${variables.entries.length} ${t.rows}` })) { setNotKept(false); finish(variables.entries.length, true); } else setNotKept(true); },
+  });
+  const label = (assignmentId: string) => { const row = rows?.find(entry => entry.assignmentId === assignmentId); return row ? `${row.employeeNumber} · ${row.fullName}` : assignmentId; };
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm font-semibold text-slate-600">{t.workDate}<input type="date" aria-label={t.workDate} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setDone(null); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); } }} /></label>
+      {cached && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cachedNotice}</p>}
+      {sheet.isLoading && !rows && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
+      {sheet.error && !rows && !isNetworkError(sheet.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(sheet.error, isArabic)}</p>}
+      {rows && rows.length === 0 && <p className="text-sm text-slate-500">{t.teamEmpty}</p>}
+      {rows && rows.length > 0 && (
+        <ul className="space-y-2">
+          {rows.map(row => {
+            const open = row.attendanceApproved && !row.entered;
+            return (
+              <li key={row.assignmentId} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${open ? "bg-white" : "bg-slate-50 text-slate-500"}`}>
+                <input type="checkbox" aria-label={`${row.employeeNumber} ${row.fullName}`} className={`${tap} shrink-0`} disabled={!open} checked={open && !unticked.has(row.assignmentId)} onChange={event => setUnticked(previous => { const next = new Set(previous); if (event.target.checked) next.delete(row.assignmentId); else next.add(row.assignmentId); return next; })} />
+                <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{row.employeeNumber} · {row.fullName}</span><span className="block text-xs">{row.wbsCode ? `${row.wbsCode} · ` : ""}{row.entered ? `${t.entered}: ${row.entered.hours} ${t.hours}` : row.attendanceApproved ? "" : t.attendanceMissing}</span></span>
+                {open && <input aria-label={`${t.hours} ${row.employeeNumber}`} className={`${tap} w-20 rounded-lg border bg-white px-2 text-center text-lg`} inputMode="decimal" value={hoursOf(row.assignmentId)} onChange={event => setHours(previous => ({ ...previous, [row.assignmentId]: event.target.value }))} />}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, isArabic)}</li>)}</ul></div>}
+      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
+      {save.error && !isNetworkError(save.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(save.error, isArabic)}</p>}
+      {done && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.teamSaved}: {done.count} {t.rows}</p>}
+      <Button className={`${tap} w-full text-base`} disabled={entries.length === 0 || save.isPending} onClick={() => { setDone(null); save.mutate({ tenantId, projectId, workDate: dayOf(date), entries, clientRequestId: requestId.current }); }}>{save.isPending ? t.saving : `${t.saveTeam}${entries.length ? ` (${entries.length})` : ""}`}</Button>
+    </div>
+  );
+}
+
+function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, isArabic }: { items: QueueItem[]; online: boolean; flushing: boolean; onFlush: () => void; onDiscard: (id: string) => void; onRetry: (id: string) => void; t: T; isArabic: boolean }) {
+  const pending = items.filter(item => item.status === "pending");
+  const failed = items.filter(item => item.status === "failed");
+  return (
+    <section className="space-y-2">
+      <p aria-live="polite" data-testid="queue-status" className={`rounded-xl px-3 py-2 text-sm font-semibold ${online ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{online ? t.online : t.offline}{pending.length > 0 && ` · ${pending.length} ${t.pending}`}</p>
+      {pending.length > 0 && <Button className={`${tap} w-full`} variant="outline" disabled={!online || flushing} onClick={onFlush}>{flushing ? t.sending : t.sendNow}</Button>}
+      {failed.length > 0 && (
+        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800">
+          <p className="font-semibold">{t.failedItems}</p>
+          <ul className="mt-1 space-y-2">{failed.map(item => <li key={item.id}><span className="block">{item.summary}</span><span className="block text-xs">{localized(item.error ?? "", isArabic)}</span><span className="mt-1 flex gap-2"><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onRetry(item.id)}>{t.retryItem}</button><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onDiscard(item.id)}>{t.discard}</button></span></li>)}</ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// The queue belongs to one project on one phone. Online again, it is sent by itself, one request at a time.
+function useOfflineQueue(scope: string) {
+  const client = trpc.useUtils().client;
+  const [items, setItems] = useState<QueueItem[]>(() => loadQueue(scope));
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
+  const [flushing, setFlushing] = useState(false);
+  const refresh = useCallback(() => setItems(loadQueue(scope)), [scope]);
+  const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
+    const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
+    if (item.kind === "progress") await client.progress.create.mutate(payload);
+    else if (item.kind === "issue") await client.warehouses.issueToWork.mutate(payload);
+    else { const result = await client.teamHours.save.mutate(payload); if (result.errors.length) return { rejected: result.errors[0].code }; }
+  }, [client]);
+  const flush = useCallback(async () => { setFlushing(true); try { await flushQueue(scope, send); } finally { setFlushing(false); refresh(); } }, [scope, send, refresh]);
+  useEffect(() => {
+    const goOnline = () => { setOnline(true); void flush(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
+    if (navigator.onLine !== false && loadQueue(scope).some(item => item.status === "pending")) void flush();
+    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
+  }, [scope, flush]);
+  const keep: KeepOffline = useCallback(item => { const kept = enqueue(scope, item); refresh(); return kept; }, [scope, refresh]);
+  return { items, online, flushing, flush, keep, discard: (id: string) => { discard(scope, id); refresh(); }, retry: (id: string) => { retryFailed(scope, id); refresh(); void flush(); } };
 }
 
 export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
-  const [chosen, setTab] = useState<"progress" | "issue" | null>(null);
-  const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
-  const can = { progress: context.data ? context.data.can.logProgress : true, issue: context.data ? context.data.can.issueMaterial : true };
-  const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : "progress";
-  const nothingAllowed = Boolean(context.data) && !can.progress && !can.issue;
+  const [chosen, setTab] = useState<"progress" | "issue" | "team" | null>(null);
+  const queue = useOfflineQueue(`${tenantId}:${projectId}`);
+  const contextKey = `fieldEntry:context:${tenantId}:${projectId}`;
+  const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), ...attempt, retry: 1 });
+  useEffect(() => { if (context.data) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey]);
+  const cachedContext = !context.data && (!queue.online || (context.error && isNetworkError(context.error))) ? readCache<Context>(contextKey) : null;
+  const data = context.data ?? cachedContext;
+  const can = { progress: data ? data.can.logProgress : true, issue: data ? data.can.issueMaterial : true, team: data ? Boolean(data.can.logTeamHours) : false };
+  const tabs = (["progress", "issue", ...(can.team ? ["team"] : [])] as Array<"progress" | "issue" | "team">);
+  const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.team ? "team" : "progress";
+  const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.team;
   return (
     <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
-        <div role="tablist" className="grid grid-cols-2 gap-2">
-          {(["progress", "issue"] as const).map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
+        <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} />
+        <div role="tablist" className={`grid gap-2 ${tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+          {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
         </div>
-        {context.isLoading && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
-        {context.error && <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(context.error, isArabic)}</p><Button className={`${tap} mt-2`} variant="outline" onClick={() => context.refetch()}>{t.retry}</Button></div>}
+        {cachedContext && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cachedNotice}</p>}
+        {context.isLoading && !data && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
+        {context.error && !data && <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(context.error, isArabic)}</p><Button className={`${tap} mt-2`} variant="outline" onClick={() => context.refetch()}>{t.retry}</Button></div>}
         {nothingAllowed && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.notAllowed}</p>}
-        {context.data && !nothingAllowed && (tab === "progress"
-          ? <ProgressEntry tenantId={tenantId} projectId={projectId} context={context.data} t={t} isArabic={isArabic} onSaved={() => context.refetch()} />
-          : <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={context.data} t={t} isArabic={isArabic} onSaved={() => context.refetch()} />)}
+        {data && !nothingAllowed && (tab === "progress"
+          ? <ProgressEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
+          : tab === "issue"
+            ? <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
+            : <TeamHoursEntry tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
       </div>
     </main>
   );

@@ -60,6 +60,9 @@ export const governedActionPermissions = {
   // tenant settings: how labour is loaded and which days are worked
   saveTenantLabourSettings: ["project.settings.labour"],
   getTenantLabourSettings: ["project.settings.labour", "project.cashflow.read"],
+  // the team's hours for one day, from the phone
+  getTeamHoursSheetForTenant: ["project.manage"],
+  createTeamTimeEntriesForTenant: ["project.manage"],
   // cash-flow figures
   getProjectProfitabilityForTenant: ["project.cashflow.read"],
   getProjectLabourCostForTenant: ["project.cashflow.read"],

@@ -1,15 +1,24 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FieldEntry from "./FieldEntry";
 
-const state = vi.hoisted(() => ({ arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown }));
+const state = vi.hoisted(() => ({
+  arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
+  progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
+  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(),
+}));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   fieldEntry: { context: { useQuery: () => ({ ...state.query, refetch: state.refetch }) } },
-  progress: { create: { useMutation: (options: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { state.progress(input); options.onSuccess(); }, isPending: false, error: null }) } },
+  useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } } } }),
+  teamHours: {
+    sheet: { useQuery: (input: unknown) => { state.sheetCalls(input); return { ...state.sheet, refetch: state.sheetRefetch }; } },
+    save: { useMutation: (options: { onSuccess: (result: unknown, variables: unknown) => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.team(input); if (state.teamError) options.onError(state.teamError, input); else options.onSuccess(state.teamResult, input); }, isPending: false, error: state.teamError }) },
+  },
+  progress: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.progress(input); if (state.progressError) options.onError(state.progressError, input); else options.onSuccess(); }, isPending: false, error: state.progressError }) } },
   warehouses: { issueToWork: { useMutation: (options: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { state.issue(input); if (!state.issueError) options.onSuccess(); }, isPending: false, error: state.issueError }) } },
 } }));
 
@@ -24,7 +33,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
+afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
@@ -123,5 +132,185 @@ describe("FieldEntry (phone entry)", () => {
     load({ ...context, can: { logProgress: false, issueMaterial: false } });
     expect(screen.getByRole("alert").textContent).toContain("Your role does not allow");
     expect(screen.queryByText("Save")).toBeNull();
+  });
+});
+
+const QUEUE_KEY = "projectOs.offlineQueue.v1:t:p";
+const queued = () => JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]") as Array<{ id: string; kind: string; status: string; error?: string; payload: Record<string, unknown> }>;
+const setOnline = (value: boolean) => Object.defineProperty(navigator, "onLine", { configurable: true, get: () => value });
+const sheet = {
+  workDate: new Date("2026-10-15T00:00:00.000Z"),
+  rows: [
+    { assignmentId: "a1", employeeNumber: "E-1", fullName: "Worker One", wbsCode: "1", attendanceApproved: true, entered: null },
+    { assignmentId: "a2", employeeNumber: "E-2", fullName: "Worker Two", wbsCode: "1", attendanceApproved: true, entered: null },
+    { assignmentId: "a3", employeeNumber: "E-3", fullName: "Worker Three", wbsCode: "1", attendanceApproved: false, entered: null },
+    { assignmentId: "a4", employeeNumber: "E-4", fullName: "Worker Four", wbsCode: "2", attendanceApproved: true, entered: { hours: 6, status: "draft" } },
+  ],
+};
+const withTeam = { ...context, can: { ...context.can, logTeamHours: true } };
+
+describe("FieldEntry: requests that survive a lost connection (G-033)", () => {
+  afterEach(() => setOnline(true));
+
+  it("keeps a progress save on the phone when the network fails, under the identifier it was sent with", () => {
+    state.progressError = new TypeError("Failed to fetch");
+    load();
+    fireEvent.click(screen.getByText("1 · Foundations")); fireEvent.click(screen.getByText("75%")); fireEvent.click(screen.getByText("Save"));
+    const sentId = (state.progress.mock.calls[0][0] as { clientRequestId: string }).clientRequestId;
+    expect(sentId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(queued()).toMatchObject([{ id: sentId, kind: "progress", status: "pending" }]);
+    expect(screen.getByText(/Saved on this phone/)).toBeTruthy();
+    expect(screen.getByTestId("queue-status").textContent).toContain("1 waiting to send");
+  });
+
+  it("does not queue an answer from the server: a refusal is shown, not kept", () => {
+    state.progressError = Object.assign(new Error("PROJECT_OS_PERMISSION_DENIED"), { data: { code: "FORBIDDEN" } });
+    load();
+    fireEvent.click(screen.getByText("1 · Foundations")); fireEvent.click(screen.getByText("75%")); fireEvent.click(screen.getByText("Save"));
+    expect(queued()).toEqual([]);
+    expect(screen.getByRole("alert").textContent).toContain("could not complete");
+  });
+
+  it("says so, and does not pretend, when the phone cannot keep the request", () => {
+    state.progressError = new TypeError("Failed to fetch");
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+    load();
+    fireEvent.click(screen.getByText("1 · Foundations")); fireEvent.click(screen.getByText("75%")); fireEvent.click(screen.getByText("Save"));
+    setItem.mockRestore();
+    expect(screen.getByRole("alert").textContent).toContain("Could not keep it on this phone");
+    expect(screen.queryByText(/Saved on this phone/)).toBeNull();
+  });
+
+  it("sends what is waiting by itself, in the original identifier, with its dates restored", async () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: "11111111-1111-4111-8111-111111111111", kind: "progress", payload: { tenantId: "t", projectId: "p", wbsItemId: "x1", percentComplete: 60, reportedAt: "2026-10-15T08:00:00.000Z" }, summary: "1 → 60%", createdAt: "2026-10-15T08:00:00.000Z", status: "pending" }]));
+    load();
+    await waitFor(() => expect(state.sent).toHaveBeenCalledTimes(1));
+    const [kind, input] = state.sent.mock.calls[0] as [string, { clientRequestId: string; reportedAt: Date }];
+    expect(kind).toBe("progress");
+    expect(input.clientRequestId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(input.reportedAt).toBeInstanceOf(Date);
+    await waitFor(() => expect(queued()).toEqual([]));
+  });
+
+  it("shows offline, waits, and sends when the connection returns", async () => {
+    setOnline(false);
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: "22222222-2222-4222-8222-222222222222", kind: "issue", payload: { tenantId: "t", projectId: "p", warehouseId: "w1", materialId: "m1", wbsItemId: "x1", issuedQuantity: 3, unitCost: 5, issuedAt: "2026-10-15T08:00:00.000Z" }, summary: "Issued: 3 bag CEM to 1", createdAt: "2026-10-15T08:00:00.000Z", status: "pending" }]));
+    load();
+    expect(screen.getByTestId("queue-status").textContent).toContain("Offline · 1 waiting to send");
+    expect((screen.getByText("Send now") as HTMLButtonElement).disabled).toBe(true);
+    expect(state.sent).not.toHaveBeenCalled();
+    setOnline(true);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    await waitFor(() => expect(state.sent).toHaveBeenCalledWith("issue", expect.objectContaining({ clientRequestId: "22222222-2222-4222-8222-222222222222", issuedAt: expect.any(Date) })));
+    await waitFor(() => expect(screen.getByTestId("queue-status").textContent).toBe("Online"));
+  });
+
+  it("keeps a request the server refused as failed, with the reason in the user's language, and lets it be discarded", async () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: "33333333-3333-4333-8333-333333333333", kind: "team", payload: {}, summary: "Team hours 2026-10-15: 2 rows", createdAt: "2026-10-15T08:00:00.000Z", status: "failed", error: "PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED" }]));
+    load();
+    expect(screen.getByText("Requests the server refused")).toBeTruthy();
+    expect(screen.getByText("Team hours 2026-10-15: 2 rows")).toBeTruthy();
+    expect(state.sent).not.toHaveBeenCalled(); // a failed item is not sent again by itself
+    fireEvent.click(screen.getByText("Discard"));
+    expect(queued()).toEqual([]);
+  });
+
+  it("opens from the last data saved on the phone when the connection is gone", () => {
+    setOnline(false);
+    localStorage.setItem("fieldEntry:context:t:p", JSON.stringify(context));
+    state.query = { data: undefined, isLoading: false, error: null };
+    render(<FieldEntry />);
+    expect(screen.getByText(/last data saved on the phone/)).toBeTruthy();
+    expect(screen.getByText("1 · Foundations")).toBeTruthy();
+  });
+});
+
+describe("FieldEntry: team hours in one go (G-030)", () => {
+  const loadTeam = (over: Record<string, unknown> = {}) => { state.sheet = { data: sheet, isLoading: false, error: null, ...over }; load(withTeam); fireEvent.click(screen.getByRole("tab", { name: "Team hours" })); };
+
+  it("offers the team tab only to a role that may enter team hours", () => {
+    load();
+    expect(screen.queryByRole("tab", { name: "Team hours" })).toBeNull();
+    cleanup();
+    load(withTeam);
+    expect(screen.getByRole("tab", { name: "Team hours" })).toBeTruthy();
+  });
+
+  it("fills 8 hours for everyone whose attendance is approved and saves the whole team with one tap", () => {
+    state.teamResult = { saved: 2, errors: [] };
+    loadTeam();
+    expect((screen.getByLabelText("hours E-1") as HTMLInputElement).value).toBe("8");
+    expect((screen.getByLabelText("E-3 Worker Three") as HTMLInputElement).disabled).toBe(true); // attendance not approved
+    expect(screen.getByText(/Attendance not approved yet/)).toBeTruthy();
+    expect(screen.getByText(/Entered: 6 hours/)).toBeTruthy(); // already entered: read only, no hours box
+    expect(screen.queryByLabelText("hours E-4")).toBeNull();
+    fireEvent.click(screen.getByText("Save team hours (2)"));
+    expect(state.team).toHaveBeenCalledTimes(1);
+    expect(state.team).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", entries: [{ assignmentId: "a1", actualHours: 8 }, { assignmentId: "a2", actualHours: 8 }], clientRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/) }));
+    expect(screen.getByText(/Hours saved: 2 rows/)).toBeTruthy();
+    expect(state.sheetRefetch).toHaveBeenCalled();
+  });
+
+  it("sends the changed hours and leaves out the rows that were unticked", () => {
+    loadTeam();
+    fireEvent.change(screen.getByLabelText("hours E-1"), { target: { value: "6.5" } });
+    fireEvent.click(screen.getByLabelText("E-2 Worker Two")); // untick
+    fireEvent.click(screen.getByText("Save team hours (1)"));
+    expect(state.team).toHaveBeenCalledWith(expect.objectContaining({ entries: [{ assignmentId: "a1", actualHours: 6.5 }] }));
+  });
+
+  it("cannot save a row with zero or more than 24 hours", () => {
+    loadTeam();
+    fireEvent.change(screen.getByLabelText("hours E-1"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("hours E-2"), { target: { value: "25" } });
+    expect((screen.getByText("Save team hours") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("names every wrong row when the server saved nothing, and does not say saved", () => {
+    state.teamResult = { saved: 0, errors: [{ index: 1, assignmentId: "a2", code: "PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED" }] };
+    loadTeam();
+    fireEvent.click(screen.getByText("Save team hours (2)"));
+    expect(screen.getByRole("alert").textContent).toContain("Nothing was saved");
+    expect(screen.getByRole("alert").textContent).toContain("E-2 · Worker Two");
+    expect(screen.queryByText(/Hours saved/)).toBeNull();
+  });
+
+  it("keeps the whole sheet on the phone when the network fails, and reuses the same identifier", () => {
+    state.teamError = new TypeError("Failed to fetch");
+    loadTeam();
+    fireEvent.click(screen.getByText("Save team hours (2)"));
+    const sentId = (state.team.mock.calls[0][0] as { clientRequestId: string }).clientRequestId;
+    expect(queued()).toMatchObject([{ id: sentId, kind: "team", status: "pending" }]);
+    expect(screen.getByText(/Saved on this phone.*: 2 rows/)).toBeTruthy();
+  });
+
+  it("shows an empty day plainly, and the last saved sheet when offline", () => {
+    state.sheet = { data: { workDate: new Date(), rows: [] }, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    expect(screen.getByText("No assignment covers this day.")).toBeTruthy();
+    cleanup();
+    setOnline(false);
+    const iso = new Date(); const day = `${iso.getFullYear()}-${String(iso.getMonth() + 1).padStart(2, "0")}-${String(iso.getDate()).padStart(2, "0")}`;
+    localStorage.setItem(`fieldEntry:sheet:p:${day}`, JSON.stringify(sheet));
+    state.sheet = { data: undefined, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "Team hours" }));
+    expect(screen.getByText("E-1 · Worker One")).toBeTruthy();
+    setOnline(true);
+  });
+
+  it("renders the team tab in Arabic", () => {
+    state.arabic = true;
+    state.sheet = { data: sheet, isLoading: false, error: null };
+    load(withTeam);
+    fireEvent.click(screen.getByRole("tab", { name: "ساعات الفريق" }));
+    expect(screen.getByText("حفظ ساعات الفريق (2)")).toBeTruthy();
+  });
+
+  it("keeps every control in the team tab at least 44px", () => {
+    loadTeam();
+    const tooSmall = Array.from(document.querySelectorAll("button, input, select")).filter(node => !/min-h-\[44px\]/.test(node.getAttribute("class") ?? ""));
+    expect(tooSmall.map(node => node.outerHTML.slice(0, 80))).toEqual([]);
   });
 });
