@@ -8,6 +8,7 @@ import React from "react";
 const labels = {
   PROJECT_HEALTH_EXCEPTION: { ar: "استثناء في صحة المشروع", en: "Project-health exception" },
   FIELD_REPORT_REVIEWED: { ar: "قرار مراجعة تقرير ميداني", en: "Field-report review decision" },
+  SUPPORT_TICKET_ESCALATED: { ar: "تذكرة دعم تحتاج متابعتك", en: "A support ticket needs you" },
 } as const;
 
 function fieldReportOutcome(payload: string, isArabic: boolean) {

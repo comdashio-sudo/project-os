@@ -888,6 +888,10 @@ export const projectErrorMessages = {
     ar: "بند العمل غير موجود في هذا المشروع.",
     en: "The work item was not found in this project.",
   },
+  PROJECT_OS_INVENTORY_REASON_REQUIRED: {
+    ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
+    en: "Give the reason for the transfer or adjustment (at least 3 characters).",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
