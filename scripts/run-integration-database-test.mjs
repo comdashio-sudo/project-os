@@ -10,5 +10,5 @@ for (const script of ["scripts/migrate.mjs", "scripts/ensure-pmc-integration-sch
   const code = await run(script);
   if (code !== 0) process.exit(code);
 }
-const child = spawn("pnpm", ["vitest", "run", "--no-file-parallelism", "server/integration.database.test.ts", "server/pilot.roleAcceptance.database.test.ts", "server/pilot.backupRestore.database.test.ts", "server/auth.loginCodes.database.test.ts", "server/profitability.database.test.ts"], { stdio: "inherit", env: { ...process.env, DATABASE_URL: url.toString(), TEST_DATABASE_URL: url.toString(), PROJECT_OS_USE_ADMIN_DATABASE_URL: "true" } });
+const child = spawn("pnpm", ["vitest", "run", "--no-file-parallelism", "server/integration.database.test.ts", "server/pilot.roleAcceptance.database.test.ts", "server/pilot.backupRestore.database.test.ts", "server/auth.loginCodes.database.test.ts", "server/profitability.database.test.ts", "server/fieldEntry.database.test.ts"], { stdio: "inherit", env: { ...process.env, DATABASE_URL: url.toString(), TEST_DATABASE_URL: url.toString(), PROJECT_OS_USE_ADMIN_DATABASE_URL: "true" } });
 child.on("exit", code => process.exit(code ?? 1));
