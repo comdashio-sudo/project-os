@@ -108,7 +108,7 @@
 | مركز قيادة مدير المشروع | `PROVEN` | تحولت لوحة التسليم إلى نقطة تشغيل موحدة للمشروع: تعرض صحة المشروع وCPI/SPI والميزانية المتبقية والأنشطة المتعثرة وWBS، ثم تفتح مباشرة مجموعة البرنامج والتكلفة أو العقود والمشتريات أو الموقع والجودة والموارد أو المستندات والبيانات والمتابعة. لا تبني حراسة موازية؛ تبقى كل قراءة وكتابة تحت عقود `getControls*` وسجلاتها العملية بحزمة `PROJECT` وصلاحية `project.read`/`project.write` ونطاق المشروع. يثبت دليل DOM ظهور النطاق وفتح مجموعة المشتريات، وتثبت اللقطة تماسك الواجهة. | `ProjectControls.tsx` و`ProjectControls.resilience.test.tsx` و`PROJECT_MANAGER_COMMAND_CENTER.md`؛ 288/142/137/0/67؛ 21 أغسطس 2026؛ قبل التزام مركز مدير المشروع |
 | مستويات الشركة وPMO والمشروع | `SOURCE_VERIFIED` | حزم المستوى، RBAC، نطاق المستأجر/المشروع، مركز متابعة PMO، وسجلات التنفيذ موجودة في المصدر؛ القبول اليدوي متعدد الأدوار لم ينفذ. (ربط حي 2026-10-15 على MySQL محلي: `returns only licensed and authorized navigation items…` و`governs tenant role and membership administration…`، `docs/LIVE_RERUN_20261015.md`.) | `server/routers.ts` و`client/src/pages/`؛ `99bdafff` |
 | الزمن والتكلفة وEVM | `SOURCE_VERIFIED` | مصادر PV/EV/AC ومعادلات CPI/SPI/EAC/ETC/VAC ولقطات المشروع ومركز PMO موثقة ومختبرة آليًا. (ربط حي 2026-10-15 على MySQL محلي: `governs manual EVM calculation…` و`captures authorized EVM and health snapshots…` وملف `profitability.database.test.ts` (AC ← EAC ← FPAC بالأرقام).) | `server/domain/` و`TEST_EVIDENCE_MATRIX.md`؛ `99bdafff` |
-| حذف جدول الرصيد القديم | `OPEN` | يبقى `_deprecated_warehouse_stock_balances` بعد إعادة تسمية عكوسة فقط. يحذف نهائيًا بعد فترة Pilot بلا رجوع إليه؛ لا يعيق إغلاق 2.6 لأن التطبيق والمخطط النشطين لا يقرآنه أو يكتبانه. | `0044_rare_shinobi_shaw.sql`؛ 22 أغسطس 2026 |
+| حذف جدول الرصيد القديم | `BLOCKED_BY_OWNER` | يبقى `_deprecated_warehouse_stock_balances` بعد إعادة تسمية عكوسة فقط. يحذف نهائيًا بعد فترة Pilot بلا رجوع إليه؛ لا يعيق إغلاق 2.6 لأن التطبيق والمخطط النشطين لا يقرآنه أو يكتبانه. (2026-10-15: الحذف نهائي بلا رجوع ويشترط انقضاء فترة Pilot وقرارك؛ مسجَّل في `docs/OWNER_ACTIONS.md` القسم 8. لا يُنفَّذ قبل ذلك.) | `0044_rare_shinobi_shaw.sql`؛ 22 أغسطس 2026 |
 | قابلية توسع قراءة الرصيد المشتق | `OPEN` | تجمع القراءة كل الحركات الآن وتزداد كلفتها مع الحجم. الحل المرشح لقطة رصيد دورية محكومة مع الحركات اللاحقة بعد قياس Pilot، مع حظر أي قيمة لقطة قابلة للتحرير. | `BATCH_2_6_DERIVED_INVENTORY_BALANCE_EVIDENCE.md`؛ 22 أغسطس 2026 |
 | العقود والموقع والجودة والوثائق | `SOURCE_VERIFIED` | سجلات العقود والالتزامات وRFI/NCR/HSE والتقارير والجودة والمستندات مع حراس نطاق وتدقيق في المصدر واختبارات مسجلة. (ربط حي 2026-10-15 على MySQL محلي: اختبارات العقود والتقارير الميدانية وفحوص الجودة والمستندات في `docs/LIVE_RERUN_20261015.md`.) | المخطط والموجّه ومصفوفة الأدلة؛ `99bdafff` |
 | Excel لـWBS والميزانية والعقود والمواد | `UNVERIFIED` (2026-10-15: أُعيد على MySQL 8.0.46 محلي من الترحيلات فقط في 2026-10-15 (الالتزام `0b382b5`) ونجح، والاختبار الاسمي في `docs/LIVE_RERUN_20261015.md` وأرقام الأسطر المذكورة هنا قديمة؛ يبقى `UNVERIFIED` لأن الدليل على TiDB لم يُجرَ؛ الشق غير الحي `server/domain/dataImport.test.ts` ناجح 21/21) | قالب واحد وورقة واحدة ونوع بيانات واحد؛ ترفض الأعمدة غير المعتمدة والتكرار قبل التأكيد. تضيف `materials_v1` رمز المادة والوصف ووحدة القياس والفئة والمواصفة المرجعية، مع دليل حي للمعاينة والتأكيد والنتائج والتدقيق. لا يوجد ملف عام. | `server/domain/dataImport.ts` و`ProjectImports.tsx` و`integration.database.test.ts`؛ 21 أغسطس 2026 |
@@ -118,7 +118,7 @@
 | القبول اليدوي للأدوار والوصول | `HANDOFF_REQUIRED` | يجب أن ينفذه مالك المشروع أو مستخدمون حقيقيون على بيئة Pilot، بلا SQL مباشر أو لوحة بيانات، بعد تخصيص الهويات الحقيقية وفق سجل الجاهزية. | `MANUAL_ACCESSIBILITY_ACCEPTANCE.md` و`PILOT_SESSION_READINESS.md`؛ 21 أغسطس 2026 |
 | الإشعار الخارجي بالبريد أو الرسائل | `BLOCKED_BY_OWNER` | الإشعارات داخلية فقط؛ يلزم مزود وقناة تسليم وسياسة وبيانات اعتماد معتمدة. | `ACCEPTANCE_CRITERIA.md`؛ `99bdafff` |
 | قرارات الاشتراك والفوترة التجارية | `BLOCKED_BY_OWNER` | مزود الدفع الفعلي، الأسعار الحقيقية للخطط، التسجيل الضريبي وتوافق ZATCA، وشروط الخدمة/الخصوصية/الاسترداد قرارات مالك لا تُفترض. يمكن تنفيذ طبقات `ManualProvider` و`MockProvider` و`InvoiceRenderer` دون أي مزود حي، لكن لا يُعرض ادعاء توافق ضريبي أو نظامي. | إضافة أمر العمل الممتد؛ 21 أغسطس 2026 |
-| تحقق بريد التسجيل الذاتي | `UNVERIFIED` | التسجيل الذاتي يرفض جلسة بلا بريد OAuth، لكن النموذج الحالي لا يورد علامة `email_verified` موثقة. لا يساوي وجود البريد تحقق ملكيته، ولا يغلق هذا الشرط قبل تمديد موفر الهوية بعلامة موثقة أو اعتماد مسار تحقق بريد مستقل. (2026-10-15: الدخول صار برمز بريد موثَّق (`users.openId = email:<hash>`) أو بـGoogle ذي `email_verified`، والتسجيل الذاتي يتطلب جلسة من هذين المسارين، فالمسألة المعلنة في الصف أُغلقت في الكود؛ يبقى `UNVERIFIED` حتى جولة أدوار حية ببريد خارجي.) | `createSelfServiceTenant`؛ 21 أغسطس 2026 |
+| تحقق بريد التسجيل الذاتي | `PROVEN` (محليًا على MySQL 8.0.46) / `UNVERIFIED` (TiDB) | التسجيل الذاتي يرفض جلسة بلا بريد OAuth، لكن النموذج الحالي لا يورد علامة `email_verified` موثقة. لا يساوي وجود البريد تحقق ملكيته، ولا يغلق هذا الشرط قبل تمديد موفر الهوية بعلامة موثقة أو اعتماد مسار تحقق بريد مستقل. (2026-10-15: الدخول صار برمز بريد موثَّق (`users.openId = email:<hash>`) أو بـGoogle ذي `email_verified`، والتسجيل الذاتي يتطلب جلسة من هذين المسارين، فالمسألة المعلنة في الصف أُغلقت في الكود؛ يبقى `UNVERIFIED` حتى جولة أدوار حية ببريد خارجي.) (2026-10-15، إغلاق G-107: صار شرط التسجيل الذاتي مكتوبًا في `createSelfServiceTenant` (`PROJECT_OS_SIGNUP_EMAIL_NOT_VERIFIED`) ومحروسًا بمسح مسارات الدخول `server/domain/loginMethods.test.ts` وباختبار حي في `integration.database.test.ts`؛ انظر الصف «G-107».) | `createSelfServiceTenant`؛ 21 أغسطس 2026 |
 | الوصول الشامل وقارئ الشاشة | `HANDOFF_REQUIRED` | توجد أدلة DOM للتركيز والتسميات، وبروتوكول جاهز للجلسة البشرية؛ لا مراجعة شاملة منفذة لقارئ الشاشة أو كل حساب مقيد. | `MANUAL_ACCESSIBILITY_ACCEPTANCE.md`؛ 21 أغسطس 2026 |
 | عهدة GitHub ومطابقة المصدر | `PROVEN` (2026-10-15، `0b382b5`) | العهدة الآن `comdashio-sudo/project-os` على GitHub، و`origin` يشير إليه (قرار المالك 2026-10-15). `git rev-list --left-right --count origin/main...HEAD` = `0 0` على `0b382b5`. الصف القديم عن `github/main` ومستودع `ramezsamerr-collab` وصف تاريخي. | `git fetch origin && git rev-list --left-right --count origin/main...HEAD`؛ 2026-10-15؛ `0b382b5` |
 | قناة origin الداخلية | `SOURCE_VERIFIED` (2026-10-15) | تغيّر الوضع: `origin` هو GitHub الحاكم (`comdashio-sudo/project-os`) بقرار المالك، وما سُمّي هنا قناة Manus على `artifacts.cloudflare.net` وصف تاريخي. لا يُدفع إلى أي remote يشير إلى ذلك النطاق (`git remote -v` يعرض GitHub وحده). | إعداد remote المحلي وقرار المالك؛ 2026-10-15 |
@@ -136,12 +136,12 @@
 | التصنيف | العدد |
 |---|---:|
 | `PROVEN_ON_STAGING` | 0 |
-| `PROVEN` | 58 |
+| `PROVEN` | 60 |
 | `SOURCE_VERIFIED` | 6 |
 | `WRITTEN` | 5 |
-| `UNVERIFIED` | 21 |
-| `OPEN` | 5 |
-| `BLOCKED_BY_OWNER` | 9 |
+| `UNVERIFIED` | 19 |
+| `OPEN` | 1 |
+| `BLOCKED_BY_OWNER` | 10 |
 | `BLOCKED_BY_PLATFORM` | 1 |
 | `BLOCKED_BY_CLAUDE_CODE` | 0 |
 | `HANDOFF_REQUIRED` | 2 |
@@ -284,16 +284,13 @@
 
 | البند | التصنيف | الدليل |
 |---|---|---|
-| نموذج بيانات PMC | `UNVERIFIED` (2026-10-15: `pnpm verify:pmc-schema` يحتاج `DATABASE_URL`؛ لم يُعد تشغيله) | 12/12 جدولًا: أعمدة العزل ومفتاح أجنبي وفهرس tenant/project؛ `pnpm verify:pmc-schema` أعاد `approved: true`. (2026-10-15: `pnpm verify:pmc-schema` أعاد `approved: true`، 12/12 جدولًا، على MySQL 8.0.46 محلي؛ يبقى `UNVERIFIED` لأن TiDB لم يُجرَّب.) |
+| نموذج بيانات PMC | `PROVEN` (محليًا على MySQL 8.0.46) / `UNVERIFIED` (TiDB) | 12/12 جدولًا: أعمدة العزل ومفتاح أجنبي وفهرس tenant/project؛ `pnpm verify:pmc-schema` أعاد `approved: true`. (2026-10-15: `pnpm verify:pmc-schema` أعاد `approved: true`، 12/12 جدولًا، على MySQL 8.0.46 محلي؛ يبقى `UNVERIFIED` لأن TiDB لم يُجرَّب.) (2026-10-15، على `main` بعد `a88ce58`: أُعيد `pnpm verify:pmc-schema` على `project_os_integration_test` المحلية المبنية من الترحيلات الاثنين والستين: `approved: true`، 12/12 جدولًا بأعمدة العزل ومفتاح أجنبي وفهرس tenant/project. لم يُجرَّب على TiDB.) |
 | محرك الحساب والقواعد السبع | `PROVEN` | `server/domain/pmc.ts` و`server/domain/pmc.test.ts`؛ 7/7 اختبارات ناجحة. |
 | بوابة الاختبارات الكاملة | `PROVEN` (2026-10-15، `0b382b5`) | `pnpm check` و`pnpm build` ناجحان؛ `pnpm test`: 97 ملفًا ناجحًا و9 متخطاة، 615 ناجحًا و97 متخطى. الشق الحي، ومنه اختبار عزل PMC (`isolates PMC summary reads by tenant and project across all 12 tables`)، أُعيد على MySQL 8.0.46 محلي: 84/84 (`docs/LIVE_RERUN_20261015.md`)؛ لم يُجرَ على TiDB. |
 | اتساق Drizzle | `PROVEN` (2026-10-15، `0b382b5`) | `pnpm drizzle-kit generate` أعاد «No schema changes, nothing to migrate» مقابل آخر لقطة (`drizzle/meta/0054_snapshot.json`)؛ الأمر يحتاج `DATABASE_URL` لتهيئته فقط ولا يتصل بقاعدة. لا لقطات `0051` و`0052` لأن ذينك ترحيلان كُتبا يدويًا؛ السلسلة بعدهما متسقة. |
 | عزل PMC السلوكي عبر API | `UNVERIFIED` (2026-10-15: أُعيد على MySQL 8.0.46 محلي من الترحيلات فقط في 2026-10-15 (الالتزام `0b382b5`) ونجح، والاختبار الاسمي في `docs/LIVE_RERUN_20261015.md` وأرقام الأسطر المذكورة هنا قديمة؛ يبقى `UNVERIFIED` لأن الدليل على TiDB لم يُجرَ) | `caller.pmc.summary` يفرض `tenantId + projectId` في كل استعلام من الجداول الاثني عشر؛ الاختبار الحي يثبت 12/12 صفًا للمستأجر المالك، ويرفض مشروع المستأجر الآخر قبل القراءة برسالة `PROJECT_OS_PROJECT_NOT_FOUND`. |
-| المرحلة B — الاستيراد | `OPEN` | لم تبدأ؛ لا Excel/CSV/XER في هذه المرحلة. |
-| المرحلة C — الشاشات | `OPEN` | لم تبدأ. |
-| المرحلة D — المخطط والبرنامج الزمني وEVM | `OPEN` | لم تبدأ. |
 
-تفصيل التنفيذ والأدلة في `docs/PMC_PHASE_A_CLOSEOUT_2026-10-07.md`. لم تُستخدم أداة أو خدمة خرائط مدفوعة، ولم تُنشأ بيانات مستفيدين أو أسماء حقيقية. **المرحلة A مغلقة**؛ المرحلة B لم تبدأ.
+المراحل B وC وD لم تعد مفتوحة: كانت هنا صفوف انتظار بحالة `OPEN` («لم تبدأ») حُذفت في 2026-10-15 لأنها تناقض صفوفها المنفَّذة والمثبتة في جدول أمر العمل (PMC المرحلة B، C، D1، D2) بأرقامها وأدلتها. تفصيل التنفيذ والأدلة في `docs/PMC_PHASE_A_CLOSEOUT_2026-10-07.md`. لم تُستخدم أداة أو خدمة خرائط مدفوعة، ولم تُنشأ بيانات مستفيدين أو أسماء حقيقية. **المرحلة A مغلقة**؛ المرحلة B لم تبدأ.
 
 ## مراجعة الحالة مقابل الكود — 15 أكتوبر 2026
 
