@@ -138,7 +138,7 @@
 | `PROVEN_ON_STAGING` | 0 |
 | `PROVEN` | 34 |
 | `SOURCE_VERIFIED` | 6 |
-| `WRITTEN` | 4 |
+| `WRITTEN` | 5 |
 | `UNVERIFIED` | 21 |
 | `OPEN` | 5 |
 | `BLOCKED_BY_OWNER` | 9 |
