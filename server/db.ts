@@ -122,7 +122,7 @@ import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, isLlmEnabled } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
 import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
@@ -350,7 +350,7 @@ function utcMonthStart(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: "ar" | "en" }): Promise<void> {
+async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: "ar" | "en" }, options: { modelAvailable?: boolean } = {}): Promise<void> {
   const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
   if (!license) return;
   const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "AI_ADVISORY_MONTHLY"), eq(commercialFeatures.active, true))).limit(1);
@@ -362,6 +362,8 @@ async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenan
   const periodStart = utcMonthStart();
   const usage = await db.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.action, "advisor.usage_consumed"), gte(auditLogs.createdAt, periodStart)));
   if (entitlement.limitValue !== null && usage.length >= entitlement.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
+  // The model is off: refuse before the quota is spent on a request that cannot be answered.
+  if (options.modelAvailable === false) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_ADVISOR_UNAVAILABLE" });
   await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "advisor.usage_consumed", entityType: "project_advisory", entityId: crypto.randomUUID(), metadata: JSON.stringify({ projectId: input.projectId, locale: input.locale, periodStart: periodStart.toISOString() }) });
 }
 
@@ -1198,7 +1200,8 @@ export async function generateProjectAdvisoryForTenant(input: { userId: number; 
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
-  await db.transaction(async tx => consumeTenantAdvisorUsage(tx, input));
+  await db.transaction(async tx => consumeTenantAdvisorUsage(tx, input, { modelAvailable: isLlmEnabled() }));
+  if (!isLlmEnabled()) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_ADVISOR_UNAVAILABLE" });
   const facts = {
     actual: { currentBudget: Number(controls.project.currentBudget), actualCost: Number(controls.project.actualCost), latestEvmAc: controls.latestEvm ? Number(controls.latestEvm.ac) : null, healthStatus: controls.latestHealth?.status ?? null, healthScore: controls.latestHealth ? Number(controls.latestHealth.overallScore) : null },
     calculated: { plannedBudget: controls.cashFlow.plannedBudget, totalExposure: controls.cashFlow.totalExposure, remainingBudget: controls.cashFlow.remainingBudget, committedAmount: controls.cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },

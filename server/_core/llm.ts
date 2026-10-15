@@ -212,15 +212,18 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
-
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+export class LlmDisabledError extends Error {
+  constructor() {
+    super("The language model is disabled");
+    this.name = "LlmDisabledError";
   }
+}
+
+/** True only when LLM_ENABLED=true and both LLM_API_KEY and LLM_BASE_URL are set. */
+export const isLlmEnabled = () => ENV.llmEnabled && ENV.llmApiKey.length > 0 && ENV.llmBaseUrl.length > 0;
+
+const assertLlmEnabled = () => {
+  if (!isLlmEnabled()) throw new LlmDisabledError();
 };
 
 const normalizeResponseFormat = ({
@@ -340,7 +343,7 @@ const fetchWithBackoff = async (
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  assertLlmEnabled();
 
   const {
     messages,
@@ -401,20 +404,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetchWithBackoff(resolveApiUrl(), {
+  const response = await fetchWithBackoff(`${ENV.llmBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${ENV.llmApiKey}`,
     },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    // Status only: the provider's body can echo the prompt (project figures).
+    throw new Error(`LLM invoke failed: ${response.status}`);
   }
 
   return (await response.json()) as InvokeResult;
@@ -433,21 +434,14 @@ export type ModelsResponse = {
 };
 
 export async function listLLMModels(): Promise<ModelsResponse> {
-  assertApiKey();
+  assertLlmEnabled();
 
-  const url = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/models`
-    : "https://forge.manus.im/v1/models";
-
-  const response = await fetchWithBackoff(url, {
-    headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
+  const response = await fetchWithBackoff(`${ENV.llmBaseUrl}/models`, {
+    headers: { authorization: `Bearer ${ENV.llmApiKey}` },
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `List LLM models failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    throw new Error(`List LLM models failed: ${response.status}`);
   }
 
   return (await response.json()) as ModelsResponse;

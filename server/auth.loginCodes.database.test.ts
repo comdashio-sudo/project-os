@@ -29,6 +29,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("login code r
   });
 
   it("counts attempts and consumes a code exactly once, even for simultaneous callers", async () => {
+    // The service only ever keeps one open code per address (a request retires the previous one).
+    await repository.retireOpen(emailHash, new Date());
     const target = row(10);
     await repository.insert(target);
     await repository.addAttempt(target.id);
