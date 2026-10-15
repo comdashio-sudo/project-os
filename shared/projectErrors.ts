@@ -76,6 +76,30 @@ export const projectErrorMessages = {
     ar: "الدور والنطاق المحددان مسندان بالفعل إلى هذه العضوية.",
     en: "This role and scope are already assigned to the selected membership.",
   },
+  PROJECT_OS_TIME_ENTRY_INVALID: {
+    ar: "ساعات العمل بين صفر و24 ساعة، ونسبة التقدم بين 0 و100.",
+    en: "Hours worked must be above zero and at most 24, and progress between 0 and 100.",
+  },
+  PROJECT_OS_TIME_ENTRY_ASSIGNMENT_INVALID: {
+    ar: "الإسناد غير متاح أو لا يغطي هذا اليوم.",
+    en: "The assignment is not available or does not cover that day.",
+  },
+  PROJECT_OS_CLIENT_REQUEST_REUSED: {
+    ar: "معرّف الطلب مستخدم لعملية أخرى. أعد المحاولة من البداية.",
+    en: "That request identifier belongs to a different operation. Start the entry again.",
+  },
+  PROJECT_OS_CLIENT_REQUEST_IN_PROGRESS: {
+    ar: "هذا الطلب قيد التنفيذ أو لم يُعرف مآله. تحقق من السجل قبل إعادة الإرسال.",
+    en: "This request is still running, or its outcome is not known. Check the record before sending it again.",
+  },
+  PROJECT_OS_TEAM_ENTRIES_COUNT_INVALID: {
+    ar: "أدخل ساعات موظف واحد على الأقل، وبحد أقصى 200 في المرة الواحدة.",
+    en: "Enter the hours of at least one person, and no more than 200 at a time.",
+  },
+  PROJECT_OS_TEAM_ENTRY_DUPLICATE: {
+    ar: "الإسناد نفسه مكرر في الورقة.",
+    en: "The same assignment appears twice on the sheet.",
+  },
   PROJECT_OS_INVOICE_NOT_FOUND: {
     ar: "الفاتورة المطلوبة غير متاحة ضمن هذا المشروع.",
     en: "The requested invoice is not available in this project.",

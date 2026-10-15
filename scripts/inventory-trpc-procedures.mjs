@@ -29,6 +29,7 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/operational.permissions.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/labour.cost.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/cashflow.drill.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/teamhours.offline.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));

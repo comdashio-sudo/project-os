@@ -2175,6 +2175,73 @@ export async function createEmployeeTimeEntryForTenant(input: { userId: number; 
   return { id, status: "draft" as const };
 }
 
+/**
+ * The team sheet of one day: every assignment that covers the day, whose attendance is or is not approved yet, and
+ * what was already entered. This is what the phone fills in one go (G-030).
+ */
+export async function getTeamHoursSheetForTenant(input: { userId: number; tenantId: string; projectId: string; workDate: Date }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.manage", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const assignments = await db.select({ assignmentId: employeeAssignments.id, employeeId: employeeAssignments.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, wbsCode: wbsItems.code, plannedStartAt: employeeAssignments.plannedStartAt, plannedFinishAt: employeeAssignments.plannedFinishAt })
+    .from(employeeAssignments).innerJoin(employees, eq(employeeAssignments.employeeId, employees.id)).leftJoin(wbsItems, eq(employeeAssignments.wbsItemId, wbsItems.id))
+    .where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), inArray(employeeAssignments.status, ["planned", "active"])))
+    .orderBy(asc(employees.employeeNumber));
+  const covering = assignments.filter(row => row.plannedStartAt <= input.workDate && row.plannedFinishAt >= input.workDate);
+  if (!covering.length) return { workDate: input.workDate, rows: [] as Array<{ assignmentId: string; employeeNumber: string; fullName: string; wbsCode: string | null; attendanceApproved: boolean; entered: { hours: number; status: string } | null }> };
+  const [attendance, entered] = await Promise.all([
+    db.select({ employeeId: employeeAttendance.employeeId }).from(employeeAttendance).where(and(eq(employeeAttendance.tenantId, input.tenantId), eq(employeeAttendance.attendanceDate, input.workDate), eq(employeeAttendance.attendanceStatus, "present"), eq(employeeAttendance.status, "approved"), inArray(employeeAttendance.employeeId, covering.map(row => row.employeeId)))),
+    db.select({ assignmentId: employeeTimeEntries.assignmentId, hours: employeeTimeEntries.actualHours, status: employeeTimeEntries.status }).from(employeeTimeEntries).where(and(eq(employeeTimeEntries.tenantId, input.tenantId), eq(employeeTimeEntries.workDate, input.workDate), inArray(employeeTimeEntries.assignmentId, covering.map(row => row.assignmentId)))),
+  ]);
+  const approved = new Set(attendance.map(row => row.employeeId));
+  const enteredBy = new Map(entered.map(row => [row.assignmentId, { hours: Number(row.hours), status: row.status as string }]));
+  return { workDate: input.workDate, rows: covering.map(row => ({ assignmentId: row.assignmentId, employeeNumber: row.employeeNumber, fullName: row.fullName, wbsCode: row.wbsCode, attendanceApproved: approved.has(row.employeeId), entered: enteredBy.get(row.assignmentId) ?? null })) };
+}
+
+/**
+ * Hours of a whole team for one day, in one go (G-030). The same rules as one entry (an assignment that covers the day,
+ * approved attendance, one entry per assignment per day), checked for every row first: if any row is wrong nothing is
+ * saved and every wrong row is reported, so the person fixes the sheet once.
+ */
+export async function createTeamTimeEntriesForTenant(input: { userId: number; tenantId: string; projectId: string; workDate: Date; entries: Array<{ assignmentId: string; actualHours: number; reportedProgressPercent?: number }> }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.manage", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (!input.entries.length || input.entries.length > 200) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_TEAM_ENTRIES_COUNT_INVALID" });
+  const errors: Array<{ index: number; assignmentId: string; code: string }> = [];
+  const seen = new Set<string>();
+  input.entries.forEach((entry, index) => {
+    if (!Number.isFinite(entry.actualHours) || entry.actualHours <= 0 || entry.actualHours > 24 || (entry.reportedProgressPercent !== undefined && (!Number.isFinite(entry.reportedProgressPercent) || entry.reportedProgressPercent < 0 || entry.reportedProgressPercent > 100))) errors.push({ index, assignmentId: entry.assignmentId, code: "PROJECT_OS_TIME_ENTRY_INVALID" });
+    else if (seen.has(entry.assignmentId)) errors.push({ index, assignmentId: entry.assignmentId, code: "PROJECT_OS_TEAM_ENTRY_DUPLICATE" });
+    seen.add(entry.assignmentId);
+  });
+  const ids = Array.from(seen);
+  const [assignments, existing] = await Promise.all([
+    db.select({ id: employeeAssignments.id, employeeId: employeeAssignments.employeeId, plannedStartAt: employeeAssignments.plannedStartAt, plannedFinishAt: employeeAssignments.plannedFinishAt, status: employeeAssignments.status }).from(employeeAssignments).where(and(inArray(employeeAssignments.id, ids), eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId))),
+    db.select({ assignmentId: employeeTimeEntries.assignmentId }).from(employeeTimeEntries).where(and(eq(employeeTimeEntries.tenantId, input.tenantId), eq(employeeTimeEntries.workDate, input.workDate), inArray(employeeTimeEntries.assignmentId, ids))),
+  ]);
+  const assignmentById = new Map(assignments.map(row => [row.id, row]));
+  const attendance = assignments.length ? await db.select({ employeeId: employeeAttendance.employeeId }).from(employeeAttendance).where(and(eq(employeeAttendance.tenantId, input.tenantId), eq(employeeAttendance.attendanceDate, input.workDate), eq(employeeAttendance.attendanceStatus, "present"), eq(employeeAttendance.status, "approved"), inArray(employeeAttendance.employeeId, assignments.map(row => row.employeeId)))) : [];
+  const approved = new Set(attendance.map(row => row.employeeId));
+  const already = new Set(existing.map(row => row.assignmentId));
+  input.entries.forEach((entry, index) => {
+    if (errors.some(error => error.index === index)) return;
+    const assignment = assignmentById.get(entry.assignmentId);
+    if (!assignment || !["planned", "active"].includes(assignment.status) || input.workDate < assignment.plannedStartAt || input.workDate > assignment.plannedFinishAt) errors.push({ index, assignmentId: entry.assignmentId, code: "PROJECT_OS_TIME_ENTRY_ASSIGNMENT_INVALID" });
+    else if (!approved.has(assignment.employeeId)) errors.push({ index, assignmentId: entry.assignmentId, code: "PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED" });
+    else if (already.has(entry.assignmentId)) errors.push({ index, assignmentId: entry.assignmentId, code: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" });
+  });
+  if (errors.length) return { saved: 0, errors: errors.sort((a, b) => a.index - b.index), ids: [] as string[] };
+  const created = input.entries.map(entry => ({ id: crypto.randomUUID(), entry, assignment: assignmentById.get(entry.assignmentId)! }));
+  try {
+    await db.transaction(async tx => {
+      await tx.insert(employeeTimeEntries).values(created.map(({ id, entry, assignment }) => ({ id, tenantId: input.tenantId, assignmentId: assignment.id, employeeId: assignment.employeeId, projectId: input.projectId, workDate: input.workDate, actualHours: String(entry.actualHours), reportedProgressPercent: entry.reportedProgressPercent === undefined ? undefined : String(entry.reportedProgressPercent), createdByUserId: input.userId })));
+      await tx.insert(auditLogs).values(created.map(({ id, entry, assignment }) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_created", entityType: "employee_time_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, assignmentId: assignment.id, actualHours: entry.actualHours, reportedProgressPercent: entry.reportedProgressPercent ?? null, viaTeamSheet: true }) })));
+    });
+  } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" }); throw error; }
+  return { saved: created.length, errors: [] as typeof errors, ids: created.map(row => row.id) };
+}
+
 export async function getEmployeeTimeEntriesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -2630,7 +2697,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
     wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null })),
     lastIssuedWbsItemId: issues[0]?.wbsItemId ?? null,
     // What the caller may actually do here, so the screen offers only that. The server still enforces each write.
-    can: { logProgress: snapshot.permissionCodes.includes("project.progress.manage"), issueMaterial: snapshot.permissionCodes.includes("project.inventory.manage") },
+    can: { logProgress: snapshot.permissionCodes.includes("project.progress.manage"), issueMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), logTeamHours: snapshot.permissionCodes.includes("project.manage") },
   };
 }
 
