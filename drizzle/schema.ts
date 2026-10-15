@@ -1873,6 +1873,27 @@ export const pmcStatusFactors = mysqlTable(
   table => [uniqueIndex("pmc_status_factor_unique").on(table.projectId, table.status), index("pmc_status_factors_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
+// The site plan a user uploads (PNG or JPEG). The newest row is the plan in use; unit
+// polygons are stored on pmc_units.geometryJson in coordinates normalised to this
+// image (0..1, origin at the top left), so any resolution works.
+export const pmcSitePlans = mysqlTable(
+  "pmc_site_plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    fileKey: varchar("fileKey", { length: 512 }).notNull(),
+    fileName: varchar("fileName", { length: 255 }).notNull(),
+    mimeType: varchar("mimeType", { length: 64 }).notNull(),
+    widthPx: int("widthPx").notNull(),
+    heightPx: int("heightPx").notNull(),
+    fileHash: varchar("fileHash", { length: 64 }).notNull(),
+    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("pmc_site_plans_tenant_project_idx").on(table.tenantId, table.projectId, table.createdAt)],
+);
+
 // One-time e-mail sign-in codes. The table holds a hash of the normalized
 // address and an HMAC of the code, never either value itself.
 export const loginCodes = mysqlTable(

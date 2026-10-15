@@ -1,10 +1,10 @@
 // The numbers behind the PMC screens. Pure: the service loads one dataset for the
 // project and every screen is a function of it, so each figure can be checked by
 // hand against a small dataset (docs/PMC_PHASE_C_HAND_CHECKS.md).
-import { normalizeUnitRange, type PmcUnitActivityStatus as Status } from "./pmc";
+import { calculateUnitProgress, normalizeUnitRange, type PmcUnitActivityStatus as Status } from "./pmc";
 
 export const SCREEN_STATUSES: readonly Status[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"];
-export type PmcUnit = { id: string; number: number; modelCode: string; weight: number; zoneCode: string; blockCode: string };
+export type PmcUnit = { id: string; number: number; modelCode: string; weight: number; zoneCode: string; blockCode: string; geometry?: unknown };
 export type PmcDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; groupName: string; stageCode: string; stageName: string };
 export type PmcCell = { id: string; unitId: string; definitionId: string; status: Status; verificationStatusId: string | null; assignedUserId: number | null; lastChangedAt: Date };
 export type PmcHistory = { unitId: string; definitionId: string; from: Status | null; to: Status; userId: number; at: Date };
@@ -247,3 +247,34 @@ export function stagesView(ds: PmcDataset) {
 }
 
 export const freshnessOf = (ds: PmcDataset) => ds.sources.map(s => ({ source: s.source, lastAt: s.lastAt, ageDays: s.lastAt ? Math.max(0, Math.floor((ds.now.getTime() - s.lastAt.getTime()) / 86_400_000)) : null }));
+
+// ---------------------------------------------------------------- screen 3 (site plan) and the unit card
+
+/** A unit's progress, or null with the reason when its model's weights do not total 100. */
+export function unitProgressOf(ds: PmcDataset, unit: PmcUnit) {
+  const definitions = ds.definitions.filter(d => d.modelCode === unit.modelCode);
+  const statusOf = new Map(ds.cells.filter(c => c.unitId === unit.id).map(c => [c.definitionId, c.status]));
+  try { return calculateUnitProgress({ statusFactors: ds.factors, activities: definitions.map(d => ({ weightPercent: d.weightPercent, status: statusOf.get(d.id) ?? "NOT_STARTED" })) }); } catch { return null; }
+}
+
+/** Each unit with its polygon and, for the chosen activity, its status; without an activity, its overall progress. */
+export function siteMap(ds: PmcDataset, activityCode?: string) {
+  const definitionOf = new Map(ds.definitions.filter(d => !activityCode || d.code === activityCode).map(d => [d.modelCode + "\u0000" + d.code, d]));
+  const cellOf = new Map(ds.cells.map(c => [`${c.unitId}:${c.definitionId}`, c]));
+  return ds.units.slice().sort((a, b) => a.number - b.number).map(unit => {
+    const definition = activityCode ? definitionOf.get(unit.modelCode + "\u0000" + activityCode) : undefined;
+    const cell = definition ? cellOf.get(`${unit.id}:${definition.id}`) : undefined;
+    return { unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, geometry: unit.geometry ?? null, status: activityCode ? (definition ? (cell?.status ?? ("NOT_STARTED" as Status)) : null) : null, progressPercent: activityCode ? null : unitProgressOf(ds, unit) };
+  });
+}
+
+export function unitCard(ds: PmcDataset, unitNumber: number) {
+  const unit = ds.units.find(u => u.number === unitNumber);
+  if (!unit) return null;
+  const cellOf = new Map(ds.cells.filter(c => c.unitId === unit.id).map(c => [c.definitionId, c]));
+  const verification = new Map(ds.verification.map(v => [v.id, v.label]));
+  return {
+    unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
+    activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
+  };
+}
