@@ -108,4 +108,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
     await expect(callerFor(users.buyer, "opn-buyer").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
     await expect(callerFor(users.reader, "opn-reader").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
   });
+
+  it("tells a person who uploads the very same file twice that it is a duplicate, and leaves the first upload alone", async () => {
+    const keeper = callerFor(users.keeper, "opn-keeper");
+    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "same.csv", sourceFormat: "csv" as const, base64: csv("WH-01,STL,777") };
+    const first = await keeper.dataImports.analyze(file);
+    const countImports = async () => { const [rows] = await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]); return Number(rows[0].n); };
+    const before = await countImports();
+    await expect(keeper.dataImports.analyze({ ...file, fileName: "same-again.csv" })).rejects.toThrow("PROJECT_OS_IMPORT_DUPLICATE_DETECTED");
+    expect(await countImports()).toBe(before); // the repeat created nothing
+    expect((await keeper.dataImports.detail({ ...scope, importId: first.id })).status).toBe("validated");
+  });
 });
