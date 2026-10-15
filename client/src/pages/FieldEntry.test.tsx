@@ -7,13 +7,14 @@ import FieldEntry from "./FieldEntry";
 const state = vi.hoisted(() => ({
   arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
-  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(),
+  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown,
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   fieldEntry: { context: { useQuery: () => ({ ...state.query, refetch: state.refetch }) } },
-  useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } } } }),
+  useUtils: () => ({ client: { progress: { create: { mutate: (input: unknown) => { state.sent("progress", input); return Promise.resolve({}); } } }, warehouses: { issueToWork: { mutate: (input: unknown) => { state.sent("issue", input); return Promise.resolve({}); } } }, teamHours: { save: { mutate: (input: unknown) => { state.sent("team", input); return Promise.resolve({ saved: 1, errors: [] }); } } }, goodsReceipts: { create: { mutate: (input: unknown) => { state.sent("receipt", input); return Promise.resolve({}); } } } } }),
+  goodsReceipts: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.receipt(input); if (state.receiptError) options.onError(state.receiptError, input); else options.onSuccess(); }, isPending: false, error: state.receiptError }) } },
   teamHours: {
     sheet: { useQuery: (input: unknown) => { state.sheetCalls(input); return { ...state.sheet, refetch: state.sheetRefetch }; } },
     save: { useMutation: (options: { onSuccess: (result: unknown, variables: unknown) => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.team(input); if (state.teamError) options.onError(state.teamError, input); else options.onSuccess(state.teamResult, input); }, isPending: false, error: state.teamError }) },
@@ -33,7 +34,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
+afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
@@ -312,5 +313,68 @@ describe("FieldEntry: team hours in one go (G-030)", () => {
     loadTeam();
     const tooSmall = Array.from(document.querySelectorAll("button, input, select")).filter(node => !/min-h-\[44px\]/.test(node.getAttribute("class") ?? ""));
     expect(tooSmall.map(node => node.outerHTML.slice(0, 80))).toEqual([]);
+  });
+});
+
+describe("FieldEntry: receiving against a purchase order (G-031)", () => {
+  const withReceive = { ...context, can: { ...context.can, receiveMaterial: true }, purchaseOrders: [{ id: "po1", purchaseOrderNumber: "PO-1", supplierName: "Supplier One", currency: "SAR", hasCommitment: true, lastReceivedMaterialId: "m1" }] };
+  const open = (data: unknown = withReceive) => { load(data); fireEvent.click(screen.getByRole("tab", { name: "Receive material" })); };
+
+  it("offers the receive tab only to a role that may receive", () => {
+    load();
+    expect(screen.queryByRole("tab", { name: "Receive material" })).toBeNull();
+    cleanup();
+    load(withReceive);
+    expect(screen.getByRole("tab", { name: "Receive material" })).toBeTruthy();
+  });
+
+  it("receives in one quantity entry: the single order and the last-received material are already chosen, the last price fills the cost", () => {
+    open();
+    expect((screen.getByLabelText("Pick the material") as HTMLSelectElement).value).toBe("m1");
+    expect((screen.getByLabelText("Unit cost") as HTMLInputElement).placeholder).toBe("18.5");
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "10" } });
+    expect(screen.getByText("185.00")).toBeTruthy(); // 10 x 18.5
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.receipt).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", purchaseOrderId: "po1", materialId: "m1", receivedQuantity: 10, rejectedQuantity: 0, unitCost: 18.5, unitOfMeasure: "bag", grnNumber: expect.stringMatching(/^GRN-\d{8}-\d{6}-[0-9A-F]{4}$/), clientRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/) }));
+    expect(screen.getByRole("status").textContent).toContain("Saved: Received: 10 bag CEM from PO-1");
+  });
+
+  it("cannot save without a quantity, and a typed cost beats the last price", () => {
+    open();
+    expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Unit cost"), { target: { value: "20" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.receipt).toHaveBeenCalledWith(expect.objectContaining({ receivedQuantity: 4, unitCost: 20 }));
+  });
+
+  it("keeps the receipt on the phone when the network fails, with the receipt number and identifier it was sent with", () => {
+    state.receiptError = new TypeError("Failed to fetch");
+    open();
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "10" } });
+    fireEvent.click(screen.getByText("Save"));
+    const sent = state.receipt.mock.calls[0][0] as { clientRequestId: string; grnNumber: string };
+    expect(queued()).toMatchObject([{ id: sent.clientRequestId, kind: "receipt", status: "pending", payload: { grnNumber: sent.grnNumber, purchaseOrderId: "po1" } }]);
+    expect(screen.getByText(/Saved on this phone/)).toBeTruthy();
+  });
+
+  it("sends a queued receipt when the connection returns, dates restored", async () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: "44444444-4444-4444-8444-444444444444", kind: "receipt", payload: { tenantId: "t", projectId: "p", grnNumber: "GRN-X", purchaseOrderId: "po1", materialId: "m1", receivedQuantity: 3, rejectedQuantity: 0, unitCost: 18.5, unitOfMeasure: "bag", receivedAt: "2026-10-15T08:00:00.000Z" }, summary: "Received: 3 bag", createdAt: "2026-10-15T08:00:00.000Z", status: "pending" }]));
+    load();
+    await waitFor(() => expect(state.sent).toHaveBeenCalledWith("receipt", expect.objectContaining({ clientRequestId: "44444444-4444-4444-8444-444444444444", grnNumber: "GRN-X", receivedAt: expect.any(Date) })));
+  });
+
+  it("says plainly when no purchase order is issued, shows the server's refusal, and renders in Arabic with 44px controls", () => {
+    open({ ...withReceive, purchaseOrders: [] });
+    expect(screen.getByText("This project has no issued purchase orders.")).toBeTruthy();
+    cleanup();
+    open({ ...withReceive, purchaseOrders: [{ ...withReceive.purchaseOrders[0] }, { ...withReceive.purchaseOrders[0], id: "po2", purchaseOrderNumber: "PO-2", lastReceivedMaterialId: null }] });
+    expect(screen.getByText("Pick the purchase order")).toBeTruthy(); // two orders: the person chooses
+    const tooSmall = Array.from(document.querySelectorAll("button, input, select")).filter(node => !/min-h-\[44px\]/.test(node.getAttribute("class") ?? ""));
+    expect(tooSmall.map(node => node.outerHTML.slice(0, 80))).toEqual([]);
+    cleanup();
+    state.arabic = true;
+    load(withReceive);
+    expect(screen.getByRole("tab", { name: "استلام مواد" })).toBeTruthy();
   });
 });
