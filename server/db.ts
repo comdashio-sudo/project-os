@@ -412,12 +412,6 @@ export async function transitionTenantLicenseStatus(input: { actorUserId: number
   return { id: license.id, previousStatus: license.status, status: input.nextStatus };
 }
 
-export async function getScheduledJobByTaskUid(taskUid: string) {
-  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
-  const [job] = await db.select().from(scheduledJobs).where(and(eq(scheduledJobs.scheduleCronTaskUid, taskUid), eq(scheduledJobs.enabled, true))).limit(1);
-  return job ?? null;
-}
-
 export async function evaluateTenantLicenseLifecycle(now = new Date()) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const licenses = await db.select({ id: tenantLicenses.id, tenantId: tenantLicenses.tenantId, subscriptionId: tenantLicenses.subscriptionId, status: tenantLicenses.status, endsAt: tenantLicenses.endsAt, trialEndsAt: tenantLicenses.trialEndsAt, graceEndsAt: tenantLicenses.graceEndsAt }).from(tenantLicenses).where(inArray(tenantLicenses.status, ["trialing", "active", "past_due", "grace_period"]));
