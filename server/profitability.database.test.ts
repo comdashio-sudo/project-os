@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { captureScheduledProfitabilitySnapshots } from "./db";
+import { grantOperationalPermissions } from "./testing/grantOperational";
 
 // Synthetic fixtures only. Run through scripts/run-integration-database-test.mjs
 // (a non-superuser app account is not required here: the tests exercise the
@@ -54,6 +55,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Project profitability (F
     const pid = (code: string) => permissions.find(p => p.code === code)!.id;
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('profit-role-manager', ?, 'PROFIT_MANAGER','Profit manager','PROJECT'), ('profit-role-scoped', ?, 'PROFIT_SCOPED','Profit scoped','PROJECT')", [T, T]);
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('profit-role-manager', ?),('profit-role-manager', ?),('profit-role-manager', ?),('profit-role-scoped', ?),('profit-role-scoped', ?)", [pid("executive.read"), pid("project.read"), pid("project.write"), pid("executive.read"), pid("project.read")]);
+    await grantOperationalPermissions(connection, "profit-role-manager");
+    await grantOperationalPermissions(connection, "profit-role-scoped", ["project.cashflow.read"]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('profit-m-manager', ?, ?, 'active'),('profit-m-low', ?, ?, 'active'),('profit-m-scoped', ?, ?, 'active')", [T, ids.manager, T, ids.low, T, ids.scoped]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType, scopeId) VALUES ('profit-mr-manager','profit-m-manager','profit-role-manager','company',NULL),('profit-mr-scoped','profit-m-scoped','profit-role-scoped','project',?)", [P]);
   }, 60_000);

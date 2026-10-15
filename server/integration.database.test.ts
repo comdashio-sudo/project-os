@@ -6,6 +6,7 @@ import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { evaluateTenantLicenseLifecycle } from "./db";
 import { calculateOperationalEvm } from "./domain/operationalEvm";
+import { grantOperationalPermissions } from "./testing/grantOperational";
 vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
 let connection: mysql.Connection;
@@ -230,6 +231,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-finance', id FROM permissions WHERE code = 'project.payroll.approve'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-finance', id FROM permissions WHERE code = 'project.payroll.sensitive.read'");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'int-role-accountant', id FROM permissions WHERE code = 'project.payroll.run'");
+    await grantOperationalPermissions(connection, "int-role-a");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-pmo', 'int-perm-pmo')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-exec', 'int-perm-exec')");
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-exec', 'int-perm-exec-manage')");

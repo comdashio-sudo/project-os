@@ -2,6 +2,7 @@ import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { grantOperationalPermissions } from "./testing/grantOperational";
 vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
 // Synthetic fixtures only. The phone entry screens read one context (defaults)
@@ -50,6 +51,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Phone entry context and 
     const pid = (code: string) => permissions.find(p => p.code === code)!.id;
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('field-role-engineer', ?, 'FIELD_ENGINEER','Field engineer','PROJECT'), ('field-role-none', ?, 'FIELD_NONE','No permissions','PROJECT')", [T, T]);
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('field-role-engineer', ?),('field-role-engineer', ?)", [pid("project.read"), pid("project.write")]);
+    await grantOperationalPermissions(connection, "field-role-engineer", ["project.inventory.manage", "project.progress.manage", "project.wbs.manage"]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('field-m-engineer', ?, ?, 'active'),('field-m-low', ?, ?, 'active')", [T, ids.engineer, T, ids.low]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('field-mr-engineer','field-m-engineer','field-role-engineer','company'),('field-mr-none','field-m-low','field-role-none','company')");
   }, 60_000);
