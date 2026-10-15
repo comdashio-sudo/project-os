@@ -2502,6 +2502,44 @@ export async function saveProjectMaterialOverrideForTenant(input: { userId: numb
   return { id };
 }
 
+/**
+ * Everything the phone entry screens need in one read, with the defaults that
+ * make entry fast: the last unit cost per material (last issue, else last
+ * receipt), stock on hand per warehouse, the last progress of each WBS item.
+ * Reading only: the writes keep going through progress.create and
+ * warehouses.issueToWork with their own checks.
+ */
+export async function getFieldEntryContextForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+  const [warehouses, materials, movements, issues, receipts, wbs, progress] = await Promise.all([
+    db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name }).from(projectWarehouses).where(and(mine(projectWarehouses), eq(projectWarehouses.active, true))).orderBy(asc(projectWarehouses.code)),
+    db.select({ id: materialMasters.id, code: materialMasters.code, description: materialMasters.description, unitOfMeasure: materialMasters.unitOfMeasure }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)).orderBy(asc(materialMasters.code)),
+    db.select({ warehouseId: warehouseInventoryTransactions.warehouseId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(mine(warehouseInventoryTransactions)),
+    db.select({ materialId: materialIssues.materialId, unitCost: materialIssues.unitCost, issuedAt: materialIssues.issuedAt, wbsItemId: materialIssues.wbsItemId }).from(materialIssues).where(mine(materialIssues)).orderBy(desc(materialIssues.issuedAt)).limit(200),
+    db.select({ materialId: goodsReceiptNotes.materialId, unitCost: goodsReceiptNotes.unitCost, receivedAt: goodsReceiptNotes.receivedAt }).from(goodsReceiptNotes).where(mine(goodsReceiptNotes)).orderBy(desc(goodsReceiptNotes.receivedAt)).limit(200),
+    db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(mine(wbsItems)).orderBy(asc(wbsItems.code)),
+    db.select({ wbsItemId: progressEntries.wbsItemId, progressPercent: progressEntries.progressPercent, measuredAt: progressEntries.measuredAt }).from(progressEntries).where(and(mine(progressEntries), eq(progressEntries.status, "submitted"))).orderBy(desc(progressEntries.measuredAt)),
+  ]);
+  const onHand = new Map<string, number>();
+  movements.forEach(m => onHand.set(`${m.warehouseId}:${m.materialId}`, (onHand.get(`${m.warehouseId}:${m.materialId}`) ?? 0) + Number(m.quantityDelta)));
+  const lastCost = new Map<string, number>();
+  // Receipts first, then issues overwrite: the most recent *issue* price wins, a receipt price is the fallback.
+  [...receipts].reverse().forEach(r => { if (Number(r.unitCost) > 0) lastCost.set(r.materialId, Number(r.unitCost)); });
+  const lastIssued = new Map<string, number>();
+  issues.forEach(i => { if (!lastCost.has(`issue:${i.materialId}`) && Number(i.unitCost) > 0) lastCost.set(`issue:${i.materialId}`, Number(i.unitCost)); lastIssued.set(i.materialId, (lastIssued.get(i.materialId) ?? 0) + 1); });
+  const latestProgress = new Map<string, { percent: number; measuredAt: Date }>();
+  progress.forEach(p => { if (p.wbsItemId && !latestProgress.has(p.wbsItemId)) latestProgress.set(p.wbsItemId, { percent: Number(p.progressPercent), measuredAt: p.measuredAt }); });
+  return {
+    warehouses,
+    materials: materials.map(m => ({ ...m, lastUnitCost: lastCost.get(`issue:${m.id}`) ?? lastCost.get(m.id) ?? null, timesIssued: lastIssued.get(m.id) ?? 0, onHand: warehouses.map(w => ({ warehouseId: w.id, quantity: Number((onHand.get(`${w.id}:${m.id}`) ?? 0).toFixed(3)) })) })).sort((a, b) => b.timesIssued - a.timesIssued || a.code.localeCompare(b.code)),
+    wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null })),
+    lastIssuedWbsItemId: issues[0]?.wbsItemId ?? null,
+  };
+}
+
 export async function getProjectWarehousesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
