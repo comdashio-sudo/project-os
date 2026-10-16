@@ -12,7 +12,7 @@ import { isTestDatabaseUrl } from "./testing/testDatabase";
 //  1. a probe table holding every awkward value (Arabic, emoji, quotes, backslashes, NUL, 64-bit numbers, JSON, bytes, NULL) is dumped, dropped, replayed
 //     from the decrypted file and compared value by value;
 //  2. the WHOLE database is dumped, decrypted, and replayed into copies of every table (prefix `bkchk_`, inside this same test database, foreign keys
-//     left out only because their names are unique per database), then every copy is compared with its original by row count and CHECKSUM TABLE.
+//     left out only because their names are unique per database), then every copy is compared with its original by row count and by content (two EXCEPTs).
 const url = process.env.TEST_DATABASE_URL;
 const PREFIX = "bkchk_";
 const PROBE = "backup_probe";
@@ -84,7 +84,7 @@ describe.skipIf(!isTestDatabaseUrl(url))("logical backup of a real database, and
     expect(result.sha256).toMatch(/^[0-9a-f]{64}$/);
   }, 120_000);
 
-  it("RESTORES the whole database: every table of the dump is replayed from the decrypted file into a copy that matches its original by row count and checksum", async () => {
+  it("RESTORES the whole database: every table of the dump is replayed from the decrypted file into a copy that matches its original by row count and by content", async () => {
     const result = await exportDatabase({ databaseUrl: url!, encryptionKeyHex: keyHex, outDir: dir });
     let text = await readEncryptedBackupText(result.file, parseBackupKey(keyHex));
     const names = readDumpMarkers(text).tables.map(table => table.name);
@@ -99,8 +99,10 @@ describe.skipIf(!isTestDatabaseUrl(url))("logical backup of a real database, and
       const [[original]] = (await connection.query(`SELECT COUNT(*) AS n FROM \`${name}\``)) as unknown as [[{ n: number }]];
       const [[copy]] = (await connection.query(`SELECT COUNT(*) AS n FROM \`${PREFIX}${name}\``)) as unknown as [[{ n: number }]];
       if (Number(original.n) !== Number(copy.n)) { mismatches.push(`${name}: rows ${original.n} != ${copy.n}`); continue; }
-      const sumOf = async (table: string) => ((await connection.query(`CHECKSUM TABLE \`${table}\``))[0] as Array<{ Checksum: string | number | null }>)[0].Checksum;
-      if (String(await sumOf(name)) !== String(await sumOf(`${PREFIX}${name}`))) mismatches.push(`${name}: checksum differs`);
+      // Compared by content, not by CHECKSUM TABLE: that statement is MySQL's; TiDB spells it ADMIN CHECKSUM TABLE. Two EXCEPTs run on both.
+      const onlyIn = async (left: string, right: string) => Number(((await connection.query(`SELECT COUNT(*) AS n FROM (SELECT * FROM \`${left}\` EXCEPT SELECT * FROM \`${right}\`) AS difference`))[0] as Array<{ n: number }>)[0].n);
+      const missingFromCopy = await onlyIn(name, `${PREFIX}${name}`); const addedInCopy = await onlyIn(`${PREFIX}${name}`, name);
+      if (missingFromCopy || addedInCopy) mismatches.push(`${name}: ${missingFromCopy} original row(s) not in the copy, ${addedInCopy} copy row(s) not in the original`);
     }
     expect(mismatches.slice(0, 8)).toEqual([]);
     const [restored] = await connection.query("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE ?", [`${PREFIX.replace("_", "\\_")}%`]);
