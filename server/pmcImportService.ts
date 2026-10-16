@@ -4,6 +4,7 @@
 // re-checks them against the project as it is now, and applies the plan in one
 // transaction. Re-importing a file the project already holds changes nothing.
 import { createHash } from "node:crypto";
+import { refreshStatisticsAfterBulkLoad } from "./tidbStats";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
@@ -258,5 +259,6 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
     if (input.kind === "status" || input.kind === "catalog" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows }) });
   });
+  void refreshStatisticsAfterBulkLoad(db, ["pmc_*"], prepared.report.totalRows); // TiDB only, never blocks (tidbStats.ts)
   return { kind: input.kind, counts: prepared.report.counts, totalRows: prepared.report.totalRows, fileHash: prepared.report.fileHash };
 }

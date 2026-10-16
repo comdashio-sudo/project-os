@@ -8,6 +8,7 @@
 import mysql from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
+import { analyzeAllTables } from "./lib/tidbStats.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -18,9 +19,12 @@ if (!url) {
 const connection = await mysql.createConnection({ uri: url, multipleStatements: false });
 try {
   const [[{ name }]] = await connection.query("SELECT DATABASE() AS name");
+  const appliedBefore = await connection.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").then(([[row]]) => Number(row.n), () => 0);
   await migrate(drizzle(connection), { migrationsFolder: new URL("../drizzle", import.meta.url).pathname });
   const [[{ applied }]] = await connection.query("SELECT COUNT(*) AS applied FROM __drizzle_migrations");
-  console.log(JSON.stringify({ database: name, appliedMigrations: Number(applied) }));
+  // TiDB only, and only when this run changed the schema: refresh the table statistics the planner reads (see scripts/lib/tidbStats.mjs).
+  const statistics = Number(applied) !== appliedBefore ? await analyzeAllTables(connection) : { skipped: true };
+  console.log(JSON.stringify({ database: name, appliedMigrations: Number(applied), newlyApplied: Number(applied) - appliedBefore, statistics: statistics.skipped ? "not needed" : { analyzed: statistics.analyzed, failed: statistics.failed.length } }));
 } catch (error) {
   // Migrations are DDL, so the message names a statement, never a credential.
   console.error(`Migration failed: ${error?.code ?? error?.name ?? "UNKNOWN"} ${String(error?.cause?.sqlMessage ?? error?.cause?.message ?? error?.sqlMessage ?? error?.message ?? "").slice(0, 400)}`);

@@ -142,6 +142,7 @@ import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 import { createInFlight } from "./inFlight";
+import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./tidbStats";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
@@ -1707,6 +1708,7 @@ export async function importMasterPlanSpatialEntitiesFromFile(input: { userId: n
   if (analysis.validRows.some(row => row.values.wbsCode && row.values.activityCode && activityByCode.get(row.values.activityCode)?.wbsItemId && activityByCode.get(row.values.activityCode)?.wbsItemId !== wbsByCode.get(row.values.wbsCode)?.id)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_WBS_ACTIVITY_MISMATCH" });
   if (feature.limitValue !== null) { const existingCount = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))); if (existingCount.length + analysis.validRows.length > feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
   await db.transaction(async tx => { await tx.insert(masterPlanSpatialEntities).values(analysis.validRows.map(row => ({ id: importedEntityIdByCode.get(row.values.code)!, tenantId: input.tenantId, projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, code: row.values.code, name: row.values.name, entityType: row.values.entityType, geometry: normalizeMasterPlanGeometry(row.values.geometry), status: row.values.status, progressPercent: String(row.values.progressPercent), plannedValue: String(row.values.plannedValue), actualValue: String(row.values.actualValue), forecastValue: String(row.values.forecastValue), wbsItemId: row.values.wbsCode ? wbsByCode.get(row.values.wbsCode)!.id : undefined, activityId: row.values.activityCode ? activityByCode.get(row.values.activityCode)!.id : undefined }))); for (const row of analysis.validRows) { if (!row.values.parentCode) continue; const parentEntityId = importedEntityIdByCode.get(row.values.parentCode) ?? existingParentIdByCode.get(row.values.parentCode)!; await tx.update(masterPlanSpatialEntities).set({ parentEntityId }).where(and(eq(masterPlanSpatialEntities.id, importedEntityIdByCode.get(row.values.code)!), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId))); } await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.spatial_entities_imported", entityType: "master_plan_version", entityId: input.masterPlanVersionId, metadata: JSON.stringify({ projectId: input.projectId, createdRows: analysis.validRows.length, linkedParentRows: analysis.validRows.filter(row => row.values.parentCode).length, linkedWbsRows: analysis.validRows.filter(row => row.values.wbsCode).length, linkedActivityRows: analysis.validRows.filter(row => row.values.activityCode).length, fileHash: createHash("sha256").update(bytes).digest("hex") }) }); });
+  void refreshStatisticsAfterBulkLoad(db, ["master_plan_spatial_entities"], analysis.validRows.length);
   return { masterPlanVersionId: input.masterPlanVersionId, createdRows: analysis.validRows.length, mapping: analysis.mapping };
 }
 
@@ -3641,6 +3643,16 @@ export async function reanalyzeDataImport(input: { userId: number; tenantId: str
 }
 
 export async function confirmAndImportData(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
+  const result = await confirmAndImportDataInner(input);
+  const db = await getDb();
+  if (db) {
+    const [record] = await db.select({ moduleCode: dataImports.moduleCode }).from(dataImports).where(eq(dataImports.id, input.importId)).limit(1);
+    void refreshStatisticsAfterBulkLoad(db, IMPORT_TABLES[record?.moduleCode ?? ""] ?? ["data_imports"], result.createdRows + result.updatedRows); // TiDB only, never blocks (tidbStats.ts)
+  }
+  return result;
+}
+
+async function confirmAndImportDataInner(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });

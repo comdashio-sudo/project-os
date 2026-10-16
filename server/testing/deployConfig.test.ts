@@ -50,7 +50,7 @@ describe("render.yaml", () => {
   it("never deploys by itself and checks health on /healthz", () => {
     expect(web.fields.autoDeploy).toBe("false");
     expect(web.fields.healthCheckPath).toBe("/healthz");
-    expect(web.fields.preDeployCommand).toBe("node scripts/migrate.mjs");
+    expect(web.fields.preDeployCommand).toBe("node scripts/predeploy.mjs");
     expect(web.fields.startCommand).toBe("pnpm start");
     expect(web.fields.buildCommand).toContain("--frozen-lockfile");
     expect(web.fields.buildCommand).toContain("--prod=false");
