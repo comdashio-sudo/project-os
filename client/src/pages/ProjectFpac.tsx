@@ -9,6 +9,7 @@ import { GuardedPanels } from "@/components/SectionResilience";
 import CashFlowMonthly from "./CashFlowMonthly";
 import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
+import { SourceNotice } from "@/components/SectionResilience";
 
 const text = {
   ar: {
@@ -143,6 +144,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           })()}
         </div>
       ) : <div className="mt-2"><Unavailable reason={data.movement.reason} t={t} /></div>}
+      <SourceNotice query={history} isArabic={isArabic} title={isArabic ? "سجل الربحية السابق (الرسم)" : "Profit history (the chart)"} fallback={isArabic ? "بقية الشاشة سليمة." : "The rest of the screen is unaffected."} />
       {points.length >= 2 && <div className="mt-3"><p className="text-xs text-slate-500">{t.trend}</p><svg role="img" aria-label={t.trend} viewBox="0 0 200 40" className="h-12 w-full max-w-md"><polyline fill="none" stroke="#0e6b70" strokeWidth="2" points={sparklinePoints(points, 200, 40)} /></svg></div>}
 
       <h3 className="mt-6 font-semibold">{t.cash}</h3>

@@ -2,6 +2,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React from "react";
+import { SourceNotice } from "@/components/SectionResilience";
 
 // End-of-service liability by month (G-122). Shown only to a role that may read pay; it never calculates a legal
 // end-of-service entitlement, and the card says so next to the figures.
@@ -16,6 +17,7 @@ export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
   const capabilities = trpc.employees.payroll.capabilities.useQuery({ tenantId });
   const allowed = Boolean(capabilities.data?.canReadSensitivePayroll);
   const liability = trpc.employees.payroll.eosLiability.useQuery({ tenantId }, { enabled: allowed });
+  if (capabilities.error) return <SourceNotice query={capabilities} isArabic={isArabic} title={isArabic ? "التزام نهاية الخدمة" : "End-of-service liability"} />;
   if (!allowed) return null;
   const money = (value: number) => new Intl.NumberFormat(isArabic ? "ar-SA" : "en-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
   return (

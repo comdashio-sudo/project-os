@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SourceNotice } from "@/components/SectionResilience";
 
 export function ProjectMaterials({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
@@ -27,7 +28,8 @@ export function ProjectMaterials({ tenantId, projectId }: { tenantId: string; pr
       <div className="md:col-span-2"><Label htmlFor="material-spec">{t.spec}</Label><Input id="material-spec" value={master.referenceSpecification} onChange={event => setMaster({ ...master, referenceSpecification: event.target.value })} /></div>
       <Button type="submit" disabled={create.isPending}>{t.save}</Button>
     </form>
-    {catalog.data?.length ? <><div className="grid gap-2">{catalog.data.map(item => <div key={item.id} className="rounded-lg border p-3 text-sm"><strong>{item.code}</strong> · {item.override?.projectDescription || item.description} <span className="text-muted-foreground">({item.unitOfMeasure} · {item.category})</span></div>)}</div>
+    <SourceNotice query={catalog} isArabic={isArabic} title={isArabic ? "كتالوج المواد" : "The material catalog"} />
+    {catalog.error ? null : catalog.data?.length ? <><div className="grid gap-2">{catalog.data.map(item => <div key={item.id} className="rounded-lg border p-3 text-sm"><strong>{item.code}</strong> · {item.override?.projectDescription || item.description} <span className="text-muted-foreground">({item.unitOfMeasure} · {item.category})</span></div>)}</div>
       <form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!override.materialId) return; const reorderLevel = override.reorderLevel.trim() ? Number(override.reorderLevel) : null; if (reorderLevel !== null && (!Number.isFinite(reorderLevel) || reorderLevel <= 0)) { setOverrideValidationError(t.reorderLevelInvalid); return; } setOverrideValidationError(null); saveOverride.mutate({ tenantId, projectId, materialId: override.materialId, active: override.active, projectDescription: override.projectDescription || undefined, referenceSpecification: override.referenceSpecification || undefined, reorderLevel }); }}>
         <div><Label htmlFor="override-material">{t.material}</Label><select id="override-material" className="h-9 w-full rounded-md border bg-background px-3" value={override.materialId} onChange={event => setOverride({ ...override, materialId: event.target.value })} required><option value="">—</option>{catalog.data.map(item => <option key={item.id} value={item.id}>{item.code}</option>)}</select></div>
         <div><Label htmlFor="override-description">{t.projectDescription}</Label><Input id="override-description" value={override.projectDescription} onChange={event => setOverride({ ...override, projectDescription: event.target.value })} /></div>

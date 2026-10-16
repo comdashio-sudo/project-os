@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
+import { getLocalizedProjectError } from "@/lib/projectErrors";
 
 type SectionErrorBoundaryProps = {
   children: React.ReactNode;
@@ -65,4 +66,21 @@ export function SectionMessage({ title, isArabic, kind, detail, onRetry }: { tit
       <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? copy[kind]}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}</div>
     </div>
   </section>;
+}
+
+/** The part of a tRPC query result a failure notice needs. */
+export type SourceQuery = { error: unknown; isFetching?: boolean; refetch?: () => unknown };
+
+/**
+ * A data source that failed says so, in its own place, with the reason and a retry (G-100): before, a failed query left its list
+ * empty, which looked exactly like "nothing here yet". `fallback` says what the person can still do without it (type the name by hand,
+ * carry on without the chart). Renders nothing while the source is healthy.
+ */
+export function SourceNotice({ query, isArabic, title, fallback, className = "" }: { query: SourceQuery; isArabic: boolean; title: string; fallback?: string; className?: string }) {
+  if (!query.error) return null;
+  return <div role="alert" aria-label={title} className={`rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 ${className}`}>
+    <p className="font-semibold">{isArabic ? `تعذّر تحميل: ${title}` : `Could not load: ${title}`}</p>
+    <p className="mt-1">{getLocalizedProjectError(query.error, isArabic)}{fallback ? ` ${fallback}` : ""}</p>
+    {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-amber-700 bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}
+  </div>;
 }
