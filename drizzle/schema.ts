@@ -2046,6 +2046,23 @@ export const pmcSitePlans = mysqlTable(
 
 // One-time e-mail sign-in codes. The table holds a hash of the normalized
 // address and an HMAC of the code, never either value itself.
+// One row per signed-in browser. The session cookie is a signed token that names a row here (`sid`), and a request is accepted only while the row is
+// unexpired and unrevoked: that is what lets "log out" end a session in the server, not just in the browser that asked.
+export const authSessions = mysqlTable(
+  "auth_sessions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    revokedAt: timestamp("revokedAt"),
+  },
+  table => [
+    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "auth_sessions_user_fk" }).onDelete("cascade"),
+    index("auth_sessions_user_idx").on(table.userId, table.revokedAt),
+  ],
+);
+
 export const loginCodes = mysqlTable(
   "login_codes",
   {

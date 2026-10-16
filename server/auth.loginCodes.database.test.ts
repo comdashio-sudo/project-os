@@ -33,12 +33,24 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("login code r
     await repository.retireOpen(emailHash, new Date());
     const target = row(10);
     await repository.insert(target);
-    await repository.addAttempt(target.id);
-    await repository.addAttempt(target.id);
+    expect(await repository.claimAttempt(target.id, 5)).toBe(true);
+    expect(await repository.claimAttempt(target.id, 5)).toBe(true);
     expect((await repository.findOpen(emailHash, new Date()))?.attempts).toBe(2);
     const results = await Promise.all([repository.consume(target.id, new Date()), repository.consume(target.id, new Date()), repository.consume(target.id, new Date())]);
     expect(results.filter(Boolean)).toHaveLength(1);
     expect(await repository.consume(target.id, new Date())).toBe(false);
+  });
+
+  it("never lets simultaneous guesses pass the limit (the count is claimed in one statement)", async () => {
+    await repository.retireOpen(emailHash, new Date());
+    const target = row(15);
+    await repository.insert(target);
+    const claims = await Promise.all(Array.from({ length: 12 }, () => repository.claimAttempt(target.id, 5)));
+    expect(claims.filter(Boolean)).toHaveLength(5);
+    expect((await repository.findOpen(emailHash, new Date()))?.attempts).toBe(5);
+    expect(await repository.claimAttempt(target.id, 5)).toBe(false);
+    await repository.consume(target.id, new Date());
+    expect(await repository.claimAttempt(target.id, 5)).toBe(false);
   });
 
   it("retires every open code and never returns an expired one", async () => {

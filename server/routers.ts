@@ -26,6 +26,8 @@ import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { sdk } from "./_core/sdk";
+import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
@@ -48,10 +50,18 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    // Logging out ends the session in the database first, so the token is dead even if a copy of it was kept; only then is the cookie cleared.
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      const sessionId = ctx.sessionId ?? (await sdk.sessionIdOf(ctx.req));
+      if (sessionId) await sessionStore.revoke(sessionId);
+      ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       return { success: true } as const;
+    }),
+    // "Sign out everywhere": every live session of this person, on every device, including this one.
+    logoutEverywhere: protectedProcedure.mutation(async ({ ctx }) => {
+      const ended = await sessionStore.revokeAllForUser(ctx.user.id);
+      ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
+      return { success: true, ended } as const;
     }),
   }),
   access: router({

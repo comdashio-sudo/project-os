@@ -148,7 +148,7 @@ await seed();
 const ONLY = process.env.ONLY?.split(",");
 if (!ONLY) rmSync(join(OUT, "gallery"), { recursive: true, force: true });
 mkdirSync(join(OUT, "gallery"), { recursive: true });
-const token = await sdk.createSessionToken(openId, { name: user.name ?? "Demo Admin" });
+const token = await sdk.issueSession(openId, { name: user.name ?? "Demo Admin" });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const taken = [];
 for (const view of VIEWS) {

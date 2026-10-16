@@ -48,9 +48,11 @@ export function createDbLoginCodeRepository(): LoginCodeRepository {
       return row ?? null;
     },
 
-    async addAttempt(id) {
+    async claimAttempt(id, max) {
       const db = await database();
-      await db.update(loginCodes).set({ attempts: sql`${loginCodes.attempts} + 1` }).where(eq(loginCodes.id, id));
+      // One statement: the row changes only while it still has a free guess, so the count never passes `max`.
+      const [result] = await db.update(loginCodes).set({ attempts: sql`${loginCodes.attempts} + 1` }).where(and(eq(loginCodes.id, id), isNull(loginCodes.consumedAt), lt(loginCodes.attempts, max)));
+      return Number((result as { affectedRows?: number }).affectedRows ?? 0) === 1;
     },
 
     async consume(id, now) {

@@ -34,8 +34,8 @@ async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch
       async latestCreatedAt(h) { return rows.filter(r => r.emailHash === h).map(r => r.createdAt).sort((a, b) => b.getTime() - a.getTime())[0] ?? null; },
       async retireOpen(h, now) { rows.filter(r => r.emailHash === h && !r.consumedAt).forEach(r => { r.consumedAt = now; }); },
       async insert(row) { rows.push({ ...row, attempts: 0, consumedAt: null }); },
-      async findOpen(h, now) { return rows.find(r => r.emailHash === h && !r.consumedAt && r.expiresAt > now) ?? null; },
-      async addAttempt(id) { rows.find(r => r.id === id)!.attempts += 1; },
+      async findOpen(h, now) { const r = rows.find(x => x.emailHash === h && !x.consumedAt && x.expiresAt > now); return r ? { ...r } : null; },
+      async claimAttempt(id, max) { const r = rows.find(x => x.id === id); if (!r || r.consumedAt || r.attempts >= max) return false; r.attempts += 1; return true; },
       async consume(id, now) { const r = rows.find(x => x.id === id); if (!r || r.consumedAt) return false; r.consumedAt = now; return true; },
     },
   });
@@ -95,6 +95,37 @@ describe("e-mail code routes", () => {
       expect(await r.json()).toEqual({ code: "PROJECT_OS_AUTH_CODE_INVALID" });
       expect(r.headers.get("set-cookie")).toBeNull();
     }
+  });
+
+  it("answers a code request identically for an address that already has an account and one that never signed in", async () => {
+    const h = await harness();
+    await h.post("/api/auth/email/request", { email: "member@example.test" });
+    expect((await h.post("/api/auth/email/verify", { email: "member@example.test", code: "424242" })).status).toBe(200);
+    expect(h.upserts).toHaveLength(1);
+    h.clock.value += 60_000;
+    const known = await h.post("/api/auth/email/request", { email: "member@example.test" });
+    const stranger = await h.post("/api/auth/email/request", { email: "stranger@example.test" });
+    expect(known.status).toBe(stranger.status);
+    expect(await known.json()).toEqual(await stranger.json());
+    expect(known.headers.get("set-cookie")).toBeNull();
+    expect(stranger.headers.get("set-cookie")).toBeNull();
+    expect(h.upserts).toHaveLength(1); // asking for a code never creates or touches an account
+  });
+
+  it("limits one source address on verification too, whatever the e-mail addresses", async () => {
+    const h = await harness();
+    const statuses: number[] = [];
+    for (let i = 0; i < 32; i++) statuses.push((await h.post("/api/auth/email/verify", { email: `user${i}@example.test`, code: "000000" })).status);
+    expect(statuses.slice(0, 30).every(s => s === 401)).toBe(true);
+    expect(statuses.slice(30)).toEqual([429, 429]);
+  });
+
+  it("starts counting again once the ten minutes of the source-address window have passed", async () => {
+    const h = await harness();
+    for (let i = 0; i < 20; i++) await h.post("/api/auth/email/request", { email: `user${i}@example.test` });
+    expect((await h.post("/api/auth/email/request", { email: "late@example.test" })).status).toBe(429);
+    h.clock.value += 10 * 60 * 1000 + 1;
+    expect((await h.post("/api/auth/email/request", { email: "late@example.test" })).status).toBe(200);
   });
 
   it("refuses an expired code", async () => {
