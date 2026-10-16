@@ -44,6 +44,10 @@ export const projectErrorMessages = {
     ar: "انتهت مهلة رمز تأكيد الحذف (15 دقيقة). اطلب الحذف من جديد.",
     en: "The deletion confirmation code has expired (15 minutes). Request the deletion again.",
   },
+  PROJECT_OS_DELETION_IN_PROGRESS: {
+    ar: "حذف هذه الشركة جارٍ الآن في عملية أخرى. انتظر خمس دقائق ثم أعد المحاولة إن لم يكتمل.",
+    en: "Deletion of this company is already running in another operation. Wait five minutes and try again if it has not finished.",
+  },
   PROJECT_OS_DELETION_NAME_MISMATCH: {
     ar: "الاسم المكتوب لا يطابق اسم الشركة تمامًا. لم يُحذف شيء.",
     en: "The name you typed does not exactly match the company name. Nothing was deleted.",

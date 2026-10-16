@@ -251,6 +251,8 @@ export type DeletionReport = {
   verification: "PASS" | "FAIL";
   startedAt: string;
   finishedAt: string;
+  /** how many times the erasure had to run before a recount found nothing (1 = at once; more = a request that began before the freeze was still writing) */
+  passes: number;
   tablesChecked: number;
   rowsBefore: number;
   rowsDeleted: number;
@@ -261,32 +263,42 @@ export type DeletionReport = {
   files: { found: number; deleted: number; failed: number; failedKeys: string[] };
 };
 
+
+const MAX_ERASE_PASSES = 4;
+const DRAIN_MS = 300;
+/** A freeze younger than this, with no erasure recorded after it, means another run is working on the company. */
+const IN_PROGRESS_WINDOW_MS = 5 * 60 * 1000;
+
+async function collectObjectKeys(db: Db, tenantId: string): Promise<string[]> {
+  const keys: string[] = [];
+  for (const file of FILE_TABLES) for (const row of await q<{ k: string }>(db, sql`SELECT ${id(file.column)} AS k FROM ${id(file.table)} WHERE tenantId = ${tenantId} AND ${id(file.column)} IS NOT NULL`)) keys.push(row.k);
+  return keys;
+}
+
 /**
- * Erases everything the company owns. The caller has already checked the owner, the fresh export, the token and the typed name.
- * Order: freeze the company (its products are switched off, so no request can write any more) → read what exists → delete in
- * foreign-key order in batches → scrub people → tombstone the company → delete stored files → count again → record it.
- * It can be run again until it reports PASS: every step is a delete or an update that tolerates having been done.
+ * Freezes the company in one transaction: its row is locked (so two simultaneous erasures cannot both proceed — the second waits for this commit
+ * and then finds the freeze), its products are switched off (every access check requires a licensed product, so every request that starts after
+ * this commit is refused), its status becomes suspended, and the freeze is written to the audit trail. A company already erased is left as it is.
  */
-export async function deleteTenantData(input: { db: Db; tenantId: string; actorUserId: number; storageDelete?: (key: string) => Promise<void>; now?: () => Date }): Promise<DeletionReport> {
-  const { db, tenantId } = input;
-  const now = input.now ?? (() => new Date());
-  const startedAt = now();
-  const map = await readSchemaMap(db);
-  assertSchemaClassified(map);
+export async function freezeTenant(db: Db, tenantId: string, actorUserId: number, now: () => Date = () => new Date()) {
+  await db.transaction(async tx => {
+    const rows = (await tx.execute(sql`SELECT status FROM companies WHERE id = ${tenantId} FOR UPDATE`)) as unknown as [Array<{ status: string }>, unknown];
+    const company = rows[0][0];
+    if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TENANT_NOT_FOUND" });
+    if (company.status === "archived") return; // already erased: finishing it again is allowed and harmless
+    const recent = (await tx.execute(sql`SELECT createdAt AS at FROM audit_logs WHERE tenantId = ${tenantId} AND action = 'tenant.deletion_frozen' ORDER BY createdAt DESC LIMIT 1`)) as unknown as [Array<{ at: Date | string }>, unknown];
+    if (recent[0][0] && now().getTime() - new Date(recent[0][0].at).getTime() < IN_PROGRESS_WINDOW_MS) {
+      const finished = (await tx.execute(sql`SELECT 1 AS ok FROM audit_logs WHERE tenantId = ${tenantId} AND action = 'tenant.data_deleted' AND createdAt >= ${new Date(recent[0][0].at)} LIMIT 1`)) as unknown as [unknown[], unknown];
+      if (!finished[0].length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_DELETION_IN_PROGRESS" });
+    }
+    await tx.execute(sql`UPDATE tenant_entitlements SET active = false WHERE tenantId = ${tenantId}`);
+    await tx.execute(sql`UPDATE companies SET status = 'suspended' WHERE id = ${tenantId} AND status = 'active'`);
+    await tx.execute(sql`INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType, entityId, metadata) VALUES (${randomUUID()}, ${tenantId}, ${actorUserId}, 'tenant.deletion_frozen', 'company', ${tenantId}, ${JSON.stringify({ at: now().toISOString() })})`);
+  });
+}
 
-  // 1. freeze: with every product switched off no access check passes, so nothing new can be written while rows are being removed
-  await db.execute(sql`UPDATE tenant_entitlements SET active = false WHERE tenantId = ${tenantId}`);
-  await db.execute(sql`UPDATE companies SET status = 'suspended' WHERE id = ${tenantId} AND status = 'active'`);
-
-  // 2. read what exists
-  const before = await countTenantData(db, tenantId, map);
-  const objectKeys: string[] = [];
-  for (const file of FILE_TABLES) for (const row of await q<{ k: string }>(db, sql`SELECT ${id(file.column)} AS k FROM ${id(file.table)} WHERE tenantId = ${tenantId} AND ${id(file.column)} IS NOT NULL`)) objectKeys.push(row.k);
-  const onlyHere = await personIdsOnlyIn(db, tenantId);
-  const everyone = (await q<{ userId: number }>(db, sql`SELECT userId FROM memberships WHERE tenantId = ${tenantId}`)).map(row => Number(row.userId));
-
-  // 3. children that reach the company through a parent, then the company's tables, children first
-  const deleted = new Map<string, number>();
+/** One sweep over everything the company owns: its child tables, then its tables in foreign-key order, in batches. */
+async function erasePass(db: Db, tenantId: string, map: SchemaMap, deleted: Map<string, number>) {
   const batch = sql.raw(String(DELETE_BATCH));
   for (const child of TENANT_CHILD_TABLES) {
     if (IDENTITY_TABLES.includes(child.table)) continue;
@@ -295,7 +307,7 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
       const n = await affected(db, sql`DELETE c FROM ${id(child.table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenantId = ${tenantId}`);
       total += n; if (!n) break;
     }
-    deleted.set(child.table, total);
+    deleted.set(child.table, (deleted.get(child.table) ?? 0) + total);
   }
   for (const table of map.deletionOrder) {
     const child = childFor(table);
@@ -307,6 +319,43 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
       total += n; if (!n || child) break;
     }
     deleted.set(table, (deleted.get(table) ?? 0) + total);
+  }
+}
+
+/**
+ * Erases everything the company owns. The caller has already checked the owner, the fresh export, the token and the typed name.
+ * Order: freeze the company (its products are switched off, so no request can write any more) → read what exists → delete in
+ * foreign-key order in batches → scrub people → tombstone the company → delete stored files → count again → record it.
+ * It can be run again until it reports PASS: every step is a delete or an update that tolerates having been done.
+ */
+export async function deleteTenantData(input: { db: Db; tenantId: string; actorUserId: number; storageDelete?: (key: string) => Promise<void>; now?: () => Date; /** test seams: called right after the freeze commits and after each erasure pass */ observe?: { afterFreeze?: () => Promise<void>; afterErase?: (pass: number) => Promise<void> } }): Promise<DeletionReport> {
+  const { db, tenantId } = input;
+  const now = input.now ?? (() => new Date());
+  const startedAt = now();
+  const map = await readSchemaMap(db);
+  assertSchemaClassified(map);
+
+  // 1. freeze, in ONE transaction, before anything about the company's data is read (the schema check above reads the catalogue, not the company)
+  await freezeTenant(db, tenantId, input.actorUserId, now);
+  await input.observe?.afterFreeze?.();
+
+  // 2. read what exists
+  const before = await countTenantData(db, tenantId, map);
+  const objectKeys = new Set<string>(await collectObjectKeys(db, tenantId));
+  const onlyHere = await personIdsOnlyIn(db, tenantId);
+  const everyone = (await q<{ userId: number }>(db, sql`SELECT userId FROM memberships WHERE tenantId = ${tenantId}`)).map(row => Number(row.userId));
+
+  // 3. erase, children first; and repeat until a count taken afterwards is zero. The freeze stops every request that starts after it, but one that
+  //    passed its access check a moment BEFORE it may still be writing; it is caught here by the next pass (and, failing that, by the final count).
+  const deleted = new Map<string, number>();
+  let passes = 0;
+  while (passes < MAX_ERASE_PASSES) {
+    passes++;
+    await erasePass(db, tenantId, map, deleted);
+    await input.observe?.afterErase?.(passes);
+    if ((await countTenantData(db, tenantId, map)).totalRows === 0) break;
+    for (const key of await collectObjectKeys(db, tenantId)) objectKeys.add(key);
+    await new Promise(resolve => setTimeout(resolve, DRAIN_MS));
   }
 
   // 4. people: identity removed for those who belong to no other company; their sessions end
@@ -321,25 +370,25 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
   await db.execute(sql`UPDATE companies SET status = 'archived', legalName = ${`Deleted company ${tenantId.slice(0, 8)}`}, slug = ${`deleted-${tenantId}`} WHERE id = ${tenantId}`);
 
   // 6. stored files (after the rows: a failure here loses nothing the database still depends on; the keys are in the report)
-  const files = { found: objectKeys.length, deleted: 0, failed: 0, failedKeys: [] as string[] };
+  const keys = Array.from(objectKeys);
+  const files = { found: keys.length, deleted: 0, failed: 0, failedKeys: [] as string[] };
   if (input.storageDelete) {
-    for (const key of objectKeys) {
+    for (const key of keys) {
       try { await input.storageDelete(key); files.deleted++; } catch { files.failed++; files.failedKeys.push(key); }
     }
-  } else files.failed = objectKeys.length, files.failedKeys.push(...objectKeys);
+  } else files.failed = keys.length, files.failedKeys.push(...keys);
 
   // 7. count again, table by table
   const after = await countTenantData(db, tenantId, map);
   const afterBy = new Map(after.tables.map(item => [item.table, item.rows]));
   const perTable = before.tables.map(item => ({ table: item.table, before: item.rows, deleted: deleted.get(item.table) ?? 0, after: afterBy.get(item.table) ?? 0 }));
   const remaining = after.tables.filter(item => item.rows > 0);
-  const stillMembers = (await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM memberships WHERE tenantId = ${tenantId}`))[0];
-  void stillMembers;
   const report: DeletionReport = {
     tenantId,
     verification: remaining.length === 0 && files.failed === 0 ? "PASS" : "FAIL",
     startedAt: startedAt.toISOString(),
     finishedAt: now().toISOString(),
+    passes,
     tablesChecked: after.tables.length,
     rowsBefore: before.totalRows,
     rowsDeleted: perTable.reduce((sum, item) => sum + item.deleted, 0),

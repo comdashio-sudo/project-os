@@ -13,8 +13,9 @@ services:
     autoDeploy: false
     # NODE_ENV=production would make pnpm skip the dev dependencies the build needs.
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm build
-    # Applies pending schema migrations before the new version takes traffic.
-    preDeployCommand: node scripts/migrate.mjs
+    # Applies pending schema migrations before the new version takes traffic and, when PROJECT_OS_APP_DB_PASSWORD is set, re-provisions the
+    # restricted database account for any new table and FAILS the deploy if that account cannot see every table (scripts/predeploy.mjs).
+    preDeployCommand: node scripts/predeploy.mjs
     startCommand: pnpm start
     healthCheckPath: /healthz
     envVars:

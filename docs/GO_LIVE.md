@@ -42,7 +42,9 @@
 
 ## ٥) حماية سجل التدقيق (قبل أي بيانات حقيقية، ولا قبلها)
 بلا هذه الخطوة يكتب الخادم بحساب الإدارة فيستطيع نظريًا تعديل `audit_logs`.
-١. ضع في Render (`project-os`) كلمة المرور الجديدة باسم `PROJECT_OS_APP_DB_PASSWORD` ← **Save** (يعيد التشغيل). ٢. **Render ← `project-os` ← Shell** ← نفّذ بالترتيب: `pnpm provision:audit-app` ثم `pnpm verify:audit-grants`. هذا ينشئ الحساب المقيّد `<بادئة>.project_os_app` (يملك `SELECT, INSERT, UPDATE, DELETE` على كل جدول **عدا** `audit_logs` فله `SELECT, INSERT` فقط). ٣. المطلوب في الناتج: `"approved": true` و`"updateDenied": true` و`"deleteDenied": true` و`"hasForbiddenAuditGrant": false` — أرسله لأسجّله في `docs/STATE.md`. ٤. **بعد كل نشر فيه ترحيل جديد** أعد `pnpm provision:audit-app` (الجدول الجديد لا يراه الحساب المقيّد حتى يُمنَح، فيرفع الموقع أخطاء حتى تعيدها). ٥. أعد فحص الجوال (٤).
+١. ضع في Render (`project-os`) كلمة المرور الجديدة باسم `PROJECT_OS_APP_DB_PASSWORD` ← **Save**. ٢. **Manual Deploy**: خطوة ما قبل النشر `scripts/predeploy.mjs` تطبّق الترحيلات ثم **تُنشئ الحساب المقيّد `<بادئة>.project_os_app` وتمنحه كل جدول** (`SELECT, INSERT, UPDATE, DELETE` على كل جدول **عدا** `audit_logs` فله `SELECT, INSERT` فقط)، ثم **تثبت** أنه يرى كل الجداول ويقرؤها وأن تعديل `audit_logs` وحذفه مرفوضان. إن لم يرَ الحساب جدولًا واحدًا **يفشل النشر** ويبقى الإصدار القديم يعمل، وفي **Logs** سطر `"auditProtection":"FAILED"` يسمّي الجداول. ٣. في **Logs** ابحث عن `"auditProtection":"provisioned"` و`"approved": true` و`"updateDenied": true` و`"deleteDenied": true` — أرسلها لأسجّلها في `docs/STATE.md` (ولتكرار الإثبات يدويًا: **Shell** ← `pnpm verify:audit-grants`). ٤. **لا شيء تفعله بعد الترحيلات الجديدة**: كل نشر يعيد المنح ويعيد الإثبات تلقائيًا (كان يدويًا: `pnpm provision:audit-app`). ٥. أعد فحص الجوال (٤). وإن بقي السطر `"auditProtection":"OFF"` فكلمة المرور لم تُحفظ بعد.
+
+**على TiDB تُحدَّث إحصاءات الجداول تلقائيًا** بعد الترحيلات الجديدة وبعد كل استيراد جماعي كبير (ألف سجل فأكثر)، فلا تبطؤ لوحتا PMO والتنفيذية بعد التحميل.
 
 ## ٦) النسخ الاحتياطي
 أول تشغيل: **Render ← `project-os-backup` ← Trigger Run** ← في **Logs** سطر فيه `"ok":true`. اختبر الاسترجاع مرة (`docs/OWNER_ACTIONS.md` القسم 4ب) قبل أن تحتاجه.
