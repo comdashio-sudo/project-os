@@ -121,6 +121,17 @@ describe("render.yaml", () => {
     expect(missing).toEqual([]);
   });
 
+  it("puts every variable the blueprint declares on the one-page go-live guide, and keeps the local-only ones off it", () => {
+    const guide = text("docs/GO_LIVE.md");
+    for (const variable of [...web.env, ...cron.env, ...backupCron.env]) expect(guide, variable.key).toContain(variable.key);
+    // the guide may name these only to forbid them
+    for (const forbidden of ["RESEND_API_URL", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "TEST_DATABASE_URL"]) {
+      for (const line of guide.split("\n").filter(entry => entry.includes(forbidden))) expect(line, forbidden).toMatch(/لا تضع أبدًا/);
+    }
+    // the four accounts, and the audit_logs protection step with its proof lines
+    for (const needed of ["TiDB Cloud", "Resend", "Cloudflare R2", "Render", "provision:audit-app", "verify:audit-grants", "deleteDenied", "/healthz"]) expect(guide, needed).toContain(needed);
+  });
+
   it("documents every variable the blueprint asks for", () => {
     const guide = text("docs/OWNER_ACTIONS.md");
     for (const variable of [...web.env, ...backupCron.env].filter(e => e.sync === false)) expect(guide, variable.key).toContain(variable.key);
