@@ -13,6 +13,7 @@
 // (default /opt/node-tools/node_modules/) and PLAYWRIGHT_CHROMIUM (default /opt/pw-browsers/chromium-1194/chrome-linux/chrome) locate it.
 // Run it on a database that was migrated fresh (the live test runner deletes global permission rows that a new company re-creates, but
 // leaves other companies' grants short). Nothing here prints a secret.
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
@@ -57,7 +58,7 @@ const codeFor = async (address, alreadyHad) => {
 
 // ---------------------------------------------------------------- the production server, pointed at the fake provider
 const server = spawn(process.execPath, ["dist/index.js"], {
-  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), RESEND_API_KEY: "e2e-fake-provider-key", EMAIL_FROM: "PROJECT OS <login@mail.example.test>", RESEND_API_URL: `http://127.0.0.1:${mailPort}/emails`, APP_BASE_URL: BASE_URL, API_RATE_LIMIT_PER_MINUTE: "20000" },
+  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), RESEND_API_KEY: `fake-${randomUUID()}`, EMAIL_FROM: "PROJECT OS <login@mail.example.test>", RESEND_API_URL: `http://127.0.0.1:${mailPort}/emails`, APP_BASE_URL: BASE_URL, API_RATE_LIMIT_PER_MINUTE: "20000" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let serverLog = "";
