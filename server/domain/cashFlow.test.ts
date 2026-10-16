@@ -3,13 +3,27 @@ import { calculateOperationalCashFlow, monthlyNetCashFlow } from "./cashFlow";
 
 describe("operational cash flow", () => {
   it("يجمع الميزانية والتكلفة الفعلية والالتزامات ويستبعد السجلات الملغاة", () => {
-    expect(calculateOperationalCashFlow({ budgetAmounts: [1000, 500], costEntries: [{ amount: 200, status: "posted" }, { amount: 75, status: "draft" }, { amount: 50, status: "void" }], commitments: [{ amount: 300, status: "draft" }, { amount: 90, status: "cancelled" }] })).toEqual({ plannedBudget: 1500, actualCost: 275, committedAmount: 300, totalExposure: 575, remainingBudget: 925 });
+    expect(calculateOperationalCashFlow({ budgetAmounts: [1000, 500], costEntries: [{ amount: 200, status: "posted" }, { amount: 75, status: "draft" }, { amount: 50, status: "void" }], commitments: [{ amount: 300, status: "draft" }, { amount: 90, status: "cancelled" }] })).toEqual({ plannedBudget: 1500, actualCost: 275, committedAmount: 300, inventoryValue: 0, totalExposure: 575, remainingBudget: 925 });
   });
 
   it("does not count received goods twice: only the unsettled part of a commitment is exposure", () => {
     // A 1,000 order of which 400 was received (and is already in the actual cost) is 600 of open commitment, not 1,000.
     const result = calculateOperationalCashFlow({ budgetAmounts: [2000], costEntries: [{ amount: 400, status: "posted" }], commitments: [{ amount: 1000, status: "approved", settledAmount: 400 }, { amount: 300, status: "approved" }, { amount: 500, status: "cancelled" }, { amount: 100, status: "approved", settledAmount: 150 }] });
-    expect(result).toEqual({ plannedBudget: 2000, actualCost: 400, committedAmount: 900, totalExposure: 1300, remainingBudget: 700 }); // 600 + 300 + 0 (over-settled is never negative)
+    expect(result).toEqual({ plannedBudget: 2000, actualCost: 400, committedAmount: 900, inventoryValue: 0, totalExposure: 1300, remainingBudget: 700 }); // 600 + 300 + 0 (over-settled is never negative)
+  });
+
+  it("counts goods on the shelf as exposure, and issuing them to work changes nothing in the total", () => {
+    // A 1,000 order, all received into a warehouse (cost not booked yet): the commitment is settled, the 1,000 sits on the shelf.
+    const received = calculateOperationalCashFlow({ budgetAmounts: [2000], costEntries: [], commitments: [{ amount: 1000, status: "approved", settledAmount: 1000 }], inventoryValue: 1000 });
+    expect(received).toEqual({ plannedBudget: 2000, actualCost: 0, committedAmount: 0, inventoryValue: 1000, totalExposure: 1000, remainingBudget: 1000 });
+    // 400 of it is issued to a WBS item: it leaves the shelf and becomes actual cost. The project is exposed to exactly the same amount.
+    const issued = calculateOperationalCashFlow({ budgetAmounts: [2000], costEntries: [{ amount: 400, status: "posted" }], commitments: [{ amount: 1000, status: "approved", settledAmount: 1000 }], inventoryValue: 600 });
+    expect(issued.totalExposure).toBe(received.totalExposure);
+    expect(issued.remainingBudget).toBe(received.remainingBudget);
+  });
+
+  it("never lets a negative shelf value reduce exposure", () => {
+    expect(calculateOperationalCashFlow({ budgetAmounts: [100], costEntries: [], commitments: [], inventoryValue: -50 }).totalExposure).toBe(0);
   });
 });
 

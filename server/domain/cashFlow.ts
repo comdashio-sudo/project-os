@@ -6,14 +6,21 @@ export type CashFlowInput = {
    * Counting the whole commitment next to that cost would count the received goods twice.
    */
   commitments: readonly { amount: number; status: string; settledAmount?: number }[];
+  /**
+   * Money held on warehouse shelves: received, paid for or owed, and not yet charged to any WBS item.
+   * It is exposure beside actual cost and open commitment: leaving it out would make the budget look freer the day goods arrive
+   * and tighter again the day they are issued. Issuing it to work moves it from here into actual cost, so exposure does not change.
+   */
+  inventoryValue?: number;
 };
 
 export function calculateOperationalCashFlow(input: CashFlowInput) {
   const plannedBudget = input.budgetAmounts.reduce((sum, amount) => sum + amount, 0);
   const actualCost = input.costEntries.filter(entry => entry.status !== "void").reduce((sum, entry) => sum + entry.amount, 0);
   const committedAmount = input.commitments.filter(entry => entry.status !== "cancelled").reduce((sum, entry) => sum + Math.max(0, entry.amount - (entry.settledAmount ?? 0)), 0);
-  const totalExposure = actualCost + committedAmount;
-  return { plannedBudget, actualCost, committedAmount, totalExposure, remainingBudget: plannedBudget - totalExposure };
+  const inventoryValue = Math.max(0, input.inventoryValue ?? 0);
+  const totalExposure = actualCost + committedAmount + inventoryValue;
+  return { plannedBudget, actualCost, committedAmount, inventoryValue, totalExposure, remainingBudget: plannedBudget - totalExposure };
 }
 
 // ---------------------------------------------------------------- net cash flow by month (G-013)

@@ -1087,6 +1087,11 @@ export const goodsReceiptNotes = mysqlTable(
     receivedAt: timestamp("receivedAt").notNull(),
     note: text("note"),
     costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    // 'warehouse_stock' raises the shelf and charges the cost when the material is issued to a WBS item; 'direct_to_site' charges the cost at receipt and never touches the shelf.
+    // Rows that existed before stock valuation are 'direct_to_site': their cost was booked at receipt and no stock was ever raised.
+    receiptMode: mysqlEnum("receiptMode", ["warehouse_stock", "direct_to_site"]).default("direct_to_site").notNull(),
+    warehouseId: varchar("warehouseId", { length: 36 }),
+    inventoryTransactionId: varchar("inventoryTransactionId", { length: 36 }),
     createdByUserId: int("createdByUserId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
@@ -1096,6 +1101,7 @@ export const goodsReceiptNotes = mysqlTable(
     index("grn_purchase_order_idx").on(table.purchaseOrderId),
     index("grn_material_idx").on(table.materialId),
     uniqueIndex("grn_cost_entry_unique").on(table.costEntryId),
+    uniqueIndex("grn_inventory_transaction_unique").on(table.inventoryTransactionId),
     foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "grn_tenant_fk" }),
     foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "grn_project_fk" }),
     foreignKey({ columns: [table.purchaseOrderId], foreignColumns: [purchaseOrders.id], name: "grn_purchase_order_fk" }),
@@ -1174,7 +1180,7 @@ export const warehouseInventoryTransfers = mysqlTable(
 
 export const warehouseInventoryTransactions = mysqlTable(
   "warehouse_inventory_transactions",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), warehouseId: varchar("warehouseId", { length: 36 }).notNull(), materialId: varchar("materialId", { length: 36 }).notNull(), requisitionId: varchar("requisitionId", { length: 36 }), transferId: varchar("transferId", { length: 36 }), transactionType: mysqlEnum("transactionType", ["receipt", "issue", "adjustment"]).notNull(), quantityDelta: decimal("quantityDelta", { precision: 18, scale: 3 }).notNull(), referenceNumber: varchar("referenceNumber", { length: 120 }), note: varchar("note", { length: 500 }), occurredAt: timestamp("occurredAt").notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), warehouseId: varchar("warehouseId", { length: 36 }).notNull(), materialId: varchar("materialId", { length: 36 }).notNull(), requisitionId: varchar("requisitionId", { length: 36 }), transferId: varchar("transferId", { length: 36 }), transactionType: mysqlEnum("transactionType", ["receipt", "issue", "adjustment"]).notNull(), quantityDelta: decimal("quantityDelta", { precision: 18, scale: 3 }).notNull(), unitCost: decimal("unitCost", { precision: 18, scale: 4 }), valueDelta: decimal("valueDelta", { precision: 18, scale: 2 }), referenceNumber: varchar("referenceNumber", { length: 120 }), note: varchar("note", { length: 500 }), occurredAt: timestamp("occurredAt").notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull() },
   table => [index("warehouse_inventory_transactions_tenant_project_date_idx").on(table.tenantId, table.projectId, table.occurredAt), index("warehouse_inventory_transactions_warehouse_material_idx").on(table.warehouseId, table.materialId), index("warehouse_inventory_transactions_requisition_idx").on(table.requisitionId, table.transactionType), index("wit_transfer_idx").on(table.transferId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "wit_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "wit_project_fk" }), foreignKey({ columns: [table.warehouseId], foreignColumns: [projectWarehouses.id], name: "wit_warehouse_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "wit_material_fk" }), foreignKey({ columns: [table.requisitionId], foreignColumns: [procurementRequisitions.id], name: "wit_requisition_fk" }), foreignKey({ columns: [table.transferId], foreignColumns: [warehouseInventoryTransfers.id], name: "wit_transfer_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "wit_creator_fk" })],
 );
 

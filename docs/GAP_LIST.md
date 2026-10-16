@@ -330,3 +330,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 | G-135 إلى G-137 | مفتوحة | ميزات كبرى معلنة غير مبنية للخريطة الرئيسية؛ تحتاج أولويتك |
 
 القرارات المنتظرة منك في `docs/OWNER_ACTIONS.md` القسم 8.
+| G-105/G-031 (القرار 1 و2): استلام يرفع الرصيد، توريد مباشر، رصيد بسعر، متوسط مرجّح | CLOSED (WO3) | الترحيل 0062، `inventoryValuation.ts`، `stock.valuation.database.test.ts`؛ صف STATE «استلام المواد يرفع الرصيد…». |

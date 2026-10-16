@@ -53,7 +53,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("receiving against a purc
   }, 60_000);
   afterAll(async () => { await clear(); await connection.end(); });
 
-  const input = (over: Record<string, unknown> = {}) => ({ ...scope, grnNumber: "GRN-RC-1", purchaseOrderId: PO, materialId: MAT, receivedQuantity: 10, rejectedQuantity: 0, unitCost: 25, unitOfMeasure: "bag", receivedAt: new Date("2026-10-15T08:00:00.000Z"), ...over });
+  const input = (over: Record<string, unknown> = {}) => ({ ...scope, grnNumber: "GRN-RC-1", purchaseOrderId: PO, materialId: MAT, receivedQuantity: 10, rejectedQuantity: 0, unitCost: 25, unitOfMeasure: "bag", receiptMode: "direct_to_site" as const, receivedAt: new Date("2026-10-15T08:00:00.000Z"), ...over });
   const count = async (sql: string, params: unknown[]) => { const [rows] = await connection.query<{ n: number }[]>(sql, params); return Number(rows[0].n); };
 
   it("offers the storekeeper only the issued orders, and says whether the role may receive", async () => {

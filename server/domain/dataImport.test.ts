@@ -59,18 +59,19 @@ describe("analyzeImportFile", () => {
     expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 2, code: "IMPORT_INVALID_CURRENCY", field: "currency" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" })])); expect(result.validRows).toEqual([]);
   });
   it("reads the opening-balance template in English and Arabic, with a decimal quantity", async () => {
-    const english = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: "1,250.5" }]) });
-    const arabic = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "رمز المستودع": "WH-01", "رمز المادة": "CEM", "الكمية": 40 }]) });
-    expect(english.errors).toEqual([]); expect(english.validRows).toEqual([{ rowNumber: 2, values: { warehouseCode: "WH-01", materialCode: "CEM", quantity: 1250.5 } }]);
+    const english = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: "1,250.5", "Unit Cost": "12.50" }]) });
+    const arabic = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "رمز المستودع": "WH-01", "رمز المادة": "CEM", "الكمية": 40, "تكلفة الوحدة": 8 }]) });
+    expect(english.errors).toEqual([]); expect(english.validRows).toEqual([{ rowNumber: 2, values: { warehouseCode: "WH-01", materialCode: "CEM", quantity: 1250.5, unitCost: 12.5 } }]);
     expect(arabic.errors).toEqual([]); expect(arabic.validRows).toHaveLength(1);
   });
   it("refuses a zero, negative or unreadable opening quantity, a pair given twice, a missing column and a column the template does not know", async () => {
-    const rows = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: 0 }, { "Warehouse Code": "WH-01", "Material Code": "STL", Quantity: -3 }, { "Warehouse Code": "WH-01", "Material Code": "OKM", Quantity: "abc" }, { "Warehouse Code": "WH-01", "Material Code": "DUP", Quantity: 1 }, { "Warehouse Code": "WH-01", "Material Code": "DUP", Quantity: 2 }, { "Warehouse Code": "WH-02", "Material Code": "DUP", Quantity: 2 }]) });
-    expect(rows.errors.map(error => [error.rowNumber, error.code, error.field])).toEqual([[2, "IMPORT_INVALID_NUMBER", "quantity"], [3, "IMPORT_INVALID_NUMBER", "quantity"], [4, "IMPORT_INVALID_NUMBER", "quantity"], [6, "IMPORT_DUPLICATE_FILE_KEY", "materialCode"]]);
+    const rows = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: 0, "Unit Cost": 5 }, { "Warehouse Code": "WH-01", "Material Code": "STL", Quantity: -3, "Unit Cost": 5 }, { "Warehouse Code": "WH-01", "Material Code": "OKM", Quantity: "abc", "Unit Cost": 5 }, { "Warehouse Code": "WH-01", "Material Code": "DUP", Quantity: 1, "Unit Cost": 5 }, { "Warehouse Code": "WH-01", "Material Code": "DUP", Quantity: 2, "Unit Cost": 5 }, { "Warehouse Code": "WH-02", "Material Code": "DUP", Quantity: 2, "Unit Cost": 5 }, { "Warehouse Code": "WH-01", "Material Code": "NOPRICE", Quantity: 2 }, { "Warehouse Code": "WH-01", "Material Code": "FREE", Quantity: 2, "Unit Cost": 0 }]) });
+    expect(rows.errors.map(error => [error.rowNumber, error.code, error.field])).toEqual([[2, "IMPORT_INVALID_NUMBER", "quantity"], [3, "IMPORT_INVALID_NUMBER", "quantity"], [4, "IMPORT_INVALID_NUMBER", "quantity"], [6, "IMPORT_DUPLICATE_FILE_KEY", "materialCode"], [8, "IMPORT_INVALID_NUMBER", "unitCost"], [9, "IMPORT_INVALID_NUMBER", "unitCost"]]); // a missing or zero price is refused: the stock would be valued at nothing
     expect(rows.validRows.map(row => (row as { rowNumber: number }).rowNumber)).toEqual([5, 7]); // same material in another warehouse is a different pair
     const missing = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM" }]) });
     expect(missing.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "quantity" }));
-    const unknown = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: 1, "Unit Cost": 5 }]) });
+    expect(missing.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "unitCost" }));
+    const unknown = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: 1, "Unit Cost": 5, Supplier: "x" }]) });
     expect(unknown.errors).toContainEqual(expect.objectContaining({ code: "IMPORT_UNSUPPORTED_COLUMN" }));
   });
   it("accepts the named materials template and rejects duplicated or unsupported columns", async () => {

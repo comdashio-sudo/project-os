@@ -340,6 +340,45 @@ describe("FieldEntry: receiving against a purchase order (G-031)", () => {
     expect(screen.getByRole("status").textContent).toContain("Saved: Received: 10 bag CEM from PO-1");
   });
 
+  it("receives into the warehouse by default (the cost is charged when the material is issued), and into no warehouse when it is a direct delivery to site", () => {
+    open();
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "10" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.receipt).toHaveBeenLastCalledWith(expect.objectContaining({ receiptMode: "warehouse_stock", warehouseId: "w1" }));
+    fireEvent.click(screen.getByText("Record another"));
+    fireEvent.click(screen.getByLabelText(/Direct delivery to site/));
+    expect(screen.queryByLabelText("Warehouse")).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "3" } });
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.receipt).toHaveBeenLastCalledWith(expect.objectContaining({ receiptMode: "direct_to_site", warehouseId: undefined, receivedQuantity: 3 }));
+  });
+
+  it("will not receive into a warehouse when the project has none, but still offers the direct delivery", () => {
+    open({ ...withReceive, warehouses: [] });
+    fireEvent.change(screen.getByLabelText(/Quantity received/), { target: { value: "3" } });
+    expect(screen.getByRole("alert").textContent).toContain("no active warehouse");
+    expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(/Direct delivery to site/));
+    expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("issues priced stock at its average and asks for no cost; stock nobody priced still asks for one", () => {
+    load({ ...context, materials: [{ ...context.materials[0], onHand: [{ warehouseId: "w1", quantity: 120, averageCost: 15 }] }, { ...context.materials[1], onHand: [{ warehouseId: "w1", quantity: 5, averageCost: null }] }] });
+    fireEvent.click(screen.getByText("Issue material"));
+    fireEvent.click(screen.getByText(/CEM · Cement/));
+    expect(screen.queryByLabelText("Unit cost")).toBeNull();
+    expect(screen.getByText(/Issued at the stock's average cost/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "10" } });
+    expect(screen.getByText("150.00")).toBeTruthy(); // 10 x 15
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.issue).toHaveBeenLastCalledWith(expect.objectContaining({ materialId: "m1", issuedQuantity: 10, unitCost: undefined }));
+    fireEvent.click(screen.getByText("Record another"));
+    fireEvent.click(screen.getByText(/NEW · Never issued/));
+    expect(screen.getByLabelText("Unit cost")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
+    expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true); // no average and no typed cost
+  });
+
   it("cannot save without a quantity, and a typed cost beats the last price", () => {
     open();
     expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true);

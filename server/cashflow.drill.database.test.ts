@@ -79,7 +79,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("cash flow, committed cos
     // an order for a WBS item of another project is refused
     await expect(db.createPurchaseOrderForTenant({ userId: users.ops, ...scope, purchaseOrderNumber: "PO-X", supplierName: "S", orderDate: day("2026-10-01"), amount: 1, currency: "SAR", summary: "Foreign item", wbsItemId: uid(999) })).rejects.toThrow();
     // 40 bags at 10 = 400 received against PO-1
-    const grn = await db.createGoodsReceiptNoteForTenant({ userId: users.ops, ...scope, grnNumber: "GRN-1", purchaseOrderId: ids.po1, materialId: MAT, receivedQuantity: 40, rejectedQuantity: 0, unitCost: 10, unitOfMeasure: "bag", receivedAt: day("2026-10-08") });
+    const grn = await db.createGoodsReceiptNoteForTenant({ userId: users.ops, ...scope, grnNumber: "GRN-1", purchaseOrderId: ids.po1, materialId: MAT, receivedQuantity: 40, rejectedQuantity: 0, unitCost: 10, unitOfMeasure: "bag", receiptMode: "direct_to_site", receivedAt: day("2026-10-08") });
     ids.grn = grn.id;
     const [cost] = await connection.query<{ wbsItemId: string; amount: string; category: string; sourceType: string; sourceId: string }[]>("SELECT wbsItemId, amount, category, sourceType, sourceId FROM cost_entries WHERE sourceId = ?", [ids.grn]);
     expect(cost[0]).toMatchObject({ wbsItemId: W1, amount: "400.00", category: "materials", sourceType: "goods_receipt_note", sourceId: ids.grn });

@@ -14,7 +14,7 @@ const isUrl = (value: string | undefined) => { try { const url = new URL(value ?
 let connection: mysql.Connection;
 const users = { keeper: 0, buyer: 0, reader: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@opening.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
-const csv = (...lines: string[]) => Buffer.from(["Warehouse Code,Material Code,Quantity", ...lines].join("\n"), "utf8").toString("base64");
+const csv = (...lines: string[]) => Buffer.from(["Warehouse Code,Material Code,Quantity,Unit Cost", ...lines].join("\n"), "utf8").toString("base64");
 
 async function clear() {
   await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [T]);
@@ -64,7 +64,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
 
   it("reports every unusable row by number and field, and loads nothing", async () => {
     const keeper = callerFor(users.keeper, "opn-keeper");
-    const bad = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "bad.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,10", "WH-NOPE,CEM,5", "WH-OLD,STL,5", "WH-OTHER,CEM,5", "WH-01,OLDM,5", "WH-01,STL,0", "WH-01,CEM,3") });
+    const bad = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "bad.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,10,12.5", "WH-NOPE,CEM,5,12.5", "WH-OLD,STL,5,12.5", "WH-OTHER,CEM,5,12.5", "WH-01,OLDM,5,12.5", "WH-01,STL,0,12.5", "WH-01,CEM,3,12.5", "WH-01,STL,4", "WH-01,STL,4,0") });
     expect(bad.status).toBe("uploaded");
     expect(bad.errors.map(error => [error.rowNumber, error.code, error.field])).toEqual(expect.arrayContaining([
       [3, "IMPORT_REFERENCE_NOT_FOUND", "warehouseCode"], // unknown warehouse
@@ -73,6 +73,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
       [6, "IMPORT_REFERENCE_NOT_FOUND", "materialCode"], // inactive material
       [7, "IMPORT_INVALID_NUMBER", "quantity"], // zero is not a balance
       [8, "IMPORT_DUPLICATE_FILE_KEY", "materialCode"], // the pair WH-01/CEM is already in the file
+      [9, "IMPORT_INVALID_NUMBER", "unitCost"], // no price: the stock would be worth nothing
+      [10, "IMPORT_INVALID_NUMBER", "unitCost"], // a price of zero is the same
     ]));
     await expect(keeper.dataImports.confirm({ ...scope, importId: bad.id })).rejects.toThrow("PROJECT_OS_IMPORT_NOT_CONFIRMABLE");
     expect(await transactions()).toBe(0);
@@ -80,38 +82,40 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
 
   it("loads the opening stock as the first movement, with a row result and an audit row", async () => {
     const keeper = callerFor(users.keeper, "opn-keeper");
-    const analysis = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "opening.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,120", "WH-01,STL,2.5") });
+    const analysis = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "opening.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,120,12.5", "WH-01,STL,2.5,12.5") });
     expect(analysis).toMatchObject({ status: "validated", errors: [] });
     await expect(keeper.dataImports.confirm({ ...scope, importId: analysis.id })).resolves.toMatchObject({ status: "completed", createdRows: 2, updatedRows: 0, skippedRows: 0 });
     expect(await onHand(WH1, CEM)).toBe(120); expect(await onHand(WH1, STL)).toBe(2.5);
     const [moves] = await connection.query<{ transactionType: string; note: string; referenceNumber: string }[]>("SELECT transactionType, note, referenceNumber FROM warehouse_inventory_transactions WHERE tenantId = ?", [T]);
     expect(moves.every(move => move.transactionType === "adjustment" && move.note === "Opening balance (data import)" && move.referenceNumber.startsWith("OPENING-"))).toBe(true);
     const [[audit]] = await connection.query<any[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'data_import_completed' AND entityId = ?", [T, analysis.id]);
-    expect(JSON.parse(audit.metadata)).toMatchObject({ moduleCode: "openingBalances", createdRows: 2, totalQuantity: 122.5 });
+    expect(JSON.parse(audit.metadata)).toMatchObject({ moduleCode: "openingBalances", createdRows: 2, totalQuantity: 122.5, totalValue: 1531.25 });
+    const [valued] = await connection.query<{ unitCost: string; valueDelta: string }[]>("SELECT unitCost, valueDelta FROM warehouse_inventory_transactions WHERE tenantId = ? AND materialId = ?", [T, CEM]);
+    expect(valued.map(row => [Number(row.unitCost), Number(row.valueDelta)])).toEqual([[12.5, 1500]]); // 120 x 12.5: the opening stock is valued at the price in the file
     const detail = await keeper.dataImports.detail({ ...scope, importId: analysis.id });
     expect(detail.rowResults.map(row => [row.rowKey, row.action])).toEqual([["WH-01|CEM", "created"], ["WH-01|STL", "created"]]);
   });
 
   it("never opens a pair that already has movements: refused by default, skipped on request, and stock with history is not edited", async () => {
     const keeper = callerFor(users.keeper, "opn-keeper");
-    const again = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "again.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,999") });
+    const again = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "again.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,999,12.5") });
     await expect(keeper.dataImports.confirm({ ...scope, importId: again.id })).rejects.toThrow("PROJECT_OS_IMPORT_DUPLICATE_DETECTED");
     expect(await onHand(WH1, CEM)).toBe(120);
-    const mixed = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "mixed.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,999", "WH-01,STL,999"), duplicateMode: "skip_duplicates" });
+    const mixed = await keeper.dataImports.analyze({ ...scope, moduleCode: "openingBalances", fileName: "mixed.csv", sourceFormat: "csv", base64: csv("WH-01,CEM,999,12.5", "WH-01,STL,999,12.5"), duplicateMode: "skip_duplicates" });
     // both pairs already have movements, so everything is skipped and nothing changes
     await expect(keeper.dataImports.confirm({ ...scope, importId: mixed.id })).resolves.toMatchObject({ createdRows: 0, skippedRows: 2 });
     expect(await onHand(WH1, CEM)).toBe(120); expect(await onHand(WH1, STL)).toBe(2.5);
   });
 
   it("is open only to someone who may manage inventory: not a buyer, not a read-only user", async () => {
-    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "x.csv", sourceFormat: "csv" as const, base64: csv("WH-01,CEM,1") };
+    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "x.csv", sourceFormat: "csv" as const, base64: csv("WH-01,CEM,1,12.5") };
     await expect(callerFor(users.buyer, "opn-buyer").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
     await expect(callerFor(users.reader, "opn-reader").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
   });
 
   it("tells a person who uploads the very same file twice that it is a duplicate, and leaves the first upload alone", async () => {
     const keeper = callerFor(users.keeper, "opn-keeper");
-    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "same.csv", sourceFormat: "csv" as const, base64: csv("WH-01,STL,777") };
+    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "same.csv", sourceFormat: "csv" as const, base64: csv("WH-01,STL,777,12.5") };
     const first = await keeper.dataImports.analyze(file);
     const countImports = async () => { const [rows] = await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]); return Number(rows[0].n); };
     const before = await countImports();

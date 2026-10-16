@@ -505,8 +505,8 @@ export const projectErrorMessages = {
     en: "The movement cannot result in a negative stock balance.",
   },
   PROJECT_OS_MATERIAL_ISSUE_AMOUNT_INVALID: {
-    ar: "أدخل كمية صرف وتكلفة وحدة موجبتين.",
-    en: "Enter a positive issued quantity and unit cost.",
+    ar: "أدخل كمية صرف موجبة (وتكلفة وحدة موجبة إن أدخلتها).",
+    en: "Enter a positive issued quantity (and a positive unit cost if you enter one).",
   },
   PROJECT_OS_MATERIAL_ISSUE_ACTIVITY_WBS_MISMATCH: {
     ar: "النشاط المحدد لا يتبع بند WBS المختار.",
@@ -887,6 +887,22 @@ export const projectErrorMessages = {
   PROJECT_OS_WBS_NOT_FOUND: {
     ar: "بند العمل غير موجود في هذا المشروع.",
     en: "The work item was not found in this project.",
+  },
+  PROJECT_OS_GRN_WAREHOUSE_REQUIRED: {
+    ar: "اختر المستودع الذي يدخله هذا الاستلام، أو سجّله «توريدًا مباشرًا للموقع» إن لم يمرّ بمستودع.",
+    en: "Choose the warehouse this receipt goes into, or record it as a direct delivery to site if it never passes through a warehouse.",
+  },
+  PROJECT_OS_GRN_WAREHOUSE_NOT_ALLOWED: {
+    ar: "التوريد المباشر للموقع لا يدخل مستودعًا؛ أزل المستودع أو غيّر نوع الاستلام إلى «يدخل المستودع».",
+    en: "A direct delivery to site does not enter a warehouse; remove the warehouse or change the receipt to \"into the warehouse\".",
+  },
+  PROJECT_OS_INVENTORY_UNIT_COST_INVALID: {
+    ar: "تكلفة الوحدة يجب أن تكون موجبة، ولا تُدخَل مع حركة تُخرج مخزونًا (الإخراج يُقيَّم بالمتوسط المرجّح).",
+    en: "The unit cost must be positive, and is not entered with a movement that takes stock out (outgoing stock is valued at the weighted average).",
+  },
+  PROJECT_OS_MATERIAL_ISSUE_COST_REQUIRED: {
+    ar: "هذا المخزون بلا سعر مسجَّل، فلا يوجد متوسط يُصرف به. أدخل تكلفة الوحدة لهذا الصرف.",
+    en: "This stock has no recorded price, so there is no average to issue it at. Enter the unit cost for this issue.",
   },
   PROJECT_OS_INVENTORY_REASON_REQUIRED: {
     ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
