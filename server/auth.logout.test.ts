@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const store = vi.hoisted(() => ({ revoke: vi.fn(async () => true), revokeAllForUser: vi.fn(async () => 2), create: vi.fn(), findLive: vi.fn() }));
+vi.mock("./_core/sessionStore", () => ({ sessionStore: store }));
+
 import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
@@ -41,6 +45,8 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
   return { ctx, clearedCookies };
 }
 
+beforeEach(() => { store.revoke.mockClear(); store.revokeAllForUser.mockClear(); });
+
 describe("auth.logout", () => {
   it("clears the session cookie and reports success", async () => {
     const { ctx, clearedCookies } = createAuthContext();
@@ -58,5 +64,28 @@ describe("auth.logout", () => {
       httpOnly: true,
       path: "/",
     });
+  });
+
+  it("ends the session it was called from in the server, before clearing the cookie", async () => {
+    const { ctx, clearedCookies } = createAuthContext();
+    await appRouter.createCaller({ ...ctx, sessionId: "session-1" }).auth.logout();
+    expect(store.revoke).toHaveBeenCalledWith("session-1");
+    expect(clearedCookies).toHaveLength(1);
+  });
+
+  it("still clears the cookie, and revokes nothing, when the caller has no session", async () => {
+    const { ctx, clearedCookies } = createAuthContext();
+    await appRouter.createCaller({ ...ctx, user: null }).auth.logout();
+    expect(store.revoke).not.toHaveBeenCalled();
+    expect(clearedCookies).toHaveLength(1);
+  });
+
+  it("'sign out everywhere' revokes every session of the signed-in user, refuses a stranger, and clears the cookie", async () => {
+    const { ctx, clearedCookies } = createAuthContext();
+    expect(await appRouter.createCaller(ctx).auth.logoutEverywhere()).toEqual({ success: true, ended: 2 });
+    expect(store.revokeAllForUser).toHaveBeenCalledWith(1);
+    expect(clearedCookies).toHaveLength(1);
+    await expect(appRouter.createCaller({ ...ctx, user: null }).auth.logoutEverywhere()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(store.revokeAllForUser).toHaveBeenCalledTimes(1);
   });
 });

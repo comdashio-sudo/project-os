@@ -72,7 +72,7 @@ await connection.query("INSERT INTO commitments (id, tenantId, projectId, code, 
 await connection.query("INSERT INTO purchase_orders (id, tenantId, projectId, commitmentId, wbsItemId, purchaseOrderNumber, supplierName, orderDate, amount, currency, summary, status, createdByUserId) VALUES (UUID(), ?, ?, ?, ?, ?, 'Measure Supplier', NOW(), 100000, 'SAR', 'Cement for measuring', 'issued', ?)", [tenantId, projectId, commitmentId, wbs.id, `PO-${suffix}`, user.id]);
 
 // ---------------------------------------------------------------- browser
-const token = await sdk.createSessionToken(openId, { name: user.name ?? "Demo Admin" });
+const token = await sdk.issueSession(openId, { name: user.name ?? "Demo Admin" });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const results = [];
 

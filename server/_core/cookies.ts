@@ -45,6 +45,7 @@ export function getSessionCookieOptions(
     // Lax: the cookie is not sent on cross-site sub-requests, and it works over
     // plain http on localhost (SameSite=None would require Secure).
     sameSite: "lax",
-    secure: isSecureRequest(req),
+    // In production the cookie is Secure whatever the proxy says about the connection; only a local http session may go without.
+    secure: process.env.NODE_ENV === "production" || isSecureRequest(req),
   };
 }

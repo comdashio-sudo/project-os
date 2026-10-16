@@ -24,8 +24,9 @@ function memoryRepository() {
     async latestCreatedAt(emailHash) { return rows.filter(r => r.emailHash === emailHash).map(r => r.createdAt).sort((a, b) => b.getTime() - a.getTime())[0] ?? null; },
     async retireOpen(emailHash, now) { rows.filter(r => r.emailHash === emailHash && !r.consumedAt).forEach(r => { r.consumedAt = now; }); },
     async insert(row) { rows.push({ ...row, attempts: 0, consumedAt: null }); },
-    async findOpen(emailHash, now) { return rows.filter(r => r.emailHash === emailHash && !r.consumedAt && r.expiresAt > now).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null; },
-    async addAttempt(id) { const row = rows.find(r => r.id === id); if (row) row.attempts += 1; },
+    // A snapshot, like a database read: a caller that decides from `attempts` is deciding from a number that other callers may already have moved.
+    async findOpen(emailHash, now) { const row = rows.filter(r => r.emailHash === emailHash && !r.consumedAt && r.expiresAt > now).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]; return row ? { ...row } : null; },
+    async claimAttempt(id, max) { const row = rows.find(r => r.id === id); if (!row || row.consumedAt || row.attempts >= max) return false; row.attempts += 1; return true; },
     async consume(id, now) { const row = rows.find(r => r.id === id); if (!row || row.consumedAt) return false; row.consumedAt = now; return true; },
   };
   return { rows, repository };
@@ -102,6 +103,12 @@ describe("requesting a code", () => {
     await expect(service.requestCode(ADDRESS)).resolves.toBeTruthy();
   });
 
+  it("answers a request the same way for any address: the service knows no accounts, so it cannot say whether one exists", async () => {
+    const { service } = setup();
+    const answers = await Promise.all(["known@example.test", "never-seen@example.test", "Third@Example.TEST"].map(address => service.requestCode(address)));
+    expect(new Set(answers.map(answer => JSON.stringify(answer))).size).toBe(1);
+  });
+
   it("counts addresses separately", async () => {
     const { service } = setup();
     await service.requestCode("a@example.test");
@@ -154,6 +161,30 @@ describe("verifying a code", () => {
     expect(rows[0].attempts).toBe(MAX_ATTEMPTS);
     expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
     expect(rows[0].consumedAt).not.toBeNull();
+  });
+
+  it("never lets simultaneous wrong guesses pass the limit of five, and the right code is refused afterwards", async () => {
+    const { service, rows } = setup();
+    await service.requestCode(ADDRESS);
+    const results = await Promise.allSettled(Array.from({ length: 12 }, () => service.verifyCode(ADDRESS, "999999")));
+    expect(results.every(r => r.status === "rejected")).toBe(true);
+    expect(rows[0].attempts).toBe(MAX_ATTEMPTS);
+    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
+  });
+
+  it("spends a guess even on the right code, so five simultaneous tries cannot become six", async () => {
+    const { service, rows } = setup();
+    await service.requestCode(ADDRESS);
+    const results = await Promise.allSettled([...Array.from({ length: 5 }, () => service.verifyCode(ADDRESS, "999999")), service.verifyCode(ADDRESS, "123456"), service.verifyCode(ADDRESS, "123456")]);
+    expect(rows[0].attempts).toBeLessThanOrEqual(MAX_ATTEMPTS);
+    expect(results.filter(r => r.status === "fulfilled").length).toBeLessThanOrEqual(1);
+  });
+
+  it("a code that was consumed is dead: the same code cannot start a second session", async () => {
+    const { service } = setup();
+    await service.requestCode(ADDRESS);
+    await expect(service.verifyCode(ADDRESS, "123456")).resolves.toEqual({ email: "engineer@example.test" });
+    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
   });
 
   it("lets exactly one of two simultaneous correct submissions through", async () => {

@@ -3,7 +3,9 @@
 // Rules that make a six-digit code safe enough:
 //  - only an HMAC of the code is stored, never the code, and never the address
 //    (the table keeps a hash of the normalized address);
-//  - a code lives 10 minutes, accepts 5 wrong guesses, and works once;
+//  - a code lives 10 minutes, accepts 5 guesses (each one is claimed atomically
+//    BEFORE it is compared, so simultaneous guesses cannot exceed the limit),
+//    and works once;
 //  - a new request retires the open code, at most 5 requests an hour per
 //    address, and at least 30 seconds between two;
 //  - every failure to verify looks the same to the caller.
@@ -31,7 +33,12 @@ export interface LoginCodeRepository {
   retireOpen(emailHash: string, now: Date): Promise<void>;
   insert(row: Omit<LoginCodeRow, "attempts" | "consumedAt">): Promise<void>;
   findOpen(emailHash: string, now: Date): Promise<LoginCodeRow | null>;
-  addAttempt(id: string): Promise<void>;
+  /**
+   * Takes one of the `max` guesses a code allows, atomically: true only for a call
+   * that got a free guess. Two simultaneous guesses on a code with one guess left
+   * cannot both get it, which is what a read-then-increment could not promise.
+   */
+  claimAttempt(id: string, max: number): Promise<boolean>;
   /** true only for the call that actually consumed the row. */
   consume(id: string, now: Date): Promise<boolean>;
 }
@@ -122,14 +129,12 @@ export function createEmailCodeService(dependencies: EmailCodeServiceDependencie
 
       const open = await repository.findOpen(emailHash, at);
       if (!open) throw new EmailCodeError("CODE_INVALID");
-      if (open.attempts >= MAX_ATTEMPTS) {
+      // Every guess, right or wrong, spends one of the five before it is looked at.
+      if (!(await repository.claimAttempt(open.id, MAX_ATTEMPTS))) {
         await repository.consume(open.id, at);
         throw new EmailCodeError("CODE_INVALID");
       }
-      if (!equalHex(open.codeHash, hashCode(secret, emailHash, code))) {
-        await repository.addAttempt(open.id);
-        throw new EmailCodeError("CODE_INVALID");
-      }
+      if (!equalHex(open.codeHash, hashCode(secret, emailHash, code))) throw new EmailCodeError("CODE_INVALID");
       if (!(await repository.consume(open.id, at))) throw new EmailCodeError("CODE_INVALID");
       return { email };
     },

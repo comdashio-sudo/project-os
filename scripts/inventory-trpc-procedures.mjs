@@ -4,7 +4,8 @@ import { appRouter } from "../server/routers.ts";
 const allowedFrameworkExceptions = new Map([
   ["access.check", "فحص إطار الوصول العام؛ تغطيه حراسة tRPC واختبارات الواجهة."],
   ["auth.me", "قراءة جلسة OAuth؛ تغطيها طبقة المصادقة لا قاعدة أعمال."],
-  ["auth.logout", "إلغاء جلسة؛ له اختبار وحدة مستقل لمسح ملف الارتباط."],
+  ["auth.logout", "إلغاء جلسة في الخادم ثم مسح ملف الارتباط؛ اختبار وحدة مستقل واختبار حي في auth.session.database.test.ts."],
+  ["auth.logoutEverywhere", "إنهاء كل جلسات المستخدم؛ اختبار حي في auth.session.database.test.ts (يتحقق أن كل نسخ ملف الارتباط تموت)."],
   ["system.health", "فحص مراقبة عام بلا نطاق أعمال أو كتابة."],
 ]);
 const validate = process.argv.includes("--validate");

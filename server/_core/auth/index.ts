@@ -16,6 +16,6 @@ export function registerDefaultAuthRoutes(app: Express) {
     google: googleConfig ? { config: googleConfig, keys: googleKeys() } : null,
     secret: ENV.cookieSecret,
     upsertUser: user => upsertUser(user),
-    createSessionToken: (openId, options) => sdk.createSessionToken(openId, options),
+    createSessionToken: (openId, options) => sdk.issueSession(openId, { name: options.name, expiresInMs: options.expiresInMs }),
   });
 }
