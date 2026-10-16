@@ -129,6 +129,8 @@ export const salaryStructures = mysqlTable(
     gosiRate: decimal("gosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
     otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).default("0").notNull(),
     eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).default("0").notNull(),
+    // 'computed' = the accrual follows the length of service and the tenant's rule; 'manual' = the amount above, as entered before work order 3.
+    eosAccrualMode: mysqlEnum("eosAccrualMode", ["computed", "manual"]).default("computed").notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
     active: boolean("active").default(true).notNull(),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
@@ -144,7 +146,15 @@ export const tenantSettings = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
     // Labour loading and the working calendar (G-015, G-016, G-124). Defaults load nothing and use the Sunday-Thursday week.
+    // Deprecated: the single rate used before work order 3. Nothing reads it any more; the two columns below replace it. Kept (not dropped) so no data is lost.
     employerGosiRate: decimal("employerGosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
+    // Owner defaults (work order 3): 11.75% for a Saudi, 2% for anyone else, on basic + housing.
+    employerGosiRateSaudi: decimal("employerGosiRateSaudi", { precision: 7, scale: 6 }).default("0.117500").notNull(),
+    employerGosiRateNonSaudi: decimal("employerGosiRateNonSaudi", { precision: 7, scale: 6 }).default("0.020000").notNull(),
+    // End-of-service accrual: months of pay per year of service, for the first N years and after (owner default: 0.5 for 5 years, then 1).
+    eosFirstPeriodYears: int("eosFirstPeriodYears").default(5).notNull(),
+    eosFirstPeriodMonthsPerYear: decimal("eosFirstPeriodMonthsPerYear", { precision: 5, scale: 2 }).default("0.50").notNull(),
+    eosLaterMonthsPerYear: decimal("eosLaterMonthsPerYear", { precision: 5, scale: 2 }).default("1.00").notNull(),
     indirectLoadingPercent: decimal("indirectLoadingPercent", { precision: 7, scale: 4 }).default("0").notNull(),
     hoursPerDay: decimal("hoursPerDay", { precision: 5, scale: 2 }).default("8").notNull(),
     workingDays: varchar("workingDays", { length: 20 }).default("0,1,2,3,4").notNull(),
@@ -208,6 +218,10 @@ export const payrollEntries = mysqlTable(
     gosiDeduction: decimal("gosiDeduction", { precision: 18, scale: 2 }).notNull(),
     otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).notNull(),
     eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).notNull(),
+    // The loaded cost the run was made with, kept on the entry so a later change of the tenant's rates never moves a closed month.
+    employerSocialInsurance: decimal("employerSocialInsurance", { precision: 18, scale: 2 }).default("0").notNull(),
+    indirectLoading: decimal("indirectLoading", { precision: 18, scale: 2 }).default("0").notNull(),
+    nationalityClass: varchar("nationalityClass", { length: 12 }),
     currency: varchar("currency", { length: 3 }).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
@@ -225,9 +239,29 @@ export const payrollAllocations = mysqlTable(
     activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
     amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
     costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    // 'auto_hours' = shared out by the approved hours of the period; the hours and the share are kept so the split can be re-derived.
+    source: mysqlEnum("source", ["manual", "auto_hours"]).default("manual").notNull(),
+    hoursBasis: decimal("hoursBasis", { precision: 12, scale: 2 }),
+    sharePercent: decimal("sharePercent", { precision: 9, scale: 4 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => [index("payroll_allocations_tenant_project_idx").on(table.tenantId, table.projectId), uniqueIndex("payroll_allocations_cost_entry_unique").on(table.costEntryId)],
+);
+
+/** Every manual change to a payroll allocation: who, what it was, what it became, and why. The reason is not optional. */
+export const payrollAllocationAdjustments = mysqlTable(
+  "payroll_allocation_adjustments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    allocationId: varchar("allocationId", { length: 36 }).notNull().references(() => payrollAllocations.id),
+    previousAmount: decimal("previousAmount", { precision: 18, scale: 2 }).notNull(),
+    newAmount: decimal("newAmount", { precision: 18, scale: 2 }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    adjustedByUserId: int("adjustedByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("payroll_allocation_adjustments_allocation_idx").on(table.allocationId, table.createdAt), index("payroll_allocation_adjustments_tenant_idx").on(table.tenantId, table.createdAt)],
 );
 
 export const employeeAssignments = mysqlTable(
@@ -285,6 +319,8 @@ export const employeeTimeEntries = mysqlTable(
     // How the cost of the approved hours was priced: from payroll (loaded) or from the resource plan rate. The rate itself is not kept here: it would reveal pay.
     rateSource: mysqlEnum("rateSource", ["loaded", "resource"]),
     progressEntryId: varchar("progressEntryId", { length: 36 }).references(() => progressEntries.id),
+    // Set when an approved payroll shared this employee's pay out by hours: the provisional cost of these hours was replaced by the payroll's, so it must not be counted again.
+    supersededByPayrollEntryId: varchar("supersededByPayrollEntryId", { length: 36 }),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     reviewedByUserId: int("reviewedByUserId").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
