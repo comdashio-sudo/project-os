@@ -37,11 +37,13 @@ function parseBlueprint(source: string) {
 
 const services = parseBlueprint(text("render.yaml"));
 const web = services.find(s => s.type === "web")!;
-const cron = services.find(s => s.type === "cron")!;
+const crons = services.filter(s => s.type === "cron");
+const cron = crons.find(s => s.name === "project-os-license-expiry")!;
+const emailCron = crons.find(s => s.name === "project-os-email-notifications")!;
 
 describe("render.yaml", () => {
-  it("describes one web service and one cron job", () => {
-    expect(services.map(s => s.type).sort()).toEqual(["cron", "web"]);
+  it("describes one web service and two cron jobs (daily licence and snapshots, hourly e-mail)", () => {
+    expect(services.map(s => s.type).sort()).toEqual(["cron", "cron", "web"]);
   });
 
   it("never deploys by itself and checks health on /healthz", () => {
@@ -56,11 +58,23 @@ describe("render.yaml", () => {
 
   it("holds no secret value: every sensitive variable is asked for or generated", () => {
     const sensitive = /SECRET|PASSWORD|TOKEN|KEY|DATABASE_URL|EMAIL/;
-    for (const variable of [...web.env, ...cron.env]) {
+    for (const variable of [...web.env, ...cron.env, ...emailCron.env]) {
+      if (variable.key === "EMAIL_NOTIFICATIONS_ENABLED") continue; // an on/off switch, not a secret: its value is checked below
       if (!sensitive.test(variable.key)) continue;
       expect(variable.value, variable.key).toBeUndefined();
       expect(variable.sync === false || variable.generateValue === true || variable.fromService === true, variable.key).toBe(true);
     }
+  });
+
+  it("keeps e-mail notifications off in the blueprint until the owner switches them on", () => {
+    expect(web.env.find(e => e.key === "EMAIL_NOTIFICATIONS_ENABLED")?.value).toBe("false");
+  });
+
+  it("runs the e-mail cycle hourly through the same secret, with nothing else", () => {
+    expect(emailCron.fields.schedule).toBe('"0 * * * *"');
+    expect(emailCron.fields.startCommand).toContain("/api/scheduled/emailNotifications");
+    expect(emailCron.fields.startCommand).toContain("Authorization: Bearer $CRON_SECRET");
+    expect(emailCron.env.map(e => e.key).sort()).toEqual(["APP_BASE_URL", "CRON_SECRET"]);
   });
 
   it("keeps the language model off in the blueprint", () => {

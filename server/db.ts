@@ -56,6 +56,7 @@ import {
   payrollEntries,
   payrollAllocations,
   payrollAllocationAdjustments,
+  emailNotificationPreferences,
   employeeAssignments,
   employeeAttendance,
   employeePerformanceExclusions,
@@ -117,6 +118,7 @@ import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
 import { calculateEmployeePerformance, type PerformanceSourceRecord, type PerformanceSourceType } from "./domain/employeePerformance";
 import { calculateOperationalCashFlow, monthlyNetCashFlow } from "./domain/cashFlow";
+import { emailNotificationsActive, enqueueSupportEscalationEmails, flushEmailSoon } from "./emailNotifications";
 import { adjustmentAtAverage, issueToWorkCost, pricedReceipt, stockPosition, transferValuation, valuedIssue, type StockPosition } from "./domain/inventoryValuation";
 import { calculateProjectHealth } from "./domain/projectHealth";
 import { calculatePayrollBreakdown, calculatePayrollEntryBreakdown } from "./domain/payroll";
@@ -1025,7 +1027,10 @@ async function notifySupportOwners(tx: DatabaseTransaction, input: { tenantId: s
   const alreadyOpen = new Set(open.map(row => row.recipientUserId));
   const recipients = managers.filter(id => !alreadyOpen.has(id));
   if (!recipients.length) return 0;
-  await tx.insert(internalNotifications).values(recipients.map(recipientUserId => ({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId, projectId: null, notificationCode: "SUPPORT_TICKET_ESCALATED", entityType: "support_ticket", entityId: input.ticketId, payload: JSON.stringify({ reason: input.reason }) })));
+  const notices = recipients.map(recipientUserId => ({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId, projectId: null, notificationCode: "SUPPORT_TICKET_ESCALATED", entityType: "support_ticket", entityId: input.ticketId, payload: JSON.stringify({ reason: input.reason }) }));
+  await tx.insert(internalNotifications).values(notices);
+  // The same managers by e-mail, when e-mail is switched on: one mail per in-app notice, so the two can never disagree about how often someone is told.
+  await enqueueSupportEscalationEmails(tx, { tenantId: input.tenantId, ticketId: input.ticketId, reason: input.reason, notified: notices.map(notice => ({ notificationId: notice.id, userId: notice.recipientUserId })) });
   return recipients.length;
 }
 
@@ -1048,12 +1053,13 @@ async function generateSupportReply(input: { db: NonNullable<Awaited<ReturnType<
     } catch { /* A conservative fallback below preserves escalation when inference is unavailable. */ }
   }
   await input.db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: null, senderType: "assistant", body, citationsJson: JSON.stringify(citations) }); if (shouldEscalate) { await tx.update(supportTickets).set({ escalationStatus: "requested" }).where(eq(supportTickets.id, input.ticketId)); await notifySupportOwners(tx, { tenantId: input.tenantId, ticketId: input.ticketId, reason: "assistant_could_not_answer" }); } await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: null, action: "support.auto_response_generated", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ sourceArticleIds: citations, sourceCandidateCount: articles.length, escalated: shouldEscalate }) }); });
+  flushEmailSoon(input.db);
 }
 
 export async function createSupportTicketForTenant(input: { userId: number; tenantId: string; subject: string; category: "technical" | "billing" | "account" | "general"; priority: "low" | "normal" | "high" | "urgent"; body: string; tags?: string[]; autoRespond?: boolean }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available"); await assertSupportMembership(input.userId, input.tenantId); if (!input.subject.trim() || !input.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
   const tags = normalizeSupportTags(input.tags, [input.category, `priority:${input.priority}`]); const ticketId = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(supportTickets).values({ id: ticketId, tenantId: input.tenantId, createdByUserId: input.userId, subject: input.subject.trim().slice(0, 255), category: input.category, priority: input.priority, status: "open", escalationStatus: input.priority === "urgent" ? "requested" : "none", tagsJson: JSON.stringify(tags) }); await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId, authorUserId: input.userId, senderType: "customer", body: input.body.trim().slice(0, 8000) }); if (input.priority === "urgent") await notifySupportOwners(tx, { tenantId: input.tenantId, ticketId, reason: "urgent" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_created", entityType: "support_ticket", entityId: ticketId, metadata: JSON.stringify({ category: input.category, priority: input.priority, tags }) }); });
-  if (input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId, requestBody: input.body }); return { id: ticketId };
+  if (input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId, requestBody: input.body }); flushEmailSoon(db); return { id: ticketId };
 }
 
 export async function listSupportTicketsForTenant(input: { userId: number; tenantId: string }) {
@@ -1066,7 +1072,7 @@ export async function getSupportTicketForTenant(input: { userId: number; tenantI
 
 export async function replyToSupportTicket(input: { userId: number; tenantId: string; ticketId: string; body: string; autoRespond?: boolean }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const access = await assertSupportMembership(input.userId, input.tenantId); const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.id, input.ticketId), eq(supportTickets.tenantId, input.tenantId))).limit(1); if (!ticket || (!canManageSupport(access) && ticket.createdByUserId !== input.userId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPORT_TICKET_NOT_FOUND" }); if (!input.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" }); const senderType = canManageSupport(access) ? "agent" : "customer";
-  await db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: input.userId, senderType, body: input.body.trim().slice(0, 8000) }); await tx.update(supportTickets).set({ status: senderType === "agent" ? "waiting_customer" : "open", escalationStatus: senderType === "agent" ? ticket.escalationStatus : "requested" }).where(eq(supportTickets.id, input.ticketId)); if (senderType === "customer") await notifySupportOwners(tx, { tenantId: input.tenantId, ticketId: input.ticketId, reason: "customer_replied" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_replied", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ senderType }) }); }); if (senderType === "customer" && input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId: input.ticketId, requestBody: input.body }); return { id: input.ticketId };
+  await db.transaction(async tx => { await tx.insert(supportMessages).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ticketId: input.ticketId, authorUserId: input.userId, senderType, body: input.body.trim().slice(0, 8000) }); await tx.update(supportTickets).set({ status: senderType === "agent" ? "waiting_customer" : "open", escalationStatus: senderType === "agent" ? ticket.escalationStatus : "requested" }).where(eq(supportTickets.id, input.ticketId)); if (senderType === "customer") await notifySupportOwners(tx, { tenantId: input.tenantId, ticketId: input.ticketId, reason: "customer_replied" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "support.ticket_replied", entityType: "support_ticket", entityId: input.ticketId, metadata: JSON.stringify({ senderType }) }); }); if (senderType === "customer" && input.autoRespond !== false) await generateSupportReply({ db, tenantId: input.tenantId, ticketId: input.ticketId, requestBody: input.body }); flushEmailSoon(db); return { id: input.ticketId };
 }
 
 export async function transitionSupportTicket(input: { userId: number; tenantId: string; ticketId: string; status: SupportTicketStatus; escalationStatus?: SupportEscalationStatus; ownerUserId?: number | null; tags?: string[] }) {
@@ -3407,6 +3413,27 @@ export async function getInternalNotificationsForTenant(input: { userId: number;
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   return db.select({ id: internalNotifications.id, notificationCode: internalNotifications.notificationCode, projectId: internalNotifications.projectId, entityType: internalNotifications.entityType, entityId: internalNotifications.entityId, payload: internalNotifications.payload, acknowledgedAt: internalNotifications.acknowledgedAt, createdAt: internalNotifications.createdAt }).from(internalNotifications).where(and(eq(internalNotifications.tenantId, input.tenantId), eq(internalNotifications.recipientUserId, input.userId))).orderBy(desc(internalNotifications.createdAt));
+}
+
+/** The signed-in person's own choices about e-mail in this company, and whether e-mail is switched on at all (so the screen can say so honestly). */
+export async function getEmailNotificationPreferences(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  const rows = await db.select({ kind: emailNotificationPreferences.kind, enabled: emailNotificationPreferences.enabled }).from(emailNotificationPreferences).where(and(eq(emailNotificationPreferences.tenantId, input.tenantId), eq(emailNotificationPreferences.userId, input.userId)));
+  const chosen = new Map(rows.map(row => [row.kind, row.enabled] as const));
+  return { active: emailNotificationsActive(), preferences: { support_escalation: chosen.get("support_escalation") ?? true, approvals_waiting: chosen.get("approvals_waiting") ?? true, daily_digest: chosen.get("daily_digest") ?? true } };
+}
+
+export async function setEmailNotificationPreference(input: { userId: number; tenantId: string; kind: "support_escalation" | "approvals_waiting" | "daily_digest"; enabled: boolean }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  await db.transaction(async tx => {
+    await tx.insert(emailNotificationPreferences).values({ id: crypto.randomUUID(), tenantId: input.tenantId, userId: input.userId, kind: input.kind, enabled: input.enabled }).onDuplicateKeyUpdate({ set: { enabled: input.enabled } });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "notifications.email_preference_set", entityType: "user", entityId: String(input.userId), metadata: JSON.stringify({ kind: input.kind, enabled: input.enabled }) });
+  });
+  return { kind: input.kind, enabled: input.enabled };
 }
 
 export async function acknowledgeInternalNotification(input: { userId: number; tenantId: string; notificationId: string }) {

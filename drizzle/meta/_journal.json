@@ -449,6 +449,13 @@
       "when": 1792136294299,
       "tag": "0063_payroll_loading_eos_auto_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1792136976444,
+      "tag": "0064_email_notifications_outbox",
+      "breakpoints": true
     }
   ]
 }

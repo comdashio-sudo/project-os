@@ -270,6 +270,54 @@ export const payrollAllocationAdjustments = mysqlTable(
   ],
 );
 
+/**
+ * E-mail waiting to be sent (work order 3, decision 6). Nothing is written here unless e-mail notifications are switched on AND a mail sender is configured,
+ * so turning them on later never sends a backlog. `dedupeKey` makes every producer safe to run twice: one escalation, one reminder per day, one digest per day.
+ */
+export const emailOutbox = mysqlTable(
+  "email_outbox",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    recipientUserId: int("recipientUserId").notNull(),
+    kind: mysqlEnum("kind", ["support_escalation", "approvals_waiting", "daily_digest"]).notNull(),
+    dedupeKey: varchar("dedupeKey", { length: 160 }).notNull(),
+    subject: varchar("subject", { length: 300 }).notNull(),
+    bodyText: text("bodyText").notNull(),
+    bodyHtml: text("bodyHtml").notNull(),
+    status: mysqlEnum("status", ["pending", "sent", "failed", "skipped"]).default("pending").notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    // The sender's status line only: never the response body, which can name the recipient.
+    lastError: varchar("lastError", { length: 200 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    sentAt: timestamp("sentAt"),
+  },
+  table => [
+    uniqueIndex("email_outbox_dedupe_unique").on(table.tenantId, table.recipientUserId, table.kind, table.dedupeKey),
+    index("email_outbox_status_created_idx").on(table.status, table.createdAt),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "eo_tenant_fk" }),
+    foreignKey({ columns: [table.recipientUserId], foreignColumns: [users.id], name: "eo_user_fk" }),
+  ],
+);
+
+/** A person's choice, per kind of e-mail, in one company. No row means the default: on. */
+export const emailNotificationPreferences = mysqlTable(
+  "email_notification_preferences",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    userId: int("userId").notNull(),
+    kind: mysqlEnum("kind", ["support_escalation", "approvals_waiting", "daily_digest"]).notNull(),
+    enabled: boolean("enabled").notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("email_preferences_unique").on(table.tenantId, table.userId, table.kind),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "enp_tenant_fk" }),
+    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "enp_user_fk" }),
+  ],
+);
+
 export const employeeAssignments = mysqlTable(
   "employee_assignments",
   {

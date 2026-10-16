@@ -24,6 +24,8 @@ const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   createTenantPayment: "billing manager (tenant.manage or platform admin): an expired licence must still be payable", getTenantBillingForManager: "billing manager: same reason", issueTenantInvoice: "billing manager: same reason",
   confirmManualTenantPayment: "platform administrator only", provisionTenantLicense: "platform administrator only", setTenantLicenseFeatureOverride: "platform administrator only", transitionTenantLicenseStatus: "platform administrator only",
   getTenantAccessSnapshot: "the primitive every gate is built on; returns null for a non-member",
+  getEmailNotificationPreferences: "the caller's own e-mail choices only (user = caller); active membership required; no product licence needed to read or change how you are told",
+  setEmailNotificationPreference: "the caller's own e-mail choices only (user = caller); active membership required",
 };
 
 type Found = { name: string; body: string };
