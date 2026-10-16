@@ -77,7 +77,7 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
         </LineChart>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول البرنامج الزمني" : "Programme table"}>
         <table className="w-full min-w-[34rem] text-sm">
           <thead><tr className="border-b text-start"><th className="p-2 text-start">{t.month}</th><th className="p-2 text-start">{t.planned}</th><th className="p-2 text-start">{t.actual}</th><th className="p-2 text-start">{t.variance}</th><th className="p-2 text-start">{t.plannedMonth}</th><th className="p-2 text-start">{t.actualMonth}</th></tr></thead>
           <tbody>{months.map(m => (

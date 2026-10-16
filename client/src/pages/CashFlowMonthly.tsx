@@ -31,7 +31,7 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
       <h3 className="font-semibold">{t.title}</h3>
       {months.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
         <>
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التدفق النقدي الشهري" : "Monthly cash-flow table"}>
             <table className="w-full min-w-[34rem] text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.month}</th><th className="text-start">{t.receipts}</th><th className="text-start">{t.outflows}</th><th className="text-start">{t.net}</th><th className="text-start">{t.cumulative}</th></tr></thead>
               <tbody>{months.map(row => (

@@ -102,7 +102,7 @@ export default function EvmCalculator() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-7 lg:py-10">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--dashio-aqua-deep)] hover:underline">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[#0e6b70] hover:underline">
           <BackChevron className="h-4 w-4" />
           {t.workspace}
           <span className="text-muted-foreground">/</span>
@@ -130,7 +130,7 @@ export default function EvmCalculator() {
             </div>
             <div className="space-y-4">
               {(["pv", "ev", "ac", "bac"] as const).map((key, index) => <div key={key}><Label htmlFor={key}>{t.labels[index]}</Label><Input id={key} className="mt-1.5" type="number" min="0" step="0.01" value={values[key]} onChange={event => update(key, event.target.value)} /></div>)}
-              <div><Label>{t.method}</Label><Select value={values.eacMethod} onValueChange={value => update("eacMethod", value)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bac_over_cpi">BAC / CPI</SelectItem><SelectItem value="ac_plus_remaining">AC + (BAC − EV)</SelectItem><SelectItem value="ac_plus_remaining_over_cpi_spi">AC + (BAC − EV) / (CPI × SPI)</SelectItem><SelectItem value="manual">{t.manual}</SelectItem></SelectContent></Select></div>
+              <div><Label>{t.method}</Label><Select value={values.eacMethod} onValueChange={value => update("eacMethod", value)}><SelectTrigger className="mt-1.5" aria-label={t.method}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bac_over_cpi">BAC / CPI</SelectItem><SelectItem value="ac_plus_remaining">AC + (BAC − EV)</SelectItem><SelectItem value="ac_plus_remaining_over_cpi_spi">AC + (BAC − EV) / (CPI × SPI)</SelectItem><SelectItem value="manual">{t.manual}</SelectItem></SelectContent></Select></div>
               {values.eacMethod === "manual" ? <div><Label htmlFor="manualEac">{t.manual}</Label><Input id="manualEac" className="mt-1.5" type="number" min="0" step="0.01" value={values.manualEac} onChange={event => update("manualEac", event.target.value)} /></div> : null}
               <Button className="mt-2 w-full bg-[var(--dashio-indigo)] text-white hover:bg-[var(--dashio-indigo-deep)]" onClick={() => setSubmitted(true)}>{t.calc}</Button>
             </div>

@@ -4,9 +4,10 @@
 // here is injected by the script, so it says nothing about the server's own Set-Cookie.)
 //
 //   NODE_ENV=production node dist/index.js &                       # after pnpm build, on the test database
-//   node --// NOTE: run scripts/run-integration-database-test.mjs BEFORE seeding the demo tenant, not after: integration.database.test.ts deletes the global permission rows
+//   node --import tsx scripts/check-browser-security.mjs
+//
+// NOTE: run scripts/run-integration-database-test.mjs BEFORE seeding the demo tenant, not after: integration.database.test.ts deletes the global permission rows
 // (project.read, project.write, pmo.write, executive.read) and with them every tenant's grants of them, so a demo tenant seeded earlier answers 403 afterwards.
-import tsx scripts/check-browser-security.mjs
 //
 // Same fixtures and rules as capture-screenshots.mjs: DATABASE_URL must name project_os_integration_test; Playwright is not a dependency.
 import { createHash } from "node:crypto";

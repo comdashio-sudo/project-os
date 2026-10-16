@@ -2,9 +2,10 @@
 // (or hear from a screen reader: aria-label, placeholder, title, alt, button values) that still contains English words. Run it after any UI change:
 //
 //   NODE_ENV=production node dist/index.js &          # after pnpm build, on the test database with the demo tenant seeded
-//   node --// NOTE: run scripts/run-integration-database-test.mjs BEFORE seeding the demo tenant, not after: integration.database.test.ts deletes the global permission rows
+//   node --import tsx scripts/audit-arabic-ui.mjs [--json]
+//
+// NOTE: run scripts/run-integration-database-test.mjs BEFORE seeding the demo tenant, not after: integration.database.test.ts deletes the global permission rows
 // (project.read, project.write, pmo.write, executive.read) and with them every tenant's grants of them, so a demo tenant seeded earlier answers 403 afterwards.
-import tsx scripts/audit-arabic-ui.mjs [--json]
 //
 // Same fixtures and rules as capture-screenshots.mjs: DATABASE_URL must name project_os_integration_test; Playwright is not a dependency.
 // Technical terms that are the same in Arabic construction practice (WBS, EVM, BOQ, SAR...) are allowed; everything else is reported with where it appeared.

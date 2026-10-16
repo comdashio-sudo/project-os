@@ -115,7 +115,7 @@ describe("render.yaml", () => {
     const used = new Set<string>();
     for (const file of files) for (const m of text(file).matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)) used.add(m[1]);
     // Read only by tooling, tests or the platform itself, never needed in the web service.
-    const notForRender = new Set(["VITEST", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "PROJECT_OS_AUDIT_ADMIN_PASSWORD", "AUDIT_APP_DATABASE_URL", "TEST_DATABASE_URL", "PORT", "APP_ID"]);
+    const notForRender = new Set(["VITEST", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "PROJECT_OS_AUDIT_ADMIN_PASSWORD", "AUDIT_APP_DATABASE_URL", "TEST_DATABASE_URL", "PORT", "APP_ID", "RESEND_API_URL"]); // RESEND_API_URL: points the sender at a fake provider on 127.0.0.1 for local rehearsals; it must NOT exist in production
     const declared = new Set(web.env.map(e => e.key));
     const missing = [...used].filter(name => !notForRender.has(name) && !declared.has(name));
     expect(missing).toEqual([]);
