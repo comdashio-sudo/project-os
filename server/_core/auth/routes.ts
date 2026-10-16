@@ -8,6 +8,7 @@ import { ENV } from "../env";
 import { EmailCodeError, normalizeEmail, openIdForEmail, type EmailCodeService } from "./emailCode";
 import { buildAuthorizationUrl, completeGoogleSignIn, GoogleSignInError, newRandom, type GoogleConfig } from "./google";
 import { createRateLimiter } from "./rateLimiter";
+import { logError } from "../logger";
 
 export const GOOGLE_STATE_COOKIE = "__Host-google_oauth";
 
@@ -61,7 +62,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
       return res.status(200).json({ ok: true, expiresInSeconds });
     } catch (error) {
       if (error instanceof EmailCodeError) return res.status(statusFor[error.code] ?? 400).json({ code: `PROJECT_OS_AUTH_${error.code}` });
-      console.error("[Auth] Code request failed", error instanceof Error ? error.name : "unknown");
+      logError("auth.code_request_failed", error);
       return res.status(500).json({ code: "PROJECT_OS_AUTH_FAILED" });
     }
   });
@@ -75,7 +76,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
       return res.status(200).json({ ok: true });
     } catch (error) {
       if (error instanceof EmailCodeError) return res.status(statusFor[error.code] ?? 401).json({ code: `PROJECT_OS_AUTH_${error.code}` });
-      console.error("[Auth] Code verification failed", error instanceof Error ? error.name : "unknown");
+      logError("auth.code_verification_failed", error);
       return res.status(500).json({ code: "PROJECT_OS_AUTH_FAILED" });
     }
   });
@@ -121,7 +122,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
       return res.redirect(302, safeNextPath(saved.next));
     } catch (error) {
       if (error instanceof GoogleSignInError && error.reason === "EMAIL_NOT_VERIFIED") return fail("google_unverified");
-      console.error("[Auth] Google sign-in failed", error instanceof Error ? error.name : "unknown");
+      logError("auth.google_sign_in_failed", error);
       return fail("google_failed");
     }
   });

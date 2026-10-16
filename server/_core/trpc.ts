@@ -7,7 +7,9 @@ import type { TrpcContext } from "./context";
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
-    const projectError = getProjectError(error.message);
+    // An unexpected failure inside a procedure says "server error", not "check your data": the person did nothing wrong.
+    const known = getProjectError(error.message);
+    const projectError = error.code === "INTERNAL_SERVER_ERROR" && known.code === "PROJECT_OS_REQUEST_FAILED" ? getProjectError("PROJECT_OS_SERVER_ERROR") : known;
     const { stack: _internalStack, ...safeData } = shape.data;
     return {
       ...shape,

@@ -1,15 +1,9 @@
 import "dotenv/config";
-import express from "express";
 import { createServer } from "http";
 import net from "net";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerDefaultAuthRoutes } from "./auth";
-import { appRouter } from "../routers";
-import { createContext } from "./context";
+import { createApp } from "./app";
+import { installProcessErrorLogging, logError, logInfo } from "./logger";
 import { serveStatic, setupVite } from "./vite";
-import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
-import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
-import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,46 +25,27 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
-  const app = express();
+  const { app, finish } = createApp({ production: process.env.NODE_ENV !== "development" });
   const server = createServer(app);
-  // Behind Render's proxy: one hop, so req.ip is the client address.
-  app.set("trust proxy", 1);
-  // Liveness probe for the host. Public, no database, no data: it only says the process answers.
-  app.get("/healthz", (_req, res) => {
-    res.set("Cache-Control", "no-store").status(200).type("text/plain").send("ok");
-  });
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  registerDefaultAuthRoutes(app);
-  app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
-  app.post("/api/scheduled/profitabilitySnapshots", scheduledProfitabilitySnapshotsHandler);
-  app.post("/api/scheduled/emailNotifications", scheduledEmailNotificationsHandler);
-  // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
+  finish(app);
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logInfo("server.port_busy", { preferredPort, port });
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logInfo("server.listening", { port });
   });
 }
 
-startServer().catch(console.error);
+installProcessErrorLogging();
+startServer().catch(error => { logError("server.start_failed", error); process.exitCode = 1; });

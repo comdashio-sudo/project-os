@@ -26,6 +26,7 @@ import {
 import { createResendMailer } from "./_core/auth/resendMailer";
 import type { Mailer } from "./_core/auth/emailCode";
 import { approvalsWaitingEmail, dailyDigestEmail, dailyMailWindow, EMAIL_KINDS, preferenceAllows, supportEscalationEmail, type ApprovalQueue, type BuiltEmail, type DigestProject, type EmailKind } from "./domain/emailNotifications";
+import { logError } from "./_core/logger";
 
 // Work order 3, decision 6. Everything here is behind one switch: EMAIL_NOTIFICATIONS_ENABLED=true AND a configured sender (RESEND_API_KEY and EMAIL_FROM).
 // While either is missing nothing is written to the outbox and nothing is sent, so switching it on later never delivers a backlog.
@@ -226,7 +227,7 @@ export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?
 const inFlight = new Set<Promise<unknown>>();
 export function flushEmailSoon(db: Db) {
   const mailer = mailerFromEnv(); if (!mailer) return;
-  const running = flushEmailOutbox(db, mailer).catch(error => console.error("[email] flush failed", error instanceof Error ? error.message : "unknown")).finally(() => inFlight.delete(running));
+  const running = flushEmailOutbox(db, mailer).catch(error => logError("email.flush_failed", error)).finally(() => inFlight.delete(running));
   inFlight.add(running);
 }
 /** Waits for the sends `flushEmailSoon` started. For tests and for a clean shutdown. */
