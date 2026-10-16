@@ -8,6 +8,7 @@ import type { AppRouter } from "../../../server/routers";
 import { getProjectError } from "@shared/projectErrors";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
+import { SourceNotice } from "@/components/SectionResilience";
 
 // Phone entry for the two things a site engineer does all day: log progress and
 // issue material. Built for speed: every control is at least 44px, the screen
@@ -365,6 +366,7 @@ export default function FieldEntry() {
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
+        <SourceNotice query={me} isArabic={isArabic} title={isArabic ? "التحقق من هويتك" : "Checking who you are"} fallback={isArabic ? "الحفظ دون اتصال معطّل إلى أن يعود؛ أعد المحاولة قبل أن تحفظ إدخالًا." : "Saving offline is off until it is back; try again before you save an entry."} />
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} />
         <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
           {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}

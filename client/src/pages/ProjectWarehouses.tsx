@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { SourceNotice } from "@/components/SectionResilience";
 
 export function ProjectWarehouses({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
@@ -25,6 +26,9 @@ export function ProjectWarehouses({ tenantId, projectId }: { tenantId: string; p
   if (register.isLoading || materials.isLoading || schedule.isLoading) return <p className="text-sm text-muted-foreground">{t.loading}</p>;
   const signedQuantity = movement.transactionType === "issue" ? -Math.abs(Number(movement.quantity)) : Number(movement.quantity);
   return <Card><CardHeader><CardTitle>{t.title}</CardTitle></CardHeader><CardContent className="space-y-5">
+    <SourceNotice query={register} isArabic={isArabic} title={isArabic ? "المستودعات والأرصدة" : "Warehouses and balances"} />
+    <SourceNotice query={materials} isArabic={isArabic} title={isArabic ? "كتالوج المواد" : "The material catalog"} />
+    <SourceNotice query={schedule} isArabic={isArabic} title={isArabic ? "بنود WBS (للصرف إلى الأعمال)" : "WBS items (for issuing to work)"} />
     <form className="grid gap-3 md:grid-cols-3" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, projectId, code: warehouse.code, name: warehouse.name, locationDescription: warehouse.locationDescription || undefined }); }}>
       <div><Label htmlFor="warehouse-code">{t.code}</Label><Input id="warehouse-code" value={warehouse.code} onChange={event => setWarehouse({ ...warehouse, code: event.target.value })} required /></div>
       <div><Label htmlFor="warehouse-name">{t.name}</Label><Input id="warehouse-name" value={warehouse.name} onChange={event => setWarehouse({ ...warehouse, name: event.target.value })} required /></div>
