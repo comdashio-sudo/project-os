@@ -40,10 +40,11 @@ const web = services.find(s => s.type === "web")!;
 const crons = services.filter(s => s.type === "cron");
 const cron = crons.find(s => s.name === "project-os-license-expiry")!;
 const emailCron = crons.find(s => s.name === "project-os-email-notifications")!;
+const backupCron = crons.find(s => s.name === "project-os-backup")!;
 
 describe("render.yaml", () => {
-  it("describes one web service and two cron jobs (daily licence and snapshots, hourly e-mail)", () => {
-    expect(services.map(s => s.type).sort()).toEqual(["cron", "cron", "web"]);
+  it("describes one web service and three cron jobs (daily licence and snapshots, hourly e-mail, daily backup)", () => {
+    expect(services.map(s => s.type).sort()).toEqual(["cron", "cron", "cron", "web"]);
   });
 
   it("never deploys by itself and checks health on /healthz", () => {
@@ -58,7 +59,7 @@ describe("render.yaml", () => {
 
   it("holds no secret value: every sensitive variable is asked for or generated", () => {
     const sensitive = /SECRET|PASSWORD|TOKEN|KEY|DATABASE_URL|EMAIL/;
-    for (const variable of [...web.env, ...cron.env, ...emailCron.env]) {
+    for (const variable of [...web.env, ...cron.env, ...emailCron.env, ...backupCron.env]) {
       if (variable.key === "EMAIL_NOTIFICATIONS_ENABLED") continue; // an on/off switch, not a secret: its value is checked below
       if (!sensitive.test(variable.key)) continue;
       expect(variable.value, variable.key).toBeUndefined();
@@ -75,6 +76,18 @@ describe("render.yaml", () => {
     expect(emailCron.fields.startCommand).toContain("/api/scheduled/emailNotifications");
     expect(emailCron.fields.startCommand).toContain("Authorization: Bearer $CRON_SECRET");
     expect(emailCron.env.map(e => e.key).sort()).toEqual(["APP_BASE_URL", "CRON_SECRET"]);
+  });
+
+  it("backs the database up daily, encrypted, to R2, taking its connection from the web service and its key from the owner", () => {
+    expect(backupCron.fields.schedule).toBe('"30 1 * * *"');
+    expect(backupCron.fields.startCommand).toBe("node --import tsx scripts/export-database.mjs --to-r2");
+    expect(backupCron.fields.buildCommand).toContain("--frozen-lockfile");
+    expect(backupCron.fields.buildCommand).toContain("--prod=false"); // tsx is a development dependency
+    expect(backupCron.env.map(e => e.key).sort()).toEqual(["BACKUP_DATABASE_URL", "BACKUP_ENCRYPTION_KEY", "BACKUP_R2_BUCKET", "DATABASE_URL", "NODE_VERSION", "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_SECRET_ACCESS_KEY"]);
+    // the key is never generated for the owner by the platform: if only Render held it, losing Render would make every backup unreadable
+    expect(backupCron.env.find(e => e.key === "BACKUP_ENCRYPTION_KEY")?.generateValue).toBeUndefined();
+    expect(backupCron.env.find(e => e.key === "BACKUP_ENCRYPTION_KEY")?.sync).toBe(false);
+    for (const key of ["DATABASE_URL", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]) expect(backupCron.env.find(e => e.key === key)?.fromService, key).toBe(true);
   });
 
   it("keeps the language model off in the blueprint", () => {
@@ -110,6 +123,6 @@ describe("render.yaml", () => {
 
   it("documents every variable the blueprint asks for", () => {
     const guide = text("docs/OWNER_ACTIONS.md");
-    for (const variable of web.env.filter(e => e.sync === false)) expect(guide, variable.key).toContain(variable.key);
+    for (const variable of [...web.env, ...backupCron.env].filter(e => e.sync === false)) expect(guide, variable.key).toContain(variable.key);
   });
 });
