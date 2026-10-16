@@ -187,7 +187,8 @@ const UI_WRITE_CONTROLS = [
   { page: "/projects/:t/:p/controls", name: "تسجيل طلب تغيير", needs: ["project.manage", "project.commitment.manage"] },
   { page: "/projects/:t/:p/controls", name: "حفظ المادة", needs: ["project.procurement.manage", "project.inventory.manage"] },
   { page: "/projects/:t/:p/controls", name: "حفظ الإسناد", needs: ["project.manage"] },
-  { page: "/projects/:t/:p/controls", name: "تسجيل الحضور كمسودة", needs: ["project.attendance.manage"] },
+  // the section loads its employee list through a query that asks for project.manage, so HR (attendance.manage without project.manage) gets no form: a finding, recorded in docs/STATE.md
+  { page: "/projects/:t/:p/controls", name: "تسجيل الحضور كمسودة", needs: ["project.attendance.manage"], alsoNeeds: ["project.manage"] },
   { page: "/projects/:t/:p/controls", name: "رفع مستند وإصدار 1", needs: ["project.write"] },
   { page: "/projects/:t/:p/controls", name: "إنشاء Master Plan", needs: ["project.write"] },
   { page: "/projects/:t", name: "إنشاء مشروع", needs: ["project.write"] },
@@ -306,7 +307,7 @@ for (const view of VIEWS) {
             pagesSeen.set(control.page, true);
           } else if (pagesSeen.get(control.page) !== "current") { /* same page already open for this role */ }
           const here = await page.getByRole("button", { name: control.name, exact: true }).count() > 0;
-          const may = mayDo(person, control.needs);
+          const may = mayDo(person, control.needs) && (!control.alsoNeeds || mayDo(person, control.alsoNeeds));
           if (role === "owner" && here) ownerOffered.add(control.name);
           if (here) offered.push(control.name);
           // a role that does not hold the permission must never be offered the control
