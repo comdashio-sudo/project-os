@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "4a787656-321d-4b94-867e-3eea780ba46a",
+  "id": "84055af2-a3df-44c0-96fe-8add5a507216",
   "prevId": "5a7d0eda-68a9-421f-97b7-427ad0e77aa9",
   "tables": {
     "actions": {
@@ -8353,8 +8353,8 @@
         }
       },
       "foreignKeys": {
-        "payroll_allocation_adjustments_tenantId_companies_id_fk": {
-          "name": "payroll_allocation_adjustments_tenantId_companies_id_fk",
+        "paa_tenant_fk": {
+          "name": "paa_tenant_fk",
           "tableFrom": "payroll_allocation_adjustments",
           "tableTo": "companies",
           "columnsFrom": [
@@ -8366,8 +8366,8 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "payroll_allocation_adjustments_allocationId_payroll_allocations_id_fk": {
-          "name": "payroll_allocation_adjustments_allocationId_payroll_allocations_id_fk",
+        "paa_allocation_fk": {
+          "name": "paa_allocation_fk",
           "tableFrom": "payroll_allocation_adjustments",
           "tableTo": "payroll_allocations",
           "columnsFrom": [
@@ -8379,8 +8379,8 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "payroll_allocation_adjustments_adjustedByUserId_users_id_fk": {
-          "name": "payroll_allocation_adjustments_adjustedByUserId_users_id_fk",
+        "paa_user_fk": {
+          "name": "paa_user_fk",
           "tableFrom": "payroll_allocation_adjustments",
           "tableTo": "users",
           "columnsFrom": [

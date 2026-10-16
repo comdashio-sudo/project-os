@@ -55,6 +55,7 @@ import {
   payrollRuns,
   payrollEntries,
   payrollAllocations,
+  payrollAllocationAdjustments,
   employeeAssignments,
   employeeAttendance,
   employeePerformanceExclusions,
@@ -2670,9 +2671,10 @@ export async function getPayrollRunDetailsForTenant(input: { userId: number; ten
   await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });
   const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, input.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1);
   if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_RUN_NOT_FOUND" });
-  const entries = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, gosiDeduction: payrollEntries.gosiDeduction, otherDeductions: payrollEntries.otherDeductions, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual, currency: payrollEntries.currency }).from(payrollEntries).innerJoin(employees, eq(employees.id, payrollEntries.employeeId)).where(and(eq(payrollEntries.tenantId, input.tenantId), eq(payrollEntries.payrollRunId, run.id)));
+  const entries = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, employeeNumber: employees.employeeNumber, fullName: employees.fullName, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, gosiDeduction: payrollEntries.gosiDeduction, otherDeductions: payrollEntries.otherDeductions, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual, employerSocialInsurance: payrollEntries.employerSocialInsurance, indirectLoading: payrollEntries.indirectLoading, nationalityClass: payrollEntries.nationalityClass, currency: payrollEntries.currency }).from(payrollEntries).innerJoin(employees, eq(employees.id, payrollEntries.employeeId)).where(and(eq(payrollEntries.tenantId, input.tenantId), eq(payrollEntries.payrollRunId, run.id)));
+  const shares = entries.length ? await db.select({ id: payrollAllocations.id, payrollEntryId: payrollAllocations.payrollEntryId, projectId: payrollAllocations.projectId, projectCode: projects.code, wbsCode: wbsItems.code, amount: payrollAllocations.amount, source: payrollAllocations.source, hoursBasis: payrollAllocations.hoursBasis, sharePercent: payrollAllocations.sharePercent }).from(payrollAllocations).innerJoin(projects, eq(projects.id, payrollAllocations.projectId)).leftJoin(wbsItems, eq(wbsItems.id, payrollAllocations.wbsItemId)).where(and(eq(payrollAllocations.tenantId, input.tenantId), inArray(payrollAllocations.payrollEntryId, entries.map(entry => entry.id)))).orderBy(asc(projects.code), asc(wbsItems.code)) : [];
   await db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.run_details_viewed", entityType: "payroll_run", entityId: run.id, metadata: JSON.stringify({ sensitive: true, entryCount: entries.length }) });
-  const detailedEntries = entries.map(entry => ({ ...entry, ...calculatePayrollEntryBreakdown({ baseSalary: Number(entry.baseSalary), housingAllowance: Number(entry.housingAllowance), transportAllowance: Number(entry.transportAllowance), hardshipAllowance: Number(entry.hardshipAllowance), gosiDeduction: Number(entry.gosiDeduction), otherDeductions: Number(entry.otherDeductions), eosMonthlyAccrual: Number(entry.eosMonthlyAccrual) }) }));
+  const detailedEntries = entries.map(entry => ({ ...entry, loadedCost: payrollEntryLoadedCost(entry), allocations: shares.filter(share => share.payrollEntryId === entry.id).map(share => ({ ...share, amount: Number(share.amount), hoursBasis: share.hoursBasis === null ? null : Number(share.hoursBasis), sharePercent: share.sharePercent === null ? null : Number(share.sharePercent) })), ...calculatePayrollEntryBreakdown({ baseSalary: Number(entry.baseSalary), housingAllowance: Number(entry.housingAllowance), transportAllowance: Number(entry.transportAllowance), hardshipAllowance: Number(entry.hardshipAllowance), gosiDeduction: Number(entry.gosiDeduction), otherDeductions: Number(entry.otherDeductions), eosMonthlyAccrual: Number(entry.eosMonthlyAccrual) }) }));
   return {
     run,
     entries: detailedEntries,
@@ -2687,18 +2689,108 @@ export async function allocateApprovedPayrollCostForTenant(input: { userId: numb
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
   if (input.activityId) { const [activity] = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))).limit(1); if (!activity) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ACTIVITY_NOT_FOUND" }); }
-  const [entry] = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, payrollRunId: payrollEntries.payrollRunId, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual }).from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
+  const [entry] = await db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId, payrollRunId: payrollEntries.payrollRunId, baseSalary: payrollEntries.baseSalary, housingAllowance: payrollEntries.housingAllowance, transportAllowance: payrollEntries.transportAllowance, hardshipAllowance: payrollEntries.hardshipAllowance, eosMonthlyAccrual: payrollEntries.eosMonthlyAccrual, employerSocialInsurance: payrollEntries.employerSocialInsurance, indirectLoading: payrollEntries.indirectLoading }).from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
   if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_ENTRY_NOT_FOUND" });
   const [run] = await db.select({ status: payrollRuns.status, periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1); if (!run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
   // The same worker-hours must cost a project once (G-123): hours priced through approved time entries and the payroll run that pays them are two routes to one cost.
   const [alreadyCosted] = await db.select({ n: sql<number>`count(*)` }).from(employeeTimeEntries).where(and(eq(employeeTimeEntries.tenantId, input.tenantId), eq(employeeTimeEntries.employeeId, entry.employeeId), eq(employeeTimeEntries.status, "approved"), isNotNull(employeeTimeEntries.costEntryId), gte(employeeTimeEntries.workDate, run.periodStart), lte(employeeTimeEntries.workDate, run.periodEnd)));
   if (Number(alreadyCosted?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PAYROLL_ALLOCATION_TIME_COSTED" });
   const allocated = await db.select({ amount: payrollAllocations.amount }).from(payrollAllocations).where(eq(payrollAllocations.payrollEntryId, entry.id));
-  const ceiling = Number(entry.baseSalary) + Number(entry.housingAllowance) + Number(entry.transportAllowance) + Number(entry.hardshipAllowance) + Number(entry.eosMonthlyAccrual); const used = allocated.reduce((total, item) => total + Number(item.amount), 0);
+  const ceiling = payrollEntryLoadedCost(entry); const used = allocated.reduce((total, item) => total + Number(item.amount), 0);
   if (used + input.amount > ceiling + 0.0001) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST" });
   const allocationId = crypto.randomUUID(); const costEntryId = crypto.randomUUID();
   await db.transaction(async tx => { await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(input.amount), entryType: "actual", status: "posted", incurredAt: input.incurredAt, category: "labour", sourceType: "payroll_allocation", sourceId: allocationId }); await tx.insert(payrollAllocations).values({ id: allocationId, tenantId: input.tenantId, payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId, activityId: input.activityId, amount: String(input.amount), costEntryId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.cost_allocated", entityType: "payroll_allocation", entityId: allocationId, metadata: JSON.stringify({ payrollEntryId: entry.id, projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, activityId: input.activityId ?? null, amount: input.amount, costEntryId }) }); });
   return { id: allocationId, costEntryId };
+}
+
+/** The month's loaded cost of one payroll entry: pay and allowances, the end-of-service accrual, the employer's insurance and the tenant's indirect loading, as fixed when the run was made. */
+function payrollEntryLoadedCost(entry: { baseSalary: string; housingAllowance: string; transportAllowance: string; hardshipAllowance: string; eosMonthlyAccrual: string; employerSocialInsurance: string; indirectLoading: string }) {
+  return round2(Number(entry.baseSalary) + Number(entry.housingAllowance) + Number(entry.transportAllowance) + Number(entry.hardshipAllowance) + Number(entry.eosMonthlyAccrual) + Number(entry.employerSocialInsurance) + Number(entry.indirectLoading));
+}
+
+/**
+ * Shares the month's loaded cost of an employee across the work items they were approved to work on, in proportion to those approved hours
+ * (work order 3, decision 3). Amounts are cut in whole cents and the remainder goes to the largest fractions, so the shares always add up to the cost exactly.
+ */
+export async function allocatePayrollEntryByHoursForTenant(input: { userId: number; tenantId: string; payrollEntryId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve" });
+  const [entry] = await db.select().from(payrollEntries).where(and(eq(payrollEntries.id, input.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
+  if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_ENTRY_NOT_FOUND" });
+  const [run] = await db.select({ status: payrollRuns.status, periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1);
+  if (!run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
+  const [existing] = await db.select({ n: sql<number>`count(*)` }).from(payrollAllocations).where(eq(payrollAllocations.payrollEntryId, entry.id));
+  if (Number(existing?.n ?? 0) > 0) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PAYROLL_AUTO_ALREADY_ALLOCATED" });
+  const hours = await db.select({ id: employeeTimeEntries.id, projectId: employeeTimeEntries.projectId, hours: employeeTimeEntries.actualHours, costEntryId: employeeTimeEntries.costEntryId, wbsItemId: employeeAssignments.wbsItemId, activityId: employeeAssignments.activityId })
+    .from(employeeTimeEntries).innerJoin(employeeAssignments, eq(employeeTimeEntries.assignmentId, employeeAssignments.id))
+    .where(and(eq(employeeTimeEntries.tenantId, input.tenantId), eq(employeeTimeEntries.employeeId, entry.employeeId), eq(employeeTimeEntries.status, "approved"), isNull(employeeTimeEntries.supersededByPayrollEntryId), gte(employeeTimeEntries.workDate, run.periodStart), lte(employeeTimeEntries.workDate, run.periodEnd)));
+  const totalHours = hours.reduce((total, row) => total + Number(row.hours), 0);
+  if (!(totalHours > 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_AUTO_NO_HOURS" });
+  // The money is shared out where the hours were worked, so the caller must be allowed to approve payroll cost in every one of those projects.
+  const projectIds = Array.from(new Set(hours.map(row => row.projectId)));
+  for (const projectId of projectIds) { assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId }); }
+  const groups = new Map<string, { projectId: string; wbsItemId: string | null; activityId: string | null; hours: number }>();
+  for (const row of hours) {
+    const key = `${row.projectId}|${row.wbsItemId ?? ""}`;
+    const group = groups.get(key) ?? { projectId: row.projectId, wbsItemId: row.wbsItemId, activityId: row.activityId, hours: 0 };
+    group.hours += Number(row.hours); groups.set(key, group);
+  }
+  const ordered = Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  const loaded = payrollEntryLoadedCost(entry); const totalCents = Math.round(loaded * 100);
+  const raw = ordered.map(([, group]) => (totalCents * group.hours) / totalHours);
+  const cents = raw.map(Math.floor); let remainder = totalCents - cents.reduce((total, value) => total + value, 0);
+  raw.map((value, index) => ({ index, fraction: value - Math.floor(value) })).sort((a, b) => b.fraction - a.fraction || a.index - b.index).forEach(({ index }) => { if (remainder > 0) { cents[index] += 1; remainder -= 1; } });
+  const timeCostIds = hours.map(row => row.costEntryId).filter((id): id is string => Boolean(id));
+  const created: Array<{ allocationId: string; costEntryId: string; projectId: string; wbsItemId: string | null; amount: number; hours: number; sharePercent: number }> = [];
+  await db.transaction(async tx => {
+    // The provisional cost of these hours (priced one by one when each was approved) is replaced by this month's real one. It is voided, not deleted.
+    if (timeCostIds.length) await tx.update(costEntries).set({ status: "void" }).where(and(inArray(costEntries.id, timeCostIds), eq(costEntries.tenantId, input.tenantId)));
+    await tx.update(employeeTimeEntries).set({ supersededByPayrollEntryId: entry.id }).where(and(inArray(employeeTimeEntries.id, hours.map(row => row.id)), eq(employeeTimeEntries.tenantId, input.tenantId)));
+    for (let index = 0; index < ordered.length; index += 1) {
+      const group = ordered[index][1]; const amount = cents[index] / 100; if (amount <= 0) continue;
+      const allocationId = crypto.randomUUID(); const costEntryId = crypto.randomUUID(); const sharePercent = Math.round((group.hours / totalHours) * 1000000) / 10000;
+      await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: group.projectId, wbsItemId: group.wbsItemId ?? undefined, amount: amount.toFixed(2), entryType: "actual", status: "posted", incurredAt: run.periodEnd, category: "labour", sourceType: "payroll_allocation", sourceId: allocationId });
+      await tx.insert(payrollAllocations).values({ id: allocationId, tenantId: input.tenantId, payrollEntryId: entry.id, projectId: group.projectId, wbsItemId: group.wbsItemId ?? undefined, activityId: group.activityId ?? undefined, amount: amount.toFixed(2), costEntryId, source: "auto_hours", hoursBasis: group.hours.toFixed(2), sharePercent: sharePercent.toFixed(4) });
+      created.push({ allocationId, costEntryId, projectId: group.projectId, wbsItemId: group.wbsItemId, amount, hours: group.hours, sharePercent });
+    }
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.cost_allocated_by_hours", entityType: "payroll_entry", entityId: entry.id, metadata: JSON.stringify({ sensitive: true, loadedCost: loaded, totalHours, shares: created.map(({ projectId, wbsItemId, amount, hours: h, sharePercent }) => ({ projectId, wbsItemId, amount, hours: h, sharePercent })), supersededTimeEntries: hours.length, voidedProvisionalCosts: timeCostIds.length }) });
+  });
+  return { loadedCost: loaded, totalHours: round2(totalHours), supersededTimeEntries: hours.length, allocations: created.map(({ allocationId, costEntryId, projectId, wbsItemId, amount, hours: h, sharePercent }) => ({ id: allocationId, costEntryId, projectId, wbsItemId, amount, hours: round2(h), sharePercent })) };
+}
+
+const PAYROLL_ADJUSTMENT_REASON_MIN_LENGTH = 5;
+
+/** A person changes one automatic share. The reason is mandatory and kept with the before and after; the old cost line is voided and a new one posted, nothing is overwritten. */
+export async function adjustPayrollAllocationForTenant(input: { userId: number; tenantId: string; allocationId: string; newAmount: number; reason: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const reason = input.reason.trim();
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve" });
+  if (!Number.isFinite(input.newAmount) || input.newAmount < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_AMOUNT_INVALID" });
+  if (reason.length < PAYROLL_ADJUSTMENT_REASON_MIN_LENGTH) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ADJUSTMENT_REASON_REQUIRED" });
+  const [allocation] = await db.select().from(payrollAllocations).where(and(eq(payrollAllocations.id, input.allocationId), eq(payrollAllocations.tenantId, input.tenantId))).limit(1);
+  if (!allocation) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PAYROLL_ALLOCATION_NOT_FOUND" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.payroll.approve", scope: { type: "project", id: allocation.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: allocation.projectId });
+  const [entry] = await db.select().from(payrollEntries).where(and(eq(payrollEntries.id, allocation.payrollEntryId), eq(payrollEntries.tenantId, input.tenantId))).limit(1);
+  const [run] = entry ? await db.select({ status: payrollRuns.status, periodEnd: payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.id, entry.payrollRunId), eq(payrollRuns.tenantId, input.tenantId))).limit(1) : [];
+  if (!entry || !run || (run.status !== "approved" && run.status !== "paid")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_NOT_APPROVED" });
+  const previousAmount = Number(allocation.amount); const newAmount = round2(input.newAmount);
+  if (newAmount === previousAmount) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ADJUSTMENT_NO_CHANGE" });
+  const siblings = await db.select({ id: payrollAllocations.id, amount: payrollAllocations.amount }).from(payrollAllocations).where(eq(payrollAllocations.payrollEntryId, entry.id));
+  const others = siblings.filter(item => item.id !== allocation.id).reduce((total, item) => total + Number(item.amount), 0);
+  if (round2(others + newAmount) > payrollEntryLoadedCost(entry) + 0.0001) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST" });
+  const adjustmentId = crypto.randomUUID(); const newCostEntryId = newAmount > 0 ? crypto.randomUUID() : null;
+  await db.transaction(async tx => {
+    if (allocation.costEntryId) await tx.update(costEntries).set({ status: "void" }).where(and(eq(costEntries.id, allocation.costEntryId), eq(costEntries.tenantId, input.tenantId)));
+    // The unique key on the allocation's cost entry must be free before a new line is attached to it.
+    await tx.update(payrollAllocations).set({ costEntryId: null }).where(eq(payrollAllocations.id, allocation.id));
+    if (newCostEntryId) await tx.insert(costEntries).values({ id: newCostEntryId, tenantId: input.tenantId, projectId: allocation.projectId, wbsItemId: allocation.wbsItemId ?? undefined, amount: newAmount.toFixed(2), entryType: "actual", status: "posted", incurredAt: run.periodEnd, category: "labour", sourceType: "payroll_allocation", sourceId: allocation.id });
+    await tx.update(payrollAllocations).set({ amount: newAmount.toFixed(2), costEntryId: newCostEntryId }).where(eq(payrollAllocations.id, allocation.id));
+    await tx.insert(payrollAllocationAdjustments).values({ id: adjustmentId, tenantId: input.tenantId, allocationId: allocation.id, previousAmount: previousAmount.toFixed(2), newAmount: newAmount.toFixed(2), reason, adjustedByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "payroll.allocation_adjusted", entityType: "payroll_allocation", entityId: allocation.id, metadata: JSON.stringify({ sensitive: true, adjustmentId, payrollEntryId: entry.id, projectId: allocation.projectId, wbsItemId: allocation.wbsItemId, previousAmount, newAmount, reason, voidedCostEntryId: allocation.costEntryId, newCostEntryId }) });
+  });
+  return { id: adjustmentId, allocationId: allocation.id, previousAmount, newAmount, costEntryId: newCostEntryId };
 }
 
 export async function getMaterialCatalogForTenant(input: { userId: number; tenantId: string; projectId: string }) {

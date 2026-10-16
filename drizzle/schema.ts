@@ -253,15 +253,21 @@ export const payrollAllocationAdjustments = mysqlTable(
   "payroll_allocation_adjustments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    allocationId: varchar("allocationId", { length: 36 }).notNull().references(() => payrollAllocations.id),
+    tenantId: varchar("tenantId", { length: 36 }).notNull(),
+    allocationId: varchar("allocationId", { length: 36 }).notNull(),
     previousAmount: decimal("previousAmount", { precision: 18, scale: 2 }).notNull(),
     newAmount: decimal("newAmount", { precision: 18, scale: 2 }).notNull(),
     reason: varchar("reason", { length: 500 }).notNull(),
-    adjustedByUserId: int("adjustedByUserId").notNull().references(() => users.id),
+    adjustedByUserId: int("adjustedByUserId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  table => [index("payroll_allocation_adjustments_allocation_idx").on(table.allocationId, table.createdAt), index("payroll_allocation_adjustments_tenant_idx").on(table.tenantId, table.createdAt)],
+  table => [
+    index("payroll_allocation_adjustments_allocation_idx").on(table.allocationId, table.createdAt),
+    index("payroll_allocation_adjustments_tenant_idx").on(table.tenantId, table.createdAt),
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "paa_tenant_fk" }),
+    foreignKey({ columns: [table.allocationId], foreignColumns: [payrollAllocations.id], name: "paa_allocation_fk" }),
+    foreignKey({ columns: [table.adjustedByUserId], foreignColumns: [users.id], name: "paa_user_fk" }),
+  ],
 );
 
 export const employeeAssignments = mysqlTable(

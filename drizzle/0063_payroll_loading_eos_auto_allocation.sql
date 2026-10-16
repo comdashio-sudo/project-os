@@ -23,9 +23,9 @@ ALTER TABLE `tenant_settings` ADD `employerGosiRateNonSaudi` decimal(7,6) DEFAUL
 ALTER TABLE `tenant_settings` ADD `eosFirstPeriodYears` int DEFAULT 5 NOT NULL;--> statement-breakpoint
 ALTER TABLE `tenant_settings` ADD `eosFirstPeriodMonthsPerYear` decimal(5,2) DEFAULT '0.50' NOT NULL;--> statement-breakpoint
 ALTER TABLE `tenant_settings` ADD `eosLaterMonthsPerYear` decimal(5,2) DEFAULT '1.00' NOT NULL;--> statement-breakpoint
-ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `payroll_allocation_adjustments_tenantId_companies_id_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `payroll_allocation_adjustments_allocationId_payroll_allocations_id_fk` FOREIGN KEY (`allocationId`) REFERENCES `payroll_allocations`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `payroll_allocation_adjustments_adjustedByUserId_users_id_fk` FOREIGN KEY (`adjustedByUserId`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `paa_tenant_fk` FOREIGN KEY (`tenantId`) REFERENCES `companies`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `paa_allocation_fk` FOREIGN KEY (`allocationId`) REFERENCES `payroll_allocations`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `payroll_allocation_adjustments` ADD CONSTRAINT `paa_user_fk` FOREIGN KEY (`adjustedByUserId`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX `payroll_allocation_adjustments_allocation_idx` ON `payroll_allocation_adjustments` (`allocationId`,`createdAt`);--> statement-breakpoint
 CREATE INDEX `payroll_allocation_adjustments_tenant_idx` ON `payroll_allocation_adjustments` (`tenantId`,`createdAt`);--> statement-breakpoint
 -- A tenant that had already chosen one insurance rate keeps exactly that choice for both nationalities; tenants still on the old zero default get the owner's defaults (11.75% / 2%).
