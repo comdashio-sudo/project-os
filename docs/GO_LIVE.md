@@ -4,8 +4,8 @@
 
 ## ١) الحسابات الأربعة
 
-**أ) TiDB Cloud — القاعدة.** <https://tidbcloud.com> ← سجّل ← **Create Cluster** ← **Starter** ← المنطقة الأقرب لـRender (فرانكفورت) ← **Create**. ثم **SQL Editor** ← نفّذ `CREATE DATABASE project_os;`. ثم **Connect** ← **General** ← **Generate Password** ← انسخ المستخدم (له بادئة قبل نقطة، مثل `3abc.root`) وكلمة المرور والعنوان، واجمعها:
-`mysql://USER:PASSWORD@HOST:4000/project_os?ssl=%7B%22minVersion%22%3A%22TLSv1.2%22%2C%22rejectUnauthorized%22%3Atrue%7D` ← هذا هو `DATABASE_URL`.
+**أ) TiDB Cloud — القاعدة.** <https://tidbcloud.com> ← سجّل ← **Create Cluster** ← **Starter** ← المنطقة الأقرب لـRender (فرانكفورت) ← **Create**. ثم **SQL Editor** ← نفّذ `CREATE DATABASE project_os;`. ثم **Connect** ← **General** ← **Generate Password** ← انسخ المستخدم (له بادئة قبل نقطة، مثل `3abc.root`) وكلمة المرور والعنوان، واجمعها (استبدل `USER` و`PASSWORD` و`gateway.example` بقيمك):
+`mysql://USER:PASSWORD@gateway.example:4000/project_os?ssl=%7B%22minVersion%22%3A%22TLSv1.2%22%2C%22rejectUnauthorized%22%3Atrue%7D` ← هذا هو `DATABASE_URL`.
 
 **ب) Resend — بريد رمز الدخول.** <https://resend.com> ← **Domains** ← **Add Domain** ← `mail.<نطاقك>` ← أضف سجلات DNS (SPF وDKIM) عند مزود النطاق ← **Verify** حتى تصير **Verified** ← **API Keys** ← **Create API Key** ← **Sending access** على هذا النطاق ← انسخ المفتاح (يظهر مرة).
 
