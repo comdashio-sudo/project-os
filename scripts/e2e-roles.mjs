@@ -19,6 +19,10 @@ import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import mysql from "mysql2/promise";
 import { seedDemoData } from "./lib/demoData.mjs";
+import { getDb } from "../server/db.ts";
+import { countTenantData } from "../server/tenantData.ts";
+import { gunzipSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 import { ROLE_DEFINITIONS, createRoleFixture } from "./lib/roleFixture.mjs";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
@@ -282,6 +286,52 @@ for (const view of VIEWS) {
     await context.close();
     console.log(`${role}/${v}: ${results.filter(item => item.role === role && item.view === v && item.ok).length}/${results.filter(item => item.role === role && item.view === v).length}`);
   }
+}
+
+// ---------------------------------------------------------------- the owner of a throwaway company takes a copy and erases it, through the screen
+if (process.env.E2E_ERASURE || (!only && !process.env.VIEW)) {
+  const doomed = await createRoleFixture({ label: "doomed" });
+  await seedDemoData({ caller: doomed.asOwner, connection, tenantId: doomed.tenantId, projectId: doomed.projectId, user: doomed.owner.row }).catch(() => undefined);
+  const person = doomed.people.owner;
+  const context = await browser.newContext({ viewport: VIEWS[0].viewport, locale: "ar-SA", acceptDownloads: true, extraHTTPHeaders: { "x-forwarded-proto": "https", "x-forwarded-for": "10.77.3.1" } });
+  const page = await context.newPage();
+  const step = (name, ok, detail = "") => check("owner", "desktop", `حذف الشركة نهائيًا: ${name}`, ok, detail);
+  try {
+    await signIn(page, person);
+    await visit(page, `/tenants/${doomed.tenantId}/administration`, 3000);
+    const heading = page.getByText("بيانات الشركة: نسخة كاملة وحذف نهائي");
+    step("البطاقة ظاهرة للمالك", await heading.count() > 0);
+    step("الحذف مغلق قبل تنزيل نسخة", await page.getByText(/لا يتاح الحذف إلا بعد تنزيل نسخة كاملة/).count() > 0 && await page.getByRole("button", { name: "أريد حذف بيانات الشركة نهائيًا" }).count() === 0);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "تنزيل نسخة كاملة من بيانات الشركة" }).click()]);
+    const file = await download.path();
+    const exported = gunzipSync(readFileSync(file)).toString("utf8").trim().split("\n").map(line => JSON.parse(line));
+    step("النسخة الكاملة تُنزَّل ملفًا مضغوطًا مكتملًا", exported[0].kind === "manifest" && exported.at(-1).kind === "summary" && exported.at(-1).totalRows > 100, `lines ${exported.length}`);
+    await page.getByRole("button", { name: "تحديث", exact: true }).click();
+    await page.getByRole("button", { name: "أريد حذف بيانات الشركة نهائيًا" }).click();
+    const deleteButton = page.getByRole("button", { name: "احذف بيانات الشركة نهائيًا" });
+    await deleteButton.waitFor({ timeout: 10_000 });
+    step("زر الحذف مغلق قبل كتابة الاسم", await deleteButton.isDisabled());
+    const [[company]] = await connection.query("SELECT legalName FROM companies WHERE id = ?", [doomed.tenantId]);
+    await page.getByLabel("اسم الشركة").fill(company.legalName.slice(0, -1));
+    await page.getByRole("checkbox", { name: "أفهم أن الحذف نهائي ولا يمكن التراجع عنه." }).check();
+    step("وهو مغلق والاسم ناقص حرفًا", await deleteButton.isDisabled());
+    await page.getByLabel("اسم الشركة").fill(company.legalName);
+    step("ويُفتح بالاسم الكامل مع التأشير", await deleteButton.isEnabled());
+    await deleteButton.click();
+    await page.getByText("اكتمل الحذف").waitFor({ timeout: 60_000 });
+    step("تقرير التحقق: نجح", await page.getByText(/التحقق: نجح/).count() > 0);
+    const db = await getDb();
+    const left = await countTenantData(db, doomed.tenantId);
+    step("لا سجل واحد متبقٍّ في أي جدول (عدٌّ جديد من قاعدة البيانات)", left.totalRows === 0 && left.tables.length > 80, `rows ${left.totalRows} in ${left.tables.length} tables`);
+    const [[kept]] = await connection.query("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.data_deleted'", [doomed.tenantId]);
+    step("سجل التدقيق يحتفظ بأثر الحذف", Number(kept.n) === 1);
+    await visit(page, "/", 1500);
+    step("جلسة المالك انتهت بالحذف", await page.getByRole("link", { name: /تسجيل الدخول/ }).count() + await page.getByRole("button", { name: /تسجيل الدخول/ }).count() > 0);
+    // the company that was NOT erased is untouched
+    const live = await countTenantData(db, tenantId);
+    step("بيانات الشركة الأخرى سليمة", live.totalRows > 100, `rows ${live.totalRows}`);
+  } catch (error) { step("السيناريو انتهى دون استثناء", false, String(error.message).split("\n")[0]); }
+  await context.close();
 }
 await browser.close();
 await connection.end();
