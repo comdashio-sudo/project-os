@@ -129,7 +129,7 @@ describe("render.yaml", () => {
       for (const line of guide.split("\n").filter(entry => entry.includes(forbidden))) expect(line, forbidden).toMatch(/لا تضع أبدًا/);
     }
     // the four accounts, and the audit_logs protection step with its proof lines
-    for (const needed of ["TiDB Cloud", "Resend", "Cloudflare R2", "Render", "provision:audit-app", "verify:audit-grants", "deleteDenied", "/healthz"]) expect(guide, needed).toContain(needed);
+    for (const needed of ["TiDB Cloud", "Resend", "Cloudflare R2", "Render", "provision:audit-app", "predeploy", "verify:audit-grants", "deleteDenied", "/healthz"]) expect(guide, needed).toContain(needed);
   });
 
   it("documents every variable the blueprint asks for", () => {

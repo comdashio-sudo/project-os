@@ -1,6 +1,7 @@
 import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getDb } from "./db";
+import { getScopedAuditAppUsername } from "./domain/auditAccountIdentity";
 import { isTiDB, refreshStatisticsAfterBulkLoad } from "./tidbStats";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
@@ -17,6 +18,11 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("statistics r
       const [[row]] = await connection.query<mysql.RowDataPacket[]>("SELECT @@global.tidb_enable_auto_analyze AS v");
       autoAnalyzeWas = String(row.v);
       await connection.query("SET GLOBAL tidb_enable_auto_analyze = OFF");
+    }
+    // under the restricted application account a table made here is invisible until granted, as a migration's table is until predeploy runs
+    if (process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL !== "true" && process.env.PROJECT_OS_APP_DB_PASSWORD) {
+      const database = decodeURIComponent(new URL(process.env.TEST_DATABASE_URL!).pathname.slice(1));
+      await connection.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON \`${database}\`.zz_stats_probe TO \`${getScopedAuditAppUsername(process.env.DATABASE_URL!)}\`@\`%\``);
     }
     const rows = Array.from({ length: 3000 }, (_, i) => [i % 50, i]);
     await connection.query("INSERT INTO zz_stats_probe (a, b) VALUES ?", [rows]);
@@ -47,4 +53,9 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("statistics r
     const [rows] = await connection.query<mysql.RowDataPacket[]>("SHOW STATS_META WHERE Table_name = 'zz_stats_probe'");
     expect(Number(rows[0].Row_count)).toBe(3000);
   }, 30_000);
+
+  it("on TiDB, works for the account the application really runs as, on the application's own tables", async () => {
+    if (!tidb) return;
+    expect(await refreshStatisticsAfterBulkLoad((await getDb())!, ["activities", "wbs_items"], 5000)).toMatchObject({ ran: true, reason: "refreshed" });
+  });
 });
