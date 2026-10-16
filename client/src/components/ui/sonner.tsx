@@ -1,12 +1,16 @@
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
+  const { isArabic } = useLanguage();
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      dir={isArabic ? "rtl" : "ltr"}
+      containerAriaLabel={isArabic ? "الإشعارات" : "Notifications"}
       className="toaster group"
       style={
         {

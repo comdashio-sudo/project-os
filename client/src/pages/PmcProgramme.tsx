@@ -4,6 +4,7 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useEffect, useRef, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
+import { ChartLegend } from "@/components/ChartLegend";
 
 const text = {
   ar: {
@@ -70,7 +71,7 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
           <XAxis dataKey="month" interval="preserveStartEnd" />
           <YAxis domain={[0, 100]} unit="%" width={56} />
           <Tooltip />
-          <Legend />
+          <Legend content={<ChartLegend />} />
           {hasBaseline && <Line type="linear" dataKey="planned" name={t.planned} stroke="#64748b" strokeDasharray="6 4" dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />}
           <Line type="linear" dataKey="actual" name={t.actual} stroke="#0e6b70" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />
         </LineChart>

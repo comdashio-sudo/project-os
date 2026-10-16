@@ -218,7 +218,7 @@ export default function ProjectPmc() {
         </header>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
-          <section aria-label="filters" className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
+          <section aria-label={isArabic ? "عوامل التصفية" : "Filters"} className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
             <label className="text-xs">{t.filters.unitFrom}<input aria-label={t.filters.unitFrom} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitFrom ?? ""} onChange={event => setFilters({ ...filters, unitFrom: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
             <label className="text-xs">{t.filters.unitTo}<input aria-label={t.filters.unitTo} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitTo ?? ""} onChange={event => setFilters({ ...filters, unitTo: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>

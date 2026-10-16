@@ -15,7 +15,7 @@ export default function AcceptInvitation() {
   const [inviteToken, setInviteToken] = React.useState(() => new URLSearchParams(search).get("token") ?? "");
   const acceptance = trpc.tenant.acceptInvitation.useMutation();
   const t = isArabic
-    ? { title: "قبول دعوة المؤسسة", sub: "سجّل الدخول بالبريد الذي استلم الدعوة، ثم أكمل القبول لإضافة عضويتك ودورك ضمن المؤسسة.", token: "رمز القبول", submit: "قبول الدعوة", submitting: "جارٍ قبول الدعوة…", success: "تم قبول الدعوة وتفعيل عضويتك بنجاح.", back: "العودة إلى مساحة العمل" }
+    ? { title: "قبول دعوة الشركة", sub: "سجّل الدخول بالبريد الذي استلم الدعوة، ثم أكمل القبول لإضافة عضويتك ودورك ضمن الشركة.", token: "رمز القبول", submit: "قبول الدعوة", submitting: "جارٍ قبول الدعوة…", success: "تم قبول الدعوة وتفعيل عضويتك بنجاح.", back: "العودة إلى مساحة العمل" }
     : { title: "Accept organization invitation", sub: "Sign in with the email address that received the invitation, then complete acceptance to add your membership and role.", token: "Acceptance token", submit: "Accept invitation", submitting: "Accepting invitation…", success: "The invitation was accepted and your membership is active.", back: "Back to workspace" };
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

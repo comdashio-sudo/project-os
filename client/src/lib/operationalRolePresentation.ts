@@ -1,4 +1,5 @@
 const operationalRoleNames = {
+  TENANT_OWNER: { ar: "مالك الشركة", en: "Tenant Owner" },
   WAREHOUSE_CUSTODIAN: { ar: "أمين المستودع", en: "Warehouse Custodian" },
   PROCUREMENT_OFFICER: { ar: "مسؤول المشتريات والتوريد", en: "Procurement Officer" },
   FINANCE_MANAGER: { ar: "المدير المالي", en: "Finance Manager" },

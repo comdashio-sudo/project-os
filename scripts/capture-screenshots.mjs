@@ -6,7 +6,9 @@
 //
 //   . env (DATABASE_URL naming project_os_integration_test, JWT_SECRET, PORT)
 //   node scripts/migrate.mjs
-//   SEED_CONFIRM=yes node --import tsx scripts/seed-demo-tenant.mjs     # empty database only
+//   SEED_CONFIRM=yes node --// NOTE: run scripts/run-integration-database-test.mjs BEFORE seeding the demo tenant, not after: integration.database.test.ts deletes the global permission rows
+// (project.read, project.write, pmo.write, executive.read) and with them every tenant's grants of them, so a demo tenant seeded earlier answers 403 afterwards.
+import tsx scripts/seed-demo-tenant.mjs     # empty database only
 //   NODE_ENV=production node dist/index.js &                            # after pnpm build
 //   node --import tsx scripts/capture-screenshots.mjs
 //
