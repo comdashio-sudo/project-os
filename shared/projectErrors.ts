@@ -1008,6 +1008,86 @@ export const projectErrorMessages = {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",
   },
+  PROJECT_OS_DESIGN_DUPLICATE: {
+    ar: "الرقم المدخل مستعمل من قبل في هذا المشروع (رقم مخطط أو مراجعة أو إحالة أو ملاحظة أو تقديم).",
+    en: "That number is already used in this project (drawing, revision, transmittal, comment or submittal).",
+  },
+  PROJECT_OS_DESIGN_DRAWING_NOT_FOUND: {
+    ar: "المخطط المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected drawing is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DESIGN_REVISION_NOT_FOUND: {
+    ar: "مراجعة المخطط المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected drawing revision is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DESIGN_DRAWING_CANCELLED: {
+    ar: "المخطط ملغى؛ لا تُجرى عليه عمليات جديدة.",
+    en: "The drawing is cancelled; no new operations are allowed on it.",
+  },
+  PROJECT_OS_DESIGN_DRAWING_APPROVED: {
+    ar: "المخطط معتمد للتنفيذ؛ أصدر مراجعة جديدة قبل إضافة ملاحظات عليه.",
+    en: "The drawing is approved for construction; issue a new revision before adding comments to it.",
+  },
+  PROJECT_OS_DESIGN_APPROVAL_STATE_INVALID: {
+    ar: "لا يُعتمد المخطط إلا وهو قيد المراجعة (أي بعد إرساله في إحالة).",
+    en: "A drawing can be approved only while it is under review (after it has been sent in a transmittal).",
+  },
+  PROJECT_OS_DESIGN_OPEN_COMMENTS: {
+    ar: "لا يُعتمد المخطط وفيه ملاحظات مراجعة لم تُغلق على مراجعته الحالية.",
+    en: "A drawing cannot be approved while review comments on its current revision are not closed.",
+  },
+  PROJECT_OS_DESIGN_SELF_APPROVAL: {
+    ar: "من أصدر المراجعة لا يعتمدها؛ يلزم شخص آخر يملك صلاحية الاعتماد.",
+    en: "Whoever issued the revision cannot approve it; another person with approval authority is needed.",
+  },
+  PROJECT_OS_DESIGN_TRANSMITTAL_NOT_FOUND: {
+    ar: "الإحالة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected transmittal is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DESIGN_TRANSMITTAL_EMPTY: {
+    ar: "اختر مخططًا واحدًا على الأقل لتضمينه في الإحالة.",
+    en: "Select at least one drawing revision to include in the transmittal.",
+  },
+  PROJECT_OS_DESIGN_TRANSMITTAL_TRANSITION_INVALID: {
+    ar: "انتقال حالة الإحالة غير مسموح من حالتها الحالية.",
+    en: "That transmittal-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_DESIGN_COMMENT_NOT_FOUND: {
+    ar: "ملاحظة المراجعة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected review comment is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DESIGN_COMMENT_TRANSITION_INVALID: {
+    ar: "انتقال حالة الملاحظة غير مسموح من حالتها الحالية.",
+    en: "That comment-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_DESIGN_COMMENT_RESPONSE_REQUIRED: {
+    ar: "اكتب ردًّا على الملاحظة قبل تسجيله.",
+    en: "Write a response to the comment before recording it.",
+  },
+  PROJECT_OS_DESIGN_SELF_CLOSE: {
+    ar: "من ردّ على الملاحظة لا يغلقها؛ يلزم شخص آخر يملك صلاحية الاعتماد.",
+    en: "Whoever answered a comment cannot close it; another person with approval authority is needed.",
+  },
+  PROJECT_OS_DESIGN_SUBMITTAL_NOT_FOUND: {
+    ar: "التقديم المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected submittal is not available in the current project and workspace.",
+  },
+  PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID: {
+    ar: "انتقال حالة التقديم غير مسموح من حالته الحالية.",
+    en: "That submittal-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_DESIGN_REPLY_CODE_REQUIRED: {
+    ar: "اختر رمز رد الاستشاري (A أو B أو C أو D).",
+    en: "Choose the consultant's reply code (A, B, C or D).",
+  },
+  PROJECT_OS_DESIGN_SELF_REPLY: {
+    ar: "من أرسل التقديم لا يسجّل رد الاستشاري عليه؛ يلزم شخص آخر يملك صلاحية الاعتماد.",
+    en: "Whoever sent the submittal cannot record the consultant's reply to it; another person with approval authority is needed.",
+  },
+  PROJECT_OS_DESIGN_RESUBMISSION_INVALID: {
+    ar: "لا يُعاد تقديم إلا ما ردّ عليه الاستشاري بالرمز C أو D.",
+    en: "Only a submittal the consultant answered with C or D can be resubmitted.",
+  },
 } as const satisfies Record<string, BilingualMessage>;
 
 export type ProjectErrorCode = keyof typeof projectErrorMessages;

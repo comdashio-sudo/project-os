@@ -13,6 +13,8 @@ const STATUS_AR: Record<string, string> = {
   released: "مُفرَج عنه", committed: "ملتزم به", superseded: "حلّت محله نسخة أحدث", published: "منشور", trialing: "تجريبي", past_due: "متأخر السداد", grace_period: "فترة سماح",
   expired: "منتهي الصلاحية", posted: "مُرحَّل", planned: "مخطط", on_hold: "معلّق", hold: "معلّق", withdrawn: "مسحوب", implemented: "منفَّذ", mitigating: "قيد التخفيف",
   importing: "قيد الاستيراد", validated: "تم التحقق", uploaded: "مرفوع", created: "أُنشئ", updated: "حُدّث", escalated: "مُصعَّد", pass: "مطابق", fail: "غير مطابق", conditional: "مطابق بشروط",
+  // design coordination
+  registered: "مُسجَّل", responded: "تم الرد", acknowledged: "تم الاستلام", replied: "تم الرد عليه", minor: "بسيط", major: "جوهري", architectural: "معماري", interior: "تصميم داخلي", landscape: "تنسيق مواقع", structural: "إنشائي", civil: "مدني", mechanical: "ميكانيكا", electrical: "كهرباء", plumbing: "سباكة", fire_fighting: "مكافحة حريق", other: "أخرى", outgoing: "صادرة", incoming: "واردة",
   absent: "غائب", present: "حاضر", leave: "إجازة", error: "خطأ", warning: "تحذير", none: "لا شيء",
   // project lifecycle stages
   opportunity: "فرصة", pre_award: "ما قبل الترسية", tender: "المناقصة", award: "الترسية", mobilization: "التعبئة وتجهيز الموقع", planning: "التخطيط", design: "التصميم",
@@ -41,6 +43,7 @@ export const hasArabicLabel = (code: string) => code.trim().toLowerCase().replac
 
 const PERMISSION_AR: Record<string, string> = {
   "executive.read": "عرض المستوى التنفيذي (1)", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
+  "project.design.manage": "إدارة سجل المخططات والإحالات وملاحظات التصميم والتقديمات", "project.design.architectural": "سلطة التخصصات المعمارية (عمارة وتصميم داخلي وتنسيق مواقع)", "project.design.technical": "سلطة التخصصات الفنية (إنشائي ومدني وميكانيكا وكهرباء وسباكة وإطفاء)", "project.design.approve": "اعتماد المخططات للتنفيذ وتسجيل ردود الاستشاري", 
   "project.write": "تحرير بيانات المشروع", "project.manage": "إدارة المشروع", "tenant.manage": "إدارة الشركة", "project.attendance.manage": "إدارة الحضور",
   "project.budget.manage": "إدارة الميزانيات", "project.cashflow.read": "عرض التدفق النقدي", "project.commitment.manage": "إدارة الالتزامات", "project.cost.enter": "إدخال التكلفة الفعلية",
   "project.evm.manage": "إدارة القيمة المكتسبة (EVM)", "project.field.manage": "إدارة الإدخال الميداني", "project.hr.manage": "إدارة الموظفين", "project.hr.sensitive.read": "قراءة بيانات الموظفين الحساسة",

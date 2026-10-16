@@ -88,6 +88,7 @@ export const conflictingPermissionPairs = [
   { pair: ["project.payroll.run", "project.payroll.approve"], reason: "the accountant who runs payroll must not be the finance manager who approves it" },
   { pair: ["project.payroll.run", "project.hr.manage"], reason: "payroll must not be run by whoever maintains the employee records" },
   { pair: ["project.payroll.run", "project.payroll.structure"], reason: "payroll must not be run by whoever sets the salary structures" },
+  { pair: ["project.design.manage", "project.design.approve"], reason: "whoever issues a drawing must not also approve it for construction, nor record the consultant's reply to their own submittal" },
 ] as const;
 
 export function findPermissionConflict(permissionCodes: Iterable<string>) {

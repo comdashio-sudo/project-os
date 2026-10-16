@@ -847,6 +847,12 @@ async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<t
     for (const permission of allCatalogPermissions) {
       await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
     }
+    // The company owner holds every power by definition, including the ones added to the catalog after the company was created.
+    const [ownerRole] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, "TENANT_OWNER"))).limit(1);
+    if (ownerRole) {
+      const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
+      for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onDuplicateKeyUpdate({ set: { roleId: ownerRole.id } });
+    }
     for (const definition of operationalRoleDefinitions) {
       await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: "PROJECT", systemManaged: true }).onDuplicateKeyUpdate({ set: { name: definition.name, productCode: "PROJECT", systemManaged: true } });
       const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);

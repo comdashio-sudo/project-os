@@ -470,6 +470,13 @@
       "when": 1792149690012,
       "tag": "0066_auth_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1792191302459,
+      "tag": "0067_design_coordination",
+      "breakpoints": true
     }
   ]
 }

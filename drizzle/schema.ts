@@ -2097,3 +2097,123 @@ export const evmWbsSnapshots = mysqlTable(
     index("evm_wbs_snapshots_project_idx").on(table.tenantId, table.projectId),
   ],
 );
+
+// ---------------------------------------------------------------- Technical and architectural coordination (work order 5, item 7)
+// Every row carries the tenant and the project; every query filters on both. Numbers are typed by the coordinator and unique within the project (as RFIs are).
+export const designDrawings = mysqlTable(
+  "design_drawings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    drawingNumber: varchar("drawingNumber", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    discipline: mysqlEnum("discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]).notNull(),
+    status: mysqlEnum("status", ["registered", "under_review", "approved", "cancelled"]).default("registered").notNull(),
+    currentRevision: varchar("currentRevision", { length: 20 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("design_drawings_project_number_unique").on(table.projectId, table.drawingNumber), index("design_drawings_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.discipline)],
+);
+
+export const designDrawingRevisions = mysqlTable(
+  "design_drawing_revisions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    drawingId: varchar("drawingId", { length: 36 }).notNull().references(() => designDrawings.id),
+    revision: varchar("revision", { length: 20 }).notNull(),
+    description: varchar("description", { length: 500 }),
+    isCurrent: boolean("isCurrent").default(true).notNull(),
+    issuedAt: timestamp("issuedAt").defaultNow().notNull(),
+    issuedByUserId: int("issuedByUserId").notNull().references(() => users.id),
+    approvedAt: timestamp("approvedAt"),
+    approvedByUserId: int("approvedByUserId").references(() => users.id),
+  },
+  table => [uniqueIndex("design_revisions_drawing_revision_unique").on(table.drawingId, table.revision), index("design_revisions_tenant_project_idx").on(table.tenantId, table.projectId, table.drawingId)],
+);
+
+export const designTransmittals = mysqlTable(
+  "design_transmittals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    transmittalNumber: varchar("transmittalNumber", { length: 120 }).notNull(),
+    direction: mysqlEnum("direction", ["outgoing", "incoming"]).default("outgoing").notNull(),
+    counterparty: varchar("counterparty", { length: 255 }).notNull(),
+    subject: varchar("subject", { length: 255 }).notNull(),
+    status: mysqlEnum("status", ["draft", "sent", "acknowledged"]).default("draft").notNull(),
+    sentAt: timestamp("sentAt"),
+    acknowledgedAt: timestamp("acknowledgedAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("design_transmittals_project_number_unique").on(table.projectId, table.transmittalNumber), index("design_transmittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const designTransmittalItems = mysqlTable(
+  "design_transmittal_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    transmittalId: varchar("transmittalId", { length: 36 }).notNull().references(() => designTransmittals.id),
+    revisionId: varchar("revisionId", { length: 36 }).notNull(),
+  },
+  // named by hand: the generated name for this foreign key is longer than the 64 characters MySQL allows
+  table => [foreignKey({ columns: [table.revisionId], foreignColumns: [designDrawingRevisions.id], name: "design_trm_items_revision_fk" }), uniqueIndex("design_transmittal_items_unique").on(table.transmittalId, table.revisionId), index("design_transmittal_items_revision_idx").on(table.revisionId)],
+);
+
+export const designComments = mysqlTable(
+  "design_comments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    drawingId: varchar("drawingId", { length: 36 }).notNull().references(() => designDrawings.id),
+    revisionId: varchar("revisionId", { length: 36 }).notNull().references(() => designDrawingRevisions.id),
+    commentNumber: varchar("commentNumber", { length: 120 }).notNull(),
+    raisedBy: varchar("raisedBy", { length: 255 }).notNull(),
+    severity: mysqlEnum("severity", ["minor", "major", "critical"]).default("minor").notNull(),
+    commentText: text("commentText").notNull(),
+    status: mysqlEnum("status", ["open", "responded", "closed"]).default("open").notNull(),
+    responseText: text("responseText"),
+    respondedAt: timestamp("respondedAt"),
+    respondedByUserId: int("respondedByUserId").references(() => users.id),
+    closedAt: timestamp("closedAt"),
+    closedByUserId: int("closedByUserId").references(() => users.id),
+    dueAt: timestamp("dueAt"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("design_comments_project_number_unique").on(table.projectId, table.commentNumber), index("design_comments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt), index("design_comments_drawing_idx").on(table.drawingId, table.status)],
+);
+
+export const designSubmittals = mysqlTable(
+  "design_submittals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    submittalNumber: varchar("submittalNumber", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    discipline: mysqlEnum("discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]).notNull(),
+    drawingId: varchar("drawingId", { length: 36 }).references(() => designDrawings.id),
+    resubmissionOfId: varchar("resubmissionOfId", { length: 36 }),
+    status: mysqlEnum("status", ["draft", "submitted", "replied", "closed"]).default("draft").notNull(),
+    submittedAt: timestamp("submittedAt"),
+    submittedByUserId: int("submittedByUserId").references(() => users.id),
+    dueAt: timestamp("dueAt"),
+    replyCode: mysqlEnum("replyCode", ["A", "B", "C", "D"]),
+    replyNote: text("replyNote"),
+    repliedAt: timestamp("repliedAt"),
+    repliedByUserId: int("repliedByUserId").references(() => users.id),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [uniqueIndex("design_submittals_project_number_unique").on(table.projectId, table.submittalNumber), index("design_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
+);
