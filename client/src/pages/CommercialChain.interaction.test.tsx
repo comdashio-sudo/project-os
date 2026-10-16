@@ -11,6 +11,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: s
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ boq: { list: { invalidate: vi.fn() } }, subcontracts: { list: { invalidate: vi.fn() }, listCertificates: { invalidate: vi.fn() } }, projectInvoices: { list: { invalidate: vi.fn() } } }),
   boq: { list: { useQuery: () => ({ data: [{ id: "b1", code: "BOQ-01", description: "Concrete", unitOfMeasure: "m3", quantity: "10", unitRate: "100", totalAmount: "1000", currency: "SAR" }], isLoading: false, error: null }) }, create: { useMutation: () => ({ mutate: state.createBoq, isPending: false, error: null }) } },
+  procurement: { register: { useQuery: () => ({ data: { suppliers: [{ id: "sup-1", code: "SUP-01", legalName: "Build Co", active: true }] } }) } },
   subcontracts: { list: { useQuery: () => ({ data: [{ id: "s1", code: "SUB-01", title: "Structure", subcontractorName: "Build Co", contractValue: "5000", status: "draft" }], isLoading: false, error: null }) }, listCertificates: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, createCertificate: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } },
   projectInvoices: { list: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } },
 } }));

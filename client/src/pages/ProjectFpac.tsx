@@ -5,6 +5,7 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
+import { GuardedPanels } from "@/components/SectionResilience";
 import CashFlowMonthly from "./CashFlowMonthly";
 import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
@@ -203,9 +204,11 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
-      <CashFlowMonthly tenantId={tenantId} projectId={projectId} currency={currency} />
-      <ProjectInvoicesPanel tenantId={tenantId} projectId={projectId} currency={currency} />
-      <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />
+      <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost" } }}>
+        <CashFlowMonthly tenantId={tenantId} projectId={projectId} currency={currency} />
+        <ProjectInvoicesPanel tenantId={tenantId} projectId={projectId} currency={currency} />
+        <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />
+      </GuardedPanels>
     </section>
   );
 }

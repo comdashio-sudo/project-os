@@ -13,7 +13,7 @@ vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () =
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => { if (state.contractsRenderFailure) throw new Error("deliberate project contracts render failure"); return null; } }));
-vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => null }));
+vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => <p>Documents panel alive</p> }));
 vi.mock("./ProjectRfis", () => ({ ProjectRfis: () => null }));
 vi.mock("./ProjectNcrs", () => ({ ProjectNcrs: () => null }));
 vi.mock("./ProjectHse", () => ({ ProjectHse: () => null }));
@@ -108,6 +108,21 @@ describe("ProjectControls section resilience", () => {
     render(<ProjectControls />);
     expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
+    consoleError.mockRestore();
+  });
+
+  it("contains a failing panel to itself: it is named, offers a retry, and the panel next to it keeps working (G-100)", () => {
+    state.performancePartial = true;
+    state.contractsRenderFailure = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<ProjectControls />);
+    const failed = screen.getByRole("region", { name: "Contracts", hidden: true });
+    expect(failed.textContent).toContain("This section could not be loaded");
+    expect(within(failed).getByRole("button", { name: "Try again", hidden: true })).toBeTruthy();
+    expect(screen.getByText("Documents panel alive")).toBeTruthy(); // same group, next panel
+    state.contractsRenderFailure = false;
+    fireEvent.click(within(failed).getByRole("button", { name: "Try again", hidden: true }));
+    expect(screen.queryByRole("region", { name: "Contracts", hidden: true })).toBeNull(); // retried and rendered
     consoleError.mockRestore();
   });
 

@@ -1228,7 +1228,7 @@ export async function listProjectsForTenant(input: { userId: number; tenantId: s
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read" });
   return db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId));
 }
@@ -3043,7 +3043,15 @@ export async function transitionClaimStatus(input: { userId: number; tenantId: s
   return { id: input.claimId, previousStatus: claim.status, status: input.nextStatus };
 }
 
-export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
+/** A supplier from the tenant's register, active and in this company, or the reason it cannot be used. Its legal name is what the contract carries. */
+async function registeredSupplierName(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, supplierId: string) {
+  const [supplier] = await db.select({ legalName: suppliers.legalName, active: suppliers.active }).from(suppliers).where(and(eq(suppliers.id, supplierId), eq(suppliers.tenantId, tenantId))).limit(1);
+  if (!supplier) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUPPLIER_NOT_FOUND" });
+  if (!supplier.active) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SUPPLIER_INACTIVE" });
+  return supplier.legalName;
+}
+
+export async function createContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; counterparty: string; counterpartyKind?: "client" | "supplier" | "other"; supplierId?: string; contractValue: number; currency: string; startAt?: Date; endAt?: Date }) {
   if (input.endAt && input.startAt && input.endAt < input.startAt) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_DATES_INVALID" });
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -3051,10 +3059,15 @@ export async function createContractForTenant(input: { userId: number; tenantId:
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.commitment.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  // The other side (G-103): a supplier comes from the register and its name is the register's, so the two cannot disagree; a client or another party stays a name.
+  const counterpartyKind = input.supplierId ? "supplier" as const : input.counterpartyKind ?? "other" as const;
+  if (input.supplierId && input.counterpartyKind && input.counterpartyKind !== "supplier") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_COUNTERPARTY_KIND_MISMATCH" });
+  if (counterpartyKind === "supplier" && !input.supplierId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_SUPPLIER_REQUIRED" });
+  const counterparty = input.supplierId ? await registeredSupplierName(db, input.tenantId, input.supplierId) : input.counterparty;
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
-    await tx.insert(contracts).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, counterparty: input.counterparty, contractValue: String(input.contractValue), currency: input.currency, startAt: input.startAt, endAt: input.endAt, status: "draft" });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.contract_created", entityType: "contract", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, contractValue: input.contractValue }) });
+    await tx.insert(contracts).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, counterparty, counterpartyKind, supplierId: input.supplierId, contractValue: String(input.contractValue), currency: input.currency, startAt: input.startAt, endAt: input.endAt, status: "draft" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.contract_created", entityType: "contract", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, contractValue: input.contractValue, counterpartyKind, supplierId: input.supplierId ?? null }) });
   });
   return { id };
 }
@@ -3193,7 +3206,7 @@ export async function captureOperationalEvmSnapshot(input: { userId: number; ten
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.evm.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return captureOperationalEvmSnapshotCore(db, { actorUserId: input.userId, tenantId: input.tenantId, projectId: input.projectId, periodAt: input.periodAt, eacMethod: input.eacMethod, source: "operational_records" });
@@ -3452,7 +3465,7 @@ export async function createWbsItem(input: { userId: number; tenantId: string; p
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.wbs.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.parentId) {
@@ -3470,7 +3483,7 @@ export async function createActivity(input: { userId: number; tenantId: string; 
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.schedule.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
@@ -3487,7 +3500,7 @@ export async function createCostEntry(input: { userId: number; tenantId: string;
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cost.enter", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.wbsItemId) {
@@ -3505,7 +3518,7 @@ export async function createProgressEntry(input: { userId: number; tenantId: str
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.progress.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
@@ -3521,7 +3534,7 @@ export async function createBudgetLine(input: { userId: number; tenantId: string
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new Error("Tenant membership is not available");
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.budget.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (input.wbsItemId) {
@@ -3813,7 +3826,7 @@ export async function getSubcontractContractsForTenant(input: { userId: number; 
   return db.select().from(subcontractContracts).where(and(eq(subcontractContracts.tenantId, input.tenantId), eq(subcontractContracts.projectId, input.projectId))).orderBy(desc(subcontractContracts.createdAt));
 }
 
-export async function createSubcontractContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; subcontractorName: string; contractValue: number; retentionPercent?: number; advancePercent?: number }) {
+export async function createSubcontractContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; subcontractorName: string; supplierId?: string; contractValue: number; retentionPercent?: number; advancePercent?: number }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -3822,6 +3835,8 @@ export async function createSubcontractContractForTenant(input: { userId: number
 
   const [duplicate] = await db.select({ id: subcontractContracts.id }).from(subcontractContracts).where(and(eq(subcontractContracts.projectId, input.projectId), eq(subcontractContracts.code, input.code))).limit(1);
   if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SUBCONTRACT_CODE_EXISTS" });
+  // A subcontractor is a supplier: when one is chosen from the register its legal name is the one on the contract (G-103). A one-off subcontractor can still be typed.
+  const subcontractorName = input.supplierId ? await registeredSupplierName(db, input.tenantId, input.supplierId) : input.subcontractorName;
 
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
@@ -3831,7 +3846,8 @@ export async function createSubcontractContractForTenant(input: { userId: number
       projectId: input.projectId,
       code: input.code,
       title: input.title,
-      subcontractorName: input.subcontractorName,
+      subcontractorName,
+      supplierId: input.supplierId,
       contractValue: String(input.contractValue),
       retentionPercent: String(input.retentionPercent ?? 0),
       advancePaymentPercent: String(input.advancePercent ?? 0),

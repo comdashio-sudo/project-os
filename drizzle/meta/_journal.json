@@ -456,6 +456,13 @@
       "when": 1792136976444,
       "tag": "0064_email_notifications_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "5",
+      "when": 1792138183122,
+      "tag": "0065_contract_supplier_link",
+      "breakpoints": true
     }
   ]
 }

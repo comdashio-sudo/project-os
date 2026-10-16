@@ -852,6 +852,9 @@ export const contracts = mysqlTable(
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
+    // Who the other side is (G-103): a client has no register, so it stays a name; a supplier is chosen from the tenant's supplier register and its name is copied from there.
+    counterpartyKind: mysqlEnum("counterpartyKind", ["client", "supplier", "other"]).default("other").notNull(),
+    supplierId: varchar("supplierId", { length: 36 }),
     contractValue: decimal("contractValue", { precision: 18, scale: 2 }).default("0").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
     status: mysqlEnum("status", ["draft", "active", "suspended", "closed", "cancelled"]).default("draft").notNull(),
@@ -860,7 +863,7 @@ export const contracts = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
-  table => [uniqueIndex("contracts_project_code_unique").on(table.projectId, table.code), index("contracts_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+  table => [uniqueIndex("contracts_project_code_unique").on(table.projectId, table.code), index("contracts_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("contracts_supplier_idx").on(table.supplierId), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "contracts_supplier_fk" })],
 );
 
 export const commitments = mysqlTable(
@@ -1680,6 +1683,8 @@ export const subcontractContracts = mysqlTable(
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     subcontractorName: varchar("subcontractorName", { length: 255 }).notNull(),
+    // The supplier-register entry the subcontract is with (G-103); the name above is copied from it when one is chosen.
+    supplierId: varchar("supplierId", { length: 36 }),
     contractValue: decimal("contractValue", { precision: 18, scale: 2 }).notNull(),
     retentionPercent: decimal("retentionPercent", { precision: 5, scale: 2 }).default("0").notNull(),
     advancePaymentPercent: decimal("advancePercent", { precision: 5, scale: 2 }).default("0").notNull(),
@@ -1691,6 +1696,8 @@ export const subcontractContracts = mysqlTable(
   table => [
     uniqueIndex("subcontract_project_code_unique").on(table.projectId, table.code),
     index("subcontract_tenant_project_idx").on(table.tenantId, table.projectId),
+    index("subcontract_supplier_idx").on(table.supplierId),
+    foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "subcon_supplier_fk" }),
     foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "subcon_tenant_fk" }),
     foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "subcon_project_fk" }),
     foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "subcon_creator_fk" }),

@@ -11,6 +11,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    procurement: { register: { useQuery: () => ({ data: { suppliers: [{ id: "sup-1", code: "SUP-01", legalName: "Gulf Steel Co", active: true }] } }) } },
     contracts: {
       getProjectRegister: { useQuery: () => ({ isLoading: false, error: null, data: { contracts: [], commitments: [] }, refetch: vi.fn() }) },
       create: { useMutation: () => ({ mutate: state.contractMutate, isPending: false, error: state.contractError }) },
@@ -55,5 +56,23 @@ describe("ProjectContracts failed-submission retention", () => {
     expect((codes[1] as HTMLInputElement).value).toBe("COM-NEW");
     expect((screen.getByLabelText("Commitment description") as HTMLInputElement).value).toBe("Concrete package");
     expect(screen.getByText("Localized error")).toBeTruthy();
+  });
+
+  it("sends a supplier contract with the register entry chosen and its name, and a client contract as a typed name", async () => {
+    const user = userEvent.setup();
+    render(<ProjectContracts tenantId="tenant-1" projectId="project-1" />);
+    const [contractCode] = screen.getAllByLabelText("Code");
+    await user.type(contractCode, "CTR-SUP");
+    await user.type(screen.getByLabelText("Contract title"), "Steel supply");
+    await user.type(screen.getByLabelText("Contract value"), "900");
+    await user.selectOptions(screen.getByLabelText("Counterparty type"), "supplier");
+    expect(screen.queryByLabelText("Counterparty")).toBeNull(); // the name comes from the register, not from typing
+    await user.selectOptions(screen.getByLabelText("Choose the supplier"), "sup-1");
+    await user.click(screen.getByRole("button", { name: "Record contract" }));
+    expect(state.contractMutate).toHaveBeenLastCalledWith(expect.objectContaining({ code: "CTR-SUP", counterparty: "Gulf Steel Co", counterpartyKind: "supplier", supplierId: "sup-1" }));
+    await user.selectOptions(screen.getByLabelText("Counterparty type"), "client");
+    await user.type(screen.getByLabelText("Counterparty"), "Ministry Client");
+    await user.click(screen.getByRole("button", { name: "Record contract" }));
+    expect(state.contractMutate).toHaveBeenLastCalledWith(expect.objectContaining({ counterparty: "Ministry Client", counterpartyKind: "client", supplierId: undefined }));
   });
 });
