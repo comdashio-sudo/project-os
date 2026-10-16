@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SourceNotice } from "@/components/SectionResilience";
+import { WriteGate } from "@/lib/permissions";
 
 export function ProjectMaterials({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
@@ -20,23 +21,23 @@ export function ProjectMaterials({ tenantId, projectId }: { tenantId: string; pr
   const error = create.error ?? saveOverride.error;
   if (catalog.isLoading) return <p className="text-sm text-muted-foreground">{t.loading}</p>;
   return <Card><CardHeader><CardTitle>{t.title}</CardTitle></CardHeader><CardContent className="space-y-5">
-    <form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...master, referenceSpecification: master.referenceSpecification || undefined }); }}>
+    <WriteGate permission={["project.procurement.manage", "project.inventory.manage"]} projectId={projectId} reason={{ ar: "لا تملك صلاحية إضافة المواد، فالشاشة للعرض فقط.", en: "You do not have permission to add materials; this view is read-only for you." }}><form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...master, referenceSpecification: master.referenceSpecification || undefined }); }}>
       <div><Label htmlFor="material-code">{t.code}</Label><Input id="material-code" value={master.code} onChange={event => setMaster({ ...master, code: event.target.value })} required /></div>
       <div><Label htmlFor="material-description">{t.description}</Label><Input id="material-description" value={master.description} onChange={event => setMaster({ ...master, description: event.target.value })} required /></div>
       <div><Label htmlFor="material-uom">{t.uom}</Label><Input id="material-uom" value={master.unitOfMeasure} onChange={event => setMaster({ ...master, unitOfMeasure: event.target.value })} required /></div>
       <div><Label htmlFor="material-category">{t.category}</Label><Input id="material-category" value={master.category} onChange={event => setMaster({ ...master, category: event.target.value })} required /></div>
       <div className="md:col-span-2"><Label htmlFor="material-spec">{t.spec}</Label><Input id="material-spec" value={master.referenceSpecification} onChange={event => setMaster({ ...master, referenceSpecification: event.target.value })} /></div>
       <Button type="submit" disabled={create.isPending}>{t.save}</Button>
-    </form>
+    </form></WriteGate>
     <SourceNotice query={catalog} isArabic={isArabic} title={isArabic ? "كتالوج المواد" : "The material catalog"} />
     {catalog.error ? null : catalog.data?.length ? <><div className="grid gap-2">{catalog.data.map(item => <div key={item.id} className="rounded-lg border p-3 text-sm"><strong>{item.code}</strong> · {item.override?.projectDescription || item.description} <span className="text-muted-foreground">({item.unitOfMeasure} · {item.category})</span></div>)}</div>
-      <form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!override.materialId) return; const reorderLevel = override.reorderLevel.trim() ? Number(override.reorderLevel) : null; if (reorderLevel !== null && (!Number.isFinite(reorderLevel) || reorderLevel <= 0)) { setOverrideValidationError(t.reorderLevelInvalid); return; } setOverrideValidationError(null); saveOverride.mutate({ tenantId, projectId, materialId: override.materialId, active: override.active, projectDescription: override.projectDescription || undefined, referenceSpecification: override.referenceSpecification || undefined, reorderLevel }); }}>
+      <WriteGate permission={["project.procurement.manage", "project.inventory.manage"]} projectId={projectId} reason={{ ar: "لا تملك صلاحية ضبط مواد المشروع، فالشاشة للعرض فقط.", en: "You do not have permission to set project material overrides; this view is read-only for you." }}><form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!override.materialId) return; const reorderLevel = override.reorderLevel.trim() ? Number(override.reorderLevel) : null; if (reorderLevel !== null && (!Number.isFinite(reorderLevel) || reorderLevel <= 0)) { setOverrideValidationError(t.reorderLevelInvalid); return; } setOverrideValidationError(null); saveOverride.mutate({ tenantId, projectId, materialId: override.materialId, active: override.active, projectDescription: override.projectDescription || undefined, referenceSpecification: override.referenceSpecification || undefined, reorderLevel }); }}>
         <div><Label htmlFor="override-material">{t.material}</Label><select id="override-material" className="h-9 w-full rounded-md border bg-background px-3" value={override.materialId} onChange={event => setOverride({ ...override, materialId: event.target.value })} required><option value="">—</option>{catalog.data.map(item => <option key={item.id} value={item.id}>{item.code}</option>)}</select></div>
         <div><Label htmlFor="override-description">{t.projectDescription}</Label><Input id="override-description" value={override.projectDescription} onChange={event => setOverride({ ...override, projectDescription: event.target.value })} /></div>
         <div><Label htmlFor="override-spec">{t.spec}</Label><Input id="override-spec" value={override.referenceSpecification} onChange={event => setOverride({ ...override, referenceSpecification: event.target.value })} /></div>
         <div><Label htmlFor="override-reorder-level">{t.reorderLevel}</Label><Input id="override-reorder-level" type="number" step="0.001" inputMode="decimal" value={override.reorderLevel} onChange={event => setOverride({ ...override, reorderLevel: event.target.value })} aria-describedby="override-reorder-level-hint" /><p id="override-reorder-level-hint" className="mt-1 text-xs text-muted-foreground">{t.reorderLevelHint}</p></div>
         <label className="flex items-center gap-2 text-sm"><input aria-label={t.active} type="checkbox" checked={override.active} onChange={event => setOverride({ ...override, active: event.target.checked })} />{t.active}</label><Button type="submit" disabled={saveOverride.isPending}>{t.saveOverride}</Button>
-      </form></> : <p className="text-sm text-muted-foreground">{t.empty}</p>}
+      </form></WriteGate></> : <p className="text-sm text-muted-foreground">{t.empty}</p>}
     {overrideValidationError ? <p role="alert" className="text-sm text-destructive">{overrideValidationError}</p> : error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
   </CardContent></Card>;
 }

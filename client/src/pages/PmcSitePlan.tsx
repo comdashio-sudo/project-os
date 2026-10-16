@@ -3,6 +3,7 @@ import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
+import { WriteGate, useCan } from "@/lib/permissions";
 
 const text = {
   ar: {
@@ -37,6 +38,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   const map = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined });
   const card = trpc.pmc.unitCard.useQuery({ tenantId, projectId, unitNumber: selected ?? 0 }, { enabled: selected !== null });
   const [evm, setEvm] = useState<null | { evBefore: number; evAfter: number; moved: number }>(null);
+  const canUpdateStatus = useCan("project.pmc.update", projectId);
   const change = trpc.pmc.setUnitActivityStatus.useMutation({ onSuccess: result => { setEvm(result.evm ? { evBefore: result.evm.evBefore, evAfter: result.evm.evAfter, moved: result.evm.changed.length } : null); map.refetch(); card.refetch(); } });
   const upload = trpc.pmc.uploadSitePlan.useMutation({ onSuccess: () => { setMessage(t.uploaded); map.refetch(); } });
   const geometries = trpc.pmc.saveUnitGeometries.useMutation({ onSuccess: result => { if (result.saved > 0) { setMessage(t.saved(result.saved)); map.refetch(); } } });
@@ -50,8 +52,8 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
     <div className="space-y-4" data-testid="site-plan">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{t.activity}<select aria-label={t.activity} className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" value={activityCode} onChange={event => { setActivityCode(event.target.value); setSelected(null); }}><option value="">{t.overall}</option>{activities.map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>
-        <label className="text-sm">{t.uploadPlan}<input aria-label={t.uploadPlan} type="file" accept="image/png,image/jpeg" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) upload.mutate({ tenantId, projectId, fileName: file.name, base64: await readAsBase64(file) }); }} /></label>
-        <label className="text-sm">{t.uploadGeo}<input aria-label={t.uploadGeo} type="file" accept=".geojson,.json,application/geo+json,application/json" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></label>
+        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadPlan}<input aria-label={t.uploadPlan} type="file" accept="image/png,image/jpeg" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) upload.mutate({ tenantId, projectId, fileName: file.name, base64: await readAsBase64(file) }); }} /></label></WriteGate>
+        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadGeo}<input aria-label={t.uploadGeo} type="file" accept=".geojson,.json,application/geo+json,application/json" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></label></WriteGate>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       {geometries.data && geometries.data.errors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><b>{t.errors}:</b><ul className="mt-1 list-disc ps-5">{geometries.data.errors.slice(0, 20).map((e, i) => <li key={i}>#{e.index + 1} · {e.unitNumber ?? t.noNumber} · {e.code}</li>)}</ul></div>}
@@ -90,7 +92,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
                 {card.data && (<>
                   <p className="text-slate-600">{t.model}: {card.data.modelCode} · {t.zone}: {card.data.zoneCode} · {t.block}: {card.data.blockCode}</p>
                   <p className="mt-1">{t.progress}: <b>{card.data.progressPercent === null ? "—" : `${card.data.progressPercent}%`}</b></p>
-                  <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">{card.data.activities.map(a => <li key={a.code} className="flex flex-wrap justify-between gap-2 border-t pt-1"><span>{a.code} · {a.name}</span><span className="whitespace-nowrap"><span className="me-1 inline-block h-3 w-3 rounded" style={{ backgroundColor: COLORS[a.status] }} />{a.verificationStatus ? `${a.verificationStatus} · ` : ""}<select aria-label={`${t.changeStatus}: ${a.code}`} className="min-h-[44px] rounded-lg border bg-white px-1" value={a.status} disabled={change.isPending} onChange={event => change.mutate({ tenantId, projectId, unitId: card.data!.unitId, activityDefinitionId: a.definitionId, status: event.target.value as "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" })}>{Object.keys(COLORS).map(status => <option key={status} value={status}>{t.statuses[status]}</option>)}</select></span></li>)}</ul>
+                  <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">{card.data.activities.map(a => <li key={a.code} className="flex flex-wrap justify-between gap-2 border-t pt-1"><span>{a.code} · {a.name}</span><span className="whitespace-nowrap"><span className="me-1 inline-block h-3 w-3 rounded" style={{ backgroundColor: COLORS[a.status] }} />{a.verificationStatus ? `${a.verificationStatus} · ` : ""}<select aria-label={`${t.changeStatus}: ${a.code}`} className="min-h-[44px] rounded-lg border bg-white px-1" value={a.status} disabled={change.isPending || !canUpdateStatus} onChange={event => change.mutate({ tenantId, projectId, unitId: card.data!.unitId, activityDefinitionId: a.definitionId, status: event.target.value as "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" })}>{Object.keys(COLORS).map(status => <option key={status} value={status}>{t.statuses[status]}</option>)}</select></span></li>)}</ul>
                   {evm && <p role="status" className="mt-2 rounded-lg bg-emerald-50 p-2 text-emerald-900" data-testid="evm-effect">{evm.moved ? <>{t.earned}: <bdi dir="ltr">{formatMoney(evm.evBefore, map.data.currency, isArabic)} → {formatMoney(evm.evAfter, map.data.currency, isArabic)}</bdi> · {t.linkedMoved(evm.moved)}</> : t.evNone}</p>}
                 </>)}
               </section>

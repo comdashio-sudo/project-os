@@ -52,7 +52,7 @@ describe("RouteBoundary (G-100)", () => {
 describe("every signed-in page goes through the boundary", () => {
   const app = readFileSync(join(__dirname, "..", "App.tsx"), "utf8");
   it("wraps the page in RouteBoundary inside the one withAuth that all signed-in routes use", () => {
-    expect(app).toMatch(/<RequireAuth><RouteBoundary><Component \{\.\.\.props\} \/><\/RouteBoundary><\/RequireAuth>/);
+    expect(app).toMatch(/<RequireAuth><PermissionProvider tenantId=\{props\.params\?\.tenantId\}><RouteBoundary><Component \{\.\.\.props\} \/><\/RouteBoundary><\/PermissionProvider><\/RequireAuth>/);
   });
   it("routes every page except the public ones through withAuth", () => {
     const routed = Array.from(app.matchAll(/<Route path="[^"]*" component=\{(\w+)\}/g)).map(match => match[1]);

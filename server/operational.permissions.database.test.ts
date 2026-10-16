@@ -99,6 +99,22 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("operational permissions 
     for (const action of Object.keys(governedActionPermissions)) expect(await outcome(action, userIds.get("nobody")!)).toBe("denied");
   }, 120_000);
 
+  it("the screen's permission summary is exactly what each role holds, and a stranger is told they are not a member", async () => {
+    for (const role of operationalRoleDefinitions) {
+      const roleCaller = callerFor(userIds.get(role.code)!, openIdOf(role.code));
+      const summary = await roleCaller.accessSummary.mine({ tenantId });
+      expect(summary.member).toBe(true);
+      expect([...summary.permissions]).toEqual([...role.permissions].sort());
+      expect(summary.products).toContain("PROJECT");
+    }
+    // a member with no role: a member, holding nothing
+    const nobodyCaller = callerFor(userIds.get("nobody")!, openIdOf("nobody"));
+    expect(await nobodyCaller.accessSummary.mine({ tenantId })).toMatchObject({ member: true, permissions: [] });
+    // somebody with no membership in this company learns nothing about it
+    const strangerCaller = callerFor(userIds.get("custom")!, openIdOf("custom"));
+    expect(await strangerCaller.accessSummary.mine({ tenantId })).toEqual({ member: false, products: [], permissions: [], scopes: [] });
+  }, 120_000);
+
   it("the tenant owner (all powers) passes every governed check", async () => {
     for (const action of Object.keys(governedActionPermissions)) expect(await outcome(action, userIds.get("owner")!)).not.toBe("denied");
   }, 120_000);

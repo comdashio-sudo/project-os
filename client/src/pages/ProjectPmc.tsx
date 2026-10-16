@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { PmcProgramme } from "./PmcProgramme";
 import { PmcSitePlan } from "./PmcSitePlan";
+import { WriteGate } from "@/lib/permissions";
 
 const text = {
   ar: {
@@ -167,11 +168,11 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">{t.nothingSaved}</p>
-      <div className="flex flex-wrap items-end gap-3">
+      <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{t.importKind}<select aria-label={t.importKind} className={`${field} mt-1 block`} value={kind} onChange={event => { setKind(event.target.value as typeof kind); analyze.reset(); confirm.reset(); }}>{Object.entries(t.importKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="text-sm">{t.chooseFile}<input aria-label={t.chooseFile} type="file" accept=".xlsx,.csv" className={`${field} mt-1 block`} onChange={event => read(event.target.files?.[0])} /></label>
         <Button className="min-h-[44px]" disabled={!file || analyze.isPending} onClick={() => file && analyze.mutate({ tenantId, projectId, kind, format: file.format, base64: file.base64 })}><FileUp className="me-1 h-4 w-4" />{t.analyze}</Button>
-      </div>
+      </div></WriteGate>
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       {report && (
         <div className="space-y-3" data-testid="import-report">

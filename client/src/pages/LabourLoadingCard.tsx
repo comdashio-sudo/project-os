@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
+import { WriteGate } from "@/lib/permissions";
 
 const text = {
   ar: {
@@ -55,7 +56,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
       {message && <p role="status" className="mt-2 text-sm text-emerald-700">{message}</p>}
       {s.canEdit && !editing && <Button variant="outline" className="mt-3 min-h-[44px]" onClick={open}>{t.edit}</Button>}
       {editing && (
-        <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); submit(); }}>
+        <WriteGate permission={"project.settings.labour"} reason={{ ar: "لا تملك صلاحية ضبط تحميل تكلفة العمالة، فالشاشة للعرض فقط.", en: "You do not have permission to configure labour cost loading; this view is read-only for you." }}><form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); submit(); }}>
           <label className="text-sm">{t.gosi}<input aria-label={t.gosi} type="number" step="0.01" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.gosi} onChange={event => setForm(f => ({ ...f, gosi: event.target.value }))} /></label>
           <label className="text-sm">{t.gosiNon}<input aria-label={t.gosiNon} type="number" step="0.01" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.gosiNon} onChange={event => setForm(f => ({ ...f, gosiNon: event.target.value }))} /></label>
           <label className="text-sm">{t.eosYears}<input aria-label={t.eosYears} type="number" step="1" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.eosYears} onChange={event => setForm(f => ({ ...f, eosYears: event.target.value }))} /></label>
@@ -66,7 +67,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
           <fieldset className="text-sm"><legend>{t.days}</legend><div className="mt-1 flex flex-wrap gap-2">{t.dayNames.map((name, day) => <label key={day} className="flex min-h-[44px] items-center gap-1 rounded-lg border px-2"><input type="checkbox" aria-label={name} checked={form.days.includes(day)} onChange={() => toggleDay(day)} />{name}</label>)}</div></fieldset>
           {save.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
           <div className="flex gap-2 sm:col-span-2"><Button type="submit" className="min-h-[44px]" disabled={save.isPending || form.days.length === 0}>{t.save}</Button><Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setEditing(false)}>{t.cancel}</Button></div>
-        </form>
+        </form></WriteGate>
       )}
     </section>
   );

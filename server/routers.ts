@@ -80,6 +80,17 @@ export const appRouter = router({
         return { allowed: true as const };
       }),
   }),
+  // What the signed-in person may do in this company, for the screen to hide and disable the controls they cannot use.
+  // This is presentation only: every write is still refused by the server on its own (the same snapshot, the same check).
+  // A person who is not a member gets the same shape with nothing granted, so the screen never has to guess.
+  // Roles are scoped (company or one project), so the scopes travel with the codes and the screen applies the server's own rule.
+  accessSummary: router({
+    mine: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const snapshot = await getTenantAccessSnapshot({ userId: ctx.user.id, tenantId: input.tenantId });
+      if (!snapshot || snapshot.membershipStatus !== "active") return { member: false as const, products: [] as string[], permissions: [] as string[], scopes: [] as { scopeType: string; scopeId: string | null }[] };
+      return { member: true as const, products: snapshot.entitledProducts as string[], permissions: [...snapshot.permissionCodes].sort(), scopes: snapshot.scopes.map(scope => ({ scopeType: scope.scopeType as string, scopeId: (scope.scopeId ?? null) as string | null })) };
+    }),
+  }),
   navigation: router({
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid().optional() })).query(({ ctx, input }) => getTenantNavigationForUser({ userId: ctx.user.id, ...input })),
   }),
