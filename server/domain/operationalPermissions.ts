@@ -73,15 +73,7 @@ export const governedActionPermissions = {
 
 export type GovernedAction = keyof typeof governedActionPermissions;
 
-/** The data importer writes into these governed domains, so each module needs that domain's permission. */
-export const importModulePermissions = {
-  wbs: ["project.wbs.manage"],
-  budget: ["project.budget.manage"],
-  contracts: ["project.commitment.manage"],
-  materials: ["project.procurement.manage", "project.inventory.manage"],
-  openingBalances: ["project.inventory.manage"],
-  schedule: ["project.schedule.manage", "project.wbs.manage"],
-} as const satisfies Record<string, readonly string[]>;
+export { importModulePermissions } from "@shared/importPermissions";
 
 /**
  * Separation of duties at the level that actually matters: the powers. Nobody (but the tenant

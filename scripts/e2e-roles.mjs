@@ -24,6 +24,7 @@ import { countTenantData } from "../server/tenantData.ts";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
 import { ROLE_DEFINITIONS, createRoleFixture } from "./lib/roleFixture.mjs";
+import { operationalRoleDefinitions } from "../server/domain/operationalRoles.ts";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
 if (dbUrl.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
@@ -152,6 +153,52 @@ const WRITES = [
 const [[{ id: wbsId }]] = await connection.query("SELECT id FROM wbs_items WHERE projectId = ? AND code = '1' LIMIT 1", [projectId]);
 fixture.wbsId = wbsId;
 
+
+// ---------------------------------------------------------------- what each role is OFFERED to write (item 5-1)
+// Every write control the screens draw, with the permission(s) the server asks for it. "Offered" is derived from what the role HOLDS
+// (the product's own role catalogue plus the custom roles this fixture creates), never read back from the screen being tested.
+// Where a control only appears once the page has data (a warehouse before it can receive stock), the owner's own screen is the baseline for "it exists here".
+const heldBy = person => {
+  if (person.key === "owner") return null; // the company owner holds every power
+  const own = person.system ? operationalRoleDefinitions.find(role => role.code === person.system)?.permissions ?? [] : person.custom?.permissionCodes ?? [];
+  return new Set([...own, ...(person.viewer ? ["project.read"] : [])]);
+};
+const mayDo = (person, needs) => { const held = heldBy(person); return held === null || needs.some(code => held.has(code)); };
+const UI_WRITE_CONTROLS = [
+  { page: "/projects/:t/:p/controls", name: "إضافة بند WBS", needs: ["project.wbs.manage"] },
+  { page: "/projects/:t/:p/controls", name: "جدولة نشاط", needs: ["project.schedule.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل بند الميزانية", needs: ["project.budget.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل تكلفة فعلية", needs: ["project.cost.enter"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل التقدم", needs: ["project.progress.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ لقطة EVM", needs: ["project.evm.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حساب وحفظ لقطة الصحة", needs: ["project.evm.manage", "project.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل RFI", needs: ["project.rfi.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل NCR", needs: ["project.ncr.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل ملاحظة", needs: ["project.hse.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ تقرير ميداني", needs: ["project.field.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ فحص الجودة", needs: ["project.quality.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ أمر الشراء", needs: ["project.procurement.manage"] },
+  { page: "/projects/:t/:p/controls", name: "إنشاء الطلب", needs: ["project.material.request", "project.procurement.manage"] },
+  { page: "/projects/:t/:p/controls", name: "إضافة مستودع", needs: ["project.inventory.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل الاستلام", needs: ["project.inventory.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل عقد", needs: ["project.commitment.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل التزام", needs: ["project.commitment.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل مطالبة", needs: ["project.commitment.manage"] },
+  { page: "/projects/:t/:p/controls", name: "تسجيل طلب تغيير", needs: ["project.manage", "project.commitment.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ المادة", needs: ["project.procurement.manage", "project.inventory.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ الإسناد", needs: ["project.manage"] },
+  // the section loads its employee list through a query that asks for project.manage, so HR (attendance.manage without project.manage) gets no form: a finding, recorded in docs/STATE.md
+  { page: "/projects/:t/:p/controls", name: "تسجيل الحضور كمسودة", needs: ["project.attendance.manage"], alsoNeeds: ["project.manage"] },
+  { page: "/projects/:t/:p/controls", name: "رفع مستند وإصدار 1", needs: ["project.write"] },
+  { page: "/projects/:t/:p/controls", name: "إنشاء Master Plan", needs: ["project.write"] },
+  { page: "/projects/:t", name: "إنشاء مشروع", needs: ["project.write"] },
+  { page: "/people/:t", name: "إضافة بطاقة موظف", needs: ["project.hr.manage"] },
+  { page: "/payroll/:t", name: "إنشاء دورة رواتب", needs: ["project.payroll.run"] },
+  { page: "/pmo/:t", name: "حفظ الربط", needs: ["pmo.write"] },
+];
+const ownerOffered = new Set();
+let ownerBaselineTaken = false;
+
 const results = [];
 const check = (role, view, name, ok, detail = "") => { results.push({ role, view, name, ok: Boolean(ok), detail: String(detail).slice(0, 160) }); if (!ok) console.log(`  FAIL ${role}/${view}: ${name} ${detail}`); };
 
@@ -244,6 +291,42 @@ for (const view of VIEWS) {
         if (mayCost) check(role, v, "تسجيل تكلفة من الشاشة ينجح ويُحفظ صفّه", rows === 1 && !banner, `rows=${rows} banner="${banner.slice(0, 60)}"`);
         else check(role, v, "تسجيل تكلفة من الشاشة يُرفض بالعربية ولا يُحفظ صف", rows === 0 && /لا تملك الصلاحية/.test(banner), `rows=${rows} banner="${banner.slice(0, 60)}"`);
       } else check(role, v, "تسجيل تكلفة: النموذج غير معروض له", !mayCost, mayCost ? "form missing for a role that may" : "form not offered");
+
+
+      // 5b. the screens offer a write control only to someone who holds its permission (the server still refuses the rest; this proves nobody is invited to try)
+      {
+        const pagesSeen = new Map();
+        const offered = [];
+        const wrongly = [];
+        let checkedPresent = 0;
+        for (const control of UI_WRITE_CONTROLS) {
+          if (!pagesSeen.has(control.page)) {
+            await visit(page, control.page, 2500);
+            await page.evaluate(() => document.querySelectorAll("details").forEach(element => { element.open = true; }));
+            await page.waitForTimeout(900);
+            pagesSeen.set(control.page, true);
+          } else if (pagesSeen.get(control.page) !== "current") { /* same page already open for this role */ }
+          const here = await page.getByRole("button", { name: control.name, exact: true }).count() > 0;
+          const may = mayDo(person, control.needs) && (!control.alsoNeeds || mayDo(person, control.alsoNeeds));
+          if (role === "owner" && here) ownerOffered.add(control.name);
+          if (here) offered.push(control.name);
+          // a role that does not hold the permission must never be offered the control
+          if (here && !may) wrongly.push(`+${control.name}`);
+          // a role that holds it must be offered it wherever the owner is (the page had the data that makes the control appear)
+          if (!here && may && ownerOffered.has(control.name)) wrongly.push(`-${control.name}`);
+          if (here && may) checkedPresent += 1;
+        }
+        check(role, v, `واجهة الكتابة: يُعرض له ما يملك صلاحيته فقط (${offered.length} زرًا)`, wrongly.length === 0, wrongly.join("، "));
+        if (role === "owner") { ownerBaselineTaken = true; check(role, v, "واجهة الكتابة: المالك يرى أزرار الكتابة الأساسية (خط الأساس غير فارغ)", ownerOffered.size >= 12, `${ownerOffered.size} controls`); }
+        // the place of a hidden form is not silent: a one-line reason stands in it
+        await visit(page, "/projects/:t/:p/controls", 2500);
+        await page.evaluate(() => document.querySelectorAll("details").forEach(element => { element.open = true; }));
+        await page.waitForTimeout(700);
+        const notes = await page.locator('[data-write-gate="denied"]').allInnerTexts();
+        const holdsEverything = heldBy(person) === null;
+        check(role, v, holdsEverything ? "واجهة الكتابة: المالك لا يرى أي سطر منع" : "واجهة الكتابة: مكان كل نموذج محجوب سطر سبب بالعربية", holdsEverything ? notes.length === 0 : notes.length > 0 && notes.every(text => /لا تملك صلاحية/.test(text)), `${notes.length} notes`);
+        void ownerBaselineTaken; void checkedPresent;
+      }
 
       // 6. the same writes at the API, with this role's own session: allowed exactly where the permission is held, refused (403, in Arabic) elsewhere
       const stamp = `${person.key}${fixture.run}`.replace(/[^A-Za-z0-9]/g, "").slice(0, 12) + String(Math.floor(Math.random() * 90 + 10));

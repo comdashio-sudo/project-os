@@ -25,13 +25,15 @@ import FieldEntry from "./pages/FieldEntry";
 import ProjectPmc from "./pages/ProjectPmc";
 import UserProfile from "./pages/UserProfile";
 import RequireAuth from "./components/RequireAuth";
+import { PermissionProvider } from "./lib/permissions";
 import { RouteBoundary } from "./components/RouteBoundary";
 import type { ComponentType } from "react";
 import { Route, Switch } from "wouter";
 
 function withAuth(Component: ComponentType<any>) {
   return function AuthenticatedRoute(props: any) {
-    return <RequireAuth><RouteBoundary><Component {...props} /></RouteBoundary></RequireAuth>;
+    // every company route carries :tenantId; the provider asks the server once what this person may do there (client/src/lib/permissions.tsx)
+    return <RequireAuth><PermissionProvider tenantId={props.params?.tenantId}><RouteBoundary><Component {...props} /></RouteBoundary></PermissionProvider></RequireAuth>;
   };
 }
 

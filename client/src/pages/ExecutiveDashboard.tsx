@@ -22,6 +22,7 @@ import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
 import { PortfolioProfitability } from "./PortfolioProfitability";
 import { enumLabel } from "@/lib/labels";
+import { WriteGate } from "@/lib/permissions";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
@@ -337,7 +338,7 @@ export default function ExecutiveDashboard() {
             {!data.projects.length && (
               <p className="mb-4 text-sm text-amber-700">{t.noProjects}</p>
             )}
-            <form className="grid gap-4" onSubmit={submit}>
+            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you." }}><form className="grid gap-4" onSubmit={submit}>
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}
@@ -400,7 +401,7 @@ export default function ExecutiveDashboard() {
                   <p className="mt-3 text-sm text-emerald-700">{t.success}</p>
                 )}
               </div>
-            </form>
+            </form></WriteGate>
           </CardContent>
         </Card>
         </details>

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { WriteGate } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -40,13 +41,15 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
                 <td className="whitespace-nowrap pe-3">{formatMoney(Number(invoice.totalAmount), currency, isArabic)}</td>
                 <td className="pe-3">{t.statuses[invoice.status]}{invoice.status === "paid" && invoice.paidAt ? ` · ${t.paidOn} ${new Date(invoice.paidAt).toISOString().slice(0, 10)}` : ""}</td>
                 <td className="whitespace-nowrap">
+<WriteGate permission={"project.invoice.match"} projectId={projectId}>
                   {invoice.status === "draft" && <Button size="sm" variant="outline" className="me-2 min-h-[44px]" disabled={move.isPending} onClick={() => move.mutate({ tenantId, projectId, invoiceId: invoice.id, nextStatus: "issued" })}>{t.issue}</Button>}
                   {invoice.status === "issued" && paying !== invoice.id && <Button size="sm" variant="outline" className="me-2 min-h-[44px]" onClick={() => setPaying(invoice.id)}>{t.pay}</Button>}
                   {invoice.status === "issued" && paying === invoice.id && (
                     <span className="me-2 inline-flex items-center gap-2"><input aria-label={t.payDate} type="date" className="min-h-[44px] rounded-lg border px-2" value={paidOn} onChange={event => setPaidOn(event.target.value)} /><Button size="sm" className="min-h-[44px]" disabled={move.isPending || !paidOn} onClick={() => move.mutate({ tenantId, projectId, invoiceId: invoice.id, nextStatus: "paid", paidAt: new Date(`${paidOn}T00:00:00.000Z`) })}>{t.confirm}</Button></span>
                   )}
                   {(invoice.status === "draft" || invoice.status === "issued") && <Button size="sm" variant="outline" className="min-h-[44px]" disabled={move.isPending} onClick={() => move.mutate({ tenantId, projectId, invoiceId: invoice.id, nextStatus: "void" })}>{t.void}</Button>}
-                </td>
+                </WriteGate>
+</td>
               </tr>
             ))}</tbody>
           </table>

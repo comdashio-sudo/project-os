@@ -15,6 +15,7 @@ import { ArrowLeft, CheckSquare, CircleAlert, Clock3, FolderTree, ShieldAlert, T
 import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
 import { enumLabel } from "@/lib/labels";
+import { WriteGate } from "@/lib/permissions";
 
 type Priority = "low" | "medium" | "high" | "critical";
 type EscalationStatus = "none" | "pending" | "escalated";
@@ -198,11 +199,11 @@ export default function PmoDashboard() {
         <details className="mt-6 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{isArabic ? "إعداد المحافظ والبرامج" : "Portfolio & program setup"}</span><span className="text-xs font-medium text-primary">+</span></summary>
         <div className="grid gap-6 border-t border-border p-5 xl:grid-cols-2">
-          <Card><CardHeader><CardTitle>{t.addPortfolio}</CardTitle></CardHeader><CardContent><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitPortfolio}><Label>{t.code}<Input required value={portfolioForm.code} onChange={event => setPortfolioForm({ ...portfolioForm, code: event.target.value })} /></Label><Label>{t.titleLabel}<Input required value={portfolioForm.name} onChange={event => setPortfolioForm({ ...portfolioForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={portfolioMutation.isPending}>{portfolioMutation.isPending ? t.saving : t.create}</Button>{portfolioMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(portfolioMutation.error, isArabic)}</p>}{portfolioMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></CardContent></Card>
-          <Card><CardHeader><CardTitle>{t.addProgram}</CardTitle></CardHeader><CardContent><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitProgram}><Label>{t.optionalPortfolio}<select value={programForm.portfolioId} onChange={event => setProgramForm({ ...programForm, portfolioId: event.target.value })} className={field}><option value="">{t.selectPortfolio}</option>{data.portfolios.map(portfolio => <option key={portfolio.id} value={portfolio.id}>{portfolio.code} · {portfolio.name}</option>)}</select></Label><Label>{t.code}<Input required value={programForm.code} onChange={event => setProgramForm({ ...programForm, code: event.target.value })} /></Label><Label className="sm:col-span-2">{t.titleLabel}<Input required value={programForm.name} onChange={event => setProgramForm({ ...programForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={programMutation.isPending}>{programMutation.isPending ? t.saving : t.create}</Button>{programMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(programMutation.error, isArabic)}</p>}{programMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></CardContent></Card>
+          <Card><CardHeader><CardTitle>{t.addPortfolio}</CardTitle></CardHeader><CardContent><WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitPortfolio}><Label>{t.code}<Input required value={portfolioForm.code} onChange={event => setPortfolioForm({ ...portfolioForm, code: event.target.value })} /></Label><Label>{t.titleLabel}<Input required value={portfolioForm.name} onChange={event => setPortfolioForm({ ...portfolioForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={portfolioMutation.isPending}>{portfolioMutation.isPending ? t.saving : t.create}</Button>{portfolioMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(portfolioMutation.error, isArabic)}</p>}{portfolioMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></WriteGate></CardContent></Card>
+          <Card><CardHeader><CardTitle>{t.addProgram}</CardTitle></CardHeader><CardContent><WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3 sm:grid-cols-2" onSubmit={submitProgram}><Label>{t.optionalPortfolio}<select value={programForm.portfolioId} onChange={event => setProgramForm({ ...programForm, portfolioId: event.target.value })} className={field}><option value="">{t.selectPortfolio}</option>{data.portfolios.map(portfolio => <option key={portfolio.id} value={portfolio.id}>{portfolio.code} · {portfolio.name}</option>)}</select></Label><Label>{t.code}<Input required value={programForm.code} onChange={event => setProgramForm({ ...programForm, code: event.target.value })} /></Label><Label className="sm:col-span-2">{t.titleLabel}<Input required value={programForm.name} onChange={event => setProgramForm({ ...programForm, name: event.target.value })} /></Label><div className="sm:col-span-2"><Button disabled={programMutation.isPending}>{programMutation.isPending ? t.saving : t.create}</Button>{programMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(programMutation.error, isArabic)}</p>}{programMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.masterSuccess}</p>}</div></form></WriteGate></CardContent></Card>
         </div>
 
-        <Card className="border-t-0 shadow-none"><CardHeader><CardTitle>{t.linkProject}</CardTitle></CardHeader><CardContent><form className="grid gap-3 sm:grid-cols-3" onSubmit={submitProjectLink}><Label>{t.project}<select required value={projectLinkForm.projectId} onChange={event => setProjectLinkForm({ ...projectLinkForm, projectId: event.target.value })} className={field}><option value="">{t.select}</option>{data.projects.map(project => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</select></Label><Label>{t.program}<select value={projectLinkForm.programId} onChange={event => setProjectLinkForm({ ...projectLinkForm, programId: event.target.value })} className={field}><option value="">{t.selectProgram}</option>{data.programs.map(program => <option key={program.id} value={program.id}>{program.code} · {program.name}</option>)}</select></Label><Label>{t.optionalPortfolio}<select value={projectLinkForm.portfolioId} onChange={event => setProjectLinkForm({ ...projectLinkForm, portfolioId: event.target.value })} className={field}><option value="">{t.selectPortfolio}</option>{data.portfolios.map(portfolio => <option key={portfolio.id} value={portfolio.id}>{portfolio.code} · {portfolio.name}</option>)}</select></Label><div className="sm:col-span-3"><Button disabled={projectLinkMutation.isPending || !data.projects.length}>{projectLinkMutation.isPending ? t.saving : t.link}</Button>{projectLinkMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(projectLinkMutation.error, isArabic)}</p>}{projectLinkMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.linkSuccess}</p>}</div></form></CardContent></Card></details>
+        <Card className="border-t-0 shadow-none"><CardHeader><CardTitle>{t.linkProject}</CardTitle></CardHeader><CardContent><WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3 sm:grid-cols-3" onSubmit={submitProjectLink}><Label>{t.project}<select required value={projectLinkForm.projectId} onChange={event => setProjectLinkForm({ ...projectLinkForm, projectId: event.target.value })} className={field}><option value="">{t.select}</option>{data.projects.map(project => <option key={project.id} value={project.id}>{project.code} · {project.name}</option>)}</select></Label><Label>{t.program}<select value={projectLinkForm.programId} onChange={event => setProjectLinkForm({ ...projectLinkForm, programId: event.target.value })} className={field}><option value="">{t.selectProgram}</option>{data.programs.map(program => <option key={program.id} value={program.id}>{program.code} · {program.name}</option>)}</select></Label><Label>{t.optionalPortfolio}<select value={projectLinkForm.portfolioId} onChange={event => setProjectLinkForm({ ...projectLinkForm, portfolioId: event.target.value })} className={field}><option value="">{t.selectPortfolio}</option>{data.portfolios.map(portfolio => <option key={portfolio.id} value={portfolio.id}>{portfolio.code} · {portfolio.name}</option>)}</select></Label><div className="sm:col-span-3"><Button disabled={projectLinkMutation.isPending || !data.projects.length}>{projectLinkMutation.isPending ? t.saving : t.link}</Button>{projectLinkMutation.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(projectLinkMutation.error, isArabic)}</p>}{projectLinkMutation.isSuccess && <p role="status" className="mt-2 text-sm text-emerald-700">{t.linkSuccess}</p>}</div></form></WriteGate></CardContent></Card></details>
         </SectionErrorBoundary>
 
         <SectionErrorBoundary title={isArabic ? "روابط الضوابط المحكومة" : "Governed control links"} isArabic={isArabic}>
@@ -213,7 +214,7 @@ export default function PmoDashboard() {
           <Card>
             <CardHeader><CardTitle>{t.addRisk}</CardTitle></CardHeader>
             <CardContent>
-              <form className="grid gap-3" onSubmit={submitRisk}>
+              <WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3" onSubmit={submitRisk}>
                 <Label>{t.project}{projectSelect(riskForm.projectId, projectId => setRiskForm({ ...riskForm, projectId }))}</Label>
                 <Label>{t.code}<Input value={riskForm.code} required onChange={event => setRiskForm({ ...riskForm, code: event.target.value })} /></Label>
                 <Label>{t.titleLabel}<Input value={riskForm.title} required onChange={event => setRiskForm({ ...riskForm, title: event.target.value })} /></Label>
@@ -224,14 +225,14 @@ export default function PmoDashboard() {
                 <Button disabled={!data.projects.length || riskMutation.isPending}>{riskMutation.isPending ? t.saving : t.save}</Button>
                 {riskMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(riskMutation.error, isArabic)}</p>}
                 {riskMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
-              </form>
+              </form></WriteGate>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle>{t.addIssue}</CardTitle></CardHeader>
             <CardContent>
-              <form className="grid gap-3" onSubmit={submitIssue}>
+              <WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3" onSubmit={submitIssue}>
                 <Label>{t.project}{projectSelect(issueForm.projectId, projectId => setIssueForm({ ...issueForm, projectId }))}</Label>
                 <Label>{t.code}<Input value={issueForm.code} required onChange={event => setIssueForm({ ...issueForm, code: event.target.value })} /></Label>
                 <Label>{t.titleLabel}<Input value={issueForm.title} required onChange={event => setIssueForm({ ...issueForm, title: event.target.value })} /></Label>
@@ -240,14 +241,14 @@ export default function PmoDashboard() {
                 <Button disabled={!data.projects.length || issueMutation.isPending}>{issueMutation.isPending ? t.saving : t.save}</Button>
                 {issueMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(issueMutation.error, isArabic)}</p>}
                 {issueMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
-              </form>
+              </form></WriteGate>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle>{t.addAction}</CardTitle></CardHeader>
             <CardContent>
-              <form className="grid gap-3" onSubmit={submitAction}>
+              <WriteGate permission={"pmo.write"} reason={{ ar: "لا تملك صلاحية التعديل في لوحة المكتب، فالشاشة للعرض فقط.", en: "You do not have permission to edit the PMO board; this view is read-only for you." }}><form className="grid gap-3" onSubmit={submitAction}>
                 <Label>{t.project}{projectSelect(actionForm.projectId, projectId => setActionForm({ ...actionForm, projectId }))}</Label>
                 <Label>{t.actionTitle}<Input value={actionForm.title} required onChange={event => setActionForm({ ...actionForm, title: event.target.value })} /></Label>
                 <Label>{t.priority}{prioritySelect(actionForm.priority, priority => setActionForm({ ...actionForm, priority }))}</Label>
@@ -255,7 +256,7 @@ export default function PmoDashboard() {
                 <Button disabled={!data.projects.length || actionMutation.isPending}>{actionMutation.isPending ? t.saving : t.save}</Button>
                 {actionMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(actionMutation.error, isArabic)}</p>}
                 {actionMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
-              </form>
+              </form></WriteGate>
             </CardContent>
           </Card>
         </div>
@@ -267,13 +268,13 @@ export default function PmoDashboard() {
           <SectionErrorBoundary title={t.issues} isArabic={isArabic}>{issuesQuery.isLoading ? <SectionMessage title={t.issues} isArabic={isArabic} kind="loading" /> : issuesQuery.error || !issuesQuery.data ? <SectionMessage title={t.issues} isArabic={isArabic} kind="error" detail={issuesQuery.error ? getLocalizedProjectError(issuesQuery.error, isArabic) : undefined} /> : <Register icon={TriangleAlert} title={t.issues} items={openIssues.map(item => {
             const next = nextEscalation(item.escalationStatus);
             const eligible = item.priority === "critical";
-            return <div key={item.id} className="space-y-2"><p>{item.code} · {item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p>{eligible && next && <Button size="sm" variant="outline" disabled={issueEscalationMutation.isPending} onClick={() => issueEscalationMutation.mutate({ tenantId, projectId: item.projectId, issueId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</div>;
+            return <div key={item.id} className="space-y-2"><p>{item.code} · {item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p><WriteGate permission={"pmo.write"}>{eligible && next && <Button size="sm" variant="outline" disabled={issueEscalationMutation.isPending} onClick={() => issueEscalationMutation.mutate({ tenantId, projectId: item.projectId, issueId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</WriteGate></div>;
           })} empty={t.noData} isArabic={isArabic} />}</SectionErrorBoundary>
           <SectionErrorBoundary title={t.actions} isArabic={isArabic}>{actionsQuery.isLoading ? <SectionMessage title={t.actions} isArabic={isArabic} kind="loading" /> : actionsQuery.error || !actionsQuery.data ? <SectionMessage title={t.actions} isArabic={isArabic} kind="error" detail={actionsQuery.error ? getLocalizedProjectError(actionsQuery.error, isArabic) : undefined} /> : <Register icon={CheckSquare} title={t.actions} items={openActions.map(item => {
             const next = nextEscalation(item.escalationStatus);
             const overdue = item.dueAt !== null && item.dueAt < new Date();
             const projectId = item.projectId;
-            return <div key={item.id} className="space-y-2"><p>{item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p>{projectId && overdue && next && <Button size="sm" variant="outline" disabled={actionEscalationMutation.isPending} onClick={() => actionEscalationMutation.mutate({ tenantId, projectId, actionId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</div>;
+            return <div key={item.id} className="space-y-2"><p>{item.title} · {priorityLabel(item.priority)}</p><p className="text-xs text-slate-600">{t.escalation}: {escalationLabel(item.escalationStatus)}</p><WriteGate permission={"pmo.write"}>{projectId && overdue && next && <Button size="sm" variant="outline" disabled={actionEscalationMutation.isPending} onClick={() => actionEscalationMutation.mutate({ tenantId, projectId, actionId: item.id, nextStatus: next })}>{next === "pending" ? t.requestEscalation : t.confirmEscalation}</Button>}</WriteGate></div>;
           })} empty={t.noData} isArabic={isArabic} />}</SectionErrorBoundary>
         </div>
         {(issueEscalationMutation.error || actionEscalationMutation.error) && <p role="alert" className="mt-4 text-sm text-red-700">{getLocalizedProjectError(issueEscalationMutation.error ?? actionEscalationMutation.error, isArabic)}</p>}
