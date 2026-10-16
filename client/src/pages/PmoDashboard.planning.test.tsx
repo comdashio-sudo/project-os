@@ -91,7 +91,7 @@ describe("PmoDashboard planning control center", () => {
   it("identifies missing planning inputs as partial without replacing the planning table", () => {
     state.planningPartial = true;
     render(<PmoDashboard />);
-    expect(within(screen.getAllByLabelText("Planning control center")[1]).getByText("Available: portfolio planning data. Missing: an EVM or health snapshot for one or more projects.")).toBeTruthy();
+    expect(within(screen.getByLabelText("Planning control center")).getByText("Available: portfolio planning data. Missing: an EVM or health snapshot for one or more projects.")).toBeTruthy();
     expect(screen.getByText("No EVM snapshot")).toBeTruthy();
   });
 

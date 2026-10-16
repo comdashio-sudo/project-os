@@ -97,7 +97,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-red-700" : "text-emerald-700"}`}>{money(headline.data.fpac)}</p>
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
           {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التكلفة والقيمة" : "Cost and value table"}>
             <table className="w-full min-w-[34rem] text-start text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
@@ -171,7 +171,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th /></tr></thead>
+              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{isArabic ? "التفاصيل" : "Details"}</span></th></tr></thead>
               <tbody>
                 <tr className="border-t bg-slate-50 font-semibold" data-testid="drill-totals">
                   <td className="py-1.5 pe-3">{t.whole}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.planned)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.actual)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.committed)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.forecast)}</td>
