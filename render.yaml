@@ -107,3 +107,46 @@ services:
           type: web
           name: project-os
           envVarKey: APP_BASE_URL
+
+  # Daily at 01:30 UTC: a logical backup of the database, gzip + AES-256-GCM encrypted, read back and verified, then uploaded to R2 under
+  # backups/. TiDB Cloud Starter keeps only its own one-day snapshot on the free tier and has no point-in-time restore, so this is the copy that
+  # survives a mistake noticed on day two. It FAILS (and Render shows the run as failed) when the key, the bucket or the database is missing:
+  # a backup that quietly does nothing is worse than no job. See docs/OWNER_ACTIONS.md, section 4b.
+  - type: cron
+    name: project-os-backup
+    runtime: node
+    plan: starter
+    region: frankfurt
+    schedule: "30 1 * * *"
+    buildCommand: pnpm install --frozen-lockfile --prod=false
+    startCommand: node --import tsx scripts/export-database.mjs --to-r2
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: DATABASE_URL
+      # Optional and better: an account that can only SELECT. When set, it is used instead of DATABASE_URL.
+      - key: BACKUP_DATABASE_URL
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_R2_BUCKET
+        sync: false
+      - key: R2_ACCOUNT_ID
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: R2_ACCOUNT_ID
+      - key: R2_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: R2_ACCESS_KEY_ID
+      - key: R2_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: R2_SECRET_ACCESS_KEY
