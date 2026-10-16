@@ -87,6 +87,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
   }
   const one = async (sql: string, params: unknown[] = [T]) => { const [rows] = await connection.query<any[]>(sql, params); return rows[0]; };
   const approver = () => callerFor(users.approver, "pal-approver");
+  const approverNow = { get employees() { return approver().employees; } }; // the person is chosen when the call is made
   const entryFor = async (employeeId: string) => (await one("SELECT id FROM payroll_entries WHERE tenantId = ? AND employeeId = ?", [T, employeeId])).id as string;
   const postedLabour = async () => Number((await one("SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE tenantId = ? AND category = 'labour' AND status = 'posted'")).total);
 
@@ -132,7 +133,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
     const provisionalBefore = Number((await one("SELECT COALESCE(SUM(c.amount), 0) AS total FROM cost_entries c INNER JOIN employee_time_entries t ON t.costEntryId = c.id WHERE t.tenantId = ? AND t.employeeId = ? AND c.status = 'posted'", [T, E1])).total);
     expect(provisionalBefore).toBeGreaterThan(0);
     // 12000 pay and allowances + 1292.50 insurance + 1000.00 end of service
-    const result = await approver().employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) });
+    const result = await approverNow.employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) });
     expect(result).toMatchObject({ loadedCost: 14292.5, totalHours: 40, supersededTimeEntries: 5 });
     const byWbs = Object.fromEntries(result.allocations.map(item => [item.wbsItemId, item]));
     expect(byWbs[W1]).toMatchObject({ amount: 8575.5, hours: 24, sharePercent: 60 });
@@ -149,7 +150,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
   });
 
   it("will not share the same pay twice, nor approve more hours for a month the payroll already carries", async () => {
-    await expect(approver().employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("PROJECT_OS_PAYROLL_AUTO_ALREADY_ALLOCATED");
+    await expect(approverNow.employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("PROJECT_OS_PAYROLL_AUTO_ALREADY_ALLOCATED");
     await connection.query("INSERT INTO employee_time_entries (id, tenantId, assignmentId, employeeId, projectId, workDate, actualHours, status, createdByUserId) VALUES (?, ?, ?, ?, ?, '2026-11-08', 8, 'submitted', ?)", [uid(399), T, asg["E1W1"], E1, P1, users.manager]);
     const { transitionEmployeeTimeEntryForTenant } = await import("./db");
     await expect(transitionEmployeeTimeEntryForTenant({ userId: users.manager, tenantId: T, projectId: P1, timeEntryId: uid(399), status: "approved" })).rejects.toThrow("PROJECT_OS_TIME_ENTRY_PAYROLL_ALLOCATED");
@@ -157,7 +158,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
 
   it("cuts an indivisible amount in whole cents that still add up exactly: E2's 6,370.00 in thirds", async () => {
     // 6000 pay + 120 insurance + 250 end of service = 6370.00 ; thirds of 6370.00 are 2123.333...
-    const result = await approver().employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E2) });
+    const result = await approverNow.employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E2) });
     const cents = result.allocations.map(item => Math.round(item.amount * 100)).sort((a, b) => b - a);
     expect(cents.reduce((total, value) => total + value, 0)).toBe(637000);
     expect(cents[0] - cents[2]).toBeLessThanOrEqual(1);
@@ -166,7 +167,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
   });
 
   it("has nothing to share by when no hours were approved", async () => {
-    await expect(approver().employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E3) })).rejects.toThrow("PROJECT_OS_PAYROLL_AUTO_NO_HOURS");
+    await expect(approverNow.employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E3) })).rejects.toThrow("PROJECT_OS_PAYROLL_AUTO_NO_HOURS");
   });
 
   it("lets a person change one share only with a reason, keeps before, after and why, and replaces the cost line instead of overwriting it", async () => {

@@ -202,6 +202,8 @@ vi.mock("@/lib/trpc", () => ({
     notifications: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
       acknowledge: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      emailPreferences: { useQuery: () => ({ isLoading: false, error: null, data: { active: false, preferences: { support_escalation: true, approvals_waiting: true, daily_digest: true } }, refetch: vi.fn() }) },
+      setEmailPreference: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },

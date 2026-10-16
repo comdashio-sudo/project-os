@@ -28,6 +28,10 @@ services:
         generateValue: true
       - key: LLM_ENABLED
         value: "false"
+      # E-mail notifications (escalations, what waits for your approval, the project manager's daily summary) stay off until this is "true"
+      # AND RESEND_API_KEY and EMAIL_FROM are set. See docs/OWNER_ACTIONS.md.
+      - key: EMAIL_NOTIFICATIONS_ENABLED
+        value: "false"
       - key: DATABASE_URL
         sync: false
       - key: PROJECT_OS_APP_DB_PASSWORD
@@ -67,6 +71,27 @@ services:
     schedule: "0 2 * * *"
     buildCommand: "true"
     startCommand: 'curl --fail --silent --show-error --max-time 60 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/licenseExpiry" && curl --fail --silent --show-error --max-time 300 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/profitabilitySnapshots"'
+    envVars:
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: CRON_SECRET
+      - key: APP_BASE_URL
+        fromService:
+          type: web
+          name: project-os
+          envVarKey: APP_BASE_URL
+
+  # Hourly: sends queued e-mail and, from 07:00 Riyadh, queues the day's reminders and summaries once. It does nothing while e-mail notifications are off.
+  - type: cron
+    name: project-os-email-notifications
+    runtime: node
+    plan: starter
+    region: frankfurt
+    schedule: "0 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl --fail --silent --show-error --max-time 120 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_BASE_URL/api/scheduled/emailNotifications"'
     envVars:
       - key: CRON_SECRET
         fromService:

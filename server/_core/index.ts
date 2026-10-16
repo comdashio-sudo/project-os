@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
 import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
+import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -44,6 +45,7 @@ async function startServer() {
   registerDefaultAuthRoutes(app);
   app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
   app.post("/api/scheduled/profitabilitySnapshots", scheduledProfitabilitySnapshotsHandler);
+  app.post("/api/scheduled/emailNotifications", scheduledEmailNotificationsHandler);
   // tRPC API
   app.use(
     "/api/trpc",
