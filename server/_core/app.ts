@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { appRouter } from "../routers";
 import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
+import { tenantExportHandler } from "../tenantExportRoute";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
 import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
 import { apiRateLimit, apiRateLimitFromEnvironment } from "./apiRateLimit";
@@ -61,6 +62,7 @@ export function createApp(options: AppOptions) {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   (options.registerAuth ?? registerDefaultAuthRoutes)(app);
+  app.get("/api/tenant-export/:tenantId", tenantExportHandler);
   app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
   app.post("/api/scheduled/profitabilitySnapshots", scheduledProfitabilitySnapshotsHandler);
   app.post("/api/scheduled/emailNotifications", scheduledEmailNotificationsHandler);

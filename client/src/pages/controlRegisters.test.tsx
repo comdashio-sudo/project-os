@@ -96,6 +96,8 @@ vi.mock("wouter", () => ({
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    // the company-data card belongs to the owner; for everyone else the server refuses its preview and the card renders nothing
+    tenantData: { preview: { useQuery: () => ({ data: undefined, error: new Error("PROJECT_OS_TENANT_OWNER_REQUIRED"), isLoading: false, refetch: vi.fn() }) }, requestDeletion: { useMutation: () => ({ mutate: vi.fn() }) }, confirmDeletion: { useMutation: () => ({ mutate: vi.fn() }) } },
     useUtils: () => ({
       dashboards: {
         invalidate: vi.fn(),

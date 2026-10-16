@@ -26,6 +26,9 @@ const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   getTenantAccessSnapshot: "the primitive every gate is built on; returns null for a non-member",
   getEmailNotificationPreferences: "the caller's own e-mail choices only (user = caller); active membership required; no product licence needed to read or change how you are told",
   setEmailNotificationPreference: "the caller's own e-mail choices only (user = caller); active membership required",
+  previewTenantData: "company owner only (TENANT_OWNER at company scope, active membership); the owner of a company whose licence has lapsed must still be able to see and take their data",
+  requestTenantDeletion: "company owner only; same reason — and deletion switches the products off itself, so a licence check would lock the owner out of finishing it",
+  confirmTenantDeletion: "company owner only; same reason",
 };
 
 type Found = { name: string; body: string };

@@ -20,6 +20,38 @@ export const projectErrorMessages = {
     ar: "لا تملك الصلاحية المطلوبة لإتمام هذه العملية.",
     en: "You do not have the required permission to complete this operation.",
   },
+  PROJECT_OS_SERVICE_UNAVAILABLE: {
+    ar: "الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.",
+    en: "The service is temporarily unavailable. Try again shortly.",
+  },
+  PROJECT_OS_TENANT_NOT_FOUND: {
+    ar: "الشركة المطلوبة غير متاحة.",
+    en: "The requested company is not available.",
+  },
+  PROJECT_OS_TENANT_OWNER_REQUIRED: {
+    ar: "هذه العملية لمالك الشركة وحده.",
+    en: "Only the company owner can do this.",
+  },
+  PROJECT_OS_DELETION_EXPORT_REQUIRED: {
+    ar: "نزّل نسخة من بيانات الشركة أولًا؛ لا يُسمح بالحذف النهائي إلا بعد تصدير أُجري خلال الأيام السبعة الماضية.",
+    en: "Download a copy of the company's data first: permanent deletion is allowed only after an export made in the last seven days.",
+  },
+  PROJECT_OS_DELETION_CONFIRMATION_INVALID: {
+    ar: "رمز تأكيد الحذف غير صالح لهذه الشركة أو لهذا المستخدم. اطلب الحذف من جديد.",
+    en: "The deletion confirmation code is not valid for this company or this person. Request the deletion again.",
+  },
+  PROJECT_OS_DELETION_CONFIRMATION_EXPIRED: {
+    ar: "انتهت مهلة رمز تأكيد الحذف (15 دقيقة). اطلب الحذف من جديد.",
+    en: "The deletion confirmation code has expired (15 minutes). Request the deletion again.",
+  },
+  PROJECT_OS_DELETION_NAME_MISMATCH: {
+    ar: "الاسم المكتوب لا يطابق اسم الشركة تمامًا. لم يُحذف شيء.",
+    en: "The name you typed does not exactly match the company name. Nothing was deleted.",
+  },
+  PROJECT_OS_TENANT_SCHEMA_UNCLASSIFIED: {
+    ar: "تعذّر التصدير أو الحذف: في قاعدة البيانات جدول لم يُصنَّف بعد ضمن بيانات الشركة. لم يُغيَّر شيء؛ أبلغ الدعم.",
+    en: "The export or deletion cannot run: the database has a table that is not yet classified as company data. Nothing was changed; contact support.",
+  },
   PROJECT_OS_PROJECT_NOT_FOUND: {
     ar: "المشروع المطلوب غير متاح ضمن مساحة العمل هذه.",
     en: "The requested project is not available in this workspace.",
