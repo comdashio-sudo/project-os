@@ -26,6 +26,10 @@ services:
         generateValue: true
       - key: CRON_SECRET
         generateValue: true
+      # Requests per minute allowed from one source address across /api (a person loading a screen sends about a dozen). Raise it for a large
+      # office behind one address; sign-in has its own, lower limits.
+      - key: API_RATE_LIMIT_PER_MINUTE
+        value: "600"
       - key: LLM_ENABLED
         value: "false"
       # E-mail notifications (escalations, what waits for your approval, the project manager's daily summary) stay off until this is "true"

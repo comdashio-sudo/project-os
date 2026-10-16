@@ -952,6 +952,22 @@ export const projectErrorMessages = {
     ar: "اختر المورد من سجل الموردين أو اكتب اسم المورد.",
     en: "Choose the supplier from the supplier register or type the supplier's name.",
   },
+  PROJECT_OS_RATE_LIMITED: {
+    ar: "تجاوزت عدد الطلبات المسموح به في الدقيقة. انتظر قليلًا ثم أعد المحاولة.",
+    en: "You have sent more requests than allowed per minute. Wait a moment and try again.",
+  },
+  PROJECT_OS_SERVER_ERROR: {
+    ar: "حدث خطأ في الخادم وسُجّل لدى فريق التشغيل. أعد المحاولة بعد قليل.",
+    en: "A server error occurred and was recorded for the operations team. Try again shortly.",
+  },
+  PROJECT_OS_REQUEST_TOO_LARGE: {
+    ar: "حجم البيانات المرسلة أكبر من الحد المسموح به.",
+    en: "The data sent is larger than allowed.",
+  },
+  PROJECT_OS_NOT_FOUND: {
+    ar: "العنوان المطلوب غير موجود.",
+    en: "The requested address does not exist.",
+  },
   PROJECT_OS_REQUEST_FAILED: {
     ar: "تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.",
     en: "We could not complete the request. Check the details and try again.",

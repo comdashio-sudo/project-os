@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { evaluateTenantLicenseLifecycle } from "./db";
+import { logError } from "./_core/logger";
 
 // The platform scheduler (a Render cron job, see render.yaml) calls this
 // endpoint with `Authorization: Bearer <CRON_SECRET>`. With CRON_SECRET unset
@@ -29,7 +30,7 @@ export function createScheduledLicenseExpiryHandler(dependencies: ScheduledLicen
       const result = await dependencies.evaluateTenantLicenseLifecycle();
       return res.status(200).json({ code: "PROJECT_OS_LICENSE_LIFECYCLE_EVALUATED", result: { ...result, evaluatedAt: result.evaluatedAt.toISOString() } });
     } catch (error) {
-      console.error("[Scheduled license expiry] Evaluation failed", error);
+      logError("scheduled.license_expiry_failed", error, { requestId: res.locals?.requestId });
       return res.status(500).json({ code: "PROJECT_OS_SCHEDULED_EXECUTION_FAILED" });
     }
   };

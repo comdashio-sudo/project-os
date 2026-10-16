@@ -5,6 +5,7 @@ import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
 import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
 import { createHash, randomBytes } from "node:crypto";
+import { logError } from "./_core/logger";
 import {
   type InsertUser,
   type ProductCode,
@@ -156,7 +157,7 @@ export async function getDb() {
       const useAdministrativeConnection = process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true";
       _db = drizzle(buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD, useAdministrativeConnection));
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      logError("database.connect_failed", error);
       _db = null;
     }
   }
@@ -962,7 +963,7 @@ export async function createSelfServiceTenant(input: { userId: number; legalName
   } catch (error) {
     if (error instanceof TRPCError) throw error;
     if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORKSPACE_SLUG_EXISTS" });
-    console.error("[Self-service signup] provisioning failed", { code: safeDatabaseErrorCode(error), userId: input.userId, planCode: input.planCode, seats: input.seats, slugHash: createHash("sha256").update(input.slug).digest("hex") });
+    logError("self_service.provisioning_failed", error, { databaseCode: safeDatabaseErrorCode(error), planCode: input.planCode, seats: input.seats, slugHash: createHash("sha256").update(input.slug).digest("hex") });
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE" });
   }
   return { tenantId, subscriptionId, licenseId, status: "trialing" as const };

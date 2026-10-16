@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { isAuthorizedScheduledRequest } from "./scheduledLicenseExpiry";
 import { getDb } from "./db";
 import { runEmailNotificationCycle } from "./emailNotifications";
+import { logError } from "./_core/logger";
 
 // The platform scheduler (an hourly Render cron job, see render.yaml) calls this with `Authorization: Bearer <CRON_SECRET>`.
 // With e-mail notifications off (EMAIL_NOTIFICATIONS_ENABLED not true, or no sender configured) it does nothing and says so.
@@ -14,7 +15,7 @@ export function createScheduledEmailNotificationsHandler(dependencies: Dependenc
       const result = await dependencies.run();
       return res.status(200).json({ code: "PROJECT_OS_EMAIL_NOTIFICATIONS_CYCLE", result });
     } catch (error) {
-      console.error("[Scheduled e-mail notifications] Cycle failed", error instanceof Error ? error.message : "unknown");
+      logError("scheduled.email_notifications_failed", error, { requestId: res.locals?.requestId });
       return res.status(500).json({ code: "PROJECT_OS_SCHEDULED_EXECUTION_FAILED" });
     }
   };
