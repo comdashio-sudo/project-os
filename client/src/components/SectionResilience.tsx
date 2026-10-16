@@ -20,15 +20,31 @@ export class SectionErrorBoundary extends React.Component<SectionErrorBoundaryPr
     if (previousProps.title !== this.props.title && this.state.failed) this.setState({ failed: false });
   }
 
+  componentDidCatch(error: Error) { console.error("[Section] render failed", error.name); } // name only: a message can carry data
+
   render() {
     if (this.state.failed) {
-      return <SectionMessage title={this.props.title} isArabic={this.props.isArabic} kind="error" />;
+      return <SectionMessage title={this.props.title} isArabic={this.props.isArabic} kind="error" onRetry={() => this.setState({ failed: false })} />;
     }
     return this.props.children;
   }
 }
 
-export function SectionMessage({ title, isArabic, kind, detail }: { title: string; isArabic: boolean; kind: "loading" | "empty" | "error" | "partial"; detail?: string }) {
+/**
+ * Every panel in a composed page gets its own boundary (G-100): a panel that fails to render says so in its own place, with a retry, and its
+ * neighbours keep working. `titles` names the panels by their component name, so the message says which one failed.
+ */
+export function GuardedPanels({ children, isArabic, titles }: { children: React.ReactNode; isArabic: boolean; titles?: Record<string, { ar: string; en: string }> }) {
+  return <>{React.Children.map(children, (child, index) => {
+    if (!React.isValidElement(child)) return child;
+    const type = child.type as { displayName?: string; name?: string };
+    const label = titles?.[type.displayName ?? type.name ?? ""];
+    const title = label ? label[isArabic ? "ar" : "en"] : isArabic ? "هذا القسم" : "This section";
+    return <SectionErrorBoundary key={child.key ?? index} title={title} isArabic={isArabic}>{child}</SectionErrorBoundary>;
+  })}</>;
+}
+
+export function SectionMessage({ title, isArabic, kind, detail, onRetry }: { title: string; isArabic: boolean; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void }) {
   const copy = isArabic
     ? {
         loading: "جارٍ تحميل هذا القسم…",
@@ -46,7 +62,7 @@ export function SectionMessage({ title, isArabic, kind, detail }: { title: strin
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">
       {kind === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? copy[kind]}</p></div>
+      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? copy[kind]}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}</div>
     </div>
   </section>;
 }

@@ -209,7 +209,7 @@ describe("operational API authorization", () => {
 
     await expect(
       caller.costs.createActual({ tenantId: tenantB, projectId: projectB, wbsItemId: wbsB, amount: 100, incurredAt: new Date("2026-08-17T00:00:00.000Z") }),
-    ).rejects.toThrow("Tenant membership is not available");
+    ).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
 
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
@@ -1335,7 +1335,7 @@ describe("operational API authorization", () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.activities.create({ tenantId: tenantB, projectId: projectB, code: "A-02", name: "Cross-tenant activity", plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") })).rejects.toThrow("Tenant membership is not available");
+    await expect(caller.activities.create({ tenantId: tenantB, projectId: projectB, code: "A-02", name: "Cross-tenant activity", plannedStartAt: new Date("2026-08-17T00:00:00.000Z"), plannedFinishAt: new Date("2026-08-18T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });

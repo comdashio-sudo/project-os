@@ -924,6 +924,14 @@ export const projectErrorMessages = {
     ar: "حصة الراتب المطلوبة غير موجودة في هذه الشركة.",
     en: "The pay allocation was not found in this company.",
   },
+  PROJECT_OS_CONTRACT_SUPPLIER_REQUIRED: {
+    ar: "العقد مع مورد: اختر المورد من سجل الموردين.",
+    en: "A contract with a supplier needs the supplier chosen from the supplier register.",
+  },
+  PROJECT_OS_CONTRACT_COUNTERPARTY_KIND_MISMATCH: {
+    ar: "اخترتَ موردًا من السجل لكن نوع الطرف المقابل ليس «مورد».",
+    en: "A supplier was chosen from the register but the counterparty type is not \"supplier\".",
+  },
   PROJECT_OS_INVENTORY_REASON_REQUIRED: {
     ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
     en: "Give the reason for the transfer or adjustment (at least 3 characters).",

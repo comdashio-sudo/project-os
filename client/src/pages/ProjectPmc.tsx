@@ -1,3 +1,4 @@
+import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -225,7 +226,10 @@ export default function ProjectPmc() {
           </section>
         )}
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+          {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
+          <SectionErrorBoundary key={tab} title={isArabic ? "هذه الشاشة" : "This screen"} isArabic={isArabic}>
+            {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+          </SectionErrorBoundary>
         </section>
       </div>
     </main>
