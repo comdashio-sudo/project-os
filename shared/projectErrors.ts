@@ -53,11 +53,11 @@ export const projectErrorMessages = {
     en: "The selected user could not be found.",
   },
   PROJECT_OS_ROLE_NOT_FOUND: {
-    ar: "الدور المحدد غير متاح ضمن هذه المؤسسة.",
+    ar: "الدور المحدد غير متاح ضمن هذه الشركة.",
     en: "The selected role is not available in this organization.",
   },
   PROJECT_OS_ROLE_CODE_EXISTS: {
-    ar: "رمز الدور مستخدم بالفعل ضمن هذه المؤسسة.",
+    ar: "رمز الدور مستخدم بالفعل ضمن هذه الشركة.",
     en: "This role code is already in use in this organization.",
   },
   PROJECT_OS_INVALID_ROLE_PERMISSIONS: {
@@ -69,7 +69,7 @@ export const projectErrorMessages = {
     en: "A system-managed role cannot be modified.",
   },
   PROJECT_OS_MEMBER_NOT_FOUND: {
-    ar: "العضوية المحددة غير متاحة ضمن هذه المؤسسة.",
+    ar: "العضوية المحددة غير متاحة ضمن هذه الشركة.",
     en: "The selected membership is not available in this organization.",
   },
   PROJECT_OS_ROLE_ASSIGNMENT_EXISTS: {
@@ -149,15 +149,15 @@ export const projectErrorMessages = {
     en: "A contract or probation end date cannot be earlier than the contract start date.",
   },
   PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND: {
-    ar: "إسناد الدور المحدد غير متاح ضمن هذه المؤسسة.",
+    ar: "إسناد الدور المحدد غير متاح ضمن هذه الشركة.",
     en: "The selected role assignment is not available in this organization.",
   },
   PROJECT_OS_MEMBER_ALREADY_EXISTS: {
-    ar: "للمستخدم المحدد عضوية قائمة ضمن هذه المؤسسة.",
+    ar: "للمستخدم المحدد عضوية قائمة ضمن هذه الشركة.",
     en: "The selected user already has a membership in this organization.",
   },
   PROJECT_OS_INVITATION_ALREADY_PENDING: {
-    ar: "توجد دعوة معلقة بالفعل لهذا البريد ضمن المؤسسة.",
+    ar: "توجد دعوة معلقة بالفعل لهذا البريد ضمن الشركة.",
     en: "A pending invitation already exists for this email in the organization.",
   },
   PROJECT_OS_INVITATION_INVALID_OR_EXPIRED: {
@@ -169,11 +169,11 @@ export const projectErrorMessages = {
     en: "Sign in with the email address that received this invitation.",
   },
   PROJECT_OS_PORTFOLIO_NOT_FOUND: {
-    ar: "المحفظة المحددة غير متاحة ضمن هذه المؤسسة.",
+    ar: "المحفظة المحددة غير متاحة ضمن هذه الشركة.",
     en: "The selected portfolio is not available in this organization.",
   },
   PROJECT_OS_PROGRAM_NOT_FOUND: {
-    ar: "البرنامج المحدد غير متاح ضمن هذه المؤسسة.",
+    ar: "البرنامج المحدد غير متاح ضمن هذه الشركة.",
     en: "The selected program is not available in this organization.",
   },
   PROJECT_OS_PROGRAM_PORTFOLIO_MISMATCH: {
@@ -369,11 +369,11 @@ export const projectErrorMessages = {
     en: "The selected purchase-order transition is not allowed from its current status.",
   },
   PROJECT_OS_PURCHASE_ORDER_REFERENCE_INVALID: {
-    ar: "العقد أو الالتزام المحدد لا يطابق المستأجر والمشروع الحاليين.",
+    ar: "العقد أو الالتزام المحدد لا يطابق الشركة والمشروع الحاليين.",
     en: "The selected contract or commitment does not belong to the current tenant and project.",
   },
   PROJECT_OS_CONTROL_LINK_REFERENCE_INVALID: {
-    ar: "سجل المصدر أو الهدف المحدد لا يطابق المستأجر والمشروع الحاليين.",
+    ar: "سجل المصدر أو الهدف المحدد لا يطابق الشركة والمشروع الحاليين.",
     en: "The selected source or target record does not belong to the current tenant and project.",
   },
   PROJECT_OS_CONTROL_LINK_SELF_REFERENCE: {
@@ -525,15 +525,15 @@ export const projectErrorMessages = {
     en: "A procurement requisition cannot be created for an inactive supplier.",
   },
   PROJECT_OS_REQUISITION_NUMBER_EXISTS: {
-    ar: "رقم طلب التوريد مستخدم بالفعل ضمن هذا المشروع.",
+    ar: "رقم طلب المواد مستخدم بالفعل ضمن هذا المشروع.",
     en: "This procurement requisition number is already in use in this project.",
   },
   PROJECT_OS_REQUISITION_NOT_FOUND: {
-    ar: "طلب التوريد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    ar: "طلب المواد المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected procurement requisition is not available in the current project and workspace.",
   },
   PROJECT_OS_REQUISITION_TRANSITION_INVALID: {
-    ar: "انتقال حالة طلب التوريد المحدد غير مسموح من حالته الحالية.",
+    ar: "انتقال حالة طلب المواد المحدد غير مسموح من حالته الحالية.",
     en: "The requested procurement requisition transition is not allowed from its current status.",
   },
   PROJECT_OS_REQUISITION_ISSUE_INVALID: {

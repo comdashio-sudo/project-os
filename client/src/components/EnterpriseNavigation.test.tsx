@@ -17,7 +17,7 @@ describe("EnterpriseNavigation", () => {
   it("renders only server-calculated items and localizes the project context", () => {
     state.isArabic = true; state.items = [{ id: "project-controls", labelKey: "navigation.projectControls", href: "/projects/t/p/controls" }];
     render(<EnterpriseNavigation tenantId="t" projectId="p" context="project" />);
-    expect(screen.getByRole("navigation", { name: "الملاحة المؤسسية" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "التنقل بين وحدات المنصة" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "مساحة العمل" }).getAttribute("href")).toBe("/");
     expect(screen.getByRole("link", { name: "ضوابط المشروع" }).getAttribute("href")).toBe("/projects/t/p/controls"); expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
   });

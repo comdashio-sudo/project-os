@@ -518,7 +518,7 @@ describe("control-register dashboards", () => {
     state.isArabic = true;
     state.tenantAssignmentError = null;
     markup = renderToStaticMarkup(<TenantAdministration />);
-    expect(markup).toContain("أعضاء وأدوار المؤسسة");
+    expect(markup).toContain("أعضاء وأدوار الشركة");
     expect(markup).toContain("إسناد عضو موجود");
     expect(markup).toContain("بريد المستخدم الموجود");
     expect(markup).toContain("التحقق من المستخدم");

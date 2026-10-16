@@ -25,7 +25,7 @@ describe("accept invitation page", () => {
     state.success = true;
     state.isArabic = true;
     markup = renderToStaticMarkup(<AcceptInvitation />);
-    expect(markup).toContain("قبول دعوة المؤسسة");
+    expect(markup).toContain("قبول دعوة الشركة");
     expect(markup).toContain("تم قبول الدعوة وتفعيل عضويتك بنجاح.");
     state.success = false;
     state.isArabic = false;

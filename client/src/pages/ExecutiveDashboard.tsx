@@ -21,6 +21,7 @@ import {
 import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
 import { PortfolioProfitability } from "./PortfolioProfitability";
+import { enumLabel } from "@/lib/labels";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
@@ -293,8 +294,8 @@ export default function ExecutiveDashboard() {
                         {project.code} · {project.name}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {project.status} ·{" "}
-                        {project.health?.status ?? "not assessed"}
+                        {enumLabel(project.status, isArabic)} ·{" "}
+                        {enumLabel(project.health?.status ?? "not assessed", isArabic)}
                       </p>
                     </div>
                     <div className="text-end"><p className="text-sm font-semibold">{money(Number(project.forecastCost))}</p><div className="mt-2"><GovernedProjectControlLink tenantId={tenantId} projectId={project.id} compact /></div></div>
@@ -316,7 +317,7 @@ export default function ExecutiveDashboard() {
                 data.decisions.map(item => (
                   <div key={item.id} className="rounded-xl border p-4">
                     <p className="font-semibold">{item.problem}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.status}</p>
+                    <p className="mt-1 text-xs text-slate-500">{enumLabel(item.status, isArabic)}</p>
                   </div>
                 ))
               ) : (
