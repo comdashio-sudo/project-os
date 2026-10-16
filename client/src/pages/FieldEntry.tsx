@@ -20,6 +20,7 @@ const text = {
     pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
     team: "ساعات الفريق", workDate: "يوم العمل", teamEmpty: "لا إسناد يغطي هذا اليوم.", attendanceMissing: "الحضور غير معتمد بعد", entered: "مُدخَلة", hours: "ساعات", saveTeam: "حفظ ساعات الفريق", teamSaved: "حُفظت ساعات", rows: "صفوف", rowErrors: "لم يُحفظ شيء. صحّح الصفوف التالية:",
     queuedSaved: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال", queueNotSaved: "تعذّر الحفظ على الهاتف (مساحة التخزين ممتلئة أو محظورة). أعد الإرسال حين يعود الاتصال.", offline: "لا اتصال", online: "متصل", pending: "بانتظار الإرسال", sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", failedItems: "طلبات رفضها الخادم", discard: "حذف", retryItem: "إعادة", cachedNotice: "لا اتصال: هذه آخر بيانات محفوظة على الهاتف.",
+    averageCost: "متوسط التكلفة", usesAverage: "يُصرف بمتوسط تكلفة المخزون", directToSite: "توريد مباشر للموقع (لا يدخل المستودع، وتُحمَّل التكلفة الآن)", intoWarehouse: "يدخل المستودع، وتُحمَّل التكلفة عند الصرف", noWarehouseToReceive: "لا مستودع نشط لاستلام المادة فيه. سجّله توريدًا مباشرًا للموقع أو أضف مستودعًا.",
     receive: "استلام مواد", pickOrder: "اختر أمر الشراء", receivedQty: "الكمية المستلمة", noOrders: "لا أوامر شراء صادرة لهذا المشروع.", received: "استُلمت", from: "من", grn: "إذن الاستلام", rejectedHint: "الكمية المرفوضة تُسجَّل من شاشة الاستلام المكتبية بدليلها.",
   },
   en: {
@@ -28,6 +29,7 @@ const text = {
     pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
     team: "Team hours", workDate: "Work day", teamEmpty: "No assignment covers this day.", attendanceMissing: "Attendance not approved yet", entered: "Entered", hours: "hours", saveTeam: "Save team hours", teamSaved: "Hours saved", rows: "rows", rowErrors: "Nothing was saved. Fix these rows:",
     queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
+    averageCost: "Average cost", usesAverage: "Issued at the stock's average cost", directToSite: "Direct delivery to site (no warehouse, cost charged now)", intoWarehouse: "Goes into the warehouse; cost is charged when it is issued", noWarehouseToReceive: "There is no active warehouse to receive into. Record it as a direct delivery to site or add a warehouse.",
     receive: "Receive material", pickOrder: "Pick the purchase order", receivedQty: "Quantity received", noOrders: "This project has no issued purchase orders.", received: "Received", from: "from", grn: "Receipt note", rejectedHint: "Rejected quantity, with its evidence, is recorded from the desk receipt screen.",
   },
 };
@@ -123,8 +125,10 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   if (context.warehouses.length === 0) return <p className="text-sm text-slate-500">{t.noWarehouses}</p>;
   const qty = Number(quantity);
   const cost = Number(unitCost);
-  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && cost > 0);
-  const onHand = material?.onHand.find(h => h.warehouseId === warehouseId)?.quantity ?? null;
+  const shelf = material?.onHand.find(h => h.warehouseId === warehouseId);
+  const averageCost = shelf?.averageCost ?? null; // priced stock is issued at its average; the unit cost is asked only for stock nobody priced
+  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && (averageCost !== null || cost > 0));
+  const onHand = shelf?.quantity ?? null;
   return (
     <div className="space-y-3">
       <p className="text-sm font-semibold text-slate-600">{t.pickMaterial}</p>
@@ -141,8 +145,10 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       {material && (
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
           <label className="text-sm">{t.quantity} ({material.unitOfMeasure})<input aria-label={t.quantity} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
-          <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
-          <p className="col-span-2 text-xs text-slate-600">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && cost > 0 && <> · {t.total}: <b>{(qty * cost).toFixed(2)}</b></>}</p>
+          {averageCost === null
+            ? <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
+            : <p className="text-sm">{t.averageCost}: <b>{averageCost}</b><span className="block text-xs text-slate-500">{t.usesAverage}</span></p>}
+          <p className="col-span-2 text-xs text-slate-600">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && (averageCost ?? cost) > 0 && <> · {t.total}: <b>{(qty * (averageCost ?? cost)).toFixed(2)}</b></>}</p>
         </div>
       )}
       <details className="rounded-xl border bg-white p-3 text-sm">
@@ -152,7 +158,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       </details>
       {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
       {issue.error && !isNetworkError(issue.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(issue.error, isArabic)}</p>}
-      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: cost, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
+      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: averageCost === null ? cost : undefined, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
 }
@@ -160,6 +166,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
 function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const orders = context.purchaseOrders ?? [];
   const [orderId, setOrderId] = useState(orders.length === 1 ? orders[0].id : "");
+  const rememberedStore = remembered(`fieldEntry:${projectId}:warehouse`);
+  const [receiveWarehouseId, setReceiveWarehouseId] = useState(context.warehouses.find(w => w.id === rememberedStore)?.id ?? context.warehouses[0]?.id ?? "");
+  const [direct, setDirect] = useState(false);
   const [materialId, setMaterialId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
@@ -181,10 +190,10 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
   if (orders.length === 0) return <p className="text-sm text-slate-500">{t.noOrders}</p>;
   const qty = Number(quantity);
   const cost = Number(unitCost || material?.lastUnitCost || 0);
-  const ready = Boolean(order && material && qty > 0 && cost > 0);
+  const ready = Boolean(order && material && qty > 0 && cost > 0 && (direct || receiveWarehouseId));
   const submit = () => {
     if (!grnNumber.current) { const now = new Date(); grnNumber.current = `GRN-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${now.toISOString().slice(11, 19).replace(/:/g, "")}-${requestId.current.slice(0, 4).toUpperCase()}`; }
-    receive.mutate({ tenantId, projectId, grnNumber: grnNumber.current, purchaseOrderId: order!.id, materialId: material!.id, receivedQuantity: qty, rejectedQuantity: 0, unitCost: cost, unitOfMeasure: material!.unitOfMeasure, receivedAt: new Date(), clientRequestId: requestId.current });
+    receive.mutate({ tenantId, projectId, grnNumber: grnNumber.current, purchaseOrderId: order!.id, materialId: material!.id, receivedQuantity: qty, rejectedQuantity: 0, unitCost: cost, unitOfMeasure: material!.unitOfMeasure, receivedAt: new Date(), receiptMode: direct ? "direct_to_site" : "warehouse_stock", warehouseId: direct ? undefined : receiveWarehouseId, clientRequestId: requestId.current });
   };
   return (
     <div className="space-y-3">
@@ -206,6 +215,10 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
             <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
               <label className="text-sm">{t.receivedQty} ({material.unitOfMeasure})<input aria-label={t.receivedQty} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
               <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" placeholder={material.lastUnitCost === null ? "" : String(material.lastUnitCost)} value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
+              <label className="col-span-2 flex items-start gap-2 text-sm"><input type="checkbox" aria-label={t.directToSite} className="mt-1 h-5 w-5" checked={direct} onChange={event => setDirect(event.target.checked)} />{t.directToSite}</label>
+              {!direct && (context.warehouses.length === 0
+                ? <p role="alert" className="col-span-2 text-xs text-red-700">{t.noWarehouseToReceive}</p>
+                : <label className="col-span-2 text-sm">{t.warehouse}<select aria-label={t.warehouse} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={receiveWarehouseId} onChange={event => setReceiveWarehouseId(event.target.value)}>{context.warehouses.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select><span className="block text-xs text-slate-500">{t.intoWarehouse}</span></label>)}
               <p className="col-span-2 text-xs text-slate-600">{qty > 0 && cost > 0 && <>{t.total}: <b>{(qty * cost).toFixed(2)}</b> {order.currency} · </>}{t.rejectedHint}</p>
             </div>
           )}

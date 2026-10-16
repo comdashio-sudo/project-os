@@ -435,6 +435,13 @@
       "when": 1792096808088,
       "tag": "0061_purchase_order_supplier_link",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1792134855016,
+      "tag": "0062_stock_valuation_and_receipt_mode",
+      "breakpoints": true
     }
   ]
 }

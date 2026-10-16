@@ -7,7 +7,7 @@ export type WbsImportRow = { rowNumber: number; values: { code: string; name: st
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
 export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
 export type MaterialImportRow = { rowNumber: number; values: { code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string } };
-export type OpeningBalanceImportRow = { rowNumber: number; values: { warehouseCode: string; materialCode: string; quantity: number } };
+export type OpeningBalanceImportRow = { rowNumber: number; values: { warehouseCode: string; materialCode: string; quantity: number; unitCost: number } };
 export type ScheduleWbsImportRow = { rowNumber: number; kind: "wbs"; values: { code: string; name: string; plannedValue: number } };
 export type ScheduleActivityImportRow = { rowNumber: number; kind: "activity"; values: { wbsCode: string; code: string; name: string; plannedStartAt: Date; plannedFinishAt: Date; plannedValue: number; status: "not_started" | "in_progress" | "completed" | "blocked" } };
 export type ScheduleImportRow = ScheduleWbsImportRow | ScheduleActivityImportRow;
@@ -46,6 +46,8 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "warehouseCode", required: true, aliases: ["warehouse code", "warehouse", "رمز المستودع", "المستودع"] },
     { key: "materialCode", required: true, aliases: ["material code", "material", "رمز المادة", "المادة"] },
     { key: "quantity", required: true, aliases: ["quantity", "opening quantity", "qty", "الكمية", "الرصيد الافتتاحي"] },
+    // The price the opening stock is valued at (work order 3): stock without a price cannot enter the weighted average and would be reported as worth nothing.
+    { key: "unitCost", required: true, aliases: ["unit cost", "cost", "unit price", "price", "تكلفة الوحدة", "سعر الوحدة", "التكلفة", "السعر"] },
   ],
   schedule: [
     { key: "recordType", required: true, aliases: ["record type", "type", "نوع السجل", "النوع"] },
@@ -265,13 +267,14 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
         return;
       }
       if (input.moduleCode === "openingBalances") {
-        const warehouseCode = requiredText(row[mapping.warehouseCode]); const materialCode = requiredText(row[mapping.materialCode]); const quantity = nonnegativeNumber(row[mapping.quantity]);
+        const warehouseCode = requiredText(row[mapping.warehouseCode]); const materialCode = requiredText(row[mapping.materialCode]); const quantity = nonnegativeNumber(row[mapping.quantity]); const unitCost = nonnegativeNumber(row[mapping.unitCost]);
         const key = `${warehouseCode}|${materialCode}`;
         if (!warehouseCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "warehouseCode" });
         if (!materialCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "materialCode" });
         if (quantity === undefined || quantity <= 0) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "quantity" }); // an opening balance of zero or less is not a balance
+        if (unitCost === undefined || unitCost <= 0) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "unitCost" }); // opening stock is valued at this price; zero would value it at nothing
         if (warehouseCode && materialCode && fileKeys.has(key)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "materialCode" });
-        if (warehouseCode && materialCode && quantity !== undefined && quantity > 0 && !fileKeys.has(key)) { fileKeys.add(key); validRows.push({ rowNumber, values: { warehouseCode, materialCode, quantity } }); }
+        if (warehouseCode && materialCode && quantity !== undefined && quantity > 0 && unitCost !== undefined && unitCost > 0 && !fileKeys.has(key)) { fileKeys.add(key); validRows.push({ rowNumber, values: { warehouseCode, materialCode, quantity, unitCost } }); }
         return;
       }
       if (input.moduleCode === "materials") {
