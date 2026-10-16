@@ -30,6 +30,11 @@ export const operationalPermissionCatalog = [
   { code: "project.pmc.manage", name: "Manage the PMC catalogue, baselines and imports", productCode: "PROJECT" as const },
   { code: "project.settings.labour", name: "Configure labour cost loading and the working calendar", productCode: "PROJECT" as const },
   { code: "project.manage", name: "Manage governed project operations", productCode: "PROJECT" as const },
+  // Technical and architectural coordination (work order 5): the drawing register, transmittals, design comments and consultant submittals.
+  { code: "project.design.manage", name: "Manage the drawing register, transmittals, design comments and submittals", productCode: "PROJECT" as const },
+  { code: "project.design.architectural", name: "Coordinate architectural drawings (architecture, interior, landscape)", productCode: "PROJECT" as const },
+  { code: "project.design.technical", name: "Coordinate technical drawings (structure, civil, MEP, fire)", productCode: "PROJECT" as const },
+  { code: "project.design.approve", name: "Approve drawings for construction and record consultant replies", productCode: "PROJECT" as const },
 ] as const;
 
 export const operationalRoleDefinitions = [
