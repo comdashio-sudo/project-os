@@ -1851,14 +1851,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
 
     const employee = await hrCaller.employees.create({ tenantId: tenantA, employeeNumber: "EMP-PAYROLL-01", fullName: "Payroll Evidence Employee", jobTitle: "Planner", department: "Planning", hireDate: new Date("2026-08-01T00:00:00.000Z"), retentionPolicy: "standard" });
     expect((await hrCaller.employees.list({ tenantId: tenantA })).find(item => item.id === employee.id)).not.toHaveProperty("baseSalary");
-    await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantB, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantB, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT product is not licensed");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
-    const structure = await hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosMonthlyAccrual: 750, currency: "SAR" });
+    const structure = await hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" });
     await expect(hrCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: structure.id, baseSalary: "10000.00", currency: "SAR" });
     await expect(accountantCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).rejects.toThrow("Required permission is not granted");
     await expect(hrCaller.employees.payroll.createRun({ tenantId: tenantA, ...period })).rejects.toThrow("Required permission is not granted");

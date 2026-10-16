@@ -442,6 +442,13 @@
       "when": 1792134855016,
       "tag": "0062_stock_valuation_and_receipt_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1792136294299,
+      "tag": "0063_payroll_loading_eos_auto_allocation",
+      "breakpoints": true
     }
   ]
 }

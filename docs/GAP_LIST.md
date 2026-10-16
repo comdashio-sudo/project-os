@@ -331,3 +331,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 
 القرارات المنتظرة منك في `docs/OWNER_ACTIONS.md` القسم 8.
 | G-105/G-031 (القرار 1 و2): استلام يرفع الرصيد، توريد مباشر، رصيد بسعر، متوسط مرجّح | CLOSED (WO3) | الترحيل 0062، `inventoryValuation.ts`، `stock.valuation.database.test.ts`؛ صف STATE «استلام المواد يرفع الرصيد…». |
+| G-123/G-122/G-015/G-016 (القرارات 3 و4 و5): توزيع آلي بالساعات، نهاية خدمة بالمدة، تأمين بالجنسية | CLOSED (WO3) | الترحيل 0063، `labourCost.ts`، `payroll.allocation.database.test.ts`؛ صف STATE «توزيع الراتب المحمّل آليًا…». |

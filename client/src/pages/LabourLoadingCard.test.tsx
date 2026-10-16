@@ -17,7 +17,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h
 vi.mock("@/lib/trpc", () => ({ trpc: {
   profitability: { labour: { useQuery: () => h.fail ? { isLoading: false, error: new Error("x"), data: undefined, refetch: h.refetch } : { isLoading: false, error: null, refetch: h.refetch, data: h.empty ? { approvedEntries: 0, loadedEntries: 0, resourceEntries: 0, hours: 0, loadedCost: 0, effectiveLoadingFactor: null, isDefault: true, settings: {} } : { approvedEntries: 3, loadedEntries: 2, resourceEntries: 1, hours: 24, loadedCost: 1122.64, effectiveLoadingFactor: 1.1788, isDefault: false, settings: {} } } } },
   labourSettings: {
-    get: { useQuery: () => ({ isLoading: false, error: null, refetch: h.refetch, data: { employerGosiRate: 0.1175, indirectLoadingPercent: 10, hoursPerDay: 8, workingDays: [0, 1, 2, 3, 4], isDefault: h.isDefault, canEdit: h.canEdit } }) },
+    get: { useQuery: () => ({ isLoading: false, error: null, refetch: h.refetch, data: { employerGosiRateSaudi: 0.1175, employerGosiRateNonSaudi: 0.02, indirectLoadingPercent: 10, hoursPerDay: 8, workingDays: [0, 1, 2, 3, 4], eosFirstPeriodYears: 5, eosFirstPeriodMonthsPerYear: 0.5, eosLaterMonthsPerYear: 1, isDefault: h.isDefault, canEdit: h.canEdit } }) },
     save: { useMutation: (options: { onSuccess?: () => void }) => ({ mutate: (input: unknown) => { h.save(input); options.onSuccess?.(); }, error: null, isPending: false }) },
   },
 } }));
@@ -30,7 +30,9 @@ describe("LabourLoadingCard", () => {
     render_();
     expect(screen.getByTestId("labour-factor").textContent).toBe("×1.18");
     expect(screen.getByText(/2 time entries priced from payroll and 1 from the resource plan rate/)).toBeTruthy();
-    expect(screen.getByTestId("labour-settings").textContent).toContain("Employer insurance (%) 11.75%");
+    expect(screen.getByTestId("labour-settings").textContent).toContain("Employer insurance — Saudi (%) 11.75%");
+    expect(screen.getByTestId("labour-settings").textContent).toContain("Employer insurance — non-Saudi (%) 2%");
+    expect(screen.getByTestId("labour-estimate-note").textContent).toContain("not a legal calculation"); // the owner asked for this sentence on the screen
     expect(screen.getByTestId("labour-settings").textContent).toContain("Sunday, Monday, Tuesday, Wednesday, Thursday");
     expect(screen.getByText(/1,123 SAR/)).toBeTruthy();
   });
@@ -45,13 +47,17 @@ describe("LabourLoadingCard", () => {
   it("lets a permitted user edit and save the factors and the working days, in the units the server stores", () => {
     render_();
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    fireEvent.change(screen.getByLabelText("Employer insurance (%)"), { target: { value: "9.5" } });
+    fireEvent.change(screen.getByLabelText("Employer insurance — Saudi (%)"), { target: { value: "9.5" } });
+    fireEvent.change(screen.getByLabelText("Employer insurance — non-Saudi (%)"), { target: { value: "1.5" } });
+    fireEvent.change(screen.getByLabelText("Years at the first rate"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Months per year in that period"), { target: { value: "0.6" } });
+    fireEvent.change(screen.getByLabelText("Months per year after it"), { target: { value: "1.2" } });
     fireEvent.change(screen.getByLabelText("Indirect loading (%)"), { target: { value: "12" } });
     fireEvent.change(screen.getByLabelText("Hours per day"), { target: { value: "9" } });
     fireEvent.click(screen.getByLabelText("Friday")); // add Friday
     fireEvent.click(screen.getByLabelText("Sunday")); // drop Sunday
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(h.save).toHaveBeenCalledWith({ tenantId: "t", employerGosiRate: 0.095, indirectLoadingPercent: 12, hoursPerDay: 9, workingDays: [1, 2, 3, 4, 5] });
+    expect(h.save).toHaveBeenCalledWith({ tenantId: "t", employerGosiRateSaudi: 0.095, employerGosiRateNonSaudi: 0.015, indirectLoadingPercent: 12, hoursPerDay: 9, workingDays: [1, 2, 3, 4, 5], eosFirstPeriodYears: 4, eosFirstPeriodMonthsPerYear: 0.6, eosLaterMonthsPerYear: 1.2 });
     expect(screen.getByText("Settings saved")).toBeTruthy();
     expect(h.refetch).toHaveBeenCalled();
   });

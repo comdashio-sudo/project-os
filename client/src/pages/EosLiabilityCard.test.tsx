@@ -28,7 +28,7 @@ describe("EosLiabilityCard", () => {
     expect(screen.getByText("2026-12").closest("tr")?.textContent).toContain("801.25");
     expect(screen.getByText("Total").closest("tr")?.textContent).toContain("801.25");
     expect(screen.getByText("E-C · Employee C").closest("li")?.textContent).toContain("601.00");
-    expect(screen.getByText(/not a calculation of the end-of-service entitlement/)).toBeTruthy();
+    expect(screen.getByText(/A cost estimate, not a legal calculation/)).toBeTruthy(); // the sentence the owner asked for
   });
   it("renders empty, loading and error states, a mixed-currency warning, and Arabic", () => {
     state.query = { data: { ...data, months: [] }, isLoading: false, error: null };

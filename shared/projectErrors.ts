@@ -904,6 +904,26 @@ export const projectErrorMessages = {
     ar: "هذا المخزون بلا سعر مسجَّل، فلا يوجد متوسط يُصرف به. أدخل تكلفة الوحدة لهذا الصرف.",
     en: "This stock has no recorded price, so there is no average to issue it at. Enter the unit cost for this issue.",
   },
+  PROJECT_OS_PAYROLL_AUTO_ALREADY_ALLOCATED: {
+    ar: "تكلفة هذا الراتب موزَّعة على المشاريع بالفعل. لتعديل حصة استعمل «تعديل الحصة» مع ذكر السبب.",
+    en: "This pay has already been allocated to projects. To change a share use \"adjust share\" and give the reason.",
+  },
+  PROJECT_OS_PAYROLL_AUTO_NO_HOURS: {
+    ar: "لا ساعات معتمدة لهذا الموظف في فترة المسير، فلا أساس للتوزيع بالساعات. اعتمد الساعات أولًا أو وزّع يدويًا.",
+    en: "This employee has no approved hours in the payroll period, so there is nothing to share the cost by. Approve the hours first or allocate by hand.",
+  },
+  PROJECT_OS_PAYROLL_ADJUSTMENT_REASON_REQUIRED: {
+    ar: "اكتب سبب تعديل الحصة (5 أحرف على الأقل). يُحفظ مع القيمة قبل التعديل وبعده.",
+    en: "Give the reason for adjusting the share (at least 5 characters). It is kept with the value before and after.",
+  },
+  PROJECT_OS_PAYROLL_ADJUSTMENT_NO_CHANGE: {
+    ar: "القيمة الجديدة تساوي القيمة الحالية؛ لا شيء يُعدَّل.",
+    en: "The new amount equals the current one; there is nothing to adjust.",
+  },
+  PROJECT_OS_PAYROLL_ALLOCATION_NOT_FOUND: {
+    ar: "حصة الراتب المطلوبة غير موجودة في هذه الشركة.",
+    en: "The pay allocation was not found in this company.",
+  },
   PROJECT_OS_INVENTORY_REASON_REQUIRED: {
     ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
     en: "Give the reason for the transfer or adjustment (at least 3 characters).",
