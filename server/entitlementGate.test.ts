@@ -10,7 +10,7 @@ const sources = Object.fromEntries(readdirSync(serverDir).filter(name => /\.ts$/
 const routers = sources["routers.ts"];
 
 /** Helpers that end in `assertTenantAccess` (active membership + licensed product + permission + scope) or check the licence themselves. */
-const GATES = ["assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled"];
+const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled"];
 
 const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   acknowledgeInternalNotification: "own notification rows only (recipient = caller); active membership required; no product licence needed to read what was sent to you",
