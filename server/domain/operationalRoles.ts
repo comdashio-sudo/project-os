@@ -35,6 +35,11 @@ export const operationalPermissionCatalog = [
   { code: "project.design.architectural", name: "Coordinate architectural drawings (architecture, interior, landscape)", productCode: "PROJECT" as const },
   { code: "project.design.technical", name: "Coordinate technical drawings (structure, civil, MEP, fire)", productCode: "PROJECT" as const },
   { code: "project.design.approve", name: "Approve drawings for construction and record consultant replies", productCode: "PROJECT" as const },
+  // Tenders before award (work order 5): packages and invitations, bids, levelling, award.
+  { code: "project.tender.manage", name: "Manage tender packages and invitations", productCode: "PROJECT" as const },
+  { code: "project.tender.bids", name: "Enter and correct bids", productCode: "PROJECT" as const },
+  { code: "project.tender.level", name: "Level and compare bids", productCode: "PROJECT" as const },
+  { code: "project.tender.award", name: "Award a tender", productCode: "PROJECT" as const },
 ] as const;
 
 export const operationalRoleDefinitions = [

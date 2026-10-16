@@ -2217,3 +2217,85 @@ export const designSubmittals = mysqlTable(
   },
   table => [uniqueIndex("design_submittals_project_number_unique").on(table.projectId, table.submittalNumber), index("design_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
+
+// ---------------------------------------------------------------- Tenders before award (work order 5, item 8)
+// A package is invited, bid on, levelled and awarded; the award creates the contract and the commitment in the same transaction.
+export const tenderPackages = mysqlTable(
+  "tender_packages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    packageCode: varchar("packageCode", { length: 120 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    scopeSummary: text("scopeSummary"),
+    estimateAmount: decimal("estimateAmount", { precision: 18, scale: 2 }),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    status: mysqlEnum("status", ["draft", "open", "closed", "awarded", "cancelled"]).default("draft").notNull(),
+    closingAt: timestamp("closingAt"),
+    awardedBidId: varchar("awardedBidId", { length: 36 }),
+    awardedContractId: varchar("awardedContractId", { length: 36 }),
+    awardedCommitmentId: varchar("awardedCommitmentId", { length: 36 }),
+    awardedAt: timestamp("awardedAt"),
+    awardedByUserId: int("awardedByUserId").references(() => users.id),
+    awardJustification: text("awardJustification"),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tender_packages_project_code_unique").on(table.projectId, table.packageCode), index("tender_packages_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.createdAt)],
+);
+
+export const tenderInvitees = mysqlTable(
+  "tender_invitees",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
+    supplierId: varchar("supplierId", { length: 36 }).notNull().references(() => suppliers.id),
+    status: mysqlEnum("status", ["invited", "declined", "submitted"]).default("invited").notNull(),
+    invitedAt: timestamp("invitedAt").defaultNow().notNull(),
+    invitedByUserId: int("invitedByUserId").notNull().references(() => users.id),
+  },
+  table => [uniqueIndex("tender_invitees_package_supplier_unique").on(table.packageId, table.supplierId), index("tender_invitees_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const tenderBids = mysqlTable(
+  "tender_bids",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
+    supplierId: varchar("supplierId", { length: 36 }).notNull().references(() => suppliers.id),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
+    durationDays: int("durationDays"),
+    validityDays: int("validityDays"),
+    notes: text("notes"),
+    status: mysqlEnum("status", ["submitted", "withdrawn", "disqualified"]).default("submitted").notNull(),
+    statusReason: varchar("statusReason", { length: 500 }),
+    enteredByUserId: int("enteredByUserId").notNull().references(() => users.id),
+    enteredAt: timestamp("enteredAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [uniqueIndex("tender_bids_package_supplier_unique").on(table.packageId, table.supplierId), index("tender_bids_package_status_idx").on(table.packageId, table.status), index("tender_bids_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const tenderBidAdjustments = mysqlTable(
+  "tender_bid_adjustments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
+    bidId: varchar("bidId", { length: 36 }).notNull().references(() => tenderBids.id),
+    kind: mysqlEnum("kind", ["scope_gap", "exclusion", "correction", "discount"]).notNull(),
+    description: varchar("description", { length: 500 }).notNull(),
+    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("tender_adjustments_bid_idx").on(table.bidId), index("tender_adjustments_package_idx").on(table.packageId)],
+);

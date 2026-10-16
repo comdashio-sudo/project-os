@@ -33,7 +33,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   claimSupportTicket: "delegates to transitionSupportTicket, which writes the audit row",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
 };
-const PROJECT_GUARD = /assertProjectWithinTenant|assertDesignAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+const PROJECT_GUARD = /assertProjectWithinTenant|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
 describe("Gate 6, static part (G-110)", () => {
   it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {

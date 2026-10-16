@@ -1088,6 +1088,78 @@ export const projectErrorMessages = {
     ar: "لا يُعاد تقديم إلا ما ردّ عليه الاستشاري بالرمز C أو D.",
     en: "Only a submittal the consultant answered with C or D can be resubmitted.",
   },
+  PROJECT_OS_TENDER_DUPLICATE: {
+    ar: "الرمز المدخل مستعمل من قبل في هذا المشروع (حزمة مناقصة أو عقد أو التزام).",
+    en: "That code is already used in this project (tender package, contract or commitment).",
+  },
+  PROJECT_OS_TENDER_NOT_FOUND: {
+    ar: "حزمة المناقصة المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected tender package is not available in the current project and workspace.",
+  },
+  PROJECT_OS_TENDER_SUPPLIER_NOT_FOUND: {
+    ar: "المورد المحدد غير موجود في سجل الموردين أو غير نشط.",
+    en: "The selected supplier is not in the supplier register or is not active.",
+  },
+  PROJECT_OS_TENDER_INVITATION_CLOSED: {
+    ar: "لا تُضاف دعوات بعد إغلاق باب العروض أو الترسية أو الإلغاء.",
+    en: "Invitations cannot be added once bidding is closed, awarded or cancelled.",
+  },
+  PROJECT_OS_TENDER_TRANSITION_INVALID: {
+    ar: "انتقال حالة المناقصة غير مسموح من حالتها الحالية.",
+    en: "That tender-status transition is not allowed from its current status.",
+  },
+  PROJECT_OS_TENDER_NO_INVITEES: {
+    ar: "ادعُ موردًا واحدًا على الأقل قبل فتح باب العروض.",
+    en: "Invite at least one supplier before opening the tender.",
+  },
+  PROJECT_OS_TENDER_NOT_OPEN: {
+    ar: "باب العروض غير مفتوح؛ لا تُدخل العروض ولا تُعدَّل ولا تُسحب إلا والمناقصة مفتوحة.",
+    en: "Bidding is not open; bids can be entered, revised or withdrawn only while the tender is open.",
+  },
+  PROJECT_OS_TENDER_NOT_CLOSED: {
+    ar: "هذه العملية لا تتم إلا بعد إغلاق باب العروض وقبل الترسية.",
+    en: "This operation is possible only after bidding is closed and before the award.",
+  },
+  PROJECT_OS_TENDER_NOT_INVITED: {
+    ar: "هذا المورد غير مدعو إلى هذه المناقصة.",
+    en: "This supplier was not invited to this tender.",
+  },
+  PROJECT_OS_TENDER_BID_EXISTS: {
+    ar: "لهذا المورد عرض مسجل في هذه المناقصة؛ عدّله بدل إدخال عرض ثانٍ.",
+    en: "This supplier already has a bid in this tender; revise it instead of entering a second one.",
+  },
+  PROJECT_OS_TENDER_BID_NOT_FOUND: {
+    ar: "العرض المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    en: "The selected bid is not available in the current project and workspace.",
+  },
+  PROJECT_OS_TENDER_BID_STATE_INVALID: {
+    ar: "حالة العرض لا تسمح بهذه العملية (مسحوب أو مستبعد).",
+    en: "The bid's status does not allow this operation (withdrawn or disqualified).",
+  },
+  PROJECT_OS_TENDER_REASON_REQUIRED: {
+    ar: "اكتب سبب الاستبعاد.",
+    en: "Write the reason for the disqualification.",
+  },
+  PROJECT_OS_TENDER_ADJUSTMENT_SIGN: {
+    ar: "إشارة المبلغ لا تناسب نوع التسوية: الخصم سالب، وثغرة النطاق والاستثناء موجبان، والتصحيح بأي إشارة.",
+    en: "The amount's sign does not fit the adjustment kind: a discount is negative, a scope gap or exclusion is positive, a correction may be either.",
+  },
+  PROJECT_OS_TENDER_ADJUSTMENT_NOT_FOUND: {
+    ar: "بند التسوية المحدد غير متاح.",
+    en: "The selected adjustment is not available.",
+  },
+  PROJECT_OS_TENDER_BID_NOT_ELIGIBLE: {
+    ar: "لا تُرسى المناقصة على عرض مسحوب أو مستبعد.",
+    en: "A tender cannot be awarded to a withdrawn or disqualified bid.",
+  },
+  PROJECT_OS_TENDER_SELF_AWARD: {
+    ar: "من أدخل عروض هذه المناقصة لا يرسّيها؛ يلزم شخص آخر يملك صلاحية الترسية.",
+    en: "Whoever entered this tender's bids cannot award it; another person with award authority is needed.",
+  },
+  PROJECT_OS_TENDER_JUSTIFICATION_REQUIRED: {
+    ar: "بأقل من عرضين صالحين للمقارنة يلزم تسبيب كتابي للترسية (10 أحرف على الأقل).",
+    en: "With fewer than two comparable bids a written justification (at least 10 characters) is required to award.",
+  },
 } as const satisfies Record<string, BilingualMessage>;
 
 export type ProjectErrorCode = keyof typeof projectErrorMessages;
