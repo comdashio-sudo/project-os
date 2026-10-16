@@ -32,7 +32,7 @@
 ### الخطوات (قرابة ثلاثين دقيقة، معظمها انتظار DNS)
 
 1. **TiDB:** أنشئ كلستر **Starter**، ثم من **SQL Editor** نفّذ `CREATE DATABASE project_os;` (اسم قاعدة التشغيل، لا قاعدة الاختبار). من **Connect** ← **General** ← **Generate Password**، واجمع الرابط:
-   `mysql://<المستخدم>:<كلمة-المرور>@<المضيف>:4000/project_os?ssl=%7B%22minVersion%22%3A%22TLSv1.2%22%2C%22rejectUnauthorized%22%3Atrue%7D`
+   `mysql://USER:PASSWORD@gateway.example:4000/project_os?ssl=%7B%22minVersion%22%3A%22TLSv1.2%22%2C%22rejectUnauthorized%22%3Atrue%7D` — استبدل `USER` و`PASSWORD` و`gateway.example` بالقيم التي تعرضها شاشة **Connect** (مثال الشكل فقط، لا قيم حقيقية).
    (الجزء بعد `?` يفرض TLS وTiDB Starter يشترطه؛ تحققتُ محليًا من أن `mysql2` يقرؤه خيارَ TLS، ولم أجرّبه على TiDB نفسها — فإن ظهر خطأ اتصال يذكر TLS أو SSL فهذا أول ما يُراجع.) كلمة المرور إن احتوت رمزًا خاصًا (`@` `:` `/` `#`) تُرمَّز كنسبة مئوية.
 2. **Resend:** إن كان عندك نطاق فرعي خاص بالمنصة فأضِفه وانتظر **Verified** (القسم 3، الخطوتان 1–2). **إن لم يكن عندك نطاق الآن:** تسمح وثائق Resend بالإرسال التجريبي من `onboarding@resend.dev` إلى **بريد حساب Resend نفسه فقط** — يكفي لدخولك وحدك لا لغيرك (راجع وثائقهم، فهي التي تحسم). أنشئ **API Key** بصلاحية **Sending access**.
 3. **Render:** **New +** ← **Blueprint** ← المستودع `comdashio-sudo/project-os` ← الفرع `main`. سيطلب منك القيم التالية فقط (الباقي مولَّد أو مكتوب في `render.yaml`):
