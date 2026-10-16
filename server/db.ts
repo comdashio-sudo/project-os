@@ -854,7 +854,7 @@ async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<t
       for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onDuplicateKeyUpdate({ set: { roleId: ownerRole.id } });
     }
     for (const definition of operationalRoleDefinitions) {
-      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: "PROJECT", systemManaged: true }).onDuplicateKeyUpdate({ set: { name: definition.name, productCode: "PROJECT", systemManaged: true } });
+      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onDuplicateKeyUpdate({ set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
       const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
       const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
       if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");

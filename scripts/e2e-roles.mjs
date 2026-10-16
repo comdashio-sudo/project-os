@@ -1,4 +1,4 @@
-// Browser rehearsal for the twelve operating roles, in Arabic, at desktop width and at 390px.
+// Browser rehearsal for the sixteen operating roles, in Arabic, at desktop width and at 390px.
 //
 // For every role: sign in THROUGH THE REAL SCREEN (e-mail, then the code the fake mail provider received), walk the role's
 // core path, and confirm what the role must NOT do is refused (both on the screen and straight at the API with the role's own session).
@@ -114,6 +114,11 @@ const EXPECTED_NAV = {
   finance: ["projects", "payroll", "controls", "mine"],
   hr: ["projects", "people", "payroll", "controls", "mine"],
   site: ["controls", "mine"],
+  // the templates of work order 5: scoped to the project, so they open it and see their own performance, and nothing company-level
+  coordinator: ["controls", "mine"],
+  designArch: ["controls", "mine"],
+  designTech: ["controls", "mine"],
+  contracts: ["controls", "mine"],
 };
 // A page that holds data only some roles may read: where it is, the text that proves the data is on screen, and who may see it.
 const GUARDED_PAGES = [
@@ -137,7 +142,7 @@ const WHO_HAS = {
   "project.wbs.manage": ["owner", "pm", "planner"],
   "project.schedule.manage": ["owner", "pm", "planner"],
   "project.progress.manage": ["owner", "pm", "site"],
-  "project.field.manage": ["owner", "pm", "site"],
+  "project.field.manage": ["owner", "pm", "site", "coordinator"],
 };
 const iso = new Date(Date.now() - 86400000).toISOString();
 const WRITES = [
@@ -237,7 +242,7 @@ for (const view of VIEWS) {
     if (only && !only.includes(person.key)) continue;
     if (process.env.VIEW && process.env.VIEW !== view.key) continue;
     const role = person.key; const v = view.key;
-    // Behind the platform's proxy each person arrives from their own address and over https; the sign-in limit per address is the product's (20 requests / 10 min), so twelve people must not share one.
+    // Behind the platform's proxy each person arrives from their own address and over https; the sign-in limit per address is the product's (20 requests / 10 min), so sixteen people must not share one.
     const index = Object.keys(people).indexOf(role) + 1;
     const context = await browser.newContext({ viewport: view.viewport, ...view.options, locale: "ar-SA", extraHTTPHeaders: { "x-forwarded-proto": "https", "x-forwarded-for": `10.77.${view.key === "desktop" ? 1 : 2}.${index}` } });
     const page = await context.newPage();
@@ -331,6 +336,37 @@ for (const view of VIEWS) {
         const holdsEverything = heldBy(person) === null;
         check(role, v, holdsEverything ? "واجهة الكتابة: المالك لا يرى أي سطر منع" : "واجهة الكتابة: مكان كل نموذج محجوب سطر سبب بالعربية", holdsEverything ? notes.length === 0 : notes.length > 0 && notes.every(text => /لا تملك صلاحية/.test(text)), `${notes.length} notes`);
         void ownerBaselineTaken; void checkedPresent;
+      }
+
+
+      // 5c. the new modules through the screen (work order 5): the design coordinators register drawings in their own discipline and are refused in the other;
+      // the contracts manager creates a tender package. Rows are counted in the database, so a refusal that still wrote something would show.
+      if (["designArch", "designTech", "contracts"].includes(role)) {
+        await visit(page, "/projects/:t/:p/controls", 2500);
+        await page.evaluate(() => document.querySelectorAll("#manager-design, #manager-tenders").forEach(element => { element.open = true; }));
+        await page.waitForTimeout(1800);
+        const count = async (table, column, value) => Number((await connection.query(`SELECT COUNT(*) AS n FROM ${table} WHERE projectId = ? AND ${column} = ?`, [projectId, value]))[0][0].n);
+        if (role === "contracts") {
+          const code = `E2E-TP-${fixture.run}`;
+          await page.locator("#tp-code").fill(code); await page.locator("#tp-title").fill("حزمة تجربة الأدوار");
+          await page.getByRole("button", { name: "إنشاء حزمة" }).click(); await page.waitForTimeout(2200);
+          check(role, v, "المناقصات: مدير العقود ينشئ حزمة من الشاشة ويُحفظ صفّها", await count("tender_packages", "packageCode", code) === 1);
+          check(role, v, "المناقصات: لا يُعرض له إدخال تسوية ولا ترسية (ليستا من صلاحياته)", await page.getByRole("button", { name: "إضافة تسوية" }).count() === 0 && await page.getByRole("button", { name: "ترسية وإنشاء العقد والالتزام" }).count() === 0);
+        } else {
+          const own = role === "designArch" ? "architectural" : "structural"; const other = role === "designArch" ? "structural" : "architectural";
+          const register = async (number, discipline) => {
+            await page.locator("#dg-number").fill(number); await page.locator("#dg-title").fill("مخطط تجربة الأدوار");
+            await page.locator("#dg-discipline").selectOption(discipline);
+            await page.getByRole("button", { name: "تسجيل مخطط" }).click(); await page.waitForTimeout(2200);
+          };
+          const mine = `E2E-${role}-${fixture.run}`; const foreign = `E2E-X-${role}-${fixture.run}`;
+          await register(mine, own);
+          check(role, v, "التصميم: منسق التصميم يسجّل مخططًا في تخصصه ويُحفظ صفّه", await count("design_drawings", "drawingNumber", mine) === 1);
+          await register(foreign, other);
+          const banner = (await page.locator("p.bg-red-50").allInnerTexts()).join(" ");
+          check(role, v, "التصميم: تسجيل مخطط في التخصص الآخر يُرفض بالعربية ولا يُحفظ صف", await count("design_drawings", "drawingNumber", foreign) === 0 && /لا تملك الصلاحية/.test(banner), `banner="${banner.slice(0, 60)}"`);
+          check(role, v, "التصميم: لا يُعرض له زر اعتماد المخطط (من يصدر لا يعتمد)", await page.getByRole("button", { name: "اعتماد للتنفيذ" }).count() === 0);
+        }
       }
 
       // 6. the same writes at the API, with this role's own session: allowed exactly where the permission is held, refused (403, in Arabic) elsewhere

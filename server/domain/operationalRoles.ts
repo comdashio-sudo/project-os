@@ -42,6 +42,14 @@ export const operationalPermissionCatalog = [
   { code: "project.tender.award", name: "Award a tender", productCode: "PROJECT" as const },
 ] as const;
 
+export type OperationalRoleDefinition = { code: string; name: string; productCode?: "PROJECT" | "EXECUTIVE" | "PMO"; permissions: readonly string[] };
+
+/**
+ * The ready-made roles every company gets (installed the first time its administrator opens the administration screen). A role is single-product, so the
+ * two company-level views name theirs; the rest are PROJECT roles. The first nine existed before work order 5 and are unchanged; the seven after
+ * PROJECT_MANAGER are the templates of work order 5, item 3. Each states what its holder DOES; the powers that must never meet in one person are in
+ * `conflictingPermissionPairs`, and `assertNoPermissionConflict` refuses any role or combination that holds both.
+ */
 export const operationalRoleDefinitions = [
   { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage", "project.performance.read_own"] },
   { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage", "project.performance.read_own"] },
@@ -79,7 +87,20 @@ export const operationalRoleDefinitions = [
       "project.performance.read_own",
     ],
   },
-] as const;
+  // ---- the templates of work order 5 (item 3). They carry project.read themselves: a person given one of them can open the project.
+  // The executive and the PMO lead are company-level views of one product each; they open no project.
+  { code: "EXECUTIVE", name: "Executive", productCode: "EXECUTIVE", permissions: ["executive.read"] },
+  { code: "PMO_LEAD", name: "PMO Lead", productCode: "PMO", permissions: ["pmo.read", "pmo.write"] },
+  // Controls the money without moving it: budgets, actual cost, cash flow, earned value and the levelling of tender bids. Holds neither commitments nor invoice matching.
+  { code: "COST_CONTROLLER", name: "Cost Controller", permissions: ["project.read", "project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.evm.manage", "project.tender.level", "project.performance.read_own"] },
+  // Keeps the work moving between teams and the consultant: site records, material requests, and the approval side of design (closing comments, recording consultant replies).
+  { code: "PROJECT_COORDINATOR", name: "Project Coordinator", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.rfi.manage", "project.field.manage", "project.material.request", "project.design.approve", "project.performance.read_own"] },
+  // The two design coordinators issue and chase drawings in their own disciplines only; neither approves what they issue.
+  { code: "DESIGN_COORDINATOR_ARCHITECTURAL", name: "Design Coordinator (Architectural)", permissions: ["project.read", "project.pmc.read", "project.design.manage", "project.design.architectural", "project.rfi.manage", "project.performance.read_own"] },
+  { code: "DESIGN_COORDINATOR_TECHNICAL", name: "Design Coordinator (Technical)", permissions: ["project.read", "project.pmc.read", "project.design.manage", "project.design.technical", "project.rfi.manage", "project.performance.read_own"] },
+  // Prepares tenders and enters the bids and manages the commitments they become; neither levels nor awards (the award stays with the company owner or a custom role).
+  { code: "CONTRACTS_MANAGER", name: "Contracts Manager", permissions: ["project.read", "project.pmc.read", "project.commitment.manage", "project.tender.manage", "project.tender.bids", "project.performance.read_own"] },
+] satisfies readonly OperationalRoleDefinition[];
 
 const conflictingOperationalRolePairs = [
   ["PROCUREMENT_OFFICER", "WAREHOUSE_CUSTODIAN"],
