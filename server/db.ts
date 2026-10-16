@@ -141,6 +141,7 @@ import { openIdForEmail } from "./_core/auth/emailCode";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
+import { createInFlight } from "./inFlight";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
@@ -1322,7 +1323,13 @@ export async function generateProjectAdvisoryForTenant(input: { userId: number; 
   }
 }
 
-export async function getExecutiveDashboard(input: { userId: number; tenantId: string }) {
+const executiveDashboardInFlight = createInFlight<Awaited<ReturnType<typeof computeExecutiveDashboard>>>();
+// Five procedures return slices of this dashboard and the executive screen asks for four of them in one batch: they share ONE run (see inFlight.ts).
+export function getExecutiveDashboard(input: { userId: number; tenantId: string }) {
+  return executiveDashboardInFlight.run(`${input.userId}:${input.tenantId}`, () => computeExecutiveDashboard(input));
+}
+
+async function computeExecutiveDashboard(input: { userId: number; tenantId: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -1377,7 +1384,13 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
     db.select({ id: changeRequests.id, projectId: changeRequests.projectId, changeNumber: changeRequests.changeNumber, title: changeRequests.title, impactScheduleDays: changeRequests.impactScheduleDays, impactCost: changeRequests.impactCost, currency: changeRequests.currency, status: changeRequests.status }).from(changeRequests).where(eq(changeRequests.tenantId, input.tenantId)),
     db.select({ projectId: projectMaterialOverrides.projectId, materialId: projectMaterialOverrides.materialId, reorderLevel: projectMaterialOverrides.reorderLevel, materialCode: materialMasters.code, materialDescription: materialMasters.description }).from(projectMaterialOverrides).innerJoin(materialMasters, and(eq(materialMasters.id, projectMaterialOverrides.materialId), eq(materialMasters.tenantId, projectMaterialOverrides.tenantId))).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.active, true))),
-    db.select({ projectId: warehouseInventoryTransactions.projectId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(eq(warehouseInventoryTransactions.tenantId, input.tenantId)),
+    // Stock on hand only matters for the materials that have a reorder level, so the database adds up their movements; the earlier
+    // version sent EVERY movement of the company to Node (100,000 rows at the volume the performance check uses) and summed them there.
+    db.select({ projectId: warehouseInventoryTransactions.projectId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: sql<string>`COALESCE(SUM(${warehouseInventoryTransactions.quantityDelta}), 0)` })
+      .from(warehouseInventoryTransactions)
+      .innerJoin(projectMaterialOverrides, and(eq(projectMaterialOverrides.projectId, warehouseInventoryTransactions.projectId), eq(projectMaterialOverrides.materialId, warehouseInventoryTransactions.materialId)))
+      .where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), isNotNull(projectMaterialOverrides.reorderLevel)))
+      .groupBy(warehouseInventoryTransactions.projectId, warehouseInventoryTransactions.materialId),
   ]);
   const latestEvmByProject = new Map<string, (typeof evmRows)[number]>(); evmRows.forEach(item => { if (!latestEvmByProject.has(item.projectId)) latestEvmByProject.set(item.projectId, item); });
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>(); healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
