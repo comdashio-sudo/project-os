@@ -286,7 +286,11 @@ function ManagerLane({ icon: Icon, title, detail, action, onClick }: { icon: typ
 function OperationsGroup({ id, title, children, defaultOpen = false, lazy = false }: { id?: string; title: string; children: React.ReactNode; defaultOpen?: boolean; lazy?: boolean }) {
   // `lazy`: the children are mounted (and so ask the server for their data) only once the group has been opened, so a rarely used section costs the page nothing.
   const [opened, setOpened] = React.useState(false);
-  // A link such as /controls#manager-commercial (from a cost line's source document) opens the section it names.
-  const linked = typeof window !== "undefined" && Boolean(id) && window.location.hash === `#${id}`;
+  // A link such as /controls#manager-commercial (from a cost line's source document, or from a Master Plan entity) opens the section it names,
+  // on arrival and also when the hash changes while the page is already open.
+  const [hash, setHash] = React.useState(typeof window === "undefined" ? "" : window.location.hash);
+  React.useEffect(() => { const onChange = () => setHash(window.location.hash); window.addEventListener("hashchange", onChange); return () => window.removeEventListener("hashchange", onChange); }, []);
+  const linked = Boolean(id) && hash === `#${id}`;
+  React.useEffect(() => { if (linked && id) document.getElementById(id)?.scrollIntoView?.({ block: "start" }); }, [linked, id]);
   return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
 }

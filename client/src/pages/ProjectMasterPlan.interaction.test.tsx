@@ -8,6 +8,7 @@ import { ProjectMasterPlan } from "./ProjectMasterPlan";
 const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, visualizationRules: [{ id: null, metric: "progress", rules: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, configured: false, updatedAt: null }, { id: null, metric: "status", rules: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, configured: false, updatedAt: null }, { id: null, metric: "cost", rules: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, configured: false, updatedAt: null }], refetch: vi.fn(), snapshotRefetch: vi.fn(), visualizationRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn(), visualizationMutate: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1 } }) }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({}),
@@ -22,6 +23,9 @@ vi.mock("@/lib/trpc", () => ({
       createSpatialEntity: { useMutation: () => ({ mutate: state.entityMutate, isPending: false, error: null }) },
       applyExcelMapping: { useMutation: () => ({ mutate: state.mappingMutate, isPending: false, isSuccess: false, error: null }) },
       importSpatialEntities: { useMutation: () => ({ mutate: state.spatialImportMutate, isPending: false, isSuccess: false, error: null }) },
+      setVersionGeometry: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      updateEntityLayout: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      setSnapshotSharing: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
     },
     projects: { getControls: { useQuery: () => ({ data: { wbs: [{ id: "wbs-1", code: "1.0", name: "Civil works" }, { id: "wbs-2", code: "2.0", name: "Steel works" }], activities: [{ id: "activity-1", wbsItemId: "wbs-1", code: "A-01", name: "Mobilize crew" }, { id: "activity-2", wbsItemId: "wbs-2", code: "A-02", name: "Install steel" }] } }) } },
   },
@@ -158,5 +162,22 @@ describe("ProjectMasterPlan", () => {
     await user.selectOptions(entityForm.getByLabelText("Parent entity"), "entity-parent"); await user.selectOptions(entityForm.getByLabelText("WBS item"), "wbs-1"); await user.selectOptions(entityForm.getByLabelText("Activity"), "activity-1");
     fireEvent.submit(form);
     await waitFor(() => expect(state.entityMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", code: "UNIT-1", parentEntityId: "entity-parent", wbsItemId: "wbs-1", activityId: "activity-1" })));
+  });
+
+  it("draws a large plan on a canvas instead of one button per entity (G-135)", () => {
+    const original = state.data;
+    const template = original.entities[0];
+    state.data = { ...original, entities: Array.from({ length: 1600 }, (_, index) => ({ ...template, id: `big-${index}`, code: `E-${index}`, name: `Entity ${index}`, geometry: JSON.stringify({ x: index % 90, y: Math.floor(index / 90) % 90, width: 2, height: 2 }), wbsItemId: null, activityId: null, parentEntityId: null })) } as typeof original;
+    try {
+      render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+      expect(screen.getByTestId("master-plan-canvas")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "E-5 Entity 5" })).toBeNull();
+    } finally { state.data = original; }
+  });
+
+  it("keeps one button per entity on a small plan", () => {
+    render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    expect(screen.queryByTestId("master-plan-canvas")).toBeNull();
+    expect(screen.getByRole("button", { name: "ZONE-A Zone A" })).toBeTruthy();
   });
 });

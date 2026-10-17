@@ -71,6 +71,12 @@ export async function seedDemoData({ caller, connection, tenantId, projectId, us
   const run = await caller.employees.payroll.createRun({ tenantId, periodStart, periodEnd });
   const [entries] = await connection.query("SELECT id FROM payroll_entries WHERE payrollRunId = ?", [run.id]);
   for (const entry of entries) await caller.employees.payroll.allocateByHours({ tenantId, payrollEntryId: entry.id }).catch(error => console.log("allocateByHours:", String(error.message).slice(0, 80)));
+  // a Master Plan with a few entities, so the plan screen (rotation, calibration, parent tree, alerts) has something to show
+  const plan = await caller.masterPlans.create({ tenantId, projectId, code: "MP-DEMO", title: "Demo master plan" }).catch(error => { console.log("masterPlan:", String(error.message).slice(0, 80)); return null; });
+  if (plan) {
+    const zone = await caller.masterPlans.createSpatialEntity({ tenantId, projectId, masterPlanVersionId: plan.versionId, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: { x: 5, y: 5, width: 40, height: 30 }, status: "in_progress", progressPercent: 40, plannedValue: 1000, actualValue: 1300, forecastValue: 1400 });
+    await caller.masterPlans.createSpatialEntity({ tenantId, projectId, masterPlanVersionId: plan.versionId, code: "BLOCK-1", name: "Block 1", entityType: "block", geometry: { x: 10, y: 10, width: 15, height: 10 }, status: "blocked", progressPercent: 10, parentEntityId: zone.id });
+  }
   console.log("seed: done");
   return true;
 }

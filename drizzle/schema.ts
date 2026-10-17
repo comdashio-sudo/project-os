@@ -951,6 +951,10 @@ export const masterPlanVersions = mysqlTable(
     sourceFileName: varchar("sourceFileName", { length: 255 }),
     storageKey: varchar("storageKey", { length: 512 }),
     checksumSha256: varchar("checksumSha256", { length: 64 }),
+    // The plan underlay's turn (degrees, -180..180) and the real size of the plan area in metres, so an entity's map units read as metres (G-135).
+    rotationDegrees: int("rotationDegrees").default(0).notNull(),
+    mapWidthMeters: decimal("mapWidthMeters", { precision: 12, scale: 2 }),
+    mapHeightMeters: decimal("mapHeightMeters", { precision: 12, scale: 2 }),
     uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
@@ -969,6 +973,8 @@ export const masterPlanSnapshots = mysqlTable(
     filtersJson: text("filtersJson").notNull(),
     viewportJson: text("viewportJson").notNull(),
     layersJson: text("layersJson").notNull(),
+    // false: only its creator sees it (the original rule); true: everyone who can read this project's Master Plan (G-136)
+    sharedWithProject: boolean("sharedWithProject").default(false).notNull(),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
