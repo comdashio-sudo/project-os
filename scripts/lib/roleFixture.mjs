@@ -1,4 +1,4 @@
-// One synthetic company with the twelve operating roles, each held by a different synthetic person.
+// One synthetic company with the sixteen operating roles, each held by a different synthetic person.
 //
 // Everything is invented (*.example.test). The people are created the way the e-mail sign-in creates them
 // (openId = email:<40 hex of SHA-256(address)>), so signing in through the real screen finds the same account.
@@ -7,7 +7,8 @@
 //   - the operational roles (project manager, planning engineer, procurement, warehouse, accountant, finance, HR, site engineer)
 //     are the system roles every company gets;
 //   - "project.read" (open the project at all) is a separate viewer role, because the system roles carry only what they DO;
-//   - the roles the product does not ship (executive viewer, PMO lead, cost controller) are created through tenant.createRole.
+//   - since work order 5 the executive, the PMO lead, the cost controller, the project coordinator, the two design coordinators and the contracts
+//     manager are system roles too (templates), so no role is created by hand here any more.
 import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { roles as rolesTable, users } from "../../drizzle/schema.ts";
@@ -19,17 +20,22 @@ export const emailOpenId = email => `email:${createHash("sha256").update(email).
 /** key, Arabic name, system role code (null = custom), custom role definition, scope, and whether the person also gets the project viewer role. */
 export const ROLE_DEFINITIONS = [
   { key: "owner", ar: "المالك", system: "TENANT_OWNER", scope: "company" },
-  { key: "executive", ar: "التنفيذي", custom: { code: "EXECUTIVE_VIEWER", name: "المدير التنفيذي", productCode: "EXECUTIVE", permissionCodes: ["executive.read"] }, scope: "company" },
-  { key: "pmo", ar: "PMO", custom: { code: "PMO_LEAD", name: "مسؤول مكتب إدارة المشاريع", productCode: "PMO", permissionCodes: ["pmo.read", "pmo.write"] }, scope: "company" },
+  { key: "executive", ar: "التنفيذي", system: "EXECUTIVE", scope: "company" },
+  { key: "pmo", ar: "PMO", system: "PMO_LEAD", scope: "company" },
   { key: "pm", ar: "مدير المشروع", system: "PROJECT_MANAGER", scope: "project", viewer: true },
   { key: "planner", ar: "التخطيط", system: "PLANNING_ENGINEER", scope: "project", viewer: true },
-  { key: "costControl", ar: "الكوست كنترول", custom: { code: "COST_CONTROLLER", name: "مراقب التكلفة", productCode: "PROJECT", permissionCodes: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.evm.manage", "project.performance.read_own"] }, scope: "company", viewer: true },
+  { key: "costControl", ar: "الكوست كنترول", system: "COST_CONTROLLER", scope: "company" },
   { key: "procurement", ar: "المشتريات", system: "PROCUREMENT_OFFICER", scope: "company", viewer: true },
   { key: "warehouse", ar: "المستودع", system: "WAREHOUSE_CUSTODIAN", scope: "project", viewer: true },
   { key: "accountant", ar: "المحاسب", system: "ACCOUNTANT", scope: "company", viewer: true },
   { key: "finance", ar: "المدير المالي", system: "FINANCE_MANAGER", scope: "company", viewer: true },
   { key: "hr", ar: "الموارد البشرية", system: "HR_MANAGER", scope: "company", viewer: true },
   { key: "site", ar: "الموقع", system: "SITE_ENGINEER", scope: "project", viewer: true },
+  // the ready-made templates of work order 5 (item 3): they carry project.read themselves, so none of them needs the viewer role
+  { key: "coordinator", ar: "منسق المشاريع", system: "PROJECT_COORDINATOR", scope: "project" },
+  { key: "designArch", ar: "منسق التصميم المعماري", system: "DESIGN_COORDINATOR_ARCHITECTURAL", scope: "project" },
+  { key: "designTech", ar: "منسق التصميم الفني", system: "DESIGN_COORDINATOR_TECHNICAL", scope: "project" },
+  { key: "contracts", ar: "مدير العقود", system: "CONTRACTS_MANAGER", scope: "project" },
 ];
 
 export async function createRoleFixture({ label = "e2e" } = {}) {
