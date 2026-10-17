@@ -4,9 +4,14 @@ import { httpBatchLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
+import { OfflineCopyNotice } from "@/components/OfflineCopyNotice";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import { installCachedReads } from "@/lib/cachedReads";
 import "./index.css";
 
 const queryClient = new QueryClient();
+// G-100: the shell's two allowlisted reads (who am I, which companies) survive an offline start; nothing financial is ever kept.
+const cachedReads = installCachedReads(queryClient);
 
 const trpcClient = trpc.createClient({
   links: [
@@ -26,6 +31,7 @@ const trpcClient = trpc.createClient({
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
+      <LanguageProvider><OfflineCopyNotice copiedAt={cachedReads.hydratedAt} /></LanguageProvider>
       <App />
     </QueryClientProvider>
   </trpc.Provider>

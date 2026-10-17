@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
-import { appendHashSuffix, createR2Storage, createStorage, normalizeKey, r2Configuration, SIGNED_URL_TTL_SECONDS } from "./storage";
+import { appendHashSuffix, createR2Storage, createStorage, normalizeKey, r2Configuration, SIGNED_URL_TTL_SECONDS, storageEndpoint } from "./storage";
 
 function harness() {
   const send = vi.fn(async () => ({}));
@@ -85,5 +85,19 @@ describe("R2 configuration", () => {
     expect(url.searchParams.get("X-Amz-Expires")).toBe(String(SIGNED_URL_TTL_SECONDS));
     expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
     expect(url.toString()).not.toContain("example-secret-value");
+  });
+});
+
+describe("storageEndpoint (R2_TEST_ENDPOINT)", () => {
+  it("is the company's R2 address unless a rehearsal override is set", () => {
+    expect(storageEndpoint("acct0123", undefined)).toBe("https://acct0123.r2.cloudflarestorage.com");
+    expect(storageEndpoint("acct0123", "")).toBe("https://acct0123.r2.cloudflarestorage.com");
+  });
+  it("accepts only an http loopback address as the override", () => {
+    expect(storageEndpoint("a", "http://127.0.0.1:9123")).toBe("http://127.0.0.1:9123");
+    expect(storageEndpoint("a", "http://localhost:9123/ignored/path")).toBe("http://localhost:9123");
+  });
+  it("refuses anything that would send files off this machine, or that is not a URL", () => {
+    for (const bad of ["https://evil.example.test", "http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "https://127.0.0.1:9000", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint("a", bad), bad).toThrow(/R2_TEST_ENDPOINT/);
   });
 });

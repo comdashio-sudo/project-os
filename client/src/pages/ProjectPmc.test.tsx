@@ -2,7 +2,8 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import ProjectPmc from "./ProjectPmc";
+import ProjectPmc, { ProjectPmcWorkspace } from "./ProjectPmc";
+import { exportElementToPdf } from "@/lib/pdfExport";
 
 const state = vi.hoisted(() => ({
   arabic: false,
@@ -16,6 +17,7 @@ const state = vi.hoisted(() => ({
   report: null as null | Record<string, unknown>,
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+vi.mock("@/lib/pdfExport", () => ({ exportElementToPdf: vi.fn(async () => "x.pdf") }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
 
 const h = vi.hoisted(() => {
@@ -102,7 +104,7 @@ describe("ProjectPmc screens", () => {
     render(<ProjectPmc />);
     fireEvent.click(screen.getByText("Export Excel"));
     expect(state.exportScreen).toHaveBeenCalledWith(expect.objectContaining({ screen: "latestUpdates", locale: "en" }));
-    fireEvent.click(screen.getByText("PDF (print)"));
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
     expect(print).toHaveBeenCalled();
   });
 
@@ -173,5 +175,42 @@ describe("ProjectPmc import", () => {
     open("Programme");
     expect(screen.getByRole("status").textContent).toBe("Loading…");
     expect(screen.queryByLabelText("Zone")).toBeNull();
+  });
+});
+
+describe("ProjectPmc as a tab inside the controls page (G-051) and the PDF button (G-069)", () => {
+  it("embedded: no page-level main landmark, no back link, the title is a section heading not a second h1", () => {
+    const { container } = render(<ProjectPmcWorkspace embedded />);
+    expect(container.querySelector("main")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Back to project controls/ })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "Project control (PMC)" })).toBeTruthy();
+    expect(screen.getAllByRole("tab").length).toBeGreaterThan(5); // the whole workspace is there, not a stub
+  });
+  it("standalone page keeps its own main landmark, back link and h1", () => {
+    const { container } = render(<ProjectPmc />);
+    expect(container.querySelectorAll("main")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Back to project controls/ }).getAttribute("href")).toBe("/projects/t/p/controls");
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+  });
+  it("PDF builds a real file from the screen body and names the screen in the file name; print stays beside it", async () => {
+    render(<ProjectPmcWorkspace embedded />);
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    await waitFor(() => expect(exportElementToPdf).toHaveBeenCalledTimes(1));
+    const [element, fileBase] = vi.mocked(exportElementToPdf).mock.calls[0]!;
+    expect(element).toBeInstanceOf(HTMLElement);
+    expect(fileBase).toBe("project-os-pmc-latestUpdates");
+    expect(screen.getByRole("button", { name: "Print" })).toBeTruthy();
+  });
+  it("a failed PDF says so and points to printing instead of failing silently", async () => {
+    vi.mocked(exportElementToPdf).mockRejectedValueOnce(new Error("canvas"));
+    render(<ProjectPmcWorkspace embedded />);
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Print from the browser");
+  });
+  it("offers PDF only on the screens that have a body to export (not on import, site plan or programme)", () => {
+    render(<ProjectPmcWorkspace embedded />);
+    open("Import");
+    expect(screen.queryByRole("button", { name: "PDF" })).toBeNull();
   });
 });

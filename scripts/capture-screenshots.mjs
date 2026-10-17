@@ -80,6 +80,15 @@ const SCREENS = [
   { slug: "administration", title: "إدارة الشركة", note: "الأعضاء والأدوار والإعدادات (نسب التأمينات ونهاية الخدمة لكل شركة).", path: "/tenants/:t/administration" },
   { slug: "profile", title: "الملف الشخصي", note: "بيانات المستخدم ولغة الواجهة.", path: "/profile" },
   { slug: "evm", title: "حاسبة EVM", note: "حساب مؤشرات القيمة المكتسبة.", path: "/evm" },
+  // work order 5 (items 7-12): the screens it added
+  { slug: "pmc-tab", title: "ضبط المشروع PMC كتبويب داخل الضوابط", note: "يفتحه الرابط #pmc؛ أزرار Excel وPDF والطباعة على كل شاشة لها جسم.", path: "/projects/:t/:p/controls#pmc" },
+  { slug: "design", title: "التنسيق الفني والمعماري", note: "سجل المخططات والمراجعات والإحالات وملاحظات التصميم وتقديمات الاستشاري A/B/C/D.", path: "/projects/:t/:p/controls", open: "التنسيق الفني والمعماري", heading: "سجل المخططات" },
+  { slug: "tenders", title: "المناقصات قبل الترسية", note: "الحزم والمدعوون والعروض والمعايرة والترسية التي تنشئ عقدًا والتزامًا.", path: "/projects/:t/:p/controls", open: "المناقصات قبل الترسية", heading: "حزم المناقصة" },
+  { slug: "master-plan-tools", title: "الخطة الرئيسية: التدوير والمعايرة والعروض المشتركة", note: "تدوير خلفية الخطة ومعايرتها بالمتر، ومشاركة العروض، والتنبيهات.", path: "/projects/:t/:p/controls", open: "التخطيط وملفات البيانات", heading: "تدوير الخطة ومعايرتها" },
+  { slug: "setup-project", title: "معالج الإعداد: أول مشروع", note: "الخطوة الثانية من أربع: الشركة، أول مشروع، الاستيراد، دعوة الفريق.", path: "/setup/:t#project" },
+  { slug: "setup-import", title: "معالج الإعداد: الاستيراد", note: "ارفع جدولك (XER أو Excel) أو قوالب البيانات؛ يمكن تخطي الخطوة.", path: "/setup/:t#import" },
+  { slug: "setup-invite", title: "معالج الإعداد: دعوة الفريق بأدوار جاهزة", note: "كل دور جاهز بصلاحيات محدودة وفصل مهام؛ الدعوة تُقيَّد بالمشروع الأول افتراضيًا.", path: "/setup/:t#invite" },
+  { slug: "user-guide", title: "دليل الاستخدام داخل المنصة", note: "خمسة أقسام بخطوات ولقطات من الشاشات الفعلية.", path: "/projects/:t/:p/guide#cost-control" },
 ];
 const VIEWS = [{ key: "desktop", label: "سطح المكتب", viewport: { width: 1440, height: 900 }, options: {} }, { key: "mobile", label: "الجوال 390px", viewport: { width: 390, height: 844 }, options: { hasTouch: true, isMobile: true } }];
 
@@ -101,7 +110,8 @@ for (const view of VIEWS) {
     const target = screen.path.replace(":t", tenantId).replace(":p", projectId);
     const file = `gallery/${String(SCREENS.indexOf(screen) + 1).padStart(2, "0")}-${screen.slug}-${view.key}.jpg`;
     try {
-      await page.goto(`${BASE_URL}${target}${target.includes("?") ? "&" : "?"}lang=ar`, { waitUntil: "load", timeout: 45_000 });
+      const [targetPath, targetHash] = target.split("#"); // the query goes BEFORE the hash, or "#pmc?lang=ar" opens nothing
+      await page.goto(`${BASE_URL}${targetPath}${targetPath.includes("?") ? "&" : "?"}lang=ar${targetHash ? `#${targetHash}` : ""}`, { waitUntil: "load", timeout: 45_000 });
       await page.waitForTimeout(2500);
       let how = "full page";
       if (screen.click) { await page.getByRole("button", { name: screen.click }).first().click(); await page.waitForTimeout(2500); }

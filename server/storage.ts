@@ -83,10 +83,22 @@ export function r2Configuration(env: Pick<typeof ENV, "r2AccountId" | "r2AccessK
   return { accountId: env.r2AccountId, accessKeyId: env.r2AccessKeyId, secretAccessKey: env.r2SecretAccessKey, bucket: env.r2Bucket };
 }
 
+/**
+ * R2_TEST_ENDPOINT lets a rehearsal point storage at a fake S3 on this machine (like RESEND_API_URL does for mail). It is accepted ONLY for a loopback
+ * address over http: any other value is refused at the first storage call rather than quietly sending company files somewhere else.
+ */
+export function storageEndpoint(accountId: string, testEndpoint: string | undefined = process.env.R2_TEST_ENDPOINT): string {
+  if (!testEndpoint) return `https://${accountId}.r2.cloudflarestorage.com`;
+  let parsed: URL;
+  try { parsed = new URL(testEndpoint); } catch { throw new Error("R2_TEST_ENDPOINT is not a valid URL"); }
+  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) throw new Error("R2_TEST_ENDPOINT must be an http://127.0.0.1 or http://localhost address");
+  return parsed.origin;
+}
+
 export function createR2Storage(configuration = r2Configuration()) {
   const client = new S3Client({
     region: "auto",
-    endpoint: `https://${configuration.accountId}.r2.cloudflarestorage.com`,
+    endpoint: storageEndpoint(configuration.accountId),
     forcePathStyle: true,
     credentials: { accessKeyId: configuration.accessKeyId, secretAccessKey: configuration.secretAccessKey },
   });

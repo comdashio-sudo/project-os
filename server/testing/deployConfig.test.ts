@@ -115,7 +115,7 @@ describe("render.yaml", () => {
     const used = new Set<string>();
     for (const file of files) for (const m of text(file).matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)) used.add(m[1]);
     // Read only by tooling, tests or the platform itself, never needed in the web service.
-    const notForRender = new Set(["VITEST", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "PROJECT_OS_AUDIT_ADMIN_PASSWORD", "AUDIT_APP_DATABASE_URL", "TEST_DATABASE_URL", "PORT", "APP_ID", "RESEND_API_URL"]); // RESEND_API_URL: points the sender at a fake provider on 127.0.0.1 for local rehearsals; it must NOT exist in production
+    const notForRender = new Set(["VITEST", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "PROJECT_OS_AUDIT_ADMIN_PASSWORD", "AUDIT_APP_DATABASE_URL", "TEST_DATABASE_URL", "PORT", "APP_ID", "RESEND_API_URL", "R2_TEST_ENDPOINT"]); // R2_TEST_ENDPOINT: points file storage at a fake S3 on 127.0.0.1 (loopback only, refused otherwise) for local rehearsals; it must NOT exist in production. RESEND_API_URL: points the sender at a fake provider on 127.0.0.1 for local rehearsals; it must NOT exist in production
     const declared = new Set(web.env.map(e => e.key));
     const missing = [...used].filter(name => !notForRender.has(name) && !declared.has(name));
     expect(missing).toEqual([]);
@@ -125,11 +125,15 @@ describe("render.yaml", () => {
     const guide = text("docs/GO_LIVE.md");
     for (const variable of [...web.env, ...cron.env, ...backupCron.env]) expect(guide, variable.key).toContain(variable.key);
     // the guide may name these only to forbid them
-    for (const forbidden of ["RESEND_API_URL", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "TEST_DATABASE_URL"]) {
+    for (const forbidden of ["RESEND_API_URL", "R2_TEST_ENDPOINT", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "TEST_DATABASE_URL"]) {
       for (const line of guide.split("\n").filter(entry => entry.includes(forbidden))) expect(line, forbidden).toMatch(/لا تضع أبدًا/);
     }
     // the four accounts, and the audit_logs protection step with its proof lines
     for (const needed of ["TiDB Cloud", "Resend", "Cloudflare R2", "Render", "provision:audit-app", "predeploy", "verify:audit-grants", "deleteDenied", "/healthz"]) expect(guide, needed).toContain(needed);
+  });
+
+  it("never declares a rehearsal-only variable in the production blueprint", () => {
+    for (const name of ["RESEND_API_URL", "R2_TEST_ENDPOINT"]) for (const service of [web, cron, backupCron]) expect(service.env.some(entry => entry.key === name), `${name} in the blueprint`).toBe(false);
   });
 
   it("documents every variable the blueprint asks for", () => {

@@ -4,7 +4,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Download, FileUp, Printer } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { exportElementToPdf } from "@/lib/pdfExport";
 import { Link, useParams } from "wouter";
 import { PmcProgramme } from "./PmcProgramme";
 import { PmcSitePlan } from "./PmcSitePlan";
@@ -12,7 +13,7 @@ import { WriteGate } from "@/lib/permissions";
 
 const text = {
   ar: {
-    title: "ضبط المشروع PMC", back: "العودة إلى ضوابط المشروع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noData: "لا توجد بيانات", export: "تصدير Excel", pdf: "PDF (طباعة)",
+    title: "ضبط المشروع PMC", back: "العودة إلى ضوابط المشروع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noData: "لا توجد بيانات", export: "تصدير Excel", pdf: "PDF", print: "طباعة", pdfFailed: "تعذّر بناء ملف PDF. اطبع من المتصفح بدلًا منه.",
     tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", programme: "البرنامج الزمني", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", import: "الاستيراد" },
     filters: { zone: "المنطقة", block: "البلوك", unitFrom: "من وحدة", unitTo: "إلى وحدة", group: "المجموعة", stage: "المرحلة", activity: "النشاط", period: "الفترة", all: "الكل", default: "الافتراضية", d7: "آخر 7 أيام", d30: "آخر 30 يومًا", d90: "آخر 90 يومًا", d365: "آخر 12 شهرًا", everything: "كل الفترة", contractor: "المقاول", consultant: "الاستشاري" },
     freshness: "حداثة البيانات", sources: { locations: "المواقع", catalog: "الكتالوج", status: "حالة الأنشطة", requests: "الطلبات", baseline: "خط الأساس" }, never: "لا تحديث بعد", today: "اليوم", daysAgo: (n: number) => `قبل ${n} يومًا`,
@@ -27,7 +28,7 @@ const text = {
     importKind: "نوع الملف", chooseFile: "اختر ملف Excel أو CSV", analyze: "فحص الملف", confirm: "حفظ الملف الموافَق عليه", report: "تقرير التحقق", rows: "الصفوف", create: "سيُنشأ", update: "سيُحدَّث", unchanged: "بلا تغيير", errorsFound: "صفوف مرفوضة", row: "الصف", reason: "السبب", saved: "تم الحفظ", nothingSaved: "لم يُحفظ شيء قبل موافقتك.", alreadyUpToDate: "الملف مطابق لما هو محفوظ: لا شيء ليُحفظ.",
   },
   en: {
-    title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF (print)",
+    title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
     tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
     freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
@@ -189,12 +190,16 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
 
 const PERIODS = [["default", undefined], ["d7", 7], ["d30", 30], ["d90", 90], ["d365", 365], ["everything", 36500]] as const;
 
-export default function ProjectPmc() {
+/** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <main>, so the page keeps its single main landmark. */
+export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }) {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const [tab, setTab] = useState<Tab>("latestUpdates");
   const [filters, setFilters] = useState<Filters>({});
+  const bodyRef = useRef<HTMLElement>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
   const [period, setPeriod] = useState<(typeof PERIODS)[number][0]>("default");
   const [options, setOptions] = useState<Options>({ zones: [], blocks: [], groups: [], stages: [], activities: [] });
   const days = PERIODS.find(([key]) => key === period)![1];
@@ -208,13 +213,14 @@ export default function ProjectPmc() {
     <label className="text-xs">{label}<select aria-label={label} className={`${field} mt-1 block`} value={(filters[key] as string | undefined) ?? ""} onChange={event => setFilters({ ...filters, [key]: event.target.value || undefined })}><option value="">{t.filters.all}</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
   );
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isArabic ? "rtl" : "ltr"}>
+    <Shell embedded={embedded} isArabic={isArabic}>
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><h1 className="text-2xl font-semibold">{t.title}</h1></div>
+          <div>{!embedded && <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>}{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && <div className="flex gap-2">
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: isArabic ? "ar" : "en", filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
-            <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.pdf}</Button>
+            <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>
+            <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
         </header>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
@@ -226,13 +232,24 @@ export default function ProjectPmc() {
             <label className="text-xs">{t.filters.period}<select aria-label={t.filters.period} className={`${field} mt-1 block`} value={period} onChange={event => setPeriod(event.target.value as typeof period)}>{PERIODS.map(([key]) => <option key={key} value={key}>{key === "default" ? t.filters.default : t.filters[key as "d7" | "d30" | "d90" | "d365" | "everything"]}</option>)}</select></label>
           </section>
         )}
-        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        {pdfError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 print:hidden">{t.pdfFailed}</p>}
+        <section ref={bodyRef} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
           <SectionErrorBoundary key={tab} title={isArabic ? "هذه الشاشة" : "This screen"} isArabic={isArabic}>
             {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
           </SectionErrorBoundary>
         </section>
       </div>
-    </main>
+    </Shell>
   );
+}
+
+function Shell({ embedded, isArabic, children }: { embedded: boolean; isArabic: boolean; children: React.ReactNode }) {
+  return embedded
+    ? <div className="px-0 py-2 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>{children}</div>
+    : <main className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isArabic ? "rtl" : "ltr"}>{children}</main>;
+}
+
+export default function ProjectPmc() {
+  return <ProjectPmcWorkspace />;
 }
