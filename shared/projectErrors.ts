@@ -1160,6 +1160,26 @@ export const projectErrorMessages = {
     ar: "بأقل من عرضين صالحين للمقارنة يلزم تسبيب كتابي للترسية (10 أحرف على الأقل).",
     en: "With fewer than two comparable bids a written justification (at least 10 characters) is required to award.",
   },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_INVALID: {
+    ar: "أدخل عرض منطقة الخطة وطولها بالأمتار معًا، وكلاهما رقم موجب لا يتجاوز 100000.",
+    en: "Enter the plan area's width and length in metres together; both must be positive and at most 100000.",
+  },
+  PROJECT_OS_MASTER_PLAN_ROTATION_INVALID: {
+    ar: "زاوية التدوير غير صالحة.",
+    en: "The rotation angle is not valid.",
+  },
+  PROJECT_OS_MASTER_PLAN_NOTHING_TO_CHANGE: {
+    ar: "لم تُحدَّد أي قيمة للتعديل.",
+    en: "Nothing was given to change.",
+  },
+  PROJECT_OS_MASTER_PLAN_SNAPSHOT_NOT_FOUND: {
+    ar: "العرض المحفوظ المحدد غير متاح لك.",
+    en: "The selected saved view is not available to you.",
+  },
+  PROJECT_OS_MASTER_PLAN_SNAPSHOT_NOT_OWNER: {
+    ar: "وحده من حفظ العرض يقرر مشاركته.",
+    en: "Only the person who saved the view decides whether it is shared.",
+  },
 } as const satisfies Record<string, BilingualMessage>;
 
 export type ProjectErrorCode = keyof typeof projectErrorMessages;

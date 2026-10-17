@@ -207,6 +207,7 @@ const UI_WRITE_CONTROLS = [
   { page: "/projects/:t/:p/controls", name: "تسجيل ملاحظة مراجعة", needs: ["project.design.manage"] },
   { page: "/projects/:t/:p/controls", name: "تسجيل تقديم", needs: ["project.design.manage"] },
   { page: "/projects/:t/:p/controls", name: "إنشاء حزمة", needs: ["project.tender.manage"] },
+  { page: "/projects/:t/:p/controls", name: "حفظ التدوير والمعايرة", needs: ["project.write"] },
   { page: "/projects/:t", name: "إنشاء مشروع", needs: ["project.write"] },
   { page: "/people/:t", name: "إضافة بطاقة موظف", needs: ["project.hr.manage"] },
   { page: "/payroll/:t", name: "إنشاء دورة رواتب", needs: ["project.payroll.run"] },

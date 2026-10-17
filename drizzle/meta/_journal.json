@@ -484,6 +484,13 @@
       "when": 1792193109698,
       "tag": "0068_tenders",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "5",
+      "when": 1792196092295,
+      "tag": "0069_master_plan_tools",
+      "breakpoints": true
     }
   ]
 }
