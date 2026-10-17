@@ -38,6 +38,7 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/tenantData.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/design.coordination.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/tender.award.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/role.templates.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));
