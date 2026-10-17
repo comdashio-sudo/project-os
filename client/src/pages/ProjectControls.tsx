@@ -32,6 +32,7 @@ import { ProjectAdvisor as ProjectAdvisorContent } from "./ProjectAdvisor";
 import { ProjectImports as ProjectImportsContent } from "./ProjectImports";
 import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExport";
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
+import { ProjectPmcWorkspace } from "./ProjectPmc";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
@@ -104,6 +105,8 @@ export default function ProjectControls() {
   const [progress, setProgress] = useState({ wbsItemId: "", percentComplete: "", reportedAt: today });
   const [evm, setEvm] = useState({ periodAt: today, pv: "", ev: "", ac: "", bac: "", eacMethod: "bac_over_cpi" as const });
   const [operationalPeriod, setOperationalPeriod] = useState(today);
+  const [view, setView] = useState<"overview" | "pmc">(typeof window !== "undefined" && window.location.hash === "#pmc" ? "pmc" : "overview");
+  React.useEffect(() => { const onChange = () => { if (window.location.hash === "#pmc") setView("pmc"); }; window.addEventListener("hashchange", onChange); return () => window.removeEventListener("hashchange", onChange); }, []);
   const [healthPeriod, setHealthPeriod] = useState(today);
 
   const t = isArabic
@@ -165,7 +168,7 @@ export default function ProjectControls() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <Link href={`/projects/${tenantId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.registry}</Link>
-          <div className="flex items-center gap-3"><Link href={`/projects/${tenantId}/${projectId}/pmc`} className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">{isArabic ? "ضبط المشروع PMC" : "Project control (PMC)"}</Link><Link href={`/projects/${tenantId}/${projectId}/profitability`} className="rounded-lg bg-[#0e6b70] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0b5559]">{isArabic ? "ربحية المشروع" : "Profitability"}</Link><Link href={`/projects/${tenantId}/${projectId}/commercial`} className="rounded-lg bg-[#5147e5] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4338ca]">{isArabic ? "السلسلة التجارية" : "Commercial chain"}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
+          <div className="flex items-center gap-3"><Link href={`/projects/${tenantId}/${projectId}/guide`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{isArabic ? "دليل الاستخدام" : "User guide"}</Link><Link href={`/projects/${tenantId}/${projectId}/pmc`} className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">{isArabic ? "ضبط المشروع PMC" : "Project control (PMC)"}</Link><Link href={`/projects/${tenantId}/${projectId}/profitability`} className="rounded-lg bg-[#0e6b70] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0b5559]">{isArabic ? "ربحية المشروع" : "Profitability"}</Link><Link href={`/projects/${tenantId}/${projectId}/commercial`} className="rounded-lg bg-[#5147e5] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4338ca]">{isArabic ? "السلسلة التجارية" : "Commercial chain"}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
@@ -178,6 +181,14 @@ export default function ProjectControls() {
           <h1 className="mt-2 text-3xl font-semibold">{data.project.name}</h1>
           <p className="mt-3 max-w-3xl text-slate-300">{t.subtitle}</p>
         </section>
+
+        <nav role="tablist" aria-label={isArabic ? "أقسام صفحة الضبط" : "Controls page views"} className="mt-6 flex flex-wrap gap-2 print:hidden">
+          {([["overview", isArabic ? "نظرة عامة وأدوات الضبط" : "Overview and control tools"], ["pmc", isArabic ? "ضبط المشروع PMC" : "PMC project control"]] as const).map(([key, label]) => (
+            <button key={key} id={`controls-tab-${key}`} role="tab" type="button" aria-selected={view === key} aria-controls={`controls-panel-${key}`} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${view === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "border-slate-300 bg-white text-slate-700"}`} onClick={() => { setView(key); try { window.history.replaceState(null, "", key === "pmc" ? "#pmc" : window.location.pathname + window.location.search); } catch { /* the address bar is a convenience, not state */ } }}>{label}</button>
+          ))}
+        </nav>
+        {view === "pmc" && <section id="controls-panel-pmc" role="tabpanel" aria-labelledby="controls-tab-pmc" className="mt-4"><SectionErrorBoundary title={isArabic ? "ضبط المشروع PMC" : "PMC project control"} isArabic={isArabic}><ProjectPmcWorkspace embedded /></SectionErrorBoundary></section>}
+        <div id="controls-panel-overview" role={view === "overview" ? "tabpanel" : undefined} hidden={view === "pmc"}>
 
         <section aria-label={manager.label} className="mt-6 rounded-3xl border border-[#bde8df] bg-gradient-to-br from-[#edf9f7] via-white to-[#f5fbff] p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold tracking-[.14em] text-[#0e6b70]">{manager.label}</p><h2 className="mt-2 text-2xl font-semibold text-slate-900">{manager.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{manager.note}</p></div><Badge className="bg-[#123a4a] text-white hover:bg-[#123a4a]">{manager.scope}: {data.project.code}</Badge></div>
@@ -260,6 +271,7 @@ export default function ProjectControls() {
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><h2 className="font-semibold">{t.entries}</h2>{data.costs.length || data.progress.length || data.budgets.length ? <div className="mt-4 space-y-2 text-sm">{data.costs.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{t.actual}: {entry.amount} · {enumLabel(entry.status, isArabic)}</p>)}{data.progress.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{t.progress}: {entry.progressPercent}% · {enumLabel(entry.status, isArabic)}</p>)}{data.budgets.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-slate-50 p-3">{entry.costCode}: {entry.currentAmount}</p>)}</div> : <p className="mt-4 text-sm text-slate-500">{t.noEntries}</p>}</section>
           </aside>
           </SectionErrorBoundary>
+        </div>
         </div>
       </div>
     </main>

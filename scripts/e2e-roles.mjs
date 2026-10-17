@@ -234,7 +234,7 @@ async function signIn(page, person) {
   await page.getByRole("button", { name: /تحقق|دخول/ }).click();
   await page.waitForURL(url => !url.pathname.startsWith("/login"), { timeout: 15_000 });
 }
-const url = (template, extra = "") => `${BASE_URL}${template.replace(":t", tenantId).replace(":p", projectId)}${template.includes("?") ? "&" : "?"}lang=ar${extra}`;
+const url = (template, extra = "") => { const [path, hash] = template.replace(":t", tenantId).replace(":p", projectId).split("#"); return `${BASE_URL}${path}${path.includes("?") ? "&" : "?"}lang=ar${extra}${hash ? `#${hash}` : ""}`; }; // the query goes BEFORE the hash, or "#pmc?lang=ar" opens nothing
 async function visit(page, template, settle = 2200) { await page.goto(url(template), { waitUntil: "load" }); await page.waitForTimeout(settle); return page.locator("body").innerText(); }
 async function trpcCall(context, path, input, dates = []) {
   const meta = dates.length ? { values: Object.fromEntries(dates.map(key => [key, ["Date"]])) } : undefined;
@@ -277,6 +277,15 @@ for (const view of VIEWS) {
     check(role, v, "الوحدات الظاهرة له هي المصرح بها فقط", shown.length === new Set(shown).size && want.every(label => shown.includes(label)) && shown.every(label => want.includes(label)), `shown=${shown.join("،")} want=${want.join("،")}`);
     const controlsShell = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(role, v, "لا تمرير أفقي في لوحة المشروع", controlsShell <= 1, `overflow ${controlsShell}px`);
+
+    // 3b. work order 5 (items 10 and 12): the in-platform guide opens for everyone in Arabic with its five sections, and the PMC tab opens from the address
+    const guideText = await visit(page, "/projects/:t/:p/guide", 1800);
+    check(role, v, "دليل الاستخدام يفتح بالعربية بأقسامه الخمسة", guideText.includes("دليل الاستخدام") && ["الكوست كنترول", "التخطيط", "منسقو المشاريع", "منسقو التصميم", "العقود"].every(name => guideText.includes(name)));
+    const guideShell = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    check(role, v, "لا تمرير أفقي في دليل الاستخدام", guideShell <= 1, `overflow ${guideShell}px`);
+    await visit(page, "/projects/:t/:p/controls#pmc", 2200);
+    const pmcTab = page.getByRole("tab", { name: "ضبط المشروع PMC" });
+    check(role, v, "تبويب PMC يفتح من العنوان داخل الضوابط", (await pmcTab.count()) === 1 && (await pmcTab.getAttribute("aria-selected")) === "true");
 
     // 4. pages that hold guarded data: visible to those who may, absent for everyone else
     const seen = new Map();
