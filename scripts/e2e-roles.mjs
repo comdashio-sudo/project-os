@@ -84,10 +84,16 @@ console.log(`fixture: tenant ${tenantId.slice(0, 8)} project ${projectId.slice(0
 
 // Negative control (E2E_NEGATIVE_CONTROL=1): hand the site engineer the accountant's role. The checks that say "a site engineer cannot enter costs"
 // MUST now fail, which proves they are measuring the permission and not just passing.
-if (process.env.E2E_NEGATIVE_CONTROL) {
+if (process.env.E2E_NEGATIVE_CONTROL && process.env.E2E_NEGATIVE_CONTROL !== "design") {
   const [[membership]] = await connection.query("SELECT id FROM memberships WHERE tenantId = ? AND userId = ?", [tenantId, people.site.id]);
   await asOwner.tenant.assignMembershipRole({ tenantId, membershipId: membership.id, roleId: fixture.roleIds.ACCOUNTANT, scopeType: "company" });
   console.log("negative control: the site engineer now also holds the accountant role");
+}
+// E2E_NEGATIVE_CONTROL=design: hand the architectural design coordinator the technical coordinator's role. "Refused in the other discipline" MUST now fail.
+if (process.env.E2E_NEGATIVE_CONTROL === "design") {
+  const [[membership]] = await connection.query("SELECT id FROM memberships WHERE tenantId = ? AND userId = ?", [tenantId, people.designArch.id]);
+  await asOwner.tenant.assignMembershipRole({ tenantId, membershipId: membership.id, roleId: fixture.roleIds.DESIGN_COORDINATOR_TECHNICAL, scopeType: "project", scopeId: projectId });
+  console.log("negative control: the architectural coordinator now also holds the technical coordinator role");
 }
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const VIEWS = [
