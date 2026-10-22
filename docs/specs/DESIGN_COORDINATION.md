@@ -1,343 +1,298 @@
-# مواصفة التنسيق الفني والمعماري (DESIGN_COORDINATION)
+# مواصفة التنسيق الفني والمعماري بمصطلحات PostgreSQL (DESIGN_COORDINATION)
+
+**الحالة:** مواصفة بنائية مكتوبة بمصطلحات PostgreSQL. تحل محل النسخة السابقة من هذا الملف (المكتوبة بأنواع MySQL). لا تُعد دليل `PROVEN`، ولا تغيّر أي صف في `docs/STATE.md`.
+
+**المصادر:**
+- السلوك والصلاحيات وأكواد الرد: الكود في الفرع `claude/wonderful-thompson-c3wdtm` عند `0826abc`.
+- أسماء الجداول والأعمدة والقيود: `drizzle/schema.ts` و`drizzle/0000_baseline.sql` على `origin/feat/postgres-migration`.
+- المحرك والدخول والتخزين: `docs/ADR-0002-POSTGRES-SUPABASE-VERCEL.md` على الفرع نفسه (قرار المالك، أمر العمل المستمر 6، 22 أكتوبر 2026).
+
+**تنبيه قبل الاعتماد:** `CLAUDE.md` و`docs/STATE.md` على هذا الفرع ما زالا يصفان المحرك بأنه MySQL/TiDB. هذه المواصفة مكتوبة بمصطلحات PostgreSQL بطلب من المالك، ولا يُعتمد محركها على `main` قبل حسم البند R1 في القسم 8.
+
+**الوسوم:** كل ما هو جديد ولا وجود له في الكود أو في المخطط يحمل `[PROPOSED]`. قرارات المالك تُذكر بعبارة «قرار المالك، 22 أكتوبر 2026». البنود التي تنتظر المالك تحمل `BLOCKED_BY_OWNER`.
 
 ## 1. الهدف والنطاق
 
-**الحالة:** مواصفة بنائية مبنية على الكود في الفرع `main` عند `da61754`. لا تغيّر هذه الوثيقة أي صف في `docs/STATE.md`، ولا تُعد دليل `PROVEN`.
+### 1.1 الهدف
+تنظيم مرحلة التصميم في مشروع واحد عبر خمسة أجزاء:
+1. سجل المخططات ومراجعاتها (`design_drawings`، `design_drawing_revisions`).
+2. الإحالات، وهي إرساليات رسمية مرقّمة تُرسل مجموعة مخططات أو وثائق إلى طرف واحد، وتحتاج تأكيد استلام منه (`design_transmittals`، `design_transmittal_items`).
+3. ملاحظات مراجعة التصميم، وردّها، وإغلاقها (`design_comments`).
+4. التقديمات للاستشاري: مراجعة داخلية من منسق التخصص، ثم الإرسال، ثم رد الاستشاري بأحد الرموز A/B/C/D، ثم إعادة التقديم دون حد (`design_submittals`).
+5. لوحة مرحلة التصميم: عدادات تحسبها قاعدة البيانات، ويختصرها `summariseDrawings`.
 
-**المحرك:** تستعمل المواصفة أنواع MySQL/TiDB كما في `drizzle/schema.ts`: `varchar(36)` للمعرّفات، و`int` لمعرّف المستخدم، و`mysqlEnum` للحالات، و`boolean`، و`timestamp`. لم تُكتب بمفردات PostgreSQL، للسبب نفسه المذكور في `docs/specs/TENDERING.md` البند 1، وهو قرار المالك (البند 8.1).
+### 1.2 داخل النطاق
+- الجداول الستة أعلاه، وقيودها وفهارسها، وانتقالات حالتها.
+- فصل المهام بين الأشخاص، والتحقق من سلطة التخصص.
+- شاشة التنسيق الفني والمعماري، بما فيها لوحة المرحلة.
+- الرفض الصريح لكل فعل غير مسموح، برسالة مترجمة.
 
-**الهدف:** تنظيم مرحلة التصميم في مشروع واحد عبر خمسة أجزاء:
-1. سجل المخططات ومراجعاتها: تسجيل المخطط، وإصدار مراجعة جديدة، وإلغاء المخطط، واعتماده للتنفيذ.
-2. الإرساليات (`design_transmittals`): إرسال مراجعات حالية إلى جهة خارجية أو استلامها.
-3. تعليقات مراجعة التصميم (`design_comments`): تسجيل التعليق، والرد عليه، وإغلاقه.
-4. التقديمات للاستشاري (`design_submittals`): إرسال وثيقة للاستشاري، ثم تسجيل ردّه بأحد الرموز A/B/C/D، ثم إعادة التقديم عند C أو D.
-5. لوحة مرحلة التصميم: عدادات تُحسب في قاعدة البيانات، وتُختصر بدالة نقية.
-
-**داخل النطاق:** الجداول الستة، وقواعد الحالة، وفصل المهام بين الأشخاص، والتحقق من سلطة التخصص، وشاشة المشروع، والرفض الصريح.
-
-**خارج النطاق:**
-- ملفات المخططات نفسها. لا يحمل `design_drawings` أي حقل ملف، والسجل بيانات وصفية فقط.
-- طلبات المعلومات (RFI) والعيوب (NCR)، فلها وحدتهما (`project.rfi.manage`، و`project.ncr.manage`).
+### 1.3 خارج النطاق
+- ملفات المخططات. لا يحمل `design_drawings` ولا `design_drawing_revisions` أي حقل ملف؛ السجل بيانات وصفية فقط.
+- طلبات المعلومات (RFI) والعيوب (NCR)، ولهما وحدتاهما (`project.rfi.manage`، `project.ncr.manage`).
 - تكامل مع بيئة بيانات مشتركة (CDE) أو مع برامج النمذجة.
-- بوابة للاستشاري الخارجي.
-- الإحالات (الإحالات): لا يوجد لها أي كيان في الكود. انظر البند 2.7 والبند 8.
+- بوابة للاستشاري الخارجي. يسجّل الرد موظف في المشروع.
+- استيراد السجلات من Excel أو CSV.
+- أي جدول جديد. قرارات المالك تُغطى بالجداول القائمة (القسم 2.0).
 
-**وحدات نقية مخططة لا وجود لها في هذا الفرع:** `server/domain/drawingRevisions.ts`، و`server/domain/referralNumbering.ts`، و`server/domain/designReviewComments.ts`، و`server/domain/submittalReplies.ts`. تعمل بأسمائها هنا كمكان مخطط لقواعد الترقيم والمراجعات والتعليقات والردود، ولا تعتمد المواصفة على صادراتها. `server/domain/bidComparison.ts` المخطط يخص المناقصات، وهو موضح في `docs/specs/TENDERING.md`.
+### 1.4 ما تغيّر عن النسخة السابقة
+| القرار | الأثر على المواصفة |
+|---|---|
+| الإحالة هي الإرسالية (قرار المالك، 22 أكتوبر 2026) | لا مفهوم جديد. `design_transmittals` بـ`direction = 'outgoing'` هي الإحالة، وتُرقَّم وفق `server/domain/referralNumbering.ts`. الكيان الذي كان `PROPOSED` في النسخة السابقة أُلغي. |
+| منسق التخصص يراجع داخليًا قبل الإرسال للاستشاري (قرار المالك) | تُضاف حالة `internal_review` بين `draft` و`submitted` (القسم 2.6). |
+| الرد لكل تخصص بـA/B/C/D (قرار المالك) | الرد يُسجَّل على التقديم، والتقديم يحمل تخصصًا واحدًا. |
+| إعادة التقديم دون حد (قرار المالك) | يُلغى الحد الواحد في `AFTER_MIGRATION` البند D-5. لا حد لعمق السلسلة، ولكل تقديم خلف واحد فقط (قيد فريد). |
+| تسميات المخططات A ... Z ثم AA، AB (قرار المالك) | المعتمد هو `revisionLabel` و`checkNewRevision` في `server/domain/drawingRevisions.ts`. |
 
-**المصادر الحالية:** `server/designService.ts` (كل الدوال المصدَّرة)، و`server/domain/designCoordination.ts` (`disciplineAuthority`، و`commentTransitions`، و`transmittalTransitions`، و`replyAllowsWork`، و`replyRequiresResubmission`، و`summariseDrawings`)، و`shared/designDisciplines.ts` (`DESIGN_DISCIPLINES`)، و`drizzle/schema.ts` (من `designDrawings` إلى `designSubmittals`)، و`server/routers.ts` (المجموعة `design`).
+## 2. الجداول والأعمدة والقيود والفهارس
 
-## 2. الجداول والحقول والقيود
+### 2.0 قواعد عامة لكل الجداول
+- كل جدول عمل يحمل `tenant_id` و`project_id` بقيد `NOT NULL`، ويشير `tenant_id` إلى `companies(id)` و`project_id` إلى `projects(id)`. الخدمة تفلتر بالاثنين في كل استعلام (`mine()` في `server/designService.ts`).
+- سياسة RLS لكل جدول من هذه الجداول من فئة **جدول بـ`tenant_id`**: السياسة `project_os_isolation`، لـ`project_os_app`، بالشرط `tenant_id = ANY(app_tenant_ids()) OR app_system()`. المصدر: `project_os_apply_conventions()` في `drizzle/0000_baseline.sql`، وADR-0002 فقرة «كيف تعمل الطبقة الثانية».
+- `audit_logs` له السياستان `project_os_read` و`project_os_insert`، وtriggers ترفض UPDATE وDELETE وTRUNCATE. حساب التطبيق `project_os_app` يملك `SELECT, INSERT` عليه فقط.
+- كل أمر محمٍ يكتب صف تدقيق في المعاملة نفسها (القسم 2.7).
+- لا جدول جديد. الإحالة تستعمل `design_transmittals` و`design_transmittal_items`. التقديم وسلسلة إعادة التقديم يستعملان `design_submittals` بعمودي `resubmission_of_id` و`resubmission_depth`.
+- ترحيل التغييرات المقترحة يكون بعد `drizzle/0000_baseline.sql` في ملف جديد (اسم `PROPOSED`، لم يُنشأ هنا)، ويُراجع SQL قبل أي تطبيق كما تقضي `CLAUDE.md` القسم 4.
 
-كل جدول يحمل `tenantId` و`projectId`، وكل استعلام يُقيَّد بهما معًا عبر `mine()` في `server/designService.ts`. المخطط لا يحتوي على قيود `CHECK`. الحالات مُمثَّلة بـ`mysqlEnum`، وانتقالات الحالة في الخدمة.
+### 2.1 `design_drawings` (سجل المخططات)
+- الأعمدة القائمة: `id`، `tenant_id`، `project_id`، `drawing_number varchar(120)`، `title varchar(255)`، `discipline` (enum `design_drawings_discipline`: architectural، interior، landscape، structural، civil، mechanical، electrical، plumbing، fire_fighting، other)، `status` (enum `design_drawings_status`: registered، under_review، approved، cancelled؛ الافتراضي registered)، `current_revision varchar(20)`، `created_by_user_id`، `created_at`، `updated_at` (trigger `set_updated_at`).
+- الفريد: `design_drawings_project_number_unique (project_id, drawing_number)`. الرقم لا يُعاد استعماله داخل المشروع، والمخطط الملغى يحجزه (انظر R5 في القسم 8).
+- الفهرس: `design_drawings_tenant_project_status_idx (tenant_id, project_id, status, discipline)`.
+- `[PROPOSED]` `CHECK (current_revision ~ '^[A-Z]{1,10}$')`، بحد `MAX_LABEL_LETTERS = 10` في `drawingRevisions.ts`.
+- `[PROPOSED]` `UNIQUE (id, project_id)` ليصلح هدفًا لمفتاح أجنبي مركب من الجداول الأبناء.
 
-### 2.1 `design_drawings` (`designDrawings`)
+### 2.2 `design_drawing_revisions` (الإصدارات)
+- الأعمدة القائمة: `id`، `tenant_id`، `project_id`، `drawing_id` (FK إلى `design_drawings`)، `revision varchar(20)`، `description varchar(500)`، `is_current boolean` (الافتراضي true)، `issued_at`، `issued_by_user_id`، `approved_at`، `approved_by_user_id`.
+- الفريد: `design_revisions_drawing_revision_unique (drawing_id, revision)`. الفهرس: `design_revisions_tenant_project_idx (tenant_id, project_id, drawing_id)`.
+- `[PROPOSED]` فهرس فريد جزئي على `(drawing_id) WHERE is_current`: مراجعة حالية واحدة لكل مخطط. يعالج السباق في S-3 من `AFTER_MIGRATION`.
+- `[PROPOSED]` `CHECK (revision ~ '^[A-Z]{1,10}$')`. لا بيانات قديمة تحتاج تحويلًا، لأن القاعدة الجديدة نظيفة بلا نقل بيانات (ADR-0002، ومقرر في `CLAUDE.md` القسم 5).
+- `[PROPOSED]` `CHECK ((approved_at IS NULL) = (approved_by_user_id IS NULL))`.
+- الترقيم: المراجعة الجديدة هي الحرف التالي للأعلى المُصدَر، لا تُتخطى ولا تُعاد. تُحسب بـ`checkNewRevision(issued, candidate)` و`nextRevision` في `server/domain/drawingRevisions.ts`. الخدمة لا تستدعيهما اليوم (انظر القسم 5، البند 6).
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `drawingNumber` | varchar(120) | لا | — | رقم المخطط يكتبه المنسق |
-| `title` | varchar(255) | لا | — | |
-| `discipline` | mysqlEnum(`architectural`، `interior`، `landscape`، `structural`، `civil`، `mechanical`، `electrical`، `plumbing`، `fire_fighting`، `other`) | لا | — | مصدره `DESIGN_DISCIPLINES` |
-| `status` | mysqlEnum(`registered`، `under_review`، `approved`، `cancelled`) | لا | `registered` | |
-| `currentRevision` | varchar(20) | لا | — | نسخة نصية من الرمز الحالي، مكررة مع `isCurrent` |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
-| `updatedAt` | timestamp | لا | الآن، ويتجدد عند التعديل | |
+### 2.3 `design_transmittals` (الإحالات)
+- الأعمدة القائمة: `transmittal_number varchar(120)`، `direction` (enum `design_transmittals_direction`: outgoing، incoming؛ الافتراضي outgoing)، `counterparty varchar(255)`، `subject varchar(255)`، `status` (enum `design_transmittals_status`: draft، sent، acknowledged؛ الافتراضي draft)، `sent_at`، `acknowledged_at`، `created_by_user_id`، `created_at`.
+- الفريد: `design_transmittals_project_number_unique (project_id, transmittal_number)`. الفهرس: `design_transmittals_tenant_project_status_idx (tenant_id, project_id, status)`.
+- التسلسل: `draft` ثم `sent` ثم `acknowledged`. الإرسال يحفظ `sent_at` ويضع المخططات الحالية المرفقة `under_review` (في `transitionDesignTransmittal`، للإحالة الصادرة فقط). تأكيد الاستلام هو الانتقال إلى `acknowledged` مع `acknowledged_at`، وهذا هو ما يطلبه المالك من الإحالة. الجدول الانتقالي `transmittalTransitions` في `server/domain/designCoordination.ts`.
+- `[PROPOSED]` `CHECK ((status = 'draft' AND sent_at IS NULL) OR (status IN ('sent', 'acknowledged') AND sent_at IS NOT NULL))`، و`CHECK ((status = 'acknowledged') = (acknowledged_at IS NOT NULL))`.
+- `[PROPOSED]` عمود `discipline design_drawings_discipline NOT NULL`: الإحالة الصادرة تحمل تخصصًا واحدًا لأن رقمها يحمل حرف التخصص (انظر R9).
+- `[PROPOSED]` الإحالة الصادرة يُولَّد رقمها بـ`nextReferralNumber` (ويُعرض بـ`formatReferralNumber`) على الصيغة `<رمز المشروع>-<حرف التخصص>-<أربعة أرقام>`، مثال تجريبي: `EXAMPLE-01-A-0001`. قيد: `CHECK (direction = 'incoming' OR transmittal_number ~ '^[A-Z0-9]+(-[A-Z0-9]+)*-[AILSCMEPFX]-[0-9]{4}$')`. حروف التخصص من `DISCIPLINE_CODES` في `referralNumbering.ts`.
+- `[PROPOSED]` يستبدل الفريد القائم فريد على `(project_id, upper(btrim(transmittal_number)))`. PostgreSQL يقارن النص بحساسية الحالة، و`checkReferralNumberUnique` يقارن بلا حالة ولا مسافات، فيجب أن يطابقه الفهرس.
 
-- UNIQUE `design_drawings_project_number_unique` على (`projectId`, `drawingNumber`).
-- INDEX `design_drawings_tenant_project_status_idx` على (`tenantId`, `projectId`, `status`, `discipline`).
+### 2.4 `design_transmittal_items` (بنود الإحالة)
+- الأعمدة القائمة: `tenant_id`، `project_id`، `transmittal_id` (FK باسم `design_trm_items_transmittal_fk`)، `revision_id` (FK باسم `design_trm_items_revision_fk` إلى `design_drawing_revisions`).
+- الفريد: `design_transmittal_items_unique (transmittal_id, revision_id)`. الفهرس: `design_transmittal_items_revision_idx (revision_id)`.
+- البنود تُضاف قبل الإرسال. لا يوجد في الخدمة مسار يعدّل البنود بعد `sent`، والشاشة تقول ذلك (`client/src/lib/userGuide.ts`، خطوة «أرسل إحالة بالمخططات»).
+- `[PROPOSED]` تتحقق الخدمة عند الإنشاء أن كل مراجعة في البنود هي الحالية (`is_current = true`). الواجهة تفعل ذلك بالتصفية (`live.filter(item => item.currentRevisionId)` في `ProjectDesign.tsx`)، والخدمة لا تتحقق منه.
 
-### 2.2 `design_drawing_revisions` (`designDrawingRevisions`)
+### 2.5 `design_comments` (ملاحظات المراجعة)
+- الأعمدة القائمة: `drawing_id`، `revision_id`، `comment_number varchar(120)`، `raised_by varchar(255)` (نص حر، انظر R4)، `severity` (enum `design_comments_severity`: minor، major، critical؛ الافتراضي minor)، `comment_text text`، `status` (enum `design_comments_status`: open، responded، closed؛ الافتراضي open)، `response_text text`، `responded_at`، `responded_by_user_id`، `closed_at`، `closed_by_user_id`، `due_at`، `created_by_user_id`، `created_at`.
+- الفريد: `design_comments_project_number_unique (project_id, comment_number)`. الفهرسان: `design_comments_tenant_project_status_idx (tenant_id, project_id, status, due_at)` و`design_comments_drawing_idx (drawing_id, status)`.
+- التسلسل: open ثم responded ثم closed، والعودة من responded إلى open (إعادة فتح). الجدول `commentTransitions` في `designCoordination.ts`.
+- `[PROPOSED]` عمودان للبند D-1 في `AFTER_MIGRATION`: `reopen_reason text` و`reopened_at timestamptz`، يُملآن عند إعادة الفتح.
+- `[PROPOSED]` `CHECK (status = 'open' OR responded_at IS NOT NULL)`، و`CHECK ((status = 'closed') = (closed_at IS NOT NULL))`.
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `drawingId` | varchar(36) | لا | — | FK ← `design_drawings.id` |
-| `revision` | varchar(20) | لا | — | رمز المراجعة (A، B، ...) |
-| `description` | varchar(500) | نعم | — | |
-| `isCurrent` | boolean | لا | `true` | مراجعة واحدة فقط يجب أن تكون حالية لكل مخطط (انظر البند 8) |
-| `issuedAt` | timestamp | لا | الآن | |
-| `issuedByUserId` | int | لا | — | FK ← `users.id`. مُصدر المراجعة لا يعتمدها |
-| `approvedAt` | timestamp | نعم | — | |
-| `approvedByUserId` | int | نعم | — | FK ← `users.id` |
+### 2.6 `design_submittals` (التقديمات للاستشاري)
+- الأعمدة القائمة: `submittal_number varchar(120)`، `title varchar(255)`، `discipline` (enum `design_submittals_discipline`، القيم نفسها)، `drawing_id` (FK اختياري)، `resubmission_of_id varchar(36)`، `status` (enum `design_submittals_status`: draft، submitted، replied، closed؛ الافتراضي draft)، `submitted_at`، `submitted_by_user_id`، `due_at`، `reply_code` (enum `design_submittals_reply_code`: A، B، C، D)، `reply_note text`، `replied_at`، `replied_by_user_id`، `created_by_user_id`، `created_at`.
+- **في المخطط القائم لا يوجد مفتاح أجنبي ولا فريد على `resubmission_of_id`.** هذا ما يعالجه البند الآتي.
+- الفريد: `design_submittals_project_number_unique (project_id, submittal_number)`. الفهرس: `design_submittals_tenant_project_status_idx (tenant_id, project_id, status, due_at)`.
+- `[PROPOSED]` قيمة جديدة `internal_review` في enum `design_submittals_status` قبل `submitted`. في PostgreSQL تُضاف بـ`ALTER TYPE ... ADD VALUE ... BEFORE 'submitted'` في ترحيلة مستقلة، والقيمة لا تُستعمل في المعاملة التي تضيفها.
+- التسلسل المقترح: `draft` ثم `internal_review` ثم `submitted` ثم `replied` ثم `closed`.
+  - `draft` إلى `internal_review`: يطلبها من يملك `project.design.manage` وسلطة التخصص.
+  - `internal_review` إلى `submitted`: يرسلها المراجع الداخلي للاستشاري، ويُسجَّل `internal_review_by_user_id` و`internal_review_at`. `[PROPOSED]` المراجع غير من أنشأ التقديم (`created_by_user_id`)، قياسًا على قاعدة «من ردّ لا يغلق» في `designReviewComments.ts` (انظر R11).
+  - `[PROPOSED]` `internal_review` إلى `draft`: إعادة للتصحيح بسبب مكتوب.
+  - `submitted` إلى `replied`: رد الاستشاري بالرمز A أو B أو C أو D.
+  - `replied` إلى `closed`: A وB تُغلقان فورًا، وC وD تُغلقان بعد وجود الخلف (`closeSubmittal` في `submittalReplies.ts`).
+- الحالة القائمة `draft` إلى `submitted` تُجاز اليوم بسلطة التخصص دون مراجعة داخلية (`transitionDesignSubmittal` في `server/designService.ts`). هذا هو التغيير.
+- `[PROPOSED]` أعمدة: `internal_review_by_user_id integer` (FK إلى `users`)، `internal_review_at timestamptz`، `resubmission_depth integer NOT NULL DEFAULT 0`.
+- **سلسلة إعادة التقديم (قرار المالك، 22 أكتوبر 2026، بند 4):**
+  - لا حد لعمق السلسلة. كل خلف يحمل `resubmission_depth = عمق الأصل + 1` محسوبًا في المعاملة نفسها التي تنشئه. الخلف الأول عمقه 1، والثالث عمقه 3.
+  - `[PROPOSED]` `UNIQUE (resubmission_of_id)`: لكل تقديم خلف واحد. PostgreSQL يسمح بعدة NULL في الفريد، فالقيد البسيط يكفي. هذا هو القيد الذي نصّ عليه المالك.
+  - `[PROPOSED]` `UNIQUE (id, project_id)`، ثم `FOREIGN KEY (resubmission_of_id, project_id) REFERENCES design_submittals (id, project_id)`: الخلف والأصل في المشروع نفسه.
+  - `[PROPOSED]` `CHECK (resubmission_depth >= 0)`، و`CHECK (resubmission_of_id IS NULL OR resubmission_of_id <> id)`، و`CHECK (resubmission_of_id IS NOT NULL OR resubmission_depth = 0)`.
+  - تحذير الشاشة: `[PROPOSED]` `RESUBMISSION_WARNING_DEPTH = 3`. عند `resubmission_depth >= 3` تظهر علامة تحذير غير مانعة. الدالة المقترحة `resubmissionWarning(depth)` في `server/domain/submittalReplies.ts`.
+- ترقيم الخلف: `-R<n>` كما في `submittalChain` و`nextResubmissionNumber` في `submittalReplies.ts`. `[PROPOSED]` تحسب الخدمة الرقم، لا الواجهة. الواجهة تحسبه اليوم بعدّ الخلف (زر إعادة التقديم في `ProjectDesign.tsx`)، وهذا قابل للتكرار.
+- `[PROPOSED]` `CHECK ((reply_code IS NULL) = (replied_at IS NULL))`.
+- الفعل الحالي `draft` إلى `submitted` يُسجَّل بفعل التدقيق `design.submittal_status_transitioned`.
+- **ملاحظة ترحيل:** `ALTER TYPE` و`ALTER TABLE` في ترحيلة مستقلة بعد الأساس، وتُراجع قبل التطبيق بحثًا عن أي عملية هدّامة (`CLAUDE.md` القسم 4).
 
-- UNIQUE `design_revisions_drawing_revision_unique` على (`drawingId`, `revision`).
-- INDEX `design_revisions_tenant_project_idx` على (`tenantId`, `projectId`, `drawingId`).
-
-### 2.3 `design_transmittals` (`designTransmittals`)
-
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `transmittalNumber` | varchar(120) | لا | — | |
-| `direction` | mysqlEnum(`outgoing`، `incoming`) | لا | `outgoing` | |
-| `counterparty` | varchar(255) | لا | — | اسم الجهة المرسل إليها أو المستلمة |
-| `subject` | varchar(255) | لا | — | |
-| `status` | mysqlEnum(`draft`، `sent`، `acknowledged`) | لا | `draft` | |
-| `sentAt` | timestamp | نعم | — | |
-| `acknowledgedAt` | timestamp | نعم | — | |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
-
-- UNIQUE `design_transmittals_project_number_unique` على (`projectId`, `transmittalNumber`).
-- INDEX `design_transmittals_tenant_project_status_idx` على (`tenantId`, `projectId`, `status`).
-
-### 2.4 `design_transmittal_items` (`designTransmittalItems`)
-
-| الحقل | النوع | قابل للفراغ | ملاحظة |
-|---|---|---|---|
-| `id` | varchar(36) | لا | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | FK ← `projects.id` |
-| `transmittalId` | varchar(36) | لا | FK ← `design_transmittals.id` |
-| `revisionId` | varchar(36) | لا | FK باسم `design_trm_items_revision_fk` ← `design_drawing_revisions.id` |
-
-- UNIQUE `design_transmittal_items_unique` على (`transmittalId`, `revisionId`).
-- INDEX `design_transmittal_items_revision_idx` على (`revisionId`).
-- الاسم اليدوي للمفتاح الخارجي بسبب حد 64 حرفًا في MySQL، كما يذكر تعليق `drizzle/schema.ts`.
-
-### 2.5 `design_comments` (`designComments`)
-
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `drawingId` | varchar(36) | لا | — | FK ← `design_drawings.id` |
-| `revisionId` | varchar(36) | لا | — | FK ← `design_drawing_revisions.id`. المراجعة التي عُلِّق عليها |
-| `commentNumber` | varchar(120) | لا | — | |
-| `raisedBy` | varchar(255) | لا | — | اسم الجهة أو الشخص كما يُكتب في المراجعة (نص حر) |
-| `severity` | mysqlEnum(`minor`، `major`، `critical`) | لا | `minor` | |
-| `commentText` | text | لا | — | |
-| `status` | mysqlEnum(`open`، `responded`، `closed`) | لا | `open` | |
-| `responseText` | text | نعم | — | يُلغى عند الرفض والعودة إلى `open` |
-| `respondedAt` | timestamp | نعم | — | |
-| `respondedByUserId` | int | نعم | — | FK ← `users.id` |
-| `closedAt` | timestamp | نعم | — | |
-| `closedByUserId` | int | نعم | — | FK ← `users.id` |
-| `dueAt` | timestamp | نعم | — | موعد الرد. يُحسب التأخر منه |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
-
-- UNIQUE `design_comments_project_number_unique` على (`projectId`, `commentNumber`).
-- INDEX `design_comments_tenant_project_status_idx` على (`tenantId`, `projectId`, `status`, `dueAt`)، وINDEX `design_comments_drawing_idx` على (`drawingId`, `status`).
-
-### 2.6 `design_submittals` (`designSubmittals`)
-
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `submittalNumber` | varchar(120) | لا | — | |
-| `title` | varchar(255) | لا | — | |
-| `discipline` | mysqlEnum (مثل `design_drawings.discipline`) | لا | — | تحكم سلطة الإرسال (`submitted`) فقط، ولا يفحص الرد تخصصه (انظر البند 4) |
-| `drawingId` | varchar(36) | نعم | — | FK ← `design_drawings.id` |
-| `resubmissionOfId` | varchar(36) | نعم | — | بلا FK في المخطط. يشير إلى التقديم الأصلي |
-| `status` | mysqlEnum(`draft`، `submitted`، `replied`، `closed`) | لا | `draft` | |
-| `submittedAt` | timestamp | نعم | — | |
-| `submittedByUserId` | int | نعم | — | FK ← `users.id` |
-| `dueAt` | timestamp | نعم | — | موعد الرد |
-| `replyCode` | mysqlEnum(`A`، `B`، `C`، `D`) | نعم | — | يُملأ مع `status = replied` |
-| `replyNote` | text | نعم | — | |
-| `repliedAt` | timestamp | نعم | — | |
-| `repliedByUserId` | int | نعم | — | FK ← `users.id` |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
-
-- UNIQUE `design_submittals_project_number_unique` على (`projectId`, `submittalNumber`).
-- INDEX `design_submittals_tenant_project_status_idx` على (`tenantId`, `projectId`, `status`, `dueAt`).
-
-### 2.7 قواعد الحالة
-
-**المخطط (`design_drawings.status`):**
-- `registered` عند التسجيل وعند كل إصدار مراجعة جديدة. الإصدار يجعل المراجعة السابقة غير حالية، ويُلغي أي اعتماد سابق (`addDesignRevision`).
-- `registered` → `under_review` عند إرسال إرسالية صادرة تحمل المراجعة الحالية، ولا يتم ذلك إلا من `registered` (`transitionDesignTransmittal`).
-- `under_review` → `approved` عند الاعتماد: يُشترط أن يكون المخطط `under_review`، وألا يكون معتمِد المراجعة هو مُصدرها، وألا توجد تعليقات `open` أو `responded` على المراجعة الحالية (`approveDesignDrawing`).
-- `cancelled` نهائي. أي عمل جديد عليه يُرفض بـ`PROJECT_OS_DESIGN_DRAWING_CANCELLED`.
-
-**التعليقات (`design_comments.status`):** `open` → `responded` بالرد، ويُشترط نص غير فارغ بعد `trim` (`transitionDesignComment`). `responded` → `closed` بقرار المعتمد، ولا يُغلقه من ردّ عليه. `responded` → `open` عند رفض الرد.
-
-**الإرساليات (`design_transmittals.status`):** `draft` → `sent` → `acknowledged`. إرسالية فارغة لا تُنشأ.
-
-**التقديمات (`design_submittals.status`):** `draft` → `submitted` → `replied` → `closed`. إعادة التقديم تُنشأ بعد أن يكون قد رُدّ على الأصل بالرمز C أو D، أي أن يكون `replied` أو `closed` (`createDesignSubmittal`). A وB تسمحان بالعمل، وC وD تُعيدان الوثيقة (`replyAllowsWork`، و`replyRequiresResubmission`).
-
-**فصل المهام بين الأشخاص:** مُصدر المراجعة لا يعتمدها. من أجاب على تعليق لا يغلقه. مُرسل التقديم لا يسجّل الرد عليه.
-
-**الإحالات:** لا يوجد كيان للإحالات في الكود. أي شاشة أو جدول يُذكر تحت هذا الاسم مقترح ويحتاج قرار المالك (البند 8.2).
-
-### 2.8 صفوف التدقيق: كل كتابة في معاملتها
-
-| الإجراء (`action`) | `entityType` | الدالة |
-|---|---|---|
-| `design.drawing_registered` | `design_drawing` | `registerDesignDrawing` (تكتب المخطط ومراجعته الأولى) |
-| `design.revision_added` | `design_drawing` | `addDesignRevision` |
-| `design.drawing_cancelled` | `design_drawing` | `cancelDesignDrawing` |
-| `design.drawing_approved` | `design_drawing` | `approveDesignDrawing` |
-| `design.transmittal_created` | `design_transmittal` | `createDesignTransmittal` |
-| `design.transmittal_status_transitioned` | `design_transmittal` | `transitionDesignTransmittal` |
-| `design.comment_raised` | `design_comment` | `raiseDesignComment` |
-| `design.comment_status_transitioned` | `design_comment` | `transitionDesignComment` |
-| `design.submittal_created` | `design_submittal` | `createDesignSubmittal` |
-| `design.submittal_status_transitioned` | `design_submittal` | `transitionDesignSubmittal` |
+### 2.7 `audit_logs` (سجل التدقيق)
+- الأعمدة: `id`، `tenant_id`، `actor_user_id`، `action varchar(120)`، `entity_type varchar(120)`، `entity_id varchar(36)`، `request_id`، `metadata text`، `created_at`. ليس فيه `project_id`، فيُكتب `projectId` داخل `metadata` كما تفعل `audit()` في `server/designService.ts` (السطر 36).
+- الأفعال القائمة: `design.drawing_registered`، `design.revision_added`، `design.drawing_cancelled`، `design.drawing_approved`، `design.transmittal_created`، `design.transmittal_status_transitioned`، `design.comment_raised`، `design.comment_status_transitioned`، `design.submittal_created`، `design.submittal_status_transitioned`.
+- الانتقال الداخلي للتقديم يُسجَّل بالفعل `design.submittal_status_transitioned` مع `nextStatus = 'internal_review'`، ولا يُخترع فعل جديد.
+- القاعدة: الكتابة وصف التدقيق في معاملة واحدة. إن فشل التدقيق تُرفض الكتابة، ولا تبقى حالة بلا أثر.
 
 ## 3. الشاشات
 
-**المسار:** لا توجد صفحة مستقلة. القسم داخل صفحة الضبط `/projects/:tenantId/:projectId/controls` (`client/src/pages/ProjectControls.tsx`)، بالمعرّف `manager-design` وعنوان «التنسيق الفني والمعماري»، ويُحمَّل كسولًا. المكوّن `client/src/pages/ProjectDesign.tsx`. كل زر كتابة يُغلَّف بـ`WriteGate` من `client/src/lib/permissions.tsx`.
+**المسار:** `/projects/:tenantId/:projectId/controls` (`client/src/App.tsx`)، والقسم داخله بالمعرّف `manager-design` (`client/src/pages/ProjectControls.tsx`، السطر 255)، ويُحمَّل كسولًا (`lazy`). المكوّن `ProjectDesign` في `client/src/pages/ProjectDesign.tsx`.
 
-| الجزء | من يراه | ما يفعله | الحالة الفارغة أو التحميل |
-|---|---|---|---|
-| لوحة مرحلة التصميم | من يملك `project.read` | يقرأ العدادات من `design.dashboard` | تحميل نصي، ولا مخططات: نص يقول إن المرحلة لم تُسجَّل بعد، وليس «0%» ولا «100%» |
-| سجل المخططات والمراجعات | `project.read` للقراءة | يسجل مخططًا (`project.design.manage`)، ويصدر مراجعة، ويلغي مخططًا، ويعتمد مخططًا تحت المراجعة (`project.design.approve`) | نص `t.empty` للسجل الفارغ |
-| الإرساليات | القراءة لـ`project.read` | ينشئ إرسالية من مراجعات حالية ويرسلها ويستلمها (`project.design.manage`) | نص `t.empty` |
-| تعليقات المراجعة | القراءة لـ`project.read` | يسجل تعليقًا، ويرد عليه (`project.design.manage`)، ويغلقه (`project.design.approve`) | نص `t.empty` |
-| التقديمات للاستشاري | القراءة لـ`project.read` | ينشئ تقديمًا، ويرسله، ويغلقه (`project.design.manage`)، ويسجل الرد A/B/C/D (`project.design.approve`) | نص `t.empty` |
+### 3.1 من يرى ماذا
+- من يملك `project.read` على المشروع يرى كل القوائم واللوحة. الخادم يتحقق بـ`assertDesignAccess(input, "project.read")` في كل دالة قراءة.
+- الأزرار تظهر بـ`WriteGate` (`client/src/lib/permissions.tsx`) وفق الصلاحية. الخادم يحكم في كل استدعاء، والواجهة لا تقرر وحدها.
+- من لا يملك الصلاحية يرى نص «لا تملك صلاحية … فالقسم للعرض فقط» (`noWrite` في `ProjectDesign.tsx`).
 
-**الأخطاء:** تظهر في `role="alert"` عبر `getLocalizedProjectError`.
+### 3.2 لوحة مرحلة التصميم (`design.dashboard`)
+- العدادات: نسبة الاكتمال (المعتمد من المخططات غير الملغاة)، المعتمد من الإجمالي، الملاحظات المفتوحة والمردودة، الملاحظات المتأخرة، التقديمات بانتظار الرد، المتأخرة منها، متوسط أيام الرد، وعدد A وB وC وD.
+- التفصيل حسب التخصص (`byDiscipline`).
+- الحساب في قاعدة البيانات: `count(*)` مجمّعة، ثم `summariseDrawings` في `designCoordination.ts`. متوسط الأيام يستعمل `timestampdiff(hour, …)` في `getDesignDashboard` وهذه دالة MySQL؛ في PostgreSQL يكون `extract(epoch from (replied_at - submitted_at)) / 86400` `[PROPOSED]`.
+- الحالة الفارغة: لا مخطط مسجل، فتظهر «لم يُسجَّل أي مخطط بعد»، لا 0% ولا 100% (`completionPercent: null`).
+- التحميل: `SourceNotice` لكل استعلام، والعدادات تظهر «—» حتى تصل البيانات.
 
-**ملاحظات واجهة:**
-- أزرار الرد A/B/C/D وإغلاق التعليق خلف `project.design.approve`. الواجهة لا تُخفي زر الإغلاق عمّن ردّ على التعليق نفسه، والخادم وحده يرفض ذلك (انظر البند 6.9).
-- لم أتحقق من أن قائمة التخصصات في نموذج التسجيل تُصفّى حسب سلطة المستخدم. الخادم هو الذي يرفض، والتصفية في الواجهة غير مُثبتة.
-- عدادات اللوحة: مخططات حسب التخصص مع نسبة الاعتماد (المعتمد من غير الملغى)، وتعليقات مفتوحة ومردود عليها ومغلقة ومتأخرة (`dueAt` مضى)، وتقديمات مسودة ومنتظرة الرد ومردودة ومغلقة ومتأخرة، ومتوسط أيام الرد، وعدد كل رمز A/B/C/D، وإرساليات حسب الحالة.
+### 3.3 سجل المخططات
+- النموذج للمدير (`WriteGate` بـ`project.design.manage`): رقم، عنوان، تخصص، إصدار (الافتراضي A).
+- القائمة: الرقم، العنوان، التخصص، الإصدار الحالي، الحالة، عدد الملاحظات غير المحلولة.
+- لكل مخطط: إضافة إصدار (`design.addRevision`)، إلغاء (`design.cancelDrawing`)، واعتماد للتنفيذ (`design.approveDrawing`) يظهر فقط عندما تكون الحالة `under_review` ولمن يملك `project.design.approve`.
+- `[PROPOSED]` حقل الإصدار الجديد يقترح الحرف التالي (`nextRevision`) بدل حقل حر.
+- الفارغة: «لا سجلات بعد.»، والتحميل: «جارٍ التحميل…».
+
+### 3.4 الإحالات (`design.transmittals`)
+- العنوان في الواجهة «الإحالات» (`transmittalsTitle`).
+- الإنشاء: رقم (يُولَّد `[PROPOSED]`)، اتجاه، جهة، موضوع، ثم اختيار المراجعات الحالية. الزر معطّل حتى يُختار مخطط واحد على الأقل.
+- «إرسال» للمسودة، و«تأكيد الاستلام» للمرسلة. تظهر لمن يملك `project.design.manage`.
+- الفارغة: «لا سجلات بعد.».
+
+### 3.5 ملاحظات المراجعة
+- التسجيل: مخطط غير معتمد، رقم، صاحب الملاحظة، أهمية، نص، تاريخ استحقاق (اختياري).
+- الرد: `project.design.manage` على الملاحظة المفتوحة.
+- الإغلاق وإعادة الفتح: `project.design.approve` على الملاحظة المردودة. إعادة الفتح تطلب سببًا `[PROPOSED]` (D-1).
+
+### 3.6 التقديمات للاستشاري
+- التسجيل: رقم، عنوان، تخصص، مخطط مرتبط (اختياري)، استحقاق.
+- المسودة: زر «إرسال للمراجعة الداخلية» `[PROPOSED]` لمن يملك `project.design.manage` وسلطة التخصص.
+- قيد المراجعة الداخلية: زر «إرسال للاستشاري» لمن يملك سلطة التخصص، وتسجيل المراجعة نفسها `[PROPOSED]`.
+- المرسلة: اختيار الرمز A/B/C/D ثم «تسجيل الرد» بـ`project.design.approve`. الأسماء المعروضة: A معتمد، B معتمد مع ملاحظات، C عدّل وأعد التقديم، D مرفوض (`replyNames`).
+- المردودة بـC أو D: «إغلاق التقديم» و«إعادة التقديم» بـ`project.design.manage`. زر إعادة التقديم يختفي عندما يوجد خلف `[PROPOSED]`، بقيد الفريد.
+- علامة التحذير: عند `resubmission_depth >= 3` يظهر بجانب الرقم نص يُعلم بعدد إعادات التقديم، وهو غير مانع.
+
+### 3.7 الحالات الفارغة والتحميل والخطأ
+- كل قائمة لها حالة تحميل («جارٍ التحميل…») وحالة فارغة («لا سجلات بعد.»).
+- الخطأ: عنصر `role="alert"` يعرض الرسالة المترجمة من `getLocalizedProjectError` (`client/src/lib/projectErrors.ts`). الرسائل من `shared/projectErrors.ts`، وفي `_core/trpc.ts` يُرفق الخطأ بها.
 
 ## 4. الصلاحيات
 
-كل إجراء يمر بـ`assertDesignAccess` في `server/designService.ts`: عضوية نشطة، ثم ترخيص `PROJECT`، ثم الصلاحية المسمّاة، ثم نطاق المشروع، ثم أن يتبع المشروع للمستأجر. الرموز الأربعة موجودة في `operationalPermissionCatalog` في `server/domain/operationalRoles.ts` (السطور 33 إلى 37)، و`project.read` في `ownerPermissions` في `server/db.ts`.
+| الرمز | ما يسمح به | المصدر |
+|---|---|---|
+| `project.read` | قراءة كل القوائم واللوحة | `assertDesignAccess(…, "project.read")` في كل دالة قراءة بـ`server/designService.ts` |
+| `project.design.manage` | تسجيل مخطط، إضافة إصدار، إلغاء مخطط، إنشاء إحالة وإرسالها وتأكيد استلامها، تسجيل ملاحظة وردّها، تسجيل تقديم، إرساله، إغلاقه، إعادة تقديمه | `registerDesignDrawing`، `addDesignRevision`، `cancelDesignDrawing`، `createDesignTransmittal`، `transitionDesignTransmittal`، `raiseDesignComment`، `createDesignSubmittal`، `transitionDesignSubmittal` (غير الرد) |
+| `project.design.approve` | اعتماد المخطط للتنفيذ، إغلاق الملاحظة وإعادة فتحها، تسجيل رد الاستشاري | `approveDesignDrawing`، `transitionDesignComment` (الإغلاق والفتح)، `transitionDesignSubmittal` (الرد `replied`) |
+| `project.design.architectural` | سلطة التخصصات المعمارية: architectural وinterior وlandscape. وفي `other` تُقبل مع الفنية | `disciplineAuthority` في `server/domain/designCoordination.ts` |
+| `project.design.technical` | سلطة التخصصات الفنية: structural وcivil وmechanical وelectrical وplumbing وfire_fighting. وفي `other` تُقبل مع المعمارية | `disciplineAuthority` نفسه |
 
-| الرمز | يُمنح لـ | الإجراءات التي يحميها | الوجود في المصدر |
-|---|---|---|---|
-| `project.read` | القراءة | `listDesignDrawings`، `listDesignRevisions`، `listDesignTransmittals`، `listDesignComments`، `listDesignSubmittals`، `getDesignDashboard` | `ownerPermissions` في `server/db.ts` |
-| `project.design.manage` | إدارة السجل والإرساليات والتعليقات والتقديمات | `registerDesignDrawing`، `addDesignRevision`، `cancelDesignDrawing`، `createDesignTransmittal`، `transitionDesignTransmittal`، `raiseDesignComment`، `transitionDesignComment` (إلى `responded`)، `createDesignSubmittal`، `transitionDesignSubmittal` (إلى `submitted` أو `closed`) | `operationalPermissionCatalog` |
-| `project.design.approve` | الاعتماد وتسجيل الرد | `approveDesignDrawing`، و`transitionDesignComment` (إلى `closed` أو `open`)، و`transitionDesignSubmittal` (إلى `replied`) | `operationalPermissionCatalog` |
-| `project.design.architectural` | سلطة على التخصصات المعمارية | شرط إضافي على الإجراءات المذكورة في الجدول أدناه | `operationalPermissionCatalog` |
-| `project.design.technical` | سلطة على التخصصات الفنية | شرط إضافي على الإجراءات المذكورة في الجدول أدناه | `operationalPermissionCatalog` |
-
-**سلطة التخصص:** `disciplineAuthority` في `server/domain/designCoordination.ts`:
-- `architectural`، و`interior`، و`landscape` تتطلب `project.design.architectural`.
-- `structural`، و`civil`، و`mechanical`، و`electrical`، و`plumbing`، و`fire_fighting` تتطلب `project.design.technical`.
-- `other` يكفي فيه أيٌّ من الرمزين.
-
-**الإجراءات التي تفحص سلطة التخصص:** `registerDesignDrawing`، و`addDesignRevision`، و`cancelDesignDrawing`، و`createDesignTransmittal` (لكل تخصص في المراجعات المختارة)، و`raiseDesignComment`، و`createDesignSubmittal`، و`transitionDesignSubmittal` (إلى `submitted`).
-
-**الإجراءات التي لا تفحص سلطة التخصص:** `approveDesignDrawing`، و`transitionDesignComment`، و`transitionDesignSubmittal` (إلى `replied` أو `closed`)، و`transitionDesignTransmittal`. أي حامل `project.design.approve` يعتمد مخططات كل التخصصات. انظر البند 8.
-
-**فصل المهام على مستوى القوى:** `conflictingPermissionPairs` في `server/domain/operationalPermissions.ts`: `project.design.manage` مع `project.design.approve` (السبب المكتوب: «من يصدر مخططًا لا يعتمده، ولا يسجل رد الاستشاري على تقديمه»). يُفرض عند إنشاء الدور وتعديله وإسناده في `server/db.ts`.
-
-**فصل المهام على مستوى الأشخاص:**
-- `approveDesignDrawing`: `revision.issuedByUserId === input.userId` يعيد `PROJECT_OS_DESIGN_SELF_APPROVAL`.
-- `transitionDesignComment` إلى `closed`: `comment.respondedByUserId === input.userId` يعيد `PROJECT_OS_DESIGN_SELF_CLOSE`.
-- `transitionDesignSubmittal` إلى `replied`: `submittal.submittedByUserId === input.userId` يعيد `PROJECT_OS_DESIGN_SELF_REPLY`.
-- هذه القواعد تسري على المالك أيضًا، كما تقول تعليقات `server/designService.ts`.
-
-**رموز جديدة:** لا يلزم رمز صلاحية جديد. قرار الاعتماد وسلطة التخصص يحتاج قرار المالك (البند 8).
+**قواعد تطبيق الصلاحيات:**
+- سلطة التخصص تُضاف فوق `project.design.manage` ولا تحل محلها. يكفي أي رمز من رمزي السلطة (`assertDesignAccess` يمرّر المصفوفة إلى `assertTenantAccess` في `server/domain/authorization.ts`).
+- الشرط العام لكل كتابة: عضوية `active`، ومنتج `PROJECT` مرخّص، والنطاق يغطي المشروع (`hasScopeAccess`)، والمشروع يتبع الشركة (`assertProjectWithinTenant` في `server/db.ts`).
+- `[PROPOSED]` الإحالة الصادرة تُنشأ بتخصص واحد، وتحتاج سلطة ذلك التخصص.
+- `[PROPOSED]` إرسال التقديم للمراجعة الداخلية، والمراجعة نفسها: `project.design.manage` وسلطة التخصص.
+- `[PROPOSED]` تسجيل رد الاستشاري: `project.design.approve` وسلطة التخصص. اليوم لا يفحص `transitionDesignSubmittal` التخصص عند الرد (انظر R2).
+- `[PROPOSED]` اعتماد المخطط: `project.design.approve` وسلطة التخصص. اليوم لا يفحص `approveDesignDrawing` التخصص (انظر R2).
+- الفصل بين الأشخاص: الزوج `project.design.manage` و`project.design.approve` في `conflictingPermissionPairs` (`server/domain/operationalPermissions.ts`)، ويمنع `findPermissionConflict` الدور الذي يحملهما معًا. مالك الشركة مستثنى من هذا الفحص على مستوى الدور لأنه يملك كل شيء، لكن قاعدة الأشخاص تبقى عليه: من أصدر لا يعتمد، ومن ردّ لا يغلق، ومن أرسل لا يسجّل الرد (تعليق `server/designService.ts` السطران 6-7).
+- أمثلة الأدوار: `DESIGN_COORDINATOR_ARCHITECTURAL` و`DESIGN_COORDINATOR_TECHNICAL` (`server/domain/operationalRoles.ts`، السطران 99-100)، و`PROJECT_COORDINATOR` يحمل `project.design.approve` (السطر 97).
 
 ## 5. حالات الرفض
 
-الرموز المعرّبة من `shared/designDisciplines.ts` و`shared/projectErrors.ts` (الرسائل مُعرّفة لكل رمز هنا). الأخطاء العامة للصلاحية والعضوية تُحوَّل كما في `docs/specs/TENDERING.md` البند 5.
+القاعدة: كل فعل مرفوض يعيد خطأ صريحًا برمز، وكل صفّ متأثر بالكتابة يُفحص. `rows = 0` لا يُعامل نجاحًا ولا يمر صامتًا. الرمز الواصل إلى الواجهة يُترجم من `shared/projectErrors.ts`. الرموز `[PROPOSED]` تحتاج رسالتين بالعربية والإنجليزية قبل الربط.
 
-| # | الحالة | رمز tRPC | الرمز المعرّب | ما يراه المستخدم |
+| # | الحالة المرفوضة | الرمز | ما يراه المستخدم | المصدر |
 |---|---|---|---|---|
-| 1 | لا عضوية أو لا وصول للمستأجر | FORBIDDEN | `PROJECT_OS_TENANT_ACCESS_DENIED` | رسالة الوصول في تنبيه |
-| 2 | الصلاحية غير ممنوحة، أو سلطة التخصص غير متوفرة، أو النطاق لا يغطي المشروع | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` | قبل الإرسال: نص `WriteGate`. بعده: التنبيه |
-| 3 | الشركة لا تملك منتج PROJECT | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص |
-| 4 | المشروع لا يتبع الشركة | NOT_FOUND | `PROJECT_OS_PROJECT_NOT_FOUND` | رسالة عدم الوجود |
-| 5 | المخطط غير موجود في المستأجر والمشروع | NOT_FOUND | `PROJECT_OS_DESIGN_DRAWING_NOT_FOUND` | رسالة عدم الوجود |
-| 6 | لا توجد مراجعة حالية، أو المراجعة المطلوبة غير موجودة، أو معرّف مراجعة في الإرسالية غير موجود | NOT_FOUND | `PROJECT_OS_DESIGN_REVISION_NOT_FOUND` | رسالة عدم الوجود |
-| 7 | إجراء على مخطط ملغى | CONFLICT | `PROJECT_OS_DESIGN_DRAWING_CANCELLED` | رسالة الإلغاء |
-| 8 | تعليق على مخطط معتمد | CONFLICT | `PROJECT_OS_DESIGN_DRAWING_APPROVED` | رسالة الاعتماد |
-| 9 | اعتماد مخطط ليس `under_review` | CONFLICT | `PROJECT_OS_DESIGN_APPROVAL_STATE_INVALID` | رسالة حالة الاعتماد |
-| 10 | المعتمِد هو مُصدر المراجعة | CONFLICT | `PROJECT_OS_DESIGN_SELF_APPROVAL` | رسالة فصل المهام |
-| 11 | تعليقات مفتوحة أو مردود عليها على المراجعة الحالية | CONFLICT | `PROJECT_OS_DESIGN_OPEN_COMMENTS` | رسالة التعليقات |
-| 12 | إرسالية بلا مراجعات | BAD_REQUEST | `PROJECT_OS_DESIGN_TRANSMITTAL_EMPTY` | رسالة الإرسالية الفارغة |
-| 13 | إرسالية غير موجودة | NOT_FOUND | `PROJECT_OS_DESIGN_TRANSMITTAL_NOT_FOUND` | رسالة عدم الوجود |
-| 14 | انتقال إرسالية غير مسموح | BAD_REQUEST | `PROJECT_OS_DESIGN_TRANSMITTAL_TRANSITION_INVALID` | رسالة الانتقال |
-| 15 | تعليق غير موجود | NOT_FOUND | `PROJECT_OS_DESIGN_COMMENT_NOT_FOUND` | رسالة عدم الوجود |
-| 16 | انتقال تعليق غير مسموح | BAD_REQUEST | `PROJECT_OS_DESIGN_COMMENT_TRANSITION_INVALID` | رسالة الانتقال |
-| 17 | الرد على تعليق بنص فارغ | BAD_REQUEST | `PROJECT_OS_DESIGN_COMMENT_RESPONSE_REQUIRED` | رسالة الرد المطلوب |
-| 18 | من ردّ على التعليق يحاول إغلاقه | CONFLICT | `PROJECT_OS_DESIGN_SELF_CLOSE` | رسالة فصل المهام |
-| 19 | تقديم غير موجود | NOT_FOUND | `PROJECT_OS_DESIGN_SUBMITTAL_NOT_FOUND` | رسالة عدم الوجود |
-| 20 | انتقال تقديم غير مسموح | BAD_REQUEST | `PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID` | رسالة الانتقال |
-| 21 | تسجيل رد بلا رمز A/B/C/D | BAD_REQUEST | `PROJECT_OS_DESIGN_REPLY_CODE_REQUIRED` | رسالة الرمز المطلوب |
-| 22 | مُرسل التقديم يسجل رده | CONFLICT | `PROJECT_OS_DESIGN_SELF_REPLY` | رسالة فصل المهام |
-| 23 | إعادة تقديم لتقديم لم يُرد عليه بـC أو D | CONFLICT | `PROJECT_OS_DESIGN_RESUBMISSION_INVALID` | رسالة إعادة التقديم |
-| 24 | رقم أو رمز مراجعة مكرر في المشروع أو المخطط | CONFLICT | `PROJECT_OS_DESIGN_DUPLICATE` | رسالة التكرار. تُلغى المعاملة |
-| 25 | مدخل مرفوض بمخطط `zod` | BAD_REQUEST | `PROJECT_OS_REQUEST_FAILED` | «تعذر إتمام الطلب. تحقق من البيانات» |
-| 26 | تحديث محمي لم يتأثر بأي صف (مقترح) | CONFLICT | `PROJECT_OS_DESIGN_STATE_CHANGED` (جديد) | «تغيّرت حالة العنصر. أعد تحميل القسم» |
-
-**قاعدة الرفض:** لا فشل صامت. الخدمة اليوم لا تفحص عدد الصفوف المتأثرة في أي تحديث محمي، وهذا عيب (البند 8). الرمز 26 مقترح ويُضاف إلى `shared/projectErrors.ts`.
+| 1 | تسجيل مخطط بلا `project.design.manage` | FORBIDDEN، `PROJECT_OS_PERMISSION_DENIED` | رسالة الصلاحية، والزر مخفي | `assertTenantAccess` في `authorization.ts` |
+| 2 | تسجيل مخطط في تخصص خارج سلطته | FORBIDDEN، `PROJECT_OS_PERMISSION_DENIED` | رسالة الصلاحية | `assertDesignAccess` مع التخصص |
+| 3 | مشروع غير مرخّص لمنتج PROJECT | FORBIDDEN، `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة الترخيص | `assertTenantAccess` |
+| 4 | رقم مخطط أو إحالة أو تقديم مكرر في المشروع (بما فيه الملغى) | CONFLICT، `PROJECT_OS_DESIGN_DUPLICATE` | «الرقم مستعمل من قبل في هذا المشروع» | `duplicateAs` و`isDuplicate` في `designService.ts` (السطران 16-17)؛ على PostgreSQL يُستعمل `isUniqueViolation` (`server/_core/database.ts` في الفرع) |
+| 5 | إضافة إصدار إلى مخطط ملغى | CONFLICT، `PROJECT_OS_DESIGN_DRAWING_CANCELLED` | «المخطط ملغى» | `addDesignRevision` |
+| 6 | إصدار بحرف مُتخطى، أو مُعاد، أو غير صالح | CONFLICT، `PROJECT_OS_DESIGN_REVISION_NOT_NEXT` / `..._ALREADY_ISSUED` / `..._LABEL_INVALID` `[PROPOSED]` | رسالة تذكر الحرف المطلوب | `checkNewRevision` في `drawingRevisions.ts` (غير مربوط بالخدمة اليوم) |
+| 7 | اعتماد مخطط ليس قيد المراجعة | CONFLICT، `PROJECT_OS_DESIGN_APPROVAL_STATE_INVALID` | «لا يُعتمد إلا وهو قيد المراجعة» | `approveDesignDrawing` |
+| 8 | اعتماد من أصدر المراجعة | CONFLICT، `PROJECT_OS_DESIGN_SELF_APPROVAL` | «من أصدر المراجعة لا يعتمدها» | `approveDesignDrawing` |
+| 9 | اعتماد مع ملاحظة مفتوحة على المراجعة الحالية | CONFLICT، `PROJECT_OS_DESIGN_OPEN_COMMENTS` | «لا يُعتمد وفيه ملاحظات لم تُغلق» | `approveDesignDrawing` (R3) |
+| 10 | إحالة بلا مراجعات | BAD_REQUEST، `PROJECT_OS_DESIGN_TRANSMITTAL_EMPTY` | «اختر مخططًا واحدًا على الأقل» | `createDesignTransmittal` |
+| 11 | إحالة تحمل مراجعة ملغاة | CONFLICT، `PROJECT_OS_DESIGN_DRAWING_CANCELLED` | «المخطط ملغى» | `createDesignTransmittal` |
+| 12 | رقم إحالة صادرة بصيغة خاطئة | BAD_REQUEST، `PROJECT_OS_DESIGN_REFERRAL_NUMBER_INVALID` `[PROPOSED]` | رسالة تذكر الصيغة | `parseReferralNumber` (`REFERRAL_NUMBER_MALFORMED`، `REFERRAL_DISCIPLINE_UNKNOWN`، `REFERRAL_PROJECT_CODE_INVALID`) |
+| 13 | رقم إحالة مستعمل، بغض النظر عن الحالة أو حالة الحروف | CONFLICT، `PROJECT_OS_DESIGN_DUPLICATE` | «الرقم مستعمل من قبل» | `checkReferralNumberUnique` (`REFERRAL_NUMBER_TAKEN`) |
+| 14 | تأكيد استلام إحالة لم تُرسل | BAD_REQUEST، `PROJECT_OS_DESIGN_TRANSMITTAL_TRANSITION_INVALID` | «انتقال غير مسموح من حالتها» | `transitionDesignTransmittal` |
+| 15 | إغلاق ملاحظة غير ثانوية بلا رد | CONFLICT، `PROJECT_OS_DESIGN_COMMENT_RESPONSE_REQUIRED` `[PROPOSED]` بنص خاص بالإغلاق | «لا تُغلق الملاحظة قبل الرد عليها» | `checkCommentTransition` (`COMMENT_RESPONSE_REQUIRED`)؛ الخدمة تعيد اليوم `COMMENT_TRANSITION_INVALID` (R8) |
+| 16 | إغلاق ملاحظة من من ردّ عليها | CONFLICT، `PROJECT_OS_DESIGN_SELF_CLOSE` | «من ردّ على الملاحظة لا يغلقها» | `transitionDesignComment` لكل الأهميات؛ `isSelfClosureRefused` للحرجة فقط (R6) |
+| 17 | إعادة فتح ملاحظة بلا سبب | BAD_REQUEST، `PROJECT_OS_DESIGN_REOPEN_REASON_REQUIRED` `[PROPOSED]` | «اكتب سبب إعادة الفتح» | `checkCommentTransition` (`COMMENT_REOPEN_REASON_REQUIRED`)؛ الخدمة تقبل اليوم |
+| 18 | رد بلا رمز، أو برمز غير A/B/C/D | BAD_REQUEST، `PROJECT_OS_DESIGN_REPLY_CODE_REQUIRED`؛ `PROJECT_OS_DESIGN_REPLY_CODE_INVALID` `[PROPOSED]` | «اختر رمز رد الاستشاري» | `transitionDesignSubmittal`؛ `recordSubmittalReply` (`SUBMITTAL_REPLY_CODE_INVALID`) |
+| 19 | رد على تقديم مسودة أو قيد المراجعة الداخلية | BAD_REQUEST، `PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID` | «انتقال غير مسموح من حالته» | `checkSubmittalTransition` |
+| 20 | رد ثانٍ على تقديم أُجيب | CONFLICT، `PROJECT_OS_DESIGN_REPLY_ALREADY_RECORDED` `[PROPOSED]` | «سُجّل الرد من قبل» | `checkSubmittalTransition` (`SUBMITTAL_REPLY_ALREADY_RECORDED`)؛ الخدمة تعيد اليوم `TRANSITION_INVALID` |
+| 21 | من أرسل التقديم يسجّل ردّه | CONFLICT، `PROJECT_OS_DESIGN_SELF_REPLY` | «من أرسل التقديم لا يسجّل رده» | `transitionDesignSubmittal` (السطر 277)؛ `recordSubmittalReply` |
+| 22 | من أنشأ التقديم يراجعه داخليًا | CONFLICT، `PROJECT_OS_DESIGN_SELF_INTERNAL_REVIEW` `[PROPOSED]` | «من أنشأ التقديم لا يراجعه داخليًا» | مقترح في القسم 2.6 (R11) |
+| 23 | إرسال للاستشاري بلا مراجعة داخلية | CONFLICT، `PROJECT_OS_DESIGN_INTERNAL_REVIEW_REQUIRED` `[PROPOSED]` | «راجع التقديم داخليًا قبل إرساله» | `transitionDesignSubmittal` مع الحالة الجديدة |
+| 24 | إعادة تقديم لتقديم أجابه الاستشاري بـA أو B | CONFLICT، `PROJECT_OS_DESIGN_RESUBMISSION_INVALID` | «لا يُعاد تقديم إلا ما ردّ عليه بـC أو D» | `createDesignSubmittal` |
+| 25 | خلف ثانٍ لتقديم له خلف | CONFLICT، `PROJECT_OS_DESIGN_RESUBMISSION_EXISTS` `[PROPOSED]` | «أُعيد تقديمه من قبل» | القيد `UNIQUE (resubmission_of_id)`؛ الخدمة تقبله اليوم، و`checkResubmission` يرفضه (`SUBMITTAL_RESUBMISSION_EXISTS`) |
+| 26 | إغلاق تقديم C أو D قبل وجود خلفه | CONFLICT، `PROJECT_OS_DESIGN_RESUBMISSION_REQUIRED` `[PROPOSED]` | «أعد التقديم قبل الإغلاق» | `closeSubmittal`؛ الخدمة تسمحه اليوم |
+| 27 | تحديث صفّ تغيّر حالته بين القراءة والكتابة | CONFLICT، `PROJECT_OS_DESIGN_STATE_CHANGED` `[PROPOSED]` | «تغيّرت الحالة؛ أعد التحميل» | `rows = 0` في `UPDATE` مع شرط الحالة (S-2)؛ اليوم لا يُفحص |
+| 28 | مستخدم من شركة أخرى أو مشروع آخر | FORBIDDEN، `PROJECT_OS_TENANT_ACCESS_DENIED`، أو NOT_FOUND، `PROJECT_OS_DESIGN_*_NOT_FOUND` | الرسالة المناسبة | `assertDesignAccess`؛ وطبقة RLS تُرجع صفوفًا فارغة |
 
 ## 6. معايير القبول
 
-1. تسجيل مخطط بتخصص لا تملك سلطته يُرفض بـ`PROJECT_OS_PERMISSION_DENIED`، ولا يُكتب أي صف.
-2. تسجيل مخطط يكتب المخطط ومراجعته الأولى ومعرّفهما في معاملة واحدة، ويكتب `design.drawing_registered`.
-3. إصدار مراجعة يجعل السابقة غير حالية، ويعيد المخطط إلى `registered`، ويلغي أي اعتماد سابق، ولا يكرر رمز المراجعة (`PROJECT_OS_DESIGN_DUPLICATE`).
-4. لا توجد لحظة يكون فيها أكثر من مراجعة حالية واحدة لكل مخطط (انظر البند 8).
-5. المخطط الملغى لا يقبل أي عمل جديد: مراجعة، أو إرسالية، أو تعليق، أو تقديم.
-6. إرسال إرسالية صادرة يحول المخطط `registered` إلى `under_review` إن كانت المراجعة حالية. المخطط المعتمد أو المُلغى لا يتغير.
-7. الاعتماد لا يقبل إلا مخططًا `under_review`، ولا يقبله مُصدر المراجعة، ولا مع تعليق `open` أو `responded` على المراجعة الحالية.
-8. تعليق بلا رد لا يُغلق. الرد بنص فارغ يُرفض.
-9. من ردّ على تعليق لا يغلقه. الإغلاق بعد الرد يُسجَّل بـ`closedByUserId` في المعاملة نفسها.
-10. رفض الرد يعيد التعليق إلى `open` ويمسح `responseText`.
-11. التقديم يُرسل من `draft` فقط. الرد يُسجَّل بأحد A/B/C/D من `submitted` فقط، ومُرسل التقديم لا يرد عليه.
-12. إعادة التقديم لا تُقبل إلا إذا كان الأصل `replied` بـC أو D.
-13. عدادات اللوحة تُحسب في قاعدة البيانات، وتستبعد المخطط الملغى من نسبة الاعتماد. لا مخططات تعني «لا نسبة»، وليس 0%.
-14. كل كتابة تنتج صف التدقيق المذكور في البند 2.8 في المعاملة نفسها، وفيه `projectId` داخل `metadata`.
-15. كل تحديث محمي يفحص عدد الصفوف المتأثرة، وصفر صفوف ينتج خطأ صريحًا.
-16. عزل المستأجر والمشروع: أي معرّف من مستأجر أو مشروع آخر يعيد `NOT_FOUND` ولا يكشف وجود العنصر.
-17. العرض يتطلب `project.read` في المشروع. المالك يرى كل شيء، والدور المقيّد بمشروع آخر لا يرى شيئًا من هذا المشروع.
-18. لا يظهر زر الاعتماد إلا لمخطط `under_review` لمن يملك `project.design.approve`. ولا يظهر زر إغلاق التعليق لمن ردّ عليه.
-19. السجل الفارغ يقول ذلك صراحة، واللوحة بلا مخططات لا تعرض نسبة.
-20. كل الرسائل بالعربية والإنجليزية.
+1. تبقى جداول التصميم ستة بالضبط بلا جدول إضافي، وكل منها يحمل `tenant_id` و`project_id` بقيد `NOT NULL`، والترحيل الجديد يعدّل الجداول القائمة فقط.
+2. لكل جدول من الستة سياسة RLS من فئة `project_os_isolation`، ويُختبر أن جلسة شركة أخرى ترى صفرًا من صفوفها.
+3. تحمل `design_transmittals` الفريد `(project_id, upper(btrim(transmittal_number)))`؛ إدراج رقم موجود بحالة حروف مختلفة يُرفض بـ`PROJECT_OS_DESIGN_DUPLICATE`.
+4. رقم الإحالة الصادرة يطابق `^[A-Z0-9]+(-[A-Z0-9]+)*-[AILSCMEPFX]-[0-9]{4}$`، والرقم الخاطئ يُرفض بـ`PROJECT_OS_DESIGN_REFERRAL_NUMBER_INVALID`.
+5. لا تُقبل حالة `acknowledged` إلا بعد `sent` (يفرضه CHECK وانتقال الخدمة معًا)، ويُسجَّل `acknowledged_at`.
+6. إصدار المخطط يمر بـ`checkNewRevision`: A ثم B ... Z ثم AA، ولا يُقبل تخطٍّ أو تكرار. تُختبر الخدمة نفسها لا الدالة وحدها.
+7. `approveDesignDrawing` يرفض مخططًا غير قيد المراجعة، ومن أصدر المراجعة، والمخطط الذي فيه ملاحظة مفتوحة على المراجعة الحالية، ويرفض كل ذلك بالرمز المحدد في القسم 5.
+8. التقديم يمر بـ`draft` ثم `internal_review` ثم `submitted` ثم `replied` ثم `closed`، ولا يتخطى خطوة. كل انتقال يكتب صف تدقيق واحدًا في المعاملة نفسها.
+9. لا يُرسل تقديم إلى الاستشاري دون مراجعة داخلية مسجلة، ولا يراجعه من أنشأه `[PROPOSED]`.
+10. رد الاستشاري يقبل A أو B أو C أو D فقط، ولا يسجّله من أرسل التقديم، ويُرفض رد ثانٍ.
+11. A وB يُغلقان بلا خلف. C وD لا يُغلقان قبل وجود الخلف، وإغلاقهما بلا خلف يُرفض.
+12. `resubmission_of_id` فريد: تقديمان لا يشيران إلى الأصل نفسه، وخلف ثانٍ يُرفض بـ`PROJECT_OS_DESIGN_RESUBMISSION_EXISTS`.
+13. سلسلة من خمسة خلف تُنشأ: العمق 1 إلى 5 بالترتيب، ولا رفض بسبب العدد.
+14. عند العمق 3 فأكثر تظهر علامة التحذير، وعند العمق 2 أو أقل لا تظهر، والتحذير لا يمنع أي فعل.
+15. الملاحظة لا تُغلق من من ردّ عليها، ولا تُعاد فتحها بلا سبب `[PROPOSED]`، ولا تُغلق الحرجة بلا رد.
+16. الإحالة لا تُرسل إن كانت فارغة، ولا تتضمن مراجعة ملغاة، ولا تُعدَّل بنودها بعد الإرسال.
+17. كل كتابة محمية لها صف تدقيق في `audit_logs` في المعاملة نفسها، ويُختبر أن فشل التدقيق يلغي الكتابة.
+18. `rows = 0` في أي `UPDATE` بشرط حالة يُرجع خطأً صريحًا، ولا يُعاد ضبط صامت.
+19. كل رمز `PROJECT_OS_DESIGN_*` يُرسَل للواجهة يملك رسالة عربية وإنجليزية في `shared/projectErrors.ts`، ولا يسقط إلى `PROJECT_OS_REQUEST_FAILED`.
+20. لوحة المرحلة تحسب في قاعدة البيانات، وتعرض «لم يُسجَّل أي مخطط بعد» بلا مخطط، لا 0% ولا 100%.
+21. الواجهة بالعربية والإنجليزية، وكل قائمة فارغة تقول ذلك صراحةً.
+22. تبقى كل الأزرار المحمية مخفية لمن لا يملك صلاحيتها (`WriteGate`)، والخادم يرفض الاستدعاء نفسه إن وصل.
+23. لا يُكسر أي اختبار قائم، وعدد الاختبارات الناجحة لا ينقص عن آخر رقم مُثبت (`CLAUDE.md` القسم 7).
 
 ## 7. الاختبارات المطلوبة
 
-**اختبارات وحدة (دوال نقية، دون قاعدة):**
-- **لا يوجد اختبار وحدة لـ`server/domain/designCoordination.ts` في الفرع الحالي.** مطلوب إنشاء `server/domain/designCoordination.test.ts` يغطي:
-  - `replyAllowsWork` و`replyRequiresResubmission` لكل من A وB وC وD.
-  - `commentTransitions` و`transmittalTransitions` كاملة: كل زوج مسموح ومرفوض.
-  - `disciplineAuthority` لكل تخصص من `DESIGN_DISCIPLINES`، بما فيه `other` الذي يقبل الرمزين.
-  - `summariseDrawings`: قائمة فارغة تعيد `completionPercent: null`، والمخطط الملغى لا يدخل المجموع، وتقريب النسبة إلى منزلة عشرية واحدة، وترتيب التخصصات أبجديًا.
-- المطلوب بعد قرار البند 8.4: اختبار لحالة معتمد على مراجعة سابقة مفتوحة التعليقات.
+### 7.1 اختبارات الوحدة للقواعد النقية
+- القائمة الحالية: `server/domain/drawingRevisions.test.ts`، و`server/domain/referralNumbering.test.ts`، و`server/domain/designReviewComments.test.ts`، و`server/domain/submittalReplies.test.ts`. تغطي الترقيم والانتقالات والرد والخلف، ولا تكفي وحدها لإثبات الربط بالخدمة.
+- `[PROPOSED]` اختبار أن `resubmissionWarning(2) = false` و`resubmissionWarning(3) = true`.
+- `[PROPOSED]` اختبار أن كل رمز في القسم 5 `[PROPOSED]` له رسالة عربية وإنجليزية (يُضاف إلى `shared/projectErrors.test.ts`).
+- `[PROPOSED]` اختبار أن `internal_review` موجودة في جدول الانتقالات `submittalTransitions` في `submittalReplies.ts`، وأنها لا تُتخطى.
 
-**اختبارات تكامل قاعدة البيانات (على `project_os_integration_test` فقط، وتُتخطى بلا `TEST_DATABASE_URL`):**
-- الموجود: `server/design.coordination.database.test.ts` (8 اختبارات): حدود الدور الذي يصدر ويعتمد، وتسجيل المخطط بسلطة التخصص، والمراجعة الجديدة، ودورة المخطط كاملة من الإرسالية إلى الاعتماد، وA/B/C/D وإعادة التقديم، وعدادات اللوحة، والعزل، وصفوف التدقيق والإلغاء.
-- المطلوب: سباق بين `addDesignRevision` و`approveDesignDrawing` على المخطط نفسه. النتيجة المقبولة: لا يصبح المخطط `approved` وفي `currentRevision` مراجعة لم تُعتمد.
-- المطلوب: إرسالية صادرة إلى مخطط ملغى تُرفض بـ`PROJECT_OS_DESIGN_DRAWING_CANCELLED`.
-- المطلوب: تقديم ثانٍ لنفس الأصل بـC يُرفض.
-- المطلوب: صفر صفوف في كل تحديث محمي ينتج `PROJECT_OS_DESIGN_STATE_CHANGED` (بعد القرار).
-- المطلوب بعد قرار البند 8.3: سلطة التخصص على الاعتماد والردود.
+### 7.2 اختبارات التكامل على قاعدة البيانات
+- القاعدة الوحيدة: `project_os_integration_test`. تُشغَّل عبر `scripts/run-integration-database-test.mjs` التي تستبدل اسم القاعدة، ويحرس `server/testing/databaseGuard.setup.ts` ضد أي اسم آخر. لا mock.
+- `server/design.coordination.database.test.ts` مكتوب اليوم بـ`mysql2`، ويجب نقله إلى PostgreSQL مع الحفاظ على حالاته الثمانية.
+- `[PROPOSED]` حالات جديدة:
+  - قيد الخلف الفريد: خلفان لأصل واحد، الثاني يُرفض بقيد لا بالفحص البرمجي وحده.
+  - سلسلة من خمسة خلف بالعمق 1 إلى 5، وعلامة التحذير من العمق 3.
+  - إغلاق C أو D قبل الخلف يُرفض، وبعده يُقبل.
+  - `rows = 0`: تغيير متزامن لحالة التقديم يُرجع `PROJECT_OS_DESIGN_STATE_CHANGED`.
+  - فشل صف التدقيق يلغي الكتابة (معاملة واحدة).
+  - جلسة شركة أخرى ترى صفوف هذه الجداول صفرًا (طبقة RLS الثانية).
+  - رقم إحالة مكرر بحالة حروف مختلفة يُرفض.
+  - تأكيد استلام إحالة من `draft` يُرفض.
+- `[PROPOSED]` الترحيلة الجديدة تُختبر على قاعدة الاختبار فقط قبل أي تطبيق آخر.
 
-**اختبارات مكوّنات الواجهة:**
-- الموجود: `client/src/pages/ProjectDesign.interaction.test.tsx` (5 اختبارات): اللوحة بالعربية مع نسبة الاعتماد والردود، وتسجيل مخطط، وزر الاعتماد للمخطط تحت المراجعة وردود A-D، وإغلاق تعليق وإرسالية مسودة، والإنجليزية والسجل الفارغ.
-- المطلوب: اللوحة بلا مخططات تعرض نص «لم تُسجَّل بعد»، لا «0%».
-- المطلوب: من ردّ على تعليق لا يرى زر الإغلاق.
-- المطلوب: زر الاعتماد غائب لمخطط ليس `under_review`.
+### 7.3 اختبارات مكوّنات الواجهة
+- القائمة الحالية: `client/src/pages/ProjectDesign.interaction.test.tsx` (خمس حالات: اللوحة، التسجيل، الاعتماد وأزرار A–D، الإغلاق والإحالة، الإنجليزية والفارغة).
+- `[PROPOSED]` حالات جديدة: زر المراجعة الداخلية يظهر لمن يملك سلطة التخصص فقط؛ اختيار الرد يظهر لمن يملك `project.design.approve` فقط؛ زر إعادة التقديم يختفي بعد وجود خلف؛ علامة التحذير عند العمق 3 لا عند 2؛ نصوص الحالات الفارغة بالعربية والإنجليزية.
 
-## 8. مخاطر وأسئلة مفتوحة
+### 7.4 البوابات
+- `pnpm check`، و`pnpm build`، و`pnpm test` ناجحة، و`pnpm coverage:trpc` (`CLAUDE.md` القسم 7).
 
-**قرارات المالك (BLOCKED_BY_OWNER، لا تُفترض):**
-1. **المحرك.** نفس قرار `docs/specs/TENDERING.md` البند 8.1. لا تُترجم الأنواع إلى PostgreSQL قبل قرار المالك.
-2. **الإحالات (الإحالات).** لا كيان لها في الكود، ولا تعريف لها في الوثائق المرجعية. هل المقصود نقل مخطط أو تعليق إلى تخصص آخر أو جهة أخرى لإجراء محدد؟ من يُحيل، ومن يقبل، وما حالاتها، وهل لها ترقيم خاص (`server/domain/referralNumbering.ts` المخطط)؟
-   - المقترح (PROPOSED): جدول `design_referrals` بحقول `id` وَ`tenantId` وَ`projectId` وَ`referralNumber` (UNIQUE مع `projectId`)، و`drawingId` (FK اختياري)، و`fromDiscipline` و`toDiscipline` (mysqlEnum من `DESIGN_DISCIPLINES`)، و`toParty` (varchar(255)، نص حر)، و`reason` (text)، و`status` (mysqlEnum: `open`، `accepted`، `returned`، `closed`)، و`dueAt`، و`createdByUserId`، و`createdAt`. يحتاج هذا التعريف قرارًا من المالك قبل البناء.
-3. **سلطة التخصص على الاعتماد والرد.** `approveDesignDrawing` و`transitionDesignSubmittal` (إلى `replied`) لا يفحصان التخصص. هل يعتمد منسق معماري مخططًا إنشائيًا، أو يعتمد منسق فني مخططًا معماريًا؟ هل يُربط الاعتماد بسلطة التخصص؟
-4. **التعليقات على المراجعات السابقة.** `approveDesignDrawing` يعد التعليقات المفتوحة على المراجعة الحالية فقط. تعليق مفتوح على مراجعة أقدم لا يمنع الاعتماد، بينما يظهر في عداد `unresolvedComments` في `listDesignDrawings`. هل هذا مقصود؟
-5. **عدد إعادات التقديم.** `createDesignSubmittal` يسمح بأكثر من إعادة تقديم لأصل واحد بـC أو D، لأنه لا يتحقق من وجود إعادة سابقة. هل تُقصر على واحدة؟
-6. **نص حر في `raisedBy`.** يُكتب فيه اسم الجهة أو الشخص. سياسة البيانات الشخصية (`docs/PILOT_DATA_POLICY.md`) تمنع أسماء حقيقية في الاختبارات والتقارير، فهل يُفرض قالب لهذا الحقل (جهة، لا اسم)؟
-7. **الترقيم.** هل أرقام المخططات والتقديمات والتعليقات يكتبها المنسق دائمًا، أم يُقترح ترقيم تلقائي؟ الترقيم التلقائي يحتاج `server/domain/drawingRevisions.ts` و`server/domain/referralNumbering.ts` المخطط.
+## 8. المخاطر والأسئلة المفتوحة
 
-**عيوب في الكود (OPEN):**
-- **سباق بين الإصدار والاعتماد.** `approveDesignDrawing` يقرأ المراجعة الحالية قبل المعاملة، ثم يكتب `status = approved` على المخطط دون شرط على الحالة أو على المراجعة. إن أصدر أحد مراجعة جديدة بين القراءة والكتابة، يصبح المخطط `approved` وفي `currentRevision` مراجعة لم يُنظر فيها. الإصلاح: شرط على `status = under_review` و`isCurrent` للمراجعة، وفحص `affectedRows`.
-- **فحص `affectedRows` مفقود** في كل التحديثات المحمية: `addDesignRevision`، و`cancelDesignDrawing`، و`approveDesignDrawing`، و`transitionDesignTransmittal`، و`transitionDesignComment`، و`transitionDesignSubmittal`. الصفوف الصفرية تعني أن شخصًا آخر غيّر الحالة، والسجل يكتب صف تدقيق لتغيير لم يحدث.
-- **عدم وجود قيد يضمن مراجعة حالية واحدة.** `isCurrent` علم في كل صف، ولا يوجد UNIQUE جزئي في MySQL. والمخطط يكرر الرمز الحالي في `currentRevision`، فحالة المراجعة في مكانين. الإصلاح المقترح: عمود مولّد (generated column) مع UNIQUE، بعد التحقق من دعم TiDB له.
-- **`resubmissionOfId` بلا FK.** يمكن أن يشير إلى معرّف غير موجود إن أُدخل مباشرة في قاعدة البيانات.
-- **سلطة التخصص لا تقارن تخصص التقديم بتخصص المخطط المرتبط به** (`drawingId`). تقديم تخصصه `structural` مرتبط بمخطط `architectural` يمر إن أعطى الحامل سلطة الفني.
-**مخاطر تشغيلية:**
-- قائمة التخصصات في `shared/designDisciplines.ts` ثابتة في الكود. إضافة تخصص تتطلب تغييرًا في المخطط (`mysqlEnum`) وفي الاختبارات.
-- الإرساليات الواردة (`incoming`) لا تغيّر حالة المخططات. الكود يحصر التغيير في الصادرة، وهذا التفريق لا يظهر في الشاشة.
-- `summariseDrawings` يستبعد المخطط الملغى من البسط والمقام معًا، فإلغاء مخطط معتمد يخرجه من الحسابين، وقد ترتفع النسبة أو تنخفض. هذا قرار عرض يحتاج تأكيدًا من المالك.
+كل بند هنا `BLOCKED_BY_OWNER`. لم يُحسم أي منها في هذه المواصفة.
+
+| # | السؤال | الحالة الحالية في الكود | المصدر |
+|---|---|---|---|
+| R1 | المحرك المعتمد: PostgreSQL وفق ADR-0002 على الفرع، أم MySQL/TiDB وفق `CLAUDE.md` و`STATE.md` على `main`؟ إن بقي MySQL تُعاد كتابة هذه المواصفة (G-2). | `CLAUDE.md` و`STATE.md` تصفان MySQL؛ ADR-0002 يصف PostgreSQL | `AFTER_MIGRATION` G-1 |
+| R2 | هل سلطة التخصص نهائية لكل تخصص؟ تشمل الاعتماد والرد أم الإنشاء والإرسال فقط؟ | `approveDesignDrawing` و`transitionDesignSubmittal` (الرد) و`transitionDesignComment` تفحص الصلاحية العامة دون التخصص | قرار المالك المفتوح |
+| R3 | هل تُمنع الملاحظات المفتوحة على المراجعات الأقدم من الاعتماد؟ | الاعتماد يفحص ملاحظات المراجعة الحالية فقط (`revisionId = revision.id`) | قرار المالك المفتوح |
+| R4 | هل يبقى `raised_by` نصًا حرًا، أم يُربط بمستخدم مسجل؟ | `design_comments.raised_by varchar(255)` | قرار المالك المفتوح |
+| R5 | هل يُعاد تسجيل مخطط ملغى برقمه نفسه؟ | الفريد يشمل الملغى، فيُرفض بـ`PROJECT_OS_DESIGN_DUPLICATE` | قرار المالك لم يُجَب |
+| R6 | نطاق قاعدة «من ردّ لا يغلق»: كل الأهميات (الخدمة) أم الحرجة فقط (القاعدة النقية)؟ | الخدمة تطبقها على الكل، و`isSelfClosureRefused` على الحرجة | `AFTER_MIGRATION` D-2 |
+| R7 | هل يجوز إلغاء مخطط معتمد؟ | الخدمة تسمحه، و`drawingTransitions` تمنعه | `AFTER_MIGRATION` D-6 |
+| R8 | هل تُغلق الملاحظة الثانوية من `open` مباشرة؟ وهل تحتاج الكبرى ردًا قبل الإغلاق؟ | القاعدة النقية تسمح بالأول وتشترط الرد للكبرى، والخدمة تمنع الأول | `AFTER_MIGRATION` D-8 |
+| R9 | `[جديد]` هل تحمل الإحالة الصادرة تخصصًا واحدًا؟ وهل يتبع ترقيم الإحالات الواردة الصيغة نفسها؟ وتشترط الصيغة أن يطابق `projects.code` النمط `^[A-Z0-9]+(-[A-Z0-9]+)*$` وألا يتجاوز 32 حرفًا (`isValidProjectCode`)، بينما `projects.code` اليوم `varchar(80)` فريد لكل شركة، وقد تخالف مشاريع قائمة النمط. | `referralNumbering.ts`، `projects` في `drizzle/schema.ts` | `[PROPOSED]` في هذه المواصفة |
+| R10 | `[جديد]` قرار المالك (بند 4) يذكر «Rev A، B، C» للإصدارات. هذه المواصفة تعتمد `-R<n>` لأرقام التقديمات كما في `submittalReplies.ts`، وتعتمد A–Z للمخططات (بند 5). هل تُعرض التقديمات الخلفية بحرف إصدار بدل `-R<n>`؟ | `submittalChain`، `nextResubmissionNumber` | `[PROPOSED]` في هذه المواصفة |
+| R11 | `[جديد]` هل يجب أن يكون المراجع الداخلي غير من أنشأ التقديم؟ | لا قاعدة قائمة؛ مقترحة في القسم 2.6 | `[PROPOSED]` في هذه المواصفة |
+
+**ملاحظة تفسير:** فُهم قرار المالك بند 4 على أنه يلغي حد الخلف الواحد لكل سلسلة، ويُبقي قيد «خلف واحد لكل تقديم» (القيد الفريد الذي نصّ عليه المالك). إن أراد المالك تعدد الخلف للتقديم الواحد يلزم قرار جديد.

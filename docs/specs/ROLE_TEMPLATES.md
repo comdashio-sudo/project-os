@@ -1,271 +1,289 @@
-# مواصفة قوالب الأدوار الجاهزة (ROLE_TEMPLATES)
+# مواصفة قوالب الأدوار الجاهزة (ROLE_TEMPLATES) بمصطلحات PostgreSQL
+
+**الحالة:** WRITTEN (مواصفة). لا تغيّر هذه الوثيقة أي صف في `docs/STATE.md`، ولا تُعد دليل `PROVEN`، ولم يُشغَّل أي اختبار على قاعدة بيانات.
+
+**المرجع:** الكود في الفرع الحالي عند `c59fc5c` (الفرع `main`). خط الأساس PostgreSQL على الفرع `feat/postgres-migration`: `drizzle/0000_baseline.sql`، و`drizzle/schema.ts`، و`docs/ADR-0002-POSTGRES-SUPABASE-VERCEL.md`. قرار الانتقال: `docs/STATE.md` قسم «قرار المالك: الانتقال إلى PostgreSQL». القرارات المدمجة هنا: `docs/AFTER_MIGRATION.md` البنود R-1 وR-2 وR-3 وU-2 وS-7 وW-1 وT-1 (قرار المالك، 22 أكتوبر 2026).
+
+**الوسوم:** `PROPOSED` شيء غير موجود في الكود اليوم. `AFTER_MIGRATION` تغيير خادم أو قاعدة يبنيه الوكيل 1 بعد النقل. `BLOCKED_BY_OWNER` قرار لم يُحسم ولا يُفترض.
 
 ## 1. الهدف والنطاق
 
-**الحالة:** مواصفة بنائية مبنية على الكود في الفرع `main` عند `da61754`. لا تغيّر هذه الوثيقة أي صف في `docs/STATE.md`، ولا تُعد دليل `PROVEN`.
+**الهدف:** تعريف القوالب الجاهزة التي تحصل عليها كل شركة، وما يمنحه كل قالب بالضبط، وكيف تُرقّى القوالب دون أن تكتب فوق تعديلات المستأجر، وقواعد فصل المهام التي تحكم تركيبها. القالب يصف ما يفعله حامله، ونطاق المستأجر والمشروع يفرضه الخادم وحده (`CLAUDE.md` §4).
 
-**المحرك:** تستعمل المواصفة أنواع MySQL/TiDB كما في `drizzle/schema.ts`. لم تُكتب بمفردات PostgreSQL، للسبب المذكور في `docs/specs/TENDERING.md` البند 1، وهو قرار المالك (البند 8.1).
-
-**الهدف:** تعريف القوالب الجاهزة التي تحصل عليها كل شركة، وما تمنحه كل قالب بالضبط، وقواعد فصل المهام التي تحكم تركيبها. القالب يصف ما يفعله حامله، ولا يحل محل نطاق المستأجر والمشروع الذي يفرضه الخادم.
-
-**القوالب الداخلة في النطاق (ثمانية، كما تُعرَّف في `operationalRoleDefinitions`):**
-
-| القالب (`roles.code`) | الاسم الإنجليزي | المنتج | ملاحظة |
-|---|---|---|---|
-| `EXECUTIVE` | Executive | `EXECUTIVE` | عرض تنفيذي للشركة، بلا مشروع |
-| `PMO_LEAD` | PMO Lead | `PMO` | عرض مكتب المشاريع، بلا مشروع |
-| `COST_CONTROLLER` | Cost Controller | `PROJECT` | الكوست كنترول: الميزانية والتكلفة الفعلية والتدفق والتسوية |
-| `PLANNING_ENGINEER` | Planning Engineer | `PROJECT` | التخطيط. من القوالب الأولى التسعة، ولم يتغير في أمر العمل 5 |
-| `PROJECT_COORDINATOR` | Project Coordinator | `PROJECT` | منسق المشاريع: الموقع والمواد والمراسلات والاعتماد الفني |
-| `DESIGN_COORDINATOR_ARCHITECTURAL` | Design Coordinator (Architectural) | `PROJECT` | منسق التصميم للتخصصات المعمارية فقط |
-| `DESIGN_COORDINATOR_TECHNICAL` | Design Coordinator (Technical) | `PROJECT` | منسق التصميم للتخصصات الفنية فقط |
-| `CONTRACTS_MANAGER` | Contracts Manager | `PROJECT` | العقود: المناقصة والمدعوون والعروض والالتزامات |
+**في النطاق:**
+- القوالب السبعة عشر كلها في `operationalRoleDefinitions` (`server/domain/operationalRoles.ts`): عشرة قبل أمر العمل 5 (منها `PROJECT_MANAGER`)، وسبعة بعده (`EXECUTIVE`، `PMO_LEAD`، `COST_CONTROLLER`، `PROJECT_COORDINATOR`، `DESIGN_COORDINATOR_ARCHITECTURAL`، `DESIGN_COORDINATOR_TECHNICAL`، `CONTRACTS_MANAGER`). أُضيفت السبعة بالالتزام `c2eb303`. النسخة السابقة من هذه المواصفة غطّت ثمانية قوالب فقط؛ الترقية بالإصدارات (R-1) تسري على كل قالب نظامي، لذلك تغطي هذه النسخة الكل.
+- الجداول والقيود المقترحة للإصدارات والتجاوزات والدفعات (البند 2).
+- الشاشات التي تعرض القوالب أو تكتب بها (البند 3).
+- المصفوفة الكاملة للقوالب مقابل رموز الصلاحيات، ومنها الرموز المقترحة (البند 4).
+- قواعد الفصل بين المهام، وحالات الرفض، ومعايير القبول، والاختبارات (البنود 4 و5 و6 و7).
 
 **خارج النطاق:**
-- القوالب الأخرى الموجودة في الكود: `WAREHOUSE_CUSTODIAN`، و`PROCUREMENT_OFFICER`، و`FINANCE_MANAGER`، و`ACCOUNTANT`، و`HR_MANAGER`، و`SITE_ENGINEER`، و`QA_QC_MANAGER`، و`HSE_MANAGER`، و`PROJECT_MANAGER`. تُذكر هنا فقط حين تدخل في قاعدة فصل مع قالب من النطاق.
-- الدور `TENANT_OWNER`: دور النظام لمالك الشركة، يحمل كل الصلاحيات بالتعريف، وليس قالبًا.
-- الأدوار المخصصة (`createTenantRole`): تخضع للقواعد نفسها، وتُوصف في البند 5 حيث تُرفض.
-
-**المصادر:** `server/domain/operationalRoles.ts` (`operationalPermissionCatalog`، و`operationalRoleDefinitions`، و`conflictingOperationalRolePairs`، و`assertOperationalRoleSeparation`)، و`server/domain/operationalPermissions.ts` (`conflictingPermissionPairs`، و`findPermissionConflict`)، و`server/db.ts` (`ownerPermissions`، و`ensureTenantOperationalRoles`، و`createTenantRole`، و`updateTenantRole`، و`assignTenantMembershipRole`)، و`client/src/lib/operationalRolePresentation.ts` (`operationalRoleProfiles`). سجل التغيير: الالتزام `c2eb303` (#59) لمس `server/domain/operationalRoles.ts` لإضافة القوالب السبعة الجديدة وفصل المهام.
+- الدور `TENANT_OWNER`: يحمل كل رموز الكتالوج بالتعريف (`ensureTenantOperationalRoles` في `server/db.ts`)، وليس قالبًا. هل يُدعى كدور في الدعوات: `BLOCKED_BY_OWNER` (البند 8).
+- المناقصات: `docs/specs/TENDERING.md`. التنسيق الفني والمعماري: `docs/specs/DESIGN_COORDINATION.md`. معالج الإعداد والدعوات: `docs/specs/ONBOARDING_WIZARD.md`. تذكر هذه الوثيقة منها الصلاحيات التي تعتمد عليها فقط.
+- نقل البيانات من MySQL وتنفيذ الترحيل نفسه (الوكيل 1، `AFTER_MIGRATION` G-3).
+- المرحلة B من PMC فما بعدها (لا تبدأ دون أمر صريح من المالك).
+- الأسعار والتجربة والمقاعد: `BLOCKED_BY_OWNER`، ولا تُكتب هنا.
 
 ## 2. الجداول والحقول والقيود
 
-القوالب نفسها ليست جدولًا. تعريفها في الكود (`operationalRoleDefinitions`)، وتُثبَّت في الجداول الآتية لكل شركة عند أول فتح لشاشة إدارة الشركة (انظر البند 3).
+**قاعدة الأنواع:** طلب المالك أنواع `uuid`، لكن خط الأساس `drizzle/0000_baseline.sql` لا يحوي عمود `uuid` واحدًا: كل المعرّفات `varchar(36)` (مثل `companies.id` و`roles.id` و`projects.id`) ومعرّف المستخدم `integer` (`users.id`). مفتاح أجنبي من `uuid` إلى هذه الأعمدة يرفضه PostgreSQL، لذلك تستعمل الجداول الجديدة الأنواع نفسها. إن انتقل خط الأساس إلى `uuid` تتغير كل الأنواع في هذا الملف دفعة واحدة (البند 8.3، AM-8).
 
-### 2.1 `roles` (`roles`)
+القوالب ليست جدولًا؛ تعريفها في الكود. تُضاف ثلاثة جداول `PROPOSED`: `role_template_versions` (عام)، و`tenant_role_overrides` (لكل شركة)، و`project_payments` (لكل شركة ومشروع، ويُستعمل للفصل بين المُعِدّ والمعتمِد).
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `code` | varchar(80) | لا | — | رمز القالب، مثل `COST_CONTROLLER` |
-| `name` | varchar(160) | لا | — | الاسم الإنجليزي الافتراضي |
-| `productCode` | mysqlEnum(`EXECUTIVE`، `PMO`، `PROJECT`) | نعم | — | المنتج الذي يخص الدور. القوالب الثمانية لها منتج محدد |
-| `description` | text | نعم | — | |
-| `systemManaged` | boolean | لا | `false` | `true` للقوالب الجاهزة وللمالك. لا يُعدَّل بالكتابة |
-| `createdAt` | timestamp | لا | الآن | |
-| `updatedAt` | timestamp | لا | الآن، ويتجدد عند التعديل | |
+**الجداول الموجودة تُستعمل كما هي** (`drizzle/schema.ts` على الفرع): `companies` (`id`)، و`users` (`id` integer)، و`roles` (`tenant_id` FK، و`code` varchar(80)، و`product_code` من التعداد `roles_product_code`، و`system_managed` boolean، وUNIQUE `roles_tenant_code_unique` على (`tenant_id`, `code`))، و`permissions` (`code` فريد بالفهرس `permissions_code_unique`)، و`role_permissions` (مفتاح مركّب (`role_id`, `permission_id`))، و`membership_roles`، و`memberships`، و`audit_logs`.
 
-- UNIQUE `roles_tenant_code_unique` على (`tenantId`, `code`). الرمز واحد لكل شركة.
-
-### 2.2 `permissions` (`permissions`)
-
-| الحقل | النوع | قابل للفراغ | ملاحظة |
-|---|---|---|---|
-| `id` | varchar(36) | لا | المفتاح الأساسي |
-| `code` | varchar(120) | لا | رمز الصلاحية، مثل `project.tender.award` |
-| `name` | varchar(160) | لا | الاسم المعروض |
-| `productCode` | mysqlEnum(`EXECUTIVE`، `PMO`، `PROJECT`) | لا | |
-| `description` | text | نعم | |
-| `createdAt` | timestamp | لا | |
-
-- UNIQUE `permissions_code_unique` على (`code`). الجدول عام لكل الشركات، ويُملأ من `ownerPermissions` و`operationalPermissionCatalog`.
-
-### 2.3 `role_permissions` (`rolePermissions`)
-
-| الحقل | النوع | قابل للفراغ | ملاحظة |
-|---|---|---|---|
-| `roleId` | varchar(36) | لا | FK ← `roles.id` |
-| `permissionId` | varchar(36) | لا | FK ← `permissions.id` |
-| `createdAt` | timestamp | لا | |
-
-- المفتاح الأساسي المركّب `role_permissions_pk` على (`roleId`, `permissionId`).
-
-### 2.4 `membership_roles` (`membershipRoles`)
+### 2.1 `role_template_versions` (PROPOSED)
 
 | الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
 |---|---|---|---|---|
 | `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `membershipId` | varchar(36) | لا | — | FK ← `memberships.id` |
-| `roleId` | varchar(36) | لا | — | FK ← `roles.id` |
-| `scopeType` | mysqlEnum(`company`، `portfolio`، `program`، `project`) | لا | `company` | |
-| `scopeId` | varchar(36) | نعم | — | معرّف النطاق. فارغ للشركة كلها |
-| `createdAt` | timestamp | لا | الآن | |
+| `role_code` | varchar(80) | لا | — | رمز القالب، مثل `PLANNING_ENGINEER` |
+| `template_version` | integer | لا | — | يبدأ من 1 ويزيد بواحد لكل نشر |
+| `product_code` | `roles_product_code` | نعم | — | المنتج كما في `productCode` (والافتراضي `PROJECT`) |
+| `permission_codes` | text[] | لا | — | مرتبة وبلا تكرار؛ كل رمز موجود في `permissions.code` (يفحصه الخادم) |
+| `source_ref` | text | لا | — | الالتزام الذي عرّف هذا الإصدار |
+| `published_at` | timestamptz | لا | `now()` | |
 
-- UNIQUE `membership_roles_scope_unique` على (`membershipId`, `roleId`, `scopeType`, `scopeId`).
-- INDEX `membership_roles_membership_idx` على (`membershipId`).
+- القيود: PRIMARY KEY (`id`)؛ UNIQUE (`role_code`, `template_version`)؛ CHECK (`template_version >= 1`)؛ CHECK (`role_code ~ '^[A-Z][A-Z0-9_]*$'`)؛ CHECK (`cardinality(permission_codes) >= 1`).
+- لا يحمل عمود `updated_at`، والصف لا يُعدَّل أبدًا. الفهرس الفريد يكفي للبحث عن آخر إصدار.
+- **فئة RLS:** جدول عام للقراءة، يكتبه النظام فقط. البنية الافتراضية للجداول العامة في `project_os_apply_conventions()` (`drizzle/0000_baseline.sql` على الفرع) تضع `USING (true) WITH CHECK (true)` فتسمح بالكتابة لأي خادم، لذلك لا يكفي إدراجه في `global_tables`. `PROPOSED`: قائمة `global_readonly_tables` تمنح `SELECT` للجميع، و`INSERT` بشرط `app_system()`، ولا تمنح `UPDATE` ولا `DELETE`، ومنح `project_os_app` لـ`SELECT, INSERT` فقط (`AM-2`).
 
-### 2.5 صفوف التدقيق
+### 2.2 `tenant_role_overrides` (PROPOSED)
 
-| الإجراء (`action`) | `entityType` | متى | الدالة |
-|---|---|---|---|
-| `tenant.role_created` | `role` | إنشاء دور مخصص | `createTenantRole` |
-| `tenant.role_updated` | `role` | تعديل دور مخصص | `updateTenantRole` |
-| `tenant.membership_role_assigned` | `membership_role` | إسناد دور لعضو بنطاق | `assignTenantMembershipRole` |
-| `tenant.membership_role_revoked` | `membership_role` | إلغاء إسناد | `revokeTenantMembershipRole` |
+| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
+|---|---|---|---|---|
+| `id` | varchar(36) | لا | — | المفتاح الأساسي |
+| `tenant_id` | varchar(36) | لا | — | FK ← `companies.id` |
+| `role_id` | varchar(36) | لا | — | نسخة الشركة من الدور النظامي (`roles.id`، و`system_managed = true`) |
+| `role_code` | varchar(80) | لا | — | رمز القالب الذي يُتجاوز |
+| `base_version` | integer | لا | — | رقم الإصدار الذي بُني عليه التجاوز |
+| `granted_permission_codes` | text[] | لا | `'{}'` | رموز تضيفها الشركة فوق القالب |
+| `removed_permission_codes` | text[] | لا | `'{}'` | رموز تحذفها الشركة من القالب |
+| `status` | text | لا | `'active'` | `active` أو `superseded` |
+| `created_by_user_id` | integer | لا | — | FK ← `users.id` |
+| `created_at`، `updated_at` | timestamptz | لا | `now()` | |
 
-**فجوة:** تثبيت القوالب الجاهزة (`ensureTenantOperationalRoles`) يكتب في `roles` و`permissions` و`role_permissions` دون أي صف تدقيق، وهو يعمل داخل استعلام القراءة `tenant.administration`. انظر البند 8.
+- القيود: PRIMARY KEY (`id`)؛ FOREIGN KEY (`tenant_id`, `role_id`) REFERENCES `roles` (`tenant_id`, `id`)، وهذا يتطلب UNIQUE (`tenant_id`, `id`) على `roles` (`AM-2`)؛ CHECK (`status` IN (`active`, `superseded`))؛ CHECK (`base_version >= 1`)؛ CHECK (NOT (`granted_permission_codes` && `removed_permission_codes`))؛ فهرس فريد جزئي على (`tenant_id`, `role_code`) WHERE `status` = `active`؛ فهرس (`tenant_id`, `role_code`).
+- **التجاوز يبقى عند الترقية:** رمز حذفته الشركة يبقى محذوفًا حين يضيفه إصدار جديد، ويُعرض في الفرق بعبارة «محفوظ بتجاوز الشركة».
+- **الصلاحيات الفعلية** تُكتب في `role_permissions` في المعاملة نفسها التي تحفظ التجاوز، فيبقى لقراءة الصلاحيات في `getTenantAccessSnapshot` (`server/db.ts`) جدول واحد.
+- **فئة RLS:** `tenant_id`، أي سياسة `project_os_isolation` بالشرط `tenant_id = ANY(app_tenant_ids())` (`ADR-0002`).
+
+### 2.3 `project_payments` (PROPOSED، الحد الأدنى للفصل)
+
+| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
+|---|---|---|---|---|
+| `id` | varchar(36) | لا | — | المفتاح الأساسي |
+| `tenant_id` | varchar(36) | لا | — | FK ← `companies.id` |
+| `project_id` | varchar(36) | لا | — | FK ← `projects.id` |
+| `amount` | numeric(18,2) | لا | — | CHECK (`amount > 0`) |
+| `status` | text | لا | `'prepared'` | `prepared`، `approved`، `cancelled` |
+| `prepared_by_user_id` | integer | لا | — | FK ← `users.id`، من أعدّ الدفعة |
+| `prepared_at` | timestamptz | لا | `now()` | |
+| `approved_by_user_id` | integer | نعم | — | FK ← `users.id`، من اعتمدها |
+| `approved_at` | timestamptz | نعم | — | |
+| `created_at`، `updated_at` | timestamptz | لا | `now()` | |
+
+- القيود: CHECK (`approved_by_user_id` IS NULL OR `approved_by_user_id` <> `prepared_by_user_id`)؛ CHECK ((`status` = `approved`) = (`approved_by_user_id` IS NOT NULL))؛ CHECK (`status` IN (`prepared`, `approved`, `cancelled`))؛ فهرس (`tenant_id`, `project_id`, `status`).
+- الاسم `project_payments` متعمد: `payment_records` في خط الأساس هو دفع اشتراك الشركة في المنصة، وليس دفعة مشروع.
+- **فئة RLS:** `tenant_id`، كما في 2.2.
+- **تحذير:** لا تعرّف المواصفة كيان الدفعة نفسه (المستفيد، والمستند المصدر، والعملة). هذا `BLOCKED_BY_OWNER` (البند 8.1)، والجدول أعلاه هو الحد الأدنى لقاعدة المعِدّ والمعتمِد فقط.
+
+### 2.4 تغييرات على الجداول الموجودة
+
+- `roles`: UNIQUE (`tenant_id`, `id`) لتمكين المفتاح المركّب في 2.2 (`PROPOSED`، `AM-2`).
+- `project_os_apply_conventions()`: قائمة `global_readonly_tables` لجدول `role_template_versions` (`PROPOSED`، `AM-2`).
+
+### 2.5 التدقيق والموافقة على الترقية
+
+- كل كتابة محمية تضيف صف `audit_logs` في المعاملة نفسها (`CLAUDE.md` §4). الأفعال المقترحة: `tenant.role_template_upgraded`، و`tenant.role_override_saved`، و`payment.prepared`، و`payment.approved` (`PROPOSED`).
+- حماية `audit_logs` في خط الأساس: triggers تمنع UPDATE وDELETE وTRUNCATE، و`project_os_app` لا يملك إلا `SELECT, INSERT`. ولا تُوصف بأنها «غير قابلة للعبث»: من يملك الجدول يستطيع حذف الـtrigger (`ADR-0002`، الحد 2).
+- **الموافقة على الترقية ليست جدولًا جديدًا.** تُسجَّل كصف تدقيق، ويُرفع `tenant_role_overrides.base_version` في المعاملة نفسها.
+- **من يعتمد:** `PROPOSED` أن يشترط الخادم الدور `TENANT_OWNER` في عضوية المعتمِد، لا `tenant.manage` وحده. السبب: `tenant.manage` من منتج `EXECUTIVE`، و`createTenantRole` يسمح لأي دور مخصص من منتج `EXECUTIVE` بحمله. القالب النظامي لا يحمله (انظر المصفوفة).
 
 ## 3. الشاشات
 
-**المسار:** `/tenants/:tenantId/administration` (`client/src/pages/TenantAdministration.tsx`، 221 سطرًا). عنوانه «أعضاء وأدوار الشركة»، ويعرض الأعضاء والأدوار ونطاقات الوصول. تستعمل `WriteGate` من `client/src/lib/permissions.tsx`. لم أحصر كل رمز صلاحية في الواجهة، والخادم هو الحكم.
-
-**من يراها:** من يملك `tenant.manage` في الشركة، وهو لا يُمنح إلا لمالك الشركة أو لدور مخصص. انظر البند 5 والبند 8.
-
-| الجزء | ما يفعله | الحالة الفارغة أو التحميل |
-|---|---|---|
-| قائمة الأعضاء | يعرض العضوية وحالتها والأدوار ونطاقاتها | `query.isLoading` يعرض نص التحميل |
-| الأدوار | يعرض الأدوار ومنها الجاهزة (`systemManaged`)، والجاهزة لا تُعدَّل | — |
-| إنشاء دور مخصص | يختار اسمًا ورمزًا ومنتجًا وصلاحيات من منتجه فقط | — |
-| إسناد دور وإلغاؤه | يسند دورًا بنطاق، ويلغي إسنادًا | — |
-| دعوة عضو | ينشئ رابط قبول لمرة واحدة، يظهر مرة واحدة | — |
-| حالة العضوية | يعطّل عضوًا أو يعيد تفعيله | — |
-
-**البطاقة التعريفية للقالب:** `client/src/lib/operationalRolePresentation.ts` يملك `operationalRoleProfiles`، لكل قالب: الغرض والتركيز والحد الفاصل، بالعربية والإنجليزية. تظهر في خطوة الدعوة من المعالج (`client/src/pages/SetupWizard.tsx`، الخطوة 4)، وفي شاشة الإدارة حسب ما يعرضه الكود. الاختبار: `client/src/lib/operationalRolePresentation.test.tsx`.
+| المسار | الملف | من يراها | الإجراءات | الحالات |
+|---|---|---|---|---|
+| `/tenants/:tenantId/administration` (موجودة) | `client/src/pages/TenantAdministration.tsx` | حامل `tenant.manage` (`assertTenantManager`، `server/db.ts`) | إنشاء دور مخصص (`tenant.createRole`)، وتعديل دور غير نظامي (`tenant.updateRole`)، وتعيين دور لعضو (`tenant.assignMembershipRole`)، ودعوة عضو (`tenant.createInvitation`) | التحميل: `query.isLoading` (السطر 119) يعرض الهيكل ورأس الصفحة. الخطأ: `getLocalizedProjectError` (السطر 120). الفارغ: لم أجد حالة فارغة مكتوبة لقائمة الأدوار أو الأعضاء. |
+| القسم الجديد «قوالب النظام» (`PROPOSED`) | الصفحة نفسها | حامل `tenant.manage`؛ زر الموافقة لحامل `TENANT_OWNER` فقط | عرض رقم الإصدار الحالي لكل قالب، و«عرض الفرق» (مضاف ومحذوف لكل دور)، و«موافقة على الترقية»، و«تخصيص» لكل دور نظامي (يكتب `tenant_role_overrides`، لا يعدّل الدور) | التحميل: «جاري حساب الفرق…». الفارغ: «القوالب محدّثة؛ لا توجد ترقية متاحة.». الخطأ: رمز `PROJECT_OS_` المناسب من البند 5. |
+| `/setup/:tenantId` (موجودة) | `client/src/pages/SetupWizard.tsx` | حامل `tenant.manage` | دعوات بقالب دور | يستبعد `TENANT_OWNER` (السطر 146: `role.code !== "TENANT_OWNER"`) إلى أن يُحسم البند 8.1. |
+| الخطة الرئيسية (موجودة) | `client/src/components/MasterPlanTools.tsx` | حامل `project.read` للعرض | تكتب بـ`masterPlans.setVersionGeometry` و`masterPlans.updateEntityLayout` و`masterPlans.setSnapshotSharing` (`server/routers.ts:183-185`) | تبقى كما هي. الكتابة تتغير بـR-3 (البند 4.3). |
+| الأنشطة والجدول الزمني (موجودة) | router `activities` (`server/routers.ts:539`) | حسب الصلاحية | `createActivity` | كما هي. تتغير صلاحيتها بـR-3 بإضافة `schedule.write`. |
+| شاشة الدفعات (`PROPOSED`) | لا مسار | حامل `payment.prepare` للإعداد، و`payment.approve` للاعتماد | إعداد دفعة، واعتمادها | **لا تُصمَّم هنا:** كيان الدفعة غير معرَّف (البند 8.1، Q6). |
 
 ## 4. الصلاحيات
 
-### 4.1 مصفوفة القوالب الثمانية
+### 4.1 المصفوفة الكاملة
 
-كل صف صلاحية ورد في قالب واحد على الأقل من الثمانية. «✓» تعني أن القالب يمنحها، و«—» أنه لا يمنحها. المصفوفة مُولَّدة من `operationalRoleDefinitions` بتشغيل سكربت يقرأ الملف، وليست منسوخة يدويًا.
+**كيف وُلّدت:** بقراءة `operationalRoleDefinitions` و`operationalPermissionCatalog` (`server/domain/operationalRoles.ts`) و`ownerPermissions` (`server/db.ts`) مباشرة، لا بالكتابة اليدوية. عدد القوالب 17، وعدد الرموز في المصدر 45 (6 من `ownerPermissions` و39 من الكتالوج). الرموز المقترحة في آخر ثلاثة صفوف. `x` = ممنوح في المصدر اليوم، `p` = ممنوح بقرار مقترح (R-2، R-3)، `-` = غير ممنوح. أعد توليد الجدول عند أي تعديل على المصدر ولا تحرّره يدويًا.
 
-الأعمدة بالترتيب: (1) `EXECUTIVE`، (2) `PMO_LEAD`، (3) `COST_CONTROLLER`، (4) `PLANNING_ENGINEER`، (5) `PROJECT_COORDINATOR`، (6) `DESIGN_COORDINATOR_ARCHITECTURAL`، (7) `DESIGN_COORDINATOR_TECHNICAL`، (8) `CONTRACTS_MANAGER`.
+الاختصارات: WC = WAREHOUSE_CUSTODIAN، PO = PROCUREMENT_OFFICER، FM = FINANCE_MANAGER، AC = ACCOUNTANT، HR = HR_MANAGER، PE = PLANNING_ENGINEER، SE = SITE_ENGINEER، QA = QA_QC_MANAGER، HSE = HSE_MANAGER، PM = PROJECT_MANAGER، EX = EXECUTIVE، PMO = PMO_LEAD، CC = COST_CONTROLLER، PC = PROJECT_COORDINATOR، DCA = DESIGN_COORDINATOR_ARCHITECTURAL، DCT = DESIGN_COORDINATOR_TECHNICAL، CM = CONTRACTS_MANAGER.
 
-| الصلاحية | (1) | (2) | (3) | (4) | (5) | (6) | (7) | (8) |
-|---|---|---|---|---|---|---|---|---|
-| `executive.read` | ✓ | — | — | — | — | — | — | — |
-| `pmo.read` | — | ✓ | — | — | — | — | — | — |
-| `pmo.write` | — | ✓ | — | — | — | — | — | — |
-| `project.read` | — | — | ✓ | — | ✓ | ✓ | ✓ | ✓ |
-| `project.pmc.read` | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `project.performance.read_own` | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `project.budget.manage` | — | — | ✓ | — | — | — | — | — |
-| `project.cost.enter` | — | — | ✓ | — | — | — | — | — |
-| `project.cashflow.read` | — | — | ✓ | — | — | — | — | — |
-| `project.evm.manage` | — | — | ✓ | ✓ | — | — | — | — |
-| `project.tender.level` | — | — | ✓ | — | — | — | — | — |
-| `project.pmc.manage` | — | — | — | ✓ | — | — | — | — |
-| `project.wbs.manage` | — | — | — | ✓ | — | — | — | — |
-| `project.schedule.manage` | — | — | — | ✓ | — | — | — | — |
-| `project.pmc.update` | — | — | — | — | ✓ | — | — | — |
-| `project.rfi.manage` | — | — | — | — | ✓ | ✓ | ✓ | — |
-| `project.field.manage` | — | — | — | — | ✓ | — | — | — |
-| `project.material.request` | — | — | — | — | ✓ | — | — | — |
-| `project.design.approve` | — | — | — | — | ✓ | — | — | — |
-| `project.design.manage` | — | — | — | — | — | ✓ | ✓ | — |
-| `project.design.architectural` | — | — | — | — | — | ✓ | — | — |
-| `project.design.technical` | — | — | — | — | — | — | ✓ | — |
-| `project.commitment.manage` | — | — | — | — | — | — | — | ✓ |
-| `project.tender.manage` | — | — | — | — | — | — | — | ✓ |
-| `project.tender.bids` | — | — | — | — | — | — | — | ✓ |
+`TENANT_OWNER` ليس عمودًا: يحمل كل الرموز الخمسة والأربعين في المصدر، ويُمنح الجديدة تلقائيًا عند كل تشغيل (`ensureTenantOperationalRoles`، سطور 849 إلى 853 من `server/db.ts`).
 
-**عدد الصلاحيات في كل قالب:** `EXECUTIVE` 1، `PMO_LEAD` 2، `COST_CONTROLLER` 8، `PLANNING_ENGINEER` 6، `PROJECT_COORDINATOR` 8، `DESIGN_COORDINATOR_ARCHITECTURAL` 6، `DESIGN_COORDINATOR_TECHNICAL` 6، `CONTRACTS_MANAGER` 6.
+| Permission | Product | WC | PO | FM | AC | HR | PE | SE | QA | HSE | PM | EX | PMO | CC | PC | DCA | DCT | CM |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tenant.manage` | EXECUTIVE | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `executive.read` | EXECUTIVE | - | - | - | - | - | - | - | - | - | - | x | - | - | - | - | - | - |
+| `pmo.read` | PMO | - | - | - | - | - | - | - | - | - | - | - | x | - | - | - | - | - |
+| `pmo.write` | PMO | - | - | - | - | - | - | - | - | - | - | - | x | - | - | - | - | - |
+| `project.read` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | x | x | x | x | x |
+| `project.write` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.inventory.manage` | PROJECT | x | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.procurement.manage` | PROJECT | - | x | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.budget.manage` | PROJECT | - | - | x | - | - | - | - | - | - | x | - | - | x | - | - | - | - |
+| `project.cost.enter` | PROJECT | - | - | x | x | - | - | - | - | - | x | - | - | x | - | - | - | - |
+| `project.cashflow.read` | PROJECT | - | - | x | - | - | - | - | - | - | x | - | - | x | - | - | - | - |
+| `project.commitment.manage` | PROJECT | - | - | x | - | - | - | - | - | - | x | - | - | - | - | - | - | x |
+| `project.invoice.match` | PROJECT | - | - | x | x | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.payroll.run` | PROJECT | - | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.payroll.approve` | PROJECT | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.payroll.sensitive.read` | PROJECT | - | - | x | - | x | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.hr.manage` | PROJECT | - | - | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.hr.sensitive.read` | PROJECT | - | - | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.payroll.structure` | PROJECT | - | - | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.attendance.manage` | PROJECT | - | - | - | - | x | - | - | - | - | x | - | - | - | - | - | - | - |
+| `project.performance.read_own` | PROJECT | x | x | x | x | x | x | x | x | x | x | - | - | x | x | x | x | x |
+| `project.performance.manage` | PROJECT | - | - | - | - | x | - | - | - | - | x | - | - | - | - | - | - | - |
+| `project.wbs.manage` | PROJECT | - | - | - | - | - | x | - | - | - | x | - | - | - | - | - | - | - |
+| `project.schedule.manage` | PROJECT | - | - | - | - | - | x | - | - | - | x | - | - | - | - | - | - | - |
+| `project.evm.manage` | PROJECT | - | - | - | - | - | x | - | - | - | x | - | - | x | - | - | - | - |
+| `project.progress.manage` | PROJECT | - | - | - | - | - | - | x | - | - | x | - | - | - | - | - | - | - |
+| `project.field.manage` | PROJECT | - | - | - | - | - | - | x | - | x | x | - | - | - | x | - | - | - |
+| `project.quality.manage` | PROJECT | - | - | - | - | - | - | x | x | - | x | - | - | - | - | - | - | - |
+| `project.hse.manage` | PROJECT | - | - | - | - | - | - | x | - | x | x | - | - | - | - | - | - | - |
+| `project.rfi.manage` | PROJECT | - | - | - | - | - | - | x | - | - | x | - | - | - | x | x | x | - |
+| `project.ncr.manage` | PROJECT | - | - | - | - | - | - | x | x | - | x | - | - | - | - | - | - | - |
+| `project.material.request` | PROJECT | - | - | - | - | - | - | x | - | - | x | - | - | - | x | - | - | - |
+| `project.pmc.read` | PROJECT | - | - | x | - | - | x | x | x | - | x | - | - | x | x | x | x | x |
+| `project.pmc.update` | PROJECT | - | - | - | - | - | - | x | x | - | x | - | - | - | x | - | - | - |
+| `project.pmc.manage` | PROJECT | - | - | - | - | - | x | - | - | - | x | - | - | - | - | - | - | - |
+| `project.settings.labour` | PROJECT | - | - | x | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `project.manage` | PROJECT | - | - | - | - | - | - | - | - | - | x | - | - | - | - | - | - | - |
+| `project.design.manage` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | x | x | - |
+| `project.design.architectural` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | x | - | - |
+| `project.design.technical` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | x | - |
+| `project.design.approve` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | x | - | - | - |
+| `project.tender.manage` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | x |
+| `project.tender.bids` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | x |
+| `project.tender.level` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | x | - | - | - | - |
+| `project.tender.award` | PROJECT | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `payment.prepare (PROPOSED)` | PROJECT | - | - | - | p | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `payment.approve (PROPOSED)` | PROJECT | - | - | p | - | - | - | - | - | - | - | - | - | - | - | - | - | - |
+| `schedule.write (PROPOSED)` | PROJECT | - | - | - | - | - | p | - | - | - | - | - | - | - | - | - | - | - |
 
-**ما لا يمنحه أي قالب من الثمانية:** `project.tender.award`، و`tenant.manage`، و`project.write`، و`project.manage`، و`project.commitment.manage` لغير `CONTRACTS_MANAGER`.
+### 4.2 ما تكشفه المصفوفة
 
-**الغرض والحد الفاصل لكل قالب** (من `operationalRoleProfiles`، والنص الكامل في الملف):
-- `COST_CONTROLLER`: يتحكم في المال دون أن يحركه: الميزانيات والتكلفة الفعلية والتدفق والقيمة المكتسبة وتسوية العروض. لا يملك الالتزامات ولا مطابقة الفواتير.
-- `PROJECT_COORDINATOR`: يُبقي العمل متحركًا بين الفرق والاستشاري، وله الجانب الاعتمادي من التصميم (اعتماد المخطط وتسجيل رد الاستشاري).
-- `DESIGN_COORDINATOR_ARCHITECTURAL` و`DESIGN_COORDINATOR_TECHNICAL`: يصدران المخططات ويتابعانها في تخصصهما فقط، ولا يعتمد أيٌّ منهما ما يصدره.
-- `CONTRACTS_MANAGER`: يُعد المناقصات ويُدخل العروض ويدير الالتزامات التي تصبح عنها. لا يسوّي ولا يرسّي (تعليق `server/domain/operationalRoles.ts`: «the award stays with the company owner or a custom role»).
+- **`project.write` لا يحمله أي قالب.** يحمله `TENANT_OWNER` وحده. مهندس التخطيط لا يحمله، وهذا ما يطلبه R-3.
+- **`project.read` لا تحمله العشرة الأولى** (من `WAREHOUSE_CUSTODIAN` إلى `PROJECT_MANAGER`)، ولا `EXECUTIVE` ولا `PMO_LEAD`. `listProjectsForTenant` (`server/db.ts`) يتطلب `project.read`، فلا تعرض قائمة المشاريع لهؤلاء عبر ذلك المسار. انظر Q4 في البند 8.1.
+- **`tenant.manage` لا يحمله قالب.** لكن `createTenantRole` يسمح بحمله لدور مخصص من منتج `EXECUTIVE`، لذلك يشترط اعتماد الترقية دور `TENANT_OWNER` (البند 2.5).
+- **`project.tender.award` لا يحمله قالب.** لو أُعطي `CONTRACTS_MANAGER` لانكسر زوج الفصل (`project.tender.bids`، `project.tender.award`). انظر Q3.
+- **`PROJECT_MANAGER` لا يحمل `project.write` ولا `schedule.write`.** وفي المصدر لا يكتب الخطة الرئيسية أحد من القوالب غير المالك. انظر Q5.
 
-### 4.2 قواعد فصل المهام
+### 4.3 قواعد الفصل بين المهام
 
-**على مستوى القوى:** `conflictingPermissionPairs` في `server/domain/operationalPermissions.ts`. لا يحمل أي شخص طرفي زوج، سواء من دور واحد أو من عدة أدوار أو من دور مخصص:
-
-| الزوج | السبب المكتوب في الكود | القوالب المعنية |
-|---|---|---|
-| `project.design.manage` + `project.design.approve` | من يصدر مخططًا لا يعتمده، ولا يسجل رد الاستشاري على تقديمه | `DESIGN_COORDINATOR_*` مع `PROJECT_COORDINATOR` |
-| `project.tender.bids` + `project.tender.award` | من يُدخل العروض لا يرسّي المناقصة | `CONTRACTS_MANAGER` مع أي دور يحمل `project.tender.award` |
-| `project.tender.bids` + `project.tender.level` | من يُدخل العروض لا يسوّيها، لأن المقارنة لا تكون مستقلة إلا إن أجراها غيره | `CONTRACTS_MANAGER` مع `COST_CONTROLLER` |
-| `project.procurement.manage` + `project.inventory.manage` | المشتري لا يستلم البضاعة ويصرفها | لا يحمله قالب من الثمانية |
-| `project.procurement.manage` + `project.invoice.match` | المشتري لا يطابق فاتورة المورد | لا يحمله قالب من الثمانية |
-| `project.inventory.manage` + `project.invoice.match` | من يستلم البضاعة لا يطابق فاتورتها | لا يحمله قالب من الثمانية |
-| `project.payroll.run` + `project.payroll.approve` | من يشغّل الرواتب لا يعتمدها | لا يحمله قالب من الثمانية |
-| `project.payroll.run` + `project.hr.manage` | لا تُشغَّل الرواتب من يحفظ سجلات الموظفين | لا يحمله قالب من الثمانية |
-| `project.payroll.run` + `project.payroll.structure` | لا تُشغَّل الرواتب من يضع هياكل الرواتب | لا يحمله قالب من الثمانية |
-
-**على مستوى الأدوار المسماة:** `conflictingOperationalRolePairs` في `server/domain/operationalRoles.ts`: `PROCUREMENT_OFFICER` مع `WAREHOUSE_CUSTODIAN`، و`ACCOUNTANT` مع `FINANCE_MANAGER`، و`HR_MANAGER` مع `ACCOUNTANT`. لا تشمل القوالب الثمانية.
-
-**فحص القوالب الثمانية مجتمعة:** كل قالب على حدة لا يحمل زوجًا. مجتمعة، يظهر زوجان: `project.design.manage` مع `project.design.approve`، و`project.tender.bids` مع `project.tender.level`. لذلك يُرفض إسناد الدورين معًا للشخص نفسه في النطاق نفسه (انظر البند 5).
-
-**على مستوى الأشخاص (في الخدمات):**
-- `awardTender`: من أدخل أي عرض في الحزمة لا يرسّيها، ولو كان مالكًا (`PROJECT_OS_TENDER_SELF_AWARD`).
-- `approveDesignDrawing`: مُصدر المراجعة لا يعتمدها (`PROJECT_OS_DESIGN_SELF_APPROVAL`).
-- `transitionDesignComment`: من ردّ على التعليق لا يغلقه (`PROJECT_OS_DESIGN_SELF_CLOSE`).
-- `transitionDesignSubmittal`: مُرسل التقديم لا يسجّل رده (`PROJECT_OS_DESIGN_SELF_REPLY`).
-- إسناد الدور أو تعديله لنفسك: مرفوض (`PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN`).
-- آخر مالك نشط للشركة: لا يُعطَّل (`PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN`).
-
-**الإعفاء:** مالك الشركة يُعفى من فحص الزوج عند الإسناد (`rolePermissionCodesForMembership` يعيد `isOwner`). الإعفاء لا يمتد إلى فحوص الأشخاص أعلاه.
-
-**زوج لم يُعرَّف:** لا توجد صلاحية في الكتالوج لإصدار المدفوعات أو اعتمادها. الزوج الأقرب هو تشغيل الرواتب مع اعتمادها (`project.payroll.run` و`project.payroll.approve`). مطلوب قرار المالك قبل تعريف زوج جديد (البند 8.5).
+| القاعدة | الأدوار | نقطة الإنفاذ | رمز الخطأ |
+|---|---|---|---|
+| مُعِدّ الدفعة لا يعتمدها | `ACCOUNTANT` (`payment.prepare`) مقابل `FINANCE_MANAGER` (`payment.approve`) | زوج مقترح في `conflictingPermissionPairs` (`server/domain/operationalPermissions.ts`)؛ الزوج الاسمي `ACCOUNTANT`/`FINANCE_MANAGER` في `conflictingOperationalRolePairs` عند `assignTenantMembershipRole`؛ قيد `project_payments` (البند 2.3)؛ فحص الخدمة قبل الاعتماد | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` (موجود) للدور والصلاحيات؛ `PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN` (مقترح) للسجل |
+| المُعِدّ لا يعتمد دفعته حتى لو كان `TENANT_OWNER` | كل من يملك الصلاحيتين | قيد الجدول وفحص الخدمة لا يُعفيان أحدًا. الفحص الزوجي يُعفي `TENANT_OWNER` في `updateTenantRole` (فرع `others.isOwner`) وفي تعيين دور `TENANT_OWNER` نفسه في `assignTenantMembershipRole` | `PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN` (مقترح) |
+| المشتري لا يستلم المواد ولا يطابق الفاتورة، والمستلم لا يطابقها | الصلاحيات `project.procurement.manage`، و`project.inventory.manage`، و`project.invoice.match` | ثلاثة أزواج في `conflictingPermissionPairs`؛ تُفحص في `createTenantRole` و`updateTenantRole` و`assignTenantMembershipRole` | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` |
+| الدفع لا يُشغَّل ممن يسجّل الموظفين أو يضع الهياكل، ولا يعتمده من يشغّله | `ACCOUNTANT` مقابل `HR_MANAGER` و`FINANCE_MANAGER` | أزواج `project.payroll.run` مع `project.hr.manage` و`project.payroll.structure` و`project.payroll.approve`؛ والاسمي `HR_MANAGER`/`ACCOUNTANT` و`ACCOUNTANT`/`FINANCE_MANAGER` | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` |
+| من يصدر الرسم لا يعتمده | `DCA` و`DCT` مقابل `PC` (`project.design.approve`) | زوج `project.design.manage` مع `project.design.approve` | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` |
+| من يدخل العروض لا يرسيها ولا يقارنها | `CM` مقابل `CC` (`project.tender.level`) | زوجا `project.tender.bids` مع `project.tender.award` و`project.tender.level` | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` |
+| مهندس التخطيط يكتب الجدول والخطة بـ`schedule.write` دون `project.write` | `PE` | قالب `PE` لا يحمل `project.write` (اختبار، البند 7)؛ كتابة الخطة الرئيسية تقبل `schedule.write` وتُرفض بـ`project.write` وحده (`AM-5`) | رفض عام (انظر البند 5، الصف 10) |
+| لا أحد يغيّر عضويته أو امتيازاته من خلال هذا المسار | أي عضو | `assignTenantMembershipRole` و`updateTenantRole` | `PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN` (موجود) |
 
 ## 5. حالات الرفض
 
-| # | الحالة | رمز tRPC | الرمز المعرّب | ما يراه المستخدم |
+| # | الإجراء | الرمز | ما يراه المستخدم | الإنفاذ |
 |---|---|---|---|---|
-| 1 | إنشاء دور مخصص برمز موجود في الشركة | CONFLICT | `PROJECT_OS_ROLE_CODE_EXISTS` | رسالة الرمز المكرر |
-| 2 | صلاحية غير موجودة في الكتالوج، أو من منتج غير منتج الدور | BAD_REQUEST | `PROJECT_OS_INVALID_ROLE_PERMISSIONS` | رسالة الصلاحيات غير الصالحة |
-| 3 | الدور المخصص يجمع طرفي زوج | FORBIDDEN | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` | رسالة فصل المهام |
-| 4 | تعديل قالب جاهز | FORBIDDEN | `PROJECT_OS_SYSTEM_ROLE_IMMUTABLE` | رسالة الدور الجاهز |
-| 5 | تعديل دور يحمله المستخدم نفسه | FORBIDDEN | `PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN` | رسالة تغيير الصلاحية الذاتية |
-| 6 | تعديل دور سيجمع طرفي زوج عند أحد حامليه | FORBIDDEN | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` | رسالة فصل المهام |
-| 7 | إسناد دور يجمع مع أدوار العضو في النطاق نفسه طرفي زوج | FORBIDDEN | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` | رسالة فصل المهام |
-| 8 | إسناد دور يجمع رمزين من `conflictingOperationalRolePairs` | FORBIDDEN | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` | رسالة فصل المهام |
-| 9 | إسناد دور لعضو غير موجود في الشركة | NOT_FOUND | `PROJECT_OS_MEMBER_NOT_FOUND` | رسالة عدم الوجود |
-| 10 | إسناد دور موجود للعضو نفسه بالنطاق نفسه | CONFLICT | `PROJECT_OS_ROLE_ASSIGNMENT_EXISTS` | رسالة التكرار |
-| 11 | نطاق لا يتبع الشركة (BAD_REQUEST إن كان نطاق الشركة بمعرّف، وNOT_FOUND إن كان المشروع أو الوحدة غير موجودة فيها) | BAD_REQUEST أو NOT_FOUND | `PROJECT_OS_INVALID_SCOPE` | رسالة النطاق |
-| 12 | إسناد دور لمنتج غير مرخّص للشركة | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص |
-| 13 | إلغاء إسناد غير موجود | NOT_FOUND | `PROJECT_OS_ROLE_ASSIGNMENT_NOT_FOUND` | رسالة عدم الوجود |
-| 14 | تعطيل آخر مالك نشط | FORBIDDEN | `PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN` | رسالة آخر مالك |
-| 15 | المستخدم بلا `tenant.manage`، أو بلا منتج EXECUTIVE | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` أو `PROJECT_OS_PRODUCT_NOT_ENTITLED` | نص `WriteGate` قبل الإرسال، والتنبيه بعده |
-
-**ملاحظة على الرفض 15:** `assertTenantManager` في `server/db.ts` يطلب المنتج `EXECUTIVE` مع `tenant.manage`. الشركة التي اشترت باقة `PROJECT` وحدها لا تملك هذا المنتج، فلا يستطيع مالكها إدارة الأدوار أو الدعوات. انظر البند 8.
+| 1 | تعديل دور نظامي بالمسار القديم `tenant.updateRole` | `PROJECT_OS_SYSTEM_ROLE_IMMUTABLE` (موجود) | «لا يمكن تعديل دور يديره النظام.» | `updateTenantRole`. يبقى كما هو، والتجاوز يمر عبر `tenant_role_overrides` فقط. |
+| 2 | حفظ دور أو تجاوز بصلاحية من منتج آخر، أو رمز غير موجود في الكتالوج | `PROJECT_OS_INVALID_ROLE_PERMISSIONS` (موجود) | «يجب أن تنتمي جميع الصلاحيات المختارة إلى منتج الدور المحدد وأن تكون موجودة في الكتالوج.» | `createTenantRole`، `updateTenantRole`، وتجاوز مقترح |
+| 3 | تجاوز أو دور يجمع زوجًا متعارضًا | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` (موجود) | «لا يمكن جمع هذين الدورين المتعارضين للمستخدم نفسه ضمن نطاق متداخل.» | `findPermissionConflict` في `createTenantRole` و`updateTenantRole` |
+| 4 | تعيين دورين متعارضين لعضو في نطاق متداخل | `PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT` (موجود) | النص نفسه | `assertOperationalRoleSeparation` في `assignTenantMembershipRole` |
+| 5 | تعديل عضويتك أو دورك بنفسك | `PROJECT_OS_SELF_PRIVILEGE_CHANGE_FORBIDDEN` (موجود) | «لا يمكنك تعديل عضويتك أو امتيازاتك من خلال هذا المسار.» | `assignTenantMembershipRole` و`updateTenantRole` |
+| 6 | اعتماد ترقية من غير حامل `TENANT_OWNER`، أو من لا عضوية نشطة له | `PROJECT_OS_TENANT_ACCESS_DENIED` (موجود) | «لا تملك وصولاً إلى مساحة العمل المطلوبة.» | `assertTenantManager` (لغياب اللقطة) وشرط `TENANT_OWNER` (مقترح) |
+| 7 | اعتماد ترقية على فرق قديم (تغيّر `base_version` أو الإصدار بعد عرض الفرق) | `PROJECT_OS_ROLE_TEMPLATE_VERSION_STALE` (مقترح، CONFLICT) | «تغيّر القالب منذ عرض الفرق. أعد مراجعة التغييرات ثم أعد الاعتماد.» (مقترح، يُضاف للعربية والإنجليزية في `shared/projectErrors.ts`) | خدمة الترقية، قبل أي كتابة |
+| 8 | اعتماد دفعة أعدّها المستخدم نفسه | `PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN` (مقترح) | «لا يمكن اعتماد دفعة أعددتها بنفسك.» (مقترح) | خدمة الاعتماد وقيد `project_payments` |
+| 9 | اعتماد دفعة بلا صلاحية `payment.approve` (كالمحاسب) | لا رمز `PROJECT_OS_`: `assertTenantAccess` يرفض بنص إنجليزي (`server/domain/authorization.ts`) | «تعذر إتمام الطلب. تحقق من البيانات ثم أعد المحاولة.» (الرسالة العامة، `client/src/lib/projectErrors.ts:13`) | `assertTenantAccess`. هذه ثغرة في الرسالة وليست في المنع (البند 8.2). |
+| 10 | كتابة الخطة الرئيسية بـ`project.write` وحده، دون `schedule.write` | لا رمز `PROJECT_OS_` (كالصف 9) | الرسالة العامة نفسها | `AM-5` يغيّر الفحص إلى `schedule.write` |
+| 11 | تعديل قالب نظامي مباشرة (UPDATE على `role_template_versions`) | خطأ قاعدة 42501، ولا يصل للواجهة | الرسالة العامة نفسها | منح `project_os_app` لـ`SELECT, INSERT` فقط (البند 2.1) |
 
 ## 6. معايير القبول
 
-1. كل قالب من الثمانية يُثبَّت في الشركة بالمنتج الذي يحمله تعريفه، وبالصلاحيات المطابقة لعمود المصفوفة في البند 4.1، لا أكثر ولا أقل.
-2. عدد الصلاحيات المعروض لكل قالب يساوي العدد في البند 4.1.
-3. لا يحمل أي قالب من الثمانية صلاحية خارج عموده في المصفوفة، وإن تغيّر التعريف في الكود تفشل الاختبارات حتى تُحدَّث المواصفة.
-4. لا يُسند لشخص واحد في النطاق نفسه قالبان يجمعان طرفي زوج من `conflictingPermissionPairs`، ويُرفض الإسناد بـ`PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT`.
-5. إسناد `CONTRACTS_MANAGER` ثم `COST_CONTROLLER` للشخص نفسه في النطاق نفسه يُرفض.
-6. إسناد `DESIGN_COORDINATOR_ARCHITECTURAL` مع `PROJECT_COORDINATOR` للشخص نفسه في النطاق نفسه يُرفض.
-7. مُصدر المراجعة لا يعتمدها بأي دور يحمله، حتى لو أُسند إليه `PROJECT_COORDINATOR` في نطاق آخر، لأن فحص `PROJECT_OS_DESIGN_SELF_APPROVAL` يقوم على المستخدم لا على الدور.
-8. القالب الجاهز لا يُعدَّل ولا يُحذف: `PROJECT_OS_SYSTEM_ROLE_IMMUTABLE`.
-9. `EXECUTIVE` و`PMO_LEAD` لا يفتحان مشروعًا، ولا يحملان `project.read`.
-10. كل قالب يعرض البطاقة التعريفية بالعربية والإنجليزية، وتتطابق الكلمات الثلاث (الغرض والتركيز والحد الفاصل) مع التعريف.
-11. تثبيت القوالب مرة ثانية لا يكرر الصفوف، ولا يضيف صلاحية لم تكن في التعريف.
-12. تغيير تعريف قالب في إصدار لاحق لا يسحب صلاحية كانت ممنوحة، إلا بخطوة صريحة (انظر البند 8.2).
-13. كل كتابة في إنشاء دور مخصص أو تعديله أو إسناده أو إلغاء إسنادها تنتج صف التدقيق المذكور في البند 2.5. تثبيت القوالب الجاهزة مستثنى من ذلك حاليًا، وهو عيب مذكور في البند 8.
+1. لكل قالب من القوالب السبعة عشر صف في `role_template_versions` على الأقل، و`permission_codes` لآخر إصدار تطابق `operationalRoleDefinitions` عند `source_ref`.
+2. نشر تعريف مختلف ينشئ إصدارًا بـ`template_version + 1`، ولا يعدّل أي صف قديم، وUPDATE عليه مرفوض لـ`project_os_app`.
+3. فتح شاشة الإدارة لا يكتب في `role_permissions` لأي دور نظامي (عدّ الكتابات صفر). اليوم تكتب: `ensureTenantOperationalRoles` تُستدعى من `getTenantAdministration`.
+4. حفظ تجاوز لا يغيّر `role_template_versions` ولا `permissions` ولا أي دور نظامي آخر.
+5. الفرق المعروض لكل دور يساوي الإصدار الجديد ناقص القديم (مضاف)، والقديم ناقص الجديد (محذوف)، مع تمييز ما يُبقيه تجاوز الشركة.
+6. لا تُطبَّق ترقية إلا بطلب من حامل `TENANT_OWNER`. طلب من حامل `tenant.manage` غير المالك يُرفض بـ`PROJECT_OS_TENANT_ACCESS_DENIED`.
+7. ترقية على فرق قديم تُرفض بـ`PROJECT_OS_ROLE_TEMPLATE_VERSION_STALE` (مقترح)، ولا تغيّر `role_permissions`.
+8. فشل كتابة صف التدقيق داخل معاملة الترقية يُلغي تغيير الصلاحيات كله (اختبار سلبي).
+9. المصفوفة في البند 4.1 تطابق المولّدة من المصدر (الاختبار يقرأ المصدر ويقارن).
+10. `ACCOUNTANT` يملك `payment.prepare` ولا يملك `payment.approve`، و`FINANCE_MANAGER` يملك `payment.approve` ولا يملك `payment.prepare`.
+11. اعتماد دفعة بالمستخدم نفسه مرفوض بـ`PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN` (مقترح)، بما فيها حالة `TENANT_OWNER`، والإدراج المباشر بالشرط نفسه يرفضه قيد `project_payments`.
+12. دور مخصص يجمع `payment.prepare` و`payment.approve` يُرفض بـ`PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT`.
+13. `PLANNING_ENGINEER` يملك `schedule.write` ولا يملك `project.write`. كتابة الخطة الرئيسية بـ`project.write` وحده تُرفض، وبـ`schedule.write` تُقبل.
+14. صف التجاوز أو الإصدار لشركة لا يُقرأ من شركة أخرى (اختبار سلبي بعضويتين).
+15. كل رمز خطأ جديد له نص عربي وإنجليزي في `shared/projectErrors.ts`.
+16. لا تُكتب `PROVEN` في `STATE.md` لهذه المواصفة إلا بعد تشغيل اختبارات البند 7 على قاعدة PostgreSQL اختبارية (`project_os_integration_test`)، مع العدد والتاريخ والـhash في الصف نفسه.
 
 ## 7. الاختبارات المطلوبة
 
-**اختبارات وحدة (دوال نقية، دون قاعدة):**
-- الموجود: `server/domain/operationalRoles.test.ts` (اختباران، لمدير المشروع وللجودة والسلامة فقط)، و`server/domain/operationalPermissions.test.ts` (يثبت أن كل صلاحية مفروضة في مكان ما، وأن «no built-in role holds both sides of a pair»، وأن كل زوج يسمّي صلاحيات حقيقية).
-- المطلوب: اختبار يقرأ `operationalRoleDefinitions` ويقارنه بجدول المصفوفة في البند 4.1 بالكامل: الصلاحيات، وعددها، والمنتج. إذا تغيّر التعريف دون تحديث الجدول، يفشل الاختبار.
-- المطلوب: لكل قالب من الثمانية، لا يحمل أي زوج من `conflictingPermissionPairs`، ومجتمعًا يُعرف ما يُعارض.
-- المطلوب: `findPermissionConflict` على كل الأزواج الممكنة من قالبين.
+**موجودة:**
+- `server/domain/operationalRoles.test.ts`: الكتالوج وفصل الأدوار (`assertOperationalRoleSeparation`).
+- `server/domain/operationalPermissions.test.ts`: الأزواج (`conflictingPermissionPairs`، `findPermissionConflict`).
+- `server/domain/authorization.test.ts`: `assertTenantAccess` و`hasScopeAccess`.
+- `server/role.templates.database.test.ts`: قاعدة حية، ويتخطى نفسه دون `TEST_DATABASE_URL`.
+- `server/pilot.roleAcceptance.database.test.ts`: قبول الأدوار على قاعدة حية.
+- `client/src/lib/operationalRolePresentation.test.tsx` و`client/src/lib/userGuide.test.tsx`: الدليل يتحقق أن كل صلاحية يذكرها موجودة في القالب (البند U-2).
+- `scripts/e2e-roles.mjs` (متصفح، ومعه `scripts/lib/roleFixture.mjs`).
+- `scripts/run-integration-database-test.mjs`: يشغّل الاختبارات الحية على `project_os_integration_test` فقط (`CLAUDE.md` §7). بعد النقل يحتاج قاعدة PostgreSQL اختبارية (`AM-9`).
 
-**اختبارات تكامل قاعدة البيانات (على `project_os_integration_test` فقط، وتُتخطى بلا `TEST_DATABASE_URL`):**
-- الموجود: `server/role.templates.database.test.ts` (6 اختبارات): تثبيت كل قالب بمنتجه وصلاحياته، وأن كل قالب يُسمح له بإجراءات المناقصات والتصميم التي يحملها ويُرفض الباقي بالرسالة الصحيحة، والمصمّمون مقيّدون بتخصصهم ولا يعتمدون ما يصدرون، و`CONTRACTS_MANAGER` يُعد ويُدخل ولا يسوّي ولا يرسّي، و`COST_CONTROLLER` يسوّي ولا يُدخل العروض، و«powers that must not meet cannot be combined on one person, even across two templates»، و`EXECUTIVE` و`PMO_LEAD` لا يفتحان مشروعًا.
-- الموجود: `server/design.coordination.database.test.ts` (يختبر أن الدور المفرد لا يصدر ويعتمد معًا).
-- الموجود: `server/integration.database.test.ts`، الاختبار «governs tenant role and membership administration with scope and self-privilege guards».
-- المطلوب: تثبيت القوالب مرتين يترك العدد كما هو، ويطابق المصفوفة.
-- المطلوب: تغيير تعريف قالب في الكود بعد تثبيته، وإعادة التثبيت، وإثبات بقاء الصلاحية القديمة (لتوثيق الخطر في البند 8.2).
-- المطلوب: إسناد دور جاهز بمنتج غير مرخّص يُرفض بـ`PROJECT_OS_PRODUCT_NOT_ENTITLED`.
+**مقترحة (`PROPOSED`):**
+- `server/domain/roleTemplates.test.ts`: مطابقة المصفوفة مع المصدر (معيار 9)، و`PLANNING_ENGINEER` بلا `project.write` (معيار 13)، و`ACCOUNTANT`/`FINANCE_MANAGER` (معيار 10)، ولا قالب يحمل زوجًا متعارضًا، والزوج الجديد في `conflictingPermissionPairs`.
+- `server/role.overrides.database.test.ts`: التجاوز والترقية والرفض والتدقيق والعزل (معايير 1 إلى 8 و14).
+- `server/payments.separation.database.test.ts`: قيد الجدول والخدمة (معيارا 11 و12).
 
-**اختبارات مكوّنات الواجهة:**
-- الموجود: `client/src/lib/operationalRolePresentation.test.tsx`، و`client/src/pages/TenantAdministration.access.test.tsx`، و`client/src/pages/TenantAdministration.loading.test.tsx`، و`client/src/lib/permissions.test.tsx`.
-- المطلوب: البطاقة التعريفية تعرض الغرض والتركيز والحد الفاصل بالكلمات نفسها التي في `operationalRoleProfiles`، بالعربية والإنجليزية.
-- المطلوب: زر تعديل القالب الجاهز غائب.
+**الأوامر:**
+- `pnpm check`، و`pnpm build`، و`pnpm test`.
+- `pnpm exec vitest run server/domain/operationalRoles.test.ts server/domain/operationalPermissions.test.ts server/domain/authorization.test.ts`.
+- `pnpm coverage:trpc` (يتحقق من إجراءات tRPC الجديدة).
+- `node scripts/run-integration-database-test.mjs` على قاعدة اختبارية، و`pnpm verify:audit-grants`.
 
-## 8. مخاطر وأسئلة مفتوحة
+**كل رفض في البند 5 يحتاج اختبارًا سلبيًا وآخر إيجابيًا** (`CLAUDE.md` §1: كل إصلاح يحتاج دليلًا إيجابيًا وسلبيًا).
 
-**قرارات المالك (BLOCKED_BY_OWNER، لا تُفترض):**
-1. **المحرك.** نفس قرار `docs/specs/TENDERING.md` البند 8.1.
-2. **تعديل القالب بعد التثبيت.** `ensureTenantOperationalRoles` يُضيف صلاحيات التعريف إلى الدور الجاهز، لكنه لا يحذف صلاحية أُزيلت من التعريف. الشركة التي ثبّتت القالب القديم تحتفظ بالصلاحية المحذوفة. هل تُحذف الصلاحيات الزائدة عند التثبيت (مع صف تدقيق)، أم تُعامل التعديلات بإجراء صريح؟
-3. **`PROJECT_COORDINATOR` يعتمد المخططات في كل التخصصات.** `approveDesignDrawing` لا يفحص سلطة التخصص، والقالب يحمل `project.design.approve` دون `project.design.architectural` أو `project.design.technical`. هل يعتمد المنسق العام المعماري والفني معًا؟ (البند 8 في `docs/specs/DESIGN_COORDINATION.md`).
-4. **إنشاء العقود والالتزامات يدويًا لـ`CONTRACTS_MANAGER`.** يحمل `project.commitment.manage`، فيستطيع إنشاء عقد والتزام دون مناقصة مرسّاة. التعليق في الكود يقول إن الالتزامات «they become»، أي أنها نتيجة المناقصات. هل هذا مقصود؟
-5. **زوج لإصدار الدفعات واعتمادها.** لا توجد صلاحية لإصدار المدفوعات في الكتالوج. السؤال: ما الصلاحيتان، وما الفعل الذي يُعدّ «الإصدار»؟ لا يُعرَّف زوج قبل الجواب.
-6. **منتج الإدارة.** `assertTenantManager` يطلب `EXECUTIVE`. هل تُدار الأدوار والدعوات في باقات `PROJECT` و`PMO` و`PMO + PROJECT` التي لا تحمل `EXECUTIVE`؟ السؤال تجاري ومنتجي، ولا يُحل في الكود.
-7. **`TENANT_OWNER` قابل للدعوة.** `createMembershipInvitation` يقبل أي `roleId` للشركة، ومنه دور المالك. الواجهة تخفيه في المعالج، والخادم لا يرفضه. هل يُمنع أم يُسمح لمدير الشركة بتعيين مالك جديد؟
-8. **القالب `PLANNING_ENGINEER` لا يحمل `project.read`.** القوالب الأولى التسعة لا تحمله، وتعليق الكود يقول إن قوالب أمر العمل 5 وحدها تحمله. `listProjectsForTenant` يطلب `project.read`، فحامل قالب التخطيط وحده لا يرى قائمة المشاريع. هل يُضاف `project.read` لكل القوالب، أم يُترك الأمر لمنح منفصلة؟
+## 8. المخاطر والأسئلة المفتوحة
 
-**عيوب في الكود (OPEN):**
-- **تثبيت الأدوار بلا صف تدقيق**، داخل استعلام قراءة (`getTenantAdministration`). الإصلاح: نقل التثبيت إلى إنشاء الشركة في المعاملة نفسها، أو كتابة صف تدقيق باسم مقترح `tenant.system_roles_installed` عند أول تثبيت فعلي.
-- **تعليق في `server/domain/operationalRoles.ts` يذكر `assertNoPermissionConflict`** بوصفه الحارس، بينما `server/db.ts` يستعمل `findPermissionConflict` مباشرة، و`assertNoPermissionConflict` مصدَّرة ولا يستدعيها كود الخادم. الإصلاح: تصحيح التعليق، أو استدعاء الدالة في الموضعين.
-- **فحص الزوج عند الإسناد يقتصر على الأدوار المتقاطعة في النطاق.** الدور المسند للشركة كلها يتقاطع مع كل نطاق، فيُرفض إسناده لعضو يحمل في أي نطاق الطرف الآخر من الزوج. هذا محافظ، ويحتاج تأكيد المالك قبل اعتباره المقصود.
-- **قبول الدعوة لا يُعيد فحص الفصل.** الدعوة تحمل دورًا واحدًا لعضو جديد، فلا تتكون أزواج في الدور الواحد (لأن الدور نفسه يُفحص عند إنشائه وتعديله). الفحص نفسه يغيب عن `acceptMembershipInvitation`، وينبغي أن يبقى غيابه مرهونًا بهذا الشرط.
-**مخاطر تشغيلية:**
-- إضافة صلاحية إلى الكتالوج تمنحها تلقائيًا للمالك (`allCatalogPermissions`)، لكنها لا تدخل أي قالب إلا بتعديل التعريف. هذا مقصود، لكنه يصعّب مراجعة الأثر على الأدوار القائمة.
+### 8.1 أسئلة مفتوحة (كلها `BLOCKED_BY_OWNER`)
+
+- **Q1: هل يُدعى `TENANT_OWNER` كدور؟** `SetupWizard` يستبعده (السطر 146)، ولا قرار مكتوب.
+- **Q2 (W-1): `project.write` لـ`EXECUTIVE` و`PMO_LEAD`.** القراران يوجبان الدورين. لكن الدورين من منتج واحد (`EXECUTIVE` و`PMO`)، و`createTenantRole` و`updateTenantRole` يرفضان صلاحية من منتج مختلف (`PROJECT_OS_INVALID_ROLE_PERMISSIONS`). الخيارات: تغيير منتج القالب، أو استثناء، أو تأجيل. لم تُضف للمصفوفة.
+- **Q3 (T-1): `tender.award` لـ`CONTRACTS_MANAGER`.** يكسر زوج `project.tender.bids` و`project.tender.award` (`server/domain/operationalPermissions.ts`). الخيارات: إعطاؤه `PROJECT_MANAGER` وحده، أو تغيير الزوج، أو تغيير القالب. لم تُضف للمصفوفة.
+- **Q4: `project.read` للعشرة الأولى.** قائمة المشاريع تتطلبه (`listProjectsForTenant`)، ومن لا يملكه لا يراها عبر هذا المسار. الإضافة تغيّر منح القوالب، فتحتاج موافقة مالك المستأجر (R-1) وقرارًا.
+- **Q5 (R-3): `project.schedule.manage` مقابل `schedule.write`.** R-3 يقول إن `schedule.write` «تغطي الجدول الزمني والخطة الرئيسية». هل يبقى `project.schedule.manage` لـ`PE` و`PM`، أم يُستبدل؟ وهل تُعطى الخطة الرئيسية لـ`PM`؟ المواصفة تبقي الرمز القديم حتى القرار.
+- **Q6 (R-2): كيان الدفعة.** ما المستفيد والمستند المصدر والعملة؟ هل تُعدّ الدفعة من `FINANCE_MANAGER` أيضًا؟ لا يُعرَّف هذا الكيان في الكود ولا في القرارات.
+- **Q7: مشاركة لقطات الخطة الرئيسية.** `createMasterPlanSnapshotForTenant` (`server/db.ts`) و`setMasterPlanSnapshotSharing` (`server/masterPlanTools.ts`) يكتبان بـ`project.read`. يقضي R-3 بنقل الكتابة للخطة الرئيسية، لكن هل تبقى المشاركة قراءة؟
+- **Q8: التجربة والأسعار والمقاعد وتعدد الشركات لكل حساب.** خارج هذه المواصفة، وكل منها `BLOCKED_BY_OWNER` (`AFTER_MIGRATION` البند 7.5).
+
+### 8.2 المخاطر (لا تحتاج قرارًا)
+
+- **ترقية تلقائية مخالفة لـR-1.** `ensureTenantOperationalRoles` (`server/db.ts`) تُستدعى من `getTenantAdministration` عند كل فتح للشاشة، فتكتب أسماء الأدوار النظامية ومنحها (`onDuplicateKeyUpdate`)، فيحصل كل مستأجر على أي منح جديد في القالب دون موافقة. هذا أهم عيب يلزم إصلاحه قبل أي ترقية (`AM-1`).
+- **`updateTenantRole`** تحذف منح الدور وتعيد كتابتها (`delete` ثم `insert`)، ولا تفرق بين الدور النظامي والتجاوز. تبقى محصورة بالدور غير النظامي بالرفض 1.
+- **رسالة الرفض العامة.** `assertTenantAccess` يرفض بنص إنجليزي لا رمز `PROJECT_OS_`، فيظهر للمستخدم الرسالة العامة (البند 5، الصفوف 9 و10 و11). الرفض نفسه سليم، والخلل في النص فقط (`AM-7`).
+- **سياسة الجدول العام** الافتراضية تسمح بالكتابة (البند 2.1)، لذلك تحتاج `role_template_versions` قائمة خاصة (`AM-2`).
+- **الأنواع:** خط الأساس `varchar(36)`، والطلب `uuid`. ينبغي حسمه قبل كتابة الترحيل (`AM-8`).
+- **حماية `audit_logs`** حسابية وليست مطلقة (البند 2.5، `ADR-0002` الحد 2).
+- **الاختبارات الحية** اليوم على MySQL. بعد النقل تحتاج قاعدة PostgreSQL اختبارية (`AM-9`).
+
+### 8.3 بنود ما بعد النقل التي تعتمد عليها المواصفة
+
+- **AM-1** `server/db.ts`، `ensureTenantOperationalRoles`: تتوقف عن كتابة منح الأدوار النظامية عند فتح الشاشة، والنشر يكتب الإصدار في خطوة منفصلة. القرار: R-1.
+- **AM-2** خط الأساس: جداول `role_template_versions` و`tenant_role_overrides` و`project_payments` بقيود البند 2، وUNIQUE (`tenant_id`, `id`) على `roles`، وقائمة `global_readonly_tables` في `project_os_apply_conventions()`. القرار: R-1 وR-2.
+- **AM-3** `server/domain/operationalRoles.ts`: إضافة `payment.prepare` و`payment.approve` و`schedule.write` إلى `operationalPermissionCatalog` وإلى القوالب. و`server/domain/operationalPermissions.ts`: زوج `payment.prepare`/`payment.approve` في `conflictingPermissionPairs`. القرار: R-2 وR-3.
+- **AM-4** `server/db.ts`: خدمة اعتماد الدفعة بفحص المُعِدّ ≠ المعتمِد، ورمز `PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN` مع نصه في `shared/projectErrors.ts`. القرار: R-2.
+- **AM-5** عشر دوال كتابة للخطة الرئيسية، تنتقل من `project.write` أو `project.read` إلى `schedule.write`: في `server/db.ts` `saveMasterPlanVisualizationRuleForTenant` (السطر 1619)، و`createMasterPlanForTenant` (1635)، و`createMasterPlanVersionForTenant` (1648)، و`createMasterPlanSpatialEntityForTenant` (1661)، و`applyMasterPlanMappingFile` (1676)، و`importMasterPlanSpatialEntitiesFromFile` (1697)، و`createMasterPlanSnapshotForTenant` (1599)؛ وفي `server/masterPlanTools.ts` `setMasterPlanVersionGeometry` (السطر 14)، و`updateMasterPlanEntityLayout` (37)، و`setMasterPlanSnapshotSharing` (67). ويُضاف `schedule.write` إلى مسارات الجدول في `governedActionPermissions` و`importModulePermissions.schedule` (`shared/importPermissions.ts`). يعود معها U-2 (دليل الاستخدام) وS-7. القرار: R-3.
+- **AM-6** خدمة ترقية القالب: معاينة الفرق، والتحقق من `base_version`، وشرط `TENANT_OWNER`، وكتابة الصلاحيات وصف التدقيق في معاملة واحدة. القرار: R-1.
+- **AM-7** `server/domain/authorization.ts`: رفض الصلاحية برمز `PROJECT_OS_` مترجم بدل النص الإنجليزي. لا يحتاج قرار المالك.
+- **AM-8** نوع المعرّف: `varchar(36)` في خط الأساس مقابل `uuid` في الطلب. يحسمه الوكيل 1 قبل الترحيل ويوثّقه في `docs/DECISIONS.md`. لا يحتاج قرار المالك.
+- **AM-9** الاختبارات الحية: `scripts/run-integration-database-test.mjs` و`server/role.templates.database.test.ts` تحتاجان قاعدة PostgreSQL اختبارية بعد النقل (`AFTER_MIGRATION` G-3).

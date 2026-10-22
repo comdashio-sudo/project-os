@@ -1,297 +1,304 @@
-# مواصفة المناقصات قبل الترسية (TENDERING)
+# مواصفة المناقصات قبل الترسية بمصطلحات PostgreSQL
+
+**الحالة:** `WRITTEN` (مواصفة مكتوبة، ولم يُنفَّذ منها شيء على PostgreSQL بعد)
+**التاريخ:** 22 أكتوبر 2026
+**المرجع الحاكم:** `docs/STATE.md` (صف «المناقصات قبل الترسية»، السطر 385) و`docs/ADR-0002-POSTGRES-SUPABASE-VERCEL.md` على الفرع `origin/feat/postgres-migration`.
+**خط الأساس:** الكود الحالي على MySQL/TiDB (`server/tenderService.ts`، `server/domain/tenders.ts`). أسماء الجداول والأعمدة بصيغة PostgreSQL من `drizzle/schema.ts` على الفرع `origin/feat/postgres-migration` (`pgTable`).
+**ملاحظة على المسارات:** المسارات التي تبدأ بـ`drizzle/schema.ts` و`drizzle/0000_baseline.sql` و`server/_core/database.ts` و`docs/ADR-0002` موجودة على `origin/feat/postgres-migration` فقط، والبقية على هذا الفرع.
+
+**دليل الوسوم:**
+- `DECIDED`: قرار للمالك، «قرار المالك، 22 أكتوبر 2026». لا يُعاد فتحه.
+- `PROPOSED`: تصميم جديد لم يرد في الكود ولا في قرار المالك، ويحتاج موافقة قبل التنفيذ.
+- `BLOCKED_BY_OWNER`: قرار يحجزه المالك، ولا يُفترض (القسم 8).
+- `AFTER_MIGRATION`: بند على الخادم أو القاعدة يعتمد عليه التصميم ولم يُحسم بعد الترحيل (القسم 2.12).
 
 ## 1. الهدف والنطاق
 
-**الحالة:** مواصفة بنائية مبنية على الكود في الفرع `main` عند `da61754`. لا تغيّر هذه الوثيقة أي صف في `docs/STATE.md`، ولا تُعد دليل `PROVEN`.
+**الهدف.** إدارة المناقصة من الحزمة إلى الترسية على PostgreSQL، بقواعد تُفرض في الخادم وفي القاعدة معًا: من أدخل العروض لا يرسّي، ولا يعدّل أحد عرض غيره، ولا تتجاوز الترسية بند الميزانية إلا باستثناء مكتوب ومعتمد، وكل المبالغ بالريال السعودي (SAR) في الإصدار الأول.
 
-**المحرك:** تستعمل المواصفة أنواع MySQL/TiDB كما هي في `drizzle/schema.ts`: `varchar(36)` للمعرّفات، و`int` لمعرّف المستخدم، و`mysqlEnum` للحالات، و`decimal(18,2)` للمبالغ، و`timestamp` للتواريخ. لم تُكتب بمفردات PostgreSQL، لأن رأس `CLAUDE.md` يقول إن مسار تغيير قاعدة البيانات غير معتمد، وأن `docs/DECISIONS.md` (ADR-001) يثبت MySQL لكل البيئة الجديدة. انظر البند 8، أول سؤال.
-
-**الهدف:** تنظيم ما قبل الترسية داخل مشروع واحد: حزمة مناقصة، ثم قائمة مدعوين، ثم إدخال العروض، ثم مقارنتها وتسويتها، ثم ترسية واحدة تنشئ العقد والالتزام معًا في معاملة واحدة.
-
-**داخل النطاق:**
-- حزم المناقصة (`tender_packages`) ودورة حالتها: `draft` ثم `open` ثم `closed` ثم `awarded`، مع `cancelled`، وإعادة الفتح `closed` إلى `open` لمورد متأخر.
-- قائمة المدعوين (`tender_invitees`) من موردي السجل النشطين (`suppliers`).
-- إدخال العروض (`tender_bids`) وتصحيحها وسحبها ما دامت الحزمة مفتوحة.
-- التسويات (`tender_bid_adjustments`) واستبعاد العرض وجدول المقارنة بالترتيب.
-- الترسية: اختيار عرض حي، ثم في معاملة واحدة إنشاء `contracts` و`commitments` وتحويل الحزمة إلى `awarded`.
+**في النطاق (V1):**
+- حزم المناقصة والدعوات وحالات الباب: `draft`، `open`، `closed`، `awarded`، `cancelled`.
+- إدخال العروض وسحبها واستبعادها، والتسوية (تعديلات النطاق)، والمقارنة.
+- الترسية: تنشئ العقد والالتزام معًا، وتربط الالتزام ببند ميزانية.
+- حد للترسية يستلزم اعتماد EXECUTIVE فوقه. المبدأ `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 1)، والآلية `PROPOSED`.
+- استثناء تجاوز الميزانية. المبدأ `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 2)، والشكل `PROPOSED`.
+- تصحيح العرض بعد الإغلاق كتعديل مسجَّل لا كتابة فوق القيمة. المبدأ `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 4)، والجدول `PROPOSED`.
 
 **خارج النطاق:**
-- استيراد العروض من Excel أو CSV. لا يوجد استيراد للمناقصات في `shared/importPermissions.ts`.
-- إرسال الدعوات بالبريد، وبوابة مورد، والإشعارات. لا تملك هذه الوحدة أيًّا منها.
-- تقييم فني أو تقييم أداء للمورد. لا يوجد ذلك في الكود.
-- ربط الالتزام ببند ميزانية أو رمز تكلفة. جدول `commitments` لا يحمل `budgetLineId`. انظر البند 8.
-- أي دفع أو فوترة أو تحويل عملات.
-- حفظ نسخ زمنية لشروط المناقصة.
+- أي عملة غير SAR. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 3): قيد CHECK، وما عداها خارج V1.
+- مرفقات العروض، وإشعارات البريد، والحد الأدنى لعدد المدعوين (لم تُطلب).
+- استيراد العروض من Excel أو CSV أو XER، ومزامنة Google Sheets، وشاشة 3D.
+- ما يحجزه المالك (القسم 8): التجربة، والأسعار، والمقاعد، ومزود البريد، وتعدد الشركات لكل حساب، وهل يجوز الترسية دون `project.tender.award`.
+- البيانات الحقيقية. كل الأمثلة في هذه الوثيقة مُختلَقة (`*.example.test`).
 
-**المصادر:** `server/tenderService.ts` (كل الدوال المصدَّرة)، و`server/domain/tenders.ts` (`levelBids`، و`tenderTransitions`، و`ADJUSTMENT_KINDS`، و`BID_STATUSES`)، و`drizzle/schema.ts` (`tenderPackages`، `tenderInvitees`، `tenderBids`، `tenderBidAdjustments`)، و`server/routers.ts` (المجموعة `tenders`).
+**الوضع الحالي، وما يخالف القرارات:**
+- الترسية تتحقق من `project.tender.award` وحدها (`server/tenderService.ts:244`). لا تتحقق من `project.commitment.manage`. يُسمّي المالك هذا «defect S-1»، وهذا الاسم غير موجود في وثائق المستودع، والتحقق هنا بالكود.
+- الالتزام الناتج لا يرتبط ببند ميزانية، ولا يوجد فحص للمتبقي (`server/tenderService.ts:262`). في PostgreSQL لا يملك `commitments` عمود بند ميزانية (`drizzle/schema.ts:923-940`)، ولا يملك `budget_lines` عمودًا للملتزَم به (`drizzle/schema.ts:1483-1497`).
+- العملة تُنسخ من العرض الفائز (`server/tenderService.ts:261-262`) دون فرض SAR، والمسار يقبل أي رمز من ثلاثة أحرف (`server/routers.ts:389` و`:392`).
+- تعديل العرض والسحب لا يتحققان من أن الفاعل هو مُدخل العرض (`server/tenderService.ts:160-172` و`:175-187`). التعديل يكتب فوق القيمة، ويحفظ `previousAmount` في سجل التدقيق فقط.
+- `tenderTransitions.closed` يسمح بالعودة إلى `open` لمتأخر (`server/domain/tenders.ts`)، وهذا يتعارض مع قفل العروض عند الإغلاق (القسم 8).
+- الدور `CONTRACTS_MANAGER` يحمل `project.tender.bids` (`server/domain/operationalRoles.ts:102`)، وقاعدة الفصل تمنع جمعه مع `project.tender.award` (`server/domain/operationalPermissions.ts:92`).
+- `isDuplicate` يعرف رموز MySQL فقط (`server/tenderService.ts:15`).
 
-## 2. الجداول والحقول والقيود
+## 2. الجداول والأعمدة والقيود والفهارس
 
-كل جدول من الأربعة يحمل `tenantId` و`projectId`، وكل استعلام يُقيَّد بهما معًا عبر الدالة `mine()` في `server/tenderService.ts`. لا توجد قيود `CHECK` في المخطط الحالي. قيود الإشارة والمبلغ تُفرض في الخدمة وفي مخطط `zod` للمسار، وتُقترح قيود قاعدة البيانات في البند 8.
+**فئة العزل (ADR-0002، و`drizzle/0000_baseline.sql:2568` دالة `project_os_apply_conventions`):** كل جدول هنا يحمل `tenant_id`، فيقع في فئة «جدول بـ`tenant_id`»: سياسة `project_os_isolation` لكل العمليات، بالشرط `app_system() OR tenant_id = ANY(app_tenant_ids())`. RLS طبقة ثانية على مستوى **الشركة فقط**. عزل المشروع يبقى في الخادم بفلتر `mine()` (`server/tenderService.ts:17`)، ولا تحميه القاعدة. هذا حد معلن يُكتب في كل تقرير.
 
-### 2.1 `tender_packages` (`tenderPackages`)
+**سجل التدقيق:** كل كتابة محمية تكتب صف `audit_logs` في المعاملة نفسها، واسم الإجراء مذكور في كل جدول. المشروع يُحفظ في `metadata` لأن `audit_logs` في PostgreSQL بلا عمود `project_id` (`drizzle/schema.ts:803-817`)، كما في `server/tenderService.ts:31`.
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي، معرّف نصي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `packageCode` | varchar(120) | لا | — | رمز الحزمة داخل المشروع |
-| `title` | varchar(255) | لا | — | عنوان الحزمة، ويُنسخ إلى العقد |
-| `scopeSummary` | text | نعم | — | ملخص النطاق |
-| `estimateAmount` | decimal(18,2) | نعم | — | تقدير المالك. بلا تقدير لا تُحسب نسبة عن التقدير |
-| `currency` | varchar(3) | لا | `'SAR'` | عملة الحزمة وعملة العروض الافتراضية |
-| `status` | mysqlEnum(`draft`, `open`, `closed`, `awarded`, `cancelled`) | لا | `draft` | |
-| `closingAt` | timestamp | نعم | — | موعد الإغلاق للعرض فقط؛ لا يغلق الحزمة آليًا |
-| `awardedBidId` | varchar(36) | نعم | — | بلا FK في المخطط؛ يُكتب عند الترسية فقط |
-| `awardedContractId` | varchar(36) | نعم | — | بلا FK في المخطط؛ يُكتب عند الترسية فقط |
-| `awardedCommitmentId` | varchar(36) | نعم | — | بلا FK في المخطط؛ يُكتب عند الترسية فقط |
-| `awardedAt` | timestamp | نعم | — | |
-| `awardedByUserId` | int | نعم | — | FK ← `users.id` |
-| `awardJustification` | text | نعم | — | إلزامي إذا كان عدد العروض القابلة للمقارنة أقل من اثنين |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
-| `updatedAt` | timestamp | لا | الآن، ويتجدد عند التعديل | |
+### 2.1 `tender_packages` (موجود: `drizzle/schema.ts:2354`)
+- الأعمدة تبقى: `id`، `tenant_id`، `project_id`، `package_code`، `title`، `scope_summary`، `estimate_amount numeric(18,2)`، `currency`، `status`، `closing_at`، `awarded_*`، `award_justification`، `created_by_user_id`، `created_at`، `updated_at`.
+- `CHECK (currency = 'SAR')`. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 3).
+- `CHECK (estimate_amount IS NULL OR estimate_amount >= 0)`. `PROPOSED`.
+- `awarded_bid_id` و`awarded_contract_id` و`awarded_commitment_id` بلا `FOREIGN KEY` اليوم (`drizzle/schema.ts:2367-2369`). `PROPOSED`: `FOREIGN KEY (awarded_bid_id, id) REFERENCES tender_bids (id, package_id)`، و`awarded_contract_id` إلى `contracts(id)`، و`awarded_commitment_id` إلى `commitments(id)`.
+- `CHECK tender_packages_award_consistency`: `(status = 'awarded') = (awarded_bid_id IS NOT NULL AND awarded_contract_id IS NOT NULL AND awarded_commitment_id IS NOT NULL AND awarded_at IS NOT NULL AND awarded_by_user_id IS NOT NULL)`. `PROPOSED`.
+- الفهارس الموجودة: `tender_packages_project_code_unique (project_id, package_code)` و`tender_packages_tenant_project_status_idx`.
+- الفئة: tenant_id. الإجراءات: `tender.package_created`، `tender.package_status_transitioned` (موجودة).
 
-- المفتاح الأساسي: `id`.
-- UNIQUE `tender_packages_project_code_unique` على (`projectId`, `packageCode`).
-- INDEX `tender_packages_tenant_project_status_idx` على (`tenantId`, `projectId`, `status`, `createdAt`).
+### 2.2 `tender_invitees` (موجود: `drizzle/schema.ts:2381`)
+- بلا تغيير في الشكل. `UNIQUE (package_id, supplier_id)` موجود.
+- الخادم يكتب `invited` و`submitted` فقط. القيمة `declined` في الـenum لا يكتبها الخادم اليوم (بحث في `server/tenderService.ts`).
+- الفئة: tenant_id. الإجراء: `tender.supplier_invited` (موجود).
 
-### 2.2 `tender_invitees` (`tenderInvitees`)
+### 2.3 `tender_bids` (موجود: `drizzle/schema.ts:2397`)
+- `CHECK (currency = 'SAR')`. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 3).
+- `CHECK (amount > 0)`. `PROPOSED`.
+- `CHECK (duration_days IS NULL OR duration_days BETWEEN 1 AND 5000)` و`CHECK (validity_days IS NULL OR validity_days BETWEEN 1 AND 1000)`. `PROPOSED`، بالحدود نفسها في `server/routers.ts:392`.
+- `UNIQUE (id, package_id)`. `PROPOSED`، لازم للمفاتيح المركبة في 2.1 و2.5 و2.6.
+- `UNIQUE (package_id, supplier_id)` موجود. `entered_by_user_id` موجود، وهو أساس فصل المهام.
+- `PROPOSED` مشغّل `tender_bids_lock_terms` (BEFORE UPDATE): يرفض تغيير `amount` و`duration_days` و`validity_days` و`supplier_id` و`package_id` و`entered_by_user_id` إذا لم تكن حالة الحزمة `open`. يرفع خطأً بـSQLSTATE مخصص يترجمه الخادم إلى `PROJECT_OS_TENDER_NOT_OPEN`. هذا تنفيذ على مستوى القاعدة لقرار المالك، 22 أكتوبر 2026، البند 4 (العروض تُقفل عند الإغلاق).
+- `status` و`status_reason` تُعدَّل وفق قواعد الخادم: السحب أثناء `open`، والاستبعاد أثناء `closed`.
+- الفئة: tenant_id. الإجراءات: `tender.bid_entered`، `tender.bid_revised`، `tender.bid_withdrawn`، `tender.bid_disqualified` (موجودة).
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `packageId` | varchar(36) | لا | — | FK ← `tender_packages.id` |
-| `supplierId` | varchar(36) | لا | — | FK ← `suppliers.id` |
-| `status` | mysqlEnum(`invited`, `declined`, `submitted`) | لا | `invited` | `declined` لا يضبطه أي إجراء. انظر البند 8 |
-| `invitedAt` | timestamp | لا | الآن | |
-| `invitedByUserId` | int | لا | — | FK ← `users.id` |
+### 2.4 `tender_bid_adjustments` (موجود: `drizzle/schema.ts:2420`)
+- `CHECK (amount <> 0)`. `PROPOSED`، ومنعه في الخادم في `server/routers.ts:396`.
+- `CHECK ((kind = 'discount' AND amount < 0) OR (kind IN ('scope_gap', 'exclusion') AND amount > 0) OR kind = 'correction')`. `PROPOSED`، يكرر `server/tenderService.ts:214`.
+- الفئة: tenant_id. الإجراءات: `tender.adjustment_added`، `tender.adjustment_removed` (موجودة).
 
-- UNIQUE `tender_invitees_package_supplier_unique` على (`packageId`, `supplierId`).
-- INDEX `tender_invitees_tenant_project_idx` على (`tenantId`, `projectId`).
+### 2.5 `tender_bid_amendments` (جديد: `PROPOSED`، تنفيذ البند 4 من قرار المالك، 22 أكتوبر 2026)
+- الأعمدة: `id varchar(36) PRIMARY KEY`؛ `tenant_id varchar(36) NOT NULL` → `companies(id)`؛ `project_id varchar(36) NOT NULL` → `projects(id)`؛ `package_id varchar(36) NOT NULL` → `tender_packages(id)`؛ `bid_id varchar(36) NOT NULL`.
+- `sequence_no integer NOT NULL CHECK (sequence_no >= 1)`.
+- `changed_by_user_id integer NOT NULL` → `users(id)`؛ `changed_at timestamptz NOT NULL DEFAULT now()`.
+- `reason varchar(500) NOT NULL CHECK (char_length(btrim(reason)) >= 10)`.
+- `currency varchar(3) NOT NULL DEFAULT 'SAR' CHECK (currency = 'SAR')`.
+- `old_amount numeric(18,2) NOT NULL CHECK (old_amount > 0)`، و`new_amount numeric(18,2) NOT NULL CHECK (new_amount > 0)`.
+- `old_duration_days` و`new_duration_days` و`old_validity_days` و`new_validity_days`: `integer NULL`.
+- القيود: `UNIQUE (bid_id, sequence_no)`؛ `FOREIGN KEY (bid_id, package_id) REFERENCES tender_bids (id, package_id)`؛ `CHECK (new_amount <> old_amount OR new_duration_days IS DISTINCT FROM old_duration_days OR new_validity_days IS DISTINCT FROM old_validity_days)` (لا تعديل بلا تغيير).
+- الفهارس: `(tenant_id, project_id)` و`(package_id)`.
+- **الحفظ بلا كتابة فوقه:** مشغّلات ترفض `UPDATE` و`DELETE` و`TRUNCATE` لكل الأدوار مع `ENABLE ALWAYS`، بنمط `audit_logs` (`drizzle/0000_baseline.sql:2531-2547`). ويُسحب من `project_os_app` الـUPDATE والـDELETE والـTRUNCATE، بخلاف الجداول العامة التي تمنحها الدالة الأربعة. حد معلن: مالك الجدول يستطيع حذف المشغّل (ADR-0002، الحدود 2).
+- **القيمة الفعلية للعرض:** آخر صف بأكبر `sequence_no`، وإلا القيم الأصلية في `tender_bids`. `PROPOSED` عرض `tender_bid_effective_terms` بـ`DISTINCT ON (bid_id) ... ORDER BY bid_id, sequence_no DESC`. المقارنة (`levelBids`) تقرأ القيمة الفعلية فقط.
+- **من يكتب:** الفاعل يساوي `tender_bids.entered_by_user_id` (تحقق في الخادم، مع اختبار)، والحزمة `closed`، والعرض `submitted`. لا كتابة بعد `awarded` أو `cancelled`.
+- الفئة: tenant_id. الإجراء: `tender.bid_amended` (جديد).
 
-### 2.3 `tender_bids` (`tenderBids`)
+### 2.6 `tender_award_approvals` (جديد: `PROPOSED`، تنفيذ البند 1 من قرار المالك، 22 أكتوبر 2026)
+- `id`؛ `tenant_id`؛ `project_id`؛ `package_id` → `tender_packages(id)`؛ `bid_id` مع `package_id` في `FOREIGN KEY (bid_id, package_id) REFERENCES tender_bids (id, package_id)`.
+- `approved_amount numeric(18,2) NOT NULL CHECK (approved_amount > 0)`: الإجمالي المسوّى بالريال وقت الاعتماد.
+- `threshold_at_approval numeric(18,2) NOT NULL CHECK (threshold_at_approval >= 0)`: لقطة للعتبة وقت الاعتماد.
+- `currency varchar(3) NOT NULL DEFAULT 'SAR' CHECK (currency = 'SAR')`.
+- `approved_by_user_id integer NOT NULL` → `users(id)`؛ `approved_at timestamptz NOT NULL DEFAULT now()`.
+- `used_at timestamptz NULL`؛ `used_by_user_id integer NULL` → `users(id)`؛ `CHECK ((used_at IS NULL) = (used_by_user_id IS NULL))`.
+- `UNIQUE INDEX (package_id) WHERE used_at IS NULL`: اعتماد حيّ واحد لكل حزمة.
+- الاستهلاك داخل معاملة الترسية: `UPDATE ... SET used_at, used_by_user_id WHERE id = $1 AND used_at IS NULL`. صفر صفوف يعني `PROJECT_OS_TENDER_APPROVAL_STALE`.
+- الفئة: tenant_id. الإجراءات: `tender.award_approval_recorded`، `tender.award_approval_consumed`.
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `packageId` | varchar(36) | لا | — | FK ← `tender_packages.id` |
-| `supplierId` | varchar(36) | لا | — | FK ← `suppliers.id` |
-| `amount` | decimal(18,2) | لا | — | السعر. موجب (يُفرض في `zod` لا في القاعدة) |
-| `currency` | varchar(3) | لا | `'SAR'` | يُنسخ من الحزمة إن لم يُكتب غيره |
-| `durationDays` | int | نعم | — | مدة التنفيذ |
-| `validityDays` | int | نعم | — | صلاحية العرض |
-| `notes` | text | نعم | — | |
-| `status` | mysqlEnum(`submitted`, `withdrawn`, `disqualified`) | لا | `submitted` | |
-| `statusReason` | varchar(500) | نعم | — | سبب السحب أو الاستبعاد |
-| `enteredByUserId` | int | لا | — | FK ← `users.id`. هو الذي يحدد فصل المهام في الترسية |
-| `enteredAt` | timestamp | لا | الآن | |
-| `updatedAt` | timestamp | لا | الآن، ويتجدد عند التعديل | |
+### 2.7 `tender_budget_exceptions` (جديد: `PROPOSED`، تنفيذ البند 2 من قرار المالك، 22 أكتوبر 2026)
+- `id`؛ `tenant_id`؛ `project_id`؛ `package_id` → `tender_packages(id)`؛ `budget_line_id varchar(36) NOT NULL` → `budget_lines(id)`.
+- `requested_amount numeric(18,2) NOT NULL CHECK (requested_amount > 0)`؛ `remaining_at_request numeric(18,2) NOT NULL CHECK (remaining_at_request >= 0)` (لقطة للمتبقي)؛ `CHECK (requested_amount > remaining_at_request)`: الاستثناء لا يُسجَّل إلا حين يلزم.
+- `justification varchar(1000) NOT NULL CHECK (char_length(btrim(justification)) >= 10)`.
+- `requested_by_user_id` (من يرسّي) و`approved_by_user_id` (المعتمِد)، كلاهما `integer NOT NULL` → `users(id)`؛ `CHECK (approved_by_user_id <> requested_by_user_id)`: لا يعتمد الطالب استثناءه، وهذا فصل المهام على مستوى القاعدة.
+- `approved_at timestamptz NOT NULL DEFAULT now()`؛ `used_at timestamptz NULL`؛ `UNIQUE INDEX (package_id) WHERE used_at IS NULL`.
+- `currency` كما في 2.6.
+- من يعتمد: `BLOCKED_BY_OWNER` (القسم 8). الخادم يضيف `PROPOSED`: المعتمِد لا يُدخل عروض الحزمة.
+- الفئة: tenant_id. الإجراءات: `tender.budget_exception_recorded`، `tender.budget_exception_consumed`.
 
-- UNIQUE `tender_bids_package_supplier_unique` على (`packageId`, `supplierId`): عرض واحد لكل مورد في الحزمة.
-- INDEX `tender_bids_package_status_idx` على (`packageId`, `status`)، وINDEX `tender_bids_tenant_project_idx` على (`tenantId`, `projectId`).
+### 2.8 `tenant_settings`: عتبة الترسية (موجود: `drizzle/schema.ts:154`)
+- عمود جديد: `tender_award_threshold numeric(18,2) NULL CHECK (tender_award_threshold IS NULL OR tender_award_threshold >= 0)`. `PROPOSED`، بالريال.
+- **لماذا عمود لا جدول:** الجدول فيه صف واحد لكل شركة (`tenant_settings_tenant_unique`، `drizzle/schema.ts:176`)، وفيه إعدادات الشركة كلها مع `updated_by_user_id`، وتاريخ التغيير يُحفظ في `audit_logs`. جدول منفصل `tenant_award_thresholds` يكرر ما يفعله التدقيق.
+- **القيمة الافتراضية: `BLOCKED_BY_OWNER`.** التصميم يعمل بقيمة `NULL` ومعناها «غير مضبوطة»، والقاعدة: **كل ترسية تحتاج اعتماد EXECUTIVE إذا كانت العتبة `NULL`** (الاتجاه الآمن). لا يُكتب رقم افتراضي قبل أن يحدده المالك.
+- الفئة: tenant_id (بلا `project_id`). الإجراء: `tenant.tender_threshold_changed`.
 
-### 2.4 `tender_bid_adjustments` (`tenderBidAdjustments`)
+### 2.9 `commitments`: الربط ببند الميزانية (موجود: `drizzle/schema.ts:923`)
+- عمود `budget_line_id varchar(36) NULL` → `budget_lines(id)`، وعمود `tender_package_id varchar(36) NULL` → `tender_packages(id)`. `PROPOSED`.
+- `CHECK (tender_package_id IS NULL OR budget_line_id IS NOT NULL)`: الالتزام المنشأ من ترسية لا يُكتب دون بند ميزانية. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 2: الربط إلزامي).
+- `CHECK (tender_package_id IS NULL OR currency = 'SAR')`. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 3).
+- `UNIQUE INDEX (tender_package_id) WHERE tender_package_id IS NOT NULL`: التزام واحد لكل ترسية.
+- الالتزامات القائمة غير المرتبطة تبقى كما هي، ولا تدخل في متبقي أي بند (انظر AM-9).
 
-| الحقل | النوع | قابل للفراغ | الافتراضي | ملاحظة |
-|---|---|---|---|---|
-| `id` | varchar(36) | لا | — | المفتاح الأساسي |
-| `tenantId` | varchar(36) | لا | — | FK ← `companies.id` |
-| `projectId` | varchar(36) | لا | — | FK ← `projects.id` |
-| `packageId` | varchar(36) | لا | — | FK ← `tender_packages.id` |
-| `bidId` | varchar(36) | لا | — | FK ← `tender_bids.id` |
-| `kind` | mysqlEnum(`scope_gap`, `exclusion`, `correction`, `discount`) | لا | — | النوع يحدد إشارة المبلغ |
-| `description` | varchar(500) | لا | — | |
-| `amount` | decimal(18,2) | لا | — | موجب للإضافة وسالب للخصم حسب النوع |
-| `createdByUserId` | int | لا | — | FK ← `users.id` |
-| `createdAt` | timestamp | لا | الآن | |
+### 2.10 `budget_lines`: المتبقي (موجود: `drizzle/schema.ts:1483`)
+- لا تغيير في الجدول. الصيغة `PROPOSED`:
+  `remaining = current_amount − SUM(commitments.amount WHERE budget_line_id = X AND status IN ('draft', 'committed'))`.
+  الالتزامات `released` و`cancelled` لا تُحسب. `draft` تُحسب حجزًا احتياطيًا، وهذا قابل للنقاش.
+- القفل: صف `budget_lines` يُقفل بـ`SELECT ... FOR UPDATE` داخل معاملة الترسية، فلا تستهلك ترسيتان المتبقي نفسه. `PROPOSED`.
+- العملة: الجدول بلا عمود عملة (`drizzle/schema.ts:1483-1497`)، والمبالغ تُفترض بالريال (انظر AM-8).
 
-- INDEX `tender_adjustments_bid_idx` على (`bidId`)، وINDEX `tender_adjustments_package_idx` على (`packageId`). لا يوجد UNIQUE.
-- إشارة المبلغ تُفرض في `addTenderBidAdjustment` بالرمز `PROJECT_OS_TENDER_ADJUSTMENT_SIGN`، لا في القاعدة.
+### 2.11 `audit_logs` (موجود: `drizzle/schema.ts:803`)
+- لا تغيير في الشكل. الإجراءات الموجودة والجديدة (`PROPOSED`) تُكتب في الصف نفسه.
+- الحماية: `UPDATE` و`DELETE` مرفوضان بالمشغّلات، وحساب التطبيق `SELECT, INSERT` فقط (`drizzle/0000_baseline.sql:2531-2547`). **لا توصف بأنها غير قابلة للعبث** (ADR-0002، الحدود 2).
 
-### 2.5 الجداول التي تكتبها الترسية ولا تملكها هذه الوحدة
-
-| الجدول | القيود ذات الصلة | ما تكتبه الترسية |
-|---|---|---|
-| `contracts` | UNIQUE `contracts_project_code_unique` على (`projectId`, `code`)؛ FK `supplierId` ← `suppliers.id`؛ `status` افتراضيًا `draft` | `code` = رمز العقد المُدخل، و`title` = عنوان الحزمة، و`counterparty` = الاسم القانوني للمورد، و`counterpartyKind` = `supplier`، و`supplierId`، و`contractValue` = المجموع المُسوّى للعرض الفائز، و`currency` = عملة العرض، و`status` = `draft` |
-| `commitments` | UNIQUE `commitments_project_code_unique` على (`projectId`, `code`)؛ FK `contractId` ← `contracts.id`؛ `status` من `draft`، `committed`، `released`، `cancelled` | `code` = `${contractCode}-C1`، و`contractId`، و`amount` = المجموع المُسوّى، و`status` = `committed`، و`committedAt` = الآن |
-| `auditLogs` | `id`، `tenantId`، `actorUserId`، `action`، `entityType`، `entityId`، `metadata` (نص JSON)، `createdAt`. لا يوجد عمود `projectId` | صفوف التدقيق في الجدول أدناه |
-
-### 2.6 صفوف التدقيق: كل كتابة في معاملتها
-
-كل كتابة تكتب صف تدقيق في المعاملة نفسها. `projectId` يُحفظ داخل `metadata` لأن جدول `audit_logs` لا يملك عمودًا له. المصدر: دالة `audit()` في `server/tenderService.ts`.
-
-| الإجراء (`action`) | `entityType` | الدالة |
-|---|---|---|
-| `tender.package_created` | `tender_package` | `createTenderPackage` |
-| `tender.supplier_invited` | `tender_package` | `inviteTenderSupplier` |
-| `tender.package_status_transitioned` | `tender_package` | `transitionTenderPackage` |
-| `tender.bid_entered` | `tender_bid` | `enterTenderBid` |
-| `tender.bid_revised` | `tender_bid` | `reviseTenderBid` |
-| `tender.bid_withdrawn` | `tender_bid` | `withdrawTenderBid` |
-| `tender.bid_disqualified` | `tender_bid` | `disqualifyTenderBid` |
-| `tender.adjustment_added` | `tender_bid` | `addTenderBidAdjustment` |
-| `tender.adjustment_removed` | `tender_bid` | `removeTenderBidAdjustment` |
-| `tender.awarded` | `tender_package` | `awardTender` |
-| `project.contract_created` | `contract` | `awardTender` (مصدره `tender_award`) |
-| `project.commitment_created` | `commitment` | `awardTender` (مصدره `tender_award`) |
+### 2.12 متطلبات بعد الترحيل (`AFTER_MIGRATION`)
+كل بند سطر، ويذكر القاعدة التي يخدمها:
+- AM-1: ترحيلة جديدة بعد `drizzle/0000_baseline.sql`، دون تعديل للأساس. تُراجع SQL قبل التطبيق، ولا يُشغَّل `pnpm db:push` (القاعدة: الترحيل الآمن، `CLAUDE.md` §4).
+- AM-2: `project_os_apply_conventions` يجب أن يصنّف الجداول الجديدة، وإلا تسقط الترحيلة (القاعدة: عزل المستأجر، ADR-0002).
+- AM-3: مشغّلات `tender_bid_amendments` (الحفظ) و`tender_bids_lock_terms` (القفل) تُضاف في الترحيلة نفسها (القاعدة: البند 4).
+- AM-4: `server/tenderService.ts:15` يعرف رموز MySQL فقط. يلزم ترجمة `23505` إلى `PROJECT_OS_TENDER_DUPLICATE` (القاعدة: الخطأ الصريح).
+- AM-5: `server/tenderService.ts:265` يقرأ `affectedRows`. في PostgreSQL يُقرأ عدد الصفوف من `.returning()`، وصفر صفوف يُرجع `CONFLICT` صريحًا (القاعدة: `rows=0` خطأ صريح).
+- AM-6: `server/tenderService.ts:244` يضيف `project.commitment.manage` (القاعدة: البند 2، إغلاق S-1).
+- AM-7: `server/_core/database.ts` (فرع PostgreSQL): يلزم إثبات أن سياق RLS (`app.tenant_ids`) يبقى داخل `db.transaction` وتحت مجمّع المعاملات (المنفذ 6543). وإلا تُقرأ صفوف الشركة فارغة (القاعدة: العزل).
+- AM-8: `projects.currency` و`contracts.currency` و`commitments.currency` افتراضيها `USD` (`drizzle/schema.ts:881` و`:912` و`:933`). يلزم التحقق أن كل مشروع مُفعَّل بالريال قبل تفعيل الترسية (القاعدة: البند 3).
+- AM-9: الالتزامات القائمة بلا `budget_line_id` لا تدخل في المتبقي. يلزم ترحيل ربطها، أو قبول أن المتبقي يساوي `current_amount` إلى ذلك الحين (القاعدة: البند 2).
+- AM-10: `tender_packages.awarded_*` بلا `FOREIGN KEY` اليوم (`drizzle/schema.ts:2367-2369`) (القاعدة: سلامة الترسية).
+- AM-11: `audit_logs` بلا `project_id`، ويبقى في `metadata` (القاعدة: التدقيق في كل كتابة).
+- AM-12: `server/tender.award.database.test.ts:10` يقبل بروتوكول MySQL فقط. يلزم اختبار PostgreSQL على `project_os_integration_test` (القاعدة: `CLAUDE.md` §4 و§7).
+- AM-13: `server/tenderService.ts:61-67` يحوّل عدّ الصفوف بـ`Number(...)`، ويبقى ذلك في PostgreSQL (القاعدة: قراءة الأرقام صحيحة).
 
 ## 3. الشاشات
 
-**المسار:** لا توجد صفحة مستقلة للمناقصات. القسم داخل صفحة الضبط `/projects/:tenantId/:projectId/controls` (`client/src/pages/ProjectControls.tsx`)، بالمعرّف `manager-tenders` وعنوان «المناقصات قبل الترسية»، ويُحمَّل كسولًا. المكوّن هو `client/src/pages/ProjectTenders.tsx`، وكل زر كتابة يُغلَّف بـ`WriteGate` من `client/src/lib/permissions.tsx`، فيظهر لمن لا يملك الصلاحية نص السبب بدل النموذج.
+**الشاشة الأساسية (موجودة):** `/projects/:tenantId/:projectId/controls` (`client/src/App.tsx`)، والقسم `manager-tenders` داخل `ProjectControls` (`client/src/pages/ProjectControls.tsx:254`)، والمكوّن `ProjectTenders` (`client/src/pages/ProjectTenders.tsx`).
+- **من يرى:** من يحمل `project.read` يرى القسم والقراءات (`server/tenderService.ts:48` و`:54` و`:75` و`:83`). الكتابات تظهر بـ`WriteGate` (`client/src/lib/permissions.tsx`) لمن يحمل صلاحيتها فقط، والخادم يحكم على كل استدعاء أيضًا.
+- **الإجراءات:** إنشاء حزمة ودعوات وتغيير الباب (`project.tender.manage`)؛ إدخال عرض وسحبه أثناء `open` (`project.tender.bids`)؛ استبعاد عرض، وإضافة تسوية وحذفها أثناء `closed` (`project.tender.level`)؛ الترسية أثناء `closed` (`project.tender.award`).
+- **الحالات:** تحميل: «جارٍ التحميل…». فارغ: «لا حزم بعد.» (`ProjectTenders.tsx:88`). خطأ: عنصر `role="alert"` يعرض الرسالة المترجمة من `shared/projectErrors.ts` (`ProjectTenders.tsx:44` و`:72`). بلا صلاحية كتابة: نص «لا تملك صلاحية … فالقسم للعرض فقط.» (`ProjectTenders.tsx:18`).
 
-| الجزء | من يراه | ما يفعله | الحالة الفارغة أو التحميل |
-|---|---|---|---|
-| قائمة الحزم | من يملك `project.read` ضمن المشروع | يقرأ الحزم مع عدد المدعوين والعروض وأدنى سعر مُسوّى، ويفتح حزمة | نص `t.loading` أثناء التحميل، ونص `t.empty` بلا حزم |
-| إنشاء حزمة | `project.tender.manage` | يُدخل الرمز والعنوان والنطاق والتقدير والعملة | — |
-| تغيير الحالة | `project.tender.manage` | `open` أو `closed` أو `cancelled` حسب الحالة الحالية | — |
-| المدعوون | القراءة لـ`project.read`، والدعوة لـ`project.tender.manage` | يختار موردًا من السجل النشط ويدعوه | قائمة فارغة تعرض `t.empty` |
-| إدخال العرض وتصحيحه وسحبه | `project.tender.bids` | يظهر النموذج عندما تكون الحزمة `open` فقط | — |
-| المقارنة والتسوية والاستبعاد | `project.tender.level` | يظهر عندما تكون الحزمة `closed` فقط. الجدول يرتّب الأفضل أولًا، والمسحوب والمستبعد دون رتبة | — |
-| الترسية | `project.tender.award` | نموذج يظهر عند `closed`: عرض حي، ورمز عقد، وتسبيب اختياري | — |
-| حزمة مرسّاة | كل من يصل إلى القسم | يعرض رقم العقد والالتزام (أول ثماني خانات) ولا يعرض أي إجراء ترسية | — |
+**نموذج الترسية (موجود، مع إضافات `PROPOSED`):** يظهر لمن يحمل `project.tender.award` داخل حزمة `closed` بعروض صالحة، ويضيف:
+- اختيار بند الميزانية (إلزامي)، مع عرض المتبقي والمطلوب بجانبه.
+- حالة العتبة: «تحتاج اعتماد التنفيذي» أو «لا تحتاج». عند `NULL`: «العتبة غير مضبوطة: الترسية تحتاج اعتمادًا».
+- حقل تسبيب الاستثناء (10 أحرف على الأقل) يظهر فقط حين يتجاوز المطلوب المتبقي.
+- زر الترسية معطّل حتى تكتمل الشروط، والخادم يرفض أي إرسال ناقص برسالة مترجمة.
+- حالة فارغة: «لا عروض صالحة للترسية.»
+- من يحمل `project.read` فقط يرى حالة الاعتماد للقراءة.
 
-**الأخطاء:** تظهر في `role="alert"` عبر `getLocalizedProjectError` من `client/src/lib/projectErrors.ts`، ويُختار النص العربي أو الإنجليزي من `shared/projectErrors.ts`.
+**تعديل العرض بعد الإغلاق (`PROPOSED`):** داخل بطاقة العرض في حزمة `closed`، ولمُدخله فقط (`project.tender.bids`): حقول السعر والمدة والصلاحية، وسبب إلزامي (10 أحرف). تحت البطاقة سجل التعديلات: القيمة القديمة والجديدة، ومن غيّر ومتى، والسبب. يظهر لكل من يحمل `project.read`. الحالة الفارغة: «لم يُعدَّل هذا العرض.»
 
-**فجوة معروفة:** نموذج الترسية يظهر لكل من يملك `project.tender.award`، بما فيهم من أدخل عرضًا في الحزمة. الخادم يرفض ذلك بـ`PROJECT_OS_TENDER_SELF_AWARD` بعد الإرسال فقط. المطلوب (مقترح): لا يظهر النموذج لمن أدخل عرضًا، أو يظهر تفسير مكانه.
+**اعتمادات الترسية (`PROPOSED`):** قسم جديد في `/executive/:tenantId` (المسار موجود في `client/src/App.tsx`)، يعرض الحزم التي تنتظر اعتمادًا. الاعتماد يتطلب `executive.award.approve`، والعرض للقراءة يتطلب `executive.read`. الحالة الفارغة: «لا اعتمادات معلقة.»
+
+**عتبة الترسية (`PROPOSED`):** حقل «عتبة الترسية (ريال)» في `/tenants/:tenantId/administration`، يظهر لمن يحمل `tenant.manage`. تحته نص صريح: «اتركه فارغًا يعني أن كل ترسية تحتاج اعتماد التنفيذي.» والحفظ يكتب سطر التدقيق.
+
+**التجاوب:** 390px دون تمرير أفقي للصفحة. الجداول داخل `overflow-x-auto` كما في الصف (`docs/STATE.md:385`)، والهامش الجانبي 16px.
 
 ## 4. الصلاحيات
 
-كل إجراء يمر بـ`assertTenderAccess` في `server/tenderService.ts` بهذا الترتيب: عضوية نشطة، ثم ترخيص منتج `PROJECT`، ثم الصلاحية المسمّاة، ثم نطاق المشروع، ثم أن يتبع المشروع للمستأجر (`assertProjectWithinTenant`). الرموز الخمسة موجودة في `operationalPermissionCatalog` في `server/domain/operationalRoles.ts`.
+| الرمز | المكان في الكود | ما يحرسه |
+|---|---|---|
+| `project.read` | `assertTenderAccess` (`server/tenderService.ts:48`، `:54`، `:75`، `:83`) | قراءة الحزم والدعوات والمقارنة |
+| `project.tender.manage` | `server/domain/operationalRoles.ts:39` | الحزم، والدعوات، وتغيير الباب |
+| `project.tender.bids` | `server/domain/operationalRoles.ts:40` | إدخال العرض، وتعديله أثناء `open`، وسحبه. وتعديله بعد الإغلاق (`PROPOSED`، لمُدخله فقط) |
+| `project.tender.level` | `server/domain/operationalRoles.ts:41` | التسوية، والاستبعاد |
+| `project.tender.award` | `server/domain/operationalRoles.ts:42` | الترسية. `DECIDED` (قرار المالك، 22 أكتوبر 2026، البند 1): الدور المتعاقد أو مدير المشروع |
+| `project.commitment.manage` | `server/domain/operationalRoles.ts:7`؛ `server/domain/operationalPermissions.ts:30` | **تُضاف إلى الترسية.** `PROPOSED` (إغلاق S-1، البند 2) |
+| `project.manage` | `server/domain/operationalRoles.ts:32` | معتمِد استثناء الميزانية. `PROPOSED`، وينتظر القسم 8 |
+| `executive.award.approve` | جديد، يُضاف إلى كتالوج EXECUTIVE بجوار `executive.read` (`server/db.ts:836`) | اعتماد الترسية فوق العتبة. `PROPOSED` |
+| `executive.read` | `server/db.ts:836` | قراءة الاعتمادات. `PROPOSED` |
+| `tenant.manage` | `server/db.ts:835` | ضبط عتبة الترسية. `PROPOSED` |
 
-| الرمز | يُمنح لـ | الإجراءات التي يحميها (الدالة) | الوجود في المصدر |
-|---|---|---|---|
-| `project.read` | القراءة | `listTenderSuppliers`، `listTenderPackages`، `listTenderInvitees`، `getTenderComparison` | `ownerPermissions` في `server/db.ts` |
-| `project.tender.manage` | الحزم والدعوات وتغيير الحالة | `createTenderPackage`، `inviteTenderSupplier`، `transitionTenderPackage` | `operationalPermissionCatalog` |
-| `project.tender.bids` | إدخال العرض وتصحيحه وسحبه | `enterTenderBid`، `reviseTenderBid`، `withdrawTenderBid` | `operationalPermissionCatalog` |
-| `project.tender.level` | المقارنة والتسوية والاستبعاد | `disqualifyTenderBid`، `addTenderBidAdjustment`، `removeTenderBidAdjustment` | `operationalPermissionCatalog` |
-| `project.tender.award` | الترسية | `awardTender` | `operationalPermissionCatalog` |
+**قواعد الدمج** (تحرسها `server/domain/operationalPermissions.ts`):
+- `conflictingPermissionPairs` (`:84-94`): `project.tender.bids` ↔ `project.tender.award` (السطر 92)، و`project.tender.bids` ↔ `project.tender.level` (السطر 93). هذا تنفيذ البند 5 من قرار المالك، 22 أكتوبر 2026 (من يُدخل العروض لا يرسّي).
+- `assertNoPermissionConflict` (`:101-103`) يرفض أي دور أو تركيبة تجمع الزوجين.
+- المالك يحمل كل شيء بالتعريف (`:79-83`)، لكن قاعدة الأشخاص (`PROJECT_OS_TENDER_SELF_AWARD`، `server/tenderService.ts:252`) تسري عليه أيضًا.
+- لا يُقبل `project.write` العام لأي فعل من هذه الأفعال (`server/domain/operationalPermissions.ts:5-7`).
 
-**فصل المهام على مستوى القوى:** `conflictingPermissionPairs` في `server/domain/operationalPermissions.ts` تحتوي زوجين لهذه الوحدة:
-- `project.tender.bids` مع `project.tender.award`: «من يُدخل العروض لا يرسّي».
-- `project.tender.bids` مع `project.tender.level`: «من يُدخل العروض لا يسوّيها».
-
-تُفرض الأزواج عند إنشاء الدور وتعديله وإسناده في `server/db.ts` (`createTenantRole`، و`updateTenantRole`، و`assignTenantMembershipRole`)، ويُعفى المالك (`TENANT_OWNER`) من فحص الزوج عند الإسناد، كما في `rolePermissionCodesForMembership`.
-
-**فصل المهام على مستوى الأشخاص:** `awardTender` يرفض إذا كان أي عرض في الحزمة، بما فيه المسحوب والمستبعد، مُدخَلًا من المستخدم نفسه (`bids.some(bid => bid.enteredByUserId === input.userId)`). القاعدة تسري على المالك أيضًا، لأن الإعفاء في الزوج لا يمتد إلى هذا الفحص.
-
-**القاعدة المؤكدة:** لا يحمل أي دور جاهز `project.tender.award`. الترسية لصاحب الشركة أو لدور مخصص (تعليق `CONTRACTS_MANAGER` في `server/domain/operationalRoles.ts`).
-
-**تفاوت:** الترسية تنشئ العقد والالتزام بصلاحية `project.tender.award` وحدها. `governedActionPermissions` في `server/domain/operationalPermissions.ts` تشترط `project.commitment.manage` على إنشاء العقد والالتزام يدويًا (`createContractForTenant`، و`createCommitmentForTenant`). انظر البند 8.
-
-**رموز جديدة:** لا يلزم أي رمز صلاحية جديد لهذه الوحدة.
+**أثر على الأدوار الجاهزة** (`PROPOSED`، وينتظر القسم 8):
+- `PROJECT_MANAGER` (`server/domain/operationalRoles.ts:64-89`) لا يحمل `project.tender.award` اليوم. البند 1 يجعله حاملًا لها، لكن إضافتها تمنحها لكل مدير مشروع في الشركات القائمة صامتًا، وهذا ما تجنّبه أمر العمل 5 (البند 3) عمدًا (`docs/STATE.md:386`). التغيير يحتاج خطوة ترحيل صريحة ومعلنة.
+- `CONTRACTS_MANAGER` (`server/domain/operationalRoles.ts:102`) يحمل `project.tender.bids`، فلا يقبل `project.tender.award` بقاعدة الفصل. البند 1 يذكر «الدور المتعاقد»، وهذا تعارض مع الدور القائم.
 
 ## 5. حالات الرفض
 
-الرمز الذي يراه المستخدم هو الرسالة المعرّبة لرمز `PROJECT_OS_*` في `shared/projectErrors.ts`. رسائل `assertTenantAccess` العامة (`Tenant scope`، و`membership`، و`not licensed`، و`permission`، و`Role scope`) تُحوَّل إلى ثلاثة رموز بواسطة `getProjectError` في الملف نفسه: `PROJECT_OS_TENANT_ACCESS_DENIED`، و`PROJECT_OS_PRODUCT_NOT_ENTITLED`، و`PROJECT_OS_PERMISSION_DENIED`. يصل الخطأ إلى الواجهة عبر `errorFormatter` في `server/_core/trpc.ts`.
+كل حالة تُرجع خطأ tRPC بالرمز المذكور، وتعرض رسالتها المترجمة من `shared/projectErrors.ts`. لا فشل صامت. «موجود» يعني أن الرمز في الكود اليوم، و«جديد» يعني `PROPOSED`.
 
-| # | الحالة | رمز tRPC | الرمز المعرّب | ما يراه المستخدم |
+| # | الحالة | الرمز (نوع tRPC) | ما يراه المستخدم | الحالة |
 |---|---|---|---|---|
-| 1 | لا عضوية نشطة أو لا وصول للمستأجر | FORBIDDEN | `PROJECT_OS_TENANT_ACCESS_DENIED` | رسالة الوصول المعرّبة في تنبيه |
-| 2 | الشركة لا تملك منتج PROJECT | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص |
-| 3 | الصلاحية غير ممنوحة، أو النطاق لا يغطي المشروع | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` | قبل الإرسال: نص `WriteGate`. بعده: التنبيه |
-| 4 | المشروع لا يتبع الشركة | NOT_FOUND | `PROJECT_OS_PROJECT_NOT_FOUND` | رسالة عدم الوجود |
-| 5 | الحزمة غير موجودة في المستأجر والمشروع | NOT_FOUND | `PROJECT_OS_TENDER_NOT_FOUND` | رسالة عدم الوجود |
-| 6 | المورد غير موجود أو غير نشط | NOT_FOUND | `PROJECT_OS_TENDER_SUPPLIER_NOT_FOUND` | رسالة عدم الوجود |
-| 7 | رمز حزمة مكرر في المشروع | CONFLICT | `PROJECT_OS_TENDER_DUPLICATE` | رسالة التكرار |
-| 8 | دعوة مورد على حزمة مغلقة أو ملغاة | CONFLICT | `PROJECT_OS_TENDER_INVITATION_CLOSED` | رسالة الإغلاق |
-| 9 | فتح حزمة `draft` بلا مدعوين | CONFLICT | `PROJECT_OS_TENDER_NO_INVITEES` | تبقى الحزمة `draft` |
-| 10 | انتقال حالة غير مسموح (`tenderTransitions`) | BAD_REQUEST | `PROJECT_OS_TENDER_TRANSITION_INVALID` | رسالة الانتقال |
-| 11 | إدخال عرض والحزمة ليست `open` | CONFLICT | `PROJECT_OS_TENDER_NOT_OPEN` | رسالة عدم الفتح |
-| 12 | عرض من مورد غير مدعو | CONFLICT | `PROJECT_OS_TENDER_NOT_INVITED` | رسالة عدم الدعوة |
-| 13 | عرض ثانٍ للمورد نفسه في الحزمة | CONFLICT | `PROJECT_OS_TENDER_BID_EXISTS` | رسالة التكرار |
-| 14 | تصحيح أو سحب عرض ليس `submitted` | CONFLICT | `PROJECT_OS_TENDER_BID_STATE_INVALID` | رسالة الحالة |
-| 15 | تسوية أو استبعاد قبل `closed` | CONFLICT | `PROJECT_OS_TENDER_NOT_CLOSED` | رسالة عدم الإغلاق |
-| 16 | استبعاد بسبب فارغ بعد `trim` | BAD_REQUEST | `PROJECT_OS_TENDER_REASON_REQUIRED` | رسالة السبب |
-| 17 | إشارة تسوية مخالفة للنوع | BAD_REQUEST | `PROJECT_OS_TENDER_ADJUSTMENT_SIGN` | رسالة الإشارة |
-| 18 | حذف تسوية غير موجودة | NOT_FOUND | `PROJECT_OS_TENDER_ADJUSTMENT_NOT_FOUND` | رسالة عدم الوجود |
-| 19 | ترسية على عرض مسحوب أو مستبعد | CONFLICT | `PROJECT_OS_TENDER_BID_NOT_ELIGIBLE` | رسالة عدم الأهلية |
-| 20 | ترسية بيد من أدخل عرضًا في الحزمة | CONFLICT | `PROJECT_OS_TENDER_SELF_AWARD` | رسالة فصل المهام |
-| 21 | ترسية مع أقل من عرضين قابلين للمقارنة بلا تسبيب من عشرة أحرف | BAD_REQUEST | `PROJECT_OS_TENDER_JUSTIFICATION_REQUIRED` | رسالة التسبيب |
-| 22 | ترسية والحزمة لم تعد `closed` عند الكتابة (`affectedRows` ≠ 1) | CONFLICT | `PROJECT_OS_TENDER_NOT_CLOSED` | رسالة عدم الإغلاق. لا عقد ولا التزام |
-| 23 | رمز عقد أو التزام مكرر في المشروع | CONFLICT | `PROJECT_OS_TENDER_DUPLICATE` | رسالة التكرار. تُلغى المعاملة كلها |
-| 24 | مدخل مرفوض بمخطط `zod` في المسار، مثل سعر غير موجب أو عملة ليست ثلاثة أحرف | BAD_REQUEST | `PROJECT_OS_REQUEST_FAILED` | «تعذر إتمام الطلب. تحقق من البيانات» |
-| 25 | تحديث محمي لم يتأثر بأي صف (مقترح، انظر البند 8) | CONFLICT | `PROJECT_OS_TENDER_STATE_CHANGED` (جديد) | «تغيّرت حالة الحزمة. أعد تحميل القسم» |
+| 1 | الترسية والباب ليس `closed` | `PROJECT_OS_TENDER_NOT_CLOSED` (CONFLICT) | لا ترسية قبل إغلاق الباب | موجود (`tenderService.ts:246`) |
+| 2 | العرض الفائز ليس في الحزمة | `PROJECT_OS_TENDER_BID_NOT_FOUND` (NOT_FOUND) | «غير متاحة ضمن المشروع» | موجود (`:250`) |
+| 3 | العرض مسحوب أو مستبعد | `PROJECT_OS_TENDER_BID_NOT_ELIGIBLE` (CONFLICT) | لا ترسية على عرض مسحوب | موجود (`:251`) |
+| 4 | مُدخل أي عرض في الحزمة يرسّيها | `PROJECT_OS_TENDER_SELF_AWARD` (CONFLICT) | يلزم شخص آخر | موجود (`:252`) |
+| 5 | أقل من عرضين صالحين دون تسبيب (10 أحرف) | `PROJECT_OS_TENDER_JUSTIFICATION_REQUIRED` (BAD_REQUEST) | حقل التسبيب مطلوب | موجود (`:255`) |
+| 6 | ترسية دون `project.commitment.manage` | `FORBIDDEN` | رسالة بالعربية. الرسالة الحالية إنجليزية (`server/domain/authorization.ts:44`)، وهذه فجوة | `PROPOSED` |
+| 7 | بند الميزانية غير مختار | `PROJECT_OS_TENDER_BUDGET_LINE_REQUIRED` (BAD_REQUEST) | يُطلب البند | جديد |
+| 8 | البند ليس ضمن المشروع والشركة | `PROJECT_OS_TENDER_BUDGET_LINE_NOT_FOUND` (NOT_FOUND) | «غير متاح ضمن المشروع» | جديد |
+| 9 | المبلغ أكبر من المتبقي دون استثناء | `PROJECT_OS_TENDER_BUDGET_EXCEEDED` (CONFLICT) | يظهر المبلغ والمتبقي، ولا يُكتب شيء | جديد |
+| 10 | استثناء بلا تسبيب (10 أحرف) أو بلا معتمِد | `PROJECT_OS_TENDER_EXCEPTION_INCOMPLETE` (BAD_REQUEST) | الحقل مطلوب | جديد |
+| 11 | المعتمِد هو الطالب، أو مُدخل عرض في الحزمة | `PROJECT_OS_TENDER_EXCEPTION_SELF_APPROVAL` (CONFLICT) | يلزم معتمِد آخر | جديد |
+| 12 | الإجمالي فوق العتبة (أو العتبة `NULL`) دون اعتماد صالح | `PROJECT_OS_TENDER_EXECUTIVE_APPROVAL_REQUIRED` (CONFLICT) | تظهر الحالة، ولا يُكتب شيء | جديد |
+| 13 | المعتمِد هو المرسّي، أو مُدخل عرض | `PROJECT_OS_TENDER_APPROVAL_SELF` (CONFLICT) | يلزم شخص آخر | جديد |
+| 14 | الاعتماد لا يطابق الإجمالي المسوّى الآن | `PROJECT_OS_TENDER_APPROVAL_STALE` (CONFLICT) | يلزم اعتماد جديد | جديد (يحتاج AM-5) |
+| 15 | عملة غير SAR في عرض أو حزمة أو اعتماد | `PROJECT_OS_TENDER_CURRENCY_NOT_SAR` (BAD_REQUEST) | الريال هو العملة المقبولة | جديد (فجوة: `routers.ts:389`، `:392`) |
+| 16 | تعديل أو سحب عرض ليس لمُدخله، حتى للمالك | `PROJECT_OS_TENDER_BID_NOT_OWN` (FORBIDDEN) | لا يعدّل أحد عرض غيره | جديد (فجوة: `tenderService.ts:160-187`) |
+| 17 | تعديل بعد الإغلاق دون سبب (10 أحرف)، أو دون تغيير | `PROJECT_OS_TENDER_AMENDMENT_INCOMPLETE` / `PROJECT_OS_TENDER_AMENDMENT_NO_CHANGE` (BAD_REQUEST) | رسالة محددة لكل منهما | جديد |
+| 18 | تعديل بعد الترسية أو الإلغاء، أو لعرض غير مُقدَّم | `PROJECT_OS_TENDER_AMENDMENT_CLOSED` (CONFLICT) | لا تعديل بعد الترسية | جديد |
+| 19 | تعديل أو سحب أثناء `closed` بالمسار القديم | `PROJECT_OS_TENDER_NOT_OPEN` (CONFLICT) | يُوجَّه المستخدم إلى «تعديل بعد الإغلاق» | موجود (`:165`، `:180`) |
+| 20 | إعادة فتح مناقصة فيها عروض بعد الإغلاق | `PROJECT_OS_TENDER_TRANSITION_INVALID` (BAD_REQUEST) | مرفوض (القسم 8) | الرمز موجود، والقاعدة `PROPOSED` |
+| 21 | ترسية متزامنة، أو صفر صفوف عند التحديث | `PROJECT_OS_TENDER_NOT_CLOSED` (CONFLICT) | يُلغى العقد والالتزام معًا | موجود (`:265`، يحتاج AM-5) |
+| 22 | رمز عقد أو التزام مكرر في المشروع | `PROJECT_OS_TENDER_DUPLICATE` (CONFLICT) | لا يبقى شيء نصف مكتوب | موجود (`:16`، يحتاج AM-4) |
+| 23 | مبلغ عرض `≤ 0`، أو علامة تسوية خاطئة | خطأ القيد (SQLSTATE 23514) يُترجم إلى `PROJECT_OS_TENDER_ADJUSTMENT_SIGN` عند التسوية | يظهر الخطأ | الخادم موجود (`:214`)، والقيد جديد |
+| 24 | عرض أو حزمة أو عقد لمستأجر آخر أو مشروع آخر | `NOT_FOUND` أو `FORBIDDEN` | لا وجود للسجل | موجود (`mine()`، `assertProjectWithinTenant`) |
+| 25 | كتابة لا يمكن تدقيقها | تُرجع المعاملة كلها، ويظهر خطأ عام مترجم | لا عقد بلا سجل | موجود (المبدأ) |
 
-**قاعدة الرفض:** لا فشل صامت. كل تحديث محمي يفحص عدد الصفوف المتأثرة، فإن كان 0 يرفض بخطأ صريح. اليوم يفعل ذلك `awardTender` فقط (`affectedRows !== 1`). `transitionTenderPackage`، و`withdrawTenderBid`، و`disqualifyTenderBid`، و`addTenderBidAdjustment`، و`removeTenderBidAdjustment` لا تفحص ذلك. انظر البند 8.
+## 6. معايير القبول (قابلة للاختبار)
 
-## 6. معايير القبول
-
-1. إنشاء حزمة دون `project.tender.manage` يُرفض بـ`PROJECT_OS_PERMISSION_DENIED`، ولا يُكتب أي صف.
-2. كل إجراء من مستأجر آخر أو مشروع آخر يُرفض، ولا يُعاد أي صف من المستأجر الآخر.
-3. فتح حزمة `draft` بلا مدعو يعيد `PROJECT_OS_TENDER_NO_INVITEES`، وتبقى الحزمة `draft`.
-4. لا يُقبل عرض إلا من مورد مدعو، وفي حزمة `open`، ومرة واحدة لكل مورد.
-5. تصحيح العرض وسحبه بعد الإغلاق يُرفضان، ولا يتغير `tender_bids` عند الرفض.
-6. التسوية والاستبعاد لا يقبلان قبل `closed`. مبلغ `discount` الموجب ومبلغ `scope_gap` أو `exclusion` السالب يُرفضان بـ`PROJECT_OS_TENDER_ADJUSTMENT_SIGN`.
-7. العرض المسحوب أو المستبعد يظهر في الجدول دون رتبة، ولا يدخل الوسيط ولا الأدنى.
-8. الترتيب يعتمد المجموع المُسوّى (السعر مع التسويات)، والمتعادلون يتشاركون الرتبة.
-9. الاستبعاد يتطلب سببًا غير فارغ بعد `trim`.
-10. الترسية تنجح مرة واحدة فقط. ينتج عنها عقد واحد والتزام واحد. عند الفشل لا يبقى أي منهما.
-11. من أدخل عرضًا في الحزمة يُرفض عند الترسية، ولو كان مالكًا، بـ`PROJECT_OS_TENDER_SELF_AWARD`.
-12. مع أقل من عرضين قابلين للمقارنة لا تُقبل الترسية إلا بتسبيب من عشرة أحرف بعد `trim`.
-13. قيمة العقد هي المجموع المُسوّى للعرض الفائز، ومورّده هو الاسم القانوني من السجل، وعملته هي عملة العرض.
-14. بعد الترسية: الالتزام `committed`، والعقد `draft`، والحزمة `awarded` مع المعرّفات الثلاثة مملوءة.
-15. كل كتابة تنتج صف التدقيق المذكور في البند 2.6 في المعاملة نفسها، وفيه `projectId` داخل `metadata`.
-16. كل تحديث محمي يفحص عدد الصفوف المتأثرة. صفر صفوف ينتج خطأ صريحًا.
-17. لا تُغيّر حالة حزمة `awarded` بأي إجراء، ولا يتغير `awardedContractId` بعد الترسية.
-18. مستخدم بلا `project.tender.award` لا يرى نموذج الترسية. من أدخل عرضًا لا يرى النموذج، بل تفسيرًا (مقترح).
-19. الحالة الفارغة والتحميل يظهران نصًا معرَّبًا، لا قائمة فارغة صامتة.
-20. كل الرسائل تظهر بالعربية والإنجليزية، ولا يظهر رمز `PROJECT_OS_*` خامًا للمستخدم.
+1. الترسية بلا `project.tender.award` تُرفض بـ`FORBIDDEN`، وبلا `project.commitment.manage` تُرفض بـ`FORBIDDEN` أيضًا (إغلاق S-1).
+2. كل ترسية تنتج صف `commitments` واحدًا بـ`budget_line_id` و`tender_package_id` غير فارغين، وصف `contracts` بالعملة `SAR`، وتصير الحزمة `awarded` بالروابط الثلاثة.
+3. ترسية بمبلغ أكبر من المتبقي دون استثناء تُرفض بـ`PROJECT_OS_TENDER_BUDGET_EXCEEDED`، ولا يبقى صف في `contracts` أو `commitments`.
+4. ترسية بالاستثناء (تسبيب 10 أحرف، ومعتمِد غير الطالب وغير المُدخل) تنجح، وتكتب صفًا في `tender_budget_exceptions` بـ`used_at`، وسطر تدقيق في المعاملة نفسها.
+5. الاستثناء الواحد لا يُستهلك مرتين (الفهرس الجزئي): المحاولة الثانية تُرفض.
+6. ترسية فوق العتبة بلا اعتماد صالح تُرفض بـ`PROJECT_OS_TENDER_EXECUTIVE_APPROVAL_REQUIRED`. ومع اعتماد مطابق للإجمالي تنجح، وتستهلك الاعتماد.
+7. العتبة `NULL` تعني أن كل ترسية تحتاج اعتمادًا.
+8. مُدخل عرض في الحزمة لا يرسّيها ولا يعتمد ترسيتها ولا استثناءها، وإن كان مالك الشركة.
+9. أي عملة غير `SAR` في عرض أو حزمة أو اعتماد تُرفض بـ`PROJECT_OS_TENDER_CURRENCY_NOT_SAR`، والقيد نفسه يرفض `INSERT` مباشرًا بعملة أخرى.
+10. مبلغ عرض `≤ 0` يرفضه القيد، ومبلغ تسوية `0` يرفضه القيد أيضًا.
+11. من لم يُدخل العرض لا يعدّله ولا يسحبه، وإن حمل `project.tender.bids`، وحتى المالك.
+12. بعد الإغلاق لا يتغير `tender_bids.amount` ولا المدة ولا الصلاحية. المحاولة المباشرة يرفضها المشغّل، والتعديل المقبول يصنع صفًا جديدًا في `tender_bid_amendments`، والقيم القديمة كلها باقية.
+13. `UPDATE` و`DELETE` على `tender_bid_amendments` يُرفضان لكل الأدوار، ولحساب `project_os_app` لا صلاحية لهما.
+14. المقارنة تستعمل القيم الفعلية (آخر تعديل)، فيتغير الترتيب وأدنى سعر والوسيط بالتعديل.
+15. اعتماد مسوّى قديم (تغيّر الإجمالي بعد الاعتماد) يُرفض بـ`PROJECT_OS_TENDER_APPROVAL_STALE`.
+16. كل كتابة محمية تكتب سطر تدقيق في المعاملة نفسها، وإذا فشل التدقيق تفشل الكتابة كلها.
+17. مستأجر آخر لا يرى حزمة ولا عرضًا ولا عقدًا ولا استثناءً ولا تعديلًا، وهذا يُختبر بـRLS وحدها (دون فلتر الخادم). ومشروع آخر لنفس المستأجر لا يُرى من الخادم.
+18. ترسيتان متزامنتان: واحدة تنجح، والثانية تُرجع `PROJECT_OS_TENDER_NOT_CLOSED` صراحةً، دون عقد ثانٍ.
+19. الشاشة تُظهر الترسية لمن يحمل `project.tender.award` فقط، وتُظهر حالة العتبة والمتبقي قبل الإرسال.
+20. عند 390px لا تمرير أفقي للصفحة، وتظهر الحالات الثلاث: تحميل، وفارغ، وخطأ.
+21. الترحيلة تفشل إن وُجد جدول جديد غير مصنّف في `project_os_apply_conventions` (ADR-0002).
+22. عدد الاختبارات الناجحة لا ينقص عن آخر رقم مُثبت. ولا يُعلن `PASS` شاملًا، بل يُكتب نطاق ما فُحص وما لم يُفحص (`CLAUDE.md` §1 و§7).
 
 ## 7. الاختبارات المطلوبة
 
-**اختبارات وحدة (دوال نقية، دون قاعدة):**
-- الموجود: `server/domain/tenders.test.ts` (7 اختبارات): ترتيب التسوية، وجمع التسويات، والمسحوب بلا رتبة، والوسيط وفرق 30%، ومقارنة التقدير، والحالات الفارغة، ومجموعة الانتقالات.
-- المطلوب: جدول انتقالات كامل، 5 × 5، يُختبر كل زوج مسموح ومرفوض، وتحقق من أن `tenderTransitions.awarded` فارغ.
-- المطلوب: جدول إشارات التسوية، أربعة أنواع × إشارة، بما فيها الصفر.
-- المطلوب: حالة عرض واحد قابل للمقارنة، وحالة عرضين، وحالة ثلاثة مع فرق 30% بالضبط على الحد.
-- المطلوب بعد قرار البند 8.4: اختبار لمعاملة العملات المختلفة.
+**وحدة (دوال نقية):**
+- `server/domain/tenders.ts` فيه `levelBids` و`tenderTransitions`. لا توجد وحدة اسمها `bidComparison` في الفرع، والمقارنة هي `levelBids`.
+- الموجود: `server/domain/tenders.test.ts` (7 اختبارات).
+- الجديد (`PROPOSED`، دوال نقية في `server/domain/tenders.ts`): `budgetRemaining(line, commitments)`، و`requiresExecutiveApproval(total, threshold)` (العتبة `NULL` تعيد `true`، ومساوي العتبة لا يحتاج اعتمادًا)، و`effectiveBidTerms(bid, amendments)` (آخر تعديل يغلب، وإلا الأصل)، و`isSarCurrency(value)`، و`amendmentChanges(old, next)` (لا تعديل بلا تغيير)، و`isNotOwnBid(userId, enteredBy)`.
+- الاختبارات الجديدة تغطي الحدود: المتبقي مع `draft` و`released`، والمساواة مع العتبة، والتعديل المتسلسل، وأن `levelBids` تستعمل القيم الفعلية.
 
-**اختبارات تكامل قاعدة البيانات (على `project_os_integration_test` فقط):**
-- الموجود: `server/tender.award.database.test.ts` (9 اختبارات): حدود الدور، والحزم والدعوات، والتسوية، والترسية بيد غير مُدخل العرض، والترسية المتزامنة لمرتين، والاستبعاد والإلغاء، والعزل بين المستأجرين والمشاريع، وصف التدقيق لكل كتابة.
-- المطلوب: سباق بين `transitionTenderPackage(cancelled)` والترسية. النتيجة المقبولة: الترسية لا تُلغى، والإلغاء يُرفض بخطأ صريح.
-- المطلوب: سباق بين `withdrawTenderBid` و`awardTender`، ويُثبت أن العرض المسحوب لا يُرسّى.
-- المطلوب: رفض الترسية بـ`PROJECT_OS_TENDER_SELF_AWARD` لمالك الشركة نفسه.
-- المطلوب بعد قرار البند 8.2: ترسية بدور يملك `project.tender.award` دون `project.commitment.manage`.
-- القاعدة: هذه الاختبارات تُشغَّل من `scripts/run-integration-database-test.mjs` فقط، ولا تُستبدل بمحاكاة (`docs/DEPLOYMENT.md`).
+**تكامل قاعدة البيانات (PostgreSQL، على `project_os_integration_test` فقط):**
+- ملف جديد (`PROPOSED`) يحل محل `server/tender.award.database.test.ts`، الذي يقبل MySQL فقط (سطر 10).
+- الحارس: `server/testing/databaseGuard.setup.ts` يوقف التشغيل إن سمّى `DATABASE_URL` قاعدة غير `project_os_integration_test`. التشغيل عبر `scripts/run-integration-database-test.mjs`. لا تشغيل على الإنتاج.
+- الحالات: الترسية بالصلاحيات الناقصة؛ تجاوز الميزانية والاستثناء؛ الاعتماد واستهلاكه مرة واحدة؛ العتبة `NULL`؛ الاعتماد المتقادم؛ الترسيتان المتزامنتان؛ `CHECK` للعملة والمبلغ (`INSERT` مباشر يفشل بـ23514)؛ `UPDATE` على `tender_bid_amendments` يُرفض لحساب التطبيق؛ `tender_bids_lock_terms` يرفض التعديل بعد الإغلاق؛ RLS: استعلام بلا سياق لا يرى صفًا واحدًا؛ سطر التدقيق في المعاملة نفسها، وفشل التدقيق يُرجع الكتابة.
+- **ضوابط سلبية** (كل فحص يجب أن يفشل عند إزالة حمايته): حذف فحص `project.commitment.manage` يُفشل اختبار S-1؛ حذف مشغّل `tender_bid_amendments` يُفشل اختبار الحفظ؛ حذف شرط `status = 'closed'` في تحديث الترسية يُفشل اختبار التزامن.
 
-**اختبارات مكوّنات الواجهة:**
-- الموجود: `client/src/pages/ProjectTenders.interaction.test.tsx` (7 اختبارات): العرض والترتيب والتسوية والترسية، والحزمة المرسّاة، والحزمة المفتوحة، والإنجليزية.
-- المطلوب: مُدخل العرض لا يرى نموذج الترسية، ويرى التفسير.
-- المطلوب: تنبيه `PROJECT_OS_TENDER_SELF_AWARD` يظهر بالنص المعرّب.
-- المطلوب: الحالة الفارغة والتحميل لكل جزء في الجدول أعلاه.
+**واجهة (React):**
+- الملف الحالي: `client/src/pages/ProjectTenders.interaction.test.tsx` (7 اختبارات).
+- الإضافات (`PROPOSED`): نموذج الترسية يظهر بـ`project.tender.award` فقط؛ حقل الميزانية وعرض المتبقي؛ حقل التسبيب يظهر عند التجاوز فقط؛ زر التعديل بعد الإغلاق لمُدخل العرض فقط؛ حالة العتبة؛ رسائل الخطأ المترجمة.
 
-## 8. مخاطر وأسئلة مفتوحة
+**متصفح ورحلات الأدوار:**
+- `scripts/e2e-roles.mjs` و`scripts/lib/roleFixture.mjs` يُمدّان بسيناريو مدير العقود (يُدخل ولا يرسّي) ومنسق الاعتماد التنفيذي، مع القياس عند 390px.
 
-**قرارات المالك (BLOCKED_BY_OWNER، لا تُفترض):**
-1. **المحرك.** المواصفة مبنية على MySQL/TiDB. يوجد على الفرع البعيد `origin/feat/postgres-migration` عمل انتقال إلى PostgreSQL، وليس على `main`، ولم أجد على `main` قرارًا معتمدًا يسمح به. رأس `CLAUDE.md` يقول إن لا مسار معتمد. يلزم قرار المالك قبل ترجمة أي نوع.
-2. **من يلتزم ماليًا.** هل تكفي `project.tender.award` لإنشاء العقد والالتزام، أم يُشترط معها `project.commitment.manage`، كما هو للإنشاء اليدوي؟
-3. **الميزانية.** `commitments` لا يحمل `budgetLineId`، ولا تُخصم الترسية من بند ميزانية. الالتزام يدخل التدفق النقدي كمبلغ ملتزم به فقط (`server/domain/cashFlow.ts`). هل تُطلب طريقة ربط ببند أو رمز تكلفة؟
-4. **العملات.** `levelBids` يجمع المبالغ دون تحويل، و`enterTenderBid` يقبل أي عملة من ثلاثة أحرف. القرار: منع العملة المختلفة أم تحويل بسعر معتمد؟
-5. **من يصحح العرض أو يسحبه.** أي حامل `project.tender.bids` يستطيع تعديل أي عرض في الحزمة، لا مُدخله وحده. هل هذا مقصود؟
-6. **حد المنافسة.** هل عرضان هما الحد الأدنى للمقارنة؟ وهل عشرة أحرف كافية للتسبيب؟
-7. **حالة `declined`.** `tender_invitees.status` تحمل القيمة `declined` بلا إجراء يضبطها. هل يُضاف إجراء أم تُحذف القيمة؟
-8. **الإغلاق عند الموعد.** `closingAt` محفوظ ولا يغلق الحزمة آليًا. هل يُطلب الإغلاق التلقائي؟
-9. **تفعيل العقد.** العقد يُنشأ `draft`، ولا توجد خطوة معرّفة لتفعيله. من يفعّله، ومتى؟
+**أداء:** `scripts/perf-tenders.mjs` يُعاد تشغيله على PostgreSQL. الأرقام الحالية (`docs/STATE.md:385`) قيست على MySQL وTiDB، ولا تُنقل إلى PostgreSQL.
 
-**عيوب في الكود (OPEN):**
-- **سباق في `transitionTenderPackage`.** الـUPDATE يحدّد `id` دون شرط على الحالة، فإن تزامن إلغاء مع ترسية قد يحوّل حزمة `awarded` إلى `cancelled` وتبقى العقد والالتزام قائمين. الإصلاح: شرط `status` على الحالة السابقة، وفحص `affectedRows`.
-- **فحص `affectedRows` مفقود** في `transitionTenderPackage`، و`withdrawTenderBid`، و`disqualifyTenderBid`، و`addTenderBidAdjustment`، و`removeTenderBidAdjustment`، ولا يفحص `awardTender` إلا الصف الواحد للحزمة. الإصلاح: الرمز المقترح `PROJECT_OS_TENDER_STATE_CHANGED`، ويُضاف إلى `shared/projectErrors.ts`.
-- **نموذج الترسية** يظهر لمُدخل العرض (البند 3).
-- **تدقيق بلا عمود مشروع.** `projectId` داخل `metadata` نص JSON، فاستعلام التدقيق حسب المشروع يحتاج تحليل النص. لا يغيّر الصلاحيات، لكنه يبطئ التقارير.
-- **معرّفات الترسية بلا FK.** `awardedBidId` و`awardedContractId` و`awardedCommitmentId` بلا مفتاح خارجي في المخطط.
+## 8. المخاطر والأسئلة المفتوحة
 
-**قيود مقترحة (PROPOSED، تحتاج تحققًا من دعم TiDB لها):**
-- `CHECK (amount > 0)` على `tender_bids.amount`.
-- `CHECK` يربط إشارة `amount` بـ`kind` في `tender_bid_adjustments`.
-- `CHECK` يربط الحقول المرسّاة بـ`status = 'awarded'` في `tender_packages`.
-- المحرك: لا يُضاف أي قيد قبل الفحص على TiDB، ولا يُعتمد التحقق بالخدمة وحدها.
+تُنقل البنود المحجوزة إلى `docs/OWNER_ACTIONS.md` بخطوات نقر بالعربية عند التنفيذ (`CLAUDE.md` §5).
 
-**مخاطر تشغيلية:**
-- `contracts_project_code_unique` و`commitments_project_code_unique` تكشفان التكرار بالرمز `PROJECT_OS_TENDER_DUPLICATE` الذي يخفي سببه الحقيقي (عقد أم التزام). الرسالة لا تحدد أيهما.
-- الترسية تنشئ عقدًا بعملة العرض، بينما عملة المشروع قد تختلف. لا فحص يربط العملتين.
+**بنود يحجزها المالك (`BLOCKED_BY_OWNER`، لا تُفترض):**
+1. التجربة (trial).
+2. الأسعار.
+3. المقاعد (seats).
+4. مزود البريد.
+5. تعدد الشركات لكل حساب.
+6. هل يجوز لأحد أن يرسّي دون `project.tender.award`.
+
+**قرارات مشتقة من تعارض القرارات مع الكود** (`BLOCKED_BY_OWNER`، لم ترد في البنود الخمسة):
+7. **من يرسّي؟** البند 1 يذكر «الدور المتعاقد»، ودور `CONTRACTS_MANAGER` يحمل `project.tender.bids`، فلا يقدر على حمل `project.tender.award` (`server/domain/operationalPermissions.ts:92`). الخيارات: (أ) ترسية `PROJECT_MANAGER` وحده، بعد إضافة `project.tender.award` إليه بخطوة ترحيل معلنة، مع إزالة `project.tender.bids` من `CONTRACTS_MANAGER`؛ (ب) دور مالي جديد. التوصية المعروضة (أ)، ولا تُنفَّذ قبل الموافقة.
+8. **إعادة فتح الباب بعد الإغلاق.** `tenderTransitions.closed` يسمح بـ`open`، والبند 4 يقول إن العروض تُقفل عند الإغلاق. التوصية (`PROPOSED`): العودة مرفوضة بعد دخول أي عرض، والتعديل بعد الإغلاق لمُدخل العرض فقط.
+9. **من يعتمد استثناء الميزانية؟** البند 2 يوجب «معتمِدًا» دون تسميته. التوصية (`PROPOSED`): `project.manage`، على ألا يكون الطالب ولا مُدخلًا.
+10. **قيمة عتبة الترسية الافتراضية.** رقم مالي يحدده المالك، والافتراضي `NULL` (انظر 2.8).
+11. **الاعتماد التنفيذي يحتاج باقة تتضمن EXECUTIVE** (`server/domain/authorization.ts:4-12`). شركة بباقة `PROJECT` وحدها لا تستطيع الترسية فوق العتبة. هل هذا مقصود؟
+
+**مخاطر (غير محجوزة):**
+- الالتزامات القائمة بلا بند ميزانية (AM-9) تُخفي المتبقي الحقيقي حتى تُربط.
+- المشاريع بعملة غير SAR (AM-8) لا تُرسى في V1 قبل التحقق منها.
+- الأرقام المُثبتة في `docs/STATE.md:385` قيست على MySQL، ولا تُعتمد لـPostgreSQL قبل إعادة القياس.
