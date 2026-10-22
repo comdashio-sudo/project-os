@@ -124,7 +124,7 @@ function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetc
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
       {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3"><span><span dir="ltr" className="font-mono text-xs text-slate-500">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-emerald-700">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-slate-600">{t.none}</p>}
-      <WriteGate permission="project.manage" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects." }}>
+      <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects." }}>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...form }); }}>
           <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /></div>
           <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /></div>
