@@ -1,7 +1,8 @@
 name: CI
 
-# No database and no secrets: this workflow reads none and has none. The live
-# TiDB suites are skipped by design (see server/testing/databaseGuard.setup.ts).
+# The `gate` job needs no database and no secrets (the live suites skip by design, see server/testing/databaseGuard.setup.ts). The `database` job
+# runs them against a throw-away PostgreSQL service container: the schema is built from the migrations, the tests run as the restricted
+# application role (so row-level security is exercised), and the passwords below belong to that container alone.
 on:
   pull_request:
   push:
@@ -30,6 +31,36 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: pnpm test
+
+  database:
+    name: database suite (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrations, restricted role, then every database suite
+        run: node scripts/run-integration-database-test.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/postgres # secret-scan:allow container-local throw-away value
+      - name: Database security proof (audit trail, row-level security, Data API roles)
+        run: node --import tsx scripts/verify-db-security.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
+          PROJECT_OS_APP_DB_PASSWORD: project-os-local-test-only # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
 
   secrets:
     name: secret scan

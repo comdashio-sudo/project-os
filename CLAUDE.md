@@ -1,8 +1,8 @@
 # PROJECT OS (Dashio) — قواعد العمل الحاكمة
 
-منصة مستقلة تمامًا. المحرك **MySQL/TiDB Serverless** عبر Drizzle و`mysql2`، لا Supabase ولا PostgreSQL.
-لا تذكر TASLEEM أو أي مشروع آخر في المخرجات، ولا تصمم شيئًا «لتسهيل دمج مستقبلي» (`docs/WORK_ORDER_BATCH_6.md:10`، `docs/STATE.md:6`).
-لا يوجد مسار معتمد لتغيير قاعدة البيانات أو الدمج مع منصة أخرى (`docs/STATE.md:24`، `:58`).
+منصة مستقلة تمامًا. المكدس بقرار المالك (أمر العمل 6، 2026-10-22، `docs/ADR-0002-POSTGRES-SUPABASE-VERCEL.md`): **PostgreSQL على Supabase** عبر Drizzle (`pgTable`) و`pg`، الدخول بـSupabase Auth (OTP بالبريد)، الملفات في Supabase Storage عبر واجهة S3، الاستضافة Vercel (Express كدالة واحدة) والمهام على Vercel Cron. أُلغي قرار TiDB/Render/Resend/R2.
+لا تذكر أي مشروع آخر في المخرجات، ولا تصمم شيئًا «لتسهيل دمج مستقبلي». **مشروع Supabase باسم `dashio` ومشروع Vercel باسم `dashio` منفصلان تمامًا:** ممنوع أي اتصال بمشاريع المنصات الأخرى في Supabase أو Vercel أو مشاركة قاعدة أو مفتاح معها.
+لا يوجد مسار معتمد للدمج مع منصة أخرى.
 
 ## 1. مصدر الحقيقة
 
@@ -48,12 +48,14 @@
 
 - كل سجل عمل يحمل `tenantId`، ولا استعلام عمل بلا مرشح `tenantId`. جداول PMC تحمل `tenantId` و`projectId` (`DATABASE.md:5`، `WORK_ORDER_PMC.md:17`).
 - كل كتابة محمية تتطلب: عزل المستأجر والمشروع، وصلاحية RBAC مسمّاة، وحارس اشتراك، وصف تدقيق ذري في الـtransaction نفسها، ورسائل خطأ مترجمة (`WORK_ORDER_EXTENDED.md:47-55`).
-- TiDB بلا triggers. حماية `audit_logs` حسابية: حساب التطبيق يملك `SELECT, INSERT` فقط.
-  - لا تصفها أبدًا بأنها «غير قابلة للعبث» (`ADR-0001:17`، `:21`).
+- `audit_logs` append-only في القاعدة: triggers ترفض UPDATE وDELETE وTRUNCATE لكل الأدوار (`ENABLE ALWAYS`)، وحساب التطبيق `project_os_app` يملك `SELECT, INSERT` فقط.
+  - لا تصفها أبدًا بأنها «غير قابلة للعبث»: مالك الجدول يستطيع حذف الـtrigger (`ADR-0002`، الحد 2).
+- عزل المستأجر طبقتان: الخادم (كل استعلام بمرشح `tenantId`) و**RLS** على كل جدول بسياق لكل جملة (`server/_core/database.ts`). جملة بلا سياق لا ترى صف شركة؛ ما يعمل عبر الشركات يقول `withSystemContext(reason, …)`. لا تُضعف أي منهما بحجة الأخرى.
+- كل ترحيلة تُتبَع بـ`project_os_apply_conventions()` (يفعله `scripts/migrate.mjs`): جدول جديد لا يُصنَّف يُسقط الترحيلة.
 - التطبيق والمستودع لا يُنشئان مستخدمين ولا يمنحان صلاحيات. ذلك للـDBA المفوَّض وحده (`DEPLOYMENT.md:70`).
-- الترحيلات مرقّمة تسلسليًا، وآخرها `drizzle/0052_pmc_phase_a.sql`. تُراجع قبل التطبيق بحثًا عن عمليات هدّامة.
+- الترحيلات مرقّمة تسلسليًا، والأساس `drizzle/0000_baseline.sql` يبني المخطط كاملًا من الصفر ويُولَّد من `drizzle/schema.ts` + `drizzle/baseline-security.sql` بـ`pnpm db:baseline` (`pnpm db:baseline:check` يفشل إن تباعدا). تُراجع قبل التطبيق بحثًا عن عمليات هدّامة.
   - لا `DROP` ولا تغيير إنتاجي هدّام بلا خطة رجوع مكتوبة (`DEPLOYMENT.md:23-32`).
-  - **لا تشغّل `pnpm db:push`** على أي اتصال قبل مراجعة الـSQL: هو يطبّق مباشرة على `DATABASE_URL`.
+  - الترحيلات تُطبَّق بـ`pnpm db:migrate` على الاتصال **المباشر** (5432) لا على المجمّع. لا `drizzle-kit push/migrate`.
 - **قاعدة الاختبار الوحيدة هي `project_os_integration_test`.** لا يُشغَّل أي اختبار ولا probe على قاعدة الإنتاج (`DEPLOYMENT.md:14`، `:38`).
   - حارس vitest العام (`server/testing/databaseGuard.setup.ts`) يوقف التشغيل كله إن سمّى `DATABASE_URL` أو `TEST_DATABASE_URL` قاعدة غير هذه، و`server/commercial_chain.database.test.ts` يتخطى نفسه بلا قاعدة اختبار ولا يحذف من `audit_logs`.
   - مع ذلك لا تضع في بيئتك `DATABASE_URL` يشير إلى الإنتاج أصلًا.
@@ -88,10 +90,11 @@
 
 **القرارات المحسومة:**
 
-- قاعدة TiDB Cloud باسم المالك، قاعدة نظيفة بلا نقل بيانات من Manus.
-- الدخول برمز بريد عبر Resend أساسًا، وGoogle OIDC اختياري، وجلسة موقّعة بـ`jose` بشكل الكوكي الحالي.
-- التخزين Cloudflare R2 عبر `@aws-sdk/client-s3`.
-- الاستضافة Render، خادم Express واحد، `render.yaml`.
+- قاعدة Supabase PostgreSQL باسم المالك (مشروع `dashio`)، قاعدة نظيفة بلا نقل بيانات من المنصات السابقة.
+- الدخول برمز بريد عبر Supabase Auth (OTP) أساسًا، وGoogle OIDC اختياري، وجلسة موقّعة بـ`jose` بشكل الكوكي الحالي. الخادم يستعمل مفتاح **anon** فقط؛ لا `service_role` في أي مكان.
+- التخزين Supabase Storage عبر واجهة S3 (`@aws-sdk/client-s3`).
+- الاستضافة Vercel (مشروع `dashio`)، خادم Express واحد كدالة (`pnpm build:vercel`)، والمهام المجدولة Vercel Cron.
+- بريد الإشعارات SMTP عادي (`nodemailer`)؛ لا Resend.
 - الخريطة مخفية. الصور والصوت وData API تُحذف. الـLLM خلف مفتاح تشغيل معطَّل افتراضيًا.
 
 ## 6. بوابات النطاق
@@ -101,7 +104,7 @@
 - لا استيراد Excel/CSV/XER لـPMC، ولا مزامنة Google Sheets، ولا شاشة 3D (`PMC_PHASE_A_CLOSEOUT_2026-10-07.md:55-60`، `WORK_ORDER_PMC.md:63`، `:76`).
 - لا خدمة مدفوعة بلا قرار المالك (`WORK_ORDER_PMC.md:97`).
 - لا بوابة دفع حقيقية، ولا ادعاء امتثال ضريبي أو تنظيمي (`WORK_ORDER_EXTENDED.md:122`، `:124`).
-- قرارات المالك المحجوزة تُسجَّل `BLOCKED_BY_OWNER` ولا تُفترض: مزود الدفع، ZATCA، الأسعار، مزود البريد، الشروط والخصوصية، اسم العميل التجريبي، استعادة نسخ TiDB، وفصل اعتماد التدقيق (`WORK_ORDER_EXTENDED.md:140-149`).
+- قرارات المالك المحجوزة تُسجَّل `BLOCKED_BY_OWNER` ولا تُفترض: مزود الدفع، ZATCA، الأسعار، مزود البريد، الشروط والخصوصية، اسم العميل التجريبي، استعادة النسخ الاحتياطية، وفصل اعتماد التدقيق (`WORK_ORDER_EXTENDED.md:140-149`).
 
 ## 7. البوابات والاختبارات
 
@@ -112,13 +115,14 @@ pnpm build
 pnpm test
 pnpm coverage:trpc
 pnpm exec vitest run server/domain/pmc.test.ts
-# تحتاج قاعدة اختبار TiDB:
-node scripts/run-integration-database-test.mjs
+# تحتاج PostgreSQL محليًا (DATABASE_URL = مشرف على الخادم المحلي):
+node scripts/run-integration-database-test.mjs      # = pnpm test:db
+pnpm auth:local                                      # Supabase Auth (GoTrue) حقيقي محليًا، ثم GOTRUE_LIVE_URL للاختبار الحي
 pnpm verify:pmc-schema
-pnpm verify:audit-grants
+pnpm verify:db-security
 ```
 
-- `run-integration-database-test.mjs` يقرأ `DATABASE_URL`، ويستبدل اسم القاعدة بـ`project_os_integration_test`، ويفعّل اتصال الإدارة. فليشر `DATABASE_URL` إلى مجموعة TiDB غير إنتاجية.
+- `run-integration-database-test.mjs` يقرأ `DATABASE_URL`، ويستبدل اسم القاعدة بـ`project_os_integration_test`، ويبني المخطط بالترحيلات، ويشغّل التطبيق بحساب `project_os_app` المقيَّد (فتُمارَس RLS فعلًا) والتجهيز بحساب المالك. فليشر `DATABASE_URL` إلى PostgreSQL محلي أو غير إنتاجي.
 - انخفاض عدد الاختبارات الناجحة عن آخر رقم مُثبت شرط توقف (`WORK_ORDER_BATCH_6.md:35`).
 
 ## 8. التقرير

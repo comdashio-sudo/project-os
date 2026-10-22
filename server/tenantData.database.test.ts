@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gunzipSync } from "node:zlib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 }); // erasing and counting a company touches every table: slow on a busy machine, and not a race to win
 import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
 import { seedDemoData } from "../scripts/lib/demoData.mjs";
 import { ENV } from "./_core/env";

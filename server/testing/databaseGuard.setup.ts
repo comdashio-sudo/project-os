@@ -14,9 +14,8 @@ for (const variableName of ["DATABASE_URL", "TEST_DATABASE_URL"] as const) {
 // context from the procedure's middleware, so row-level security is exercised for real wherever a request is simulated.
 // TEST_DB_NO_FALLBACK=true removes the fallback: every direct call then sees nothing, which the isolation tests use.
 // (Imported inside the hook, not at the top: a test file that replaces the driver with vi.mock must be the first to load the connection module.)
-if (process.env.TEST_DB_NO_FALLBACK !== "true") {
-  beforeAll(async () => {
-    const { useFallbackDbContextForTests } = await import("../_core/database");
-    useFallbackDbContextForTests({ userId: null, tenantIds: [], system: true, reason: "test: direct call outside a request" });
-  });
-}
+beforeAll(async () => {
+  if (process.env.TEST_DB_NO_FALLBACK === "true") return;
+  const { useFallbackDbContextForTests } = await import("../_core/database");
+  useFallbackDbContextForTests({ userId: null, tenantIds: [], system: true, reason: "test: direct call outside a request" });
+});

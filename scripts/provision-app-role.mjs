@@ -20,7 +20,7 @@ if (appPassword.length < 16) {
 }
 
 const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(rootUrl).hostname);
-const client = new pg.Client({ connectionString: rootUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off" } });
+const client = new pg.Client({ connectionString: rootUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, "\n").trim() } : {}) } });
 let stage = "connect";
 try {
   await client.connect();

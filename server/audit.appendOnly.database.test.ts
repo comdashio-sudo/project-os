@@ -98,7 +98,6 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("the audit trail is append-only in
   it("NEGATIVE — the application role cannot give itself the privilege, switch the guards off, or drop them (it is not the owner)", async () => {
     const db = (await getDb())!;
     for (const statement of [
-      "GRANT UPDATE, DELETE, TRUNCATE ON audit_logs TO project_os_app",
       "ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_refuse_update",
       "ALTER TABLE audit_logs DISABLE TRIGGER ALL",
       "DROP TRIGGER audit_logs_refuse_delete ON audit_logs",
@@ -109,6 +108,13 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("the audit trail is append-only in
       const error = await db.execute(sql.raw(statement)).then(() => null, e => e);
       expect(pgErrorCode(error), statement).toBe("42501");
     }
+  });
+
+  it("NEGATIVE — the application role cannot give itself the privilege: the GRANT is a no-op (PostgreSQL only warns), and it still holds none", async () => {
+    const db = (await getDb())!;
+    await db.execute(sql.raw("GRANT UPDATE, DELETE, TRUNCATE ON audit_logs TO project_os_app")).then(() => null, () => null);
+    const { rows } = await owner.query<{ priv: string; has: boolean }>("SELECT p AS priv, has_table_privilege('project_os_app', 'public.audit_logs', p) AS has FROM unnest(ARRAY['UPDATE','DELETE','TRUNCATE']) AS p");
+    expect(rows.map(row => row.has)).toEqual([false, false, false]);
   });
 
   it("NEGATIVE — the OWNER cannot UPDATE an entry either: the trigger refuses it", async () => {

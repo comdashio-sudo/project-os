@@ -12,6 +12,7 @@ import { isTestDatabaseUrl } from "./testing/testDatabase";
 // The first server layer (every query filtered by tenant, checked in db.ts) is unchanged and tested elsewhere; here every query is written WITHOUT a
 // tenant filter on purpose, which is what a forgotten filter looks like.
 process.env.DATABASE_POOL_MAX = "1"; // one connection: proves a context never leaks to the next statement that reuses it
+process.env.TEST_DB_NO_FALLBACK = "true"; // a direct call with no request around it must see nothing here (the other suites play the server's own jobs)
 
 const ownerUrl = process.env.TEST_DATABASE_URL;
 const A = "00000000-0000-4000-8000-0000000000a1";
@@ -73,7 +74,7 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("row-level security: the second la
     await owner.query("INSERT INTO membership_roles (id, membershipId, roleId) VALUES (?, ?, ?), (?, ?, ?)", [ids.mrA, ids.membershipA, ids.roleA, ids.mrB, ids.membershipB, ids.roleB]);
     await owner.query("INSERT INTO permissions (id, code, name, productCode) VALUES (?, 'rls.probe', 'probe', 'EXECUTIVE')", [ids.permission]);
     await owner.query("INSERT INTO role_permissions (roleId, permissionId) VALUES (?, ?), (?, ?)", [ids.roleA, ids.permission, ids.roleB, ids.permission]);
-    await owner.query("INSERT INTO data_imports (id, tenantId, projectId, importType, status, fileName, fileHash, rowCount, createdByUserId) VALUES (?, ?, ?, 'wbs', 'validated', 'a.xlsx', ?, 1, ?), (?, ?, ?, 'wbs', 'validated', 'b.xlsx', ?, 1, ?)", [ids.importA, A, ids.projectA, "a".repeat(64), userA, ids.importB, B, ids.projectB, "b".repeat(64), userB]);
+    await owner.query("INSERT INTO data_imports (id, tenantId, projectId, moduleCode, templateCode, sourceFormat, fileName, fileKey, fileHash, createdByUserId) VALUES (?, ?, ?, 'wbs', 'wbs-v1', 'xlsx', 'a.xlsx', 'k/a', ?, ?), (?, ?, ?, 'wbs', 'wbs-v1', 'xlsx', 'b.xlsx', 'k/b', ?, ?)", [ids.importA, A, ids.projectA, "a".repeat(64), userA, ids.importB, B, ids.projectB, "b".repeat(64), userB]);
     await owner.query("INSERT INTO data_import_errors (id, importId, rowNumber, code, severity) VALUES (?, ?, 1, 'X', 'error'), (?, ?, 1, 'X', 'error')", [ids.errorA, ids.importA, ids.errorB, ids.importB]);
     await owner.query("INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType) VALUES (?, ?, ?, 'rls.fixture', 'probe'), (?, ?, ?, 'rls.fixture', 'probe')", [ids.auditA, A, userA, ids.auditB, B, userB]);
   });
@@ -213,11 +214,12 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("row-level security: the second la
   it("the Data API roles of a Supabase project hold no privilege on any table or function, and no policy names them", async () => {
     const [roles] = await owner.query<{ rolname: string }[]>("SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated', 'service_role')");
     for (const { rolname } of roles) {
-      const [tables] = await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM pg_tables t WHERE t.schemaname = 'public' AND (has_table_privilege(?, format('public.%I', t.tablename), 'SELECT') OR has_table_privilege(?, format('public.%I', t.tablename), 'INSERT') OR has_table_privilege(?, format('public.%I', t.tablename), 'UPDATE') OR has_table_privilege(?, format('public.%I', t.tablename), 'DELETE'))", [rolname, rolname, rolname, rolname]);
+      const [tables] = await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM pg_tables t WHERE t.schemaname = 'public' AND (has_table_privilege(?, format('%I.%I', t.schemaname, t.tablename), 'SELECT') OR has_table_privilege(?, format('%I.%I', t.schemaname, t.tablename), 'INSERT') OR has_table_privilege(?, format('%I.%I', t.schemaname, t.tablename), 'UPDATE') OR has_table_privilege(?, format('%I.%I', t.schemaname, t.tablename), 'DELETE'))", [rolname, rolname, rolname, rolname]);
       expect(Number(tables[0].n), `${rolname} table privileges`).toBe(0);
     }
-    const [policies] = await owner.query<{ policyname: string; roles: string[] }[]>("SELECT policyname, roles FROM pg_policies WHERE schemaname = 'public'");
-    expect(policies.every(policy => policy.roles.length === 1 && policy.roles[0] === "project_os_app")).toBe(true);
+    const [policies] = await owner.query<{ policyname: string; roles: string }[]>("SELECT policyname, array_to_string(roles, ',') AS roles FROM pg_policies WHERE schemaname = 'public'");
+    expect(policies.length).toBeGreaterThan(100);
+    expect(policies.filter(policy => policy.roles !== "project_os_app")).toEqual([]);
   });
 
   it("a table added later is classified by the sweep: with no tenant_id and no listing, the migration fails instead of leaving it open", async () => {
