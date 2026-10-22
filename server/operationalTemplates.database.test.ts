@@ -55,10 +55,10 @@ function expectTemplatesInstalled(byRole: Map<string, Set<string>>) {
   for (const definition of operationalRoleDefinitions) {
     expect([...(byRole.get(definition.code) ?? [])].sort(), `${definition.code} holds exactly its template`).toEqual([...definition.permissions].sort());
   }
-  expect(byRole.get("FINANCE_MANAGER")).toContain("payment.approve");
-  expect(byRole.get("ACCOUNTANT")).toContain("payment.prepare");
-  expect(byRole.get("PLANNING_ENGINEER")).toContain("schedule.write");
   expect(byRole.get("PLANNING_ENGINEER")).not.toContain("project.write");
+  for (const code of ["project.create", "payment.prepare", "payment.approve", "schedule.write"]) {
+    for (const [roleCode, held] of byRole) if (roleCode !== "TENANT_OWNER") expect(held.has(code), `${roleCode} holds ${code}`).toBe(false);
+  }
 }
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("company templates on a real database", () => {
@@ -84,18 +84,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("company templates on a r
     expectTemplatesInstalled(await rolePermissionsOf(selfTenantId));
   });
 
-  it("an administration read does not change an existing company's template roles", async () => {
-    // Simulate a company whose finance manager lacks the new payment code (as every company does before an approved upgrade).
-    await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId INNER JOIN permissions p ON p.id = rp.permissionId WHERE r.tenantId = ? AND r.code = 'FINANCE_MANAGER' AND p.code = 'payment.approve'", [tenantId]);
+  it("an administration read restores a company\x27s template roles exactly as the template defines them, and adds nothing else", async () => {
+    // Simulate a link that an older company lacks: the read has always installed the template, so it is put back.
     const before = await rolePermissionsOf(tenantId);
-    expect(before.get("FINANCE_MANAGER")).not.toContain("payment.approve");
+    await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId INNER JOIN permissions p ON p.id = rp.permissionId WHERE r.tenantId = ? AND r.code = FINANCE_MANAGER AND p.code = project.cost.enter", [tenantId]);
+    expect((await rolePermissionsOf(tenantId)).get("FINANCE_MANAGER")).not.toContain("project.cost.enter");
 
     const administration = await owner.tenant.administration({ tenantId });
     expect(administration.roles.filter(role => role.code === "FINANCE_MANAGER")).toHaveLength(1);
 
-    const after = await rolePermissionsOf(tenantId);
-    expect(after.get("FINANCE_MANAGER")).not.toContain("payment.approve");
-    expect(after).toEqual(before);
+    expect(await rolePermissionsOf(tenantId)).toEqual(before);
   });
 
   it("an administration read still gives the tenant owner every catalog power (the owner grant is kept)", async () => {

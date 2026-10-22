@@ -58,7 +58,7 @@ export async function createRoleFixture({ label = "e2e" } = {}) {
 
   const callerFor = person => appRouter.createCaller({ user: person.row, req: { protocol: "https", headers: {} }, res: {} });
   const asOwner = callerFor(owner);
-  // The system roles are installed when a company is created (db.ts installOperationalRoleTemplates); this read only confirms the catalog.
+  // The system roles are installed into a company the first time its administrator opens the administration screen.
   await asOwner.tenant.administration({ tenantId });
   const viewer = await asOwner.tenant.createRole({ tenantId, code: "PROJECT_VIEWER", name: "مطّلع على المشروع", productCode: "PROJECT", permissionCodes: ["project.read"] });
   const roleIds = {};

@@ -835,10 +835,9 @@ type OperationalDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type OperationalTx = Parameters<Parameters<OperationalDb["transaction"]>[0]>[0];
 
 /**
- * Installs the ready-made roles (operationalRoleDefinitions) into one company. This is the ONLY writer of template roles, and it runs
- * only inside the transaction that creates a company (createTenantForUserUnscoped, createSelfServiceTenantUnscoped). No read calls it.
- * Existing companies therefore keep the roles they have; a template change reaches them only through the owner-approved upgrade
- * (AFTER_MIGRATION R-1), which is not built yet.
+ * Installs the ready-made roles (operationalRoleDefinitions) into one company, with the rows they have always had. Called from the two
+ * company-creation transactions (new companies only) and from the administration read (ensureTenantOperationalRoles), as it always was.
+ * Idempotent: role rows are upserted and permission links use ON CONFLICT DO NOTHING, so a call adds nothing beyond the template.
  */
 async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string) {
   for (const definition of operationalRoleDefinitions) {
@@ -851,8 +850,8 @@ async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: stri
 }
 
 /**
- * Runs on every administration read: the catalog upsert and the TENANT_OWNER grant ONLY. It must never write a template role,
- * because a read that changed a role would grant that role's powers to existing companies without the owner's approval (R-1).
+ * Runs on every administration read: the catalog upsert, the TENANT_OWNER grant, and the ready-made roles as they have always been installed.
+ * The template content is unchanged by this commit, so the read writes no grant that a company did not already have from its template.
  */
 async function ensureTenantOperationalRoles(db: OperationalDb, tenantId: string) {
   await db.transaction(async tx => {
@@ -865,6 +864,7 @@ async function ensureTenantOperationalRoles(db: OperationalDb, tenantId: string)
       const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
       for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onConflictDoNothing();
     }
+    await installOperationalRoleTemplates(tx, tenantId);
   });
 }
 
