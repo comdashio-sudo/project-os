@@ -24,6 +24,15 @@ describe("UserGuide", () => {
     expect(first.textContent).toContain("الصلاحية المطلوبة");
   });
 
+  it("groups the steps by cadence, daily first, and numbers them in the order the reader meets them", () => {
+    const { container } = render(<UserGuide />);
+    expect(Array.from(container.querySelectorAll("[data-cadence]")).map(group => group.getAttribute("data-cadence"))).toEqual(["daily", "weekly"]);
+    const headings = screen.getAllByRole("heading", { level: 3 }).map(heading => heading.textContent ?? "");
+    const total = userGuide[0]!.steps.length;
+    expect(headings[0]).toContain(`الخطوة 1 من ${total}`);
+    expect(headings[total - 1]).toContain(`الخطوة ${total} من ${total}`);
+  });
+
   it("switches role from the keyboard-reachable buttons and honours the address hash", async () => {
     window.history.replaceState(null, "", "/#contracts");
     const user = userEvent.setup(); render(<UserGuide />);
