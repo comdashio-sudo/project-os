@@ -81,11 +81,11 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
   const staleAge = data.freshness.perSource.find(item => item.source === stalest)?.ageDays ?? null;
   const points = (history.data ?? []).map(item => item.fpac);
   const projectTag = `${data.project.code} · ${data.project.name}`;
-  // Headline table. The Value column mixes money and the margin (a fraction, shown as a percent), so it is exported as a plain number.
+  // Headline table. The Value column mixes money and the margin: each cell names its own kind (the margin is a fraction shown as a percent).
   const headlineRows = headline.status === "ok" ? headline.data.rows : [];
   const headlineColumns: ExportColumn<(typeof headlineRows)[number]>[] = [
     { header: t.figure, value: row => (t.rows[row.key] ?? [row.key, row.formula])[0], kind: "text" },
-    { header: t.value, value: row => (row.key === "margin" && row.value !== null ? row.value / 100 : row.value), kind: "number" },
+    { header: t.value, value: row => (row.key === "margin" ? { value: row.value === null ? null : row.value / 100, kind: "percent" } : { value: row.value, kind: "money" }) },
     { header: t.formula, value: row => (t.rows[row.key] ?? [row.key, row.formula])[1], kind: "text" },
     { header: t.source, value: row => t.sources[row.source] ?? row.source, kind: "text" },
     { header: t.asOf, value: row => (row.asOf ? new Date(row.asOf) : null), kind: "date" },

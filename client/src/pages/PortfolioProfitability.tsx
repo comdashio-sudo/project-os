@@ -21,9 +21,9 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
   // The "Open" link column is navigation, not data, so it is not exported.
   const exportColumns: ExportColumn<(typeof projects)[number]>[] = [
     { header: t.project, value: project => `${project.code} · ${project.name}`, kind: "text" },
-    // Each project has its own currency, so every money cell carries it: a mixed-currency column stays readable.
-    { header: t.fpac, value: project => ({ value: project.fpac, kind: "money", currency: project.currency }), kind: "money" },
-    { header: t.movement, value: project => ({ value: project.movement, kind: "money", currency: project.currency }), kind: "money" },
+    // Money is exported in the company's base currency (the riyal, V1): the export header names it.
+    { header: t.fpac, value: project => project.fpac, kind: "money" },
+    { header: t.movement, value: project => project.movement, kind: "money" },
   ];
   return (
     <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
