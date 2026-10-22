@@ -181,6 +181,21 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("row-level security: the second la
     await owner.query("DELETE FROM companies WHERE id = ?", [id]);
   });
 
+  it("a company context can change its OWN company row (erasure suspends and tombstones it) and never another company's, nor move its row to another id", async () => {
+    await runWithDbContext(asA(), async () => {
+      const db = (await getDb())!;
+      const own = await db.execute(sql`UPDATE companies SET status = 'suspended' WHERE id = ${A} AND status = 'active'`);
+      expect(own.rowCount).toBe(1);
+      const other = await db.execute(sql`UPDATE companies SET status = 'suspended' WHERE id = ${B}`);
+      expect(other.rowCount).toBe(0); // filtered by the policy: B's row is not visible to A, so nothing matched (rows=0 here MEANS refused by the policy, proven by the owner's read below)
+      const moved = await db.execute(sql`UPDATE companies SET id = ${B} WHERE id = ${A}`).then(() => null, error => error);
+      expect(pgErrorCode(moved)).toBeTruthy(); // the new row would be B's: the check refuses (42501), or the key is already taken (23505) — either way it does not move
+    });
+    const [rows] = await owner.query<{ id: string; status: string }[]>("SELECT id, status FROM companies WHERE id IN (?, ?) ORDER BY id", [A, B]);
+    expect(Object.fromEntries(rows.map(row => [row.id, row.status]))).toEqual({ [A]: "suspended", [B]: "active" });
+    await owner.query("UPDATE companies SET status = 'active' WHERE id = ?", [A]);
+  });
+
   it("the context lasts one statement or transaction: the next statement on the SAME connection sees nothing again", async () => {
     await runWithDbContext(asA(), async () => { expect(await count("projects")).toBe(1); });
     expect(await count("projects")).toBe(0); // pool of one connection: this statement reused it

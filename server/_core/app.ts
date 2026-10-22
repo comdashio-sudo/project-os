@@ -1,3 +1,4 @@
+import { ENV } from "./env";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { randomUUID } from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
@@ -47,7 +48,7 @@ export function createApp(options: AppOptions) {
   // Behind the host's proxy (Vercel): one hop, so req.ip is the client address.
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
-  app.use(securityHeaders({ production: options.production }));
+  app.use(securityHeaders({ production: options.production, storageEndpoint: ENV.storageS3Endpoint }));
   app.use((req, res, next) => {
     const id = randomUUID();
     res.locals.requestId = id;

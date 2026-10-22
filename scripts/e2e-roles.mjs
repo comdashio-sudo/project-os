@@ -459,7 +459,11 @@ if (process.env.E2E_ERASURE || (!only && !process.env.VIEW)) {
     // the company that was NOT erased is untouched
     const live = await countTenantData(db, tenantId);
     step("بيانات الشركة الأخرى سليمة", live.totalRows > 100, `rows ${live.totalRows}`);
-  } catch (error) { step("السيناريو انتهى دون استثناء", false, String(error.message).split("\n")[0]); }
+  } catch (error) {
+    step("السيناريو انتهى دون استثناء", false, String(error.message).split("\n")[0]);
+    if (process.env.E2E_DEBUG) console.log("SERVER LOG (tail):\n" + serverLog.slice(-3000));
+    if (process.env.E2E_DEBUG) console.log("PAGE TEXT AT FAILURE:\n" + (await page.getByText("بيانات الشركة: نسخة كاملة وحذف نهائي").locator("xpath=ancestor::section[1]").innerText().catch(() => "")).slice(0, 2500));
+  }
   await context.close();
 }
 await browser.close();

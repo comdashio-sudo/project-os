@@ -27,6 +27,9 @@ const { chromium } = createRequire(process.env.PLAYWRIGHT_MODULE_DIR ?? "/opt/no
 // ---------------------------------------------------------------- fake S3 (objects kept in memory) and the production server pointed at it
 const objects = new Map();
 const s3 = createServer((request, response) => {
+  // the browser PUTs the import file here (a signed URL), from another origin: answer the preflight and allow the page
+  response.setHeader("Access-Control-Allow-Origin", "*"); response.setHeader("Access-Control-Allow-Methods", "PUT, GET, HEAD, DELETE, OPTIONS"); response.setHeader("Access-Control-Allow-Headers", "*"); response.setHeader("Access-Control-Expose-Headers", "ETag");
+  if (request.method === "OPTIONS") { response.writeHead(204); response.end(); return; }
   const chunks = []; request.on("data", chunk => chunks.push(chunk));
   request.on("end", () => {
     const key = decodeURIComponent((request.url ?? "").split("?")[0]);

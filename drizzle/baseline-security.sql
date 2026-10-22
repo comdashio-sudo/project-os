@@ -133,14 +133,22 @@ BEGIN
     EXECUTE format('DROP POLICY IF EXISTS project_os_isolation ON %I', t.name);
     EXECUTE format('DROP POLICY IF EXISTS project_os_read ON %I', t.name);
     EXECUTE format('DROP POLICY IF EXISTS project_os_insert ON %I', t.name);
+    EXECUTE format('DROP POLICY IF EXISTS project_os_update ON %I', t.name);
+    EXECUTE format('DROP POLICY IF EXISTS project_os_delete ON %I', t.name);
     IF t.name = 'audit_logs' THEN
       pred := format('((SELECT app_system()) OR %I = ANY ((SELECT app_tenant_ids())::text[]))', 'tenant_id');
       EXECUTE format('CREATE POLICY project_os_read ON %I FOR SELECT TO project_os_app USING %s', t.name, pred);
       EXECUTE format('CREATE POLICY project_os_insert ON %I FOR INSERT TO project_os_app WITH CHECK %s', t.name, pred);
     ELSIF t.name = 'companies' THEN
-      -- A company is its own tenant: visible when its id is among the caller's companies. Creating one is a system act (sign-up).
+      -- A company is its own tenant: its row is readable, changeable and deletable when its id is among the caller's companies, and a change may not move
+      -- the row to another id. CREATING one is a system act (sign-up). Who may change the company is the application's permission check; this layer
+      -- only keeps one company's context away from another company's row. (A single FOR ALL policy with a system-only check also refused the owner's own
+      -- erasure of their company: the browser rehearsal found it, the database tests ran in a system context and did not.)
       pred := format('((SELECT app_system()) OR %I = ANY ((SELECT app_tenant_ids())::text[]))', 'id');
-      EXECUTE format('CREATE POLICY project_os_isolation ON %I FOR ALL TO project_os_app USING %s WITH CHECK ((SELECT app_system()))', t.name, pred);
+      EXECUTE format('CREATE POLICY project_os_read ON %I FOR SELECT TO project_os_app USING %s', t.name, pred);
+      EXECUTE format('CREATE POLICY project_os_update ON %I FOR UPDATE TO project_os_app USING %s WITH CHECK %s', t.name, pred, pred);
+      EXECUTE format('CREATE POLICY project_os_delete ON %I FOR DELETE TO project_os_app USING %s', t.name, pred);
+      EXECUTE format('CREATE POLICY project_os_insert ON %I FOR INSERT TO project_os_app WITH CHECK ((SELECT app_system()))', t.name);
     ELSIF t.name = ANY (global_tables) THEN
       EXECUTE format('CREATE POLICY project_os_isolation ON %I FOR ALL TO project_os_app USING (true) WITH CHECK (true)', t.name);
     ELSIF child_tables ? t.name THEN

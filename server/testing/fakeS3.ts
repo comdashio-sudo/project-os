@@ -28,6 +28,9 @@ export async function startFakeS3(bucket = "test-bucket"): Promise<FakeS3> {
     const key = rest.join("/");
     const method = request.method ?? "GET";
     const presigned = url.searchParams.has("X-Amz-Signature");
+    // the browser PUTs from the app's origin: allow it, and answer the preflight
+    response.setHeader("Access-Control-Allow-Origin", "*"); response.setHeader("Access-Control-Allow-Methods", "PUT, GET, HEAD, DELETE, OPTIONS"); response.setHeader("Access-Control-Allow-Headers", "*"); response.setHeader("Access-Control-Expose-Headers", "ETag");
+    if (method === "OPTIONS") { requests.push({ method, key, presigned, status: 204 }); response.writeHead(204); response.end(); return; }
     const finish = (status: number, body: Buffer | string = "", headers: Record<string, string | number> = {}) => {
       requests.push({ method, key, presigned, status });
       response.writeHead(status, headers);
