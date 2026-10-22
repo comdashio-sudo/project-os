@@ -58,7 +58,7 @@ describe("MasterPlanEntityTools", () => {
   it("lists the alerts the entity has and the jumps to the sections that hold its WBS item and activity", () => {
     render1(entity("e", "E", null, { status: "blocked", actualValue: 1300, wbsItemId: null, activityId: null }), { activity: null });
     const alerts = screen.getByLabelText("تنبيهات الكيان");
-    expect(within(alerts).getByText("الكيان معطّل")).toBeTruthy();
+    expect(within(alerts).getByText("الكيان متعثر")).toBeTruthy();
     expect(within(alerts).getByText(/التكلفة الفعلية تتجاوز المخطط بـ 30%/)).toBeTruthy();
     expect(within(alerts).getByText(/غير مرتبط ببند WBS ولا نشاط/)).toBeTruthy();
     const links = within(alerts).getAllByRole("link");

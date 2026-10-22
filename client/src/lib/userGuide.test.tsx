@@ -1,18 +1,22 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { operationalRoleDefinitions } from "../../../server/domain/operationalRoles";
-import { GUIDE_ANCHORS, guideImage, guideStepHref, userGuide } from "./userGuide";
+import { GUIDE_ANCHORS, GUIDE_CADENCES, guideImage, guideStepHref, userGuide } from "./userGuide";
 
 const controlsSource = readFileSync("client/src/pages/ProjectControls.tsx", "utf8");
 const pmcSource = readFileSync("client/src/pages/ProjectPmc.tsx", "utf8");
 
 describe("user guide content", () => {
-  it("has the five sections the order names, each with both languages and at least four steps", () => {
+  it("has the five sections the order names, each with both languages, at least four steps, and both daily and weekly steps", () => {
     expect(userGuide.map(section => section.id)).toEqual(["cost-control", "planning", "project-coordination", "design-coordination", "contracts"]);
     for (const section of userGuide) {
       expect(section.steps.length, section.id).toBeGreaterThanOrEqual(4);
+      for (const cadence of GUIDE_CADENCES) expect(section.steps.some(step => step.cadence === cadence), `${section.id} has ${cadence} steps`).toBe(true);
       for (const text of [section.title, section.intro, section.cannot, ...section.steps.flatMap(step => [step.title, step.body])]) { expect(text.ar.length).toBeGreaterThan(5); expect(text.en.length).toBeGreaterThan(5); }
     }
+  });
+  it("gives every step one known cadence", () => {
+    for (const section of userGuide) for (const step of section.steps) expect(GUIDE_CADENCES as readonly string[], `${section.id} ${step.title.ar}`).toContain(step.cadence);
   });
   it("only claims a permission the section's own role template really holds", () => {
     for (const section of userGuide) {
@@ -36,9 +40,20 @@ describe("user guide content", () => {
     expect(guideStepHref("field", "t", "p")).toBe("/m/t/p");
     expect(guideImage("planning", 3)).toBe("/guide/planning-3.jpg");
   });
-  it("ships a real screenshot for every step (taken from the live screens by scripts/capture-screenshots.mjs)", () => {
+  it("shows a picture only where one is on disk: every referenced picture is a real file taken from the screens", () => {
     const missing: string[] = [];
-    for (const section of userGuide) for (let n = 1; n <= section.steps.length; n++) { const file = `client/public${guideImage(section.id, n)}`; if (!existsSync(file) || readFileSync(file).length < 5000) missing.push(file); }
+    let pictures = 0;
+    for (const section of userGuide) for (const step of section.steps) {
+      if (!step.image) continue;
+      pictures += 1;
+      const file = `client/public${step.image}`;
+      if (!step.image.startsWith("/guide/") || !existsSync(file) || statSync(file).size < 5000) missing.push(`${section.id}: ${step.image}`);
+    }
+    expect(pictures).toBeGreaterThan(20);
     expect(missing).toEqual([]);
+  });
+  it("writes the guide in the glossary's terms: no forbidden alternative for WBS, RFI, levelling, revision or review comments", () => {
+    const arabic = userGuide.flatMap(section => [section.title.ar, section.intro.ar, section.cannot.ar, ...section.steps.flatMap(step => [step.title.ar, step.body.ar, step.focus ?? ""])]).join("\n");
+    for (const forbidden of ["هيكل تقسيم", "الاستيضاح", "استيضاح", "المعايرة", "عند الإنجاز", "مراجعة جديدة", "تعليق"]) expect(arabic.includes(forbidden), forbidden).toBe(false);
   });
 });

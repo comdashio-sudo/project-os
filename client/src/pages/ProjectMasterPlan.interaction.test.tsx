@@ -123,8 +123,8 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getByRole("button", { name: "تكبير الخريطة" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "إزاحة الخريطة لليمين" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "تركيز الكيان الأب: BLOCK-A" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "تركيز عنصر WBS: 1.0" })).toBeTruthy();
-    expect(screen.getAllByLabelText("عنصر WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تركيز بند WBS: 1.0" })).toBeTruthy();
+    expect(screen.getAllByLabelText("بند WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
 
   it("uploads a CSV mapping for the selected Master Plan version", async () => {
