@@ -46,7 +46,7 @@ export const hasArabicLabel = (code: string) => code.trim().toLowerCase().replac
 const PERMISSION_AR: Record<string, string> = {
   "executive.read": "عرض المستوى التنفيذي (1)", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
   "project.design.manage": "إدارة سجل المخططات والإحالات وملاحظات التصميم والتقديمات", "project.design.architectural": "سلطة التخصصات المعمارية (عمارة وتصميم داخلي وتنسيق مواقع)", "project.design.technical": "سلطة التخصصات الفنية (إنشائي ومدني وميكانيكا وكهرباء وسباكة وإطفاء)", "project.design.approve": "اعتماد المخططات للتنفيذ وتسجيل ردود الاستشاري", 
-  "project.tender.manage": "إدارة حزم المناقصات والدعوات", "project.tender.bids": "إدخال العروض وتعديلها", "project.tender.level": "تسوية العروض ومقارنتها", "project.tender.award": "ترسية المناقصة", 
+  "project.tender.manage": "إدارة حزم المناقصات والدعوات", "project.tender.bids": "إدخال العروض وتعديلها", "project.tender.level": "تسوية العروض ومقارنتها", "project.tender.award": "ترسية المناقصة", "project.create": "إنشاء المشاريع", "payment.prepare": "إعداد الدفعات", "payment.approve": "اعتماد الدفعات", "schedule.write": "كتابة الجدول الزمني والخطة الرئيسية", 
   "project.write": "تحرير بيانات المشروع", "project.manage": "إدارة المشروع", "tenant.manage": "إدارة الشركة", "project.attendance.manage": "إدارة الحضور",
   "project.budget.manage": "إدارة الميزانيات", "project.cashflow.read": "عرض التدفق النقدي", "project.commitment.manage": "إدارة الالتزامات", "project.cost.enter": "إدخال التكلفة الفعلية",
   "project.evm.manage": "إدارة القيمة المكتسبة (EVM)", "project.field.manage": "إدارة الإدخال الميداني", "project.hr.manage": "إدارة الموظفين", "project.hr.sensitive.read": "قراءة بيانات الموظفين الحساسة",

@@ -40,12 +40,19 @@ export const operationalPermissionCatalog = [
   { code: "project.tender.bids", name: "Enter and correct bids", productCode: "PROJECT" as const },
   { code: "project.tender.level", name: "Level and compare bids", productCode: "PROJECT" as const },
   { code: "project.tender.award", name: "Award a tender", productCode: "PROJECT" as const },
+  // Project creation is its own power (AFTER_MIGRATION O-W3). Nothing checks it yet: the check moves from project.write in a later change.
+  { code: "project.create", name: "Create projects", productCode: "PROJECT" as const },
+  // Payments (AFTER_MIGRATION R-2): the accountant prepares, the finance manager approves; paymentApproval.ts refuses one person doing both to the same payment.
+  { code: "payment.prepare", name: "Prepare a payment", productCode: "PROJECT" as const },
+  { code: "payment.approve", name: "Approve a payment", productCode: "PROJECT" as const },
+  // The schedule and the master plan (AFTER_MIGRATION R-3). The write checks move to it in a later change.
+  { code: "schedule.write", name: "Write the schedule and the master plan", productCode: "PROJECT" as const },
 ] as const;
 
 export type OperationalRoleDefinition = { code: string; name: string; productCode?: "PROJECT" | "EXECUTIVE" | "PMO"; permissions: readonly string[] };
 
 /**
- * The ready-made roles every company gets (installed the first time its administrator opens the administration screen). A role is single-product, so the
+ * The ready-made roles every company gets when it is created (installed by db.ts `installOperationalRoleTemplates`, never on a read: see AFTER_MIGRATION W-F and R-1). A role is single-product, so the
  * two company-level views name theirs; the rest are PROJECT roles. The first nine existed before work order 5 and are unchanged; the seven after
  * PROJECT_MANAGER are the templates of work order 5, item 3. Each states what its holder DOES; the powers that must never meet in one person are in
  * `conflictingPermissionPairs`, and `assertNoPermissionConflict` refuses any role or combination that holds both.
@@ -53,10 +60,10 @@ export type OperationalRoleDefinition = { code: string; name: string; productCod
 export const operationalRoleDefinitions = [
   { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage", "project.performance.read_own"] },
   { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage", "project.performance.read_own"] },
-  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
-  { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
+  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour", "payment.approve"] },
+  { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own", "payment.prepare"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
-  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
+  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own", "schedule.write"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.pmc.read", "project.pmc.update", "project.quality.manage", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
