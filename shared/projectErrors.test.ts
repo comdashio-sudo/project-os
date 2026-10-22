@@ -73,7 +73,7 @@ describe("project error map", () => {
 // fallback. The scan reads every quoted PROJECT_OS_ code in the server sources (tests excluded), so a new code added
 // without a message fails here rather than in front of a user.
 const NOT_SHOWN_TO_USERS = new Set([
-  "PROJECT_OS_LICENSE_LIFECYCLE_EVALUATED", "PROJECT_OS_PROFITABILITY_SNAPSHOTS_CAPTURED", "PROJECT_OS_EMAIL_NOTIFICATIONS_CYCLE", "PROJECT_OS_IMPORT_JOBS_SWEPT", // success markers returned by cron endpoints
+  "PROJECT_OS_LICENSE_LIFECYCLE_EVALUATED", "PROJECT_OS_PROFITABILITY_SNAPSHOTS_CAPTURED", "PROJECT_OS_EMAIL_NOTIFICATIONS_CYCLE", "PROJECT_OS_IMPORT_JOBS_SWEPT", "PROJECT_OS_DAILY_JOBS_DONE", // success markers returned by cron endpoints
   "PROJECT_OS_SCHEDULED_EXECUTION_FAILED", "PROJECT_OS_SCHEDULED_UNAUTHORIZED", // cron endpoints answer a scheduler, not a person
 ]);
 function serverSources(dir: string): string[] {
