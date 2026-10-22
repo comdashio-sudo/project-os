@@ -10,9 +10,17 @@ const LRI = "\u2066";
 const PDI = "\u2069";
 const isolate = (text: string, isArabic: boolean) => (isArabic ? `${LRI}${text}${PDI}` : text);
 
-export function formatMoney(value: number, currency: string, isArabic: boolean) {
-  const number = new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { maximumFractionDigits: 0 }).format(Math.abs(value));
-  return isolate(`${value < 0 ? "-" : ""}${number} ${currency}`, isArabic);
+/** The riyal's label: "ريال" in Arabic, "SAR" in English. V1 shows the riyal everywhere (owner decision, 22 Oct 2026). */
+export const riyalLabel = (isArabic: boolean) => (isArabic ? "ريال" : "SAR");
+
+/**
+ * A money figure in the riyal. V1 has one currency, so `currency` is ignored: a stored code (even a legacy "USD") is still shown
+ * as the riyal. The argument stays so the call sites keep their shape; the server refuses any other code on input.
+ */
+export function formatMoney(value: number, currency: string, isArabic: boolean, fractionDigits = 0) {
+  void currency;
+  const number = new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(Math.abs(value));
+  return isolate(`${value < 0 ? "-" : ""}${number} ${riyalLabel(isArabic)}`, isArabic);
 }
 
 export const formatPercent = (value: number | null, isArabic: boolean) => (value === null ? "—" : isolate(`${new Intl.NumberFormat(isArabic ? "ar-SA-u-nu-latn" : "en-US", { signDisplay: "negative", maximumFractionDigits: 1 }).format(value)}%`, isArabic));

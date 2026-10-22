@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn(), alloc
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized resource error" }));
-vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "USD" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) }, updateAllocation: { useMutation: () => ({ mutate: state.allocationMutate, isPending: false, error: null }) } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "SAR" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) }, updateAllocation: { useMutation: () => ({ mutate: state.allocationMutate, isPending: false, error: null }) } } } }));
 
 describe("ProjectResources interaction", () => {
   beforeEach(() => { cleanup(); state.error = null; state.mutate.mockReset(); state.allocationMutate.mockReset(); });

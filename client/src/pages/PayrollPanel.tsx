@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -44,7 +45,7 @@ export function PayrollPanel({ tenantId }: { tenantId: string }) {
   const adjustAllocation = api.payroll.adjustAllocation.useMutation({ onSuccess: () => { setNotice(t.adjusted); setAdjusting(null); if (detailsRunId) detailsQuery.refetch(); } });
   const allocateCost = api.payroll.allocateCost.useMutation({ onSuccess: () => { setNotice(""); setAllocation({ entryId: "", projectId: "", wbsItemId: "", activityId: "", amount: "", incurredAt: "" }); if (detailsRunId) detailsQuery.refetch(); } });
   const error = capabilities.error ?? employees.error ?? runs.error ?? structureQuery.error ?? detailsQuery.error ?? allocationProjects.error ?? allocationOptions.error ?? saveStructure.error ?? createRun.error ?? transition.error ?? allocateCost.error ?? allocateByHours.error ?? adjustAllocation.error;
-  const money = (value: number, currency: string) => new Intl.NumberFormat(isArabic ? "ar-SA" : "en-SA", { style: "currency", currency }).format(value);
+  const money = (value: number, currency: string) => formatMoney(value, currency, isArabic, 2);
   const date = (value: Date) => new Date(value).toLocaleDateString(isArabic ? "ar-SA" : "en-GB");
   const statusLabel = (status: "draft" | "review" | "approved" | "paid") => t[status];
 

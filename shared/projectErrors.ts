@@ -1180,6 +1180,14 @@ export const projectErrorMessages = {
     ar: "بأقل من عرضين صالحين للمقارنة يلزم تسبيب كتابي للترسية (10 أحرف على الأقل).",
     en: "With fewer than two comparable bids a written justification (at least 10 characters) is required to award.",
   },
+  PROJECT_OS_CURRENCY_NOT_SAR: {
+    ar: "في الإصدار الأول تُسجَّل كل المبالغ بالريال السعودي (SAR) وحده. اختر SAR.",
+    en: "In this first version every amount is recorded in the Saudi riyal (SAR) only. Choose SAR.",
+  },
+  PROJECT_OS_TENDER_CURRENCY_NOT_SAR: {
+    ar: "عروض المناقصات وحزمها بالريال السعودي (SAR) وحده في الإصدار الأول. اختر SAR.",
+    en: "Tender packages and bids are in the Saudi riyal (SAR) only in this first version. Choose SAR.",
+  },
   PROJECT_OS_MASTER_PLAN_CALIBRATION_INVALID: {
     ar: "أدخل عرض منطقة الخطة وطولها بالأمتار معًا، وكلاهما رقم موجب لا يتجاوز 100000.",
     en: "Enter the plan area's width and length in metres together; both must be positive and at most 100000.",
