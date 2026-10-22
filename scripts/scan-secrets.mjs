@@ -14,12 +14,12 @@ const RULES = [
   ["slack-token", /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/],
   ["stripe-live-key", /\b[sr]k_live_[A-Za-z0-9]{16,}\b/],
   ["google-api-key", /\bAIza[0-9A-Za-z_-]{35}\b/],
-  ["resend-api-key", /\bre_[A-Za-z0-9]{8,}_[A-Za-z0-9]{16,}\b|\bre_[A-Za-z0-9]{32,}\b/],
+  ["supabase-secret-key", /\bsb_secret_[A-Za-z0-9_-]{20,}\b/],
   ["openai-style-key", /\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}\b/],
   ["jwt", /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/],
   [
     "credentialed-connection-string",
-    /\b(?:mysql2?|postgres(?:ql)?|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s:/@'"`]+:[^\s@'"`]{3,}@(?!(?:[^\s/'"`]*\bexample\b|localhost|127\.0\.0\.1|db\.example|host\b|hostname\b))[^\s/'"`]+/,
+    /\b(?:postgres(?:ql)?|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s:/@'"`]+:[^\s@'"`]{3,}@(?!(?:[^\s/'"`]*\bexample\b|localhost|127\.0\.0\.1|db\.example|host\b|hostname\b))[^\s/'"`]+/,
   ],
   [
     "assigned-secret-literal",

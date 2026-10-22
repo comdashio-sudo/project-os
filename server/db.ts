@@ -144,7 +144,7 @@ import { assertOperationalRoleSeparation, operationalPermissionCatalog, operatio
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
 export { getDb } from "./_core/database";
-import { getDb, isUniqueViolation, rowsAffected, withSystemContext } from "./_core/database";
+import { getDb, isUniqueViolation, rowsAffected, withSystemContext, withSystemContextJoining } from "./_core/database";
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -709,7 +709,9 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   return { invitationId, email, expiresAt, inviteToken };
 }
 
-export async function acceptMembershipInvitation(input: { userId: number; inviteToken: string }) {
+/** Accepting proves possession of the invitation token, and the invitation names a company the caller cannot see yet: it runs as system, then the caller learns the company. */
+export const acceptMembershipInvitation = (input: { userId: number; inviteToken: string }) => withSystemContextJoining("accept a membership invitation", () => acceptMembershipInvitationUnscoped(input), result => result.tenantId);
+async function acceptMembershipInvitationUnscoped(input: { userId: number; inviteToken: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const tokenHash = createHash("sha256").update(input.inviteToken).digest("hex");
@@ -843,12 +845,10 @@ async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<t
   });
 }
 
-export async function createTenantForUser(input: {
-  userId: number;
-  legalName: string;
-  slug: string;
-  packageCode: SubscriptionPackageCode;
-}): Promise<{ tenantId: string; subscriptionId: string }> {
+type NewTenantInput = { userId: number; legalName: string; slug: string; packageCode: SubscriptionPackageCode };
+/** A company does not exist for anyone until this finishes, so it runs as system; afterwards the caller's context includes it. */
+export const createTenantForUser = (input: NewTenantInput) => withSystemContextJoining("create a company for the signed-in user", () => createTenantForUserUnscoped(input), result => result.tenantId);
+async function createTenantForUserUnscoped(input: NewTenantInput): Promise<{ tenantId: string; subscriptionId: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
 
@@ -914,7 +914,10 @@ function safeDatabaseErrorCode(error: unknown) {
   return typeof candidate.code === "string" ? candidate.code : "UNKNOWN";
 }
 
-export async function createSelfServiceTenant(input: { userId: number; legalName: string; slug: string; planCode: string; seats: number }) {
+type SelfServiceTenantInput = { userId: number; legalName: string; slug: string; planCode: string; seats: number };
+/** The workspace name must be unique across every company, which only the system view can check; the caller's context learns the new company afterwards. */
+export const createSelfServiceTenant = (input: SelfServiceTenantInput) => withSystemContextJoining("self-service sign-up creates a company", () => createSelfServiceTenantUnscoped(input), result => result.tenantId);
+async function createSelfServiceTenantUnscoped(input: SelfServiceTenantInput) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   if (!Number.isInteger(input.seats) || input.seats < 1 || input.seats > 100000) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
   const [user] = await db.select({ email: users.email, loginMethod: users.loginMethod }).from(users).where(eq(users.id, input.userId)).limit(1);
@@ -3629,7 +3632,7 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   const db = await getDb();
   if (db) {
     const [record] = await db.select({ moduleCode: dataImports.moduleCode }).from(dataImports).where(eq(dataImports.id, input.importId)).limit(1);
-    void refreshStatisticsAfterBulkLoad(db, IMPORT_TABLES[record?.moduleCode ?? ""] ?? ["data_imports"], result.createdRows + result.updatedRows); // TiDB only, never blocks (tidbStats.ts)
+    void refreshStatisticsAfterBulkLoad(db, IMPORT_TABLES[record?.moduleCode ?? ""] ?? ["data_imports"], result.createdRows + result.updatedRows); // never blocks: a refresh that cannot run is only logged
   }
   return result;
 }

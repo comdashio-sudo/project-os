@@ -31,7 +31,7 @@ import { seedDemoData } from "./lib/demoData.mjs";
 import { appRouter } from "../server/routers.ts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3100";
-const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "screenshots");
+const OUT = process.env.SCREENSHOT_OUT ?? join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "screenshots"); // SCREENSHOT_OUT: write the pictures somewhere else (a check run)
 const url = new URL(process.env.DATABASE_URL ?? "");
 if (url.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
 const require = createRequire(process.env.PLAYWRIGHT_MODULE_DIR ?? "/opt/node-tools/node_modules/");

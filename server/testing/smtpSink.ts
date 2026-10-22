@@ -77,7 +77,7 @@ function decodeBody(body: string, encoding: string | undefined) {
     const bytes: number[] = [];
     for (let i = 0; i < joined.length; i += 1) {
       const hex = joined[i] === "=" ? joined.slice(i + 1, i + 3) : "";
-      if (/^[0-9A-F]{2}$/i.test(hex)) { bytes.push(parseInt(hex, 16)); i += 2; } else bytes.push(...Buffer.from(joined[i], "utf8"));
+      if (/^[0-9A-F]{2}$/i.test(hex)) { bytes.push(parseInt(hex, 16)); i += 2; } else bytes.push(...Array.from(Buffer.from(joined[i], "utf8")));
     }
     return Buffer.from(bytes).toString("utf8");
   }

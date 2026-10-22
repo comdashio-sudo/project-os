@@ -3,6 +3,8 @@ import { getProjectError } from "@shared/projectErrors";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { runWithDbContext, type DbContext } from "./database";
+import { dbContextForUser } from "./requestContext";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -25,19 +27,30 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
+// The caller's companies are resolved once per context (a batched HTTP request shares one) and installed for everything the procedure does,
+// so the database's row-level security sees them (server/_core/database.ts).
+const contexts = new WeakMap<TrpcContext, Promise<DbContext>>();
+const dbContextOf = (ctx: TrpcContext, user: NonNullable<TrpcContext["user"]>) => {
+  let pending = contexts.get(ctx);
+  if (!pending) { pending = dbContextForUser(user); contexts.set(ctx, pending); }
+  return pending;
+};
+
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
+  const user = ctx.user;
+  const context = await dbContextOf(ctx, user);
 
-  return next({
+  return runWithDbContext(context, () => next({
     ctx: {
       ...ctx,
-      user: ctx.user,
+      user,
     },
-  });
+  }));
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
@@ -50,11 +63,13 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
-    return next({
+    const user = ctx.user;
+    const context = await dbContextOf(ctx, user);
+    return runWithDbContext(context, () => next({
       ctx: {
         ...ctx,
-        user: ctx.user,
+        user,
       },
-    });
+    }));
   }),
 );

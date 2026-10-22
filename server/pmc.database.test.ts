@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -14,7 +14,7 @@ const [UNIT_A1, UNIT_A2, UNIT_B1] = [id(111), id(112), id(113)];
 const [ACT_A_WALLS, ACT_A_FINISH, ACT_B_WALLS, ACT_B_FINISH] = [id(121), id(122), id(123), id(124)];
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { manager: 0, reader: 0, none: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pmc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
@@ -38,7 +38,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC rules, history, inspections and gates on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pmc-manager','PMC Manager','pmc-manager@pmc.example.test','user'),('pmc-reader','PMC Reader','pmc-reader@pmc.example.test','user'),('pmc-none','PMC None','pmc-none@pmc.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'pmc-%'");

@@ -77,6 +77,8 @@ await bulk("activities", ["id", "tenantId", "projectId", "wbsItemId", "code", "n
 await bulk("cost_entries", ["id", "tenantId", "projectId", "wbsItemId", "amount", "entryType", "status", "incurredAt", "category"], costs);
 await bulk("progress_entries", ["id", "tenantId", "projectId", "wbsItemId", "progressPercent", "status", "measuredAt"], progress);
 await bulk("warehouse_inventory_transactions", ["id", "tenantId", "projectId", "warehouseId", "materialId", "transactionType", "quantityDelta", "referenceNumber", "occurredAt", "createdByUserId", "unitCost", "valueDelta"], txns);
+// the planner reads statistics: refresh them the way an import would (autovacuum would catch up within about a minute)
+for (const table of ["projects", "wbs_items", "budget_lines", "activities", "cost_entries", "progress_entries", "warehouse_inventory_transactions", "material_masters", "project_warehouses"]) await connection.query(`ANALYZE ${table}`);
 const [[counts]] = await connection.query("SELECT (SELECT COUNT(*) FROM projects WHERE tenantId = ?) AS projects, (SELECT COUNT(*) FROM activities WHERE tenantId = ?) AS activities, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE tenantId = ?) AS movements", [tenantId, tenantId, tenantId]);
 console.log(JSON.stringify({ seeded: true, seconds: Math.round((Date.now() - started) / 1000), tenantId, ownerEmail: email, firstProjectId: projectIds[0], counts }));
 await connection.end();

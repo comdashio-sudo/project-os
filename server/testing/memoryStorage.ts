@@ -1,4 +1,4 @@
-// In-memory stand-in for server/storage.ts in the database tests, where no R2
+// In-memory stand-in for server/storage.ts in the database tests, where no storage
 // bucket exists. Same exports; a "signed URL" is a data: URL holding the bytes,
 // so code that fetches the URL still works.
 import type * as StorageModule from "../storage";

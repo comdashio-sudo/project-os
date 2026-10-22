@@ -8,7 +8,11 @@ import { getOperationalRoleName } from "./operationalRolePresentation";
 
 const schema = readFileSync(join(__dirname, "..", "..", "..", "drizzle", "schema.ts"), "utf8");
 const STATUS_LIKE = ["status", "lifecycleStage", "transactionType", "receiptMode", "severity", "priority", "outcome", "employmentStatus", "escalationStatus", "fromStatus", "toStatus", "attendanceStatus", "sourceType"];
-const enumValues = (column: string) => Array.from(schema.matchAll(new RegExp(`mysqlEnum\\("${column}",\\s*\\[([^\\]]*)\\]`, "g"))).flatMap(match => Array.from(match[1].matchAll(/"([^"]+)"/g), value => value[1]));
+// Each column's enum is declared once as pgEnum("<table>_<column>", [...]); the values of every enum whose name ends in the column's snake_case name.
+const enumValues = (column: string) => {
+  const snake = column.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  return Array.from(schema.matchAll(new RegExp(`pgEnum\\("(?:[a-z0-9_]*_)?${snake}",\\s*\\[([^\\]]*)\\]`, "g"))).flatMap(match => Array.from(match[1].matchAll(/"([^"]+)"/g), value => value[1]));
+};
 
 describe("enumLabel", () => {
   it("gives an Arabic reader the Arabic name, and an English reader the code's own words", () => {

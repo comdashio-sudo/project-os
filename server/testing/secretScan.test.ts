@@ -11,8 +11,8 @@ describe("secret scan", () => {
     const text = [
       "const url = process.env.DATABASE_URL;",
       "JWT_SECRET=<set in the secret manager>",
-      "DATABASE_URL=mysql://user:password@db.example.test:4000/project_os_integration_test",
-      "RESEND_API_KEY=your_resend_key_here",
+      "DATABASE_URL=postgres://user:password@db.example.test:5432/project_os_integration_test",
+      "STORAGE_S3_SECRET_ACCESS_KEY=your_storage_key_here",
     ].join("\n");
     const result = scan(text);
     expect(result.status).toBe(0);
@@ -23,8 +23,8 @@ describe("secret scan", () => {
       ["aws-access-key", fake("AK", "IA", "ABCDEFGHIJKLMNOP")],
       ["private-key-block", fake("-----BEGIN ", "RSA PRIVATE KEY-----")],
       ["github-token", fake("gh", "p_", "a".repeat(36))],
-      ["resend-api-key", fake("re", "_", "A".repeat(8), "_", "b".repeat(24))],
-      ["credentialed-connection-string", fake("mysql", "://", "someone", ":", "hunter22x", "@", "gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/db")],
+      ["supabase-secret-key", fake("sb", "_secret_", "A".repeat(8), "b".repeat(24))],
+      ["credentialed-connection-string", fake("postgres", "://", "someone", ":", "hunter22x", "@", "aws-0-eu-central-1.pooler.supabase.com:6543/postgres")],
       ["assigned-secret-literal", fake("JWT_", "SECRET", "=", "q".repeat(32))],
     ];
     for (const [rule, text] of cases) {

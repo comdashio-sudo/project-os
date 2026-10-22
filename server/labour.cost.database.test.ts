@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
@@ -15,7 +15,7 @@ const [WBS, RES, EMP_A, EMP_B, ASG_A, ASG_B, TE1, TE2, TE3, SAL_A] = [101, 102, 
 const [EMP_C, EMP_D, ASG_C, ASG_D, TE4, TE5, SAL_C, SAL_D, RUN_NOV, PE_C, PE_D, RUN_DEC, RUN_JAN, PE_C2, PE_C3] = [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125].map(uid); // G-123: November payroll, one employee costed by time first, one by payroll first
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { manager: 0, finance: 0, plain: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@labour.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -39,7 +39,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('lab-manager','Lab Manager','lab-manager@labour.example.test','user'),('lab-finance','Lab Finance','lab-finance@labour.example.test','user'),('lab-plain','Lab Plain','lab-plain@labour.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'lab-%'");

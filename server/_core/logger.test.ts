@@ -7,7 +7,7 @@ const SECRETS = {
   // built from parts so the repository's own secret scan does not mistake an invented token for a real one
   jwt: ["eyJhbGciOiJIUzI1NiJ9", "eyJvcGVuSWQiOiJlbWFpbDphYmMifQ", "c2lnbmF0dXJlLXZhbHVlLTEyMw"].join("."),
   password: "Sup3rS3cretPassw0rd",
-  url: "mysql://app_user:Sup3rS3cretPassw0rd@gateway.example.test:4000/project_os",
+  url: "postgres://app_user:Sup3rS3cretPassw0rd@gateway.example.test:6543/project_os",
   code: "482913",
   phone: "+966 50 123 4567",
   ip: "203.0.113.77",
@@ -38,12 +38,12 @@ describe("safePath", () => {
 
 describe("formatLog", () => {
   it("prints a driver error's name, code and place but never its message (which holds the statement and the values)", () => {
-    const error = Object.assign(new Error(`Duplicate entry '${SECRETS.email}' for key 'users.email' (sql: INSERT INTO users VALUES ('${SECRETS.email}', '${SECRETS.password}'))`), { code: "ER_DUP_ENTRY", errno: 1062, sqlState: "23000" });
+    const error = Object.assign(new Error(`Failed query: INSERT INTO users VALUES ('${SECRETS.email}', '${SECRETS.password}') duplicate key value violates unique constraint "users_email_unique"`), { code: "23505", table: "users", constraint: "users_email_unique", detail: `Key (email)=(${SECRETS.email}) already exists.` });
     const line = formatLog("error", "trpc", error, { path: "/api/trpc/x" });
     expect(leaks(line)).toEqual([]);
-    expect(line).not.toContain("Duplicate entry");
+    expect(line).not.toContain("already exists");
     expect(line).not.toContain("INSERT INTO");
-    expect(JSON.parse(line)).toMatchObject({ level: "error", event: "trpc", errorName: "Error", errorCode: "ER_DUP_ENTRY", errno: 1062, sqlState: "23000", path: "/api/trpc/x" });
+    expect(JSON.parse(line)).toMatchObject({ level: "error", event: "trpc", errorName: "Error", errorCode: "23505", table: "users", constraint: "users_email_unique", path: "/api/trpc/x" });
   });
 
   it("keeps a message that is one of our own project codes, because it is what an engineer needs", () => {

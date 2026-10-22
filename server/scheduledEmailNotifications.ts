@@ -4,7 +4,7 @@ import { getDb } from "./db";
 import { runEmailNotificationCycle } from "./emailNotifications";
 import { logError } from "./_core/logger";
 
-// The platform scheduler (an hourly Render cron job, see render.yaml) calls this with `Authorization: Bearer <CRON_SECRET>`.
+// The platform scheduler (an hourly Vercel Cron, see scripts/build-vercel.mjs) calls this with `Authorization: Bearer <CRON_SECRET>`.
 // With e-mail notifications off (EMAIL_NOTIFICATIONS_ENABLED not true, or no sender configured) it does nothing and says so.
 type Dependencies = { cronSecret: () => string | undefined; run: () => Promise<unknown> };
 

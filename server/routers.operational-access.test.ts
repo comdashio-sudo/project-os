@@ -10,6 +10,9 @@ vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => databaseDouble),
 }));
 vi.mock("./storage", () => ({ storagePut: storageDouble.storagePut }));
+// The caller's companies for row-level security are resolved by one extra query per request; these doubles script the exact sequence of queries the
+// authorization code makes, so that lookup is answered here instead of consuming a scripted result (the real one is exercised by the database suite).
+vi.mock("./_core/requestContext", () => ({ dbContextForUser: async () => ({ userId: null, tenantIds: [], system: true }), asSystem: () => (_request: unknown, _response: unknown, next: () => void) => next() }));
 
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -197,7 +200,7 @@ function configureAuthorizedRoleUpdate(input: { systemManaged?: boolean; actorHa
 
 describe("operational API authorization", () => {
   beforeEach(() => {
-    process.env.DATABASE_URL = "mysql://router-access-test/project_os_integration_test";
+    process.env.DATABASE_URL = "postgres://router-access-test/project_os_integration_test";
     databaseDouble.select.mockReset();
     databaseDouble.transaction.mockReset();
     storageDouble.storagePut.mockClear();

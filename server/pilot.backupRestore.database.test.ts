@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import mysql, { type Connection, type RowDataPacket } from "./testing/pgCompat";
+import fixtureDb, { type Connection, type RowDataPacket } from "./testing/pgCompat";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -43,7 +43,7 @@ async function removePilotFixture() {
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot logical backup and restore", () => {
   beforeAll(async () => {
     if (!process.env.TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL is required for the isolated Pilot restore proof");
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL);
     await removePilotFixture();
     const [owner] = await connection.query<RowDataPacket[]>("INSERT INTO users (openId, name, email, role) VALUES (?, ?, ?, 'admin')", [ownerOpenId, "Pilot Data Owner", "pilot.owner@test.local"]);
     ownerId = owner.insertId;

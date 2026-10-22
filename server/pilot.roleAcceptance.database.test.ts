@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -11,7 +11,7 @@ const projectId = "10000000-0000-4000-8000-0000000000a2";
 const foreignProjectId = "10000000-0000-4000-8000-0000000000b2";
 const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let executiveId = 0;
 let pmoId = 0;
 let projectIdUser = 0;
@@ -48,7 +48,7 @@ async function clearPilotFixtures() {
 
 describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("Pilot structured role acceptance", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clearPilotFixtures();
 
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pilot-executive','Pilot Executive','pilot-executive@pilot.local','user'),('pilot-pmo','Pilot PMO','pilot-pmo@pilot.local','user'),('pilot-project','Pilot Project','pilot-project@pilot.local','user'),('pilot-low','Pilot Low','pilot-low@pilot.local','user')");

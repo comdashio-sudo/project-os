@@ -3,6 +3,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { runWithDbContext } from "./_core/database";
+import { dbContextForUser } from "./_core/requestContext";
 import { sdk } from "./_core/sdk";
 import { logError } from "./_core/logger";
 import { getDb } from "./db";
@@ -18,8 +20,13 @@ export async function tenantExportHandler(req: Request, res: Response) {
   const parsed = z.string().uuid().safeParse(req.params.tenantId);
   if (!parsed.success) return res.status(400).json({ code: "PROJECT_OS_TENANT_NOT_FOUND" });
   const tenantId = parsed.data;
-  let userId: number;
-  try { userId = (await sdk.authenticateSession(req)).user.id; } catch { return res.status(401).json({ code: "PROJECT_OS_AUTH_REQUIRED" }); }
+  let user: Awaited<ReturnType<typeof sdk.authenticateSession>>["user"];
+  try { user = (await sdk.authenticateSession(req)).user; } catch { return res.status(401).json({ code: "PROJECT_OS_AUTH_REQUIRED" }); }
+  // Everything below runs with the caller's companies installed for the database (second layer of isolation, server/_core/database.ts).
+  return runWithDbContext(await dbContextForUser(user), () => streamExport(res, tenantId, user.id));
+}
+
+async function streamExport(res: Response, tenantId: string, userId: number) {
   const db = await getDb();
   if (!db) return res.status(503).json({ code: "PROJECT_OS_SERVICE_UNAVAILABLE" });
   try { await assertTenantOwner(db, userId, tenantId); } catch { return res.status(403).json({ code: "PROJECT_OS_TENANT_OWNER_REQUIRED" }); }

@@ -7,6 +7,7 @@ import { BadgeCheck, Download, FileCheck2, FileSpreadsheet, ListChecks, Upload }
 import React, { useState } from "react";
 import { SourceNotice } from "@/components/SectionResilience";
 import { WriteGate } from "@/lib/permissions";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/uploadLimit";
 import { importModulePermissions } from "@shared/importPermissions";
 
 type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate";
@@ -84,12 +85,12 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         template: "تنزيل قالب Excel",
         templateNote: "القالب يحتوي الأعمدة المعتمدة فقط. يمكنك إضافة صفوف بيانات بعد الصف الأول دون تغيير العناوين.",
         requiredColumns: "الأعمدة المطلوبة",
-        accepted: "الملفات المعتمدة: XLSX أو CSV للقوالب العادية، وXLSX أو XER للجدول الزمني، حتى 10 MB.",
+        accepted: `الملفات المعتمدة: XLSX أو CSV للقوالب العادية، وXLSX أو XER للجدول الزمني، حتى ${MAX_UPLOAD_MB} MB.`,
         fileRules: "ملف واحد، ورقة واحدة، ونوع بيانات واحد. يرفض النظام أي عمود غير معتمد أو رمز مكرر داخل الملف.",
         noFile: "اختر ملفًا قبل التحليل.",
         typeError: "صيغة الملف لا تتوافق مع القالب المحدد.",
         scheduleRules: "ملف الجدول الزمني يقبل WBS والأنشطة المحددة فقط. يتطلب XER جدولي PROJWBS وTASK؛ لا يتجاهل مراجع WBS أو التواريخ غير الصحيحة.",
-        sizeError: "حجم الملف أكبر من الحد المسموح به وهو 10 MB.",
+        sizeError: `حجم الملف أكبر من الحد المسموح به وهو ${MAX_UPLOAD_MB} MB.`,
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
       }
     : {
@@ -132,19 +133,19 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         template: "Download Excel template",
         templateNote: "The template contains only approved columns. Add data rows below the header without changing column names.",
         requiredColumns: "Required columns",
-        accepted: "Accepted files: XLSX or CSV for standard templates, and XLSX or XER for schedule import, up to 10 MB.",
+        accepted: `Accepted files: XLSX or CSV for standard templates, and XLSX or XER for schedule import, up to ${MAX_UPLOAD_MB} MB.`,
         fileRules: "One file, one sheet, and one data type. The system rejects unapproved columns and repeated keys inside the file.",
         noFile: "Choose a file before analysis.",
         typeError: "The file format does not match the selected template.",
         scheduleRules: "Schedule import accepts only named WBS and activity records. XER requires PROJWBS and TASK; unresolved WBS links and invalid dates are never ignored.",
-        sizeError: "The file exceeds the 10 MB limit.",
+        sizeError: `The file exceeds the ${MAX_UPLOAD_MB} MB limit.`,
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
       };
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
     const format = file.name.toLowerCase().endsWith(".xer") ? "xer" : file.name.toLowerCase().endsWith(".csv") ? "csv" : file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : null;
     if (!format || (moduleCode === "schedule" ? format !== "xlsx" && format !== "xer" : format === "xer")) { setLocalError(t.typeError); return; }
-    if (file.size > 10 * 1024 * 1024) { setLocalError(t.sizeError); return; }
+    if (file.size > MAX_UPLOAD_BYTES) { setLocalError(t.sizeError); return; }
     setLocalError(null);
     const bytes = await file.arrayBuffer();
     const base64 = btoa(Array.from(new Uint8Array(bytes), byte => String.fromCharCode(byte)).join(""));

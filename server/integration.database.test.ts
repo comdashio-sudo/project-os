@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { readFile } from "node:fs/promises";
 import ExcelJS from "exceljs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -9,7 +9,7 @@ import { calculateOperationalEvm } from "./domain/operationalEvm";
 import { grantOperationalPermissions } from "./testing/grantOperational";
 vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const tenantA = "00000000-0000-4000-8000-0000000000a1";
 const tenantB = "00000000-0000-4000-8000-0000000000b1";
 const projectA = "00000000-0000-4000-8000-0000000000a2";
@@ -46,7 +46,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const url = process.env.TEST_DATABASE_URL;
     if (!isIntegrationUrl(url)) return;
     if (!url) throw new Error("TEST_DATABASE_URL is required for integration tests");
-    connection = await mysql.createConnection(url);
+    connection = await fixtureDb.createConnection(url);
     await cleanupPmcFixture();
     await connection.query("DELETE FROM control_record_links WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection.query("DELETE FROM support_messages WHERE tenantId IN (?, ?)", [tenantA, tenantB]);

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { governedActionPermissions } from "./domain/operationalPermissions";
@@ -55,7 +55,7 @@ const REFUSALS = ["Tenant scope is invalid.", "Active tenant membership is requi
 const isRefusal = (error: unknown) => error instanceof Error && REFUSALS.some(text => error.message.includes(text));
 const describeError = (error: unknown) => (error instanceof Error ? error.message.split("\n")[0].slice(0, 90) : String(error).slice(0, 90));
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const ids = { ownerA: 0, ownerB: 0, ownerC: 0, stranger: 0, scoped: 0 };
 let tenantA = ""; let tenantB = ""; let tenantC = "";
 const P = "7b000000-0000-4000-8000-000000000001"; const Q = "7b000000-0000-4000-8000-000000000002"; const R = "7b000000-0000-4000-8000-000000000003"; const PC = "7b000000-0000-4000-8000-000000000004";
@@ -80,7 +80,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Gate 6 live matrix for every tenant function", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["ownerA", "ownerB", "ownerC", "stranger", "scoped"] as const;
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [`g110-${key}`, `Matrix ${key}`, `g110-${key}@matrix.example.test`]));

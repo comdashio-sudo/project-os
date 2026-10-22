@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
@@ -12,7 +12,7 @@ import { isTestDatabaseUrl } from "./testing/testDatabase";
 // by the next pass. Synthetic company only.
 describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("freezing a company before its data is erased", () => {
   type Fixture = Awaited<ReturnType<typeof createRoleFixture>>;
-  let connection: mysql.Connection;
+  let connection: fixtureDb.Connection;
   const made: Fixture[] = [];
   const fresh = async () => {
     const fixture = await createRoleFixture({ label: "freeze" }); made.push(fixture);
@@ -36,7 +36,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("freezing a c
   const refusal = (error: unknown) => error instanceof Error && /not licensed|Active tenant membership|Required permission|PROJECT_OS_(TENANT_ACCESS_DENIED|PRODUCT_NOT_ENTITLED|PERMISSION_DENIED|PROJECT_NOT_FOUND)/.test(error.message);
 
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
   }, 60_000);
   afterAll(async () => {
     for (const f of made) {
@@ -91,10 +91,10 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("freezing a c
       db: (await getDb())!, tenantId: f.tenantId, actorUserId: f.owner.id, storageDelete: async () => undefined,
       observe: {
         afterFreeze: async () => {
-          const [[company]] = await connection.query<mysql.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [f.tenantId]);
-          const [[active]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ? AND active = true", [f.tenantId]);
-          const [[recorded]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.deletion_frozen'", [f.tenantId]);
-          const [[rows]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM projects WHERE tenantId = ?", [f.tenantId]);
+          const [[company]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [f.tenantId]);
+          const [[active]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ? AND active = true", [f.tenantId]);
+          const [[recorded]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.deletion_frozen'", [f.tenantId]);
+          const [[rows]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM projects WHERE tenantId = ?", [f.tenantId]);
           seen = { status: company.status, active: Number(active.n), recorded: Number(recorded.n), stillThere: Number(rows.n) };
         },
       },

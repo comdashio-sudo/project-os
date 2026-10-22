@@ -26,11 +26,29 @@ export type Db = NodePgDatabase;
 export type DbContext = { userId: number | null; tenantIds: string[]; system: boolean; reason?: string };
 
 const contextStorage = new AsyncLocalStorage<DbContext>();
-export const currentDbContext = () => contextStorage.getStore();
+// Tests that call a service function directly (no request, so no middleware) act as the server's own jobs. The test setup installs a system
+// fallback here; code that runs inside a request, or inside runWithDbContext, never sees it. Production never sets it.
+let fallbackForTests: DbContext | undefined;
+export const useFallbackDbContextForTests = (context: DbContext | undefined) => { fallbackForTests = context; };
+export const currentDbContext = () => contextStorage.getStore() ?? fallbackForTests;
 /** Runs `work` with the caller's tenants installed for every database statement it makes. */
 export const runWithDbContext = <T>(context: DbContext, work: () => Promise<T>): Promise<T> => contextStorage.run(context, work);
 /** Runs `work` with all tenants visible. `reason` is a sentence for whoever reads the code later; it is not a credential. */
 export const withSystemContext = <T>(reason: string, work: () => Promise<T>): Promise<T> => contextStorage.run({ userId: null, tenantIds: [], system: true, reason }, work);
+
+/**
+ * For the few acts that create or join a company, which nobody can see until the act is done: runs `work` with every company visible and then
+ * teaches the caller's own context about the company, so the rest of their request (or test) sees it.
+ */
+export async function withSystemContextJoining<T>(reason: string, work: () => Promise<T>, tenantOf: (result: T) => string): Promise<T> {
+  const caller = currentDbContext();
+  const result = await withSystemContext(reason, work);
+  if (caller && !caller.system) {
+    const tenantId = tenantOf(result);
+    if (!caller.tenantIds.includes(tenantId)) caller.tenantIds.push(tenantId);
+  }
+  return result;
+}
 
 const settingsSql = (client: pg.PoolClient | pg.Client, context: DbContext) =>
   `SELECT set_config('app.user_id', ${client.escapeLiteral(String(context.userId ?? ""))}, true), set_config('app.tenant_ids', ${client.escapeLiteral(context.tenantIds.join(","))}, true), set_config('app.system', ${client.escapeLiteral(context.system ? "on" : "off")}, true)`;
@@ -77,11 +95,16 @@ class ContextPool extends pg.Pool {
   }
 }
 
-/** ssl is required off the local machine (Supabase). DATABASE_SSL=off turns it off for a private network. */
+/**
+ * ssl is required off the local machine (Supabase). DATABASE_SSL_CA is the PEM of the certificate authority that signed the server's certificate
+ * (Supabase publishes its own: Project Settings > Database > SSL Configuration), so the connection is verified, not merely encrypted.
+ * DATABASE_SSL_VERIFY=off keeps encryption but skips verification, and DATABASE_SSL=off turns ssl off for a private network; neither is for production.
+ */
 export function poolConfigFor(connectionString: string): pg.PoolConfig {
   const url = new URL(connectionString);
   const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
-  const ssl = process.env.DATABASE_SSL === "off" || local ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off" };
+  const ca = (process.env.DATABASE_SSL_CA ?? "").replace(/\\n/g, "\n").trim();
+  const ssl = process.env.DATABASE_SSL === "off" || local ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(ca ? { ca } : {}) };
   const parsed = Number(process.env.DATABASE_POOL_MAX ?? "");
   const max = Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
   return { connectionString, ssl, max, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 10_000 };

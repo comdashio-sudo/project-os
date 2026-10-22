@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { operationalRoleDefinitions } from "./domain/operationalRoles";
@@ -14,7 +14,7 @@ const callerFor = (userId: number, openId: string) => appRouter.createCaller({ u
 const DENIED = "Required permission is not granted.";
 const TEMPLATES = ["EXECUTIVE", "PMO_LEAD", "COST_CONTROLLER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL", "CONTRACTS_MANAGER"] as const;
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = ""; let projectId = "";
 const userIds: Record<string, number> = {}; const roleIds: Record<string, string> = {};
 const callers: Record<string, ReturnType<typeof callerFor>> = {};
@@ -57,7 +57,7 @@ const outcome = async (run: () => Promise<unknown>) => { try { await run(); retu
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the ready-made role templates on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["owner", ...TEMPLATES];
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [`tpl-${key}`, `Template ${key}`, `tpl-${key}@templates.example.test`]));

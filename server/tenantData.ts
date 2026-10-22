@@ -33,10 +33,10 @@ export const TENANT_CHILD_TABLES = [
 
 /** Tables with no tenantId that are not a company's data: the product's catalogue, the platform's own bookkeeping, or a person's identity. */
 export const NOT_COMPANY_DATA = [
-  "__drizzle_migrations", // migration bookkeeping
+  "__project_os_migrations", // migration bookkeeping (schema drizzle)
   "commercial_features", "commercial_plans", "plan_feature_entitlements", // the plan catalogue, shared by every company
   "permissions", // the permission catalogue, shared by every company
-  "scheduled_jobs", "invoice_counters", // platform bookkeeping
+  "scheduled_jobs", "invoice_counters", "auth_code_attempts", // platform bookkeeping (auth_code_attempts holds a hash of an address and a counter, no company data)
   "users", "auth_sessions", "self_service_signup_attempts", // people, handled by the scrub step
   "companies", // kept as a tombstone
 ] as const;
@@ -81,11 +81,11 @@ export type SchemaMap = {
 };
 
 export async function readSchemaMap(db: Db): Promise<SchemaMap> {
-  const tables = (await q<{ t: string }>(db, sql`SELECT table_name AS t FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name`)).map(row => row.t);
-  const columnRows = await q<{ t: string; c: string }>(db, sql`SELECT table_name AS t, column_name AS c FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position`);
+  const tables = (await q<{ t: string }>(db, sql`SELECT c.relname AS t FROM pg_class c INNER JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' ORDER BY c.relname`)).map(row => row.t);
+  const columnRows = await q<{ t: string; c: string }>(db, sql`SELECT c.relname AS t, a.attname AS c FROM pg_attribute a INNER JOIN pg_class c ON c.oid = a.attrelid INNER JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped ORDER BY c.relname, a.attnum`);
   const columns: Record<string, string[]> = {};
   for (const row of columnRows) (columns[row.t] ??= []).push(row.c);
-  const keyRows = await q<{ t: string; c: string }>(db, sql`SELECT kcu.table_name AS t, kcu.column_name AS c FROM information_schema.table_constraints tc INNER JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema AND kcu.table_name = tc.table_name WHERE tc.table_schema = 'public' AND tc.constraint_type = 'PRIMARY KEY' ORDER BY kcu.table_name, kcu.ordinal_position`);
+  const keyRows = await q<{ t: string; c: string }>(db, sql`SELECT c.relname AS t, a.attname AS c FROM pg_index i INNER JOIN pg_class c ON c.oid = i.indrelid INNER JOIN pg_namespace n ON n.oid = c.relnamespace INNER JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY (i.indkey) WHERE i.indisprimary AND n.nspname = 'public' ORDER BY c.relname, array_position(i.indkey::int2[], a.attnum)`);
   const primaryKeys: Record<string, string[]> = {};
   for (const row of keyRows) (primaryKeys[row.t] ??= []).push(row.c);
   const fkRows = await q<{ t: string; r: string }>(db, sql`SELECT DISTINCT cl.relname AS t, rf.relname AS r FROM pg_constraint c INNER JOIN pg_class cl ON cl.oid = c.conrelid INNER JOIN pg_class rf ON rf.oid = c.confrelid INNER JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.contype = 'f' AND n.nspname = 'public'`);
@@ -183,7 +183,7 @@ export async function* exportTenantLines(db: Db, tenantId: string, options: { si
     yield { kind: "table-start", table };
     counts[table] = 0;
     // One-column keys page by "after the last key seen" (a deep OFFSET is re-read from the start on every page, which made a 130,000-row
-    // company take 61 s to export on TiDB instead of 3 s); the single table with a composite key (role_permissions) is small and uses OFFSET.
+    // company take 61 s to export on the previous engine instead of 3 s); the single table with a composite key (role_permissions) is small and uses OFFSET.
     const keyset = keys.length === 1;
     let last: unknown = null;
     for (let offset = 0; ; offset += PAGE) {

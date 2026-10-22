@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -9,7 +9,7 @@ const P = "77000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `77000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [WBS, MAT, MAT2, COM, PO, PO_DRAFT] = [101, 102, 103, 104, 105, 106].map(uid);
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { keeper: 0, reader: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@receipt.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -31,7 +31,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("receiving against a purchase order from the phone on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('rcp-keeper','Keeper','rcp-keeper@receipt.example.test','user'),('rcp-reader','Reader','rcp-reader@receipt.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'rcp-%'");

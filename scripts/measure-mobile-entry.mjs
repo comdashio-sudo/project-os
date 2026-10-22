@@ -87,7 +87,7 @@ async function measure(name, steps) {
     type: async (locator, value) => { typedFields += 1; await locator.fill(value); },
   };
   const started = Date.now();
-  await page.goto(`${BASE_URL}/m/${tenantId}/${projectId}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE_URL}/m/${tenantId}/${projectId}?lang=en`, { waitUntil: "domcontentloaded" }); // the labels below are the English ones; the screen opens in Arabic by default
   await steps(page, actions);
   await page.getByRole("status").filter({ hasText: /saved|تم الحفظ|حُفظ/i }).first().waitFor({ timeout: 10_000 });
   const seconds = (Date.now() - started) / 1000;

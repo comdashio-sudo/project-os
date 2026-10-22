@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import * as serverDb from "./db";
@@ -14,7 +14,7 @@ const isUrl = (value: string | undefined) => { try { const url = new URL(value ?
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@perm.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const DENIED = "Required permission is not granted.";
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = "";
 let projectId = "";
 const userIds = new Map<string, number>();
@@ -44,7 +44,7 @@ const activate = (key: string) => connection.query("UPDATE memberships SET statu
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("operational permissions and separation of duties on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["owner", ...operationalRoleDefinitions.map(role => role.code), "nobody", "custom"];
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [openIdOf(key), `Perm ${key}`, `${openIdOf(key)}@perm.example.test`]));

@@ -35,11 +35,12 @@ export function safePath(url: unknown): string {
 
 function describeError(error: unknown) {
   if (!(error instanceof Error)) return { errorName: typeof error };
-  const driver = error as Error & { code?: unknown; errno?: unknown; sqlState?: unknown; cause?: unknown };
+  const driver = error as Error & { code?: unknown; table?: unknown; constraint?: unknown; cause?: unknown };
   const out: Record<string, string | number> = { errorName: error.name.slice(0, 80) };
   if (typeof driver.code === "string") out.errorCode = driver.code.slice(0, 80);
-  if (typeof driver.errno === "number") out.errno = driver.errno;
-  if (typeof driver.sqlState === "string") out.sqlState = driver.sqlState.slice(0, 8);
+  // PostgreSQL names the table and constraint (identifiers, never values); its message and detail carry the statement's values and are never printed.
+  if (typeof driver.table === "string") out.table = driver.table.slice(0, 80);
+  if (typeof driver.constraint === "string") out.constraint = driver.constraint.slice(0, 120);
   // Only a message of our own (a project error code) is safe to print.
   if (SAFE_MESSAGE.test(error.message)) out.errorMessage = error.message;
   const cause = driver.cause;

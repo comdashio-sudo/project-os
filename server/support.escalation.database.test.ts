@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { createSupportTicketForTenant, replyToSupportTicket } from "./db";
@@ -7,7 +7,7 @@ import { appRouter } from "./routers";
 // G-108: a support ticket that asks for a person reaches the tenant's managers through the internal notifications.
 const T = "76000000-0000-4000-8000-0000000000a1";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { managerA: 0, managerB: 0, customer: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@support.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
@@ -28,7 +28,7 @@ const open = async (userId: number) => { const [rows] = await connection.query<{
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("support escalation notifies the owner (G-108)", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["managerA", "managerB", "customer"];
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES (?, 'A', 'sup-a@support.example.test', 'user'), (?, 'B', 'sup-b@support.example.test', 'user'), (?, 'C', 'sup-c@support.example.test', 'user')", keys.map(key => `sup-${key}`));

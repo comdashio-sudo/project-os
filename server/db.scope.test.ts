@@ -50,7 +50,7 @@ function configureTenantAndProjectWithForeignWbs() {
 
 describe("operational write scope guards", () => {
   beforeEach(() => {
-    process.env.DATABASE_URL = "mysql://scope-test/project_os_integration_test";
+    process.env.DATABASE_URL = "postgres://scope-test/project_os_integration_test";
     databaseDouble.select.mockReset();
     databaseDouble.transaction.mockReset();
     configureTenantAndProjectWithForeignWbs();

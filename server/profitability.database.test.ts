@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -15,7 +15,7 @@ const P2 = "20000000-0000-4000-8000-0000000000a3";
 const P_FOREIGN = "20000000-0000-4000-8000-0000000000b2";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const ids = { manager: 0, low: 0, scoped: 0 };
 const callerFor = (id: number, openId: string) => appRouter.createCaller({ user: { id, openId, name: openId, email: `${openId}@profit.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
@@ -39,7 +39,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Project profitability (FPAC) on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('profit-manager','Profit Manager','profit-manager@profit.example.test','user'),('profit-low','Profit Low','profit-low@profit.example.test','user'),('profit-scoped','Profit Scoped','profit-scoped@profit.example.test','user')");
     const [users] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'profit-%'");

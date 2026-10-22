@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -17,7 +17,7 @@ const C = [1, 2, 3, 4, 5].map(n => uid(300 + n));
 const NOW = new Date("2026-10-15T12:00:00.000Z");
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { reader: 0, none: 0, one: 0, two: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pmc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -39,7 +39,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC screens read from a real database match the hand calculation", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pmcs-reader','Screen Reader','pmcs-reader@pmc.example.test','user'),('pmcs-none','Screen None','pmcs-none@pmc.example.test','user'),('pmcs-one','Eng One','pmcs-one@pmc.example.test','user'),('pmcs-two','Eng Two','pmcs-two@pmc.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'pmcs-%'");

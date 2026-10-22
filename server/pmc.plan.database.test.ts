@@ -1,5 +1,5 @@
 import { deflateSync } from "node:zlib";
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -25,7 +25,7 @@ function png(width: number, height: number) {
 const square = (x: number, y: number, size = 0.2) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]];
 const collection = (...features: Array<{ unit: unknown; coordinates: unknown }>) => JSON.stringify({ type: "FeatureCollection", features: features.map(f => ({ type: "Feature", properties: { unitNumber: f.unit }, geometry: { type: "Polygon", coordinates: [f.coordinates] } })) });
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { manager: 0, reader: 0, none: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pmc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -47,7 +47,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC site plan on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pmcp-manager','Plan Manager','pmcp-manager@pmc.example.test','user'),('pmcp-reader','Plan Reader','pmcp-reader@pmc.example.test','user'),('pmcp-none','Plan None','pmcp-none@pmc.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'pmcp-%'");

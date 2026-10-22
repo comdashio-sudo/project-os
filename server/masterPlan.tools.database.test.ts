@@ -1,4 +1,4 @@
-import mysql from "./testing/pgCompat";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -10,7 +10,7 @@ const isUrl = (value: string | undefined) => { try { const url = new URL(value ?
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mp.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const DENIED = "Required permission is not granted.";
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = ""; let projectId = ""; let otherProjectId = "";
 const ids: Record<string, number> = {};
 const KEYS = ["owner", "reader", "stranger", "otherOwner"] as const;
@@ -42,7 +42,7 @@ const addEntity = (code: string, parent?: string, extra: Record<string, unknown>
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Master Plan tools on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${KEYS.map(() => "(?, ?, ?, 'user')").join(",")}`, KEYS.flatMap(key => [`mpt-${key}`, `MP ${key}`, `mpt-${key}@mp.example.test`]));
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'mpt-%'");

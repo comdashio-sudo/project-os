@@ -26,7 +26,8 @@ const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\
  */
 export async function connectForBackup(databaseUrl: string): Promise<pg.Client> {
   const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(databaseUrl).hostname);
-  const client = new pg.Client({ connectionString: databaseUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off" } });
+  const ca = (process.env.DATABASE_SSL_CA ?? "").replace(/\\n/g, "\n").trim();
+  const client = new pg.Client({ connectionString: databaseUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(ca ? { ca } : {}) } });
   await client.connect();
   return client;
 }
