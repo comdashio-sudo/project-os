@@ -57,15 +57,15 @@ describe("PortfolioProfitability export", () => {
     expect(input.columns.map(column => column.kind)).toEqual(["text", "money", "money"]);
   });
 
-  it("passes raw values: names as text, FPAC and movement as numbers, a missing movement as empty", async () => {
+  it("passes raw values: names as text, FPAC and movement as money with the project's currency, a missing movement as empty", async () => {
     state.query = { isLoading: false, error: null, data };
     render(<PortfolioProfitability tenantId="t" />);
     fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.rows.map(row => input.columns.map(column => column.value(row)))).toEqual([
-      ["B · Loss", -70, -20],
-      ["A · Gain", 200, null],
+      ["B · Loss", { value: -70, kind: "money", currency: "SAR" }, { value: -20, kind: "money", currency: "SAR" }],
+      ["A · Gain", { value: 200, kind: "money", currency: "SAR" }, { value: null, kind: "money", currency: "SAR" }],
     ]);
   });
 
