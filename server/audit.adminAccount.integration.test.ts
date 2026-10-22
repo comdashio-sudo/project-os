@@ -2,10 +2,10 @@ import pg from "pg";
 import { describe, expect, it } from "vitest";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
-// Two accounts, two jobs. The OWNER role (DATABASE_URL here; `postgres` on Supabase) migrates and provisions; it is never the application's
+// Two accounts, two jobs. The OWNER role (TEST_DATABASE_URL here; `postgres` on Supabase) migrates and provisions; it is never the application's
 // connection. The application role (TEST_APP_DATABASE_URL) can do none of the owner's things. This replaces the old separate audit administrator:
 // on PostgreSQL the audit trail is protected by triggers that refuse change for everyone, so there is no account that may edit it.
-const ownerUrl = process.env.DATABASE_URL;
+const ownerUrl = process.env.TEST_DATABASE_URL;
 const appUrl = process.env.TEST_APP_DATABASE_URL;
 const enabled = isTestDatabaseUrl(ownerUrl) && isTestDatabaseUrl(appUrl);
 

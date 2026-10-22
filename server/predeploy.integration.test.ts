@@ -4,9 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // The deploy path (scripts/predeploy.mjs) against a real PostgreSQL, on the one test database: migrations, then the restricted role, then proof.
-// DATABASE_URL is the OWNER of the test database; TEST_APP_DATABASE_URL is the same database as project_os_app (its password is what the deploy
+// TEST_DATABASE_URL is the OWNER of the test database; TEST_APP_DATABASE_URL is the same database as project_os_app (its password is what the deploy
 // is given as PROJECT_OS_APP_DB_PASSWORD). The migrations are already applied, so predeploy re-runs them as a no-op and re-provisions.
-const ownerUrl = process.env.DATABASE_URL;
+const ownerUrl = process.env.TEST_DATABASE_URL;
 const appUrl = process.env.TEST_APP_DATABASE_URL;
 const enabled = isTestDatabaseUrl(ownerUrl) && isTestDatabaseUrl(appUrl);
 const appPassword = enabled ? decodeURIComponent(new URL(appUrl!).password) : "";

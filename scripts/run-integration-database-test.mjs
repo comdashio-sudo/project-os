@@ -21,6 +21,6 @@ const child = spawn("pnpm", ["vitest", "run", "--no-file-parallelism", ...files]
   stdio: "inherit",
   // The application connects as the restricted role (DATABASE_URL); fixtures are written by the owner (TEST_DATABASE_URL). The *.live.test.ts files
   // (a real Supabase Auth, a real bucket) skip themselves unless GOTRUE_LIVE_URL / STORAGE_* name one.
-  env: { ...process.env, DATABASE_URL: appUrl.toString(), TEST_DATABASE_URL: ownerUrl.toString() },
+  env: { ...process.env, DATABASE_URL: appUrl.toString(), TEST_DATABASE_URL: ownerUrl.toString(), TEST_APP_DATABASE_URL: appUrl.toString() },
 });
 child.on("exit", code => process.exit(code ?? 1));

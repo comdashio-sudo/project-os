@@ -1,3 +1,5 @@
+import { governedPermissionCodes } from "./testing/grantOperational";
+import { operationalPermissionCatalog } from "./domain/operationalRoles";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
@@ -8,8 +10,8 @@ import { randomUUID } from "node:crypto";
 import { assertTestDatabaseUrl, isTestDatabaseUrl, INTEGRATION_TEST_DATABASE } from "./testing/testDatabase";
 
 // Runs only against the named test database, and only as the restricted app
-// account (SELECT/INSERT on audit_logs). It never runs on DATABASE_URL alone.
-const canRun = isTestDatabaseUrl(process.env.TEST_DATABASE_URL) && Boolean(process.env.PROJECT_OS_APP_DB_PASSWORD);
+// role (SELECT/INSERT on audit_logs, row-level security on every table).
+const canRun = isTestDatabaseUrl(process.env.TEST_DATABASE_URL) && isTestDatabaseUrl(process.env.DATABASE_URL);
 
 describe.skipIf(!canRun)("Commercial Chain Integration", () => {
   let tenantId: string;
@@ -20,16 +22,13 @@ describe.skipIf(!canRun)("Commercial Chain Integration", () => {
   beforeAll(async () => {
     assertTestDatabaseUrl(process.env.TEST_DATABASE_URL, "TEST_DATABASE_URL");
     assertTestDatabaseUrl(process.env.DATABASE_URL, "DATABASE_URL");
-    if (process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true") {
-      throw new Error("Commercial chain test must run as the restricted app account; unset PROJECT_OS_USE_ADMIN_DATABASE_URL.");
-    }
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
     // Prove the connection before writing: the test database, the app account.
-    const [identityRows] = (await db.execute(sql`SELECT CURRENT_USER() AS currentUser, DATABASE() AS databaseName`)) as unknown as [Array<{ currentUser: string; databaseName: string }>];
+    const identityRows = (await db.execute(sql`SELECT current_user AS "currentUser", current_database() AS "databaseName"`)).rows as Array<{ currentUser: string; databaseName: string }>;
     expect(identityRows[0].databaseName).toBe(INTEGRATION_TEST_DATABASE);
-    expect(identityRows[0].currentUser).toMatch(/\.project_os_app@/);
+    expect(identityRows[0].currentUser).toBe("project_os_app");
 
     // A synthetic user of its own: the test must not depend on a seeded database.
     await db.insert(users).values({ openId: `commercial-test-${randomUUID()}`, name: "Commercial Test User", email: "commercial-test@example.test", loginMethod: "test", role: "admin" });
@@ -82,13 +81,9 @@ describe.skipIf(!canRun)("Commercial Chain Integration", () => {
       systemManaged: true,
     });
 
-    const permissionCodes = [
-      "project.read", "project.write", "project.manage", "procurement.read", "procurement.manage",
-      "contracts.read", "contracts.manage", "claims.read", "claims.manage",
-      "materials.read", "materials.manage", "warehouses.read", "warehouses.manage",
-      "boq.read", "boq.manage", "subcontracts.read", "subcontracts.manage",
-      "project_invoices.read", "project_invoices.manage"
-    ];
+    // Every permission some governed action asks for, plus the base ones. (The hand-written list this test used to carry had drifted from the
+    // catalogue: it was skipped for a long time, so nothing noticed.)
+    const permissionCodes = ["project.read", "project.write", "tenant.manage", ...governedPermissionCodes];
 
     for (const code of permissionCodes) {
       const [p] = await db.select().from(permissions).where(eq(permissions.code, code)).limit(1);
@@ -102,8 +97,8 @@ describe.skipIf(!canRun)("Commercial Chain Integration", () => {
         await db.insert(permissions).values({
           id: pId,
           code,
-          name: code,
-          productCode: "PROJECT",
+          name: operationalPermissionCatalog.find(entry => entry.code === code)?.name ?? code,
+          productCode: operationalPermissionCatalog.find(entry => entry.code === code)?.productCode ?? "PROJECT",
         });
         await db.insert(rolePermissions).values({
           roleId,
