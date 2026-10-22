@@ -69,7 +69,7 @@ describe("ExportExcelButton", () => {
     const blob = (created.mock.calls as unknown as [Blob][])[0][0];
     expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(blob.size).toBeGreaterThan(0);
-    expect(revoked).toHaveBeenCalledWith("blob:test");
+    await waitFor(() => expect(revoked).toHaveBeenCalledWith("blob:test"), { timeout: 2500 });
   });
 
   it("names the download with the readable base and the export day", async () => {

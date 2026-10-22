@@ -58,6 +58,30 @@ describe("buildExportLayout", () => {
   });
 });
 
+describe("per-cell kind and currency", () => {
+  it("a cell can override the column kind, so one column can mix a money figure and a margin", () => {
+    const mixed: ExportColumn<Row>[] = [{ header: "القيمة", value: row => (row.progress === 1 ? { value: row.progress, kind: "percent" } : { value: row.amount, kind: "money", currency: "SAR" }) }];
+    const [first, second] = buildExportLayout(mixed, rows, meta).rows;
+    expect(first[0]).toEqual({ value: 1250.5, kind: "money", currency: "SAR" });
+    expect(second[0]).toEqual({ value: 1, kind: "percent", currency: undefined });
+  });
+
+  it("a money cell with a currency is written with that code in its number format; invalid codes are dropped", async () => {
+    const mixed: ExportColumn<Row>[] = [
+      { header: "المبلغ", value: row => ({ value: row.amount, kind: "money", currency: "usd" }) },
+      { header: "عملة مُدخلة بخطأ", value: () => ({ value: 5, kind: "money", currency: "$$$" }) },
+    ];
+    const bytes = await buildTableWorkbook({ sheetName: "عملات", columns: mixed, rows: [rows[0]], meta });
+    const { default: ExcelJS } = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes);
+    const sheet = workbook.getWorksheet("عملات")!;
+    const dataRow = sheet.getRow(sheet.rowCount);
+    expect(dataRow.getCell(1).numFmt).toBe('#,##0.00 "USD"');
+    expect(dataRow.getCell(2).numFmt).toBe("#,##0.00");
+  });
+});
+
 describe("sheetNameFor and exportFileName", () => {
   it("removes characters Excel forbids in sheet names and caps the length at 31", () => {
     expect(sheetNameFor("ميزانية/المشروع: [الأول]")).toBe("ميزانية المشروع: [الأول]".replace(/[\\/?*[\]:]/g, " ").trim());
