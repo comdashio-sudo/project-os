@@ -4,7 +4,10 @@
 //   pnpm build:vercel      (runs under tsx: it reads the security headers from server/_core/securityHeaders.ts)
 //
 // The cron schedule lives here, in one place. Vercel Cron calls each path with GET and `Authorization: Bearer $CRON_SECRET`; the handlers refuse any
-// other caller. The hourly e-mail job needs a Vercel plan that allows more than one cron run a day; on Hobby, change "0 * * * *" to a daily time.
+// other caller. The free plan (Hobby) allows a cron to run once a day, so by default ONE daily cron runs all the jobs (/api/scheduled/daily). On a Pro
+// plan set the build variable CRON_PLAN=pro to get the four separate jobs (hourly e-mail, import sweep every 5 minutes).
+//
+// Region: the functions run in Singapore (sin1) to sit next to the Supabase project (vercel.json "regions" and the function's own config).
 import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -13,6 +16,8 @@ import { responseSecurityHeaders } from "../server/_core/securityHeaders.ts";
 
 const root = new URL("..", import.meta.url).pathname;
 const output = join(root, ".vercel", "output");
+const PRO_CRONS = process.env.CRON_PLAN === "pro";
+const REGION = "sin1";
 const MAX_DURATION_SECONDS = Number(process.env.VERCEL_FUNCTION_MAX_DURATION ?? 300);
 // Vercel refuses a request body over 4.5 MB before it reaches the function. A file is sent as base64 inside the body (x4/3), so the largest file the
 // screens accept is held below that: 3,000,000 bytes becomes about 4.0 MB on the wire.
@@ -46,6 +51,7 @@ writeFileSync(join(output, "functions", "api.func", ".vc-config.json"), JSON.str
   shouldAddHelpers: false,
   maxDuration: MAX_DURATION_SECONDS,
   supportsResponseStreaming: true,
+  regions: [REGION],
 }, null, 2));
 writeFileSync(join(output, "functions", "api.func", "package.json"), JSON.stringify({ type: "module" }));
 
@@ -59,12 +65,14 @@ writeFileSync(join(output, "config.json"), JSON.stringify({
     { handle: "filesystem" },
     { src: "/(.*)", dest: "/index.html" },
   ],
-  crons: [
-    { path: "/api/scheduled/licenseExpiry", schedule: "0 2 * * *" },
-    { path: "/api/scheduled/profitabilitySnapshots", schedule: "10 2 * * *" },
-    { path: "/api/scheduled/emailNotifications", schedule: "0 * * * *" },
-    { path: "/api/scheduled/importJobs", schedule: "*/5 * * * *" },
-  ],
+  crons: PRO_CRONS
+    ? [
+      { path: "/api/scheduled/licenseExpiry", schedule: "0 2 * * *" },
+      { path: "/api/scheduled/profitabilitySnapshots", schedule: "10 2 * * *" },
+      { path: "/api/scheduled/emailNotifications", schedule: "0 * * * *" },
+      { path: "/api/scheduled/importJobs", schedule: "*/5 * * * *" },
+    ]
+    : [{ path: "/api/scheduled/daily", schedule: "0 2 * * *" }],
 }, null, 2));
 
-console.log(JSON.stringify({ output: ".vercel/output", function: "api", maxDurationSeconds: MAX_DURATION_SECONDS, uploadLimitBytes: Number(UPLOAD_LIMIT_BYTES), crons: 4 }));
+console.log(JSON.stringify({ output: ".vercel/output", function: "api", maxDurationSeconds: MAX_DURATION_SECONDS, uploadLimitBytes: Number(UPLOAD_LIMIT_BYTES), crons: PRO_CRONS ? 4 : 1, region: REGION }));

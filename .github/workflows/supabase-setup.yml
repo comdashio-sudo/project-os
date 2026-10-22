@@ -1,0 +1,53 @@
+name: Supabase setup
+
+# Manual only (Actions ← Supabase setup ← Run workflow). Click-only replacement for the terminal steps of docs/GO_LIVE.md.
+# Reads the secrets from Settings ← Secrets and variables ← Actions; prints names and counts, never a value.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to run"
+        type: choice
+        required: true
+        default: migrate
+        options:
+          - migrate   # build the schema, create the restricted role project_os_app, prove it (run first, and again after any release with a migration)
+          - storage   # create the two private buckets with their size limits
+          - verify    # only re-check the security of the database (changes nothing)
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.SUPABASE_ADMIN_DATABASE_URL }}
+      DATABASE_SSL_CA: ${{ secrets.SUPABASE_DB_CA }}
+      PROJECT_OS_APP_DB_PASSWORD: ${{ secrets.PROJECT_OS_APP_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Refuse to run without the secrets
+        run: |
+          missing=""
+          [ -z "$DATABASE_URL" ] && missing="$missing SUPABASE_ADMIN_DATABASE_URL"
+          [ -z "$DATABASE_SSL_CA" ] && missing="$missing SUPABASE_DB_CA"
+          if [ "${{ inputs.action }}" = "migrate" ] && [ -z "$PROJECT_OS_APP_DB_PASSWORD" ]; then missing="$missing PROJECT_OS_APP_DB_PASSWORD"; fi
+          if [ -n "$missing" ]; then echo "Add these secrets first (docs/GO_LIVE.md):$missing"; exit 1; fi
+      - name: migrate (schema + restricted role + proof)
+        if: inputs.action == 'migrate'
+        run: node --import tsx scripts/predeploy.mjs
+      - name: storage (buckets)
+        if: inputs.action == 'storage'
+        run: node scripts/setup-storage.mjs
+      - name: verify (read-only)
+        if: inputs.action == 'verify'
+        run: node --import tsx scripts/verify-db-security.mjs

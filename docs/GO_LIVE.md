@@ -1,90 +1,87 @@
-# الإطلاق — صفحة واحدة (Supabase + Vercel)
+# الإطلاق — صفحة واحدة، نقرٌ فقط (Supabase + Vercel + GitHub)
 
-مشروعان **جديدان ومنفصلان تمامًا** لهذه المنصة: مشروع Supabase باسم `dashio`، ومشروع Vercel باسم `dashio`. لا تُعِد استعمال قاعدة أو مفتاح أو مشروع من أي منصة أخرى عندك، ولا تضع مفتاحًا من هنا في أي مكان آخر. الترتيب: Supabase ← الترحيلات ← حساب التطبيق ← Vercel ← فحص من الجوال. كل أمر هنا يُنفَّذ في شاشة تراها أو في طرفية على جهازك؛ لا شيء منها يعمل من داخل المستودع.
+مشروعان **جديدان ومنفصلان تمامًا**: مشروع Supabase باسم `dashio` ومشروع Vercel باسم `dashio`. لا تُعِد استعمال قاعدة أو مفتاح أو مشروع من أي منصة أخرى عندك. **لا حاجة إلى طرفية:** كل ما كان يحتاج أمرًا صار زرًّا في GitHub (Actions ← **Supabase setup** ← **Run workflow**) أو إعدادًا تنقر عليه في لوحة Supabase أو Vercel.
 
-## ١) مشروع Supabase باسم `dashio`
+**الخطة الآن مجانية:** Supabase Free وVercel Hobby. القسم ٦ يذكر صراحةً ما يتعطل أو يتغير بدون Pro. المنطقة: مشروع Supabase في **سنغافورة**، ودوال Vercel مضبوطة في الملف على `sin1` (سنغافورة) فلا تغيّرها.
 
-<https://supabase.com/dashboard> ← **New project** ← الاسم `dashio` ← كلمة مرور قاعدة طويلة (احفظها في مدير كلمات المرور، لا تلصقها في أي محادثة) ← المنطقة الأقرب لمستخدميك وللمنطقة التي ستختارها لـVercel في الخطوة ٣.
+## الأسرار كلها: الاسم ← من أين تنسخ ← أين تلصق
 
-**أ) الاتصالات.** **Connect** ← انسخ نصَّين:
-- **Direct connection** (المنفذ 5432) ← للترحيلات وحدها: `postgresql://postgres:<كلمة المرور>@db.<المعرّف>.supabase.co:5432/postgres`.
-- **Transaction pooler** (المنفذ 6543) ← للتطبيق: `postgresql://project_os_app.<المعرّف>:<كلمة مرور حساب التطبيق>@aws-…pooler.supabase.com:6543/postgres`. اسم المستخدم فيه **`project_os_app.`** ثم معرّف المشروع، لا `postgres`.
-- **Project Settings ← Database ← SSL Configuration** ← نزّل شهادة الجذر (CA) ← محتواها يوضع في `DATABASE_SSL_CA` (سطر واحد بـ`\n` بين الأسطر) ليكون الاتصال **موثَّقًا** لا مشفَّرًا فقط.
+> **أين تلصق في GitHub:** المستودع `comdashio-sudo/project-os` ← **Settings ← Secrets and variables ← Actions ← New repository secret**.
+> **أين تلصق في Vercel:** المشروع `dashio` ← **Settings ← Environment Variables** ← البيئة **Production**.
+> **لا تلصق أي سر في محادثة.** «تُولِّد» تعني: مولّد كلمات المرور في مدير كلمات المرور عندك (طول 48 حرفًا، حروف وأرقام).
 
-**ب) الدخول برمز البريد (Authentication).**
-١. **Authentication ← Providers ← Email** ← مفعّل ← **Confirm email** مفعّل ← **Email OTP Length = 6** ← **Email OTP Expiration = 3600**. (الشاشة تقبل 6 أرقام؛ لا تغيّر الطول.)
-٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق) ← الموضوع: `PROJECT OS sign-in code`.
-٣. **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. بريد Supabase المدمج محدود بعدد قليل في الساعة ولا يصلح للإنتاج.
-٤. **Authentication ← Rate Limits** ← ارفع **Rate limit for sending emails** و**Rate limit for token verifications** إلى ما يناسب عدد مستخدميك (حد التحقق يُحسب لكل عنوان IP، وكل مستخدمي Vercel يصلون من عدد قليل من العناوين؛ الإعداد الافتراضي ضيق).
-٥. **Authentication ← Sign In / Providers** ← **Allow new users to sign up** مفعّل (العناوين الجديدة تسجّل دخولها بالرمز وتنشئ شركتها بعد ذلك). لا تفعّل أي مزود آخر هنا: Google اختياري ويعمل من التطبيق مباشرة.
-
-**ج) التخزين (Storage).**
-١. **Storage ← New bucket** مرتين، كلاهما **Private** (غير عام): `project-os-files` للملفات، و`project-os-backups` للنسخ الاحتياطية المشفّرة.
-٢. **Storage ← S3 Connection** ← انسخ **Endpoint** و**Region** ← **New access key** ← انسخ **Access key ID** و**Secret access key** (لا يظهر السر ثانية). هذا الزوج للخادم فقط.
-
-**د) الواجهة البرمجية العامة (Data API).** **Project Settings ← Data API** ← أوقفها (أو اترك `public` خارج **Exposed schemas**). التطبيق لا يستعملها، وكل جدول فيه حماية صفوف بلا أي سياسة لأدوار `anon` و`authenticated`، فهي مغلقة أصلًا؛ هذا إغلاق ثانٍ.
-
-**هـ) النسخ الاحتياطي.** **Database ← Backups** ← النسخ اليومية مفعّلة بالخطة المدفوعة، و**Point in Time Recovery** إضافة اختيارية. هذا هو النسخ الأساسي. والتصدير المشفّر `scripts/export-database.mjs` أداة تشغيل يدوي أو من CI، ليست مهمة Vercel (قد يتجاوز تفريغ كامل مهلة الدالة).
-
-## ٢) الترحيلات وحساب التطبيق (من جهازك، مرة واحدة ثم عند كل إصدار فيه ترحيل)
-
-```
-export DATABASE_URL='<الاتصال المباشر ٥٤٣٢ بحساب postgres>'     # للترحيل فقط
-export DATABASE_SSL_CA='<محتوى شهادة الجذر>'
-pnpm db:migrate                       # يبني المخطط كاملًا من ملف الأساس، ويفعّل حماية الصفوف على كل جدول، ويفشل إن بقي جدول بلا حماية
-export PROJECT_OS_APP_DB_PASSWORD='<كلمة مرور جديدة طويلة>'
-pnpm provision:app-role               # ينشئ الدور project_os_app بلا صلاحية DDL ويعطيه كلمة مرور (لا يطبعها)
-pnpm verify:db-security               # يثبت: لا UPDATE ولا DELETE ولا TRUNCATE على audit_logs، وحماية الصفوف تعمل، وأدوار Data API فارغة
-```
-الأوامر الثلاثة تطبع أسماء وأعدادًا لا أسرارًا. إن فشل `verify:db-security` فلا تنشر.
-
-## ٣) مشروع Vercel باسم `dashio`
-
-<https://vercel.com/new> ← استورد المستودع `comdashio-sudo/project-os` ← الفرع `main` ← **اسم المشروع `dashio`** ← Framework Preset: **Other** (الأوامر مكتوبة في `vercel.json`، لا تغيّرها) ← **Settings ← Functions ← Function Region**: أقرب منطقة إلى منطقة Supabase ← **Environment Variables** (الجدول أدناه، للبيئة Production) ← **Deploy**. لا تربط نطاقًا عامًا قبل اكتمال الفحص في الخطوة ٥ (النشر العام يحتاج أمرًا منك).
-
-## ٤) كل متغير وأين يوضع
-
-الخانة «يوضع في» هي **Vercel ← `dashio` ← Settings ← Environment Variables ← Production**.
-
-| المتغير | القيمة | |
+| الاسم | من أين تنسخه بالضبط | أين تلصقه |
 |---|---|---|
-| `DATABASE_URL` | رابط **Transaction pooler** (٦٥٤٣) باسم المستخدم `project_os_app.<المعرّف>` | إلزامي |
-| `DATABASE_SSL_CA` | محتوى شهادة جذر Supabase | إلزامي (يوثّق الاتصال) |
-| `DATABASE_POOL_MAX` | `3` | اختياري (الافتراضي ١٠؛ كل نسخة دالة تفتح هذا العدد من الاتصالات) |
-| `JWT_SECRET` | سلسلة عشوائية ≥ ٣٢ حرفًا تولّدها (`openssl rand -base64 48`) | إلزامي |
-| `CRON_SECRET` | سلسلة عشوائية ≥ ١٦ حرفًا؛ **Vercel يرسلها بنفسه** في ترويسة المهام المجدولة | إلزامي |
-| `OWNER_EMAIL` | بريدك؛ أول دخول به يجعلك مدير المنصة | إلزامي |
-| `APP_BASE_URL` | رابط المشروع `https://…vercel.app` ثم نطاقك | إلزامي |
-| `SUPABASE_URL` | `https://<المعرّف>.supabase.co` | إلزامي (الدخول) |
-| `SUPABASE_ANON_KEY` | **anon / publishable key** من Project Settings ← API. هذا هو المفتاح الوحيد من Supabase الذي يلمسه الخادم للدخول | إلزامي |
-| `AUTH_CODE_TTL_SECONDS` | `3600` (يطابق Email OTP Expiration) | اختياري |
-| `STORAGE_S3_ENDPOINT` · `STORAGE_S3_REGION` · `STORAGE_S3_ACCESS_KEY_ID` · `STORAGE_S3_SECRET_ACCESS_KEY` | من S3 Connection (١-ج) | إلزامي |
-| `STORAGE_BUCKET` | `project-os-files` | إلزامي |
-| `BACKUP_BUCKET` · `BACKUP_ENCRYPTION_KEY` · `BACKUP_DATABASE_URL` | `project-os-backups` · مفتاح تولّده بـ`node --import tsx scripts/export-database.mjs --generate-key` وتحفظه في مدير كلمات المرور **خارج Vercel** · الاتصال المباشر بحساب المالك | لأداة التصدير فقط، لا تضعها في Vercel |
-| `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `EMAIL_FROM` | حساب بريد الإشعارات (قد يكون نفسه المستعمل في ١-ب-٣) | عند تفعيل إشعارات البريد |
-| `EMAIL_NOTIFICATIONS_ENABLED` | `false` حتى تجهّز البريد، ثم `true` | اختياري |
-| `API_RATE_LIMIT_PER_MINUTE` | `600` | اختياري |
-| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | اختيارية | اتركها فارغة |
-| `LLM_ENABLED` · `LLM_API_KEY` · `LLM_BASE_URL` | `false` وفارغة | اتركها |
-| `VITE_MAX_UPLOAD_BYTES` · `VERCEL_FUNCTION_MAX_DURATION` | حد حجم الملف في الواجهة (الافتراضي ٣٠٠٠٠٠٠) · مهلة الدالة بالثواني (الافتراضي ٣٠٠) | يُقرآن عند البناء |
+| `SUPABASE_ADMIN_DATABASE_URL` | لوحة Supabase ← مشروع `dashio` ← زر **Connect** أعلى الصفحة ← **Connection String** ← **Method: Session pooler** ← **URI**؛ استبدل `[YOUR-PASSWORD]` بكلمة مرور القاعدة التي اخترتها عند إنشاء المشروع. اسم المستخدم فيه `postgres.<المعرّف>`. **لا تستعمل Direct connection:** على الخطة المجانية لا يعمل إلا عبر IPv6 ولن يصله GitHub. | GitHub فقط |
+| `SUPABASE_DB_CA` | ← **Project Settings ← Database ← SSL Configuration ← Download certificate** ← افتح الملف المنزَّل بمحرر نصوص وانسخ **كل** محتواه (من `-----BEGIN CERTIFICATE-----` إلى `-----END CERTIFICATE-----`) | GitHub **و** Vercel باسم `DATABASE_SSL_CA` |
+| `PROJECT_OS_APP_DB_PASSWORD` | تُولِّدها أنت (16 حرفًا فأكثر). هي كلمة مرور حساب التطبيق `project_os_app` الذي ينشئه الزر. احفظها في مدير كلمات المرور. | GitHub **و** داخل `DATABASE_URL` في Vercel (الصف التالي) |
+| `DATABASE_URL` | زر **Connect** ← **Method: Transaction pooler** ← **URI**؛ ثم غيّر فيه شيئين: اسم المستخدم من `postgres.<المعرّف>` إلى `project_os_app.<المعرّف>`، وكلمة المرور إلى `PROJECT_OS_APP_DB_PASSWORD`. المنفذ فيه `6543`. | Vercel فقط |
+| `DATABASE_SSL_CA` | نفس محتوى `SUPABASE_DB_CA` أعلاه | Vercel فقط |
+| `SUPABASE_URL` | ← **Project Settings ← API** ← **Project URL** (`https://<المعرّف>.supabase.co`) | Vercel |
+| `SUPABASE_ANON_KEY` | ← **Project Settings ← API Keys** ← المفتاح **anon / publishable** (الذي يُسمّى «public»). هو الوحيد من مفاتيح Supabase الذي يلمسه الخادم. **لا تنسخ `service_role`/secret أبدًا.** | Vercel |
+| `STORAGE_S3_ENDPOINT` · `STORAGE_S3_REGION` | ← **Project Settings ← Storage ← S3 Connection** ← **Endpoint** و**Region** | Vercel |
+| `STORAGE_S3_ACCESS_KEY_ID` · `STORAGE_S3_SECRET_ACCESS_KEY` | نفس الصفحة ← **New access key** ← انسخ **Access key ID** و**Secret access key** (السر يظهر مرة واحدة) | Vercel |
+| `STORAGE_BUCKET` | القيمة الثابتة `project-os-files` (ينشئها زر `storage`) | Vercel |
+| `JWT_SECRET` | تُولِّده (48 حرفًا) | Vercel |
+| `CRON_SECRET` | تُولِّده (32 حرفًا فأكثر)؛ Vercel يرسله بنفسه مع المهمة المجدولة | Vercel |
+| `OWNER_EMAIL` | بريدك؛ أول دخول به يجعلك مدير المنصة | Vercel |
+| `APP_BASE_URL` | رابط المشروع بعد أول نشر: Vercel ← `dashio` ← **Domains** ← انسخ `https://….vercel.app` | Vercel |
+| `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `EMAIL_FROM` | لوحة مزود البريد الذي تملك نطاقه (إشعارات المنصة؛ اختياري حتى تفعّلها) | Vercel |
+| `EMAIL_NOTIFICATIONS_ENABLED` | اكتب `false` الآن، و`true` حين يجهز البريد | Vercel |
 
-**لا تضع أبدًا** في أي مكان: مفتاح `service_role` (الخادم لا يحتاجه ولا يستعمله)، ولا `DATABASE_SSL=off`، ولا `DATABASE_SSL_VERIFY=off`، ولا `TEST_DATABASE_URL`، ولا `PROJECT_OS_USE_ADMIN_DATABASE_URL`، ولا `TEST_DB_NO_FALLBACK`، ولا `GOTRUE_LIVE_URL`، ولا `SUPABASE_AUTH_URL` (لمحرك دخول محلي فقط).
+متغيرات اختيارية بقيمها: `DATABASE_POOL_MAX` = `3` · `AUTH_CODE_TTL_SECONDS` = `3600` · `API_RATE_LIMIT_PER_MINUTE` = `600` · `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` (اتركهما فارغين) · `LLM_ENABLED` = `false` مع ترك `LLM_API_KEY` و`LLM_BASE_URL` فارغين · `BACKUP_BUCKET` · `BACKUP_ENCRYPTION_KEY` · `BACKUP_DATABASE_URL` (للنسخ الاحتياطي اليدوي فقط، لا تضعها في Vercel) · `VITE_MAX_UPLOAD_BYTES` (افتراضي 3000000) · `VERCEL_FUNCTION_MAX_DURATION` (افتراضي 300) · `CRON_PLAN` (اتركه غير موجود ما دمت على Hobby).
 
-## ٥) فحص ما بعد النشر من الجوال (خمس دقائق)
-
-١. `https://<الرابط>/healthz` ← كلمة **ok**. ٢. `/login` ← تظهر بالعربية ← اكتب `OWNER_EMAIL` ← يصلك **رمز من 6 أرقام** (ليس رابطًا) خلال دقيقة ← ادخل ← تصل للوحة. ٣. اكتب رمزًا خطأ ٥ مرات ← تُغلق المحاولة ١٥ دقيقة بالرسالة العامة نفسها. ٤. أنشئ شركة تجريبية ← أضف مشروعًا ← ارفع ملفًا أصغر من ٣ MB ← يظهر في السجل وينزل. ٥. من **Vercel ← Settings ← Cron Jobs** تظهر أربع مهام (انتهاء التراخيص ٠٢:٠٠ UTC، لقطات الربحية ٠٢:١٠، إشعارات البريد كل ساعة، مسح مهام الاستيراد كل ٥ دقائق) ← شغّل واحدة بـ**Run** ← في **Logs** الرد ٢٠٠. ٦. من **Supabase ← Logs ← Postgres** لا أخطاء `permission denied` ولا `row-level security` على الصفحات الرئيسية. ٧. **الرفع الكبير من الجوال:** من شاشة الاستيراد اختر «الجدول الزمني» وارفع ملف XER بحجم ≈٣٠ MB (أو Excel بـ٢٠ ألف صف) ← يظهر شريط «جارٍ رفع الملف ٪» ثم «قيد المعالجة» بمراحله ← ينتهي بـ«جاهز للتأكيد» ← أكّد ← «قيد المعالجة» ثم أعداد السجلات المنشأة. فشله يظهر بـ«فشلت المعالجة» وسببه. **هذا الفحص هو الذي يثبت إعدادات Storage الثلاثة أعلاه؛ لم يُجرَ على مشروع حقيقي.**
-
-## ٦) حدود تعرفها قبل أن تعد بها أحدًا
-
-- **حجم الرفع (قرار المالك 2026-10-22: رفع مباشر، حتى 50 MB).** ملف الاستيراد لا يمر داخل طلب: المتصفح يرفعه بـ`PUT` إلى Supabase Storage على عنوان موقَّع صالح ١٥ دقيقة، ثم يسجّله الخادم ويعالجه من التخزين. فسقف Vercel (4.5 MB للطلب) لا يمسّه. **ثلاثة إعدادات على Supabase** (لوحة المشروع ← Storage):
-  ١. أنشئ الحاوية (bucket) **خاصة** (غير عامة) باسم `STORAGE_BUCKET`، وفي **Edit bucket ← Restrict file size** اكتب **50 MB**. هذا هو الحارس الفعلي ضد رفع ملف أكبر قبل أن يراه الخادم (الخادم يرفض ويحذف أي كائن أكبر عند التسجيل أيضًا).
-  ٢. **Storage ← Settings ← Upload file size limit** يجب ألا يقل عن 50 MB (الافتراضي على الخطة المجانية 50 MB).
-  ٣. الرفع من المتصفح عبر نطاق آخر: تأكد في الفحص (القسم ٥، البند ٧) أن رفع ملف 30 MB من الجوال ينجح. إن رفضه المتصفح بخطأ CORS فالإعداد على Supabase لا على التطبيق. السياسة الأمنية في التطبيق تسمح للصفحة بـ`connect-src https://*.supabase.co` فقط.
-  الواجهة تمنع الملف الأكبر من 50 MB قبل أي رفع. أما **بقية الشاشات** التي ترسل ملفًا داخل الطلب (مرفقات المستندات، استيراد PMC، خطة PMC، ربط المخطط العام) فما زالت على سقف **3 MB** (`VITE_MAX_UPLOAD_BYTES`) لأنها لم تُنقل إلى الرفع المباشر — قرار نطاق مسجَّل في التقرير.
-- **المعالجة الطويلة (مهمة خلفية).** التحليل والتأكيد لملف كبير (فوق ٢٠٠٠ صف للتأكيد) تعمل **بعد إرجاع الرد** (`waitUntil` في Vercel) وتكتب حالتها في `data_imports` (`analyzing` ← `validated` أو `uploaded`، و`importing` ← `completed`، أو `failed` مع `failure_reason`)، والشاشة تستطلعها كل ثانية ونصف. دالة قُتلت عند حدّها تترك نبضًا قديمًا (أكثر من ٦ دقائق): الاستطلاع التالي يعيد تشغيلها (حتى ٣ محاولات ثم تفشل بسبب `PROJECT_OS_IMPORT_JOB_STALLED`). المسح الدوري `/api/scheduled/importJobs` كل ٥ دقائق يفعل الشيء نفسه ويحذف الرفوعات التي لم يسجّلها أحد خلال يوم؛ **هذا الجدول يحتاج Pro** (على Hobby غيّر `*/5 * * * *` إلى يومي، فيبقى الاستطلاع هو الإنعاش). **الذاكرة:** تحليل جدول Excel بـ50 ألف صف بلغ ذروة ~1.06 GB في القياس المحلي؛ إن فشلت دالة بنفاد الذاكرة فارفع ذاكرة الدالة إلى 2 GB من إعدادات Vercel (Functions ← Memory).
-- **المهام المجدولة.** الخطة المجانية (Hobby) في Vercel تسمح بتشغيل مهمة مجدولة **مرة في اليوم**؛ مهمة الإشعارات كل ساعة تحتاج خطة Pro، أو غيّر `0 * * * *` في `scripts/build-vercel.mjs` إلى وقت يومي.
-- **مدة الدالة.** ٣٠٠ ثانية افتراضيًا، ويمكن رفعها حسب الخطة. أطول مهمة معروفة (لقطات الربحية لأكبر شركة) أقل من ذلك بكثير.
-- **الاتصالات.** كل نسخة دالة تحمل `DATABASE_POOL_MAX` اتصالًا بالمجمّع (٦٥٤٣)؛ المجمّع هو الذي يحمي القاعدة من كثرة النسخ. لا تستعمل الاتصال المباشر (٥٤٣٢) في التطبيق.
+**لا تضع أبدًا** في أي مكان: مفتاح `service_role`، ولا `DATABASE_SSL=off`، ولا `DATABASE_SSL_VERIFY=off`، ولا `TEST_DATABASE_URL`، ولا `PROJECT_OS_USE_ADMIN_DATABASE_URL`، ولا `TEST_DB_NO_FALLBACK`، ولا `GOTRUE_LIVE_URL`، ولا `SUPABASE_AUTH_URL` (لمحرك دخول محلي فقط).
 
 ---
-**ما جُرِّب محليًا:** `pnpm test:db` (كل اختبارات القاعدة بحساب التطبيق المقيَّد على PostgreSQL محلي)، ومحرك دخول Supabase Auth حقيقي (`pnpm auth:local` ثم `server/auth.gotrue.live.test.ts`)، وحزمة الدالة (`pnpm build:vercel` ثم تشغيلها خلف خادم HTTP محلي). ما لم يُجرَّب: أي شيء على Supabase أو Vercel الحقيقيين — لا يوجد في هذا المستودع اتصال بأيٍّ منهما.
+
+## الخطوات بالترتيب
+
+### ١) مشروع Supabase باسم `dashio`
+<https://supabase.com/dashboard> ← **New project** ← الاسم `dashio` ← كلمة مرور قاعدة طويلة (تحفظها في مدير كلمات المرور) ← **Region: Southeast Asia (Singapore)** ← Plan: **Free**.
+
+**الدخول برمز البريد (كلها نقر في لوحة Supabase):**
+١. **Authentication ← Providers ← Email** ← مفعّل ← **Confirm email** مفعّل ← **Email OTP Length = 6** ← **Email OTP Expiration = 3600**. (الشاشة تقبل 6 أرقام؛ لا تغيّر الطول.)
+٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `PROJECT OS sign-in code`.
+٣. **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. **هذا إلزامي حتى على المجانية:** بريد Supabase المدمج لا يرسل إلا عددًا ضئيلًا جدًا في الساعة ولا يصلح لأي مستخدم حقيقي.
+٤. **Authentication ← Rate Limits** ← ارفع **Rate limit for sending emails** و**Rate limit for token verifications** إن سمحت لوحتك بذلك بعد تفعيل SMTP المخصص (حد التحقق يُحسب لكل IP، وكل مستخدمي Vercel يصلون من عدد قليل من العناوين).
+٥. **Authentication ← Sign In / Providers** ← **Allow new users to sign up** مفعّل. لا تفعّل مزودًا آخر.
+
+**الواجهة البرمجية العامة (Data API):** **Project Settings ← API** (أو **Data API**) ← أوقفها أو أزل `public` من **Exposed schemas**. التطبيق لا يستعملها، وكل جدول محمي أصلًا؛ هذا إغلاق ثانٍ.
+
+### ٢) أسرار GitHub ثم زرّا الإعداد (بلا طرفية)
+١. ألصق في GitHub الأسرار الثلاثة: `SUPABASE_ADMIN_DATABASE_URL` و`SUPABASE_DB_CA` و`PROJECT_OS_APP_DB_PASSWORD` (من الجدول أعلاه).
+٢. GitHub ← **Actions ← Supabase setup ← Run workflow** ← الفرع `main` ← **action = `migrate`** ← شغّل. يبني المخطط كاملًا، ويفعّل حماية الصفوف، وينشئ الدور `project_os_app` بلا صلاحية DDL (هذا ما كان يُسمّى `pnpm db:migrate` ثم `provision:app-role`)، ثم يثبت (`verify:db-security`) أنه لا UPDATE ولا DELETE ولا TRUNCATE على `audit_logs` وأن حماية الصفوف تعمل. **إن فشل (علامة حمراء) فلا تنشر.**
+٣. شغّله ثانيةً بـ**action = `storage`**: ينشئ حاويتين **Private** (غير عامتين): `project-os-files` بحد 50 MB للملف، و`project-os-backups`. بعدها: Supabase ← **Project Settings ← Storage ← S3 Connection** ← خذ Endpoint وRegion وأنشئ **New access key** (الصفوف في الجدول أعلاه).
+٤. أعد تشغيل **action = `migrate`** بعد كل إصدار جديد فيه ترحيلة، وبـ**`verify`** متى أردت فحصًا للأمان بلا تغيير.
+
+### ٣) مشروع Vercel باسم `dashio`
+<https://vercel.com/new> ← استورد `comdashio-sudo/project-os` ← الفرع `main` ← **اسم المشروع `dashio`** ← Framework Preset: **Other** (الأوامر والمنطقة `sin1` في `vercel.json`؛ لا تغيّرها) ← **Environment Variables** (الصفوف الموسومة Vercel في الجدول أعلاه، للبيئة Production) ← **Deploy**. بعد النشر: **Settings ← Functions** تأكد أن **Function Region** تقول Singapore (sin1). لا تربط نطاقًا عامًا قبل اكتمال الفحص (النشر العام يحتاج أمرًا منك).
+
+### ٤) فحص ما بعد النشر من الجوال (خمس دقائق)
+١. `https://<الرابط>/healthz` ← كلمة **ok**. ٢. `/login` ← تظهر بالعربية ← اكتب `OWNER_EMAIL` ← يصلك **رمز من 6 أرقام** (ليس رابطًا) ← ادخل ← تصل للوحة. ٣. اكتب رمزًا خطأ ٥ مرات ← تُغلق المحاولة ١٥ دقيقة بالرسالة العامة نفسها. ٤. أنشئ شركة تجريبية ← أضف مشروعًا ← ارفع ملفًا أصغر من ٣ MB في المستندات ← يظهر وينزل. ٥. Vercel ← `dashio` ← **Settings ← Cron Jobs** ← تظهر **مهمة واحدة** (`/api/scheduled/daily`) ← **Run** ← في **Logs** الرد ٢٠٠ وفيه `PROJECT_OS_DAILY_JOBS_DONE`. ٦. Supabase ← **Logs ← Postgres** بلا أخطاء `permission denied` ولا `row-level security` على الصفحات الرئيسية. ٧. **الرفع الكبير من الجوال:** شاشة الاستيراد ← «الجدول الزمني» ← ارفع XER بحجم ≈٣٠ MB (أو Excel بـ٢٠ ألف صف) ← شريط «جارٍ رفع الملف» ثم «قيد المعالجة» بمراحله ثم «جاهز للتأكيد» ← أكّد ← «قيد المعالجة» ثم أعداد السجلات. فشله يظهر بـ«فشلت المعالجة» وسببه. **هذا الفحص يثبت ما لم أستطع إثباته من هنا:** أن المتصفح يرفع إلى Supabase مباشرة (Supabase لا يوفّر لوحة لضبط CORS للتخزين؛ إن رفضه المتصفح فأبلغني بنص الخطأ)، وأن الحاوية تقبل 50 MB، وأن المعالجة تكتمل بعد الرد على Vercel.
+
+---
+
+## ٥) حدود تعرفها قبل أن تعد بها أحدًا
+
+- **حجم الرفع.** ملف الاستيراد (Excel/CSV/XER) يُرفع مباشرة من المتصفح إلى Supabase Storage بعنوان موقَّع صالح ١٥ دقيقة، حتى **50 MB**، ثم يعالجه الخادم كمهمة خلفية بحالة تقدم؛ فلا يمسّه سقف Vercel لجسم الطلب (4.5 MB). بقية الشاشات التي ترسل ملفًا داخل الطلب (مرفقات المستندات، استيراد PMC، خطة PMC، ربط المخطط العام) على سقف **3 MB**.
+- **المهمة الخلفية.** تعمل بعد إرجاع الرد (`waitUntil`)، ودالة قُتلت عند حدّها تُنعش من الاستطلاع التالي (حتى ٣ محاولات). **الذاكرة:** تحليل Excel بـ50 ألف صف بلغ ذروة ≈1.06 GB محليًا؛ دوال Hobby لها ٢ GB فتكفي.
+- **الاتصالات.** كل نسخة دالة تفتح `DATABASE_POOL_MAX` اتصالًا بالمجمّع (٦٥٤٣)؛ المجمّع يحمي القاعدة. لا تستعمل Direct connection في التطبيق.
+
+## ٦) ما يتعطل أو يتغير على المجاني بدون Pro (بصراحة)
+
+| الخدمة | القيد على المجاني | الأثر على المنصة |
+|---|---|---|
+| Vercel Hobby | المهمة المجدولة **مرة في اليوم** وبحد أقصى مهمتين | لذلك صارت **مهمة واحدة** يومية (٠٢:٠٠ UTC تقريبًا؛ Hobby لا يضمن الدقيقة) تشغّل: انتهاء التراخيص، لقطات الربحية، دورة إشعارات البريد، مسح مهام الاستيراد. **تتعطل:** إشعارات البريد كل ساعة (تصير يومية)، والمسح كل ٥ دقائق (يبقى استطلاع الشاشة هو الذي ينعش المهمة الميتة، والرفوع اليتيمة تُحذف يوميًا). على Pro ضع في Vercel متغير البناء `CRON_PLAN` = `pro` فتعود المهام الأربع. |
+| Vercel Hobby | مخصص للاستعمال الشخصي غير التجاري (شروط الخدمة) | تشغيل منصة تجارية للعملاء يستلزم Pro؛ راجع الشروط قبل أول عميل مدفوع. |
+| Vercel Hobby | سجلات قصيرة الاحتفاظ، ومنطقة دوال واحدة | تحقق من أخطاء الإنتاج سريعًا؛ لا تعدد مناطق. |
+| Supabase Free | **توقف المشروع بعد أسبوع بلا نشاط** | المهمة اليومية تستعلم القاعدة فتُبقي المشروع نشطًا؛ إن تعطّلت الجدولة أسبوعًا توقف المشروع ويُستأنف من لوحة Supabase بنقرة **Restore**. |
+| Supabase Free | **لا نسخ احتياطية يومية ولا استعادة لنقطة زمنية** (هذه Pro) | **تتعطل الحماية من فقدان البيانات.** ضع Pro قبل أي بيانات عميل حقيقية. أداة التصدير المشفّر (`scripts/export-database.mjs`) تحتاج طرفية ولذلك ليست جزءًا من هذه الصفحة. |
+| Supabase Free | قاعدة 500 MB وتخزين 1 GB وملف حتى 50 MB | يكفي الاختبار والتجربة؛ المشروع الحقيقي يتجاوزها سريعًا. |
+| Supabase Free | الاتصال المباشر (٥٤٣٢) IPv6 فقط | لذلك يستعمل زرّ الإعداد **Session pooler** لا Direct connection. |
+| Supabase Free | بريد Supabase المدمج محدود جدًا | **إلزامي** تفعيل SMTP المخصص (الخطوة ١-٣) وإلا لن يصل الرمز لأكثر من قلة. |
+| GitHub Actions | دقائق مجانية شهريًا | الزر يدوي فقط ويستهلك دقائق قليلة؛ لا يعمل شيء منه تلقائيًا. |
+
+---
+**ما جُرِّب محليًا:** `pnpm test:db` (كل اختبارات القاعدة بحساب التطبيق المقيَّد على PostgreSQL محلي)، ومحرك دخول Supabase Auth حقيقي، وحزمة الدالة (`pnpm build:vercel`) وتشغيلها، ومسار المهمة اليومية. **ما لم يُجرَّب:** أي شيء على Supabase أو Vercel أو GitHub Actions الحقيقيين — لا اتصال بأيٍّ منها من هنا، وملف الـworkflow لم يُشغَّل بعد (أول تشغيل له هو اختباره).
