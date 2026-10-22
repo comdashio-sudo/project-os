@@ -16,9 +16,11 @@ const run = (script, env) => new Promise(resolve => spawn(process.execPath, [scr
 const setupCode = await run("scripts/setup-integration-test-db.mjs", { DATABASE_URL: adminUrl.toString(), PROJECT_OS_APP_DB_PASSWORD: appPassword });
 if (setupCode !== 0) process.exit(setupCode);
 
-const files = readdirSync("server").filter(name => /\.database\.test\.ts$|\.integration\.test\.ts$/.test(name)).sort().map(name => `server/${name}`);
+const files = readdirSync("server").filter(name => /\.database\.test\.ts$|\.integration\.test\.ts$|\.live\.test\.ts$/.test(name)).sort().map(name => `server/${name}`);
 const child = spawn("pnpm", ["vitest", "run", "--no-file-parallelism", ...files], {
   stdio: "inherit",
-  env: { ...process.env, DATABASE_URL: ownerUrl.toString(), TEST_DATABASE_URL: ownerUrl.toString(), TEST_APP_DATABASE_URL: appUrl.toString(), PROJECT_OS_USE_ADMIN_DATABASE_URL: "true" },
+  // The application connects as the restricted role (DATABASE_URL); fixtures are written by the owner (TEST_DATABASE_URL). The *.live.test.ts files
+  // (a real Supabase Auth, a real bucket) skip themselves unless GOTRUE_LIVE_URL / STORAGE_* name one.
+  env: { ...process.env, DATABASE_URL: appUrl.toString(), TEST_DATABASE_URL: ownerUrl.toString() },
 });
 child.on("exit", code => process.exit(code ?? 1));
