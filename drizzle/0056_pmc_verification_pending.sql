@@ -1,1 +1,0 @@
-ALTER TABLE `pmc_verification_statuses` ADD `pending` boolean DEFAULT false NOT NULL;

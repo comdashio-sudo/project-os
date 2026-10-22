@@ -10,10 +10,11 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLogs, designComments, designDrawingRevisions, designDrawings, designSubmittals, designTransmittalItems, designTransmittals } from "../drizzle/schema";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
+import { isUniqueViolation } from "./_core/database";
 import { commentTransitions, disciplineAuthority, replyRequiresResubmission, summariseDrawings, transmittalTransitions, type CommentStatus, type DesignDiscipline, type SubmittalReplyCode, type TransmittalStatus } from "./domain/designCoordination";
 
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
-const isDuplicate = (error: unknown): boolean => { const e = error as { code?: string; errno?: number; cause?: unknown } | null; return Boolean(e) && (e!.code === "ER_DUP_ENTRY" || e!.errno === 1062 || (e!.cause !== undefined && isDuplicate(e!.cause))); };
+const isDuplicate = isUniqueViolation;
 const duplicateAs = async <T>(work: () => Promise<T>): Promise<T> => { try { return await work(); } catch (error) { if (isDuplicate(error)) throw refuse("CONFLICT", "PROJECT_OS_DESIGN_DUPLICATE"); throw error; } };
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: { tenantId: string; projectId: string }) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
@@ -86,7 +87,7 @@ export async function getDesignDashboard(input: { userId: number; tenantId: stri
     db.select({ code: designSubmittals.replyCode, total: sql<number>`count(*)` }).from(designSubmittals).where(and(mine(designSubmittals, input), sql`${designSubmittals.replyCode} is not null`)).groupBy(designSubmittals.replyCode),
     db.select({ total: sql<number>`count(*)` }).from(designSubmittals).where(and(mine(designSubmittals, input), eq(designSubmittals.status, "submitted"), sql`${designSubmittals.dueAt} < ${now}`)),
     db.select({ status: designTransmittals.status, total: sql<number>`count(*)` }).from(designTransmittals).where(mine(designTransmittals, input)).groupBy(designTransmittals.status),
-    db.select({ days: sql<number | null>`avg(timestampdiff(hour, ${designSubmittals.submittedAt}, ${designSubmittals.repliedAt})) / 24` }).from(designSubmittals).where(and(mine(designSubmittals, input), sql`${designSubmittals.repliedAt} is not null`)),
+    db.select({ days: sql<string | null>`avg(extract(epoch from (${designSubmittals.repliedAt} - ${designSubmittals.submittedAt}))) / 86400` }).from(designSubmittals).where(and(mine(designSubmittals, input), sql`${designSubmittals.repliedAt} is not null`)),
   ]);
   const count = (rows: ReadonlyArray<{ status: string; total: number }>, status: string) => Number(rows.find(row => row.status === status)?.total ?? 0);
   return {

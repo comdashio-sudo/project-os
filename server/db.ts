@@ -1,5 +1,4 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
@@ -135,36 +134,17 @@ import { invokeLLM, isLlmEnabled } from "./_core/llm";
 import { storageGetSignedUrl, storagePut } from "./storage";
 import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
-import { buildRestrictedAppDatabaseUrl } from "./domain/auditAccountIdentity";
-import { assertTestDatabaseUrl } from "./testing/testDatabase";
 import { openIdForEmail } from "./_core/auth/emailCode";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 import { createInFlight } from "./inFlight";
-import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./tidbStats";
+import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
-let _db: ReturnType<typeof drizzle> | null = null;
-
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    // Under vitest the connection must name the test database; a production
-    // URL in the environment fails the test instead of being written to.
-    if (process.env.VITEST === "true") assertTestDatabaseUrl(process.env.DATABASE_URL, "DATABASE_URL");
-    try {
-      // Tests get the administrative account only when the integration runner
-      // asks for it explicitly; otherwise they use the restricted app account.
-      const useAdministrativeConnection = process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true";
-      _db = drizzle(buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD, useAdministrativeConnection));
-    } catch (error) {
-      logError("database.connect_failed", error);
-      _db = null;
-    }
-  }
-  return _db;
-}
+export { getDb } from "./_core/database";
+import { getDb, isUniqueViolation, rowsAffected, withSystemContext } from "./_core/database";
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -181,7 +161,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
   values.role = user.role ?? (ENV.ownerEmail && user.openId === openIdForEmail(ENV.ownerEmail) ? "admin" : "user");
   updateSet.role = values.role;
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -280,12 +260,12 @@ const defaultCommercialFeatures = [
 ];
 
 export async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
-  await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
-  await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onDuplicateKeyUpdate({ set: { active: true } });
+  await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onConflictDoUpdate({ target: commercialPlans.code, set: { active: true } });
+  await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onConflictDoUpdate({ target: commercialFeatures.code, set: { active: true } });
   const plans = await db.select({ id: commercialPlans.id, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true));
   const features = await db.select({ id: commercialFeatures.id, code: commercialFeatures.code, productCode: commercialFeatures.productCode }).from(commercialFeatures).where(eq(commercialFeatures.active, true));
   const entitlements = plans.flatMap(plan => features.filter(feature => productsForPackage(plan.packageCode as SubscriptionPackageCode).includes(feature.productCode)).map(feature => ({ id: crypto.randomUUID(), planId: plan.id, featureId: feature.id, active: true, limitValue: feature.code === "MASTER_PLAN" ? 10 : feature.code === "MASTER_PLAN_ENTITIES" ? 5000 : feature.code === "DATA_IMPORT" ? 50 : feature.code === "PROJECT_LIMIT" ? 20 : feature.code === "STORAGE_BYTES" ? 1_073_741_824 : feature.code === "AI_ADVISORY_MONTHLY" ? 100 : 100 })));
-  if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onDuplicateKeyUpdate({ set: { active: true } });
+  if (entitlements.length) await db.insert(planFeatureEntitlements).values(entitlements).onConflictDoUpdate({ target: [planFeatureEntitlements.planId, planFeatureEntitlements.featureId], set: { active: true } });
 }
 
 export async function assertTenantFeatureAccess(input: { userId: number; tenantId: string; product: ProductCode; permission: string | readonly string[]; featureCode: string; scope?: { type: "company" | "portfolio" | "program" | "project"; id?: string } }) {
@@ -417,7 +397,7 @@ export async function provisionTenantLicense(input: { actorUserId: number; tenan
     const licenseValues = { tenantId: input.tenantId, subscriptionId, planId: plan.id, status: input.status, seats: input.seats, priceAmount: String(input.priceAmount ?? 0), discountAmount: String(input.discountAmount ?? 0), manualActivation: input.manualActivation, startsAt: now, endsAt: input.endsAt, trialEndsAt: input.trialEndsAt, graceEndsAt: input.graceEndsAt, createdByUserId: input.actorUserId };
     if (existingLicense) await tx.update(tenantLicenses).set(licenseValues).where(eq(tenantLicenses.id, licenseId)); else await tx.insert(tenantLicenses).values({ id: licenseId, ...licenseValues });
     await tx.update(tenantEntitlements).set({ active: false }).where(eq(tenantEntitlements.subscriptionId, subscriptionId));
-    for (const productCode of productsForPackage(plan.packageCode as SubscriptionPackageCode)) await tx.insert(tenantEntitlements).values({ id: crypto.randomUUID(), tenantId: input.tenantId, subscriptionId, productCode, active, startsAt: now, endsAt: input.endsAt }).onDuplicateKeyUpdate({ set: { active, startsAt: now, endsAt: input.endsAt } });
+    for (const productCode of productsForPackage(plan.packageCode as SubscriptionPackageCode)) await tx.insert(tenantEntitlements).values({ id: crypto.randomUUID(), tenantId: input.tenantId, subscriptionId, productCode, active, startsAt: now, endsAt: input.endsAt }).onConflictDoUpdate({ target: [tenantEntitlements.subscriptionId, tenantEntitlements.productCode], set: { active, startsAt: now, endsAt: input.endsAt } });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.license_provisioned", entityType: "tenant_license", entityId: licenseId, metadata: JSON.stringify({ subscriptionId, planCode: input.planCode, status: input.status, seats: input.seats, manualActivation: input.manualActivation }) });
   });
   return { subscriptionId, tenantId: input.tenantId };
@@ -460,7 +440,7 @@ export async function setTenantLicenseFeatureOverride(input: { actorUserId: numb
   await assertPlatformAdministrator(input.actorUserId); if (input.limitValue !== undefined && (!Number.isInteger(input.limitValue) || input.limitValue < 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_REQUEST_FAILED" });
   const [license] = await db.select({ id: tenantLicenses.id }).from(tenantLicenses).where(and(eq(tenantLicenses.id, input.licenseId), eq(tenantLicenses.tenantId, input.tenantId))).limit(1); if (!license) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_LICENSE_NOT_FOUND" });
   const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, input.featureCode), eq(commercialFeatures.active, true))).limit(1); if (!feature) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE" });
-  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(tenantLicenseFeatureOverrides).values({ id, tenantLicenseId: input.licenseId, featureId: feature.id, active: input.active, limitValue: input.limitValue }).onDuplicateKeyUpdate({ set: { active: input.active, limitValue: input.limitValue } }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.feature_override_set", entityType: "tenant_license_feature_override", entityId: id, metadata: JSON.stringify({ licenseId: input.licenseId, featureCode: input.featureCode, active: input.active, limitValue: input.limitValue }) }); });
+  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(tenantLicenseFeatureOverrides).values({ id, tenantLicenseId: input.licenseId, featureId: feature.id, active: input.active, limitValue: input.limitValue }).onConflictDoUpdate({ target: [tenantLicenseFeatureOverrides.tenantLicenseId, tenantLicenseFeatureOverrides.featureId], set: { active: input.active, limitValue: input.limitValue } }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.feature_override_set", entityType: "tenant_license_feature_override", entityId: id, metadata: JSON.stringify({ licenseId: input.licenseId, featureCode: input.featureCode, active: input.active, limitValue: input.limitValue }) }); });
   return { licenseId: input.licenseId, featureCode: input.featureCode, active: input.active, limitValue: input.limitValue ?? null };
 }
 
@@ -845,20 +825,20 @@ const allCatalogPermissions = [...ownerPermissions, ...operationalPermissionCata
 async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string) {
   await db.transaction(async tx => {
     for (const permission of allCatalogPermissions) {
-      await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+      await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
     }
     // The company owner holds every power by definition, including the ones added to the catalog after the company was created.
     const [ownerRole] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, "TENANT_OWNER"))).limit(1);
     if (ownerRole) {
       const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
-      for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onDuplicateKeyUpdate({ set: { roleId: ownerRole.id } });
+      for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onConflictDoNothing();
     }
     for (const definition of operationalRoleDefinitions) {
-      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onDuplicateKeyUpdate({ set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
+      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onConflictDoUpdate({ target: [roles.tenantId, roles.code], set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
       const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
       const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
       if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
-      for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onDuplicateKeyUpdate({ set: { roleId: role.id } });
+      for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
     }
   });
 }
@@ -894,7 +874,7 @@ export async function createTenantForUser(input: {
     await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
     await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
     for (const permission of allCatalogPermissions) {
-      await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+      await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
     }
     const permissionRows = await tx.select({ id: permissions.id }).from(permissions);
     const permissionIds = permissionRows.filter(row => row.id).map(row => row.id);
@@ -925,12 +905,8 @@ export async function getPublicCommercialPlans() {
   return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
 }
 
-function isDuplicateEntryError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as { code?: unknown; message?: unknown; cause?: unknown };
-  // The query layer wraps the driver's error ("Failed query: ..."); the duplicate-key code is on its cause.
-  return candidate.code === "ER_DUP_ENTRY" || (typeof candidate.message === "string" && candidate.message.includes("Duplicate entry")) || isDuplicateEntryError(candidate.cause);
-}
+// The query layer wraps the driver's error ("Failed query: ..."); isUniqueViolation reads the SQLSTATE (23505) off its cause.
+const isDuplicateEntryError = isUniqueViolation;
 
 function safeDatabaseErrorCode(error: unknown) {
   if (!error || typeof error !== "object") return "UNKNOWN";
@@ -963,7 +939,7 @@ export async function createSelfServiceTenant(input: { userId: number; legalName
       await tx.insert(tenantEntitlements).values(productsForPackage(plan.packageCode as SubscriptionPackageCode).map(productCode => ({ id: crypto.randomUUID(), tenantId, subscriptionId, productCode, active: true, startsAt: now })));
       await tx.insert(memberships).values({ id: membershipId, tenantId, userId: input.userId, status: "active", joinedAt: now });
       await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
-      for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onDuplicateKeyUpdate({ set: { name: permission.name } });
+      for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
       const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
       await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
       await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });
@@ -1623,7 +1599,7 @@ export async function saveMasterPlanVisualizationRuleForTenant(input: { userId: 
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   const rulesJson = JSON.stringify(input.rules); const proposedId = crypto.randomUUID(); const now = new Date();
   const id = await db.transaction(async tx => {
-    await tx.insert(masterPlanVisualizationRules).values({ id: proposedId, tenantId: input.tenantId, projectId: input.projectId, metric: input.metric, rulesJson, createdByUserId: input.userId }).onDuplicateKeyUpdate({ set: { rulesJson, updatedAt: now } });
+    await tx.insert(masterPlanVisualizationRules).values({ id: proposedId, tenantId: input.tenantId, projectId: input.projectId, metric: input.metric, rulesJson, createdByUserId: input.userId }).onConflictDoUpdate({ target: [masterPlanVisualizationRules.tenantId, masterPlanVisualizationRules.projectId, masterPlanVisualizationRules.metric], set: { rulesJson, updatedAt: now } });
     const [rule] = await tx.select({ id: masterPlanVisualizationRules.id }).from(masterPlanVisualizationRules).where(and(eq(masterPlanVisualizationRules.tenantId, input.tenantId), eq(masterPlanVisualizationRules.projectId, input.projectId), eq(masterPlanVisualizationRules.metric, input.metric))).limit(1);
     if (!rule) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_MASTER_PLAN_RULE_SAVE_FAILED" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.visualization_rule_saved", entityType: "master_plan_visualization_rule", entityId: rule.id, metadata: JSON.stringify({ projectId: input.projectId, metric: input.metric }) });
@@ -2220,7 +2196,7 @@ export async function createEmployeeAttendanceForTenant(input: { userId: number;
   if (!employee || employee.employmentStatus !== "active") throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_ACTIVE" });
   if (input.projectId) { const [assignment] = await db.select({ id: employeeAssignments.id }).from(employeeAssignments).where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), eq(employeeAssignments.employeeId, input.employeeId), inArray(employeeAssignments.status, ["planned", "active"]))).limit(1); if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ASSIGNMENT_NOT_FOUND" }); }
   const id = crypto.randomUUID();
-  try { await db.transaction(async tx => { await tx.insert(employeeAttendance).values({ id, tenantId: input.tenantId, employeeId: input.employeeId, attendanceDate: input.attendanceDate, attendanceStatus: input.attendanceStatus, note: input.note, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.attendance_created", entityType: "employee_attendance", entityId: id, metadata: JSON.stringify({ employeeId: input.employeeId, attendanceStatus: input.attendanceStatus, attendanceDate: input.attendanceDate.toISOString() }) }); }); } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_ATTENDANCE_DAY_EXISTS" }); throw error; }
+  try { await db.transaction(async tx => { await tx.insert(employeeAttendance).values({ id, tenantId: input.tenantId, employeeId: input.employeeId, attendanceDate: input.attendanceDate, attendanceStatus: input.attendanceStatus, note: input.note, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.attendance_created", entityType: "employee_attendance", entityId: id, metadata: JSON.stringify({ employeeId: input.employeeId, attendanceStatus: input.attendanceStatus, attendanceDate: input.attendanceDate.toISOString() }) }); }); } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_ATTENDANCE_DAY_EXISTS" }); throw error; }
   return { id, status: "draft" as const };
 }
 
@@ -2247,7 +2223,7 @@ export async function createEmployeeTimeEntryForTenant(input: { userId: number; 
   const [attendance] = await db.select({ id: employeeAttendance.id, attendanceStatus: employeeAttendance.attendanceStatus, status: employeeAttendance.status }).from(employeeAttendance).where(and(eq(employeeAttendance.tenantId, input.tenantId), eq(employeeAttendance.employeeId, assignment.employeeId), eq(employeeAttendance.attendanceDate, input.workDate))).limit(1);
   if (!attendance || attendance.attendanceStatus !== "present" || attendance.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_ATTENDANCE_APPROVAL_REQUIRED" });
   const id = crypto.randomUUID();
-  try { await db.transaction(async tx => { await tx.insert(employeeTimeEntries).values({ id, tenantId: input.tenantId, assignmentId: assignment.id, employeeId: assignment.employeeId, projectId: input.projectId, workDate: input.workDate, actualHours: String(input.actualHours), reportedProgressPercent: input.reportedProgressPercent === undefined ? undefined : String(input.reportedProgressPercent), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_created", entityType: "employee_time_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, assignmentId: assignment.id, actualHours: input.actualHours, reportedProgressPercent: input.reportedProgressPercent ?? null }) }); }); } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" }); throw error; }
+  try { await db.transaction(async tx => { await tx.insert(employeeTimeEntries).values({ id, tenantId: input.tenantId, assignmentId: assignment.id, employeeId: assignment.employeeId, projectId: input.projectId, workDate: input.workDate, actualHours: String(input.actualHours), reportedProgressPercent: input.reportedProgressPercent === undefined ? undefined : String(input.reportedProgressPercent), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_created", entityType: "employee_time_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, assignmentId: assignment.id, actualHours: input.actualHours, reportedProgressPercent: input.reportedProgressPercent ?? null }) }); }); } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" }); throw error; }
   return { id, status: "draft" as const };
 }
 
@@ -2314,7 +2290,7 @@ export async function createTeamTimeEntriesForTenant(input: { userId: number; te
       await tx.insert(employeeTimeEntries).values(created.map(({ id, entry, assignment }) => ({ id, tenantId: input.tenantId, assignmentId: assignment.id, employeeId: assignment.employeeId, projectId: input.projectId, workDate: input.workDate, actualHours: String(entry.actualHours), reportedProgressPercent: entry.reportedProgressPercent === undefined ? undefined : String(entry.reportedProgressPercent), createdByUserId: input.userId })));
       await tx.insert(auditLogs).values(created.map(({ id, entry, assignment }) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_created", entityType: "employee_time_entry", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, assignmentId: assignment.id, actualHours: entry.actualHours, reportedProgressPercent: entry.reportedProgressPercent ?? null, viaTeamSheet: true }) })));
     });
-  } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" }); throw error; }
+  } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_TIME_ENTRY_DAY_EXISTS" }); throw error; }
   return { saved: created.length, errors: [] as typeof errors, ids: created.map(row => row.id) };
 }
 
@@ -2349,7 +2325,7 @@ export async function saveTenantLabourSettings(input: { userId: number; tenantId
   const before = await readTenantLabourSettings(db, input.tenantId);
   const values = { employerGosiRateSaudi: String(next.employerGosiRateSaudi), employerGosiRateNonSaudi: String(next.employerGosiRateNonSaudi), indirectLoadingPercent: String(next.indirectLoadingPercent), hoursPerDay: String(next.hoursPerDay), workingDays: next.workingDays.join(","), eosFirstPeriodYears: next.eosFirstPeriodYears, eosFirstPeriodMonthsPerYear: String(next.eosFirstPeriodMonthsPerYear), eosLaterMonthsPerYear: String(next.eosLaterMonthsPerYear), updatedByUserId: input.userId };
   await db.transaction(async tx => {
-    await tx.insert(tenantSettings).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ...values }).onDuplicateKeyUpdate({ set: values });
+    await tx.insert(tenantSettings).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ...values }).onConflictDoUpdate({ target: tenantSettings.tenantId, set: values });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "tenant.labour_settings_saved", entityType: "company", entityId: input.tenantId, metadata: JSON.stringify({ before, after: next }) });
   });
   return next;
@@ -2442,7 +2418,7 @@ export async function createEmployeePerformanceExclusionForTenant(input: { userI
   const performance = await getEmployeePerformanceForTenant({ ...input, employeeId: input.employeeId });
   if (!performance.metrics.sources.some(source => source.sourceType === input.sourceType && source.sourceId === input.sourceId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PERFORMANCE_SOURCE_NOT_FOUND" });
   const id = crypto.randomUUID();
-  try { await db.transaction(async tx => { await tx.insert(employeePerformanceExclusions).values({ id, tenantId: input.tenantId, projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId, reason: input.reason.trim(), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_exclusion_created", entityType: "employee_performance_exclusion", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId }) }); }); } catch (error) { if ((error as { code?: string }).code === "ER_DUP_ENTRY") throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PERFORMANCE_SOURCE_ALREADY_EXCLUDED" }); throw error; }
+  try { await db.transaction(async tx => { await tx.insert(employeePerformanceExclusions).values({ id, tenantId: input.tenantId, projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId, reason: input.reason.trim(), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_exclusion_created", entityType: "employee_performance_exclusion", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId }) }); }); } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PERFORMANCE_SOURCE_ALREADY_EXCLUDED" }); throw error; }
   return { id };
 }
 
@@ -3465,7 +3441,7 @@ export async function setEmailNotificationPreference(input: { userId: number; te
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   await db.transaction(async tx => {
-    await tx.insert(emailNotificationPreferences).values({ id: crypto.randomUUID(), tenantId: input.tenantId, userId: input.userId, kind: input.kind, enabled: input.enabled }).onDuplicateKeyUpdate({ set: { enabled: input.enabled } });
+    await tx.insert(emailNotificationPreferences).values({ id: crypto.randomUUID(), tenantId: input.tenantId, userId: input.userId, kind: input.kind, enabled: input.enabled }).onConflictDoUpdate({ target: [emailNotificationPreferences.tenantId, emailNotificationPreferences.userId, emailNotificationPreferences.kind], set: { enabled: input.enabled } });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "notifications.email_preference_set", entityType: "user", entityId: String(input.userId), metadata: JSON.stringify({ kind: input.kind, enabled: input.enabled }) });
   });
   return { kind: input.kind, enabled: input.enabled };
@@ -3935,7 +3911,7 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
   const boqMap = new Map(boqRows.map(b => [b.id, b]));
 
   // Get previous cumulative quantities
-  const prevLines = await db.select({ boqItemId: subcontractCertificateLines.boqItemId, cumulativeQuantity: sql<string>`SUM(currentQuantity)` })
+  const prevLines = await db.select({ boqItemId: subcontractCertificateLines.boqItemId, cumulativeQuantity: sql<string>`SUM(${subcontractCertificateLines.currentQuantity})` })
     .from(subcontractCertificateLines)
     .innerJoin(subcontractCertificates, eq(subcontractCertificates.id, subcontractCertificateLines.certificateId))
     .where(and(eq(subcontractCertificates.subcontractId, input.subcontractId), eq(subcontractCertificates.status, 'approved')))

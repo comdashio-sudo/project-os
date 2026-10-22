@@ -1,4 +1,4 @@
-// Object storage on Cloudflare R2 through its S3-compatible API.
+// Object storage on Supabase Storage through its S3-compatible API.
 //
 // Files are stored by key; the database keeps the key, never a URL. A download
 // is a short-lived signed URL minted for a caller that already passed the
@@ -68,37 +68,41 @@ export function createStorage(dependencies: StorageDependencies) {
   };
 }
 
-export function r2Configuration(env: Pick<typeof ENV, "r2AccountId" | "r2AccessKeyId" | "r2SecretAccessKey" | "r2Bucket"> = ENV) {
+export type StorageConfiguration = { endpoint: string; region: string; accessKeyId: string; secretAccessKey: string; bucket: string };
+
+/** The S3 connection values of the Supabase project (Project Settings > Storage > S3 Connection). Names what is missing, never a value. */
+export function storageConfiguration(env: Pick<typeof ENV, "storageS3Endpoint" | "storageS3Region" | "storageS3AccessKeyId" | "storageS3SecretAccessKey" | "storageBucket"> = ENV): StorageConfiguration {
   const missing = (
     [
-      ["R2_ACCOUNT_ID", env.r2AccountId],
-      ["R2_ACCESS_KEY_ID", env.r2AccessKeyId],
-      ["R2_SECRET_ACCESS_KEY", env.r2SecretAccessKey],
-      ["R2_BUCKET", env.r2Bucket],
+      ["STORAGE_S3_ENDPOINT", env.storageS3Endpoint],
+      ["STORAGE_S3_REGION", env.storageS3Region],
+      ["STORAGE_S3_ACCESS_KEY_ID", env.storageS3AccessKeyId],
+      ["STORAGE_S3_SECRET_ACCESS_KEY", env.storageS3SecretAccessKey],
+      ["STORAGE_BUCKET", env.storageBucket],
     ] as const
   )
     .filter(([, value]) => !value)
     .map(([name]) => name);
   if (missing.length) throw new Error(`Storage config missing: set ${missing.join(", ")}`);
-  return { accountId: env.r2AccountId, accessKeyId: env.r2AccessKeyId, secretAccessKey: env.r2SecretAccessKey, bucket: env.r2Bucket };
+  return { endpoint: storageEndpoint(env.storageS3Endpoint), region: env.storageS3Region, accessKeyId: env.storageS3AccessKeyId, secretAccessKey: env.storageS3SecretAccessKey, bucket: env.storageBucket };
 }
 
 /**
- * R2_TEST_ENDPOINT lets a rehearsal point storage at a fake S3 on this machine (like RESEND_API_URL does for mail). It is accepted ONLY for a loopback
- * address over http: any other value is refused at the first storage call rather than quietly sending company files somewhere else.
+ * The endpoint is https, or http on this machine (a local rehearsal against a fake S3). Any other plain-http address is refused at the
+ * first storage call rather than quietly sending company files across the network unencrypted.
  */
-export function storageEndpoint(accountId: string, testEndpoint: string | undefined = process.env.R2_TEST_ENDPOINT): string {
-  if (!testEndpoint) return `https://${accountId}.r2.cloudflarestorage.com`;
+export function storageEndpoint(endpoint: string): string {
   let parsed: URL;
-  try { parsed = new URL(testEndpoint); } catch { throw new Error("R2_TEST_ENDPOINT is not a valid URL"); }
-  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) throw new Error("R2_TEST_ENDPOINT must be an http://127.0.0.1 or http://localhost address");
-  return parsed.origin;
+  try { parsed = new URL(endpoint); } catch { throw new Error("STORAGE_S3_ENDPOINT is not a valid URL"); }
+  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname);
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) throw new Error("STORAGE_S3_ENDPOINT must be an https address (http only for 127.0.0.1 or localhost)");
+  return parsed.toString().replace(/\/+$/, "");
 }
 
-export function createR2Storage(configuration = r2Configuration()) {
+export function createS3Storage(configuration: StorageConfiguration = storageConfiguration()) {
   const client = new S3Client({
-    region: "auto",
-    endpoint: storageEndpoint(configuration.accountId),
+    region: configuration.region,
+    endpoint: configuration.endpoint,
     forcePathStyle: true,
     credentials: { accessKeyId: configuration.accessKeyId, secretAccessKey: configuration.secretAccessKey },
   });
@@ -109,8 +113,8 @@ export function createR2Storage(configuration = r2Configuration()) {
   });
 }
 
-let defaultStorage: ReturnType<typeof createR2Storage> | null = null;
-const storage = () => (defaultStorage ??= createR2Storage());
+let defaultStorage: ReturnType<typeof createS3Storage> | null = null;
+const storage = () => (defaultStorage ??= createS3Storage());
 
 export const storagePut = (relKey: string, data: StorageBody, contentType?: string) => storage().storagePut(relKey, data, contentType);
 export const storageGet = (relKey: string) => storage().storageGet(relKey);

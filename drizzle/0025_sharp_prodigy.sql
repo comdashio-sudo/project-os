@@ -1,1 +1,0 @@
-ALTER TABLE `control_record_links` MODIFY COLUMN `targetType` enum('risk','issue','action','decision','rfi','ncr') NOT NULL;

@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
-import { appendHashSuffix, createR2Storage, createStorage, normalizeKey, r2Configuration, SIGNED_URL_TTL_SECONDS, storageEndpoint } from "./storage";
+import { appendHashSuffix, createS3Storage, createStorage, normalizeKey, SIGNED_URL_TTL_SECONDS, storageConfiguration, storageEndpoint } from "./storage";
 
 function harness() {
   const send = vi.fn(async () => ({}));
@@ -71,33 +71,35 @@ describe("storage operations", () => {
   });
 });
 
-describe("R2 configuration", () => {
+const empty = { storageS3Endpoint: "", storageS3Region: "", storageS3AccessKeyId: "", storageS3SecretAccessKey: "", storageBucket: "" };
+
+describe("storage configuration", () => {
   it("names every missing variable and never a value", () => {
-    expect(() => r2Configuration({ r2AccountId: "", r2AccessKeyId: "", r2SecretAccessKey: "", r2Bucket: "" })).toThrow("R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET");
-    expect(() => r2Configuration({ r2AccountId: "acct", r2AccessKeyId: "key-id", r2SecretAccessKey: "", r2Bucket: "b" })).toThrow(/^Storage config missing: set R2_SECRET_ACCESS_KEY$/);
+    expect(() => storageConfiguration(empty)).toThrow("STORAGE_S3_ENDPOINT, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY_ID, STORAGE_S3_SECRET_ACCESS_KEY, STORAGE_BUCKET");
+    expect(() => storageConfiguration({ ...empty, storageS3Endpoint: "https://ref0123.storage.supabase.co/storage/v1/s3", storageS3Region: "eu-west-1", storageS3AccessKeyId: "key-id", storageBucket: "b" })).toThrow(/^Storage config missing: set STORAGE_S3_SECRET_ACCESS_KEY$/);
   });
 
-  it("builds an S3 client against the account's R2 endpoint without any network call", async () => {
-    const storage = createR2Storage({ accountId: "acct0123", accessKeyId: "AKEXAMPLE", secretAccessKey: "example-secret-value", bucket: "b1" });
+  it("builds an S3 client against the project's Supabase Storage endpoint without any network call", async () => {
+    const storage = createS3Storage(storageConfiguration({ storageS3Endpoint: "https://ref0123.storage.supabase.co/storage/v1/s3", storageS3Region: "eu-west-1", storageS3AccessKeyId: "AKEXAMPLE", storageS3SecretAccessKey: "example-secret-value", storageBucket: "b1" }));
     const url = new URL(await storage.storageGetSignedUrl("tenants/t1/doc.pdf"));
-    expect(url.host).toBe("acct0123.r2.cloudflarestorage.com");
-    expect(url.pathname).toBe("/b1/tenants/t1/doc.pdf");
+    expect(url.host).toBe("ref0123.storage.supabase.co");
+    expect(url.pathname).toBe("/storage/v1/s3/b1/tenants/t1/doc.pdf");
     expect(url.searchParams.get("X-Amz-Expires")).toBe(String(SIGNED_URL_TTL_SECONDS));
     expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    expect(url.searchParams.get("X-Amz-Credential")).toContain("/eu-west-1/s3/");
     expect(url.toString()).not.toContain("example-secret-value");
   });
 });
 
-describe("storageEndpoint (R2_TEST_ENDPOINT)", () => {
-  it("is the company's R2 address unless a rehearsal override is set", () => {
-    expect(storageEndpoint("acct0123", undefined)).toBe("https://acct0123.r2.cloudflarestorage.com");
-    expect(storageEndpoint("acct0123", "")).toBe("https://acct0123.r2.cloudflarestorage.com");
+describe("storageEndpoint", () => {
+  it("keeps the Supabase endpoint, path included, without a trailing slash", () => {
+    expect(storageEndpoint("https://ref0123.storage.supabase.co/storage/v1/s3/")).toBe("https://ref0123.storage.supabase.co/storage/v1/s3");
   });
-  it("accepts only an http loopback address as the override", () => {
-    expect(storageEndpoint("a", "http://127.0.0.1:9123")).toBe("http://127.0.0.1:9123");
-    expect(storageEndpoint("a", "http://localhost:9123/ignored/path")).toBe("http://localhost:9123");
+  it("accepts plain http only on this machine (a local rehearsal against a fake S3)", () => {
+    expect(storageEndpoint("http://127.0.0.1:9123")).toBe("http://127.0.0.1:9123");
+    expect(storageEndpoint("http://localhost:9123")).toBe("http://localhost:9123");
   });
-  it("refuses anything that would send files off this machine, or that is not a URL", () => {
-    for (const bad of ["https://evil.example.test", "http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "https://127.0.0.1:9000", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint("a", bad), bad).toThrow(/R2_TEST_ENDPOINT/);
+  it("refuses anything that would send files unencrypted across a network, or that is not a URL", () => {
+    for (const bad of ["http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint(bad), bad).toThrow(/STORAGE_S3_ENDPOINT/);
   });
 });

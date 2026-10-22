@@ -1,16 +1,14 @@
 // Idempotency for requests the phone may send twice (G-033). The phone puts its own identifier on a queued request; the
 // first run stores its result under it, and any later run with the same identifier gets that result back.
 import { TRPCError } from "@trpc/server";
+import { isUniqueViolation } from "./_core/database";
 import { and, eq } from "drizzle-orm";
 import { clientRequests } from "../drizzle/schema";
 import { getDb } from "./db";
 
 type Scope = { tenantId: string; userId: number; requestId?: string; action: string };
 
-const isDuplicateKey = (error: unknown) => {
-  const candidate = error as { code?: unknown; errno?: unknown; cause?: { code?: unknown } } | null;
-  return candidate?.code === "ER_DUP_ENTRY" || candidate?.cause?.code === "ER_DUP_ENTRY" || candidate?.errno === 1062;
-};
+const isDuplicateKey = isUniqueViolation;
 
 /**
  * Runs `run` once per request identifier. Without an identifier it simply runs. A request that is still in flight is

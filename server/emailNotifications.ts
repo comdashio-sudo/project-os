@@ -1,5 +1,6 @@
 import { and, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type { getDb } from "./db";
+import { rowsAffected } from "./_core/database";
 import {
   actions,
   changeRequests,
@@ -23,25 +24,24 @@ import {
   tenantEntitlements,
   users,
 } from "../drizzle/schema";
-import { createResendMailer } from "./_core/auth/resendMailer";
-import type { Mailer } from "./_core/auth/emailCode";
+import { createSmtpMailer, smtpSettingsFromEnv, type Mailer, type SmtpSettings } from "./_core/auth/mailer";
 import { approvalsWaitingEmail, dailyDigestEmail, dailyMailWindow, EMAIL_KINDS, preferenceAllows, supportEscalationEmail, type ApprovalQueue, type BuiltEmail, type DigestProject, type EmailKind } from "./domain/emailNotifications";
 import { logError } from "./_core/logger";
 
-// Work order 3, decision 6. Everything here is behind one switch: EMAIL_NOTIFICATIONS_ENABLED=true AND a configured sender (RESEND_API_KEY and EMAIL_FROM).
+// Work order 3, decision 6. Everything here is behind one switch: EMAIL_NOTIFICATIONS_ENABLED=true AND a configured sender (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD and EMAIL_FROM).
 // While either is missing nothing is written to the outbox and nothing is sent, so switching it on later never delivers a backlog.
 // This file takes the database as an argument and never imports db.ts: db.ts imports this file to queue escalations.
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Executor = Pick<Db, "select" | "insert" | "update">;
 
-export type EmailEnv = { emailNotificationsEnabled: boolean; resendApiKey: string; emailFrom: string; appBaseUrl: string };
+export type EmailEnv = { emailNotificationsEnabled: boolean; smtp: SmtpSettings | null; appBaseUrl: string };
 // Read at the moment of use, not at start-up: the switch is an operator setting and a test must be able to flip it.
-const currentEnv = (): EmailEnv => ({ emailNotificationsEnabled: process.env.EMAIL_NOTIFICATIONS_ENABLED === "true", resendApiKey: process.env.RESEND_API_KEY ?? "", emailFrom: process.env.EMAIL_FROM ?? "", appBaseUrl: (process.env.APP_BASE_URL ?? "").replace(/\/+$/, "") });
+const currentEnv = (): EmailEnv => ({ emailNotificationsEnabled: process.env.EMAIL_NOTIFICATIONS_ENABLED === "true", smtp: smtpSettingsFromEnv(), appBaseUrl: (process.env.APP_BASE_URL ?? "").replace(/\/+$/, "") });
 
 /** The one question every producer asks first. */
 export function emailNotificationsActive(env: EmailEnv = currentEnv()) {
-  return env.emailNotificationsEnabled && Boolean(env.resendApiKey) && Boolean(env.emailFrom);
+  return env.emailNotificationsEnabled && env.smtp !== null;
 }
 
 // A test replaces the sender so nothing can reach a real mailbox; production never sets it.
@@ -50,7 +50,7 @@ export function useMailerForTests(mailer: Mailer | null | undefined) { senderOve
 
 export function mailerFromEnv(env: EmailEnv = currentEnv()): Mailer | null {
   if (!emailNotificationsActive(env)) return null;
-  return senderOverride ?? createResendMailer({ apiKey: env.resendApiKey, from: env.emailFrom });
+  return senderOverride ?? (env.smtp ? createSmtpMailer(env.smtp) : null);
 }
 
 const linkTo = (path: string) => { const base = currentEnv().appBaseUrl; return base ? `${base}${path}` : null; };
@@ -61,7 +61,7 @@ export async function enqueueEmail(executor: Executor, input: { tenantId: string
   const [existing] = await executor.select({ id: emailOutbox.id }).from(emailOutbox).where(and(eq(emailOutbox.tenantId, input.tenantId), eq(emailOutbox.recipientUserId, input.recipientUserId), eq(emailOutbox.kind, input.kind), eq(emailOutbox.dedupeKey, dedupeKey))).limit(1);
   if (existing) return false;
   // Two producers racing for the same key are stopped by the unique index; the loser's insert changes nothing.
-  await executor.insert(emailOutbox).values({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId: input.recipientUserId, kind: input.kind, dedupeKey, subject: input.mail.subject.slice(0, 300), bodyText: input.mail.text, bodyHtml: input.mail.html }).onDuplicateKeyUpdate({ set: { id: sql`id` } });
+  await executor.insert(emailOutbox).values({ id: crypto.randomUUID(), tenantId: input.tenantId, recipientUserId: input.recipientUserId, kind: input.kind, dedupeKey, subject: input.mail.subject.slice(0, 300), bodyText: input.mail.text, bodyHtml: input.mail.html }).onConflictDoNothing();
   return true;
 }
 
@@ -208,7 +208,7 @@ export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?
   for (const item of pending) {
     // Claim the row before sending: another flush (the cron and a request can overlap) that loses this race skips it, so one mail is never sent twice.
     const claim = await db.update(emailOutbox).set({ attempts: sql`${emailOutbox.attempts} + 1` }).where(and(eq(emailOutbox.id, item.id), eq(emailOutbox.attempts, item.attempts), inArray(emailOutbox.status, ["pending", "failed"])));
-    if (Number((claim as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) !== 1) continue;
+    if (rowsAffected(claim) !== 1) continue;
     const [recipient] = await db.select({ email: users.email }).from(users).innerJoin(memberships, and(eq(memberships.userId, users.id), eq(memberships.tenantId, item.tenantId), eq(memberships.status, "active"))).where(eq(users.id, item.recipientUserId)).limit(1);
     if (!recipient?.email) { await db.update(emailOutbox).set({ status: "skipped", lastError: "no deliverable address or no longer a member" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }
     try {
