@@ -115,7 +115,7 @@ describe("ProjectFpac (real profitability)", () => {
     state.arabic = true;
     show(report());
     expect(screen.getByText("ربحية المشروع")).toBeTruthy();
-    expect(screen.getByText("الربح المتوقع عند الإنجاز (FPAC)")).toBeTruthy();
+    expect(screen.getByText("الربح المتوقع عند الإتمام (FPAC)")).toBeTruthy();
     expect(screen.getByTestId("freshness").textContent).toContain("التقدم: اليوم");
     expect(screen.getByTestId("freshness").textContent).toContain("العمالة: قبل 3 أيام");
   });

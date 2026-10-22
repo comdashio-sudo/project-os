@@ -53,7 +53,7 @@ export function sourceRoute(sourceType: string | null | undefined, tenantId: str
   const controls = `/projects/${tenantId}/${projectId}/controls`;
   switch (sourceType) {
     case "goods_receipt_note": return { href: `${controls}#manager-commercial`, label: { ar: "إيصال استلام", en: "Goods receipt" } };
-    case "purchase_order": return { href: `${controls}#manager-commercial`, label: { ar: "أمر شراء", en: "Purchase order" } };
+    case "purchase_order": return { href: `${controls}#manager-commercial`, label: { ar: "أمر الشراء", en: "Purchase order" } };
     case "material_issue": return { href: `${controls}#manager-site`, label: { ar: "صرف مادة", en: "Material issue" } };
     case "time_entry": return { href: `${controls}#manager-site`, label: { ar: "إدخال وقت", en: "Time entry" } };
     case "payroll_allocation": return { href: `/payroll/${tenantId}`, label: { ar: "تخصيص رواتب", en: "Payroll allocation" } };

@@ -14,7 +14,7 @@ import { SourceNotice } from "@/components/SectionResilience";
 const text = {
   ar: {
     title: "ربحية المشروع", subtitle: "الجواب اليوم: هل يربح هذا المشروع؟", loading: "جارٍ احتساب الربحية…", retry: "إعادة المحاولة",
-    fpac: "الربح المتوقع عند الإنجاز (FPAC)", margin: "هامش الربح", loss: "المشروع متجه إلى خسارة", plannedProfit: "الربح المخطط أصلًا", variance: "انحراف الربح",
+    fpac: "الربح المتوقع عند الإتمام (FPAC)", margin: "هامش الربح", loss: "المشروع متجه إلى خسارة", plannedProfit: "الربح المخطط أصلًا", variance: "انحراف الربح",
     figure: "الرقم", value: "القيمة", formula: "المعادلة", source: "المصدر", asOf: "التاريخ",
     movement: "الحركة منذ آخر لقطة", since: "منذ", delta: "التغير", causes: "أسباب الحركة (تجمع التغير كاملًا)", contractValue: "قيمة العقد (أوامر التغيير)", actualCost: "التكلفة الفعلية", forecastToComplete: "التكلفة المتبقية المتوقعة",
     raised: "بنود رفعت الربح", lowered: "بنود خفّضت الربح", trend: "منحنى FPAC عبر اللقطات",
@@ -25,7 +25,7 @@ const text = {
     breakdown: "من أين جاءت التكلفة الفعلية", category: "الفئة", materialsC: "مواد", labourC: "عمالة", subcontractC: "عقود باطن", otherC: "أخرى", sourceDoc: "المستند المصدر", noBreakdown: "لا قيود تكلفة فعلية لهذا البند.", open: "عرض المصادر",
     unavailable: "غير متاح", reasons: { NO_PREVIOUS_SNAPSHOT: "لا توجد لقطة سابقة للمقارنة بعد. تُحفظ لقطة شهرية تلقائيًا.", EVM_INPUTS_INCONSISTENT: "مدخلات التكلفة والتقدم غير متسقة، راجع الميزانية والتقدم.", EVM_UNAVAILABLE: "تعذر احتساب القيمة المكتسبة لهذا المشروع.", CASH_SOURCES_UNAVAILABLE: "تعذر قراءة أوامر الشراء أو المقبوضات.", WBS_UNAVAILABLE: "تعذر تفصيل البنود." } as Record<string, string>,
     empty: "لا بيانات كافية بعد: أضف ميزانية وتقدمًا وتكلفة فعلية لتظهر الربحية.",
-    rows: { originalContract: ["قيمة العقد الأصلية", "حقل قيمة العقد في المشروع"], approvedChanges: ["+ أوامر التغيير المعتمدة", "مجموع أثر طلبات التغيير المعتمدة فقط"], adjustedContract: ["= قيمة العقد المعدّلة", "الأصلية + المعتمدة"], eac: ["التكلفة المتوقعة عند الإنجاز (EAC)", "محرك القيمة المكتسبة"], fpac: ["= FPAC", "العقد المعدّل − EAC"], margin: ["هامش الربح %", "FPAC ÷ العقد المعدّل"], plannedProfit: ["الربح المخطط", "العقد الأصلي − الميزانية (BAC)"], profitVariance: ["انحراف الربح", "FPAC − الربح المخطط"] } as Record<string, [string, string]>,
+    rows: { originalContract: ["قيمة العقد الأصلية", "حقل قيمة العقد في المشروع"], approvedChanges: ["+ أوامر التغيير المعتمدة", "مجموع أثر طلبات التغيير المعتمدة فقط"], adjustedContract: ["= قيمة العقد المعدّلة", "الأصلية + المعتمدة"], eac: ["التكلفة المتوقعة عند الإتمام (EAC)", "محرك القيمة المكتسبة"], fpac: ["= FPAC", "العقد المعدّل − EAC"], margin: ["هامش الربح %", "FPAC ÷ العقد المعدّل"], plannedProfit: ["الربح المخطط", "العقد الأصلي − الميزانية (BAC)"], profitVariance: ["انحراف الربح", "FPAC − الربح المخطط"] } as Record<string, [string, string]>,
     sources: { project: "المشروع", changeOrders: "طلبات التغيير", computed: "محسوب", operationalRecords: "سجلات التكلفة والتقدم" } as Record<string, string>,
   },
   en: {
