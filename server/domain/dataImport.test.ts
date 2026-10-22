@@ -35,12 +35,12 @@ describe("analyzeImportFile", () => {
     expect(extraColumn.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: "Notes" });
   });
   it("rejects oversized or malformed workbooks before extracting any row", async () => {
-    const oversized = await analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(5 * 1024 * 1024 + 1) }); const malformed = await analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: Buffer.from("not-a-workbook") });
+    const oversized = await analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: new Uint8Array(50 * 1024 * 1024 + 1) }); const malformed = await analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: Buffer.from("not-a-workbook") });
     expect(oversized.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_FILE_TOO_LARGE" }); expect(oversized.validRows).toEqual([]); expect(malformed.errors).toContainEqual({ rowNumber: 0, code: "IMPORT_WORKBOOK_INVALID" }); expect(malformed.validRows).toEqual([]);
   });
   it("rejects a macro workbook and files that exceed controlled row or column limits", async () => {
     const macroZip = new JSZip(); macroZip.file("xl/vbaProject.bin", "untrusted-vba"); const macroBytes = await macroZip.generateAsync({ type: "nodebuffer" });
-    const tooManyRows = Buffer.from(["WBS Code,WBS Name", ...Array.from({ length: 10_001 }, (_unused, index) => `WBS-${index},Work package ${index}`)].join("\n"));
+    const tooManyRows = Buffer.from(["WBS Code,WBS Name", ...Array.from({ length: 50_001 }, (_unused, index) => `WBS-${index},Work package ${index}`)].join("\n"));
     const tooManyColumns = Buffer.from(`${Array.from({ length: 61 }, (_unused, index) => `Column ${index}`).join(",")}\n${Array.from({ length: 61 }, () => "value").join(",")}`);
     expect((await analyzeImportFile({ moduleCode: "wbs", format: "xlsx", bytes: macroBytes })).errors).toContainEqual({ rowNumber: 0, code: "IMPORT_MACRO_WORKBOOK_REJECTED" });
     expect((await analyzeImportFile({ moduleCode: "wbs", format: "csv", bytes: tooManyRows })).errors).toContainEqual({ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" });

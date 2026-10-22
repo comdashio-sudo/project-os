@@ -9,7 +9,8 @@ export const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self'",
+  // the browser PUTs an import file straight to the project's Supabase Storage (signed URL); nothing else is reachable from page scripts
+  "connect-src 'self' https://*.supabase.co",
   "frame-src 'self' https://*.supabase.co",
   "manifest-src 'self'",
   "worker-src 'self' blob:",

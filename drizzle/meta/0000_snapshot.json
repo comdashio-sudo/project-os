@@ -1,5 +1,5 @@
 {
-  "id": "ed90258f-7b60-49d3-9029-706a6e019a2d",
+  "id": "8939c1f6-4cea-46bf-9ec9-c00d54f4157e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2932,6 +2932,38 @@
           "primaryKey": false,
           "notNull": true
         },
+        "progress_percent": {
+          "name": "progress_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "progress_stage": {
+          "name": "progress_stage",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_reason": {
+          "name": "failure_reason",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "heartbeat_at": {
+          "name": "heartbeat_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "started_at": {
           "name": "started_at",
           "type": "timestamp with time zone",
@@ -3004,6 +3036,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"data_imports\".\"status\" <> 'failed'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -21036,6 +21069,7 @@
       "schema": "public",
       "values": [
         "uploaded",
+        "analyzing",
         "validated",
         "confirmed",
         "importing",

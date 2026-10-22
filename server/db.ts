@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
 import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
@@ -131,7 +132,13 @@ import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
 import { invokeLLM, isLlmEnabled } from "./_core/llm";
-import { storageGetSignedUrl, storagePut } from "./storage";
+import { MAX_DIRECT_UPLOAD_BYTES, storageGetSignedUrl, storagePut } from "./storage";
+import { anyOf, insertChunked } from "./importBulk";
+
+// `bulkInsert(tx, table).values(rows)` has the shape of `tx.insert(table).values(rows)` but splits the rows into statements PostgreSQL accepts (import path only).
+/** How many error / result rows the detail screen lists. The record's counters carry the true totals. */
+export const IMPORT_DETAIL_MAX_ROWS = 1_000;
+const bulkInsert = <T extends PgTable>(executor: unknown, table: T) => ({ values: (rows: readonly T["$inferInsert"][]) => insertChunked(executor, table, rows) });
 import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { openIdForEmail } from "./_core/auth/emailCode";
@@ -811,7 +818,7 @@ async function assertWbsItemWithinProject(input: { tenantId: string; projectId: 
 }
 
 const anyImportPermission = Array.from(new Set(Object.values(importModulePermissions).flat()));
-const importPermissionFor = (moduleCode: string) => importModulePermissions[moduleCode as keyof typeof importModulePermissions] ?? anyImportPermission;
+export const importPermissionFor = (moduleCode: string) => importModulePermissions[moduleCode as keyof typeof importModulePermissions] ?? anyImportPermission;
 
 const ownerPermissions = [
   { code: "tenant.manage", name: "Manage tenant settings", productCode: "EXECUTIVE" as const },
@@ -906,7 +913,7 @@ export async function getPublicCommercialPlans() {
 }
 
 // The query layer wraps the driver's error ("Failed query: ..."); isUniqueViolation reads the SQLSTATE (23505) off its cause.
-const isDuplicateEntryError = isUniqueViolation;
+export const isDuplicateEntryError = isUniqueViolation;
 
 function safeDatabaseErrorCode(error: unknown) {
   if (!error || typeof error !== "object") return "UNKNOWN";
@@ -3560,7 +3567,7 @@ export async function getDataImportsForTenant(input: { userId: number; tenantId:
     await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "company", id: input.tenantId } });
   const filter = input.projectId ? and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)) : eq(dataImports.tenantId, input.tenantId);
-  return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, completedAt: dataImports.completedAt, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
+  return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, progressPercent: dataImports.progressPercent, progressStage: dataImports.progressStage, failureReason: dataImports.failureReason, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, completedAt: dataImports.completedAt, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
 }
 
 export async function getDataImportDetailForTenant(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
@@ -3570,25 +3577,26 @@ export async function getDataImportDetailForTenant(input: { userId: number; tena
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
-  const [record] = await db.select({ id: dataImports.id, fileName: dataImports.fileName, moduleCode: dataImports.moduleCode, status: dataImports.status, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, createdAt: dataImports.createdAt, completedAt: dataImports.completedAt }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const [record] = await db.select({ id: dataImports.id, fileName: dataImports.fileName, moduleCode: dataImports.moduleCode, status: dataImports.status, progressPercent: dataImports.progressPercent, progressStage: dataImports.progressStage, failureReason: dataImports.failureReason, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, createdAt: dataImports.createdAt, completedAt: dataImports.completedAt }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
   const [errors, rowResults] = await Promise.all([
-    db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, columnName: dataImportErrors.columnName, severity: dataImportErrors.severity }).from(dataImportErrors).where(eq(dataImportErrors.importId, record.id)).orderBy(dataImportErrors.rowNumber),
-    db.select({ rowNumber: dataImportRowResults.rowNumber, rowKey: dataImportRowResults.rowKey, action: dataImportRowResults.action, entityId: dataImportRowResults.entityId, createdAt: dataImportRowResults.createdAt }).from(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)).orderBy(dataImportRowResults.rowNumber),
+    db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, columnName: dataImportErrors.columnName, severity: dataImportErrors.severity }).from(dataImportErrors).where(eq(dataImportErrors.importId, record.id)).orderBy(dataImportErrors.rowNumber).limit(IMPORT_DETAIL_MAX_ROWS),
+    db.select({ rowNumber: dataImportRowResults.rowNumber, rowKey: dataImportRowResults.rowKey, action: dataImportRowResults.action, entityId: dataImportRowResults.entityId, createdAt: dataImportRowResults.createdAt }).from(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)).orderBy(dataImportRowResults.rowNumber).limit(IMPORT_DETAIL_MAX_ROWS),
   ]);
-  return { ...record, errors, rowResults };
+  // Only the first rows are listed; the counts on the record (invalid / created / updated / skipped) are the totals.
+  return { ...record, errors, rowResults, listLimit: IMPORT_DETAIL_MAX_ROWS };
 }
 
 /**
  * An opening-balance row is only good if its warehouse and material exist in this project and tenant and are active; the
  * file alone cannot say so. A row that fails is reported by its number and field, like any other import error (G-105).
  */
-async function addOpeningBalanceReferenceErrors(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: { tenantId: string; projectId: string; moduleCode: string; analysis: { validRows: unknown[]; errors: Array<{ rowNumber: number; code: string; field?: string }> } }) {
+export async function addOpeningBalanceReferenceErrors(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: { tenantId: string; projectId: string; moduleCode: string; analysis: { validRows: unknown[]; errors: Array<{ rowNumber: number; code: string; field?: string }> } }) {
   if (input.moduleCode !== "openingBalances") return;
   const rows = input.analysis.validRows as OpeningBalanceImportRow[]; if (!rows.length) return;
   const [warehouseRows, materialRows] = await Promise.all([
     db.select({ code: projectWarehouses.code, active: projectWarehouses.active }).from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId), inArray(projectWarehouses.code, Array.from(new Set(rows.map(row => row.values.warehouseCode)))))),
-    db.select({ code: materialMasters.code, active: materialMasters.active }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.code, Array.from(new Set(rows.map(row => row.values.materialCode)))))),
+    db.select({ code: materialMasters.code, active: materialMasters.active }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), anyOf(materialMasters.code, Array.from(new Set(rows.map(row => row.values.materialCode)))))),
   ]);
   const activeWarehouses = new Set(warehouseRows.filter(row => row.active).map(row => row.code)); const activeMaterials = new Set(materialRows.filter(row => row.active).map(row => row.code));
   input.analysis.validRows = rows.filter(row => {
@@ -3599,19 +3607,35 @@ async function addOpeningBalanceReferenceErrors(db: NonNullable<Awaited<ReturnTy
   });
 }
 
-export async function createAndAnalyzeDataImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode; fileName: string; sourceFormat: "xlsx" | "csv" | "xer"; base64: string; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate"; mappingOverride?: Record<string, string> }) {
+/** Access to an existing import (any import module): tenant access, project within the tenant, the plan feature. The record's own module permission is checked by the caller once the record is read. */
+export async function assertImportAccess(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
+  return { db, snapshot };
+}
+
+/** Everything a new import must clear before any byte of its file is read: tenant access, project membership of the tenant, the module permission, the plan feature and its count limit. */
+export async function authorizeNewImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(input.moduleCode), scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(input.moduleCode), featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   if (feature.limitValue !== null) { const importCount = await db.select({ id: dataImports.id }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))); if (importCount.length >= feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" }); }
+  return db;
+}
+
+export async function createAndAnalyzeDataImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode; fileName: string; sourceFormat: "xlsx" | "csv" | "xer"; base64: string; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate"; mappingOverride?: Record<string, string> }) {
+  const db = await authorizeNewImport(input);
   const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("PROJECT_OS_IMPORT_FILE_INVALID");
   const analysis = await analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, analysis }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : input.sourceFormat === "xer" ? "text/plain" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   const duplicateMode = input.duplicateMode ?? "fail_on_duplicate";
   // The same file cannot be uploaded twice by one tenant (unique file hash): say so by name instead of a generic failure, and point to re-analysis for a file that is still waiting.
   try {
-  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode, totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, duplicateMode, totalRows: analysis.rows.length }) }); });
+  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode, totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, duplicateMode, totalRows: analysis.rows.length }) }); });
   } catch (error) { if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" }); throw error; }
   return { id, status: analysis.errors.length ? "uploaded" : "validated", headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
@@ -3621,13 +3645,15 @@ export async function reanalyzeDataImport(input: { userId: number; tenantId: str
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId }); await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, status: dataImports.status }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
-  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } }); if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" }); if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials" && record.moduleCode !== "schedule" && record.moduleCode !== "openingBalances") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } }); if (record.status !== "uploaded" && record.status !== "validated" && record.status !== "failed") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" }); if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials" && record.moduleCode !== "schedule" && record.moduleCode !== "openingBalances") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
   const response = await fetch(await storageGetSignedUrl(record.fileKey)); if (!response.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" }); const bytes = Buffer.from(await response.arrayBuffer()); const analysis = await analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, analysis });
-  await db.transaction(async tx => { await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id)); await tx.update(dataImports).set({ status: analysis.errors.length ? "uploaded" : "validated", validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }) }).where(eq(dataImports.id, record.id)); if (analysis.errors.length) await tx.insert(dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_reanalyzed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, mapping: analysis.mapping }) }); });
+  await db.transaction(async tx => { await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id)); await tx.update(dataImports).set({ status: analysis.errors.length ? "uploaded" : "validated", validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }) }).where(eq(dataImports.id, record.id)); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_reanalyzed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, mapping: analysis.mapping }) }); });
   return { id: record.id, status: analysis.errors.length ? "uploaded" as const : "validated" as const, headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
 
-export async function confirmAndImportData(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
+export type ImportStageReporter = (stage: "downloading" | "parsing" | "validating" | "writing", percent: number) => Promise<void> | void;
+
+export async function confirmAndImportData(input: { userId: number; tenantId: string; projectId: string; importId: string; asJob?: boolean; onStage?: ImportStageReporter }) {
   const result = await confirmAndImportDataInner(input);
   const db = await getDb();
   if (db) {
@@ -3637,7 +3663,8 @@ export async function confirmAndImportData(input: { userId: number; tenantId: st
   return result;
 }
 
-async function confirmAndImportDataInner(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
+async function confirmAndImportDataInner(input: { userId: number; tenantId: string; projectId: string; importId: string; asJob?: boolean; onStage?: ImportStageReporter }) {
+  const expectedStatus = input.asJob ? "importing" as const : "validated" as const; // a background confirmation has already moved the row to `importing`
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -3648,23 +3675,27 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
 
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
-  if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+  if (record.status !== expectedStatus) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials" && record.moduleCode !== "schedule" && record.moduleCode !== "openingBalances") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
 
+  await input.onStage?.("downloading", 10);
   const signedUrl = await storageGetSignedUrl(record.fileKey);
   const fileResponse = await fetch(signedUrl);
   if (!fileResponse.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" });
   const bytes = Buffer.from(await fileResponse.arrayBuffer());
-  if (!bytes.length || bytes.length > 10 * 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   const storedMapping = record.mappingJson ? JSON.parse(record.mappingJson) as Record<string, string> : undefined;
+  await input.onStage?.("parsing", 25);
   const analysis = await analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: storedMapping });
+  await input.onStage?.("validating", 45);
   await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, analysis });
   if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
+  await input.onStage?.("writing", 60);
 
   if (record.moduleCode === "schedule") {
     const scheduleRows = analysis.validRows as ScheduleImportRow[]; const scheduleWbs = scheduleRows.filter((row): row is Extract<ScheduleImportRow, { kind: "wbs" }> => row.kind === "wbs"); const scheduleActivities = scheduleRows.filter((row): row is Extract<ScheduleImportRow, { kind: "activity" }> => row.kind === "activity");
     const wbsCodes = scheduleWbs.map(row => row.values.code); const activityCodes = scheduleActivities.map(row => row.values.code);
-    const [existingWbs, existingActivities] = await Promise.all([wbsCodes.length ? db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), inArray(wbsItems.code, wbsCodes))) : Promise.resolve([]), activityCodes.length ? db.select({ id: activities.id, key: activities.code }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId), inArray(activities.code, activityCodes))) : Promise.resolve([])]);
+    const [existingWbs, existingActivities] = await Promise.all([wbsCodes.length ? db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), anyOf(wbsItems.code, wbsCodes))) : Promise.resolve([]), activityCodes.length ? db.select({ id: activities.id, key: activities.code }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId), anyOf(activities.code, activityCodes))) : Promise.resolve([])]);
     if ((existingWbs.length || existingActivities.length) && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
     const existingWbsByCode = new Map(existingWbs.map(row => [row.key, row.id])); const existingActivitiesByCode = new Map(existingActivities.map(row => [row.key, row.id]));
     const wbsOperations = scheduleWbs.map(row => { const existingId = existingWbsByCode.get(row.values.code); const action = existingId ? (record.duplicateMode === "skip_duplicates" ? "skipped" as const : "updated" as const) : (record.duplicateMode === "update_existing" ? "skipped" as const : "created" as const); return { row, key: `wbs:${row.values.code}`, action, entityId: action === "created" ? crypto.randomUUID() : existingId ?? null }; });
@@ -3673,12 +3704,12 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
     if (activityOperations.some(operation => !operation.wbsItemId)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
     const operations = [...wbsOperations, ...activityOperations]; const created = operations.filter(operation => operation.action === "created"); const updated = operations.filter(operation => operation.action === "updated"); const skipped = operations.filter(operation => operation.action === "skipped"); const now = new Date();
     await db.transaction(async tx => {
-      const createdWbs = wbsOperations.filter(operation => operation.action === "created"); if (createdWbs.length) await tx.insert(wbsItems).values(createdWbs.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: operation.row.values.code, name: operation.row.values.name, plannedValue: String(operation.row.values.plannedValue) })));
+      const createdWbs = wbsOperations.filter(operation => operation.action === "created"); if (createdWbs.length) await bulkInsert(tx, wbsItems).values(createdWbs.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: operation.row.values.code, name: operation.row.values.name, plannedValue: String(operation.row.values.plannedValue) })));
       for (const operation of wbsOperations.filter(operation => operation.action === "updated")) await tx.update(wbsItems).set({ name: operation.row.values.name, plannedValue: String(operation.row.values.plannedValue) }).where(and(eq(wbsItems.id, operation.entityId!), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId)));
-      const createdActivities = activityOperations.filter(operation => operation.action === "created"); if (createdActivities.length) await tx.insert(activities).values(createdActivities.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: operation.wbsItemId!, code: operation.row.values.code, name: operation.row.values.name, status: operation.row.values.status, plannedValue: String(operation.row.values.plannedValue), plannedStartAt: operation.row.values.plannedStartAt, plannedFinishAt: operation.row.values.plannedFinishAt })));
+      const createdActivities = activityOperations.filter(operation => operation.action === "created"); if (createdActivities.length) await bulkInsert(tx, activities).values(createdActivities.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: operation.wbsItemId!, code: operation.row.values.code, name: operation.row.values.name, status: operation.row.values.status, plannedValue: String(operation.row.values.plannedValue), plannedStartAt: operation.row.values.plannedStartAt, plannedFinishAt: operation.row.values.plannedFinishAt })));
       for (const operation of activityOperations.filter(operation => operation.action === "updated")) await tx.update(activities).set({ wbsItemId: operation.wbsItemId!, name: operation.row.values.name, status: operation.row.values.status, plannedValue: String(operation.row.values.plannedValue), plannedStartAt: operation.row.values.plannedStartAt, plannedFinishAt: operation.row.values.plannedFinishAt }).where(and(eq(activities.id, operation.entityId!), eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId)));
-      await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)); await tx.insert(dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
-      await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "validated")));
+      await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)); await bulkInsert(tx, dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
+      await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, expectedStatus)));
       await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_completed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: record.moduleCode, duplicateMode: record.duplicateMode, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length }) });
     });
     return { id: record.id, status: "completed" as const, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length };
@@ -3688,12 +3719,12 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
     // Opening stock is the first movement of a material in a warehouse. A pair that already has movements is not "opened" again: the import refuses (fail/create-only modes) or skips it, and never edits stock that has history.
     const balanceRows = analysis.validRows as OpeningBalanceImportRow[];
     const [warehouseRows, materialRows] = await Promise.all([
-      db.select({ id: projectWarehouses.id, code: projectWarehouses.code }).from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId), inArray(projectWarehouses.code, Array.from(new Set(balanceRows.map(row => row.values.warehouseCode)))))),
-      db.select({ id: materialMasters.id, code: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.code, Array.from(new Set(balanceRows.map(row => row.values.materialCode)))))),
+      db.select({ id: projectWarehouses.id, code: projectWarehouses.code }).from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId), anyOf(projectWarehouses.code, Array.from(new Set(balanceRows.map(row => row.values.warehouseCode)))))),
+      db.select({ id: materialMasters.id, code: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), anyOf(materialMasters.code, Array.from(new Set(balanceRows.map(row => row.values.materialCode)))))),
     ]);
     const warehouseByCode = new Map(warehouseRows.map(row => [row.code, row.id])); const materialByCode = new Map(materialRows.map(row => [row.code, row.id]));
     const pairOf = (row: OpeningBalanceImportRow) => `${warehouseByCode.get(row.values.warehouseCode)}|${materialByCode.get(row.values.materialCode)}`;
-    const movementPairs = async (executor: Pick<typeof db, "select">) => new Set((await executor.select({ warehouseId: warehouseInventoryTransactions.warehouseId, materialId: warehouseInventoryTransactions.materialId }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), inArray(warehouseInventoryTransactions.warehouseId, warehouseRows.map(row => row.id))))).map(row => `${row.warehouseId}|${row.materialId}`));
+    const movementPairs = async (executor: Pick<typeof db, "select">) => new Set((await executor.select({ warehouseId: warehouseInventoryTransactions.warehouseId, materialId: warehouseInventoryTransactions.materialId }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), anyOf(warehouseInventoryTransactions.warehouseId, warehouseRows.map(row => row.id))))).map(row => `${row.warehouseId}|${row.materialId}`));
     const before = await movementPairs(db);
     if (balanceRows.some(row => before.has(pairOf(row))) && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
     const operations = balanceRows.map(row => ({ row, key: `${row.values.warehouseCode}|${row.values.materialCode}`, action: before.has(pairOf(row)) ? "skipped" as const : "created" as const, entityId: before.has(pairOf(row)) ? null : crypto.randomUUID() }));
@@ -3701,9 +3732,9 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
     await db.transaction(async tx => {
       for (const warehouseId of warehouseRows.map(row => row.id).sort()) await tx.execute(sql`SELECT id FROM project_warehouses WHERE id = ${warehouseId} FOR UPDATE`);
       const locked = await movementPairs(tx); if (created.some(operation => locked.has(pairOf(operation.row)))) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" }); // another movement landed between the check and the lock
-      if (created.length) await tx.insert(warehouseInventoryTransactions).values(created.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, warehouseId: warehouseByCode.get(operation.row.values.warehouseCode)!, materialId: materialByCode.get(operation.row.values.materialCode)!, transactionType: "adjustment" as const, quantityDelta: operation.row.values.quantity.toFixed(3), unitCost: operation.row.values.unitCost.toFixed(4), valueDelta: (Math.round((operation.row.values.quantity * operation.row.values.unitCost + Number.EPSILON) * 100) / 100).toFixed(2), referenceNumber: `OPENING-${record.id.slice(0, 8)}`, note: "Opening balance (data import)", occurredAt: now, createdByUserId: input.userId })));
-      await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)); await tx.insert(dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
-      await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: 0, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "validated")));
+      if (created.length) await bulkInsert(tx, warehouseInventoryTransactions).values(created.map(operation => ({ id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, warehouseId: warehouseByCode.get(operation.row.values.warehouseCode)!, materialId: materialByCode.get(operation.row.values.materialCode)!, transactionType: "adjustment" as const, quantityDelta: operation.row.values.quantity.toFixed(3), unitCost: operation.row.values.unitCost.toFixed(4), valueDelta: (Math.round((operation.row.values.quantity * operation.row.values.unitCost + Number.EPSILON) * 100) / 100).toFixed(2), referenceNumber: `OPENING-${record.id.slice(0, 8)}`, note: "Opening balance (data import)", occurredAt: now, createdByUserId: input.userId })));
+      await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id)); await bulkInsert(tx, dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
+      await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: 0, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, expectedStatus)));
       await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_completed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: record.moduleCode, duplicateMode: record.duplicateMode, createdRows: created.length, updatedRows: 0, skippedRows: skipped.length, totalQuantity: created.reduce((total, operation) => total + operation.row.values.quantity, 0), totalValue: Number(created.reduce((total, operation) => total + operation.row.values.quantity * operation.row.values.unitCost, 0).toFixed(2)) }) });
     });
     return { id: record.id, status: "completed" as const, createdRows: created.length, updatedRows: 0, skippedRows: skipped.length };
@@ -3715,10 +3746,10 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
     : record.moduleCode === "budget" ? (records as BudgetImportRow[]).map(row => row.values.costCode) : record.moduleCode === "contracts" ? (records as ContractImportRow[]).map(row => row.values.code) : (records as MaterialImportRow[]).map(row => row.values.code);
   if (new Set(keys).size !== keys.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existing = record.moduleCode === "wbs"
-    ? await db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), inArray(wbsItems.code, keys)))
+    ? await db.select({ id: wbsItems.id, key: wbsItems.code }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId), anyOf(wbsItems.code, keys)))
     : record.moduleCode === "budget"
-      ? await db.select({ id: budgetLines.id, key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)))
-      : record.moduleCode === "contracts" ? await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), inArray(contracts.code, keys))) : await db.select({ id: materialMasters.id, key: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.code, keys)));
+      ? await db.select({ id: budgetLines.id, key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), anyOf(budgetLines.costCode, keys)))
+      : record.moduleCode === "contracts" ? await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), anyOf(contracts.code, keys))) : await db.select({ id: materialMasters.id, key: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), anyOf(materialMasters.code, keys)));
   if (existing.length && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existingByKey = new Map(existing.map(item => [item.key, item.id]));
   const operations = records.map(row => {
@@ -3736,10 +3767,10 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
   const now = new Date();
   await db.transaction(async tx => {
     if (created.length) {
-      if (record.moduleCode === "wbs") await tx.insert(wbsItems).values(created.map(operation => { const row = operation.row as WbsImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, name: row.values.name, plannedValue: String(row.values.plannedValue) }; }));
-      else if (record.moduleCode === "budget") await tx.insert(budgetLines).values(created.map(operation => { const row = operation.row as BudgetImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }; }));
-      else if (record.moduleCode === "contracts") await tx.insert(contracts).values(created.map(operation => { const row = operation.row as ContractImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }; }));
-      else await tx.insert(materialMasters).values(created.map(operation => { const row = operation.row as MaterialImportRow; return { id: operation.entityId!, tenantId: input.tenantId, code: row.values.code, description: row.values.description, unitOfMeasure: row.values.unitOfMeasure, category: row.values.category, referenceSpecification: row.values.referenceSpecification, createdByUserId: input.userId }; }));
+      if (record.moduleCode === "wbs") await bulkInsert(tx, wbsItems).values(created.map(operation => { const row = operation.row as WbsImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, name: row.values.name, plannedValue: String(row.values.plannedValue) }; }));
+      else if (record.moduleCode === "budget") await bulkInsert(tx, budgetLines).values(created.map(operation => { const row = operation.row as BudgetImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, costCode: row.values.costCode, originalAmount: String(row.values.originalAmount), currentAmount: String(row.values.currentAmount) }; }));
+      else if (record.moduleCode === "contracts") await bulkInsert(tx, contracts).values(created.map(operation => { const row = operation.row as ContractImportRow; return { id: operation.entityId!, tenantId: input.tenantId, projectId: input.projectId, code: row.values.code, title: row.values.title, counterparty: row.values.counterparty, contractValue: String(row.values.contractValue), currency: row.values.currency }; }));
+      else await bulkInsert(tx, materialMasters).values(created.map(operation => { const row = operation.row as MaterialImportRow; return { id: operation.entityId!, tenantId: input.tenantId, code: row.values.code, description: row.values.description, unitOfMeasure: row.values.unitOfMeasure, category: row.values.category, referenceSpecification: row.values.referenceSpecification, createdByUserId: input.userId }; }));
     }
     for (const operation of updated) {
       if (record.moduleCode === "wbs") { const row = operation.row as WbsImportRow; await tx.update(wbsItems).set({ name: row.values.name, plannedValue: String(row.values.plannedValue) }).where(and(eq(wbsItems.id, operation.entityId!), eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))); }
@@ -3748,8 +3779,8 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
       else { const row = operation.row as MaterialImportRow; await tx.update(materialMasters).set({ description: row.values.description, unitOfMeasure: row.values.unitOfMeasure, category: row.values.category, referenceSpecification: row.values.referenceSpecification }).where(and(eq(materialMasters.id, operation.entityId!), eq(materialMasters.tenantId, input.tenantId))); }
     }
     await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
-    await tx.insert(dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
-    await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "validated")));
+    await bulkInsert(tx, dataImportRowResults).values(operations.map(operation => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: operation.row.rowNumber, rowKey: operation.key, action: operation.action, entityId: operation.entityId })));
+    await tx.update(dataImports).set({ status: "completed", createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length, startedAt: now, completedAt: now }).where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, expectedStatus)));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_completed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: record.moduleCode, duplicateMode: record.duplicateMode, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length }) });
   });
   return { id: record.id, status: "completed" as const, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length };

@@ -63,7 +63,8 @@ writeFileSync(join(output, "config.json"), JSON.stringify({
     { path: "/api/scheduled/licenseExpiry", schedule: "0 2 * * *" },
     { path: "/api/scheduled/profitabilitySnapshots", schedule: "10 2 * * *" },
     { path: "/api/scheduled/emailNotifications", schedule: "0 * * * *" },
+    { path: "/api/scheduled/importJobs", schedule: "*/5 * * * *" },
   ],
 }, null, 2));
 
-console.log(JSON.stringify({ output: ".vercel/output", function: "api", maxDurationSeconds: MAX_DURATION_SECONDS, uploadLimitBytes: Number(UPLOAD_LIMIT_BYTES), crons: 3 }));
+console.log(JSON.stringify({ output: ".vercel/output", function: "api", maxDurationSeconds: MAX_DURATION_SECONDS, uploadLimitBytes: Number(UPLOAD_LIMIT_BYTES), crons: 4 }));

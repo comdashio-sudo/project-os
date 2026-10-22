@@ -7,7 +7,8 @@ import { BadgeCheck, Download, FileCheck2, FileSpreadsheet, ListChecks, Upload }
 import React, { useState } from "react";
 import { SourceNotice } from "@/components/SectionResilience";
 import { WriteGate } from "@/lib/permissions";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/uploadLimit";
+import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
+import { getProjectError } from "@shared/projectErrors";
 import { importModulePermissions } from "@shared/importPermissions";
 
 type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate";
@@ -25,25 +26,23 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
     { tenantId, projectId, importId: selectedImportId ?? "00000000-0000-0000-0000-000000000000" },
     { enabled: Boolean(selectedImportId) },
   );
-  const analyze = trpc.dataImports.analyze.useMutation({
-    onSuccess: result => {
-      setSelectedImportId(result.id);
-      void imports.refetch();
-    },
+  // The file goes browser → Storage by a signed URL (no request body carries it), then a background job analyses it; the screen polls the job.
+  const [currentImportId, setCurrentImportId] = useState<string | null>(null);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const createUpload = trpc.dataImports.createUpload.useMutation();
+  const registerUpload = trpc.dataImports.registerUpload.useMutation({
+    onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); void imports.refetch(); },
   });
-  const reanalyze = trpc.dataImports.reanalyze.useMutation({
-    onSuccess: result => {
-      setSelectedImportId(result.id);
-      void imports.refetch();
-    },
-  });
-  const confirm = trpc.dataImports.confirm.useMutation({
-    onSuccess: result => {
-      setSelectedImportId(result.id);
-      void imports.refetch();
-      void detail.refetch();
-    },
-  });
+  const progress = trpc.dataImports.progress.useQuery(
+    { tenantId, projectId, importId: currentImportId ?? "00000000-0000-0000-0000-000000000000" },
+    { enabled: Boolean(currentImportId), refetchInterval: query => (query.state.data?.status === "analyzing" || query.state.data?.status === "importing" ? 1500 : false) },
+  );
+  const current = progress.data;
+  const finishJob = () => { void imports.refetch(); void detail.refetch(); void progress.refetch(); };
+  const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
+  const confirm = trpc.dataImports.confirm.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
+  const busy = uploadPercent !== null || createUpload.isPending || registerUpload.isPending;
   const t = isArabic
     ? {
         title: "استيراد بيانات",
@@ -74,7 +73,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         noRowResults: "لا توجد نتائج صفوف محفوظة لهذا السجل بعد.",
         validationErrors: "أخطاء التحقق المحفوظة",
         field: { code: "الرمز", name: "الاسم", plannedValue: "القيمة المخططة", costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية", title: "اسم العقد", counterparty: "الطرف المتعاقد", contractValue: "قيمة العقد", currency: "العملة", recordType: "نوع السجل", wbsCode: "رمز WBS", wbsName: "اسم WBS", activityCode: "رمز النشاط", activityName: "اسم النشاط", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" },
-        status: { uploaded: "مرفوع", validated: "جاهز للتأكيد", completed: "مكتمل", failed: "فشل", importing: "قيد التنفيذ", cancelled: "ملغى", confirmed: "مؤكد" },
+        status: { uploaded: "مرفوع", analyzing: "قيد المعالجة", validated: "جاهز للتأكيد", completed: "مكتمل", failed: "فشل", importing: "قيد المعالجة", cancelled: "ملغى", confirmed: "مؤكد" },
         duplicate: { fail_on_duplicate: "إيقاف الاستيراد عند وجود تكرار", skip_duplicates: "تجاوز الصفوف الموجودة", update_existing: "تحديث الصفوف الموجودة فقط", upsert: "إنشاء الجديد وتحديث الموجود" },
         action: { created: "تم الإنشاء", updated: "تم التحديث", skipped: "تم التجاوز" },
         workflow: "استيراد منضبط في ثلاث خطوات",
@@ -85,12 +84,16 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         template: "تنزيل قالب Excel",
         templateNote: "القالب يحتوي الأعمدة المعتمدة فقط. يمكنك إضافة صفوف بيانات بعد الصف الأول دون تغيير العناوين.",
         requiredColumns: "الأعمدة المطلوبة",
-        accepted: `الملفات المعتمدة: XLSX أو CSV للقوالب العادية، وXLSX أو XER للجدول الزمني، حتى ${MAX_UPLOAD_MB} MB.`,
+        accepted: `الملفات المعتمدة: XLSX أو CSV للقوالب العادية، وXLSX أو XER للجدول الزمني، حتى ${MAX_IMPORT_UPLOAD_MB} MB.`,
         fileRules: "ملف واحد، ورقة واحدة، ونوع بيانات واحد. يرفض النظام أي عمود غير معتمد أو رمز مكرر داخل الملف.",
         noFile: "اختر ملفًا قبل التحليل.",
         typeError: "صيغة الملف لا تتوافق مع القالب المحدد.",
         scheduleRules: "ملف الجدول الزمني يقبل WBS والأنشطة المحددة فقط. يتطلب XER جدولي PROJWBS وTASK؛ لا يتجاهل مراجع WBS أو التواريخ غير الصحيحة.",
-        sizeError: `حجم الملف أكبر من الحد المسموح به وهو ${MAX_UPLOAD_MB} MB.`,
+        sizeError: `حجم الملف أكبر من الحد المسموح به وهو ${MAX_IMPORT_UPLOAD_MB} MB.`,
+        uploading: "جارٍ رفع الملف",
+        analyzing: "جارٍ تحليل الملف", importing: "جارٍ كتابة السجلات", progressLabel: "تقدم المعالجة",
+        stage: { queued: "في الانتظار", downloading: "قراءة الملف من التخزين", parsing: "قراءة الصفوف", validating: "التحقق من الصفوف", writing: "حفظ النتيجة" },
+        failedTitle: "فشلت المعالجة", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
       }
     : {
@@ -122,7 +125,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         noRowResults: "No row results have been saved for this record yet.",
         validationErrors: "Saved validation errors",
         field: { code: "Code", name: "Name", plannedValue: "Planned value", costCode: "Cost code", originalAmount: "Original amount", currentAmount: "Current amount", title: "Contract title", counterparty: "Counterparty", contractValue: "Contract value", currency: "Currency", recordType: "Record type", wbsCode: "WBS code", wbsName: "WBS name", activityCode: "Activity code", activityName: "Activity name", plannedStartAt: "Planned start", plannedFinishAt: "Planned finish", status: "Status" },
-        status: { uploaded: "Uploaded", validated: "Ready to confirm", completed: "Completed", failed: "Failed", importing: "Importing", cancelled: "Cancelled", confirmed: "Confirmed" },
+        status: { uploaded: "Uploaded", analyzing: "Processing", validated: "Ready to confirm", completed: "Completed", failed: "Failed", importing: "Processing", cancelled: "Cancelled", confirmed: "Confirmed" },
         duplicate: { fail_on_duplicate: "Stop when a duplicate exists", skip_duplicates: "Skip existing rows", update_existing: "Update existing rows only", upsert: "Create new and update existing rows" },
         action: { created: "Created", updated: "Updated", skipped: "Skipped" },
         workflow: "Controlled import in three steps",
@@ -133,23 +136,34 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         template: "Download Excel template",
         templateNote: "The template contains only approved columns. Add data rows below the header without changing column names.",
         requiredColumns: "Required columns",
-        accepted: `Accepted files: XLSX or CSV for standard templates, and XLSX or XER for schedule import, up to ${MAX_UPLOAD_MB} MB.`,
+        accepted: `Accepted files: XLSX or CSV for standard templates, and XLSX or XER for schedule import, up to ${MAX_IMPORT_UPLOAD_MB} MB.`,
         fileRules: "One file, one sheet, and one data type. The system rejects unapproved columns and repeated keys inside the file.",
         noFile: "Choose a file before analysis.",
         typeError: "The file format does not match the selected template.",
         scheduleRules: "Schedule import accepts only named WBS and activity records. XER requires PROJWBS and TASK; unresolved WBS links and invalid dates are never ignored.",
-        sizeError: `The file exceeds the ${MAX_UPLOAD_MB} MB limit.`,
+        sizeError: `The file exceeds the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
+        uploading: "Uploading the file",
+        analyzing: "Analysing the file", importing: "Writing the records", progressLabel: "Processing progress",
+        stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
+        failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
       };
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
     const format = file.name.toLowerCase().endsWith(".xer") ? "xer" : file.name.toLowerCase().endsWith(".csv") ? "csv" : file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : null;
     if (!format || (moduleCode === "schedule" ? format !== "xlsx" && format !== "xer" : format === "xer")) { setLocalError(t.typeError); return; }
-    if (file.size > MAX_UPLOAD_BYTES) { setLocalError(t.sizeError); return; }
-    setLocalError(null);
-    const bytes = await file.arrayBuffer();
-    const base64 = btoa(Array.from(new Uint8Array(bytes), byte => String.fromCharCode(byte)).join(""));
-    analyze.mutate({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, base64, duplicateMode });
+    if (file.size > MAX_IMPORT_UPLOAD_BYTES) { setLocalError(t.sizeError); return; }
+    setLocalError(null); setUploadError(null); setCurrentImportId(null);
+    try {
+      const target = await createUpload.mutateAsync({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format });
+      setUploadPercent(0);
+      await putToStorage(target.uploadUrl, target.headers, file, setUploadPercent);
+      setUploadPercent(null);
+      await registerUpload.mutateAsync({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, uploadKey: target.uploadKey, duplicateMode });
+    } catch (error) {
+      setUploadPercent(null);
+      setUploadError(error instanceof UploadFailure ? (isArabic ? "تعذّر رفع الملف إلى التخزين. تحقق من الاتصال وأعد المحاولة." : "The file could not be uploaded to storage. Check your connection and try again.") : getLocalizedProjectError(error, isArabic));
+    }
   };
   const requiredFields = moduleCode === "openingBalances" ? ["warehouseCode", "materialCode", "quantity", "unitCost"] : moduleCode === "wbs" ? ["code", "name"] : moduleCode === "budget" ? ["costCode", "originalAmount", "currentAmount"] : moduleCode === "contracts" ? ["code", "title", "counterparty", "contractValue", "currency"] : moduleCode === "materials" ? ["code", "description", "unitOfMeasure", "category"] : ["recordType", "wbsCode"];
   const templateHeaders = moduleCode === "openingBalances" ? isArabic ? ["رمز المستودع", "رمز المادة", "الكمية", "تكلفة الوحدة"] : ["Warehouse Code", "Material Code", "Quantity", "Unit Cost"] : moduleCode === "wbs"
@@ -161,7 +175,6 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
     if (moduleCode === "schedule") { const { default: ExcelJS } = await import("exceljs"); const workbook = new ExcelJS.Workbook(); const worksheet = workbook.addWorksheet("Schedule"); worksheet.addRows([templateHeaders, templateExample, ["Activity", "1.0", "", "A-100", isArabic ? "الأساسات" : "Foundation", "2026-09-01", "2026-09-05", "50000", "In Progress"]]); const bytes = await workbook.xlsx.writeBuffer(); const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "schedule-template.xlsx"; anchor.click(); URL.revokeObjectURL(url); return; }
     const content = `\uFEFF${templateHeaders.join(",")}\n${templateExample.join(",")}\n`; const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${moduleCode}-template.csv`; anchor.click(); URL.revokeObjectURL(url);
   };
-  const analysisHeaders: string[] = analyze.data?.headers ?? [];
   const selected = detail.data;
   const importErrorLabel = (code: string) => ({
     IMPORT_REFERENCE_NOT_FOUND: isArabic ? "المستودع أو المادة غير موجود في هذا المشروع أو غير فعّال." : "The warehouse or material does not exist in this project or is not active.",
@@ -185,19 +198,33 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       <div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] bg-[var(--dashio-indigo)]/10 text-primary"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 className="font-semibold">{t.title}</h2><p className="mt-1 text-xs text-muted-foreground">{t.note}</p></div></div><span className="rounded-full bg-[var(--dashio-aqua)]/10 px-3 py-1 text-xs font-semibold text-[var(--dashio-aqua-deep)]">{t.workflow}</span></div>
       <div className="mt-5 grid gap-3 md:grid-cols-3"><Step icon={ListChecks} number="1" title={t.step1} /><Step icon={Upload} number="2" title={t.step2} /><Step icon={BadgeCheck} number="3" title={t.step3} /></div>
       <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/[.07] p-4 text-sm text-foreground"><p className="font-semibold">{t.instructions}</p><p className="mt-2 text-xs text-muted-foreground">{t.accepted}</p><p className="mt-1 text-xs font-medium text-foreground">{t.fileRules}</p></div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button><Button type="button" variant={moduleCode === "contracts" ? "default" : "outline"} onClick={() => { setModuleCode("contracts"); setMappingOverride({}); setLocalError(null); }}>{t.contracts}</Button><Button type="button" variant={moduleCode === "materials" ? "default" : "outline"} onClick={() => { setModuleCode("materials"); setMappingOverride({}); setLocalError(null); }}>{t.materials}</Button><Button type="button" variant={moduleCode === "schedule" ? "default" : "outline"} onClick={() => { setModuleCode("schedule"); setMappingOverride({}); setLocalError(null); }}>{t.schedule}</Button><Button type="button" variant={moduleCode === "openingBalances" ? "default" : "outline"} onClick={() => { setModuleCode("openingBalances"); setMappingOverride({}); setLocalError(null); }}>{t.openingBalances}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p>{moduleCode === "schedule" && <p className="mt-2 text-xs leading-5 text-amber-800">{t.scheduleRules}</p>}{moduleCode === "openingBalances" && <p className="mt-2 text-xs leading-5 text-amber-800">{t.openingRules}</p>}</div><WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept={moduleCode === "schedule" ? ".xlsx,.xer" : ".xlsx,.csv"} onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={analyze.isPending} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}</div></WriteGate></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step1}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant={moduleCode === "wbs" ? "default" : "outline"} onClick={() => { setModuleCode("wbs"); setMappingOverride({}); setLocalError(null); }}>{t.wbs}</Button><Button type="button" variant={moduleCode === "budget" ? "default" : "outline"} onClick={() => { setModuleCode("budget"); setMappingOverride({}); setLocalError(null); }}>{t.budget}</Button><Button type="button" variant={moduleCode === "contracts" ? "default" : "outline"} onClick={() => { setModuleCode("contracts"); setMappingOverride({}); setLocalError(null); }}>{t.contracts}</Button><Button type="button" variant={moduleCode === "materials" ? "default" : "outline"} onClick={() => { setModuleCode("materials"); setMappingOverride({}); setLocalError(null); }}>{t.materials}</Button><Button type="button" variant={moduleCode === "schedule" ? "default" : "outline"} onClick={() => { setModuleCode("schedule"); setMappingOverride({}); setLocalError(null); }}>{t.schedule}</Button><Button type="button" variant={moduleCode === "openingBalances" ? "default" : "outline"} onClick={() => { setModuleCode("openingBalances"); setMappingOverride({}); setLocalError(null); }}>{t.openingBalances}</Button></div><p className="mt-4 text-xs font-semibold text-muted-foreground">{t.requiredColumns}</p><div className="mt-2 flex flex-wrap gap-2">{templateHeaders.map(header => <span key={header} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">{header}</span>)}</div><Button type="button" variant="outline" className="mt-4" onClick={downloadTemplate}><Download className="me-2 h-4 w-4" />{t.template}</Button><p className="mt-2 text-xs leading-5 text-muted-foreground">{t.templateNote}</p>{moduleCode === "schedule" && <p className="mt-2 text-xs leading-5 text-amber-800">{t.scheduleRules}</p>}{moduleCode === "openingBalances" && <p className="mt-2 text-xs leading-5 text-amber-800">{t.openingRules}</p>}</div><WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}><div className="rounded-[var(--radius-md)] border border-border p-4"><p className="text-sm font-semibold">{t.step2}</p><label className="mt-3 block text-xs font-medium text-foreground">{t.duplicateMode}<select className="mt-1 block w-full rounded-[var(--radius-sm)] border border-input bg-card p-2 text-sm" value={duplicateMode} onChange={event => setDuplicateMode(event.target.value as DuplicateMode)}>{(Object.keys(t.duplicate) as DuplicateMode[]).map(mode => <option key={mode} value={mode}>{t.duplicate[mode]}</option>)}</select></label><Input className="mt-3" aria-label={t.choose} type="file" accept={moduleCode === "schedule" ? ".xlsx,.xer" : ".xlsx,.csv"} onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /><Button className="mt-3 w-full" disabled={busy} onClick={submit}>{t.analyze}</Button>{file ? <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5 text-[var(--dashio-aqua-deep)]" />{file.name}</p> : null}{uploadPercent !== null && <p role="status" className="mt-2 text-xs text-muted-foreground">{t.uploading} {uploadPercent}%</p>}</div></WriteGate></div>
       {localError && <p role="alert" className="mt-3 text-xs text-red-700">{localError}</p>}
-      {analyze.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(analyze.error, isArabic)}</p>}
-      {analyze.data && <div className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs">
-        <p>{t.rows}: {analyze.data.totalRows}</p>
-        <p>{t.errors}: {analyze.data.errors.length}</p>
-        {Object.keys(analyze.data.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(analyze.data.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {String(header)}</li>)}</ul></div>}
-        {analyze.data.errors.length > 0 && <div className="mt-3 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold">{t.errors}</p><ul className="mt-1 space-y-1">{analyze.data.errors.map((error, index) => <li key={`${error.code}-${error.field ?? ""}-${index}`}>{importErrorLabel(error.code)}{error.field ? ` (${error.field})` : ""}</li>)}</ul></div>}
-        {analyze.data.errors.length > 0 && analysisHeaders.length > 0 && <div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(current => ({ ...current, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{analysisHeaders.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: analyze.data!.id, mappingOverride })}>{t.reanalyze}</Button></div>}
-        {analyze.data.status === "validated" && !analyze.data.errors.length ? <Button className="mt-3" type="button" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: analyze.data!.id })}>{t.confirm}</Button> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
+      {uploadError && <p role="alert" className="mt-3 text-xs text-red-700">{uploadError}</p>}
+      {createUpload.error && !uploadError && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(createUpload.error, isArabic)}</p>}
+      {registerUpload.error && !uploadError && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(registerUpload.error, isArabic)}</p>}
+      {current && <div className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs" data-testid="import-job">
+        <p className="font-medium">{t.status[current.status as keyof typeof t.status] ?? current.status}</p>
+        {(current.status === "analyzing" || current.status === "importing") && <div role="status" aria-live="polite" className="mt-2">
+          <p>{current.status === "analyzing" ? t.analyzing : t.importing}{current.progressStage ? ` — ${t.stage[current.progressStage as keyof typeof t.stage] ?? current.progressStage}` : ""} ({current.progressPercent}%)</p>
+          <progress className="mt-1 h-2 w-full" max={100} value={current.progressPercent} aria-label={t.progressLabel} />
+        </div>}
+        {current.status === "failed" && <div role="alert" className="mt-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-red-800">
+          <p className="font-semibold">{t.failedTitle}</p>
+          <p className="mt-1">{current.failureReason ? (isArabic ? getProjectError(current.failureReason).messages.ar : getProjectError(current.failureReason).messages.en) : t.failedTitle}</p>
+        </div>}
+        {(current.status === "uploaded" || current.status === "validated") && current.analysis && <>
+          <p>{t.rows}: {current.totalRows}</p>
+          <p>{t.errors}: {current.analysis.errorsTotal}</p>
+          {Object.keys(current.analysis.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(current.analysis.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {String(header)}</li>)}</ul></div>}
+          {current.analysis.errors.length > 0 && <div className="mt-3 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold">{t.errors}</p><ul className="mt-1 space-y-1">{current.analysis.errors.map((error, index) => <li key={`${error.code}-${error.field ?? ""}-${index}`}>{importErrorLabel(error.code)}{error.field ? ` (${error.field})` : ""}</li>)}</ul>{current.analysis.errorsTotal > current.analysis.errorsListed && <p className="mt-1">{t.moreErrors}</p>}</div>}
+          {current.analysis.errors.length > 0 && current.analysis.headers.length > 0 && <div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(existing => ({ ...existing, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{current.analysis!.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: current.id, mappingOverride })}>{t.reanalyze}</Button></div>}
+          {current.status === "validated" && !current.analysis.errors.length ? <Button className="mt-3" type="button" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: current.id })}>{t.confirm}</Button> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
+        </>}
+        {current.status === "completed" && <p className="mt-2">{t.created}: {current.createdRows} · {t.updated}: {current.updatedRows} · {t.skipped}: {current.skippedRows}</p>}
       </div>}
+      {progress.error && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(progress.error, isArabic)}</p>}
       {confirm.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
-      {confirm.data && <p className="mt-3 rounded-lg bg-[#e6f4f3] p-3 text-xs">{t.created}: {confirm.data.createdRows} · {t.updated}: {confirm.data.updatedRows} · {t.skipped}: {confirm.data.skippedRows}</p>}
       <SourceNotice query={imports} isArabic={isArabic} title={isArabic ? "سجل الاستيرادات السابقة" : "Previous imports"} />
       {imports.data?.length ? <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.history}</h3><div className="mt-2 space-y-2">{imports.data.slice(0, 5).map(record => <div className="rounded-lg bg-slate-50 p-2 text-xs" key={record.id}><div className="flex items-center justify-between gap-3"><span className="min-w-0 truncate">{record.fileName}</span><span className="text-slate-500">{t.status[record.status] ?? record.status}</span></div><p className="mt-1 text-slate-500">{t.duplicate[record.duplicateMode as DuplicateMode] ?? record.duplicateMode}</p>{record.status === "completed" && <p className="mt-1 text-slate-600">{t.created}: {record.createdRows} · {t.updated}: {record.updatedRows} · {t.skipped}: {record.skippedRows}</p>}<div className="mt-2 flex flex-wrap gap-2">{record.status === "validated" && <Button type="button" size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: record.id })}>{t.confirm}</Button>}<Button type="button" size="sm" variant="outline" onClick={() => setSelectedImportId(record.id)}>{t.viewDetails}</Button></div></div>)}</div></div> : null}
       {selectedImportId && <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.details}</h3>{detail.error && <p className="mt-2 text-xs text-red-700">{getLocalizedProjectError(detail.error, isArabic)}</p>}{selected && <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-medium">{selected.fileName}</p><p className="mt-1 text-slate-500">{t.duplicate[selected.duplicateMode as DuplicateMode] ?? selected.duplicateMode}</p>{selected.rowResults.length ? <div className="mt-3"><p className="font-medium">{t.results}</p><ul className="mt-1 space-y-1">{selected.rowResults.slice(0, 20).map(result => <li key={`${result.rowNumber}-${result.action}`} className="flex justify-between gap-3"><span>#{result.rowNumber} · {result.rowKey}</span><span>{t.action[result.action]}</span></li>)}</ul></div> : <p className="mt-3 text-slate-500">{t.noRowResults}</p>}{selected.errors.length ? <div className="mt-3"><p className="font-medium">{t.validationErrors}</p><ul className="mt-1 space-y-1">{selected.errors.slice(0, 20).map(error => <li key={`${error.rowNumber}-${error.code}`}>#{error.rowNumber} · {error.code}</li>)}</ul></div> : null}</div>}</div>}

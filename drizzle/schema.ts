@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const usersRoleEnum = pgEnum("users_role", ["user", "admin"]);
 export const users = pgTable("users", {
@@ -1704,7 +1705,7 @@ export const projectHealthSnapshots = pgTable(
 );
 
 export const dataImportsSourceFormatEnum = pgEnum("data_imports_source_format", ["xlsx", "csv", "xer"]);
-export const dataImportsStatusEnum = pgEnum("data_imports_status", ["uploaded", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]);
+export const dataImportsStatusEnum = pgEnum("data_imports_status", ["uploaded", "analyzing", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]);
 export const dataImportsDuplicateModeEnum = pgEnum("data_imports_duplicate_mode", ["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
 export const dataImports = pgTable(
   "data_imports",
@@ -1723,9 +1724,15 @@ export const dataImports = pgTable(
     totalRows: integer("total_rows").default(0).notNull(), validRows: integer("valid_rows").default(0).notNull(), invalidRows: integer("invalid_rows").default(0).notNull(), createdRows: integer("created_rows").default(0).notNull(), updatedRows: integer("updated_rows").default(0).notNull(), skippedRows: integer("skipped_rows").default(0).notNull(),
     mappingJson: text("mapping_json"), summaryJson: text("summary_json"),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    // Background job state (work order 6, direct upload): a file larger than a request can carry is analysed and imported by a job whose progress the
+    // user sees. `analyzing`/`importing` are the in-flight statuses; `failed` carries `failureReason` (a code the UI translates). `heartbeatAt` and
+    // `attempts` let a stalled job (function killed at its time limit) be resumed, a bounded number of times, by the next poll or the daily sweep.
+    progressPercent: integer("progress_percent").default(0).notNull(), progressStage: varchar("progress_stage", { length: 32 }), failureReason: varchar("failure_reason", { length: 128 }),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }), attempts: integer("attempts").default(0).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }), completedAt: timestamp("completed_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash)],
+  // A file whose job failed releases its hash: the same file may be uploaded again (or re-analysed) instead of being refused as a duplicate of a dead row.
+  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash).where(sql`${table.status} <> 'failed'`)],
 );
 
 export const dataImportErrorsSeverityEnum = pgEnum("data_import_errors_severity", ["error", "warning"]);

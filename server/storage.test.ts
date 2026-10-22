@@ -1,6 +1,6 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
-import { appendHashSuffix, createS3Storage, createStorage, normalizeKey, SIGNED_URL_TTL_SECONDS, storageConfiguration, storageEndpoint } from "./storage";
+import { appendHashSuffix, createS3Storage, createStorage, MAX_DIRECT_UPLOAD_BYTES, normalizeKey, SIGNED_URL_TTL_SECONDS, storageConfiguration, storageEndpoint } from "./storage";
 
 function harness() {
   const send = vi.fn(async () => ({}));
@@ -101,5 +101,54 @@ describe("storageEndpoint", () => {
   });
   it("refuses anything that would send files unencrypted across a network, or that is not a URL", () => {
     for (const bad of ["http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint(bad), bad).toThrow(/STORAGE_S3_ENDPOINT/);
+  });
+});
+
+describe("direct upload operations", () => {
+  it("fixes the direct-upload ceiling at 50 MB", () => {
+    expect(MAX_DIRECT_UPLOAD_BYTES).toBe(50 * 1024 * 1024);
+  });
+
+  it("mints a PUT URL for exactly one key, with the content type the browser must send", async () => {
+    const { presign, storage } = harness();
+    const upload = await storage.storageCreateUploadUrl("/imports/t1/p1/pending/abc/schedule.xer", "text/plain");
+    expect(upload).toMatchObject({ key: "imports/t1/p1/pending/abc/schedule.xer", headers: { "Content-Type": "text/plain" }, expiresInSeconds: SIGNED_URL_TTL_SECONDS });
+    const command = presign.mock.calls[0][0] as unknown as PutObjectCommand;
+    expect(command).toBeInstanceOf(PutObjectCommand);
+    expect(command.input).toMatchObject({ Bucket: "test-bucket", Key: "imports/t1/p1/pending/abc/schedule.xer", ContentType: "text/plain" });
+    await expect(storage.storageCreateUploadUrl("../other-tenant/file.xer")).rejects.toThrow(/relative path/);
+  });
+
+  it("reports an object's size, and null (not an error) when nothing was uploaded", async () => {
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof HeadObjectCommand && command.input.Key === "there") return { ContentLength: 31_468_176, ContentType: "text/plain" };
+      throw Object.assign(new Error("NotFound"), { name: "NotFound", $metadata: { httpStatusCode: 404 } });
+    });
+    const storage = createStorage({ bucket: "b", send, presign: vi.fn() });
+    expect(await storage.storageHead("there")).toEqual({ size: 31_468_176, contentType: "text/plain" });
+    expect(await storage.storageHead("missing")).toBeNull();
+    const broken = createStorage({ bucket: "b", send: async () => { throw Object.assign(new Error("denied"), { $metadata: { httpStatusCode: 403 } }); }, presign: vi.fn() });
+    await expect(broken.storageHead("x")).rejects.toThrow("denied");
+  });
+
+  it("reads an object whole, and pages through a listing", async () => {
+    const pages = [{ Contents: [{ Key: "imports/a", LastModified: new Date(1) }], IsTruncated: true, NextContinuationToken: "t1" }, { Contents: [{ Key: "imports/b", LastModified: new Date(2) }], IsTruncated: false }];
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetObjectCommand) return { Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } };
+      if (command instanceof ListObjectsV2Command) return pages[command.input.ContinuationToken ? 1 : 0];
+      return {};
+    });
+    const storage = createStorage({ bucket: "b", send, presign: vi.fn() });
+    expect([...await storage.storageRead("k")]).toEqual([1, 2, 3]);
+    expect((await storage.storageList("imports/")).map(item => item.key)).toEqual(["imports/a", "imports/b"]);
+  });
+
+  it("does not bake a checksum of an empty body into a presigned PUT (it made every real browser upload fail the digest check)", async () => {
+    const storage = createS3Storage({ endpoint: "http://127.0.0.1:9", region: "eu-west-1", accessKeyId: "AKIAEXAMPLE", secretAccessKey: "example-secret", bucket: "b" });
+    const { url } = await storage.storageCreateUploadUrl("imports/t/p/pending/x/file.xer", "text/plain");
+    const query = new URL(url).searchParams;
+    expect(query.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    expect(query.get("X-Amz-SignedHeaders")).toBe("host");
+    expect([...query.keys()].filter(name => name.toLowerCase().includes("checksum"))).toEqual([]);
   });
 });

@@ -76,7 +76,7 @@ describe("security headers", () => {
     const script = csp.split("; ").find(part => part.startsWith("script-src "))!;
     expect(script).toBe("script-src 'self'");
     expect(csp).not.toContain("unsafe-eval");
-    expect(csp.split("; ").find(part => part.startsWith("connect-src "))).toBe("connect-src 'self'");
+    expect(csp.split("; ").find(part => part.startsWith("connect-src "))).toBe("connect-src 'self' https://*.supabase.co");
   });
 
   it("outside production sends the always-on headers but neither CSP nor HSTS (the development server needs inline scripts)", async () => {

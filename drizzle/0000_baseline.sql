@@ -22,7 +22,7 @@ CREATE TYPE "public"."data_import_errors_severity" AS ENUM('error', 'warning');-
 CREATE TYPE "public"."data_import_row_results_action" AS ENUM('created', 'updated', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."data_imports_duplicate_mode" AS ENUM('create_only', 'update_existing', 'upsert', 'skip_duplicates', 'fail_on_duplicate');--> statement-breakpoint
 CREATE TYPE "public"."data_imports_source_format" AS ENUM('xlsx', 'csv', 'xer');--> statement-breakpoint
-CREATE TYPE "public"."data_imports_status" AS ENUM('uploaded', 'validated', 'confirmed', 'importing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."data_imports_status" AS ENUM('uploaded', 'analyzing', 'validated', 'confirmed', 'importing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."decisions_status" AS ENUM('draft', 'submitted', 'approved', 'rejected', 'implemented');--> statement-breakpoint
 CREATE TYPE "public"."design_comments_severity" AS ENUM('minor', 'major', 'critical');--> statement-breakpoint
 CREATE TYPE "public"."design_comments_status" AS ENUM('open', 'responded', 'closed');--> statement-breakpoint
@@ -398,6 +398,11 @@ CREATE TABLE "data_imports" (
 	"mapping_json" text,
 	"summary_json" text,
 	"created_by_user_id" integer NOT NULL,
+	"progress_percent" integer DEFAULT 0 NOT NULL,
+	"progress_stage" varchar(32),
+	"failure_reason" varchar(128),
+	"heartbeat_at" timestamp with time zone,
+	"attempts" integer DEFAULT 0 NOT NULL,
 	"started_at" timestamp with time zone,
 	"completed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -2267,7 +2272,7 @@ CREATE INDEX "data_import_errors_import_row_idx" ON "data_import_errors" USING b
 CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_results" USING btree ("import_id","row_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash");--> statement-breakpoint
+CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" <> 'failed';--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_comments_project_number_unique" ON "design_comments" USING btree ("project_id","comment_number");--> statement-breakpoint
 CREATE INDEX "design_comments_tenant_project_status_idx" ON "design_comments" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint

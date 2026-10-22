@@ -4,6 +4,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { appRouter } from "../routers";
 import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 import { tenantExportHandler } from "../tenantExportRoute";
+import { scheduledImportJobsHandler } from "../scheduledImportJobs";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
 import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
 import { apiRateLimit, apiRateLimitFromEnvironment } from "./apiRateLimit";
@@ -70,6 +71,7 @@ export function createApp(options: AppOptions) {
     ["/api/scheduled/licenseExpiry", "licence expiry job", scheduledLicenseExpiryHandler],
     ["/api/scheduled/profitabilitySnapshots", "profitability snapshot job", scheduledProfitabilitySnapshotsHandler],
     ["/api/scheduled/emailNotifications", "e-mail notification job", scheduledEmailNotificationsHandler],
+    ["/api/scheduled/importJobs", "import job sweep", scheduledImportJobsHandler],
   ] as const) {
     app.get(path, asSystem(reason), handler);
     app.post(path, asSystem(reason), handler);

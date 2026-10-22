@@ -728,6 +728,26 @@ export const projectErrorMessages = {
     ar: "تعذّر قراءة الملف المرفوع من التخزين.",
     en: "The uploaded file could not be read from storage.",
   },
+  PROJECT_OS_IMPORT_FILE_TOO_LARGE: {
+    ar: "حجم الملف أكبر من الحد المسموح به وهو 50 MB.",
+    en: "The file is larger than the 50 MB limit.",
+  },
+  PROJECT_OS_IMPORT_JOB_FAILED: {
+    ar: "تعذّر إكمال المعالجة لسبب غير متوقع. لم يُحفظ شيء؛ أعد المحاولة، وإن تكرر فتواصل مع الدعم.",
+    en: "Processing could not finish because of an unexpected problem. Nothing was saved; try again, and contact support if it repeats.",
+  },
+  PROJECT_OS_IMPORT_JOB_STALLED: {
+    ar: "توقفت المعالجة قبل اكتمالها ولم تنجح إعادة تشغيلها. لم يُحفظ شيء؛ أعد المحاولة.",
+    en: "Processing stopped before it finished and could not be restarted. Nothing was saved; try again.",
+  },
+  PROJECT_OS_IMPORT_UPLOAD_KEY_INVALID: {
+    ar: "مرجع الملف المرفوع لا يخص هذا المشروع.",
+    en: "The uploaded file reference does not belong to this project.",
+  },
+  PROJECT_OS_IMPORT_UPLOAD_MISSING: {
+    ar: "لم يصل الملف إلى التخزين. أعد رفعه.",
+    en: "The file did not reach storage. Upload it again.",
+  },
   PROJECT_OS_IMPORT_FORMAT_INVALID: {
     ar: "صيغة الملف غير مدعومة.",
     en: "The file format is not supported.",

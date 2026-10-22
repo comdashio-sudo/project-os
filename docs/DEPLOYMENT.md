@@ -6,7 +6,7 @@
 
 ## المكدس
 
-React 19 + Vite (ملفات ثابتة على CDN) · Express 5 + tRPC 11 كدالة Vercel واحدة · Drizzle + `pg` · Supabase (PostgreSQL، Auth، Storage بواجهة S3) · Vercel Cron للمهام (انتهاء التراخيص، لقطات الربحية، إشعارات البريد). تفاصيل القرار والحدود: [`ADR-0002`](./ADR-0002-POSTGRES-SUPABASE-VERCEL.md).
+React 19 + Vite (ملفات ثابتة على CDN) · Express 5 + tRPC 11 كدالة Vercel واحدة · Drizzle + `pg` · Supabase (PostgreSQL، Auth، Storage بواجهة S3) · Vercel Cron للمهام (انتهاء التراخيص، لقطات الربحية، إشعارات البريد، مسح مهام الاستيراد). تفاصيل القرار والحدود: [`ADR-0002`](./ADR-0002-POSTGRES-SUPABASE-VERCEL.md).
 
 ## مسار الإصدار
 
