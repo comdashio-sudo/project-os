@@ -21,7 +21,7 @@ const meta = { title: "تقرير الميزانية", company: "شركة تجر
 
 describe("buildExportLayout", () => {
   it("header row matches the visible columns in order", () => {
-    expect(buildExportLayout(columns, rows, meta).headerRow).toEqual(["الرمز", "المبلغ", "الاستحقاق", "التقدم", "ملاحظة"]);
+    expect(buildExportLayout(columns, rows, meta).headerRow).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم", "ملاحظة"]);
   });
 
   it("one data row per input row, one cell per column", () => {
@@ -58,27 +58,39 @@ describe("buildExportLayout", () => {
   });
 });
 
-describe("per-cell kind and currency", () => {
+describe("per-cell kind and the base currency", () => {
   it("a cell can override the column kind, so one column can mix a money figure and a margin", () => {
-    const mixed: ExportColumn<Row>[] = [{ header: "القيمة", value: row => (row.progress === 1 ? { value: row.progress, kind: "percent" } : { value: row.amount, kind: "money", currency: "SAR" }) }];
+    const mixed: ExportColumn<Row>[] = [{ header: "القيمة", value: row => (row.progress === 1 ? { value: row.progress, kind: "percent" } : { value: row.amount, kind: "money" }) }];
     const [first, second] = buildExportLayout(mixed, rows, meta).rows;
-    expect(first[0]).toEqual({ value: 1250.5, kind: "money", currency: "SAR" });
-    expect(second[0]).toEqual({ value: 1, kind: "percent", currency: undefined });
+    expect(first[0]).toEqual({ value: 1250.5, kind: "money" });
+    expect(second[0]).toEqual({ value: 1, kind: "percent" });
   });
 
-  it("a money cell with a currency is written with that code in its number format; invalid codes are dropped", async () => {
-    const mixed: ExportColumn<Row>[] = [
-      { header: "المبلغ", value: row => ({ value: row.amount, kind: "money", currency: "usd" }) },
-      { header: "عملة مُدخلة بخطأ", value: () => ({ value: 5, kind: "money", currency: "$$$" }) },
-    ];
-    const bytes = await buildTableWorkbook({ sheetName: "عملات", columns: mixed, rows: [rows[0]], meta });
+  it("a column that holds money names the base currency in its header: the riyal in Arabic, SAR in English", () => {
+    const money: ExportColumn<Row>[] = [{ header: "المبلغ", value: row => row.amount, kind: "money" }, { header: "الرمز", value: row => row.code }];
+    expect(buildExportLayout(money, rows, meta).headerRow).toEqual(["المبلغ (ريال)", "الرمز"]);
+    expect(buildExportLayout(money, rows, { ...meta, locale: "en" }).headerRow).toEqual(["المبلغ (SAR)", "الرمز"]);
+  });
+
+  it("a money cell inside a mixed column also labels the column, even when the column names no kind", () => {
+    const mixed: ExportColumn<Row>[] = [{ header: "القيمة", value: row => (row.progress === 1 ? { value: row.progress, kind: "percent" } : { value: row.amount, kind: "money" }) }];
+    expect(buildExportLayout(mixed, rows, meta).headerRow).toEqual(["القيمة (ريال)"]);
+  });
+
+  it("a per-cell currency is not an input: every money figure is the base currency", () => {
+    const cell = buildExportLayout<Row>([{ header: "المبلغ", value: () => ({ value: 5, kind: "money", currency: "USD" } as { value: number; kind: "money" }) }], [rows[0]], meta);
+    expect(cell.rows[0][0]).toEqual({ value: 5, kind: "money" });
+    expect(cell.headerRow).toEqual(["المبلغ (ريال)"]);
+  });
+
+  it("money is written as a plain figure in the file; the currency sits in the header", async () => {
+    const money: ExportColumn<Row>[] = [{ header: "المبلغ", value: row => row.amount, kind: "money" }];
+    const bytes = await buildTableWorkbook({ sheetName: "ريال", columns: money, rows: [rows[0]], meta });
     const { default: ExcelJS } = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(bytes);
-    const sheet = workbook.getWorksheet("عملات")!;
-    const dataRow = sheet.getRow(sheet.rowCount);
-    expect(dataRow.getCell(1).numFmt).toBe('#,##0.00 "USD"');
-    expect(dataRow.getCell(2).numFmt).toBe("#,##0.00");
+    const sheet = workbook.getWorksheet("ريال")!;
+    expect(sheet.getRow(sheet.rowCount).getCell(1).numFmt).toBe("#,##0.00");
   });
 });
 
@@ -107,7 +119,7 @@ describe("buildTableWorkbook (round trip)", () => {
 
     const headerRowNumber = sheet!.rowCount - rows.length;
     const header = sheet!.getRow(headerRowNumber).values as (string | undefined)[];
-    expect(header.slice(1)).toEqual(["الرمز", "المبلغ", "الاستحقاق", "التقدم", "ملاحظة"]);
+    expect(header.slice(1)).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم", "ملاحظة"]);
 
     const first = sheet!.getRow(headerRowNumber + 1);
     expect(first.getCell(2).value).toBe(1250.5);

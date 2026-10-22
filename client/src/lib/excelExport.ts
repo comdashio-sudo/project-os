@@ -5,14 +5,14 @@ export type ExportCellKind = "text" | "number" | "money" | "percent" | "date";
 
 export type ExportCellValue = string | number | Date | null | undefined;
 
-/** One cell with its own format, for a column that mixes kinds (a money figure and a margin) or currencies (riyal and dollar). */
-export type ExportCellSpec = { value: ExportCellValue; kind: ExportCellKind; currency?: string };
+/** One cell with its own format, for a column that mixes kinds (a money figure and a margin). */
+export type ExportCellSpec = { value: ExportCellValue; kind: ExportCellKind };
 
 export type ExportColumn<Row> = {
   /** The header as it appears on screen. */
   header: string;
   /** The value this row shows in the column. Pass numbers as numbers and dates as Date objects, never as formatted text.
-   *  Return an `ExportCellSpec` when one cell needs its own kind or currency. */
+   *  Return an `ExportCellSpec` when one cell needs its own kind. */
   value: (row: Row) => ExportCellValue | ExportCellSpec;
   /** Optional: how Excel formats every cell of the column. `percent` expects a fraction (0.25 shows as 25%). Inferred when omitted. */
   kind?: ExportCellKind;
@@ -26,7 +26,7 @@ export type ExportMeta = {
   locale: "ar" | "en";
 };
 
-export type ExportCell = { value: string | number | Date | null; kind: ExportCellKind; currency?: string };
+export type ExportCell = { value: string | number | Date | null; kind: ExportCellKind };
 
 export type ExportLayout = {
   /** The title block above the table: title, company, project, export date. */
@@ -47,11 +47,8 @@ function isCellSpec(value: unknown): value is ExportCellSpec {
   return typeof value === "object" && value !== null && !(value instanceof Date) && "kind" in value && "value" in value;
 }
 
-/** Three letters, upper case, or nothing: the code is written into the number format, so nothing else may reach it. */
-function sanitiseCurrency(code: string | undefined): string | undefined {
-  const clean = (code ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
-  return clean.length === 3 ? clean : undefined;
-}
+/** V1 decision (STATE.md): the company's base currency is the riyal. Every money figure is exported in it, and the header says so. */
+const BASE_CURRENCY: Record<"ar" | "en", string> = { ar: "ريال", en: "SAR" };
 
 function normalise(value: string | number | Date | null | undefined): string | number | Date | null {
   if (value === undefined || value === null) return null;
@@ -76,10 +73,15 @@ export function buildExportLayout<Row>(columns: readonly ExportColumn<Row>[], ro
   metaRows.push([labels.exported, isoDay(meta.exportedAt)]);
   const cells = rows.map(row => columns.map<ExportCell>(column => {
     const raw = column.value(row);
-    if (isCellSpec(raw)) return { value: normalise(raw.value), kind: raw.kind, currency: sanitiseCurrency(raw.currency) };
+    if (isCellSpec(raw)) return { value: normalise(raw.value), kind: raw.kind };
     return { value: normalise(raw), kind: column.kind ?? inferKind(raw) };
   }));
-  return { metaRows, headerRow: columns.map(column => column.header), rows: cells };
+  // A column that holds money carries the currency name in its header, so no figure is a bare number.
+  const headerRow = columns.map((column, index) => {
+    const hasMoney = column.kind === "money" || cells.some(row => row[index].kind === "money");
+    return hasMoney ? `${column.header} (${BASE_CURRENCY[meta.locale]})` : column.header;
+  });
+  return { metaRows, headerRow, rows: cells };
 }
 
 const SHEET_NAME_FORBIDDEN = /[\\/?*[\]:]/g;
@@ -92,11 +94,7 @@ export function sheetNameFor(name: string): string {
 
 const NUMBER_FORMAT: Partial<Record<ExportCellKind, string>> = { money: "#,##0.00", percent: "0.0%", date: "yyyy-mm-dd" };
 
-/** The format a cell gets. A money cell with a currency shows the code next to the figure, so a mixed column stays readable. */
-function formatFor(cell: ExportCell): string | undefined {
-  if (cell.kind === "money" && cell.currency) return `#,##0.00 "${cell.currency}"`;
-  return NUMBER_FORMAT[cell.kind];
-}
+
 
 /** The file name a download gets: a readable name plus the export day, so repeated exports do not overwrite each other. */
 export function exportFileName(base: string, exportedAt: Date): string {
@@ -124,7 +122,7 @@ export async function buildTableWorkbook<Row>(input: {
   for (const row of layout.rows) {
     const added = sheet.addRow(row.map(cell => cell.value));
     row.forEach((cell, index) => {
-      const format = formatFor(cell);
+      const format = NUMBER_FORMAT[cell.kind];
       if (format) added.getCell(index + 1).numFmt = format;
     });
   }

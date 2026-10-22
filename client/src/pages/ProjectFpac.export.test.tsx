@@ -81,8 +81,10 @@ describe("ProjectFpac export", () => {
     expect(input.rows.length).toBe(8);
     const margin = input.rows[5];
     expect(input.columns[0].value(margin)).toBe("Profit margin %");
-    expect(input.columns[1].value(margin)).toBeCloseTo(0.231);
-    expect(input.columns[1].value(input.rows[4])).toBe(300);
+    const marginCell = input.columns[1].value(margin) as { value: number; kind: string };
+    expect(marginCell).toMatchObject({ kind: "percent" });
+    expect(marginCell.value).toBeCloseTo(0.231);
+    expect(input.columns[1].value(input.rows[4])).toMatchObject({ value: 300, kind: "money" });
     expect(input.columns[4].value(input.rows[0])).toEqual(new Date("2026-10-01T00:00:00.000Z"));
     expect(input.columns[4].value(input.rows[1])).toBeNull();
   });
