@@ -1,0 +1,59 @@
+name: Bootstrap launch
+
+# One button (Actions ← Bootstrap launch ← Run workflow ← owner_email): sets up Supabase and Vercel for the launch, the way docs/GO_LIVE.md describes by hand.
+# Secrets (Settings ← Secrets and variables ← Actions): SUPABASE_ACCESS_TOKEN, VERCEL_TOKEN, SUPABASE_DB_PASSWORD.
+# Optional: VERCEL_TEAM_ID (only if the Vercel project lives under a team), STORAGE_S3_ACCESS_KEY_ID + STORAGE_S3_SECRET_ACCESS_KEY (the one step the API cannot do).
+# Guards: it works on ONE Supabase project (dzfxgxccnlyhcjgqstgn, organisation "dashio") and ONE Vercel project ("dashio", linked to comdashio-sudo/project-os);
+# it refuses and changes nothing otherwise, and never lists or reads any other project. Safe to run again.
+on:
+  workflow_dispatch:
+    inputs:
+      owner_email:
+        description: "بريد المالك (أول دخول به يجعله مدير المنصة)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-launch
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OWNER_EMAIL: ${{ inputs.owner_email }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.STORAGE_S3_ACCESS_KEY_ID }}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.STORAGE_S3_SECRET_ACCESS_KEY }}
+      BOOTSTRAP_STATE: ${{ runner.temp }}/bootstrap-state.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Supabase — guard, sign-in settings, Data API, keys, connection strings
+        run: node --import tsx scripts/bootstrap/run.ts supabase
+      - name: Database — migrate, restricted role, proof
+        run: node --import tsx scripts/predeploy.mjs
+      - name: Storage — private buckets
+        run: node scripts/setup-storage.mjs
+      - name: Database — verify security (read-only)
+        run: node --import tsx scripts/verify-db-security.mjs
+      - name: Vercel — project, variables, production deploy, health check
+        run: node --import tsx scripts/bootstrap/run.ts vercel
+      - name: Summary (Arabic, no secrets)
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: node --import tsx scripts/bootstrap/run.ts summary
