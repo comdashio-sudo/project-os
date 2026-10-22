@@ -1184,6 +1184,10 @@ export const projectErrorMessages = {
     ar: "في الإصدار الأول تُسجَّل كل المبالغ بالريال السعودي (SAR) وحده. اختر SAR.",
     en: "In this first version every amount is recorded in the Saudi riyal (SAR) only. Choose SAR.",
   },
+  PROJECT_OS_PAYMENT_SELF_APPROVAL_FORBIDDEN: {
+    ar: "من أعدّ الدفعة لا يعتمدها. يعتمدها شخص آخر يحمل صلاحية الاعتماد.",
+    en: "The person who prepared a payment cannot approve it. Another person with approval permission must approve it.",
+  },
   PROJECT_OS_TENDER_CURRENCY_NOT_SAR: {
     ar: "عروض المناقصات وحزمها بالريال السعودي (SAR) وحده في الإصدار الأول. اختر SAR.",
     en: "Tender packages and bids are in the Saudi riyal (SAR) only in this first version. Choose SAR.",

@@ -536,3 +536,18 @@
 | `projects.currency` يفترض USD | `OPEN` | `docs/AFTER_MIGRATION.md` القسم 13 (Z-2). |
 | هل تُعرض الشاشات بالريال | `BLOCKED_BY_OWNER` | القسم 13 (Z-3). |
 | قائمة EOS لا تُصدَّر (ليست جدولًا) | `OPEN` | لا تصدير لها بعد، فلا توجد أرقام مجردة منها في التصدير. |
+
+## الدفعة الأولى من البنود بعد النقل — 22 أكتوبر 2026
+
+| البند | التصنيف | ما تغيّر والدليل |
+|---|---|---|
+| العملة: `SAR` افتراضيًا و`CHECK` في الجداول الستة، وترحيلة `0001` تُرفع إن وُجد صف بغير SAR | `WRITTEN` | `drizzle/0001_currency_sar.sql`، `drizzle/schema.ts`، `drizzle/0000_baseline.sql` (أُعيد توليده). `AFTER_MIGRATION` القسم 14.1. |
+| العرض والتصدير بالريال | `WRITTEN` | `shared/` و`client/src/lib/profitabilityView.ts` وتسميات الشاشات. |
+| W-F: تثبيت القوالب عند إنشاء الشركة | `WRITTEN` | `server/db.ts` (`installOperationalRoleTemplates` في معاملتي الإنشاء). الشركات القديمة ما زالت تُثبَّت عند القراءة. |
+| الرموز الأربعة في الكتالوج، وفحص الاعتماد الذاتي للدفعة | `WRITTEN` | `server/domain/paymentApproval.ts`، و`shared/projectErrors.ts`. لا منح لأي قالب بعد. |
+| CLAUDE.md §5 (Supabase Auth) | `PROVEN` | مكتوب في `main` من #66. |
+| (أ) `project.create` لمدير المشروع التنفيذي و PMO_LEAD | `BLOCKED_BY_OWNER` | `AFTER_MIGRATION` القسم 14.2 (أ). |
+| (ب) سحب `project.write` من الأدوار المخصصة | `BLOCKED_BY_OWNER` | القسم 14.2 (ب). |
+| (ج) الشركات القديمة بلا قوالب | `BLOCKED_BY_OWNER` | القسم 14.2 (ج). |
+| (د) مسار ترقية R-1 | `OPEN` | القسم 14.2 (د). |
+| الترسية والتصميم والتصدير | `OPEN` | القسم 14.3، بعد التوقف الذي طلبه المالك. |
