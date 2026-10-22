@@ -17,6 +17,7 @@ import { createRequire } from "node:module";
 import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 
+const MAX_STOPS = Number(process.env.KEYBOARD_MAX_STOPS ?? 400); // a page with more focusable controls than this is reported, not assumed stuck: raise it to tell the two apart
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3100";
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
 if (dbUrl.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
@@ -55,7 +56,7 @@ for (const view of VIEWS) {
       const result = await (async () => {
         const findings = []; const seen = new Set(); let stops = 0, left = false, lastKey = null, repeats = 0;
         await page.evaluate(() => { document.activeElement?.blur?.(); window.scrollTo(0, 0); });
-        for (let stop = 0; stop < 400; stop++) {
+        for (let stop = 0; stop < MAX_STOPS; stop++) {
           await page.keyboard.press("Tab");
           const info = await page.evaluate(() => {
             const el = document.activeElement;
@@ -89,7 +90,7 @@ for (const view of VIEWS) {
           if (!info.named) findings.push({ kind: "NAMED", what: `no accessible name: ${info.described}` });
           if (!info.visible) findings.push({ kind: "VISIBLE", what: `no visible focus indicator: ${info.described}` });
         }
-        if (!left) findings.push({ kind: "TRAP", what: "focus neither left the page nor cycled within 400 Tab presses" });
+        if (!left) findings.push({ kind: "TRAP", what: `focus neither left the page nor cycled within ${MAX_STOPS} Tab presses` });
         const structure = await page.evaluate(() => {
           const out = [];
           const mains = document.querySelectorAll("main, [role=main]").length; if (mains !== 1) out.push({ kind: "LANDMARK", what: `${mains} main landmarks (expected 1)` });
