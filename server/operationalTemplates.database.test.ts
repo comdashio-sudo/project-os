@@ -87,7 +87,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("company templates on a r
   it("an administration read restores a company\x27s template roles exactly as the template defines them, and adds nothing else", async () => {
     // Simulate a link that an older company lacks: the read has always installed the template, so it is put back.
     const before = await rolePermissionsOf(tenantId);
-    await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId INNER JOIN permissions p ON p.id = rp.permissionId WHERE r.tenantId = ? AND r.code = FINANCE_MANAGER AND p.code = project.cost.enter", [tenantId]);
+    await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ? AND code = ?) AND permissionId IN (SELECT id FROM permissions WHERE code = ?)", [tenantId, "FINANCE_MANAGER", "project.cost.enter"]);
     expect((await rolePermissionsOf(tenantId)).get("FINANCE_MANAGER")).not.toContain("project.cost.enter");
 
     const administration = await owner.tenant.administration({ tenantId });
@@ -97,7 +97,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("company templates on a r
   });
 
   it("an administration read still gives the tenant owner every catalog power (the owner grant is kept)", async () => {
-    await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId INNER JOIN permissions p ON p.id = rp.permissionId WHERE r.tenantId = ? AND r.code = 'TENANT_OWNER' AND p.code = 'schedule.write'", [tenantId]);
+    await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ? AND code = ?) AND permissionId IN (SELECT id FROM permissions WHERE code = ?)", [tenantId, "TENANT_OWNER", "schedule.write"]);
     expect((await rolePermissionsOf(tenantId)).get("TENANT_OWNER")).not.toContain("schedule.write");
     await owner.tenant.administration({ tenantId });
     expect((await rolePermissionsOf(tenantId)).get("TENANT_OWNER")).toContain("schedule.write");
