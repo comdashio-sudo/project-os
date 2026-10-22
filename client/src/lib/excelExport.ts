@@ -3,12 +3,18 @@
 
 export type ExportCellKind = "text" | "number" | "money" | "percent" | "date";
 
+export type ExportCellValue = string | number | Date | null | undefined;
+
+/** One cell with its own format, for a column that mixes kinds (a money figure and a margin) or currencies (riyal and dollar). */
+export type ExportCellSpec = { value: ExportCellValue; kind: ExportCellKind; currency?: string };
+
 export type ExportColumn<Row> = {
   /** The header as it appears on screen. */
   header: string;
-  /** The value this row shows in the column. Pass numbers as numbers and dates as Date objects, never as formatted text. */
-  value: (row: Row) => string | number | Date | null | undefined;
-  /** Optional: how Excel formats the cell. `percent` expects a fraction (0.25 shows as 25%). Inferred when omitted. */
+  /** The value this row shows in the column. Pass numbers as numbers and dates as Date objects, never as formatted text.
+   *  Return an `ExportCellSpec` when one cell needs its own kind or currency. */
+  value: (row: Row) => ExportCellValue | ExportCellSpec;
+  /** Optional: how Excel formats every cell of the column. `percent` expects a fraction (0.25 shows as 25%). Inferred when omitted. */
   kind?: ExportCellKind;
 };
 
@@ -20,7 +26,7 @@ export type ExportMeta = {
   locale: "ar" | "en";
 };
 
-export type ExportCell = { value: string | number | Date | null; kind: ExportCellKind };
+export type ExportCell = { value: string | number | Date | null; kind: ExportCellKind; currency?: string };
 
 export type ExportLayout = {
   /** The title block above the table: title, company, project, export date. */
@@ -36,6 +42,16 @@ const LABELS = {
 
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 
+function isCellSpec(value: unknown): value is ExportCellSpec {
+  return typeof value === "object" && value !== null && !(value instanceof Date) && "kind" in value && "value" in value;
+}
+
+/** Three letters, upper case, or nothing: the code is written into the number format, so nothing else may reach it. */
+function sanitiseCurrency(code: string | undefined): string | undefined {
+  const clean = (code ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  return clean.length === 3 ? clean : undefined;
+}
+
 function normalise(value: string | number | Date | null | undefined): string | number | Date | null {
   if (value === undefined || value === null) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -43,8 +59,8 @@ function normalise(value: string | number | Date | null | undefined): string | n
   return value;
 }
 
-/** Inferred from the raw value, so an empty cell in a numeric column still formats as a number. */
-function inferKind(raw: string | number | Date | null | undefined): ExportCellKind {
+/** Used when the column names no kind: taken from the raw value. An empty cell is text, because it has nothing to format. */
+function inferKind(raw: ExportCellValue): ExportCellKind {
   if (typeof raw === "number") return "number";
   if (raw instanceof Date) return "date";
   return "text";
@@ -59,6 +75,7 @@ export function buildExportLayout<Row>(columns: readonly ExportColumn<Row>[], ro
   metaRows.push([labels.exported, isoDay(meta.exportedAt)]);
   const cells = rows.map(row => columns.map<ExportCell>(column => {
     const raw = column.value(row);
+    if (isCellSpec(raw)) return { value: normalise(raw.value), kind: raw.kind, currency: sanitiseCurrency(raw.currency) };
     return { value: normalise(raw), kind: column.kind ?? inferKind(raw) };
   }));
   return { metaRows, headerRow: columns.map(column => column.header), rows: cells };
@@ -73,6 +90,12 @@ export function sheetNameFor(name: string): string {
 }
 
 const NUMBER_FORMAT: Partial<Record<ExportCellKind, string>> = { money: "#,##0.00", percent: "0.0%", date: "yyyy-mm-dd" };
+
+/** The format a cell gets. A money cell with a currency shows the code next to the figure, so a mixed column stays readable. */
+function formatFor(cell: ExportCell): string | undefined {
+  if (cell.kind === "money" && cell.currency) return `#,##0.00 "${cell.currency}"`;
+  return NUMBER_FORMAT[cell.kind];
+}
 
 /** The file name a download gets: a readable name plus the export day, so repeated exports do not overwrite each other. */
 export function exportFileName(base: string, exportedAt: Date): string {
@@ -100,7 +123,7 @@ export async function buildTableWorkbook<Row>(input: {
   for (const row of layout.rows) {
     const added = sheet.addRow(row.map(cell => cell.value));
     row.forEach((cell, index) => {
-      const format = NUMBER_FORMAT[cell.kind];
+      const format = formatFor(cell);
       if (format) added.getCell(index + 1).numFmt = format;
     });
   }
@@ -119,5 +142,6 @@ export function downloadWorkbook(fileName: string, bytes: ArrayBuffer): void {
   anchor.href = url;
   anchor.download = fileName;
   anchor.click();
-  URL.revokeObjectURL(url);
+  // Some browsers cancel the download when the URL is revoked in the same tick as the click, so the revoke waits.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
