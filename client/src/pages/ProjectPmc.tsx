@@ -10,6 +10,8 @@ import { Link, useParams } from "wouter";
 import { PmcProgramme } from "./PmcProgramme";
 import { PmcSitePlan } from "./PmcSitePlan";
 import { WriteGate } from "@/lib/permissions";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
+import type { ExportColumn } from "@/lib/excelExport";
 
 const text = {
   ar: {
@@ -63,6 +65,57 @@ function Table({ headers, rows }: { headers: string[]; rows: Array<Array<React.R
 const heat = (percent: number) => ({ backgroundColor: `rgba(14, 107, 112, ${Math.min(1, percent / 100) * 0.6})` });
 const ageText = (t: T, days: number | null) => (days === null ? t.never : days === 0 ? t.today : t.daysAgo(days));
 
+/** The column helpers, bound to one row type. Passed to a `columns` callback so the row type is known before the lambdas are typed. */
+type Cols<Row> = {
+  number: (header: string, get: (row: Row) => number | null | undefined) => Col<Row>;
+  text: (header: string, get: (row: Row) => string | null | undefined, shown?: (row: Row) => React.ReactNode) => Col<Row>;
+  percent: (header: string, get: (row: Row) => number | null | undefined, heated?: boolean) => Col<Row>;
+  date: (header: string, get: (row: Row) => Date) => Col<Row>;
+};
+function helpersFor<Row>(): Cols<Row> {
+  return { number: numberCol, text: textCol, percent: percentCol, date: dateCol };
+}
+
+/** A screen table with its own Excel button beside the heading. `exportRows` (default: all rows) is what the file gets; subtotal rows stay on screen only. */
+function DataTable<Row>({ heading, exportAs, columns, rows, exportRows }: { heading?: React.ReactNode; exportAs: ExportAs; columns: (h: Cols<Row>) => Col<Row>[]; rows: readonly Row[]; exportRows?: readonly Row[] }) {
+  const list = columns(helpersFor<Row>());
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {heading ? <h3 className="font-semibold">{heading}</h3> : <span />}
+        <ExportExcelButton fileName={exportAs.file} sheetName={exportAs.sheet} title={exportAs.title} columns={list} rows={exportRows ?? rows} />
+      </div>
+      <Table headers={list.map(column => column.header)} rows={rows.map(row => list.map(column => column.cell(row)))} />
+    </div>
+  );
+}
+
+/** A table column: `value` is the raw figure the Excel file gets, `cell` is what the screen shows. One list drives both. */
+type Col<Row> = ExportColumn<Row> & { cell: (row: Row) => React.ReactNode };
+type ExportAs = { file: string; sheet: string; title: string };
+const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+function numberCol<Row>(header: string, get: (row: Row) => number | null | undefined): Col<Row> {
+  return { header, kind: "number", value: row => get(row) ?? null, cell: row => get(row) ?? "" };
+}
+function textCol<Row>(header: string, get: (row: Row) => string | null | undefined, shown?: (row: Row) => React.ReactNode): Col<Row> {
+  return { header, kind: "text", value: row => get(row) ?? null, cell: row => (shown ? shown(row) : (get(row) ?? "")) };
+}
+/** The screen holds percentages in points (25 means 25%); Excel gets the fraction 0.25 with a percent format. */
+function percentCol<Row>(header: string, get: (row: Row) => number | null | undefined, heated = false): Col<Row> {
+  return {
+    header, kind: "percent",
+    value: row => { const v = get(row); return v === null || v === undefined ? null : v / 100; },
+    cell: row => {
+      const v = get(row);
+      if (v === null || v === undefined) return "—";
+      return heated ? <span className="block rounded px-2 py-0.5" style={heat(v)}>{v}%</span> : `${v}%`;
+    },
+  };
+}
+function dateCol<Row>(header: string, get: (row: Row) => Date): Col<Row> {
+  return { header, kind: "date", value: get, cell: row => isoDay(get(row)) };
+}
+
 type Options = { zones: string[]; blocks: string[]; groups: string[]; stages: string[]; activities: string[] };
 type ScreenResult<D> = { data: D; freshness: Array<{ source: string; ageDays: number | null }>; options: Options };
 type Query<D> = { isLoading: boolean; error: unknown; data?: ScreenResult<D>; refetch: () => unknown };
@@ -80,73 +133,121 @@ function Frame<D>({ query, t, isArabic, isEmpty, children, onOptions }: { query:
   );
 }
 
-function ReplyTable({ title, rows, t }: { title: string; rows: Array<{ key: string; A: number; B: number; C: number; UR: number; pending: number; total: number }>; t: T }) {
-  return <div><h3 className="mb-1 font-semibold">{title}</h3><Table headers={["", "A", "B", "C", "UR", t.pendingReply, t.total]} rows={rows.map(r => [r.key, r.A, r.B, r.C, r.UR, r.pending, r.total])} /></div>;
+type ReplyRow = { key: string; A: number; B: number; C: number; UR: number; pending: number; total: number };
+function ReplyTable({ title, exportAs, rows, t }: { title: string; exportAs: ExportAs; rows: ReplyRow[]; t: T }) {
+  return <DataTable heading={title} exportAs={exportAs} rows={rows} columns={h => [
+    textCol<ReplyRow>("", r => r.key), numberCol<ReplyRow>("A", r => r.A), numberCol<ReplyRow>("B", r => r.B), numberCol<ReplyRow>("C", r => r.C),
+    numberCol<ReplyRow>("UR", r => r.UR), numberCol<ReplyRow>(t.pendingReply, r => r.pending), numberCol<ReplyRow>(t.total, r => r.total),
+  ]} />;
 }
+
+type MatrixCell = { count: number; weightPoints: number; sharePercent: number };
+/** One row of the activities matrix: a group subtotal (`label` null) or an activity under its group. */
+type MatrixRow = { groupName: string; label: string | null; cells: MatrixCell[] };
 
 function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
   const input = { tenantId, projectId, filters };
   const common = { t, isArabic, onOptions: onData };
+  /** Export names: the file gets the screen's tab and the table's name, e.g. pmc-approvals-requests-<date>.xlsx. */
+  const exp = (file: string, sheet: string): ExportAs => ({ file: `pmc-${tab}-${file}`, sheet, title: `${t.title} · ${sheet}` });
   if (tab === "latestUpdates") {
     const q = trpc.pmc.latestUpdates.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.engineers.length === 0}>{d => (<>
-      <Table headers={[t.engineer, t.updates, t.activeDays, t.unitRange, t.added]} rows={d.engineers.map(e => [e.name, e.updates, e.activeDays, `${e.unitFrom} – ${e.unitTo}`, `${e.addedProjectPercent}%`])} />
+      <DataTable exportAs={exp("engineers", t.engineer)} rows={d.engineers} columns={h => [
+        h.text(t.engineer, e => e.name), h.number(t.updates, e => e.updates), h.number(t.activeDays, e => e.activeDays),
+        h.text(t.unitRange, e => `${e.unitFrom} – ${e.unitTo}`), h.percent(t.added, e => e.addedProjectPercent),
+      ]} />
       <p className="text-sm">{t.total}: <b>{d.totals.updates}</b> · {t.added}: <b>{d.totals.addedProjectPercent}%</b></p>
-      <h3 className="font-semibold">{t.byGroup}</h3>
-      <Table headers={[t.engineer, t.group, t.updates, t.added]} rows={d.engineers.flatMap(e => e.byGroup.map(g => [e.name, g.groupName, g.updates, `${g.addedProjectPercent}%`]))} />
+      <DataTable heading={t.byGroup} exportAs={exp("by-group", t.byGroup)} rows={d.engineers.flatMap(e => e.byGroup.map(g => ({ engineer: e.name, group: g })))} columns={h => [
+        h.text(t.engineer, r => r.engineer), h.text(t.group, r => r.group.groupName), h.number(t.updates, r => r.group.updates), h.percent(t.added, r => r.group.addedProjectPercent),
+      ]} />
     </>)}</Frame>;
   }
   if (tab === "approvals") {
     const q = trpc.pmc.approvals.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.requests.length === 0}>{d => (<>
-      <Table headers={[t.request, t.activity, t.date, t.contractor, t.consultant, t.reply, t.units]} rows={d.requests.map(r => [r.code, r.activityCode, r.requestedAt.toISOString().slice(0, 10), r.contractor ?? "—", r.consultant ?? "—", r.response ?? t.pendingReply, r.units])} />
-      <ReplyTable title={t.perConsultant} rows={d.byConsultant} t={t} />
-      <ReplyTable title={t.perDay} rows={d.byDay} t={t} />
-      <ReplyTable title={t.perActivity} rows={d.byActivity} t={t} />
+      <DataTable exportAs={exp("requests", t.request)} rows={d.requests} columns={h => [
+        h.text(t.request, r => r.code), h.text(t.activity, r => r.activityCode), h.date(t.date, r => r.requestedAt),
+        h.text(t.contractor, r => r.contractor, r => r.contractor ?? "—"), h.text(t.consultant, r => r.consultant, r => r.consultant ?? "—"),
+        h.text(t.reply, r => r.response, r => r.response ?? t.pendingReply), h.number(t.units, r => r.units),
+      ]} />
+      <ReplyTable title={t.perConsultant} exportAs={exp("per-consultant", t.perConsultant)} rows={d.byConsultant} t={t} />
+      <ReplyTable title={t.perDay} exportAs={exp("per-day", t.perDay)} rows={d.byDay} t={t} />
+      <ReplyTable title={t.perActivity} exportAs={exp("per-activity", t.perActivity)} rows={d.byActivity} t={t} />
     </>)}</Frame>;
   }
   if (tab === "inspections") {
     const q = trpc.pmc.inspectionFlow.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.total === 0}>{d => (<>
-      <Table headers={[t.stage, t.count, t.percent]} rows={d.byStage.map(s => [t.stageNames[s.stage] ?? s.stage, s.count, `${s.percent}%`])} />
-      <h3 className="font-semibold">{t.heldBy}</h3>
-      <Table headers={[t.heldBy, t.count]} rows={d.heldBy.map(h => [h.holder, h.count])} />
-      <h3 className="font-semibold">{t.stalled}</h3>
-      <Table headers={[t.activity, t.open, t.oldestDays]} rows={d.stalledActivities.map(a => [`${a.activityCode} · ${a.activityName}`, a.open, a.oldestDays])} />
+      <DataTable exportAs={exp("by-stage", t.stage)} rows={d.byStage} columns={h => [
+        h.text(t.stage, s => t.stageNames[s.stage] ?? s.stage), h.number(t.count, s => s.count), h.percent(t.percent, s => s.percent),
+      ]} />
+      <DataTable heading={t.heldBy} exportAs={exp("held-by", t.heldBy)} rows={d.heldBy} columns={h => [h.text(t.heldBy, h => h.holder), h.number(t.count, h => h.count)]} />
+      <DataTable heading={t.stalled} exportAs={exp("stalled", t.stalled)} rows={d.stalledActivities} columns={h => [
+        h.text(t.activity, a => `${a.activityCode} · ${a.activityName}`), h.number(t.open, a => a.open), h.number(t.oldestDays, a => a.oldestDays),
+      ]} />
     </>)}</Frame>;
   }
   if (tab === "activities") {
     const q = trpc.pmc.activitiesMatrix.useQuery(input);
-    return <Frame {...common} query={q} isEmpty={d => d.groups.length === 0}>{d => (
-      <Table headers={[t.group, t.activity, ...d.columns.flatMap(c => [`${c.label} #`, `${c.label} ${t.weight}`, `${c.label} %`])]} rows={d.groups.flatMap(g => [[<b key={g.groupCode}>{g.groupName}</b>, "", ...g.cells.flatMap(c => [c.count, c.weightPoints, `${c.sharePercent}%`])], ...g.activities.map(a => ["", `${a.code} · ${a.name}`, ...a.cells.flatMap(c => [c.count, c.weightPoints, `${c.sharePercent}%`])])])} />
-    )}</Frame>;
+    return <Frame {...common} query={q} isEmpty={d => d.groups.length === 0}>{d => {
+      // Group rows are subtotals: they stay on screen, the file gets one row per activity with its group name filled in.
+      const matrixRows: MatrixRow[] = d.groups.flatMap(g => [
+        { groupName: g.groupName, label: null, cells: g.cells },
+        ...g.activities.map(a => ({ groupName: g.groupName, label: `${a.code} · ${a.name}`, cells: a.cells })),
+      ]);
+      const matrixColumns: Col<MatrixRow>[] = [
+        textCol<MatrixRow>(t.group, r => r.groupName, r => (r.label === null ? <b>{r.groupName}</b> : "")),
+        textCol<MatrixRow>(t.activity, r => r.label, r => r.label ?? ""),
+        ...d.columns.flatMap((c, i) => [
+          numberCol<MatrixRow>(`${c.label} #`, r => r.cells[i]?.count),
+          numberCol<MatrixRow>(`${c.label} ${t.weight}`, r => r.cells[i]?.weightPoints),
+          percentCol<MatrixRow>(`${c.label} %`, r => r.cells[i]?.sharePercent),
+        ]),
+      ];
+      return <DataTable exportAs={exp("activities", t.activity)} rows={matrixRows} exportRows={matrixRows.filter(r => r.label !== null)} columns={() => matrixColumns} />;
+    }}</Frame>;
   }
   if (tab === "zones") {
     const q = trpc.pmc.zonesView.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.rows.length === 0}>{d => (
-      <Table headers={[t.zone, t.stage, t.engineer, t.cells, t.complete, t.weight, t.completion]} rows={d.rows.map(r => [r.zoneCode, r.stageName, r.engineer ?? t.unassigned, r.cells, r.completeCells, r.weightComplete, <span key="c" className="block rounded px-2 py-0.5" style={heat(r.completionPercent)}>{r.completionPercent}%</span>])} />
+      <DataTable exportAs={exp("zones", t.zone)} rows={d.rows} columns={h => [
+        h.text(t.zone, r => r.zoneCode), h.text(t.stage, r => r.stageName), h.text(t.engineer, r => r.engineer, r => r.engineer ?? t.unassigned),
+        h.number(t.cells, r => r.cells), h.number(t.complete, r => r.completeCells), h.number(t.weight, r => r.weightComplete),
+        h.percent(t.completion, r => r.completionPercent, true),
+      ]} />
     )}</Frame>;
   }
   if (tab === "weekly" || tab === "monthly") {
     const q = tab === "weekly" ? trpc.pmc.weeklyReport.useQuery(input) : trpc.pmc.monthlyReport.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.periods.length === 0}>{d => (<>
-      <Table headers={[t.period, t.updates, t.added, t.byGroup, t.status]} rows={d.periods.map(p => [p.from, p.updates, `${p.addedProjectPercent}%`, p.byGroup.map(g => `${g.groupCode} ${g.addedProjectPercent}%`).join(" · "), p.byStatus.map(s => `${t.statuses[s.status]} ${s.updates}`).join(" · ")])} />
-      <Table headers={[t.period, t.engineer, t.activity, t.updates]} rows={d.periods.flatMap(p => p.rows.map(r => [p.from, r.engineer, r.activityCode, r.updates]))} />
+      <DataTable exportAs={exp("periods", t.period)} rows={d.periods} columns={h => [
+        h.text(t.period, p => p.from), h.number(t.updates, p => p.updates), h.percent(t.added, p => p.addedProjectPercent),
+        h.text(t.byGroup, p => p.byGroup.map(g => `${g.groupCode} ${g.addedProjectPercent}%`).join(" · ")),
+        h.text(t.status, p => p.byStatus.map(s => `${t.statuses[s.status]} ${s.updates}`).join(" · ")),
+      ]} />
+      <DataTable exportAs={exp("by-engineer", t.engineer)} rows={d.periods.flatMap(p => p.rows.map(r => ({ from: p.from, engineer: r.engineer, activityCode: r.activityCode, updates: r.updates })))} columns={h => [
+        h.text(t.period, r => r.from), h.text(t.engineer, r => r.engineer), h.text(t.activity, r => r.activityCode), h.number(t.updates, r => r.updates),
+      ]} />
     </>)}</Frame>;
   }
   if (tab === "pending") {
     const q = trpc.pmc.pendingAtVerifier.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.total === 0}>{d => (<>
       <p className="flex flex-wrap gap-2 text-sm"><b>{t.buckets}:</b>{d.buckets.map(b => <span key={b.label} className="rounded-full bg-slate-100 px-2 py-0.5">{b.label}: {b.count}</span>)}</p>
-      <Table headers={[t.unit, t.activity, t.verification, t.engineer, t.since, t.age]} rows={d.rows.map(r => [r.unitNumber, `${r.activityCode} · ${r.activityName}`, r.verificationStatus, r.engineer ?? t.unassigned, r.since.toISOString().slice(0, 10), r.ageDays])} />
+      <DataTable exportAs={exp("rows", t.unit)} rows={d.rows} columns={h => [
+        h.number(t.unit, r => r.unitNumber), h.text(t.activity, r => `${r.activityCode} · ${r.activityName}`), h.text(t.verification, r => r.verificationStatus),
+        h.text(t.engineer, r => r.engineer, r => r.engineer ?? t.unassigned), h.date(t.since, r => r.since), h.number(t.age, r => r.ageDays),
+      ]} />
     </>)}</Frame>;
   }
   const q = trpc.pmc.stagesView.useQuery(input);
   return <Frame {...common} query={q} isEmpty={d => d.stages.length === 0}>{d => (
     <div className="space-y-4">{d.stages.map(s => (
       <div key={s.stageCode}>
-        <h3 className="font-semibold">{s.stageName} <span className="text-xs font-normal text-slate-500">({s.total})</span></h3>
-        <Table headers={[t.status, t.count, t.weight, t.percent]} rows={s.byStatus.map(b => [t.statuses[b.status], b.count, b.weightPoints, <span key="p" className="block rounded px-2 py-0.5" style={heat(b.percent)}>{b.percent}%</span>])} />
+        <DataTable heading={<>{s.stageName} <span className="text-xs font-normal text-slate-500">({s.total})</span></>} exportAs={exp(`stage-${s.stageCode}`, s.stageName)} rows={s.byStatus} columns={h => [
+          h.text(t.status, b => t.statuses[b.status]), h.number(t.count, b => b.count), h.number(t.weight, b => b.weightPoints), h.percent(t.percent, b => b.percent, true),
+        ]} />
         <p className="mt-1 text-sm">{t.late}: {s.lateActivities.length === 0 ? t.noLate : s.lateActivities.map(a => `${a.activityCode} (${t.actual} ${a.actualPercent}% / ${t.planned} ${a.plannedPercent}%)`).join(" · ")}</p>
       </div>))}</div>
   )}</Frame>;
@@ -179,7 +280,10 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
         <div className="space-y-3" data-testid="import-report">
           <h3 className="font-semibold">{t.report}</h3>
           <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-emerald-50 px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-amber-50 px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{t.errorsFound}: {report.errorCount}</span></p>
-          {report.errors.length > 0 && <Table headers={[t.row, t.reason]} rows={report.errors.map(e => [e.rowNumber || "—", [e.code, e.field, e.detail].filter(Boolean).join(" · ")])} />}
+          {report.errors.length > 0 && <DataTable exportAs={{ file: "pmc-import-rejected-rows", sheet: t.errorsFound, title: `${t.title} · ${t.errorsFound}` }} rows={report.errors} columns={h => [
+            { header: t.row, kind: "number", value: e => e.rowNumber || null, cell: e => e.rowNumber || "—" },
+            h.text(t.reason, e => [e.code, e.field, e.detail].filter(Boolean).join(" · ")),
+          ]} />}
           {report.errorCount === 0 && !report.canConfirm && <p className="text-sm text-slate-600">{t.alreadyUpToDate}</p>}
           {confirm.data ? <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.saved}: {t.create} {confirm.data.counts.create} · {t.update} {confirm.data.counts.update}</p> : <Button className="min-h-[44px]" disabled={!report.canConfirm || confirm.isPending || !file} onClick={() => file && confirm.mutate({ tenantId, projectId, kind, format: file.format, base64: file.base64, approvedHash: report.fileHash })}>{t.confirm}</Button>}
         </div>

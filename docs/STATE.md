@@ -441,3 +441,14 @@
 | نوع المعرّفات `varchar(36)` | `WRITTEN` | القسم 9.4. |
 | مؤجَّل إلى ما بعد Pilot: التجربة والأسعار والمقاعد ومزوّد البريد | `BLOCKED_BY_OWNER` | القسم 9.5. |
 | `schedule.write` ينتظر الخادم بعد النقل | `OPEN` | القسم 9.2 (O-W4). |
+
+## أمر العمل 8: تصدير Excel من الواجهة — 22 أكتوبر 2026
+
+| البند | التصنيف | ما تغيّر والدليل |
+|---|---|---|
+| زر «تصدير إلى Excel» على الجداول الثماني المعروضة | `WRITTEN` | `client/src/components/ExportExcelButton.tsx` و`client/src/lib/excelExport.ts`؛ يصدّر الصفوف المعروضة بعد المرشحات بالعناوين نفسها، والأرقام أرقام والتواريخ تواريخ، والعملة في تنسيق الخلية، واسم الشركة والمشروع وتاريخ اليوم المحلي في الرأس. الشاشات: `CashFlowMonthly`، `EosLiabilityCard`، `PmcProgramme`، `PortfolioProfitability`، `ProjectFpac`، `ProjectInvoicesPanel`، `ProjectPmc`، `ProjectTenders`. |
+| الاختبارات | `PROVEN` | `excelExport.test.tsx` و`ExportExcelButton.test.tsx` و`*.export.test.tsx` لكل شاشة: الترويسات تطابق المعروض، وعدد الصفوف يطابق، والأرقام تُقرأ أرقامًا بعد الكتابة والقراءة. `pnpm test`: 171 ملفًا ناجحًا، 1318 اختبارًا ناجحًا، 285 متخطى (كانت 153 و1142 قبل أمر العمل 7). `pnpm check` و`pnpm build` ناجحان. |
+| ما لم يُصدَّر | `OPEN` | قوائم لا جداول (`ProjectFpac` للانحراف والتكلفة، و`EosLiabilityCard` لقائمة الموظفين). `ComponentShowcase` عرض للمكونات لا شاشة. `CashFlowMonthly` و`LabourLoadingCard` خارج الفحص. |
+| العملات | `OPEN` | `ProjectFpac` وقائمة EOS وجدول المناقصات لا يحملون عملة في الصف، فتُصدَّر أرقامًا مجردة. التصدير لا يحذّر. |
+| الخادم: قوالب الاستيراد، ومعاينة الفروق، ومعرّف الصف | `OPEN` | `docs/AFTER_MIGRATION.md` القسم 12 (X-1 إلى X-7). |
+| التحقق في متصفح حقيقي | `UNVERIFIED` | لم يُختبر التنزيل في المتصفح، ولا تخطيط الزر على الجوال. |

@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { type ExportColumn } from "@/lib/excelExport";
 import { ageSentence, formatMoney, formatPercent, sourceAnchor, sourceRoute, sparklinePoints, trend, type Source } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -78,6 +80,26 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
   const stale = data.freshness.level === "stale" && stalest;
   const staleAge = data.freshness.perSource.find(item => item.source === stalest)?.ageDays ?? null;
   const points = (history.data ?? []).map(item => item.fpac);
+  const projectTag = `${data.project.code} · ${data.project.name}`;
+  // Headline table. The Value column mixes money and the margin (a fraction, shown as a percent), so it is exported as a plain number.
+  const headlineRows = headline.status === "ok" ? headline.data.rows : [];
+  const headlineColumns: ExportColumn<(typeof headlineRows)[number]>[] = [
+    { header: t.figure, value: row => (t.rows[row.key] ?? [row.key, row.formula])[0], kind: "text" },
+    { header: t.value, value: row => (row.key === "margin" && row.value !== null ? row.value / 100 : row.value), kind: "number" },
+    { header: t.formula, value: row => (t.rows[row.key] ?? [row.key, row.formula])[1], kind: "text" },
+    { header: t.source, value: row => t.sources[row.source] ?? row.source, kind: "text" },
+    { header: t.asOf, value: row => (row.asOf ? new Date(row.asOf) : null), kind: "date" },
+  ];
+  // WBS drill-down. The whole-project totals row stays on screen only.
+  const drillItems = data.drill.status === "ok" ? data.drill.data.items : [];
+  const drillColumns: ExportColumn<(typeof drillItems)[number]>[] = [
+    { header: t.item, value: item => `${item.code} · ${item.name}`, kind: "text" },
+    { header: t.planned, value: item => item.planned, kind: "money" },
+    { header: t.actual, value: item => item.actual, kind: "money" },
+    { header: t.committed, value: item => item.committed, kind: "money" },
+    { header: t.forecast, value: item => item.forecast, kind: "money" },
+    { header: t.gap, value: item => item.variance, kind: "money" },
+  ];
 
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
@@ -97,7 +119,8 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-red-700" : "text-emerald-700"}`}>{money(headline.data.fpac)}</p>
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
           {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
-          <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التكلفة والقيمة" : "Cost and value table"}>
+          <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} /></div>
+          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التكلفة والقيمة" : "Cost and value table"}>
             <table className="w-full min-w-[34rem] text-start text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
@@ -166,7 +189,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         {data.freshness.percentWbsUpdated !== null && <li className="rounded-xl bg-slate-50 px-3 py-2">{t.percentWbs(data.freshness.percentWbsUpdated)}</li>}
       </ul>
 
-      <h3 className="mt-6 font-semibold">{t.drill}</h3>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.drill}</h3>{data.drill.status === "ok" && <ExportExcelButton fileName={`${data.project.code}-wbs-variance`} sheetName={t.drill} title={t.drill} project={projectTag} rows={drillItems} columns={drillColumns} />}</div>
       {data.drill.status === "ok" ? (
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
