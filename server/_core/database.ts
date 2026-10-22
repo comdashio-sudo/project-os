@@ -56,7 +56,11 @@ const settingsSql = (client: pg.PoolClient | pg.Client, context: DbContext) =>
 const textOf = (config: unknown): string => (typeof config === "string" ? config : String((config as { text?: string } | null)?.text ?? ""));
 
 /** A pooled client that installs the context right after a transaction begins (drizzle opens its transactions through this client). */
+const wrapped = new WeakSet<object>();
 function contextualClient(client: pg.PoolClient): pg.PoolClient {
+  // A pooled client is handed out again and again: wrap it once, or every checkout would add a layer to every later query.
+  if (wrapped.has(client)) return client;
+  wrapped.add(client);
   const original = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>;
   (client as unknown as { query: (...args: unknown[]) => Promise<unknown> }).query = async (...args: unknown[]) => {
     const result = await original(...args);
