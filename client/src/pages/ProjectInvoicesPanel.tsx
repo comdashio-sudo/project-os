@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { WriteGate } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { type ExportColumn } from "@/lib/excelExport";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -28,9 +30,18 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
   const move = trpc.projectInvoices.transitionStatus.useMutation({ onSuccess: () => { setPaying(null); list.refetch(); } });
   if (list.isLoading) return <p role="status" className="mt-6 text-sm text-slate-500">{t.loading}</p>;
   if (!list.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(list.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => list.refetch()}>{t.retry}</Button></div>;
+  const invoices = list.data;
+  // Status is exported as the same text the cell shows, including the payment day of a paid invoice.
+  const exportColumns: ExportColumn<(typeof invoices)[number]>[] = [
+    { header: t.number, value: invoice => invoice.invoiceNumber, kind: "text" },
+    { header: t.date, value: invoice => new Date(invoice.invoiceDate), kind: "date" },
+    { header: t.client, value: invoice => invoice.clientName, kind: "text" },
+    { header: t.total, value: invoice => Number(invoice.totalAmount), kind: "money" },
+    { header: t.status, value: invoice => `${t.statuses[invoice.status]}${invoice.status === "paid" && invoice.paidAt ? ` · ${t.paidOn} ${new Date(invoice.paidAt).toISOString().slice(0, 10)}` : ""}`, kind: "text" },
+  ];
   return (
     <section aria-label={t.title} className="mt-6" data-testid="invoices-panel">
-      <h3 className="font-semibold">{t.title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.title}</h3><ExportExcelButton fileName="project-invoices" sheetName={t.title} title={t.title} rows={invoices} columns={exportColumns} /></div>
       {list.data.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[40rem] text-sm">

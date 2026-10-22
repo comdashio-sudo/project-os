@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ProjectTenders } from "./ProjectTenders";
+import { buildTableWorkbook } from "@/lib/excelExport";
+
+vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
 const hoisted = vi.hoisted(() => {
   const state = { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, packageStatus: "closed" as string, comparable: 3 };
@@ -85,5 +88,56 @@ describe("ProjectTenders", () => {
   it("renders in English too", () => {
     state.arabic = false; render(<ProjectTenders tenantId="t1" projectId="p1" />);
     expect(screen.getByText("Tender packages")).toBeTruthy();
+  });
+});
+
+describe("ProjectTenders Excel export", () => {
+  let anchorClick: MockInstance;
+  beforeEach(() => {
+    state.arabic = true; state.calls = {}; state.packageStatus = "closed"; state.comparable = 3;
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:tenders"), revokeObjectURL: vi.fn() });
+    anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.mocked(buildTableWorkbook).mockClear();
+  });
+  afterEach(() => { cleanup(); anchorClick.mockRestore(); });
+
+  const openPackage = async () => { const user = userEvent.setup(); render(<ProjectTenders tenantId="t1" projectId="p1" />); await user.click(screen.getByRole("button", { name: "فتح الحزمة" })); return user; };
+  const exportComparison = async () => {
+    await openPackage();
+    const table = screen.getByRole("table");
+    fireEvent.click(within(table.closest("section") as HTMLElement).getByRole("button", { name: "تصدير إلى Excel" }));
+    await waitFor(() => expect(buildTableWorkbook).toHaveBeenCalledTimes(1));
+    return { table, input: vi.mocked(buildTableWorkbook).mock.calls[0]![0] };
+  };
+
+  it("puts the Excel button beside the comparison heading, in the same section as the table", async () => {
+    await openPackage();
+    expect(screen.getByRole("table")).toBeTruthy();
+    const section = screen.getByRole("table").closest("section") as HTMLElement;
+    expect(within(section).getByRole("button", { name: "تصدير إلى Excel" })).toBeTruthy();
+    expect(within(section).getByRole("heading", { level: 3, name: "مقارنة العروض وتسويتها" })).toBeTruthy();
+  });
+
+  it("exports the same headers as the table and the same three bids, withdrawn one included", async () => {
+    const { table, input } = await exportComparison();
+    expect(input.columns.map(column => column.header)).toEqual(Array.from(table.querySelectorAll("thead th"), th => th.textContent));
+    expect(input.rows).toHaveLength(table.querySelectorAll("tbody tr").length);
+    expect(input.rows).toHaveLength(3);
+    expect(input.sheetName).toBe("مقارنة العروض وتسويتها");
+  });
+
+  it("gives raw figures: money stays a number, a percentage is a fraction, a missing rank is empty", async () => {
+    const { input: { columns, rows } } = await exportComparison();
+    const value = (header: string, rowIndex: number) => columns.find(column => column.header === header)!.value(rows[rowIndex]!);
+    // rows come in the order the screen shows them: Supplier C (rank 1), Supplier A (rank 2), Supplier E (withdrawn)
+    expect(value("السعر", 1)).toBe(900000);
+    expect(value("بعد التسوية", 1)).toBe(1150000);
+    expect(value("فوق الأدنى", 1)).toBeCloseTo(0.211, 6);
+    expect(value("مقابل التقدير", 1)).toBeCloseTo(0.15, 6);
+    expect(value("مقابل التقدير", 0)).toBeCloseTo(-0.05, 6);
+    expect(value("الترتيب", 2)).toBeNull();
+    expect(value("المورد", 2)).toBe("Supplier E");
+    expect(columns.find(column => column.header === "فوق الأدنى")!.kind).toBe("percent");
+    expect(columns.find(column => column.header === "السعر")!.kind).toBe("money");
   });
 });

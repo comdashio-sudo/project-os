@@ -453,3 +453,14 @@
 | ترسية المالك دون تنفيذي وبلا معتمِد آخر | `BLOCKED_BY_OWNER` | `docs/specs/TENDERING.md` القسم 8، البند 7 (O-T7). |
 
 | الشخص الوحيد يرسّي باعتماد ذاتي بإقرار مكتوب وعلامة ظاهرة، والفصل الشخصي كامل إن وُجد غيره | `WRITTEN` | `docs/specs/TENDERING.md` القسم 2.14 والرمزان 30 و31، و`AFTER_MIGRATION` القسم 11 (O-T8 إلى O-T13). |
+
+## أمر العمل 8: تصدير Excel من الواجهة — 22 أكتوبر 2026
+
+| البند | التصنيف | ما تغيّر والدليل |
+|---|---|---|
+| زر «تصدير إلى Excel» على الجداول الثماني المعروضة | `WRITTEN` | `client/src/components/ExportExcelButton.tsx` و`client/src/lib/excelExport.ts`؛ يصدّر الصفوف المعروضة بعد المرشحات بالعناوين نفسها، والأرقام أرقام والتواريخ تواريخ، والعملة في تنسيق الخلية، واسم الشركة والمشروع وتاريخ اليوم المحلي في الرأس. الشاشات: `CashFlowMonthly`، `EosLiabilityCard`، `PmcProgramme`، `PortfolioProfitability`، `ProjectFpac`، `ProjectInvoicesPanel`، `ProjectPmc`، `ProjectTenders`. |
+| الاختبارات | `PROVEN` | `excelExport.test.tsx` و`ExportExcelButton.test.tsx` و`*.export.test.tsx` لكل شاشة: الترويسات تطابق المعروض، وعدد الصفوف يطابق، والأرقام تُقرأ أرقامًا بعد الكتابة والقراءة. `pnpm test`: 171 ملفًا ناجحًا، 1318 اختبارًا ناجحًا، 285 متخطى (كانت 153 و1142 قبل أمر العمل 7). `pnpm check` و`pnpm build` ناجحان. |
+| ما لم يُصدَّر | `OPEN` | قوائم لا جداول (`ProjectFpac` للانحراف والتكلفة، و`EosLiabilityCard` لقائمة الموظفين). `ComponentShowcase` عرض للمكونات لا شاشة. `CashFlowMonthly` و`LabourLoadingCard` خارج الفحص. |
+| العملات | `OPEN` | `ProjectFpac` وقائمة EOS وجدول المناقصات لا يحملون عملة في الصف، فتُصدَّر أرقامًا مجردة. التصدير لا يحذّر. |
+| الخادم: قوالب الاستيراد، ومعاينة الفروق، ومعرّف الصف | `OPEN` | `docs/AFTER_MIGRATION.md` القسم 12 (X-1 إلى X-7). |
+| التحقق في متصفح حقيقي | `UNVERIFIED` | لم يُختبر التنزيل في المتصفح، ولا تخطيط الزر على الجوال. |
