@@ -40,7 +40,8 @@ const LABELS = {
   en: { company: "Company", project: "Project", exported: "Exported on" },
 } as const;
 
-const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+/** The calendar day where the person is, not in UTC: an export made after 21:00 in Riyadh must not carry tomorrow's date. */
+const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 function isCellSpec(value: unknown): value is ExportCellSpec {
   return typeof value === "object" && value !== null && !(value instanceof Date) && "kind" in value && "value" in value;
