@@ -3,34 +3,37 @@
 **الحالة:** مواصفة بنائية (`WRITTEN`). لا تُعد دليل `PROVEN`، ولا تغيّر صفًا في `docs/STATE.md`.
 **الأساس:** الكود على الفرع `claude/wonderful-thompson-c3wdtm` عند `0826abc`. أسماء الجداول والأعمدة بمصطلحات PostgreSQL من `origin/feat/postgres-migration:drizzle/schema.ts` و`drizzle/0000_baseline.sql` و`drizzle/baseline-security.sql`.
 **المحرك:** PostgreSQL وفق `docs/ADR-0002-POSTGRES-SUPABASE-VERCEL.md` على `origin/feat/postgres-migration` (قرار المالك، 22 أكتوبر 2026). الفرع الحاكم `main` ما زال على MySQL/TiDB في `CLAUDE.md` و`docs/DECISIONS.md` (ADR-001)، فدمج ADR-0002 قرار مفتوح (البند 8.1، و`docs/AFTER_MIGRATION.md` G-1).
-**ما هو `PROPOSED`:** كل إجراء خادم أو جدول أو قيد أو رمز خطأ لا يوجد في الكود أو في المخطط الحالي. وما عداه مأخوذ من ملف ورد اسمه.
+**القرارات:** بنود المالك 5 و6 و9 و10 (22 أكتوبر 2026) مكتوبة في §1 بحالة `DECIDED`. ما عداها مفتوح في §8.
+**ما هو `PROPOSED`:** كل إجراء خادم أو جدول أو قيد أو رمز خطأ أو صلاحية لا يوجد في الكود أو في المخطط الحالي. وما عداه مأخوذ من ملف ورد اسمه.
 
 ## 1. الهدف والنطاق
 
 **الهدف:** أن تبدأ شركة جديدة العمل في أربع خطوات: إنشاء الشركة، ثم أول مشروع، ثم استيراد بيانات المشروع، ثم دعوة الفريق بالأدوار الجاهزة. كل خطوة تستعمل إجراء خادم موجودًا يفرض صلاحياته بنفسه، ولا يملك المعالج صلاحية خاصة به.
 
-**القرارات المحسومة (قرار المالك، 22 أكتوبر 2026):**
+**القرارات المحسومة:**
 1. **الترتيب:** الشركة، ثم أول مشروع، ثم الاستيراد، ثم دعوة المستخدمين بالقوالب. الخطوة التالية تتطلب ما قبلها (§3).
-2. **إنشاء أول مشروع:** يسمح به مالك الشركة (`TENANT_OWNER`)، ودور PMO (`PMO_LEAD`)، ودور التنفيذي (`EXECUTIVE`). الصلاحية المسوِّرة هي `project.write` كما يتحقق منها `createProjectForTenant` في `server/db.ts`. والقوالب الجاهزة تمنح `project.write` لهذه الأدوار الثلاثة بالضبط (§4).
-3. **الباقات:** المعالج متاح في كل باقة، ولا يعتمد عليها: ظهوره وخطواته الأربع وترتيبها لا تتوقف على الباقة التي اشترتها الشركة. لوحة التنفيذي (`/executive/:tenantId`) وحدها لباقة `EXECUTIVE`، ويفرضها `getExecutiveDashboard` بمنتج `EXECUTIVE` وصلاحية `executive.read`. الفجوة بين هذا القرار والكود (خطوتا المشروع والدعوة تطلبان منتجًا بعينه) في §8.2.
-4. **الدعوات:** تنتهي الدعوة بعد 7 أيام. الدعوة المنتهية تُعاد إرسالها بمدة جديدة وبالقالب نفسه، وإعادة الإرسال حدث مسجَّل في `audit_logs`. كل دعوة تحمل قالبًا (`role_id` إلى صف الدور المثبَّت للشركة)، ويأخذ المدعو صلاحيات القالب عند القبول. الحقلان `expires_at` و`status` بقيم `pending` و`accepted` و`expired` و`cancelled` مع قيد CHECK. يُعالج العيب S-4 في `docs/AFTER_MIGRATION.md`.
+2. **الدعوات:** تنتهي الدعوة بعد 7 أيام. الدعوة المنتهية تُعاد إرسالها بمدة جديدة وبالقالب نفسه، وإعادة الإرسال حدث مسجَّل في `audit_logs`. كل دعوة تحمل قالبًا (`role_id` إلى صف الدور المثبَّت للشركة)، ويأخذ المدعو صلاحيات القالب عند القبول. الحقلان `expires_at` و`status` بقيم `pending` و`accepted` و`expired` و`cancelled` مع قيد CHECK. يُعالج العيب S-4 في `docs/AFTER_MIGRATION.md`.
+3. **الباقات** (قرار المالك، 22 أكتوبر 2026، البند 5): **DECIDED**. المعالج متاح في كل باقة. الخطوات التي تسمح بها الخطة تُنفَّذ، والتي لا تسمح بها تُعرض مقفلة بسطر واحد يذكر الخطة التي تفتحها (§3). الخطوة المقفلة لا تُرسل: زرها معطَّل، والخادم يرفض الاستدعاء المباشر (§5، الصف 9). خطوة الدعوة متاحة في كل باقة، والأدوار المعروضة فيها هي أدوار منتجها ضمن الخطة. لوحة التنفيذي (`/executive/:tenantId`) تبقى لباقة `EXECUTIVE` وحدها، ويفرضها `getExecutiveDashboard` بمنتج `EXECUTIVE` وصلاحية `executive.read`.
+4. **إنشاء أول مشروع** (البند 6): **DECIDED**. تُنشأ المشاريع بصلاحية **جديدة منفصلة** `project.create`، يحملها `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` وحدهم. هي ليست `project.write`. الصلاحية غير موجودة في الكود (**PROPOSED**)، والكود يفحص `project.write` في `createProjectForTenant` (`server/db.ts`)، فالتغيير بند خادم PROPOSED (§4). يلغي هذا القرار اقتراح `PMO_LEAD` و`EXECUTIVE` بـ`project.write` (W-D في `docs/AFTER_MIGRATION.md`).
+5. **تعدد الشركات** (البند 9): **DECIDED**. يجوز أن ينتمي الحساب إلى أكثر من شركة. بعد تسجيل الدخول يختار الشخص الشركة من قائمة `tenant.mine`، وفيها خيار «إنشاء شركة جديدة». ويبقى المسار `/setup/{tenantId}` بعد إعادة التحميل. الواجهة الحالية تخفي الإنشاء بعد وجود شركة، والمقترح في §3 (**PROPOSED**).
+6. **المؤجَّل إلى ما بعد Pilot** (البند 10): **DECIDED**. مدة التجربة، والأسعار، وعدد المقاعد الافتراضي، ومزود بريد الإشعارات مؤجلة. كلها `BLOCKED_BY_OWNER` بالملاحظة «مؤجل إلى ما بعد Pilot» (§8). رسائل الدخول يرسلها **Supabase Auth**، وهو المزود الذي حدده المالك لرسائل الدخول. وتعارض ذلك مع `CLAUDE.md` §5 في §8.6.
 
 **داخل النطاق:**
-- إنشاء الشركة بالخطة وعدد المقاعد (`selfService.signup`)، أو اختيار شركة قائمة (`tenant.mine`).
+- إنشاء الشركة بالخطة وعدد المقاعد (`selfService.signup`)، أو اختيار شركة من حساب المستخدم (`tenant.mine`).
 - إنشاء أول مشروع أو اعتماد مشروع قائم (`projects.create`، `projects.list`).
 - عرض مكوّن الاستيراد `ProjectImports` للمشروع المعتمد، مع إمكان التخطي.
 - دعوة عضو بقالب ونطاق (المشروع المعتمد، أو الشركة كلها باختيار صريح)، وإعادة إرسال دعوة منتهية، وإلغاء دعوة، وعرض الدعوات، وقبول الدعوة من الرابط.
 
 **خارج النطاق:**
 - الفوترة والدفع. اختيار الخطة لا يحصّل مالًا.
-- الأسعار ومدة التجربة وعدد المقاعد الافتراضي: قرارات تجارية مفتوحة (§8.5).
+- الأسعار ومدة التجربة وعدد المقاعد الافتراضي: مؤجلة إلى ما بعد Pilot (§8.4).
 - استيراد البيانات وقواعده: `docs/IMPORT_EXPORT.md`. المعالج يعرض المكوّن فقط.
-- إرسال بريد الدعوة. الرابط يُعرض، ولا يرسل المعالج رسالة (§8.4).
-- تعدد الشركات لكل حساب (§8.6). ولوحة التنفيذي نفسها.
+- إرسال بريد الدعوة. الرابط يُعرض، ولا يرسل المعالج رسالة (§8.3).
+- لوحة التنفيذي نفسها.
 
-**تصحيح للنسخة السابقة:** خطوة المشروع تفرض `project.write` في الواجهة والخادم، لا `project.manage`، ويثبت ذلك `SetupWizard.access.test.tsx`، والبند P-6 في `docs/AFTER_MIGRATION.md` مُصلح. أما عيبا «اختيار المشروع لا يُحفظ» و«أعلام الاكتمال ثابتة» فما زالا قائمين (§3).
+**تصحيح للنسخة السابقة:** خطوة المشروع كانت تفرض `project.write` في الواجهة والخادم، ويثبت ذلك `SetupWizard.access.test.tsx` والبند P-6 في `docs/AFTER_MIGRATION.md`. وبالقرار 4 تصير `project.create` (PROPOSED). أما عيبا «اختيار المشروع لا يُحفظ» و«أعلام الاكتمال ثابتة» فما زالا قائمين (§3).
 
-**المصادر:** `client/src/pages/SetupWizard.tsx` (171 سطرًا، والمكوّنات `CompanyStep` و`ProjectStep` و`InviteStep`)، و`client/src/pages/SetupWizard.interaction.test.tsx` (5 اختبارات)، و`client/src/pages/SetupWizard.access.test.tsx` (4 اختبارات)، و`client/src/App.tsx` (`/setup` و`/setup/:tenantId` و`/invite/accept` و`withAuth`)، و`server/routers.ts` (`selfService` و`tenant` و`projects`)، و`server/db.ts`، و`server/domain/operationalRoles.ts`، و`server/domain/authorization.ts`، و`shared/projectErrors.ts`.
+**المصادر:** `client/src/pages/SetupWizard.tsx` (171 سطرًا، والمكوّنات `CompanyStep` و`ProjectStep` و`InviteStep`)، و`client/src/pages/SetupWizard.interaction.test.tsx` (5 اختبارات)، و`client/src/pages/SetupWizard.access.test.tsx` (4 اختبارات)، و`client/src/App.tsx` (`/setup` و`/setup/:tenantId` و`/invite/accept` و`withAuth`)، و`server/routers.ts` (`selfService` و`tenant` و`projects`)، و`server/db.ts`، و`server/domain/operationalRoles.ts`، و`server/domain/authorization.ts`، و`shared/projectErrors.ts`، و`shared/importPermissions.ts`.
 
 ## 2. الجداول والأعمدة والقيود والفهارس
 
@@ -40,12 +43,12 @@
 - `companies`: `id` varchar(36) PK، و`legal_name` varchar(255)، و`slug` varchar(120) وUNIQUE `companies_slug_unique`، و`status` (`companies_status`)، و`default_locale` (`companies_default_locale`، والقيمة `ar`). الصنف: جدول الشركات.
 - `subscriptions`، و`tenant_entitlements` (UNIQUE `tenant_entitlements_subscription_product_unique`)، و`tenant_licenses` (UNIQUE `tenant_licenses_subscription_unique`، و`seats` integer، و`trial_ends_at`). الصنف: جدول بـ`tenant_id`.
 - `self_service_signup_attempts`: صف لكل محاولة، ويُقرأ منه عدد آخر 24 ساعة بحد `selfSignupLimitPerDay` = 3 (`server/db.ts`). الصنف: عام، لأنه يُقرأ قبل وجود الشركة.
-- مدة التجربة 14 يومًا وسعر 0 مكتوبان في `createSelfServiceTenant`، وهما مفتوحان (§8.5).
+- مدة التجربة 14 يومًا وسعر 0 مكتوبان في `createSelfServiceTenant`، وهما مؤجلان إلى ما بعد Pilot (§8.4). لا يحد `createSelfServiceTenant` عدد الشركات للحساب (البند 9).
 
 ### 2.2 العضويات والأدوار (الخطوة 1)
 - `memberships`: UNIQUE `memberships_tenant_user_unique` على (`tenant_id`, `user_id`)، و`status` (`memberships_status`: `invited`، `active`، `suspended`، `revoked`).
 - `roles`: UNIQUE `roles_tenant_code_unique` على (`tenant_id`, `code`)، و`system_managed` boolean. هذه صفوف القوالب المثبتة للشركة. الصنف: جدول بـ`tenant_id`.
-- `permissions`: جدول عام، UNIQUE `permissions_code_unique`. `project.write` فيه من `ownerPermissions` في `server/db.ts`.
+- `permissions`: جدول عام، UNIQUE `permissions_code_unique`. `project.write` فيه من `ownerPermissions` في `server/db.ts`. و`project.create` (PROPOSED، البند 6، منتجها `PROJECT`) تُضاف إلى الكتالوج نفسه فتُدرج في `permissions` عند تثبيت القوالب.
 - `role_permissions`: PK (`role_id`, `permission_id`)، صنفه فرعي عبر `roles`.
 - `membership_roles`: UNIQUE `membership_roles_scope_unique` على (`membership_id`, `role_id`, `scope_type`, `scope_id`)، صنفه فرعي عبر `memberships`.
 - **تثبيت القوالب (PROPOSED، عيب S-6):** `ensureTenantOperationalRoles` يُستدعى اليوم من `getTenantAdministration`، وهو استعلام قراءة يكتب دون تدقيق. المقترح أن تُثبَّت القوالب في معاملة `createSelfServiceTenant` نفسها، مع صف `tenant.role_templates_installed`، وأن يصبح `getTenantAdministration` قراءة فقط. الشركات القائمة تحتاج ترحيل بيانات لمرة واحدة. بدون ذلك لا تجد الخطوة 4 قوالب قبل فتح شاشة الإدارة.
@@ -143,16 +146,19 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 ## 3. الشاشات
 
 **المسارات:** `/setup` بلا شركة، و`/setup/:tenantId` لشركة محددة، ويحميهما `withAuth` (`client/src/App.tsx`). رابط القبول `/invite/accept?token=` خارج المعالج.
+**اختيار الشركة بعد الدخول (البند 9، PROPOSED):** يعرض `/setup` أولًا قائمة شركات الحساب من `tenant.mine`، وفيها «إنشاء شركة جديدة». الواجهة اليوم تُظهر المعالج لشركة واحدة وتخفي الإنشاء بعد وجودها، وهذا يُغيَّر. الاختيار يُكتب في المسار `/setup/:tenantId`، فيبقى بعد إعادة التحميل.
 **الخطوة الحالية:** في الهاش `#company` أو `#project` أو `#import` أو `#invite` (دالة `goto` في `SetupWizard.tsx`). المشروع المعتمد **PROPOSED** في `?project=<id>`، وهذا يعالج عيب «اختيار المشروع لا يُحفظ».
 **الترويسة:** العنوان «معالج الإعداد لأول شركة»، والعربية والإنجليزية بمفتاح `isArabic`. شريط الخطوات، وكل خطوة في `SectionErrorBoundary` مستقل. الخطوات 2 إلى 4 لا تُفتح بلا شركة في المسار (الزر معطَّل).
 
 | الخطوة | من يراها | ما تفعله | الحالة الفارغة أو التحميل |
 |---|---|---|---|
-| 1. الشركة | كل مستخدم تحقق من بريده (§4) | تختار خطة من `selfService.plans`، وتكتب الاسم القانوني والمعرّف (`^[a-z0-9]+(-[a-z0-9]+)*$`، 3 أحرف على الأقل) والمقاعد (الافتراضي 5)، ثم «إنشاء الشركة». النجاح يوجّه إلى `/setup/{tenantId}#project`. أو تختار شركة قائمة من `tenant.mine` فيظهر إقرار بأنها أُنشئت. | الخطط: «جارٍ التحميل…». بلا خطط: الإرسال معطَّل ويظهر «اختر خطة» |
-| 2. أول مشروع | من يملك `project.write` (§4) | يعرض مشاريع الشركة (`projects.list`) مع زر «اعتمد هذا المشروع». ينشئ مشروعًا بالرمز والاسم والنوع (الافتراضي «إنشاءات») والعملة (الافتراضي `SAR` في الواجهة، والخادم يطلب 3 أحرف ويحوّلها للكبيرة). المشروع الوحيد يُعتمد تلقائيًا. | «لا مشروع بعد: أنشئ أول مشروع.» ولمن لا يملك الصلاحية يظهر نص `WriteGate` بدل النموذج |
-| 3. الاستيراد | من يملك صلاحية الوحدة (`shared/importPermissions.ts`) | يعرض `ProjectImports` للمشروع المعتمد. زر «تخطَّ هذه الخطوة الآن» ينقل إلى الدعوة دون كتابة | `role="status"`: «اختر المشروع في الخطوة السابقة أولًا.» |
-| 4. دعوة الفريق | من يملك `tenant.manage` مع منتج `EXECUTIVE` حاليًا (§8.2) | يختار بريدًا ودورًا من القوالب (بلا `TENANT_OWNER`) ونطاقًا: المشروع المعتمد افتراضيًا، أو الشركة كلها باختيار صريح. يعرض بطاقة الغرض والتركيز والحد الفاصل للدور. بعد الإرسال يعرض الرابط **مرة واحدة**. وتعرض قائمة الدعوات من `tenant.listInvitations` (PROPOSED) بالحالة والانتهاء، مع «أعد الإرسال» للمنتهية و«ألغِ» للمعلقة والمنتهية | «لا أدوار متاحة.» وعند فشل القراءة يظهر `role="alert"` بسبب الخطأ |
+| 1. الشركة | كل مستخدم تحقق من بريده (§4) | تختار خطة من `selfService.plans`، وتكتب الاسم القانوني والمعرّف (`^[a-z0-9]+(-[a-z0-9]+)*$`، 3 أحرف على الأقل) والمقاعد (الافتراضي 5، مؤجل في §8.4)، ثم «إنشاء الشركة». النجاح يوجّه إلى `/setup/{tenantId}#project`. أو تختار شركة من `tenant.mine` | الخطط: «جارٍ التحميل…». بلا خطط: الإرسال معطَّل ويظهر «اختر خطة» |
+| 2. أول مشروع | من يملك `project.create` (§4)، والخطة تشمل `PROJECT` (البند 5) | يعرض مشاريع الشركة (`projects.list`) مع زر «اعتمد هذا المشروع». ينشئ مشروعًا بالرمز والاسم والنوع (الافتراضي «إنشاءات») والعملة (الافتراضي `SAR` في الواجهة، والخادم يطلب 3 أحرف ويحوّلها للكبيرة). المشروع الوحيد يُعتمد تلقائيًا. | «لا مشروع بعد: أنشئ أول مشروع.» ولمن لا يملك الصلاحية يظهر نص `WriteGate` بدل النموذج. وفي خطة بلا `PROJECT` تظهر الخطوة مقفلة (سطر واحد) |
+| 3. الاستيراد | من يملك صلاحية الوحدة (`shared/importPermissions.ts`)، والخطة تشمل `PROJECT` لميزة `DATA_IMPORT` | يعرض `ProjectImports` للمشروع المعتمد. زر «تخطَّ هذه الخطوة الآن» ينقل إلى الدعوة دون كتابة | `role="status"`: «اختر المشروع في الخطوة السابقة أولًا.» وفي خطة بلا `PROJECT` تظهر مقفلة |
+| 4. دعوة الفريق | من يملك `tenant.manage`. **لا تُقفل الخطوة في أي باقة** (البند 5) | يختار بريدًا ودورًا من أدوار منتجها ضمن الخطة (بلا `TENANT_OWNER`)، ونطاقًا: المشروع المعتمد افتراضيًا، أو الشركة كلها باختيار صريح. يعرض بطاقة الغرض والتركيز والحد الفاصل للدور. بعد الإرسال يعرض الرابط **مرة واحدة**. وتعرض قائمة الدعوات من `tenant.listInvitations` (PROPOSED) بالحالة والانتهاء، مع «أعد الإرسال» للمنتهية و«ألغِ» للمعلقة والمنتهية | «لا أدوار متاحة.» وعند فشل القراءة يظهر `role="alert"` بسبب الخطأ |
 | الإنهاء | من وصل إلى الخطوة 4 | رابط «إنهاء الإعداد والانتقال إلى المشروع» إلى `/projects/{tenantId}/{projectId}/controls` | بلا مشروع: الرابط معطَّل مع نص «اختر المشروع أولًا.» |
+
+**القفل حسب الخطة (البند 5):** الخطوة المقفلة تظهر بسطر واحد يذكر الخطة التي تفتحها، مثل «مقفلة: تفتحها باقة تشمل منتج PROJECT» مع اسم أدنى باقة تشمله من `selfService.plans`. زر التالي والإرسال فيها معطَّلان، ولا يُنفَّذ فيها شيء. الخطة التي لا تشمل `PROJECT` (مثل `PMO_STANDARD`) تقفل خطوتي المشروع والاستيراد، وتبقي الشركة والدعوة مفتوحتين، والدعوة تعرض أدوار خطتها فقط.
 
 **الحالة المقروءة للخطوات (PROPOSED، بدل الأعلام الثابتة):** تُعلَّم الخطوة مكتملة من بيانات الخادم: الشركة إذا كانت في `tenant.mine`؛ والمشروع إذا كان المعتمد في `projects.list`؛ والاستيراد إذا وُجد صف في `data_imports` للمشروع بحالة `completed`؛ والدعوة إذا وُجد أي صف في `membership_invitations` للشركة. اليوم `complete.import` و`complete.invite` ثابتتان على `false` في `SetupWizard.tsx`.
 
@@ -165,26 +171,28 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 | الإجراء | ما يفحصه الخادم | ما تُظهره الواجهة | ملاحظة |
 |---|---|---|---|
 | قراءة الخطط | مستخدم مسجل (`protectedProcedure`) | القائمة | `getPublicCommercialPlans` |
-| إنشاء الشركة | تحقق البريد بطريقة `email` أو `google` (`VERIFIED_LOGIN_METHODS` في `server/domain/loginMethods.ts`)، وخطة فعالة، ومعرّف غير مستعمل، وأقل من 3 محاولات في 24 ساعة | النموذج بلا بوابة صلاحية | لا دور قبل وجود الشركة |
-| إنشاء المشروع | `assertTenantAccess` بمنتج `PROJECT` وصلاحية `project.write` (`createProjectForTenant`)، ثم سقف المشاريع في الترخيص (`assertTenantProjectCapacity`) | `WriteGate permission="project.write"` في `ProjectStep` | المنتج `PROJECT` شرط في الخادم (§8.2) |
-| الاستيراد | صلاحية الوحدة من `importModulePermissions` (`shared/importPermissions.ts`)، والباقي بـ`anyImportPermission` (`server/db.ts`) | رفع الملفات يظهر لمن يحمل الصلاحية | تفاصيل الاستيراد في `docs/IMPORT_EXPORT.md` |
-| قراءة الأعضاء والقوالب | `tenant.manage` مع منتج `EXECUTIVE` (`getTenantAdministration`) | القائمة | تصبح قراءة فقط بعد PROPOSED في §2.2 |
-| إنشاء الدعوة، وإعادة الإرسال، والإلغاء، والقائمة | `assertTenantManager` (`tenant.manage` مع `EXECUTIVE`)، والدور للشركة (`assertTenantScopeOwnership`)، ومنتج الدور مرخّص (`assertRoleProductEntitled`)، ومقعد متاح | `WriteGate permission="tenant.manage"` | إعادة الإرسال والإلغاء والقائمة PROPOSED |
+| إنشاء الشركة | تحقق البريد بطريقة `email` أو `google` (`VERIFIED_LOGIN_METHODS` في `server/domain/loginMethods.ts`)، وخطة فعالة، ومعرّف غير مستعمل، وأقل من 3 محاولات في 24 ساعة | النموذج بلا بوابة صلاحية | لا دور قبل وجود الشركة. لا حد لعدد الشركات لكل حساب (البند 9) |
+| اختيار الشركة (PROPOSED) | الشركة من `tenant.mine` للمستخدم، وإلا `PROJECT_OS_TENANT_ACCESS_DENIED` | قائمة الشركات | يُفحص في الخادم لا في الواجهة وحدها (البند 9) |
+| إنشاء المشروع | `assertTenantAccess` بمنتج `PROJECT` وصلاحية **`project.create`** (PROPOSED، البند 6، بدل `project.write` في `createProjectForTenant`)، ثم سقف المشاريع في الترخيص (`assertTenantProjectCapacity`) | `WriteGate permission="project.create"` في `ProjectStep` | المنتج `PROJECT` شرط في الخادم وشرط للخطوة (البند 5) |
+| الاستيراد | صلاحية الوحدة من `importModulePermissions` (`shared/importPermissions.ts`)، والمنتج `PROJECT` وميزة `DATA_IMPORT`، والباقي بـ`anyImportPermission` (`server/db.ts`) | رفع الملفات يظهر لمن يحمل الصلاحية، والخطوة مقفلة بلا `PROJECT` | تفاصيل الاستيراد في `docs/IMPORT_EXPORT.md` |
+| قراءة الأعضاء والقوالب | `tenant.manage` مع منتج `EXECUTIVE` (`getTenantAdministration`) | القائمة | شاشة الإدارة لا خطوة المعالج. تصبح قراءة فقط بعد PROPOSED في §2.2 |
+| إنشاء الدعوة، وإعادة الإرسال، والإلغاء، والقائمة | `assertTenantManager` (`tenant.manage`، ومنتج `EXECUTIVE` اليوم)، والدور للشركة (`assertTenantScopeOwnership`)، ومنتج الدور مرخّص (`assertRoleProductEntitled`)، ومقعد متاح | `WriteGate permission="tenant.manage"`، والقائمة مفلترة بأدوار الخطة | **PROPOSED (البند 5):** لا يُشترط منتج `EXECUTIVE` في خطوة الدعوة، والحاجز الفعلي منتج الدور. `assertTenantManager` يحرس أيضًا إدارة الأدوار، فالتغيير يحتاج قرارًا تقنيًا قبل التنفيذ. إعادة الإرسال والإلغاء والقائمة PROPOSED |
 | قبول الدعوة | مستخدم مسجل بالبريد نفسه، والدعوة `pending` وغير منتهية، وليست عضوية قائمة، ومقعد متاح | صفحة `/invite/accept` | المستخدم ليس عضوًا بعد، فيُقرأ صف الدعوة بسياق نظام صريح (`withSystemContext`، ADR-0002)، ويبقى الفحص بالتجزئة والبريد |
-| دعوة `TENANT_OWNER` | الخادم يقبلها اليوم | تُخفى من القائمة | §8.3 |
+| دعوة `TENANT_OWNER` | الخادم يقبلها اليوم | تُخفى من القائمة | §8.2 |
 
-**القوالب ومنح `project.write` (القرار 2):** المصفوفة الحالية في `operationalRoleDefinitions` (`server/domain/operationalRoles.ts`، سبعة عشر قالبًا):
+**القوالب ومنح `project.create` (البند 6):** المصفوفة الحالية في `operationalRoleDefinitions` (`server/domain/operationalRoles.ts`، سبعة عشر قالبًا):
 
-| القالب | `project.write` اليوم | المقترح |
+| القالب | `project.create` اليوم | المقترح |
 |---|---|---|
-| `TENANT_OWNER` (ليس في القائمة، ويثبته الخادم) | نعم، من `ownerPermissions` | نعم |
-| `PMO_LEAD` (منتج `PMO`) | لا: يحمل `pmo.read` و`pmo.write` | **نعم (PROPOSED)** |
-| `EXECUTIVE` (منتج `EXECUTIVE`) | لا: يحمل `executive.read` | **نعم (PROPOSED)** |
-| `PROJECT_MANAGER` | لا: يحمل `project.manage` | لا، يبقى كما هو (القرار يقصر الإنشاء على الثلاثة) |
+| `TENANT_OWNER` (ليس في القائمة، ويثبته الخادم) | لا (يحمل `project.write` من `ownerPermissions`) | **نعم** (PROPOSED)، مع `project.write` |
+| `PMO_LEAD` (منتج `PMO`) | لا: يحمل `pmo.read` و`pmo.write` | **نعم** (PROPOSED)، دون `project.write` |
+| `EXECUTIVE` (منتج `EXECUTIVE`) | لا: يحمل `executive.read` | **نعم** (PROPOSED)، دون `project.write` |
+| `PROJECT_MANAGER` | لا: يحمل `project.manage` | لا (البند 6) |
 | الأدوار الأربعة عشر الأخرى | لا | لا |
 
-التغيير المقترح سطران في `operationalRoleDefinitions` يضيفان `project.write` إلى `PMO_LEAD` و`EXECUTIVE`. ويُحدَّث `docs/specs/ROLE_TEMPLATES.md` (السطر 154 يقول إن لا قالب يمنح `project.write`، وتعدّ المواصفة القوالب «ثمانية» بينما الكود فيه سبعة عشر). ويضاف اختبار وحدة يثبت أن الحاملين له هم `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` وحدهم.
-**ملاحظة على المنتج:** كل من `PMO_LEAD` و`EXECUTIVE` أحادي المنتج اسمًا، لكن `assertTenantAccess` (`server/domain/authorization.ts`) لا يفحص منتج الدور، بل منتجات الشركة المرخّصة وصلاحيات الأدوار. فالشرط الفعلي لإنشاء المشروع هو ترخيص `PROJECT` للشركة (§8.2).
+التغيير المقترح: إضافة `project.create` (منتجها `PROJECT`) إلى `ownerPermissions` في `server/db.ts`، ومنحها لـ`PMO_LEAD` و`EXECUTIVE` في `server/domain/operationalRoles.ts`، واستبدال الفحص في `createProjectForTenant` بـ`project.create`. ويُضاف اختبار وحدة يثبت أن الحاملين لها هم `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` وحدهم. ويُحدَّث `docs/specs/ROLE_TEMPLATES.md`: السطر 177 يقول إن `project.write` لا يحمله إلا `TENANT_OWNER`، وإضافة `project.create` تغيّر مصفوفته.
+
+**ملاحظة على المنتج:** `assertTenantAccess` (`server/domain/authorization.ts`) لا يفحص منتج الدور، بل ترخيص الشركة وصلاحيات الدور. فالشرط الفعلي لإنشاء المشروع ترخيص `PROJECT` للشركة، والخطة التي لا تشمله تقفل الخطوة (البند 5).
 
 ## 5. حالات الرفض
 
@@ -199,8 +207,8 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 | 5 | 1 | أكثر من 3 محاولات في 24 ساعة | TOO_MANY_REQUESTS | `PROJECT_OS_SIGNUP_RATE_LIMITED` | رسالة الحد، ولا يُكتب صف |
 | 6 | 1 | المقاعد خارج 1 إلى 100000 | BAD_REQUEST | `PROJECT_OS_REQUEST_FAILED` | «تعذر إتمام الطلب. تحقق من البيانات» |
 | 7 | 1 | فشل المعاملة | INTERNAL_SERVER_ERROR | `PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE` | رسالة الخدمة غير المتاحة، والخطأ يُسجَّل بلا بيانات شخصية |
-| 8 | 2 | بلا `project.write` | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` | نص `WriteGate` قبل النموذج، وعند الإرسال رسالة الخادم |
-| 9 | 2 | الشركة بلا منتج `PROJECT` مرخّص | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص. الخادم يرمي نصًا إنجليزيًا «not licensed» تطابقه الواجهة (`getProjectError`). PROPOSED: رمي الرمز من الخادم |
+| 8 | 2 | بلا `project.create` (ومعها `project.write` أو `project.manage` وحدهما لا تكفي) | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` | نص `WriteGate` قبل النموذج، وعند الإرسال رسالة الخادم. الصلاحية المطلوبة هي `project.create` (PROPOSED، البند 6) |
+| 9 | 2 و3 | الشركة بلا منتج `PROJECT` مرخّص، فتُقفل الخطوة (البند 5)، وكذلك إرسال خطوة مقفلة باستدعاء مباشر | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | سطر القفل، والزر معطَّل. الخادم يرمي نصًا إنجليزيًا «not licensed» تطابقه الواجهة (`getProjectError`). PROPOSED: رمي الرمز من الخادم |
 | 10 | 2 | الترخيص لا يتيح المشاريع | FORBIDDEN | `PROJECT_OS_LICENSE_FEATURE_NOT_AVAILABLE` | رسالة الترخيص |
 | 11 | 2 | بلوغ سقف المشاريع في الترخيص | FORBIDDEN | `PROJECT_OS_LICENSE_LIMIT_EXCEEDED` | رسالة السقف |
 | 12 | 2 | رمز مكرر في الشركة (SQLSTATE `23505`) | CONFLICT | `PROJECT_OS_PROJECT_DUPLICATE` (PROPOSED، S-5) | «رمز المشروع مستعمل في هذه الشركة»، بدل خطأ الخادم العام اليوم |
@@ -211,8 +219,8 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 | 17 | 3 | تكرار مكتشف | CONFLICT | `PROJECT_OS_IMPORT_DUPLICATE_DETECTED` | رسالة التكرار |
 | 18 | 3 | تأكيد استيراد غير جاهز | BAD_REQUEST | `PROJECT_OS_IMPORT_NOT_CONFIRMABLE` | رسالة عدم الجاهزية |
 | 19 | 3 | الملف فوق 50 MB (HTTP 413، خارج إجراءات tRPC) | — | `PROJECT_OS_REQUEST_TOO_LARGE` | رسالة الحجم. الرفع المباشر بعنوان موقّع (ADR-0002) |
-| 20 | 4 | منتج `EXECUTIVE` غير مرخّص (`assertTenantManager`) | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة في تنبيه الخطوة 4 (§8.2) |
-| 21 | 4 | دور من منتج غير مرخّص (`assertRoleProductEntitled`) | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص في تنبيه الخطوة 4 |
+| 20 | 4 | منتج `EXECUTIVE` غير مرخّص (`assertTenantManager` اليوم) | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رفض يزول بعد البند 5 (PROPOSED)، فلا تُقفل الدعوة بمنتج `EXECUTIVE`. يبقى الرفض للدور بلا منتج مرخّص (الصف 21) |
+| 21 | 4 | دور من منتج غير مرخّص (`assertRoleProductEntitled`) | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | رسالة عدم الترخيص في تنبيه الخطوة 4 (لا تُعرض هذه الأدوار أصلًا) |
 | 22 | 4 | بلا `tenant.manage` | FORBIDDEN | `PROJECT_OS_PERMISSION_DENIED` | نص `WriteGate` للنموذج |
 | 23 | 4 | الدور ليس للشركة | NOT_FOUND | `PROJECT_OS_ROLE_NOT_FOUND` | رسالة الدور |
 | 24 | 4 | البريد عضو قائم | CONFLICT | `PROJECT_OS_MEMBER_ALREADY_EXISTS` | رسالة العضوية القائمة |
@@ -227,38 +235,46 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 | 33 | قبول | بريد الحساب غير بريد الدعوة | FORBIDDEN | `PROJECT_OS_INVITATION_EMAIL_MISMATCH` | رسالة البريد |
 | 34 | قبول | العضوية موجودة | CONFLICT | `PROJECT_OS_MEMBER_ALREADY_EXISTS` | رسالة العضوية |
 | 35 | قبول | لا مقعد متاح عند التفعيل | FORBIDDEN | `PROJECT_OS_LICENSE_SEAT_LIMIT_EXCEEDED` | رسالة المقاعد |
-| 36 | 4 | دعوة بدور `TENANT_OWNER` | — | يُحدَّد بعد §8.3 | الخادم يقبلها اليوم، والمعالج يخفيها |
+| 36 | 4 | دعوة بدور `TENANT_OWNER` | — | يُحدَّد بعد §8.2 | الخادم يقبلها اليوم، والمعالج يخفيها |
+| 37 | 1 (بعد الدخول) | اختيار شركة ليست من حساب المستخدم | FORBIDDEN | `PROJECT_OS_TENANT_ACCESS_DENIED` | رسالة الوصول، ويعود المستخدم إلى قائمة شركاته (PROPOSED، البند 9) |
+| 38 | 3 | الاستيراد بخطة بلا منتج `PROJECT` (يُرفض قبل ميزة `DATA_IMPORT`) | FORBIDDEN | `PROJECT_OS_PRODUCT_NOT_ENTITLED` | سطر القفل في الخطوة، ولا يُكتب شيء |
 
 ## 6. معايير القبول
 
 1. تظهر الخطوات الأربع بالترتيب: الشركة، ثم المشروع، ثم الاستيراد، ثم الدعوة. زر «التالي» بعد الشركة والمشروع يبقى معطَّلًا حتى يتحقق الشرط.
-2. إنشاء الشركة يكتب في معاملة واحدة `companies` و`subscriptions` و`tenant_licenses` و`tenant_entitlements` و`memberships` و`roles` (لـ`TENANT_OWNER`) و`role_permissions` و`membership_roles` و`audit_logs` (`self_service.tenant_created`). فشل أي صف يلغي الكل.
-3. القوالب الجاهزة مثبتة للشركة عند إنشائها (PROPOSED، §2.2)، فتجد الخطوة 4 قائمتها دون فتح شاشة الإدارة.
-4. المحاولة الرابعة في 24 ساعة ترجع `PROJECT_OS_SIGNUP_RATE_LIMITED`، ولا يُكتب صف في أي جدول.
-5. `project.write` وحده يفتح نموذج المشروع. من يحمل `project.manage` فقط يرى نص السبب لا النموذج.
-6. `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` تنشئ المشروع، و`PROJECT_MANAGER` لا ينشئه (PROPOSED، §4).
-7. مشروع برمز مكرر في الشركة نفسها يرجع `PROJECT_OS_PROJECT_DUPLICATE` مترجمًا، لا خطأ خادم عامًا، ولا يُكتب صف.
-8. بعد إنشاء أول مشروع يُعتمد تلقائيًا. ومع أكثر من مشروع يختار المستخدم، ويبقى الاختيار بعد إعادة التحميل بـ`?project=`.
-9. الاستيراد يعمل للمشروع المعتمد. وزر التخطي ينقل إلى الدعوة دون أي كتابة.
-10. الدعوة تكتب صفًا بـ`token_hash` (SHA-256) و`expires_at` = الآن + 7 أيام. الرمز لا يُخزَّن، ويظهر الرابط مرة واحدة، ويحمل الرمز في `/invite/accept?token=`.
-11. دعوة لبريد له دعوة سارية تُرفض. دعوة لبريد له دعوة منتهية تُقبل، بعد أن يصير الصف المنتهي `expired`.
-12. الدعوة المنتهية تُعاد في الصف نفسه: `token_hash` جديد، و`expires_at` جديد، و`resent_count` + 1، ويكتب `tenant.invitation_resent`. الرمز القديم يفشل في القبول.
-13. الإلغاء يحوّل `pending` أو `expired` إلى `cancelled`، ويحرر البريد والمقعد، ويكتب `tenant.invitation_cancelled`. الإلغاء بعد القبول مرفوض.
-14. الدعوة المنتهية لا تحجز مقعدًا، والسارية تحجزه.
-15. القبول بالبريد نفسه يكتب `memberships` و`membership_roles` بالقالب والنطاق المحفوظين، ويصبح الصف `accepted`، ويكتب `tenant.invitation_accepted`.
-16. القيود في قاعدة البيانات تمنع: حالة خارج القائمة، ودعوتين سارييتين للبريد نفسه في الشركة نفسها، ونطاقًا متناقضًا، و`accepted` بلا `accepted_at`.
-17. إعادة تحميل الصفحة على الخطوة 4 تعيد الخطوة من الهاش، وقائمة الدعوات من الخادم لا من الجلسة.
-18. الخطوتان «الاستيراد» و«الدعوة» تُعلَّمان مكتملتين من بيانات الخادم (§3)، لا بثوابت.
-19. كل عنصر بالعربية والإنجليزية، ولا تظهر رسالة خادم خام.
-20. الإنهاء يرسل إلى `/projects/{tenantId}/{projectId}/controls` للمشروع المعتمد، وبلا مشروع يُعطَّل الرابط ويذكر السبب.
-21. بيانات الاختبار أمثلة مختلقة مثل `new.user@example.test` و`example-co`، ولا بريد أو اسم شركة حقيقيين (`docs/PILOT_DATA_POLICY.md`).
+2. الخطوة المقفلة (البند 5) تظهر بسطر واحد يذكر الخطة التي تفتحها، وزرها معطَّل. وإرسالها باستدعاء مباشر يُرفض بـ`PROJECT_OS_PRODUCT_NOT_ENTITLED` دون كتابة صف.
+3. خطوة الدعوة لا تُقفل في أي باقة. الأدوار المعروضة فيها أدوار منتجها ضمن الخطة.
+4. إنشاء الشركة يكتب في معاملة واحدة `companies` و`subscriptions` و`tenant_licenses` و`tenant_entitlements` و`memberships` و`roles` (لـ`TENANT_OWNER`) و`role_permissions` و`membership_roles` و`audit_logs` (`self_service.tenant_created`). فشل أي صف يلغي الكل.
+5. القوالب الجاهزة مثبتة للشركة عند إنشائها (PROPOSED، §2.2)، فتجد الخطوة 4 قائمتها دون فتح شاشة الإدارة.
+6. المحاولة الرابعة في 24 ساعة ترجع `PROJECT_OS_SIGNUP_RATE_LIMITED`، ولا يُكتب صف في أي جدول.
+7. `project.create` وحدها تفتح نموذج المشروع (البند 6). من يحمل `project.write` أو `project.manage` دون `project.create` يرى نص السبب لا النموذج، ويُرفض الإرسال بـ`PROJECT_OS_PERMISSION_DENIED`.
+8. `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` تنشئ المشروع بـ`project.create`، و`PROJECT_MANAGER` لا ينشئه، و`PMO_LEAD` و`EXECUTIVE` لا يحملان `project.write` (PROPOSED، §4).
+9. مشروع برمز مكرر في الشركة نفسها يرجع `PROJECT_OS_PROJECT_DUPLICATE` مترجمًا، لا خطأ خادم عامًا، ولا يُكتب صف.
+10. بعد إنشاء أول مشروع يُعتمد تلقائيًا. ومع أكثر من مشروع يختار المستخدم، ويبقى الاختيار بعد إعادة التحميل بـ`?project=`.
+11. الاستيراد يعمل للمشروع المعتمد في خطة فيها `PROJECT`. وزر التخطي ينقل إلى الدعوة دون أي كتابة.
+12. الدعوة تكتب صفًا بـ`token_hash` (SHA-256) و`expires_at` = الآن + 7 أيام. الرمز لا يُخزَّن، ويظهر الرابط مرة واحدة، ويحمل الرمز في `/invite/accept?token=`.
+13. دعوة لبريد له دعوة سارية تُرفض. دعوة لبريد له دعوة منتهية تُقبل، بعد أن يصير الصف المنتهي `expired`.
+14. الدعوة المنتهية تُعاد في الصف نفسه: `token_hash` جديد، و`expires_at` جديد، و`resent_count` + 1، ويكتب `tenant.invitation_resent`. الرمز القديم يفشل في القبول.
+15. الإلغاء يحوّل `pending` أو `expired` إلى `cancelled`، ويحرر البريد والمقعد، ويكتب `tenant.invitation_cancelled`. الإلغاء بعد القبول مرفوض.
+16. الدعوة المنتهية لا تحجز مقعدًا، والسارية تحجزه.
+17. القبول بالبريد نفسه يكتب `memberships` و`membership_roles` بالقالب والنطاق المحفوظين، ويصبح الصف `accepted`، ويكتب `tenant.invitation_accepted`.
+18. القيود في قاعدة البيانات تمنع: حالة خارج القائمة، ودعوتين سارييتين للبريد نفسه في الشركة نفسها، ونطاقًا متناقضًا، و`accepted` بلا `accepted_at`.
+19. إعادة تحميل الصفحة على الخطوة 4 تعيد الخطوة من الهاش، وقائمة الدعوات من الخادم لا من الجلسة.
+20. الخطوتان «الاستيراد» و«الدعوة» تُعلَّمان مكتملتين من بيانات الخادم (§3)، لا بثوابت.
+21. الحساب المتصل بأكثر من شركة (البند 9) يختار الشركة بعد الدخول من قائمة `tenant.mine`، ويحوي الخيار «إنشاء شركة جديدة». اختيار شركة ليست من حسابه يرجع `PROJECT_OS_TENANT_ACCESS_DENIED`.
+22. في باقة `PMO_STANDARD` (بلا `PROJECT`) تظهر خطوتا المشروع والاستيراد مقفلتين، وخطوة الدعوة مفتوحة وتعرض دور `PMO_LEAD` فقط.
+23. مدة التجربة والأسعار وعدد المقاعد الافتراضي ومزود بريد الإشعارات مؤجلة إلى ما بعد Pilot (البند 10، §8). القيم الحالية في الكود (14 يومًا، وسعر 0، و5 مقاعد) تبقى كما هي، ولا يغيّرها هذا الأمر.
+24. كل عنصر بالعربية والإنجليزية، ولا تظهر رسالة خادم خام.
+25. الإنهاء يرسل إلى `/projects/{tenantId}/{projectId}/controls` للمشروع المعتمد، وبلا مشروع يُعطَّل الرابط ويذكر السبب.
+26. بيانات الاختبار أمثلة مختلقة مثل `new.user@example.test` و`example-co`، ولا بريد أو اسم شركة حقيقيين (`docs/PILOT_DATA_POLICY.md`).
 
 ## 7. الاختبارات المطلوبة
 
 **اختبارات وحدة:**
-- `server/domain/operationalRoles.test.ts` (يُضاف): الأدوار التي تحمل `project.write` في القوالب هي `PMO_LEAD` و`EXECUTIVE` وحدهما، و`PROJECT_MANAGER` لا يحمله. و`TENANT_OWNER` يحمله من `ownerPermissions` (PROPOSED).
+- `server/domain/operationalRoles.test.ts` (يُضاف): الأدوار التي تحمل `project.create` هي `TENANT_OWNER` و`PMO_LEAD` و`EXECUTIVE` وحدها، و`PROJECT_MANAGER` لا يحملها. و`project.write` لا يحملها `PMO_LEAD` ولا `EXECUTIVE` (PROPOSED).
 - دالة انتهاء الدعوة وحساب المقاعد وقواعد الانتقال (PROPOSED، ملف جديد تحت `server/domain/`): `expired` هي `status = expired` أو (`pending` و`expires_at <= now`)، وعد المقاعد يستبعد المنتهية، والانتقالات كما في §2.4.
 - `shared/projectErrors.ts`: الرموز المقترحة مترجمة بالعربية والإنجليزية، وكل رمز له نص.
+- قفل الخطوات بحسب الخطة: خطة بلا `PROJECT` تقفل المشروع والاستيراد، ولا تقفل الدعوة (PROPOSED، البند 5).
 
 **اختبارات تكامل قاعدة البيانات** (على `project_os_integration_test` وحدها، عبر `scripts/run-integration-database-test.mjs`. وحارس `server/testing/databaseGuard.setup.ts` يوقف التشغيل إن سُمّي غيرها):
 - الموجود: `server/integration.database.test.ts` (الاختبار «governs tenant role and membership administration with scope and self-privilege guards»)، و`server/commercial_chain.database.test.ts`، وهو يتخطى نفسه بلا قاعدة اختبار.
@@ -271,13 +287,17 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 - المطلوب: إعادة الإرسال تبدّل التجزئة وتحدّث `expires_at` وتكتب `tenant.invitation_resent`، والرمز القديم يفشل.
 - المطلوب: الانتقال بصفر صفوف يرجع `PROJECT_OS_INVITATION_NOT_PENDING`.
 - المطلوب: كل صف تدقيق يُكتب في المعاملة نفسها، فإن فشل صف التدقيق يفشل الصف الأساسي.
-- المطلوب: دور `PROJECT_MANAGER` لا ينشئ مشروعًا، ودور `PMO_LEAD` ينشئه على شركة مرخّصة بـ`PROJECT`، ويُرفض على شركة لا تملك `PROJECT`.
-- المطلوب: دعوة `TENANT_OWNER` تُعالج كما يقرر §8.3، ويُسجَّل الخلاف قبل القرار بـ`todo` في الاختبار مع الإشارة إلى البند.
+- المطلوب: دور `PROJECT_MANAGER` لا ينشئ مشروعًا، ودور `PMO_LEAD` ينشئه بـ`project.create` على شركة مرخّصة بـ`PROJECT`، ويُرفض على شركة لا تملك `PROJECT`. ومن يحمل `project.write` وحده يُرفض بـ`PROJECT_OS_PERMISSION_DENIED`.
+- المطلوب: حساب بشركتين يختار كلًّا منهما، واختيار شركة من حساب آخر يرجع `PROJECT_OS_TENANT_ACCESS_DENIED` (البند 9).
+- المطلوب: دعوة دور `EXECUTIVE` على شركة من خطة `PMO_STANDARD` تُرفض بـ`PROJECT_OS_PRODUCT_NOT_ENTITLED`، ودور `PMO_LEAD` يُقبل (PROPOSED، البند 5).
+- المطلوب: دعوة `TENANT_OWNER` تُعالج كما يقرر §8.2، ويُسجَّل الخلاف قبل القرار بـ`todo` في الاختبار مع الإشارة إلى البند.
 
 **اختبارات واجهة (مكوّنات):**
 - موجود: `SetupWizard.interaction.test.tsx` (5 اختبارات): الترتيب، وإنشاء المشروع داخل الشركة، والاستيراد بعد اختيار المشروع، وقائمة الأدوار بلا `TENANT_OWNER` مع الدعوة بنطاق المشروع، والنطاق الصريح والإنجليزية.
-- موجود: `SetupWizard.access.test.tsx` (4 اختبارات): `project.write` يفتح النموذج، و`project.manage` وحده لا يفتحه، وحالة التحميل، وفشل فحص الصلاحية.
+- موجود: `SetupWizard.access.test.tsx` (4 اختبارات): تتحول إلى `project.create` (PROPOSED): `project.create` تفتح النموذج، و`project.write` أو `project.manage` وحدهما لا تفتحانه، وحالة التحميل، وفشل فحص الصلاحية.
 - يُضاف (PROPOSED): إعادة التحميل على الخطوة 4 تستعيد الخطوة من الهاش والمشروع من `?project=`، ويُطلب الاختيار إن وُجد أكثر من مشروع.
+- يُضاف (البند 9): الدخول بشركتين يعرض قائمة الاختيار، وخيار إنشاء شركة جديدة يظهر بعد وجود شركة.
+- يُضاف (البند 5): خطوة مقفلة تعرض سطر القفل، وزرها معطَّل، ولا ترسل شيئًا.
 - يُضاف: أعلام الإكمال تُقرأ من الخادم لا ثابتة.
 - يُضاف: قائمة الدعوات تعرض `expired` مع زر إعادة الإرسال، و`cancelled` دون أزرار.
 - يُضاف: رفض `PROJECT_OS_PRODUCT_NOT_ENTITLED` في خطوة الدعوة يظهر رسالة لا تعطل الخطوة.
@@ -285,12 +305,11 @@ pending | expired --إلغاء-->       cancelled  (نهائية)
 
 ## 8. مخاطر وأسئلة مفتوحة
 
-هذه البنود `BLOCKED_BY_OWNER`. لا يُفترض فيها شيء.
+هذه البنود `BLOCKED_BY_OWNER` ما لم يُذكر خلاف. لا يُفترض فيها شيء.
 
 1. **المحرك (G-1).** ADR-0002 غير مدمج في `main`، و`CLAUDE.md` و`docs/DECISIONS.md` (ADR-001) يقولان MySQL/TiDB. دمجه يحتاج قرارًا كتابيًا من المالك وتحديثًا للفرعين. هذه المواصفة بمصطلحات PostgreSQL كما طُلب، ولا تفعّل التغيير.
-2. **الإكمال على كل باقة (القرار 3).** الظهور متاح على كل باقة، لكن إكمال الخطوتين يطلب منتجًا: خطوة المشروع تطلب `PROJECT` (`createProjectForTenant`)، وخطوة الدعوة تطلب `EXECUTIVE` (`assertTenantManager`). باقة `EXECUTIVE` وحدها لا تنشئ مشروعًا، وباقة `PROJECT` وحدها لا تدعو. الحلول المتاحة: تحرير بوابتي الإنشاء والدعوة من المنتج، أو تحديد من يكمل ماذا حسب الباقة. الاختيار للمالك.
-3. **دعوة `TENANT_OWNER`.** الخادم يقبلها في `createMembershipInvitation`، والواجهة تخفيها. هل تُمنع في الخادم، أم يُسمح لمدير الشركة بتعيين مالك مشترك؟
-4. **مزود بريد الدعوة.** المعالج يعرض الرابط فقط. هل يرسل الدعوة بريد المنصة (SMTP) أم مزود آخر؟ القرار مفتوح.
-5. **التجربة والأسعار والمقاعد.** 14 يومًا مكتوبة في `createSelfServiceTenant`، والسعر 0، والمقاعد الافتراضية 5 في `SetupWizard.tsx`. قرارات تجارية. الشركة الفارغة تبقى بترخيص تجريبي حتى يقرر المالك مدة التجربة وتنظيفها.
-6. **تعدد الشركات لكل حساب.** الواجهة تخفي نموذج الإنشاء بعد وجود شركة، والخادم لا يحد العدد.
-7. **إعادة إصدار رابط دعوة سارية.** القرار حدد إعادة الإرسال للدعوة المنتهية فقط. الرابط يظهر مرة واحدة، فإن ضاع يلزم إلغاء الدعوة وإنشاء أخرى. هل يُسمح بإعادة إصدار رابط لدعوة سارية؟
+2. **دعوة `TENANT_OWNER`.** الخادم يقبلها في `createMembershipInvitation`، والواجهة تخفيها. هل تُمنع في الخادم، أم يُسمح لمدير الشركة بتعيين مالك مشترك؟ (`BLOCKED_BY_OWNER`).
+3. **مزود بريد الإشعارات (مؤجل).** المعالج يعرض رابط الدعوة فقط ولا يرسل بريدًا. مزود بريد الإشعارات، ومنه بريد الدعوة، `BLOCKED_BY_OWNER`: **مؤجل إلى ما بعد Pilot** (البند 10). رسائل الدخول يرسلها Supabase Auth، وهي ليست من هذا البند.
+4. **مدة التجربة والأسعار وعدد المقاعد (مؤجل).** 14 يومًا مكتوبة في `createSelfServiceTenant`، والسعر 0، والمقاعد الافتراضية 5 في `SetupWizard.tsx`. `BLOCKED_BY_OWNER`: **مؤجل إلى ما بعد Pilot** (البند 10). الشركة الفارغة تبقى بترخيص تجريبي حتى يقرر المالك المدة وتنظيفها.
+5. **إعادة إصدار رابط دعوة سارية.** القرار حدد إعادة الإرسال للدعوة المنتهية فقط. الرابط يظهر مرة واحدة، فإن ضاع يلزم إلغاء الدعوة وإنشاء أخرى. هل يُسمح بإعادة إصدار رابط لدعوة سارية؟ (`BLOCKED_BY_OWNER`).
+6. **تعارض مزود رسائل الدخول.** البند 10 يسمي Supabase Auth مزودًا لرسائل الدخول، و`CLAUDE.md` §5 يقول «الدخول برمز بريد عبر Resend أساسًا». هذه المواصفة تتبع قرار البند 10، ولم يُعدَّل `CLAUDE.md`. يحتاج التعارض تأكيدًا كتابيًا من المالك وتحديث `CLAUDE.md` (`BLOCKED_BY_OWNER`).
