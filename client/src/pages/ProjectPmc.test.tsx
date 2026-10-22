@@ -1,9 +1,12 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import ProjectPmc, { ProjectPmcWorkspace } from "./ProjectPmc";
 import { exportElementToPdf } from "@/lib/pdfExport";
+import { buildTableWorkbook } from "@/lib/excelExport";
+
+vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
 const state = vi.hoisted(() => ({
   arabic: false,
@@ -212,5 +215,110 @@ describe("ProjectPmc as a tab inside the controls page (G-051) and the PDF butto
     render(<ProjectPmcWorkspace embedded />);
     open("Import");
     expect(screen.queryByRole("button", { name: "PDF" })).toBeNull();
+  });
+});
+
+describe("ProjectPmc Excel export, table by table", () => {
+  let anchorClick: MockInstance;
+  beforeEach(() => {
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:pmc"), revokeObjectURL: vi.fn() });
+    anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.mocked(buildTableWorkbook).mockClear();
+  });
+  afterEach(() => { anchorClick.mockRestore(); });
+
+  /** Clicks the table's own Excel button; returns what the writer was given next to what the table shows. */
+  const exportTable = async (table: HTMLTableElement) => {
+    const button = within(table.closest("div.space-y-2") as HTMLElement).getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement;
+    const before = vi.mocked(buildTableWorkbook).mock.calls.length;
+    fireEvent.click(button);
+    await waitFor(() => expect(vi.mocked(buildTableWorkbook).mock.calls.length).toBe(before + 1));
+    await waitFor(() => expect(button.disabled).toBe(false));
+    const input = vi.mocked(buildTableWorkbook).mock.calls[before]![0];
+    return {
+      input,
+      headers: input.columns.map(column => column.header),
+      exportedRows: input.rows.length,
+      tableHeaders: Array.from(table.querySelectorAll("thead th"), th => th.textContent),
+      bodyRows: table.querySelectorAll("tbody tr").length,
+    };
+  };
+
+  it("puts an Export to Excel button in the same block as each table, one per table", () => {
+    render(<ProjectPmc />);
+    const perTab: Array<[string, number]> = [["Latest updates", 2], ["Approvals", 4], ["Inspections", 3], ["Activities", 1], ["Zones", 1], ["Weekly", 2], ["Monthly", 2], ["Pending", 1], ["Stages", 1]];
+    for (const [tab, count] of perTab) {
+      open(tab);
+      const tables = Array.from(document.querySelectorAll("table"));
+      expect(tables).toHaveLength(count);
+      for (const table of tables) expect(within(table.closest("div.space-y-2") as HTMLElement).getByRole("button", { name: "Export to Excel" })).toBeTruthy();
+    }
+  });
+
+  it("exports the same headers and the same number of rows as each table shows", async () => {
+    render(<ProjectPmc />);
+    for (const tab of ["Latest updates", "Approvals", "Inspections", "Zones", "Weekly", "Pending", "Stages"]) {
+      open(tab);
+      for (const table of Array.from(document.querySelectorAll("table"))) {
+        const result = await exportTable(table);
+        expect(result.headers, `${tab}: headers`).toEqual(result.tableHeaders);
+        expect(result.exportedRows, `${tab}: rows`).toBe(result.bodyRows);
+      }
+    }
+  });
+
+  it("the export uses raw figures: a percentage is a fraction, a date is a Date, an engineer not yet known is empty", async () => {
+    render(<ProjectPmc />);
+    open("Latest updates");
+    const engineers = await exportTable(document.querySelectorAll("table")[0] as HTMLTableElement);
+    const engineerRow = engineers.input.rows[0]!;
+    const column = (headers: string[], header: string) => engineers.input.columns[headers.indexOf(header)]!;
+    expect(column(engineers.headers, "Percent added").kind).toBe("percent");
+    expect(column(engineers.headers, "Percent added").value(engineerRow)).toBeCloseTo(0.4, 6);
+    expect(column(engineers.headers, "Updates").value(engineerRow)).toBe(3);
+
+    open("Zones");
+    const zones = await exportTable(document.querySelector("table") as HTMLTableElement);
+    const unassigned = zones.input.rows[1]!;
+    expect(zones.input.columns[zones.headers.indexOf("Completion")]!.value(zones.input.rows[0]!)).toBeCloseTo(1, 6);
+    expect(zones.input.columns[zones.headers.indexOf("Engineer")]!.value(unassigned)).toBeNull();
+
+    open("Pending");
+    const pending = await exportTable(document.querySelector("table") as HTMLTableElement);
+    const since = pending.input.columns[pending.headers.indexOf("Since")]!;
+    expect(since.kind).toBe("date");
+    expect(since.value(pending.input.rows[0]!)).toBeInstanceOf(Date);
+  });
+
+  it("the activities matrix exports one row per activity with its group name; the group subtotal stays on screen", async () => {
+    render(<ProjectPmc />);
+    open("Activities");
+    const matrix = await exportTable(document.querySelector("table") as HTMLTableElement);
+    expect(matrix.bodyRows).toBe(2); // one group subtotal and one activity
+    expect(matrix.exportedRows).toBe(1);
+    expect(matrix.headers).toEqual(matrix.tableHeaders);
+    const row = matrix.input.rows[0]!;
+    const at = (header: string) => matrix.input.columns[matrix.headers.indexOf(header)]!.value(row);
+    expect(at("Group")).toBe("Civil");
+    expect(at("Activity")).toBe("WALLS · Walls");
+    expect(at("Verifier pending %")).toBeCloseTo(0.5, 6);
+  });
+
+  it("a table with no rows keeps its button disabled instead of exporting an empty file", () => {
+    render(<ProjectPmc />);
+    open("Monthly");
+    const [, empty] = Array.from(document.querySelectorAll("table"));
+    expect((within(empty!.closest("div.space-y-2") as HTMLElement).getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("the import report's rejected rows have their own export, with the same headers and rows as the table", async () => {
+    state.report = { kind: "status", fileHash: "a".repeat(64), totalRows: 3, errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], counts: { create: 0, update: 0, unchanged: 0 }, details: {}, canConfirm: false };
+    render(<ProjectPmc />);
+    open("Import");
+    const result = await exportTable(document.querySelector("table") as HTMLTableElement);
+    expect(result.headers).toEqual(["Row", "Reason"]);
+    expect(result.headers).toEqual(result.tableHeaders);
+    expect(result.exportedRows).toBe(2);
+    expect(result.bodyRows).toBe(2);
   });
 });

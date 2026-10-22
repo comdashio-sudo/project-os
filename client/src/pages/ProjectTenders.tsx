@@ -11,6 +11,8 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { enumLabel } from "@/lib/labels";
 import { trpc } from "@/lib/trpc";
 import { SourceNotice } from "@/components/SectionResilience";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
+import type { ExportColumn } from "@/lib/excelExport";
 import { WriteGate } from "@/lib/permissions";
 
 const field = "mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm";
@@ -58,8 +60,22 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
   const status = current?.package.status;
   const live = (current?.bids ?? []).filter(item => item.status === "submitted");
   const biddable = (invitees.data ?? []).filter(item => !(current?.bids ?? []).some(other => other.supplierId === item.supplierId));
-  const sheet = (heading: string, children: React.ReactNode) => <section className="rounded-xl border border-slate-200 p-4"><h3 className="font-semibold">{heading}</h3><div className="mt-3 space-y-3">{children}</div></section>;
+  const sheet = (heading: string, children: React.ReactNode, action?: React.ReactNode) => <section className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{heading}</h3>{action}</div><div className="mt-3 space-y-3">{children}</div></section>;
   const flagText = (flag: string) => flag === "lowest" ? t.lowestFlag : flag === "below_median_30" ? t.belowFlag : t.aboveFlag;
+  type Bid = NonNullable<typeof current>["bids"][number];
+  // The comparison table's columns: the header text is what the screen shows, the value is the raw figure the Excel file gets.
+  // Percentages are fractions (21.1% is 0.211). The currency is not a column, so it is not in the file.
+  const bidColumns: ExportColumn<Bid>[] = [
+    { header: t.rank, kind: "number", value: item => item.rank },
+    { header: t.supplier, kind: "text", value: item => item.supplierName },
+    { header: t.amount, kind: "money", value: item => item.amount },
+    { header: t.adjustments, kind: "money", value: item => item.adjustments },
+    { header: t.levelled, kind: "money", value: item => item.levelledTotal },
+    { header: t.abovePct, kind: "percent", value: item => item.aboveLowestPercent === null ? null : item.aboveLowestPercent / 100 },
+    { header: t.vsEstimate, kind: "percent", value: item => item.versusEstimatePercent === null ? null : item.versusEstimatePercent / 100 },
+    { header: t.durationShort, kind: "number", value: item => item.durationDays },
+    { header: t.flags, kind: "text", value: item => item.flags.map(flag => flagText(flag)).join("، ") || null },
+  ];
 
   return <Card>
     <CardHeader><CardTitle>{t.title}</CardTitle></CardHeader>
@@ -117,7 +133,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
 
         {sheet(t.comparisonTitle, <>
           <p className="text-xs text-slate-600">{t.comparable}: {current.comparable} · {t.lowest}: {money(current.lowest)} · {t.medianLine}: {money(current.median)}</p>
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="text-start text-xs text-slate-600"><th className="p-2 text-start">{t.rank}</th><th className="p-2 text-start">{t.supplier}</th><th className="p-2 text-start">{t.amount}</th><th className="p-2 text-start">{t.adjustments}</th><th className="p-2 text-start">{t.levelled}</th><th className="p-2 text-start">{t.abovePct}</th><th className="p-2 text-start">{t.vsEstimate}</th><th className="p-2 text-start">{t.durationShort}</th><th className="p-2 text-start">{t.flags}</th></tr></thead>
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="text-start text-xs text-slate-600">{bidColumns.map(column => <th key={column.header} className="p-2 text-start">{column.header}</th>)}</tr></thead>
             <tbody>{current.bids.map(item => <tr key={item.id} className="border-t align-top">
               <td className="p-2">{item.rank ?? "—"}</td>
               <td className="p-2"><b>{item.supplierName}</b><div className="text-xs text-slate-500">{label(item.status)}{item.statusReason ? ` · ${item.statusReason}` : ""}</div>
@@ -137,7 +153,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
               <div><Label htmlFor="ta-amount">{t.adjAmount}</Label><Input id="ta-amount" type="number" step="0.01" value={adjustment.amount} onChange={event => setAdjustment({ ...adjustment, amount: event.target.value })} required /></div>
               <Button type="submit" disabled={addAdjustment.isPending} className="min-h-[44px] md:col-span-5">{t.addAdj}</Button>
             </form></WriteGate> : null}
-        </>)}
+        </>, <ExportExcelButton fileName="tenders-bid-comparison" sheetName={t.comparisonTitle} title={`${t.title} · ${t.comparisonTitle}`} rows={current.bids} columns={bidColumns} />)}
 
         {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-emerald-800">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
         {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders")}>{sheet(t.awardTitle,
