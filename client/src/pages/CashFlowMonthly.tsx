@@ -4,6 +4,8 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
+import type { ExportColumn } from "@/lib/excelExport";
 
 const text = {
   ar: {
@@ -26,9 +28,20 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
   if (query.isLoading) return <p role="status" className="mt-6 text-sm text-slate-500">{t.loading}</p>;
   if (!query.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => query.refetch()}>{t.retry}</Button></div>;
   const { months, lowestCumulative } = query.data;
+  // The export uses the same headers and the same rows as the table below; the rows are the raw amounts, not the formatted text.
+  const columns: ExportColumn<(typeof months)[number]>[] = [
+    { header: t.month, value: row => row.month },
+    { header: t.receipts, value: row => row.receipts, kind: "money" },
+    { header: t.outflows, value: row => row.outflows, kind: "money" },
+    { header: t.net, value: row => row.net, kind: "money" },
+    { header: t.cumulative, value: row => row.cumulative, kind: "money" },
+  ];
   return (
     <section aria-label={t.title} className="mt-6" data-testid="cashflow-monthly">
-      <h3 className="font-semibold">{t.title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">{t.title}</h3>
+        <ExportExcelButton fileName="cash-flow-monthly" sheetName={t.title} title={t.title} rows={months} columns={columns} />
+      </div>
       {months.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
         <>
           <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التدفق النقدي الشهري" : "Monthly cash-flow table"}>

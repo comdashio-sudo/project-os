@@ -1,4 +1,6 @@
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { type ExportColumn } from "@/lib/excelExport";
 import { formatMoney, trend } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -15,6 +17,14 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const query = trpc.profitability.portfolio.useQuery({ tenantId });
+  const projects = query.data?.projects ?? [];
+  // The "Open" link column is navigation, not data, so it is not exported.
+  const exportColumns: ExportColumn<(typeof projects)[number]>[] = [
+    { header: t.project, value: project => `${project.code} · ${project.name}`, kind: "text" },
+    // Each project has its own currency, so every money cell carries it: a mixed-currency column stays readable.
+    { header: t.fpac, value: project => ({ value: project.fpac, kind: "money", currency: project.currency }), kind: "money" },
+    { header: t.movement, value: project => ({ value: project.movement, kind: "money", currency: project.currency }), kind: "money" },
+  ];
   return (
     <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
       <div className="flex items-center gap-3"><TrendingUp className="text-[#0e6b70]" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.note}</p></div></div>
@@ -22,6 +32,9 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
       {query.error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p>}
       {query.data && (
         <div className="mt-3">
+          <div className="flex justify-end">
+            <ExportExcelButton fileName="portfolio-profitability" sheetName={t.title} title={t.title} rows={projects} columns={exportColumns} />
+          </div>
           {query.data.projects.length === 0 && query.data.unavailable.length === 0 ? <p className="text-sm text-slate-500">{t.empty}</p> : (
             <table className="w-full text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.project}</th><th className="text-start">{t.fpac}</th><th className="text-start">{t.movement}</th><th><span className="sr-only">{isArabic ? "فتح" : "Open"}</span></th></tr></thead>

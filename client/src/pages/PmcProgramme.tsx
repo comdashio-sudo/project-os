@@ -5,9 +5,12 @@ import { trpc } from "@/lib/trpc";
 import React, { useEffect, useRef, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartLegend } from "@/components/ChartLegend";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
+import type { ExportColumn } from "@/lib/excelExport";
 
 const text = {
   ar: {
+    table: "جدول البرنامج الزمني", sheet: "البرنامج الزمني",
     loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noBaseline: "لم يُستورد خط أساس زمني بعد، فلا يظهر المنحنى المخطط. استورد ملف خط الأساس من تبويب الاستيراد.",
     noHistory: (n: number, actual: string, cells: string) => `${n} خلية لها حالة بلا سجل تاريخ، فمنحنى الفعلي (من السجل) يقرأ ${actual} بينما تقدم المشروع من الحالات ${cells}.`,
     contract: "قيمة العقد", paid: "المدفوع", confirmed: "الفوترة المؤكدة", target: "الفوترة المستهدفة", targetHint: "التقدم المخطط حتى اليوم × قيمة العقد", needs: "يتطلب خط أساس وقيمة عقد",
@@ -15,6 +18,7 @@ const text = {
     basis: "المبالغ قبل الضريبة. المدفوع = فواتير مدفوعة، المؤكدة = صادرة ومدفوعة (لا المسودة ولا الملغاة).",
   },
   en: {
+    table: "Programme table", sheet: "Programme",
     loading: "Loading…", retry: "Retry", noBaseline: "No baseline has been imported yet, so the planned curve is not shown. Import the baseline file from the Import tab.",
     noHistory: (n: number, actual: string, cells: string) => `${n} cells have a status but no history, so the actual curve (from history) reads ${actual} while project progress from the statuses is ${cells}.`,
     contract: "Contract value", paid: "Paid", confirmed: "Confirmed invoicing", target: "Target invoicing", targetHint: "Planned progress to date × contract value", needs: "Needs a baseline and a contract value",
@@ -22,6 +26,9 @@ const text = {
     basis: "Amounts are before VAT. Paid = paid invoices; confirmed = issued and paid (not drafts or void).",
   },
 };
+
+/** The server gives percentages on a 0-100 scale (30 is 30%); the export takes fractions (0.3 is 30%) with a percent format. */
+const fraction = (value: number | null) => (value === null ? null : value / 100);
 
 export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
@@ -41,7 +48,17 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
   if (query.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
   if (!query.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><button type="button" className="mt-2 min-h-[44px] rounded-lg border px-4" onClick={() => query.refetch()}>{t.retry}</button></div>;
   const { months, hasBaseline, cards, cellsWithoutHistory, actualToDate, progressFromCells } = query.data;
-  if (!months.length) return <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{t.empty}</p>;
+  // The export matches the table row for row; with no months the button is shown disabled, not hidden.
+  const columns: ExportColumn<(typeof months)[number]>[] = [
+    { header: t.month, value: row => row.month.slice(0, 7) },
+    { header: t.planned, value: row => fraction(row.planned), kind: "percent" },
+    { header: t.actual, value: row => fraction(row.actual), kind: "percent" },
+    { header: t.variance, value: row => fraction(row.variance), kind: "percent" },
+    { header: t.plannedMonth, value: row => fraction(row.plannedInMonth), kind: "percent" },
+    { header: t.actualMonth, value: row => fraction(row.actualInMonth), kind: "percent" },
+  ];
+  const exportButton = <ExportExcelButton fileName="pmc-programme" sheetName={t.sheet} title={t.table} rows={months} columns={columns} />;
+  if (!months.length) return <div className="space-y-4"><div className="flex justify-end">{exportButton}</div><p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{t.empty}</p></div>;
   const money = (amount: number | null) => (amount === null ? "—" : formatMoney(amount, cards.currency, isArabic));
   const chartData = months.map(m => ({ month: m.month.slice(0, 7), planned: m.planned, actual: m.actual }));
   const card = (key: string, label: string, amount: number | null, percent: number | null, hint?: string) => (
@@ -77,6 +94,7 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
         </LineChart>
         </div>
       </div>
+      <div className="flex justify-end">{exportButton}</div>
       <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول البرنامج الزمني" : "Programme table"}>
         <table className="w-full min-w-[34rem] text-sm">
           <thead><tr className="border-b text-start"><th className="p-2 text-start">{t.month}</th><th className="p-2 text-start">{t.planned}</th><th className="p-2 text-start">{t.actual}</th><th className="p-2 text-start">{t.variance}</th><th className="p-2 text-start">{t.plannedMonth}</th><th className="p-2 text-start">{t.actualMonth}</th></tr></thead>
