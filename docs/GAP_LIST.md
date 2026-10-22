@@ -335,3 +335,17 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 | G-103 (تكملة) العقود والمقاولون من الباطن | CLOSED (WO3) | الترحيل 0065، `contracts.supplier.database.test.ts` (6)؛ صف STATE «G-103 (تكملة)». |
 | G-110 (تكملة) الجدول الحي لكل دالة | CLOSED (WO3) | `gate6.matrix.database.test.ts` (6) على 175 دالة / 118 بمشروع؛ كشف سبعة مسارات برفض غير `FORBIDDEN` فصُحّحت. صف STATE «G-110 (تكملة)». |
 | G-131 (تكملة) | PARTIAL (BLOCKED_BY_OWNER) | باقٍ على DBA: تشغيل الفحص على TiDB الفعلية (خطوة في OWNER_ACTIONS). لا يُدَّعى إغلاقه من MySQL محلي. |
+
+## أمر العمل 6 — الانتقال إلى Supabase + Vercel (22 أكتوبر 2026)
+
+المحرك الآن PostgreSQL على Supabase (قرار المالك)، وكل إشارة أعلاه إلى MySQL/TiDB/Render/Resend/R2 وصفٌ لما كان. الأدلة وأعدادها في `docs/STATE.md` (قسم أمر العمل 6).
+
+| البند | الحالة | الملاحظة |
+|---|---|---|
+| G-131 (حساب التطبيق على `audit_logs`) | CLOSED محليًا / BLOCKED_BY_OWNER على Supabase الحقيقي | صار الإلحاق فقط **triggers** ترفض UPDATE وDELETE وTRUNCATE لكل الأدوار + `SELECT, INSERT` لحساب التطبيق (`audit.appendOnly.database.test.ts` 14). يبقى تشغيل `pnpm provision:app-role` و`pnpm verify:db-security` على مشروع Supabase الحقيقي. |
+| G-058 جانبي (حد `data_imports`) | أُصلح جزئيًا | الاستيراد الفاشل يحرّر بصمة ملفه (فهرس فريد جزئي `WHERE status <> 'failed'`) فيُعاد رفع الملف نفسه؛ والملف الناجح ما زال يُرفض باسمه عند تكراره. |
+| G-134 (لا «جاهز للإنتاج» قبل الدليل على الإنتاج) | OPEN | لم يجرِ نشر ولا اتصال بمشروع Supabase أو Vercel. فحص الجوال في `GO_LIVE.md` (§5) هو الدليل. |
+| G-138 (جديد): رفع المتصفح الفعلي إلى Supabase Storage | OPEN (`HANDOFF_REQUIRED`) | غير مثبت: CORS لنقطة S3، وحدّ حجم الحاوية 50 MB، و`waitUntil` على Vercel، وذاكرة الدالة (ذروة ≈1.06 GB لتحليل Excel بـ50 ألف صف ⇒ 2 GB). الاختبارات تستعمل خادم S3 محاكى على مقبس حقيقي. الإثبات: `GO_LIVE.md` §5 البند 7. |
+| G-139 (جديد): بقية الشاشات التي ترسل الملف داخل الطلب | OPEN (قرار نطاق) | مرفقات المستندات واستيراد PMC وخطة PMC وربط المخطط العام ما زالت على سقف 3 MB (`VITE_MAX_UPLOAD_BYTES`) لأن الرفع المباشر نُفِّذ للمستورد العام (Excel/CSV/XER) وحده. |
+| G-140 (جديد): تحديث الصفوف الموجودة في استيراد كبير | OPEN | `update_existing` و`upsert` يحدّثان صفًّا بجملة داخل معاملة واحدة؛ الإدخال الجديد مقسّم على جمل 2,000 صف لكن التحديث لم يُقسَّم ولم يُقَس عند عشرات الآلاف. |
+| G-141 (جديد): اختبارات القاعدة تعمل بسياق نظام احتياطي | OPEN | `useFallbackDbContextForTests` يجعل الاختبارات المباشرة على دوال الخادم لا تمرّ بسياسات RLS الحقيقية للمستخدم؛ هذا أخفى عيب سياسة `companies` (وجدته بروفة المتصفح). المقترح: تشغيل مجموعة جزئية من اختبارات القاعدة بـ`TEST_DB_NO_FALLBACK=true` وإصلاح ما يظهر. |

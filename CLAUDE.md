@@ -93,6 +93,7 @@
 - قاعدة Supabase PostgreSQL باسم المالك (مشروع `dashio`)، قاعدة نظيفة بلا نقل بيانات من المنصات السابقة.
 - الدخول برمز بريد عبر Supabase Auth (OTP) أساسًا، وGoogle OIDC اختياري، وجلسة موقّعة بـ`jose` بشكل الكوكي الحالي. الخادم يستعمل مفتاح **anon** فقط؛ لا `service_role` في أي مكان.
 - التخزين Supabase Storage عبر واجهة S3 (`@aws-sdk/client-s3`).
+  - **ملفات الاستيراد (Excel/CSV/XER) لا تمر داخل طلب:** المتصفح يرفعها بـ`PUT` إلى Storage على عنوان موقَّع (حتى **50 MB**)، ثم يسجّلها الخادم ويحلّلها ويستوردها **مهمة خلفية** بحالة تقدم (`analyzing` ← `validated`، `importing` ← `completed`، أو `failed` بسبب) في `data_imports`؛ المنطق في `server/importJobs.ts`. بقية الشاشات التي ترسل ملفًا داخل الطلب على سقف 3 MB (حد Vercel 4.5 MB).
 - الاستضافة Vercel (مشروع `dashio`)، خادم Express واحد كدالة (`pnpm build:vercel`)، والمهام المجدولة Vercel Cron.
 - بريد الإشعارات SMTP عادي (`nodemailer`)؛ لا Resend.
 - الخريطة مخفية. الصور والصوت وData API تُحذف. الـLLM خلف مفتاح تشغيل معطَّل افتراضيًا.
