@@ -8,7 +8,7 @@
 // It writes straight to the TEST database in batches of a thousand rows (the point is volume, not the API path), then prints
 // the ids that scripts/perf-measure.mjs needs. It never touches a database that is not project_os_integration_test.
 import { randomBytes, randomUUID } from "node:crypto";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { createTenantForUser, getDb, upsertUser } from "../server/db.ts";
 import { users } from "../drizzle/schema.ts";
 import { eq } from "drizzle-orm";
@@ -33,7 +33,8 @@ const connection = await mysql.createConnection({ uri: dbUrl.toString(), multipl
 async function bulk(table, columns, rows) {
   for (let i = 0; i < rows.length; i += 1000) {
     const chunk = rows.slice(i, i + 1000);
-    await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ?`, [chunk]);
+    const tuple = `(${columns.map(() => "?").join(",")})`;
+    await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ${chunk.map(() => tuple).join(",")}`, chunk.flat());
   }
 }
 const started = Date.now();

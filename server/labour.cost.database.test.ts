@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
@@ -13,7 +13,7 @@ const P = "73000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `73000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [WBS, RES, EMP_A, EMP_B, ASG_A, ASG_B, TE1, TE2, TE3, SAL_A] = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110].map(uid);
 const [EMP_C, EMP_D, ASG_C, ASG_D, TE4, TE5, SAL_C, SAL_D, RUN_NOV, PE_C, PE_D, RUN_DEC, RUN_JAN, PE_C2, PE_C3] = [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125].map(uid); // G-123: November payroll, one employee costed by time first, one by payroll first
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 let connection: mysql.Connection;
 const users = { manager: 0, finance: 0, plain: 0 };

@@ -14,7 +14,7 @@
 //   NODE_ENV=production node dist/index.js &              # after pnpm build, on the test database with a company that has a project
 //   node --import tsx scripts/check-keyboard.mjs          [JSON=1]   → exit 1 on any TRAP / NAMED / ORDER / VISIBLE / TABS finding (LANDMARK findings are listed and counted, not failing)
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3100";

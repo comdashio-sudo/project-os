@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { governedActionPermissions } from "./domain/operationalPermissions";
@@ -14,7 +14,7 @@ import { appRouter } from "./routers";
 //   5. for every governed write that takes a project: a role limited to project Q is refused on project P and not refused on Q.   (cross-project, with its allowed control)
 // "Refused" means an authorization error, never a validation error or a crash: a function that validates first is listed with the input that makes it reach the check.
 // The audit half is `gate6.test.ts` (every mutation writes an audit row) plus the live tests of each record; docs/GATE6_RECORDS.md says which.
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@matrix.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
 const dir = __dirname;

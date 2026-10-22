@@ -10,7 +10,7 @@ import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 import { userGuide, guideImage, guideStepHref } from "../client/src/lib/userGuide.ts";
 

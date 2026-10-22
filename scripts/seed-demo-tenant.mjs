@@ -1,7 +1,7 @@
 // Seeds ONE synthetic demo tenant into an empty database so a fresh install has
 // something to sign in to. Everything here is invented (*.example.test).
 //
-//   SEED_CONFIRM=yes DATABASE_URL=mysql://... \
+//   SEED_CONFIRM=yes DATABASE_URL=postgres://... \
 //     node --import tsx scripts/seed-demo-tenant.mjs
 //
 // Refuses to run when any company already exists, so it can never add to (or

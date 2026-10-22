@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -9,7 +9,7 @@ const T = "78000000-0000-4000-8000-0000000000a1";
 const P = "78000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `78000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [WBS, CEM, SAND, COM, PO] = [101, 102, 103, 104, 105].map(uid);
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: mysql.Connection;
 let keeper = 0; let warehouseA = ""; let warehouseB = "";
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@stock.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });

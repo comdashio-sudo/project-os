@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -6,7 +6,7 @@ import { appRouter } from "./routers";
 // Work order 5, item 9 (G-135, G-136) on a real database and through the real router: the plan underlay's rotation and real size, moving an entity in
 // the parent tree (never into a loop) and editing its geometry, and sharing a saved view with the project. Synthetic data only.
 const SLUG = "mp-tools";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mp.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const DENIED = "Required permission is not granted.";
 

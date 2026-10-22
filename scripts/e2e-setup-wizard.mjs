@@ -5,7 +5,7 @@
 // NEGATIVES: a person without tenant.manage cannot invite; an invited cost controller is refused a tender award.
 // Synthetic data only (*.example.test). Nothing here prints a secret.
 //
-// The script starts the production server itself (WIZARD_PORT, default 3300) with storage pointed at a tiny fake S3 on 127.0.0.1 (R2_TEST_ENDPOINT, accepted
+// The script starts the production server itself (WIZARD_PORT, default 3300) with storage pointed at a tiny fake S3 on 127.0.0.1 (STORAGE_S3_ENDPOINT, accepted
 // only for loopback), so the importer's file storage works without any external service.
 //
 //   . env (DATABASE_URL naming project_os_integration_test, JWT_SECRET)     pnpm build
@@ -14,7 +14,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import { serverDatabaseEnv } from "./lib/serverEnv.mjs";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 import { upsertUser } from "../server/db.ts";
 
@@ -37,7 +38,7 @@ const s3 = createServer((request, response) => {
 });
 await new Promise(resolve => s3.listen(0, "127.0.0.1", resolve));
 const server = spawn(process.execPath, ["dist/index.js"], {
-  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), R2_ACCOUNT_ID: "rehearsal-account", R2_ACCESS_KEY_ID: "rehearsal-key", R2_SECRET_ACCESS_KEY: "rehearsal-secret", R2_BUCKET: "rehearsal-bucket", R2_TEST_ENDPOINT: `http://127.0.0.1:${s3.address().port}` },
+  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), ...serverDatabaseEnv(), STORAGE_S3_ENDPOINT: `http://127.0.0.1:${s3.address().port}`, STORAGE_S3_REGION: "local", STORAGE_S3_ACCESS_KEY_ID: "rehearsal-key", STORAGE_S3_SECRET_ACCESS_KEY: "rehearsal-secret", STORAGE_BUCKET: "rehearsal-bucket" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let serverLog = ""; server.stdout.on("data", chunk => { serverLog += chunk; }); server.stderr.on("data", chunk => { serverLog += chunk; });

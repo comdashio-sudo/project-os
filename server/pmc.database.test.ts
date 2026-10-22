@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -12,7 +12,7 @@ const id = (n: number) => `40000000-0000-4000-8000-${String(n).padStart(12, "0")
 const [ZONE, BLOCK, GROUP, STAGE] = [id(101), id(102), id(103), id(104)];
 const [UNIT_A1, UNIT_A2, UNIT_B1] = [id(111), id(112), id(113)];
 const [ACT_A_WALLS, ACT_A_FINISH, ACT_B_WALLS, ACT_B_FINISH] = [id(121), id(122), id(123), id(124)];
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 let connection: mysql.Connection;
 const users = { manager: 0, reader: 0, none: 0 };

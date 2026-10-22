@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
@@ -11,7 +11,7 @@ const T = "50000000-0000-4000-8000-0000000000a1";
 const T_OTHER = "50000000-0000-4000-8000-0000000000b1";
 const P = "50000000-0000-4000-8000-0000000000a2";
 const P_OTHER = "50000000-0000-4000-8000-0000000000b2";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 const MODELS = ["A", "B", "C", "D", "E"];
 const UNITS = 500;

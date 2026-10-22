@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
+import mysql, { type Connection, type RowDataPacket } from "./testing/pgCompat";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,7 +13,7 @@ const membershipRoleId = "e1000000-0000-4000-8000-000000000004";
 const projectId = "e1000000-0000-4000-8000-000000000005";
 const contractId = "e1000000-0000-4000-8000-000000000006";
 const auditId = "e1000000-0000-4000-8000-000000000007";
-const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: Connection;
 let ownerId = 0;
 let backupDirectory = "";

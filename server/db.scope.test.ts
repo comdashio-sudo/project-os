@@ -5,7 +5,7 @@ const databaseDouble = vi.hoisted(() => ({
   transaction: vi.fn(),
 }));
 
-vi.mock("drizzle-orm/mysql2", () => ({
+vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => databaseDouble),
 }));
 

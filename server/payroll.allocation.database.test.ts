@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -10,7 +10,7 @@ const P1 = "79000000-0000-4000-8000-0000000000a2";
 const P2 = "79000000-0000-4000-8000-0000000000a3";
 const uid = (n: number) => `79000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [W1, W2, W3, RES, E1, E2, E3] = [101, 102, 103, 104, 105, 106, 107].map(uid);
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: mysql.Connection;
 const users = { manager: 0, runner: 0, approver: 0, p1only: 0, plain: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@payalloc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });

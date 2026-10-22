@@ -1,45 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  CODE_TTL_MS,
-  createEmailCodeService,
-  EmailCodeError,
-  hashEmail,
-  MAX_ATTEMPTS,
-  MAX_REQUESTS_PER_HOUR,
-  MIN_REQUEST_INTERVAL_MS,
-  normalizeEmail,
-  openIdForEmail,
-  type LoginCodeRepository,
-  type LoginCodeRow,
-  type OutgoingMail,
-} from "./emailCode";
+import { describe, expect, it } from "vitest";
+import { ATTEMPT_POLICY, createEmailCodeService, DEFAULT_CODE_TTL_SECONDS, EmailCodeError, hashEmail, normalizeEmail, openIdForEmail } from "./emailCode";
+import { createFakeCodeProvider, createMemoryAttemptLimiter } from "../../testing/fakeCodeProvider";
 
-const SECRET = "unit-test-secret-0123456789";
 const ADDRESS = "Engineer@Example.TEST";
 
-function memoryRepository() {
-  const rows: LoginCodeRow[] = [];
-  const repository: LoginCodeRepository = {
-    async countSince(emailHash, since) { return rows.filter(r => r.emailHash === emailHash && r.createdAt >= since).length; },
-    async latestCreatedAt(emailHash) { return rows.filter(r => r.emailHash === emailHash).map(r => r.createdAt).sort((a, b) => b.getTime() - a.getTime())[0] ?? null; },
-    async retireOpen(emailHash, now) { rows.filter(r => r.emailHash === emailHash && !r.consumedAt).forEach(r => { r.consumedAt = now; }); },
-    async insert(row) { rows.push({ ...row, attempts: 0, consumedAt: null }); },
-    // A snapshot, like a database read: a caller that decides from `attempts` is deciding from a number that other callers may already have moved.
-    async findOpen(emailHash, now) { const row = rows.filter(r => r.emailHash === emailHash && !r.consumedAt && r.expiresAt > now).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]; return row ? { ...row } : null; },
-    async claimAttempt(id, max) { const row = rows.find(r => r.id === id); if (!row || row.consumedAt || row.attempts >= max) return false; row.attempts += 1; return true; },
-    async consume(id, now) { const row = rows.find(r => r.id === id); if (!row || row.consumedAt) return false; row.consumedAt = now; return true; },
-  };
-  return { rows, repository };
-}
-
-function setup(options: { mailerFails?: boolean; noMailer?: boolean; codes?: string[] } = {}) {
-  const { rows, repository } = memoryRepository();
-  const sent: OutgoingMail[] = [];
-  let clock = new Date("2026-10-15T12:00:00.000Z").getTime();
-  const codes = [...(options.codes ?? ["123456", "654321", "111111", "222222", "333333", "444444", "555555"])];
-  const mailer = options.noMailer ? null : { send: vi.fn(async (mail: OutgoingMail) => { if (options.mailerFails) throw new Error("provider down"); sent.push(mail); }) };
-  const service = createEmailCodeService({ repository, mailer, secret: SECRET, now: () => new Date(clock), randomCode: () => codes.shift() ?? "000000" });
-  return { service, rows, sent, mailer, advance: (ms: number) => { clock += ms; } };
+function setup(options: { noProvider?: boolean } = {}) {
+  let clock = new Date("2026-10-22T12:00:00.000Z").getTime();
+  const now = () => new Date(clock);
+  const fake = createFakeCodeProvider({ now, randomCode: (() => { let n = 0; return () => String(123456 + n++); })() });
+  const attempts = createMemoryAttemptLimiter();
+  const service = createEmailCodeService({ provider: options.noProvider ? null : fake.provider, attempts, now });
+  return { service, fake, attempts, advance: (ms: number) => { clock += ms; } };
 }
 
 const failure = async (promise: Promise<unknown>) => { try { await promise; } catch (error) { return error as EmailCodeError; } throw new Error("expected a failure"); };
@@ -52,6 +23,12 @@ describe("addresses", () => {
     expect(openIdForEmail("a@example.test")).not.toBe(openIdForEmail("b@example.test"));
   });
 
+  it("keeps the identity the e-mail-code login had before Supabase Auth, so no existing account is orphaned", () => {
+    // sha256("engineer@example.test") sliced to 40 characters, as it was computed when the code was stored by this application
+    expect(openIdForEmail("engineer@example.test")).toBe(`email:${hashEmail("engineer@example.test").slice(0, 40)}`);
+    expect(hashEmail("engineer@example.test")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it("rejects anything that is not one plain address", () => {
     for (const bad of ["", "no-at-sign", "a@b", "a b@example.test", "a@example.test, b@example.test", "<a@example.test>", `${"x".repeat(250)}@example.test`, 42, null, undefined]) {
       expect(() => normalizeEmail(bad), String(bad)).toThrow(EmailCodeError);
@@ -60,68 +37,35 @@ describe("addresses", () => {
 });
 
 describe("requesting a code", () => {
-  it("mails the code once and stores only hashes", async () => {
-    const { service, rows, sent } = setup();
-    expect(await service.requestCode(ADDRESS)).toEqual({ expiresInSeconds: CODE_TTL_MS / 1000 });
-    expect(sent).toHaveLength(1);
-    expect(sent[0].to).toBe("engineer@example.test");
-    expect(sent[0].text).toContain("123456");
-    expect(rows).toHaveLength(1);
-    const stored = JSON.stringify(rows[0]);
-    expect(stored).not.toContain("123456");
-    expect(stored).not.toContain("engineer");
-    expect(rows[0].emailHash).toBe(hashEmail("engineer@example.test"));
+  it("asks the provider to mail the code for the normalized address, and says how long it lives", async () => {
+    const { service, fake } = setup();
+    expect(await service.requestCode(ADDRESS)).toEqual({ expiresInSeconds: DEFAULT_CODE_TTL_SECONDS });
+    expect(fake.sent.map(mail => mail.to)).toEqual(["engineer@example.test"]);
   });
 
-  it("refuses an invalid address before touching the database or the mailer", async () => {
-    const { service, rows, mailer } = setup();
+  it("refuses an invalid address before the provider is asked", async () => {
+    const { service, fake } = setup();
     expect((await failure(service.requestCode("nope"))).code).toBe("EMAIL_INVALID");
-    expect(rows).toHaveLength(0);
-    expect(mailer!.send).not.toHaveBeenCalled();
+    expect(fake.sent).toHaveLength(0);
   });
 
-  it("reports an unavailable mailer, and a failing one, without leaving a usable code", async () => {
-    expect((await failure(setup({ noMailer: true }).service.requestCode(ADDRESS))).code).toBe("MAIL_UNAVAILABLE");
-    const { service, rows } = setup({ mailerFails: true });
-    expect((await failure(service.requestCode(ADDRESS))).code).toBe("MAIL_UNAVAILABLE");
-    expect(rows[0].consumedAt).not.toBeNull();
-    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
+  it("reports an unconfigured or unavailable provider as MAIL_UNAVAILABLE", async () => {
+    expect((await failure(setup({ noProvider: true }).service.requestCode(ADDRESS))).code).toBe("MAIL_UNAVAILABLE");
+    const down = setup();
+    down.fake.setUnavailable(true);
+    expect((await failure(down.service.requestCode(ADDRESS))).code).toBe("MAIL_UNAVAILABLE");
   });
 
-  it("allows one request per 30 seconds and five per hour per address", async () => {
-    const { service, advance } = setup();
+  it("passes the provider's rate limit through as RATE_LIMITED", async () => {
+    const { service } = setup();
     await service.requestCode(ADDRESS);
-    advance(MIN_REQUEST_INTERVAL_MS - 1000);
     expect((await failure(service.requestCode(ADDRESS))).code).toBe("RATE_LIMITED");
-    for (let i = 1; i < MAX_REQUESTS_PER_HOUR; i++) {
-      advance(MIN_REQUEST_INTERVAL_MS + 1000);
-      await service.requestCode(ADDRESS);
-    }
-    advance(MIN_REQUEST_INTERVAL_MS + 1000);
-    expect((await failure(service.requestCode(ADDRESS))).code).toBe("RATE_LIMITED");
-    advance(60 * 60 * 1000);
-    await expect(service.requestCode(ADDRESS)).resolves.toBeTruthy();
   });
 
   it("answers a request the same way for any address: the service knows no accounts, so it cannot say whether one exists", async () => {
     const { service } = setup();
     const answers = await Promise.all(["known@example.test", "never-seen@example.test", "Third@Example.TEST"].map(address => service.requestCode(address)));
     expect(new Set(answers.map(answer => JSON.stringify(answer))).size).toBe(1);
-  });
-
-  it("counts addresses separately", async () => {
-    const { service } = setup();
-    await service.requestCode("a@example.test");
-    await expect(service.requestCode("b@example.test")).resolves.toBeTruthy();
-  });
-
-  it("retires the previous code when a new one is requested", async () => {
-    const { service, advance } = setup();
-    await service.requestCode(ADDRESS);
-    advance(MIN_REQUEST_INTERVAL_MS + 1000);
-    await service.requestCode(ADDRESS);
-    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
-    await expect(service.verifyCode(ADDRESS, "654321")).resolves.toEqual({ email: "engineer@example.test" });
   });
 });
 
@@ -133,7 +77,15 @@ describe("verifying a code", () => {
     expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
   });
 
-  it("refuses a wrong code and the same failure for every other reason", async () => {
+  it("accepts a code of six to ten digits, because the length is a server setting the owner may change", async () => {
+    const { service, fake } = setup();
+    await service.requestCode(ADDRESS);
+    fake.sent[0].code = "12345678";
+    expect((await failure(service.verifyCode(ADDRESS, "12345678"))).code).toBe("CODE_INVALID"); // well formed, just not the mailed one
+    expect((await failure(service.verifyCode(ADDRESS, "12345"))).code).toBe("CODE_INVALID"); // too short is refused before the provider
+  });
+
+  it("refuses a wrong code and gives the same failure for every other reason", async () => {
     const { service } = setup();
     await service.requestCode(ADDRESS);
     const reasons = await Promise.all([
@@ -150,62 +102,73 @@ describe("verifying a code", () => {
   it("refuses an expired code", async () => {
     const { service, advance } = setup();
     await service.requestCode(ADDRESS);
-    advance(CODE_TTL_MS + 1);
+    advance(DEFAULT_CODE_TTL_SECONDS * 1000 + 1);
     expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
   });
 
-  it("locks after five wrong guesses, even for the right code afterwards", async () => {
-    const { service, rows } = setup();
-    await service.requestCode(ADDRESS);
-    for (let i = 0; i < MAX_ATTEMPTS; i++) await failure(service.verifyCode(ADDRESS, "999999"));
-    expect(rows[0].attempts).toBe(MAX_ATTEMPTS);
-    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
-    expect(rows[0].consumedAt).not.toBeNull();
-  });
-
-  it("never lets simultaneous wrong guesses pass the limit of five, and the right code is refused afterwards", async () => {
-    const { service, rows } = setup();
-    await service.requestCode(ADDRESS);
-    const results = await Promise.allSettled(Array.from({ length: 12 }, () => service.verifyCode(ADDRESS, "999999")));
-    expect(results.every(r => r.status === "rejected")).toBe(true);
-    expect(rows[0].attempts).toBe(MAX_ATTEMPTS);
-    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
-  });
-
-  it("spends a guess even on the right code, so five simultaneous tries cannot become six", async () => {
-    const { service, rows } = setup();
-    await service.requestCode(ADDRESS);
-    const results = await Promise.allSettled([...Array.from({ length: 5 }, () => service.verifyCode(ADDRESS, "999999")), service.verifyCode(ADDRESS, "123456"), service.verifyCode(ADDRESS, "123456")]);
-    expect(rows[0].attempts).toBeLessThanOrEqual(MAX_ATTEMPTS);
-    expect(results.filter(r => r.status === "fulfilled").length).toBeLessThanOrEqual(1);
-  });
-
-  it("a code that was consumed is dead: the same code cannot start a second session", async () => {
+  it("a code that was used is dead: the same code cannot start a second session", async () => {
     const { service } = setup();
     await service.requestCode(ADDRESS);
     await expect(service.verifyCode(ADDRESS, "123456")).resolves.toEqual({ email: "engineer@example.test" });
     expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
   });
 
-  it("lets exactly one of two simultaneous correct submissions through", async () => {
-    const { service } = setup();
+  it("reports an unavailable provider as MAIL_UNAVAILABLE and does not count it as a wrong guess", async () => {
+    const { service, fake, attempts } = setup();
     await service.requestCode(ADDRESS);
-    const results = await Promise.allSettled([service.verifyCode(ADDRESS, "123456"), service.verifyCode(ADDRESS, "123456")]);
-    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter(r => r.status === "rejected")).toHaveLength(1);
-  });
-
-  it("a code is bound to its address", async () => {
-    const { service, rows } = setup();
-    await service.requestCode("a@example.test");
-    // Same hash of the code under another address must not verify.
-    const other = createEmailCodeService({ repository: { ...memoryRepository().repository, findOpen: async () => ({ ...rows[0], emailHash: hashEmail("b@example.test") }) }, mailer: null, secret: SECRET, now: () => new Date("2026-10-15T12:00:01.000Z") });
-    expect((await failure(other.verifyCode("b@example.test", "123456"))).code).toBe("CODE_INVALID");
+    fake.setUnavailable(true);
+    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("MAIL_UNAVAILABLE");
+    expect(attempts.rows.size).toBe(0);
   });
 });
 
-describe("construction", () => {
-  it("refuses a short signing secret", () => {
-    expect(() => createEmailCodeService({ repository: memoryRepository().repository, mailer: null, secret: "short" })).toThrow(/JWT_SECRET/);
+describe("the guess limit (five wrong codes lock the address for fifteen minutes)", () => {
+  it("locks after five wrong guesses, even for the right code afterwards, and says the same thing as any other refusal", async () => {
+    const { service } = setup();
+    await service.requestCode(ADDRESS);
+    for (let i = 0; i < ATTEMPT_POLICY.max; i++) expect((await failure(service.verifyCode(ADDRESS, "999999"))).code).toBe("CODE_INVALID");
+    expect((await failure(service.verifyCode(ADDRESS, "123456"))).code).toBe("CODE_INVALID");
+  });
+
+  it("a fourth wrong guess still leaves the right code working", async () => {
+    const { service } = setup();
+    await service.requestCode(ADDRESS);
+    for (let i = 0; i < ATTEMPT_POLICY.max - 1; i++) await failure(service.verifyCode(ADDRESS, "999999"));
+    await expect(service.verifyCode(ADDRESS, "123456")).resolves.toEqual({ email: "engineer@example.test" });
+  });
+
+  it("lifts the lock after fifteen minutes, and a new code request does not lift it earlier", async () => {
+    const { service, advance } = setup();
+    await service.requestCode(ADDRESS);
+    for (let i = 0; i < ATTEMPT_POLICY.max; i++) await failure(service.verifyCode(ADDRESS, "999999"));
+    advance(61_000);
+    await service.requestCode(ADDRESS); // a fresh code (123457) exists, the address is still locked
+    expect((await failure(service.verifyCode(ADDRESS, "123457"))).code).toBe("CODE_INVALID");
+    advance(ATTEMPT_POLICY.lockMs);
+    await expect(service.verifyCode(ADDRESS, "123457")).resolves.toEqual({ email: "engineer@example.test" });
+  });
+
+  it("a successful sign-in clears the count", async () => {
+    const { service, attempts } = setup();
+    await service.requestCode(ADDRESS);
+    await failure(service.verifyCode(ADDRESS, "999999"));
+    expect(attempts.rows.get(hashEmail("engineer@example.test"))?.failures).toBe(1);
+    await service.verifyCode(ADDRESS, "123456");
+    expect(attempts.rows.size).toBe(0);
+  });
+
+  it("counts addresses separately", async () => {
+    const { service } = setup();
+    await service.requestCode("a@example.test");
+    await service.requestCode("b@example.test");
+    for (let i = 0; i < ATTEMPT_POLICY.max; i++) await failure(service.verifyCode("a@example.test", "999999"));
+    await expect(service.verifyCode("b@example.test", "123457")).resolves.toEqual({ email: "b@example.test" });
+  });
+
+  it("stores only a hash of the address", async () => {
+    const { service, attempts } = setup();
+    await service.requestCode(ADDRESS);
+    await failure(service.verifyCode(ADDRESS, "999999"));
+    expect(JSON.stringify([...attempts.rows.keys()])).not.toContain("engineer");
   });
 });

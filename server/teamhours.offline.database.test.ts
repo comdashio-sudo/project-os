@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import * as serverDb from "./db";
@@ -9,7 +9,7 @@ const T = "75000000-0000-4000-8000-0000000000a1";
 const P = "75000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `75000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [E1, E2, E3, A1, A2, A3, RES, WBS] = [101, 102, 103, 104, 105, 106, 107, 108].map(uid);
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 let connection: mysql.Connection;

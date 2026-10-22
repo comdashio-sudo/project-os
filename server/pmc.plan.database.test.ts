@@ -1,5 +1,5 @@
 import { deflateSync } from "node:zlib";
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -13,7 +13,7 @@ const P_OTHER = "70000000-0000-4000-8000-0000000000b2";
 const uid = (n: number) => `70000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [Z1, B1, G1, S1, D_WALLS, D_PAINT] = [101, 102, 103, 104, 105, 106].map(uid);
 const U = [1, 2, 3, 4].map(n => uid(200 + n));
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 function png(width: number, height: number) {
   const table = Array.from({ length: 256 }, (_unused, n) => { let c = n; for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });

@@ -8,7 +8,7 @@
 //   pnpm build
 //   node --import tsx scripts/e2e-roles.mjs            [ROLES=pm,site]  [EXPLORE=1]
 //
-// The script starts the production server itself (PORT, default 3200) with RESEND_API_URL pointing at a fake provider on 127.0.0.1,
+// The script starts the production server itself (PORT, default 3200) with SUPABASE_URL pointing at a fake Supabase Auth on 127.0.0.1,
 // so no mail leaves the machine. Playwright is not a project dependency (see measure-mobile-entry.mjs): PLAYWRIGHT_MODULE_DIR
 // (default /opt/node-tools/node_modules/) and PLAYWRIGHT_CHROMIUM (default /opt/pw-browsers/chromium-1194/chrome-linux/chrome) locate it.
 // Run it on a database that was migrated fresh (the live test runner deletes global permission rows that a new company re-creates, but
@@ -16,8 +16,9 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { createServer } from "node:http";
-import mysql from "mysql2/promise";
+import { startFakeGoTrue } from "./lib/fakeGoTrue.mjs";
+import { serverDatabaseEnv } from "./lib/serverEnv.mjs";
+import mysql from "../server/testing/pgCompat.ts";
 import { seedDemoData } from "./lib/demoData.mjs";
 import { getDb } from "../server/db.ts";
 import { countTenantData } from "../server/tenantData.ts";
@@ -34,21 +35,9 @@ const require = createRequire(process.env.PLAYWRIGHT_MODULE_DIR ?? "/opt/node-to
 const { chromium } = require("playwright");
 const only = process.env.ROLES ? process.env.ROLES.split(",") : null;
 
-// ---------------------------------------------------------------- fake mail provider (Resend's POST /emails, on loopback)
-const inbox = new Map(); // address -> [text, ...]
-const mailServer = createServer((request, response) => {
-  let body = "";
-  request.on("data", chunk => { body += chunk; });
-  request.on("end", () => {
-    try {
-      const mail = JSON.parse(body);
-      for (const to of mail.to ?? []) inbox.set(String(to).toLowerCase(), [...(inbox.get(String(to).toLowerCase()) ?? []), String(mail.text ?? "")]);
-      response.writeHead(200, { "content-type": "application/json" }).end('{"id":"fake"}');
-    } catch { response.writeHead(400).end(); }
-  });
-});
-await new Promise(resolve => mailServer.listen(0, "127.0.0.1", resolve));
-const mailPort = mailServer.address().port;
+// ---------------------------------------------------------------- fake Supabase Auth (loopback): the sign-in code lands in `inbox`
+const gotrue = await startFakeGoTrue();
+const inbox = gotrue.inbox; // address -> [text, ...]
 // The code in the NEXT message for this address: a message already in the inbox is an older code.
 const mailCount = address => (inbox.get(address.toLowerCase()) ?? []).length;
 const codeFor = async (address, alreadyHad) => {
@@ -61,9 +50,9 @@ const codeFor = async (address, alreadyHad) => {
   throw new Error(`no sign-in code reached the fake provider for ${address}`);
 };
 
-// ---------------------------------------------------------------- the production server, pointed at the fake provider
+// ---------------------------------------------------------------- the production server, pointed at the fake Supabase Auth
 const server = spawn(process.execPath, ["dist/index.js"], {
-  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), RESEND_API_KEY: `fake-${randomUUID()}`, EMAIL_FROM: "PROJECT OS <login@mail.example.test>", RESEND_API_URL: `http://127.0.0.1:${mailPort}/emails`, APP_BASE_URL: BASE_URL, API_RATE_LIMIT_PER_MINUTE: "20000" },
+  env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), ...serverDatabaseEnv(), SUPABASE_URL: gotrue.url, SUPABASE_ANON_KEY: gotrue.anonKey, APP_BASE_URL: BASE_URL, API_RATE_LIMIT_PER_MINUTE: "20000" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let serverLog = "";
@@ -476,7 +465,7 @@ if (process.env.E2E_ERASURE || (!only && !process.env.VIEW)) {
 await browser.close();
 await connection.end();
 server.kill();
-mailServer.close();
+await gotrue.close();
 const failed = results.filter(item => !item.ok);
 console.log(JSON.stringify({ checks: results.length, passed: results.length - failed.length, failed: failed.map(item => `${item.role}/${item.view}: ${item.name} — ${item.detail}`) }, null, 1));
 process.exit(failed.length ? 1 : 0);

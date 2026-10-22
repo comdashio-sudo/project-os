@@ -32,11 +32,23 @@ export const hashEmail = (email: string) => createHash("sha256").update(email).d
 /** Stable account identity derived from the verified address (users.openId, 46 chars). Unchanged by the move to Supabase Auth, so no account is orphaned. */
 export const openIdForEmail = (email: string) => `email:${hashEmail(email).slice(0, 40)}`;
 
-export type EmailCodeServiceDependencies = { provider: CodeProvider | null; ttlSeconds?: number };
+/** The guess limit Supabase Auth does not give: wrong codes per address, counted by the app and shared by every server instance. */
+export const ATTEMPT_POLICY = { max: 5, windowMs: 15 * 60 * 1000, lockMs: 15 * 60 * 1000 } as const;
+export interface AttemptLimiter {
+  /** When this address is locked, until when (null when it may try). */
+  lockedUntil(emailHash: string, now: Date): Promise<Date | null>;
+  /** Counts one wrong code; returns the end of the lock when this guess reached the limit. */
+  recordFailure(emailHash: string, now: Date, policy: typeof ATTEMPT_POLICY): Promise<Date | null>;
+  clear(emailHash: string): Promise<void>;
+}
+
+export type EmailCodeServiceDependencies = { provider: CodeProvider | null; attempts?: AttemptLimiter; ttlSeconds?: number; now?: () => Date };
 
 export function createEmailCodeService(dependencies: EmailCodeServiceDependencies) {
   const { provider } = dependencies;
   const ttlSeconds = dependencies.ttlSeconds ?? DEFAULT_CODE_TTL_SECONDS;
+  const attempts = dependencies.attempts;
+  const now = dependencies.now ?? (() => new Date());
 
   return {
     async requestCode(rawEmail: unknown): Promise<{ expiresInSeconds: number }> {
@@ -56,7 +68,17 @@ export function createEmailCodeService(dependencies: EmailCodeServiceDependencie
       }
       if (typeof rawCode !== "string" || !/^\d{6,10}$/.test(rawCode.trim())) throw new EmailCodeError("CODE_INVALID");
       if (!provider) throw new EmailCodeError("MAIL_UNAVAILABLE");
-      return provider.verifyCode(email, rawCode.trim());
+      const emailHash = hashEmail(email);
+      // A locked address is refused before the provider is asked: five wrong guesses cannot become six, and the right code does not help until the lock ends.
+      if (attempts && (await attempts.lockedUntil(emailHash, now()))) throw new EmailCodeError("CODE_INVALID");
+      try {
+        const verified = await provider.verifyCode(email, rawCode.trim());
+        await attempts?.clear(emailHash);
+        return verified;
+      } catch (error) {
+        if (error instanceof EmailCodeError && error.code === "CODE_INVALID") await attempts?.recordFailure(emailHash, now(), ATTEMPT_POLICY);
+        throw error;
+      }
     },
   };
 }

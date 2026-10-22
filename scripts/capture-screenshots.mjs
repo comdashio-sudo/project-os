@@ -22,7 +22,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { eq } from "drizzle-orm";
 import { users } from "../drizzle/schema.ts";
 import { sdk } from "../server/_core/sdk.ts";

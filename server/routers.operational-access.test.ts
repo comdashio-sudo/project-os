@@ -6,7 +6,7 @@ const databaseDouble = vi.hoisted(() => ({
 }));
 const storageDouble = vi.hoisted(() => ({ storagePut: vi.fn(async () => ({ key: "tenant/project/document.bin", url: "https://files.example.test/tenant/project/document.bin" })) }));
 
-vi.mock("drizzle-orm/mysql2", () => ({
+vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => databaseDouble),
 }));
 vi.mock("./storage", () => ({ storagePut: storageDouble.storagePut }));

@@ -8,10 +8,11 @@ import type { AddressInfo } from "node:net";
 import { SignJWT } from "jose";
 import superjson from "superjson";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { authSessions, loginCodes, users } from "../drizzle/schema";
+import { authCodeAttempts, authSessions, users } from "../drizzle/schema";
 import { createContext } from "./_core/context";
 import { createEmailCodeService, hashEmail, openIdForEmail } from "./_core/auth/emailCode";
-import { createDbLoginCodeRepository } from "./_core/auth/loginCodeRepository";
+import { createDbAttemptLimiter } from "./_core/auth/attemptRepository";
+import { createFakeCodeProvider } from "./testing/fakeCodeProvider";
 import { registerAuthRoutes } from "./_core/auth/routes";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
@@ -19,14 +20,18 @@ import { getDb, upsertUser } from "./db";
 import { appRouter } from "./routers";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
-// Work order 4, items 1 and 2, end to end on the test database: the real e-mail-code flow, the real session table and the real tRPC
-// procedures over HTTP. A signed cookie must stop working the moment its session is ended in the server, and every refusal of a
+// Work order 4, items 1 and 2 (re-based on Supabase Auth in work order 6), end to end on the test database: the real routes, the real guess-limit table,
+// the real session table and the real tRPC procedures over HTTP, with the e-mail code itself played by an in-memory stand-in for GoTrue
+// (the real GoTrue is driven by server/auth.gotrue.live.test.ts). A signed cookie must stop working the moment its session is ended in the server, and every refusal of a
 // code must look the same. Synthetic addresses only (*.example.test).
 describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-in and server-side sessions on a real database", () => {
   const stamp = randomUUID().slice(0, 8);
   const address = (name: string) => `${name}-${stamp}@example.test`;
-  const sent: Record<string, string> = {};
+  const clock = { value: Date.now() };
+  const fake = createFakeCodeProvider({ now: () => new Date(clock.value), minIntervalMs: 60_000 });
+  const sent = new Proxy({} as Record<string, string>, { get: (_target, email: string) => fake.sent.filter(mail => mail.to === email).at(-1)?.code });
   const emails = new Set<string>();
+  const spacing = () => { clock.value += 61_000; }; // past the provider's minimum interval between two codes for one address
   let server: Server; let base = "";
   const previousSecret = ENV.cookieSecret;
 
@@ -36,7 +41,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
     const app = express();
     app.use(express.json());
     registerAuthRoutes(app, {
-      emailCodes: createEmailCodeService({ repository: createDbLoginCodeRepository(), secret: ENV.cookieSecret, mailer: { send: async mail => { sent[mail.to] = mail.text.match(/\d{6}/)![0]; } } }),
+      emailCodes: createEmailCodeService({ provider: fake.provider, attempts: createDbAttemptLimiter(), now: () => new Date(clock.value) }),
       google: null,
       secret: ENV.cookieSecret,
       upsertUser: user => upsertUser(user),
@@ -50,7 +55,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
   afterAll(async () => {
     await new Promise(resolve => server.close(resolve));
     const db = await getDb();
-    for (const email of emails) await db?.delete(loginCodes).where(eq(loginCodes.emailHash, hashEmail(email)));
+    for (const email of emails) await db?.delete(authCodeAttempts).where(eq(authCodeAttempts.emailHash, hashEmail(email)));
     await db?.delete(users).where(like(users.email, `%-${stamp}@example.test`)); // the sessions go with their user (ON DELETE CASCADE)
     (ENV as { cookieSecret: string }).cookieSecret = previousSecret;
   });
@@ -106,9 +111,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
 
   it("logging out one browser leaves the same person's other browser signed in; 'sign out everywhere' ends both", async () => {
     const first = await signIn("three");
-    // a second sign-in needs a second code: wait out the 30 s spacing by moving the first code's timestamp back
-    const db = (await getDb())!;
-    await db.update(loginCodes).set({ createdAt: new Date(Date.now() - 120_000) }).where(eq(loginCodes.emailHash, hashEmail(first.email)));
+    // a second sign-in needs a second code: the provider spaces two codes for one address, so let that interval pass
+    spacing();
     expect((await post("/api/auth/email/request", { email: first.email })).status).toBe(200);
     const second = cookieOf(await post("/api/auth/email/verify", { email: first.email, code: sent[first.email] }));
     expect(await sessionRows(first.email)).toHaveLength(2);
@@ -125,8 +129,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
   });
 
   async function signInAgain(email: string) {
-    const db = (await getDb())!;
-    await db.update(loginCodes).set({ createdAt: new Date(Date.now() - 120_000) }).where(eq(loginCodes.emailHash, hashEmail(email)));
+    spacing();
     await post("/api/auth/email/request", { email });
     return cookieOf(await post("/api/auth/email/verify", { email, code: sent[email] }));
   }
@@ -163,19 +166,45 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
     expect(await sessionRows(email)).toHaveLength(0); // no session was ever created
   });
 
-  it("allows one code request per 30 seconds per address, and a code lives ten minutes", async () => {
+  it("keeps the lock after five wrong guesses for fifteen minutes even when a fresh code is mailed, and lifts it afterwards", async () => {
+    const email = address("lock"); emails.add(email);
+    await post("/api/auth/email/request", { email });
+    for (let i = 0; i < 5; i++) expect((await post("/api/auth/email/verify", { email, code: "000000" })).status).toBe(401);
+    const [row] = await (await getDb())!.select().from(authCodeAttempts).where(eq(authCodeAttempts.emailHash, hashEmail(email)));
+    expect(row.failures).toBe(5);
+    expect(row.lockedUntil!.getTime()).toBeGreaterThan(clock.value);
+    spacing();
+    expect((await post("/api/auth/email/request", { email })).status).toBe(200); // a code can be asked for ...
+    expect((await post("/api/auth/email/verify", { email, code: sent[email] })).status).toBe(401); // ... but the address is still locked
+    clock.value += 15 * 60_000;
+    expect((await post("/api/auth/email/verify", { email, code: sent[email] })).status).toBe(200);
+    expect(await (await getDb())!.select().from(authCodeAttempts).where(eq(authCodeAttempts.emailHash, hashEmail(email)))).toHaveLength(0); // a good sign-in clears the count
+  });
+
+  it("allows one code request per minute per address, and a code lives one hour", async () => {
     const email = address("seven"); emails.add(email);
     expect((await post("/api/auth/email/request", { email })).status).toBe(200);
     expect((await post("/api/auth/email/request", { email })).status).toBe(429);
-    const db = (await getDb())!;
-    const hash = hashEmail(email);
-    await db.update(loginCodes).set({ createdAt: new Date(Date.now() - 11 * 60_000), expiresAt: new Date(Date.now() - 60_000) }).where(eq(loginCodes.emailHash, hash));
+    clock.value += 61 * 60_000;
     expect((await post("/api/auth/email/verify", { email, code: sent[email] })).status).toBe(401); // expired
+  });
+
+  it("reports an unreachable Supabase Auth as 503, for a request and for a verification, and creates no session", async () => {
+    const email = address("down"); emails.add(email);
+    await post("/api/auth/email/request", { email });
+    fake.setUnavailable(true);
+    try {
+      expect((await post("/api/auth/email/request", { email: address("down2") })).status).toBe(503);
+      const response = await post("/api/auth/email/verify", { email, code: sent[email] });
+      expect(response.status).toBe(503);
+      expect(response.headers.get("set-cookie")).toBeNull();
+    } finally { fake.setUnavailable(false); }
+    expect(await sessionRows(email)).toHaveLength(0);
   });
 
   it("never reveals whether an address has an account: requesting a code answers the same for a member and a stranger", async () => {
     const member = await signIn("member");
-    await getDb().then(db => db!.update(loginCodes).set({ createdAt: new Date(Date.now() - 120_000) }).where(eq(loginCodes.emailHash, hashEmail(member.email))));
+    spacing();
     const known = await post("/api/auth/email/request", { email: member.email });
     const stranger = await post("/api/auth/email/request", { email: address("stranger") }); emails.add(address("stranger"));
     expect(known.status).toBe(stranger.status);

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -9,7 +9,7 @@ const tenantId = "10000000-0000-4000-8000-0000000000a1";
 const foreignTenantId = "10000000-0000-4000-8000-0000000000b1";
 const projectId = "10000000-0000-4000-8000-0000000000a2";
 const foreignProjectId = "10000000-0000-4000-8000-0000000000b2";
-const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 let connection: mysql.Connection;
 let executiveId = 0;

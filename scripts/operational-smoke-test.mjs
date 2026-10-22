@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import crypto from "node:crypto";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -16,9 +16,12 @@ async function run() {
 
   const tenantId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
-  const userId = 1; // Assuming owner/admin user exists
+  let userId = 0; // a synthetic user created below and removed at the end, so the smoke test needs no pre-existing account
 
   try {
+    const [created] = await connection.query("INSERT INTO users (openId, name, email, loginMethod) VALUES (?, 'Smoke Test User', ?, 'test')", [`smoke:${crypto.randomUUID()}`.slice(0, 64), "smoke@smoke.example.test"]);
+    userId = created.insertId;
+
     // 1. Create Tenant
     console.log("\n1. Creating Tenant...");
     await connection.query(
@@ -89,13 +92,14 @@ async function run() {
   } finally {
     console.log("\nCleaning up...");
     // Cleanup in reverse order
-    await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [tenantId]);
+    // audit_logs is append-only and the rows above were written directly (no audit entries); nothing to remove there
     await connection.query("DELETE FROM goods_receipt_notes WHERE tenantId = ?", [tenantId]);
     await connection.query("DELETE FROM purchase_orders WHERE tenantId = ?", [tenantId]);
     await connection.query("DELETE FROM material_masters WHERE tenantId = ?", [tenantId]);
     await connection.query("DELETE FROM wbs_items WHERE tenantId = ?", [tenantId]);
     await connection.query("DELETE FROM projects WHERE tenantId = ?", [tenantId]);
     await connection.query("DELETE FROM companies WHERE id = ?", [tenantId]);
+    if (userId) await connection.query("DELETE FROM users WHERE id = ?", [userId]);
     console.log("✅ Cleanup complete");
     await connection.end();
   }

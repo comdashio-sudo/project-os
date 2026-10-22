@@ -1,62 +1,53 @@
-// Rehearses the first deployment on THIS machine, the way Render will run it: the production build, started with the environment the
-// blueprint (render.yaml) gives it, a fake mail provider on 127.0.0.1 instead of Resend, and the test database instead of TiDB.
+// Rehearses the first deployment on THIS machine, the way Vercel will run it: the production build, started with the environment variables
+// docs/GO_LIVE.md lists, a fake Supabase Auth on 127.0.0.1 instead of the real project, and the local test database instead of Supabase Postgres.
 // It does the checks you would do on a phone after the real deploy (docs/GO_LIVE.md, step 5), over HTTP, and reports each as ok/failed.
 //
-//   . env (DATABASE_URL naming project_os_integration_test)
-//   node scripts/migrate.mjs           # what Render's preDeployCommand does
+//   . env (DATABASE_URL naming project_os_integration_test; SERVER_DATABASE_URL = the same database as project_os_app)
+//   node scripts/migrate.mjs           # what the deploy's pre-deploy step does
 //   pnpm build
-//   node scripts/deploy-rehearsal.mjs                      [PORT=3400]
+//   node --import tsx scripts/deploy-rehearsal.mjs         [PORT=3400]
 //
-// Nothing leaves the machine: the mail provider is a local fake (RESEND_API_URL accepts a loopback address only), the database is the
-// local test database, and storage is left unconfigured (R2 is the one account whose absence only disables file features). Exit code 1
-// when any check fails. No secret is printed: the keys are generated here for this run and never written to the output.
+// Nothing leaves the machine: Supabase Auth is a local fake (scripts/lib/fakeGoTrue.mjs), the database is the local test database, and storage
+// is left unconfigured (the one service whose absence only disables file features). Exit code 1 when any check fails. No secret is printed:
+// the keys are generated here for this run and never written to the output.
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { createServer } from "node:http";
+import { startFakeGoTrue } from "./lib/fakeGoTrue.mjs";
+import { serverDatabaseEnv } from "./lib/serverEnv.mjs";
 import { existsSync } from "node:fs";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
 if (dbUrl.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
-if (!existsSync("dist/index.js")) { console.error("dist/index.js is missing: run `pnpm build` first (this is what Render's build step does)."); process.exit(2); }
+if (!existsSync("dist/index.js")) { console.error("dist/index.js is missing: run `pnpm build` first (this is what the deploy's build step does)."); process.exit(2); }
 const PORT = Number(process.env.PORT ?? 3400);
 const BASE = `http://localhost:${PORT}`;
 const ownerEmail = `owner.${randomBytes(3).toString("hex")}@rehearsal.example.test`;
-const secrets = { jwt: randomBytes(32).toString("hex"), cron: randomBytes(24).toString("hex"), resend: `fake-${randomUUID()}` };
+const secrets = { jwt: randomBytes(32).toString("hex"), cron: randomBytes(24).toString("hex") };
 
-// fake Resend: POST /emails, remembers the last message per recipient
-const inbox = new Map();
-const mail = createServer((request, response) => {
-  let body = "";
-  request.on("data", chunk => { body += chunk; });
-  request.on("end", () => {
-    const message = JSON.parse(body || "{}");
-    for (const to of message.to ?? []) inbox.set(String(to).toLowerCase(), { text: String(message.text ?? ""), subject: String(message.subject ?? ""), authorization: request.headers.authorization });
-    response.writeHead(200, { "content-type": "application/json" }).end('{"id":"fake"}');
-  });
-});
-await new Promise(resolve => mail.listen(0, "127.0.0.1", resolve));
+// fake Supabase Auth: /otp puts the code in `inbox`; /verify accepts it once
+const gotrue = await startFakeGoTrue();
+const inbox = gotrue.inbox;
 
-// the environment render.yaml gives the web service (values it generates are generated here; the ones it asks for are set to local stand-ins)
+// the environment the deployment gives the web service (values it generates are generated here; the ones it asks for are set to local stand-ins)
 const environment = {
-  ...process.env,
-  NODE_VERSION: "22", NODE_ENV: "production", PORT: String(PORT), JWT_SECRET: secrets.jwt, CRON_SECRET: secrets.cron,
+  ...process.env, ...serverDatabaseEnv(),
+  NODE_ENV: "production", PORT: String(PORT), JWT_SECRET: secrets.jwt, CRON_SECRET: secrets.cron,
   API_RATE_LIMIT_PER_MINUTE: "600", LLM_ENABLED: "false", EMAIL_NOTIFICATIONS_ENABLED: "false",
-  OWNER_EMAIL: ownerEmail, APP_BASE_URL: BASE, RESEND_API_KEY: secrets.resend, EMAIL_FROM: "PROJECT OS <login@mail.rehearsal.example.test>",
-  RESEND_API_URL: `http://127.0.0.1:${mail.address().port}/emails`,
+  OWNER_EMAIL: ownerEmail, APP_BASE_URL: BASE, SUPABASE_URL: gotrue.url, SUPABASE_ANON_KEY: gotrue.anonKey,
 };
-// REHEARSAL_RESTRICTED=1 keeps PROJECT_OS_APP_DB_PASSWORD, i.e. rehearses the state AFTER the audit_logs protection step (docs/GO_LIVE.md, step 6)
-for (const unset of [...(process.env.REHEARSAL_RESTRICTED ? [] : ["PROJECT_OS_APP_DB_PASSWORD"]), "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LLM_API_KEY", "LLM_BASE_URL"]) delete environment[unset];
+// REHEARSAL_RESTRICTED=1 keeps PROJECT_OS_APP_DB_PASSWORD, i.e. rehearses the state AFTER the application-role step (docs/GO_LIVE.md)
+for (const unset of [...(process.env.REHEARSAL_RESTRICTED ? [] : ["PROJECT_OS_APP_DB_PASSWORD"]), "STORAGE_S3_ENDPOINT", "STORAGE_S3_REGION", "STORAGE_S3_ACCESS_KEY_ID", "STORAGE_S3_SECRET_ACCESS_KEY", "STORAGE_BUCKET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LLM_API_KEY", "LLM_BASE_URL"]) delete environment[unset];
 const server = spawn(process.execPath, ["dist/index.js"], { env: environment, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; server.stdout.on("data", chunk => { log += chunk; }); server.stderr.on("data", chunk => { log += chunk; });
 
 const results = [];
 const check = (name, ok, detail = "") => { results.push({ name, ok: Boolean(ok), detail: String(detail).slice(0, 160) }); console.log(`${ok ? "ok    " : "FAILED"} ${name}${ok || !detail ? "" : ` — ${String(detail).slice(0, 160)}`}`); };
-const asHttps = { "x-forwarded-proto": "https" }; // Render terminates TLS and forwards this header
+const asHttps = { "x-forwarded-proto": "https" }; // the platform terminates TLS and forwards this header
 
 let up = false;
 for (let i = 0; i < 100 && !up; i++) { try { up = (await fetch(`${BASE}/healthz`)).ok; } catch { await new Promise(resolve => setTimeout(resolve, 200)); } }
-check("the production build starts with Render's environment", up, log.slice(-300));
-if (!up) { server.kill(); mail.close(); process.exit(1); }
+check("the production build starts with the deployment's environment", up, log.slice(-300));
+if (!up) { server.kill(); await gotrue.close(); process.exit(1); }
 
 const health = await fetch(`${BASE}/healthz`);
 check("/healthz answers 200 'ok' and is never cached", health.status === 200 && (await health.text()) === "ok" && health.headers.get("cache-control") === "no-store");
@@ -85,8 +76,8 @@ check("a protected call without a session is refused (401)", protectedCall.statu
 const request = await fetch(`${BASE}/api/auth/email/request`, { method: "POST", headers: { "content-type": "application/json", ...asHttps }, body: JSON.stringify({ email: ownerEmail }) });
 check("asking for a sign-in code succeeds", request.status === 200, request.status);
 const received = inbox.get(ownerEmail);
-const code = /\b(\d{6})\b/.exec(received?.text ?? "")?.[1];
-check("the code reaches the mail provider with the sender's key, addressed to the owner", Boolean(code) && received.authorization === `Bearer ${secrets.resend}`);
+const code = /\b(\d{6})\b/.exec(received?.at(-1) ?? "")?.[1];
+check("the code is requested from Supabase Auth with the project's key, addressed to the owner", Boolean(code));
 const verify = await fetch(`${BASE}/api/auth/email/verify`, { method: "POST", headers: { "content-type": "application/json", ...asHttps }, body: JSON.stringify({ email: ownerEmail, code }) });
 const setCookie = verify.headers.get("set-cookie") ?? "";
 const cookie = /app_session_id=([^;]+)/.exec(setCookie)?.[1];
@@ -105,11 +96,11 @@ const refused = await fetch(`${BASE}/api/scheduled/licenseExpiry`, { method: "PO
 const allowed = await fetch(`${BASE}/api/scheduled/licenseExpiry`, { method: "POST", headers: { authorization: `Bearer ${secrets.cron}` } });
 check("the scheduled job refuses a caller without the secret and runs for the cron secret", refused.status === 403 && allowed.status === 200, `${refused.status}/${allowed.status}`);
 
-const leaks = [ownerEmail, code, secrets.jwt, secrets.cron, secrets.resend].filter(value => value && log.includes(value));
+const leaks = [ownerEmail, code, secrets.jwt, secrets.cron, gotrue.anonKey].filter(value => value && log.includes(value));
 check("the server log holds no e-mail address, code or key from this run", leaks.length === 0, `${leaks.length} found`);
 
 server.kill();
-mail.close();
+await gotrue.close();
 const failed = results.filter(item => !item.ok);
 console.log(JSON.stringify({ checks: results.length, passed: results.length - failed.length, failed: failed.map(item => item.name) }));
 process.exit(failed.length ? 1 : 0);

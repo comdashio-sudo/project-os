@@ -169,6 +169,14 @@ CREATE TABLE "audit_logs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "auth_code_attempts" (
+	"email_hash" varchar(64) PRIMARY KEY NOT NULL,
+	"failures" integer DEFAULT 0 NOT NULL,
+	"window_started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"locked_until" timestamp with time zone,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "auth_sessions" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
@@ -2555,7 +2563,7 @@ GRANT EXECUTE ON FUNCTION app_system(), app_user_id(), app_tenant_ids() TO proje
 CREATE FUNCTION project_os_apply_conventions() RETURNS integer LANGUAGE plpgsql AS $fn$
 DECLARE
   t record;
-  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters'];
+  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts'];
   child_tables constant jsonb := '{
     "data_import_errors":            ["import_id",         "data_imports"],
     "data_import_row_results":       ["import_id",         "data_imports"],

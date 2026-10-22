@@ -15,7 +15,7 @@
 // numbers; the estimate multiplies them by the stated per-action costs.
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { eq } from "drizzle-orm";
 import { companies, users } from "../drizzle/schema.ts";
 import { sdk } from "../server/_core/sdk.ts";

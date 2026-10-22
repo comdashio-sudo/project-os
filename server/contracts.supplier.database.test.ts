@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -11,7 +9,7 @@ const T2 = "7c000000-0000-4000-8000-0000000000b1";
 const P = "7c000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `7c000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [SUP, SUP_OFF, SUP_OTHER, SUP_DUP1, SUP_DUP2] = [101, 102, 103, 104, 105].map(uid);
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: mysql.Connection; let userId = 0;
 const callerFor = () => appRouter.createCaller({ user: { id: userId, openId: "csp-user", name: "csp", email: "csp-user@contracts.example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -55,7 +53,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("contracts and subcontrac
   it("a supplier contract takes the register's name and keeps the link; a typed name cannot disagree with it", async () => {
     await contract({ code: "C-SUP", counterparty: "A name that is not the register's", counterpartyKind: "supplier", supplierId: SUP });
     expect(await row("contracts", "C-SUP")).toMatchObject({ counterparty: "Gulf Steel Co", counterpartyKind: "supplier", supplierId: SUP });
-    const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.contract_created' AND JSON_EXTRACT(metadata, '$.code') = 'C-SUP'", [T]);
+    const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.contract_created' AND metadata::jsonb ->> 'code' = 'C-SUP'", [T]);
     expect(JSON.parse(audit[0].metadata)).toMatchObject({ counterpartyKind: "supplier", supplierId: SUP });
   });
 
@@ -88,19 +86,5 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("contracts and subcontrac
     expect(await row("subcontract_contracts", "SC-FREE")).toMatchObject({ subcontractorName: "Typed Sub", supplierId: null });
     await expect(subcontract({ code: "SC-X", supplierId: SUP_OFF })).rejects.toThrow("PROJECT_OS_SUPPLIER_INACTIVE");
     await expect(subcontract({ code: "SC-Y", supplierId: SUP_OTHER })).rejects.toThrow("PROJECT_OS_SUPPLIER_NOT_FOUND");
-  });
-
-  it("the migration's backfill links only a name that matches exactly one register entry, and leaves clients and ambiguous names alone", async () => {
-    const statements = readFileSync(join(__dirname, "..", "drizzle", "0065_contract_supplier_link.sql"), "utf8").split("--> statement-breakpoint").map(part => part.trim().replace(/^--.*$/gm, "").trim()).filter(part => part.startsWith("UPDATE"));
-    expect(statements.length).toBe(2);
-    await connection.query("INSERT INTO contracts (id, tenantId, projectId, code, title, counterparty, contractValue, currency, status) VALUES (?, ?, ?, 'LG-ONE', 't', 'Gulf Steel Co', 1, 'SAR', 'draft'), (?, ?, ?, 'LG-TWIN', 't', 'Twin Name Co', 1, 'SAR', 'draft'), (?, ?, ?, 'LG-NONE', 't', 'Some Client', 1, 'SAR', 'draft'), (?, ?, ?, 'LG-FOREIGN', 't', 'Other Tenant Supplier', 1, 'SAR', 'draft')", [uid(201), T, P, uid(202), T, P, uid(203), T, P, uid(204), T, P]);
-    await connection.query("INSERT INTO subcontract_contracts (id, tenantId, projectId, code, title, subcontractorName, contractValue, createdByUserId) VALUES (?, ?, ?, 'LS-ONE', 't', 'Gulf Steel Co', 1, ?), (?, ?, ?, 'LS-TWIN', 't', 'Twin Name Co', 1, ?)", [uid(211), T, P, userId, uid(212), T, P, userId]);
-    for (const statement of statements) await connection.query(statement);
-    expect(await row("contracts", "LG-ONE")).toMatchObject({ supplierId: SUP, counterpartyKind: "supplier" });
-    expect(await row("contracts", "LG-TWIN")).toMatchObject({ supplierId: null, counterpartyKind: "other" }); // two entries with that name: ambiguous, stays a name
-    expect(await row("contracts", "LG-NONE")).toMatchObject({ supplierId: null, counterpartyKind: "other" });
-    expect(await row("contracts", "LG-FOREIGN")).toMatchObject({ supplierId: null }); // another company's supplier is never linked
-    expect(await row("subcontract_contracts", "LS-ONE")).toMatchObject({ supplierId: SUP });
-    expect(await row("subcontract_contracts", "LS-TWIN")).toMatchObject({ supplierId: null });
   });
 });

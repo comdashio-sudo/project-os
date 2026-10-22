@@ -2181,6 +2181,16 @@ export const authSessions = pgTable(
   ],
 );
 
+// Wrong sign-in codes per address (a hash, never the address). Supabase Auth owns the code itself; this is the guess limit it does not give:
+// five wrong codes lock the address for fifteen minutes, whatever IP they come from, and a new code request does not clear the count.
+export const authCodeAttempts = pgTable("auth_code_attempts", {
+  emailHash: varchar("email_hash", { length: 64 }).primaryKey(),
+  failures: integer("failures").default(0).notNull(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).defaultNow().notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // Per-WBS EAC captured with each profitability snapshot: the history that lets
 // the screen say which work items moved the profit since the last snapshot.
 export const evmWbsSnapshots = pgTable(

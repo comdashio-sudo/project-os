@@ -1,4 +1,4 @@
-import type mysql from "mysql2/promise";
+import type mysql from "./pgCompat";
 import { operationalPermissionCatalog } from "../domain/operationalRoles";
 import { governedActionPermissions } from "../domain/operationalPermissions";
 

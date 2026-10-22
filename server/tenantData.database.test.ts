@@ -1,6 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import express from "express";
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";

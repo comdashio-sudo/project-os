@@ -5,7 +5,8 @@
 // The anon key is the only Supabase credential this file touches. Nothing here can read or write a table.
 import { EmailCodeError } from "./emailCode";
 
-export type SupabaseAuthConfig = { url: string; anonKey: string; fetchImpl?: typeof fetch; timeoutMs?: number };
+/** `authUrl` is the base of the Auth API, `<project url>/auth/v1` on Supabase. Only a local GoTrue (no gateway in front of it) needs it set to something else. */
+export type SupabaseAuthConfig = { url: string; anonKey: string; authUrl?: string; fetchImpl?: typeof fetch; timeoutMs?: number };
 
 export interface CodeProvider {
   /** Asks the provider to e-mail a code. Throws EmailCodeError. */
@@ -19,7 +20,8 @@ type GoTrueBody = { error_code?: string; msg?: string; access_token?: string; us
 export function supabaseAuthConfigFromEnv(env: NodeJS.ProcessEnv = process.env): SupabaseAuthConfig | null {
   const url = (env.SUPABASE_URL ?? "").replace(/\/+$/, "");
   const anonKey = env.SUPABASE_ANON_KEY ?? "";
-  return url && anonKey ? { url, anonKey } : null;
+  const authUrl = (env.SUPABASE_AUTH_URL ?? "").replace(/\/+$/, "");
+  return url && anonKey ? { url, anonKey, ...(authUrl ? { authUrl } : {}) } : null;
 }
 
 export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProvider {
@@ -30,7 +32,7 @@ export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProv
   async function call(path: string, body: unknown, extraHeaders: Record<string, string> = {}): Promise<{ status: number; body: GoTrueBody }> {
     let response: Response;
     try {
-      response = await fetchImpl(`${config.url}/auth/v1${path}`, { method: "POST", headers: { ...headers, ...extraHeaders }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetchImpl(`${config.authUrl ?? `${config.url}/auth/v1`}${path}`, { method: "POST", headers: { ...headers, ...extraHeaders }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
     } catch {
       throw new EmailCodeError("MAIL_UNAVAILABLE");
     }

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import mysql from "./testing/pgCompat";
 import { readFile } from "node:fs/promises";
 import ExcelJS from "exceljs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -18,7 +18,7 @@ const projectC = "00000000-0000-4000-8000-0000000000a3";
 const documentA = "00000000-0000-4000-8000-0000000000d1";
 const changeRequestA = "00000000-0000-4000-8000-0000000000c1";
 const notificationA = "00000000-0000-4000-8000-0000000000f1";
-const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isIntegrationUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 let integrationUserId = 0;
 let unassignedUserId = 0;
@@ -267,7 +267,6 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM document_versions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM project_documents WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM warehouse_inventory_transactions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
-    await connection?.query("DELETE FROM _deprecated_warehouse_stock_balances WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM project_warehouses WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM procurement_requisitions WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM suppliers WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
@@ -311,30 +310,17 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.end();
   });
 
-  it("applies migration 0042 once to an isolated requisition-table copy", async () => {
-    const migration = await readFile(`${process.cwd()}/drizzle/0042_late_hawkeye.sql`, "utf8");
-    const statements = migration.split("--> statement-breakpoint").map(statement => statement.trim()).filter(Boolean);
-    expect(statements).toHaveLength(6);
-    expect(statements.filter(statement => statement.includes("ADD `purchaseOrderId`"))).toHaveLength(1);
-    const probeTable = "procurement_requisitions_0042_probe";
-    await connection.query(`DROP TABLE IF EXISTS \`${probeTable}\``);
-    try {
-      await connection.query(`CREATE TABLE \`${probeTable}\` (\`id\` varchar(36) NOT NULL, PRIMARY KEY (\`id\`))`);
-      for (const statement of statements) {
-        const isolatedStatement = statement.replaceAll("`procurement_requisitions`", `\`${probeTable}\``).replace("`prq_purchase_order_fk`", "`prq42_purchase_order_fk`").replace("`prq_po_linker_fk`", "`prq42_po_linker_fk`").replace("`procurement_requisitions_purchase_order_idx`", "`prq42_purchase_order_idx`");
-        await connection.query(isolatedStatement);
-      }
-      const [columns] = await connection.query<{ Field: string }[]>(`SHOW COLUMNS FROM \`${probeTable}\``);
-      const [indexes] = await connection.query<{ Key_name: string }[]>(`SHOW INDEX FROM \`${probeTable}\``);
-      expect(columns.map(column => column.Field)).toEqual(expect.arrayContaining(["purchaseOrderId", "purchaseOrderLinkedAt", "purchaseOrderLinkedByUserId"]));
-      expect(indexes.map(index => index.Key_name)).toContain("prq42_purchase_order_idx");
-    } finally {
-      await connection.query(`DROP TABLE IF EXISTS \`${probeTable}\``);
-    }
-  }, 120_000);
+  it("builds the requisition-to-purchase-order link from the baseline migration: its columns, foreign keys and index", async () => {
+    const [columns] = await connection.query<{ column_name: string }[]>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'procurement_requisitions'");
+    expect(columns.map(column => column.column_name)).toEqual(expect.arrayContaining(["purchase_order_id", "purchase_order_linked_at", "purchase_order_linked_by_user_id"]));
+    const [indexes] = await connection.query<{ indexname: string }[]>("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'procurement_requisitions'");
+    expect(indexes.map(index => index.indexname)).toContain("procurement_requisitions_purchase_order_idx");
+    const [foreignKeys] = await connection.query<{ conname: string }[]>("SELECT conname FROM pg_constraint WHERE conrelid = 'public.procurement_requisitions'::regclass AND contype = 'f'");
+    expect(foreignKeys.map(key => key.conname)).toEqual(expect.arrayContaining(["prq_purchase_order_fk", "prq_po_linker_fk"]));
+  });
 
   it("connects exclusively to the dedicated PROJECT OS integration database", async () => {
-    const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
+    const [rows] = await connection.query<{ database_name: string; table_count: number }[]>("SELECT current_database() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = 'public'");
     expect(rows[0]).toMatchObject({ database_name: "project_os_integration_test" });
     expect(Number(rows[0].table_count)).toBeGreaterThanOrEqual(32);
   });
@@ -1375,7 +1361,6 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(rows[0]).toMatchObject({ suppliers: 1, requisitions: 1, issues: 2, audits: 6 });
     await connection.query("DELETE FROM audit_logs WHERE entityId IN (?, ?, ?, ?, ?)", [supplier.id, requisition.id, wbs.id, activity.id, purchaseOrder.id]);
     await connection.query("DELETE FROM warehouse_inventory_transactions WHERE requisitionId = ? OR warehouseId = ?", [requisition.id, warehouse.id]);
-    await connection.query("DELETE FROM _deprecated_warehouse_stock_balances WHERE warehouseId = ?", [warehouse.id]);
     await connection.query("DELETE FROM project_warehouses WHERE id = ?", [warehouse.id]);
     await connection.query("DELETE FROM procurement_requisitions WHERE id = ?", [requisition.id]);
     await connection.query("DELETE FROM purchase_orders WHERE id = ?", [purchaseOrder.id]);
@@ -1885,8 +1870,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(costRows[0]).toMatchObject({ amount: "13750.00", status: "posted", entryType: "actual", allocations: 1, auditActions: 3 });
     const evm = calculateOperationalEvm({ periodAt: new Date("2026-09-30T23:59:59.000Z"), activities: [{ plannedValue: 100_000, plannedStartAt: new Date("2026-09-01T00:00:00.000Z"), plannedFinishAt: new Date("2026-09-30T23:59:59.000Z") }], budgets: [{ currentAmount: 100_000 }], costs: [{ amount: costRows[0]!.amount, status: costRows[0]!.status, entryType: costRows[0]!.entryType, incurredAt: costRows[0]!.incurredAt }], progress: [{ wbsItemId: wbs.id, progressPercent: 50, status: "submitted", measuredAt: new Date("2026-09-30T23:59:59.000Z") }], wbs: [{ id: wbs.id, plannedValue: 100_000 }], eacMethod: "bac_over_cpi" });
     expect(evm).toMatchObject({ ac: 13_750, cpi: 3.6364, sources: { postedActualCostEntries: 1, wbsItemsWithProgress: 1 } });
-    const [auditRows] = await connection.query<{ structure: number; details: number; allocation: number }[]>("SELECT SUM(action = 'payroll.salary_structure_viewed') AS structure, SUM(action = 'payroll.run_details_viewed') AS details, SUM(action = 'payroll.cost_allocated') AS allocation FROM audit_logs WHERE tenantId = ?", [tenantA]);
-    expect(auditRows[0]).toMatchObject({ structure: "1", details: "1", allocation: "1" });
+    const [auditRows] = await connection.query<{ structure: number; details: number; allocation: number }[]>("SELECT COUNT(*) FILTER (WHERE action = 'payroll.salary_structure_viewed') AS structure, COUNT(*) FILTER (WHERE action = 'payroll.run_details_viewed') AS details, COUNT(*) FILTER (WHERE action = 'payroll.cost_allocated') AS allocation FROM audit_logs WHERE tenantId = ?", [tenantA]);
+    expect(auditRows[0]).toMatchObject({ structure: 1, details: 1, allocation: 1 });
     expect(structure.id).toBeTruthy();
   }, 120_000);
 

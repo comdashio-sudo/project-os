@@ -11,7 +11,8 @@
 // Exit code 1 when a screen's cold load is over LIMIT_MS (default 2000). Playwright is not a project dependency (see measure-mobile-entry.mjs).
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import { serverDatabaseEnv } from "./lib/serverEnv.mjs";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
@@ -33,7 +34,7 @@ const projectId = process.env.HEAVY ?? heavy.projectId;
 const [[sizes]] = await connection.query("SELECT (SELECT COUNT(*) FROM projects WHERE tenantId = ?) AS projects, (SELECT COUNT(*) FROM activities WHERE tenantId = ?) AS activities, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE tenantId = ?) AS movements", [tenantId, tenantId, tenantId]);
 await connection.end();
 
-const server = spawn(process.execPath, ["dist/index.js"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), API_RATE_LIMIT_PER_MINUTE: "20000" }, stdio: ["ignore", "pipe", "pipe"] });
+const server = spawn(process.execPath, ["dist/index.js"], { env: { ...process.env, ...serverDatabaseEnv(), NODE_ENV: "production", PORT: String(PORT), API_RATE_LIMIT_PER_MINUTE: "20000" }, stdio: ["ignore", "pipe", "pipe"] });
 let serverLog = ""; server.stdout.on("data", c => { serverLog += c; }); server.stderr.on("data", c => { serverLog += c; });
 for (let i = 0; i < 100; i++) {
   try { if ((await fetch(`${BASE_URL}/healthz`)).ok) break; } catch { /* not up yet */ }

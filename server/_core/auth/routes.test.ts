@@ -4,7 +4,8 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEmailCodeService, openIdForEmail, type LoginCodeRow, type OutgoingMail } from "./emailCode";
+import { createEmailCodeService, openIdForEmail } from "./emailCode";
+import { createFakeCodeProvider, createMemoryAttemptLimiter } from "../../testing/fakeCodeProvider";
 import { buildAuthorizationUrl } from "./google";
 import { GOOGLE_STATE_COOKIE, registerAuthRoutes, safeNextPath, type AuthRoutesDependencies } from "./routes";
 
@@ -15,8 +16,6 @@ const servers: Server[] = [];
 afterEach(async () => { await Promise.all(servers.splice(0).map(s => new Promise(resolve => s.close(resolve)))); });
 
 async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch; clock?: { value: number } } = {}) {
-  const rows: LoginCodeRow[] = [];
-  const sent: OutgoingMail[] = [];
   const clock = options.clock ?? { value: Date.now() };
   const upserts: Array<Parameters<AuthRoutesDependencies["upsertUser"]>[0]> = [];
   const { publicKey, privateKey } = await generateKeyPair("RS256");
@@ -24,21 +23,9 @@ async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch
   const sign = (claims: Record<string, unknown>, overrides: { aud?: string; iss?: string; expiresInSeconds?: number } = {}) =>
     new SignJWT(claims).setProtectedHeader({ alg: "RS256", kid: "test-key" }).setIssuer(overrides.iss ?? "https://accounts.google.com").setAudience(overrides.aud ?? GOOGLE.clientId).setIssuedAt().setExpirationTime(Math.floor(clock.value / 1000) + (overrides.expiresInSeconds ?? 300)).sign(privateKey);
 
-  const emailCodes = createEmailCodeService({
-    secret: SECRET,
-    now: () => new Date(clock.value),
-    randomCode: () => "424242",
-    mailer: { send: async mail => { sent.push(mail); } },
-    repository: {
-      async countSince(h, since) { return rows.filter(r => r.emailHash === h && r.createdAt >= since).length; },
-      async latestCreatedAt(h) { return rows.filter(r => r.emailHash === h).map(r => r.createdAt).sort((a, b) => b.getTime() - a.getTime())[0] ?? null; },
-      async retireOpen(h, now) { rows.filter(r => r.emailHash === h && !r.consumedAt).forEach(r => { r.consumedAt = now; }); },
-      async insert(row) { rows.push({ ...row, attempts: 0, consumedAt: null }); },
-      async findOpen(h, now) { const r = rows.find(x => x.emailHash === h && !x.consumedAt && x.expiresAt > now); return r ? { ...r } : null; },
-      async claimAttempt(id, max) { const r = rows.find(x => x.id === id); if (!r || r.consumedAt || r.attempts >= max) return false; r.attempts += 1; return true; },
-      async consume(id, now) { const r = rows.find(x => x.id === id); if (!r || r.consumedAt) return false; r.consumedAt = now; return true; },
-    },
-  });
+  const fake = createFakeCodeProvider({ now: () => new Date(clock.value), randomCode: () => "424242", minIntervalMs: 30_000 });
+  const sent = fake.sent;
+  const emailCodes = createEmailCodeService({ provider: fake.provider, attempts: createMemoryAttemptLimiter(), now: () => new Date(clock.value) });
   const app = express();
   app.use(express.json());
   registerAuthRoutes(app, {
@@ -53,7 +40,7 @@ async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch
   servers.push(server);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  return { base, post, sent, rows, upserts, sign, clock };
+  return { base, post, sent, upserts, sign, clock, fake };
 }
 
 const decoded = (header: string | null) => decodeURIComponent(header ?? "");
@@ -69,7 +56,7 @@ describe("e-mail code routes", () => {
   it("signs in with the mailed code and sets a hardened session cookie", async () => {
     const h = await harness();
     expect((await h.post("/api/auth/email/request", { email: "Engineer@Example.test" })).status).toBe(200);
-    expect(h.sent[0].text).toContain("424242");
+    expect(h.sent[0].code).toBe("424242");
     const response = await h.post("/api/auth/email/verify", { email: "engineer@example.test", code: "424242" });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
@@ -131,7 +118,7 @@ describe("e-mail code routes", () => {
   it("refuses an expired code", async () => {
     const h = await harness();
     await h.post("/api/auth/email/request", { email: "engineer@example.test" });
-    h.clock.value += 10 * 60 * 1000 + 1;
+    h.clock.value += 60 * 60 * 1000 + 1;
     expect((await h.post("/api/auth/email/verify", { email: "engineer@example.test", code: "424242" })).status).toBe(401);
   });
 
