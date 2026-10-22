@@ -24,9 +24,9 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
     </div>
     {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-slate-600">{t.loading}</p> : <>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency)} />
-        <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency)}`} />
-        <Metric icon={PackageSearch} label={t.boq} value={formatPlanningAmount(result.boqValue, currency)} detail={`${result.activeBoqLines} ${t.lines}`} />
+        <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency, isArabic)} />
+        <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency, isArabic)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency, isArabic)}`} />
+        <Metric icon={PackageSearch} label={t.boq} value={formatPlanningAmount(result.boqValue, currency, isArabic)} detail={`${result.activeBoqLines} ${t.lines}`} />
         <Metric icon={TimerReset} label={t.coverage} value={formatPlanningPercent(result.progressCoverage)} detail={`${t.overdue}: ${result.overdueActivities} · ${t.blocked}: ${result.blockedActivities}`} />
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-3">

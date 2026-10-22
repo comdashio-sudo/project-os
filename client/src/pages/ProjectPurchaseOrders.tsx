@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,16 +20,16 @@ export function ProjectPurchaseOrders({ tenantId, projectId }: { tenantId: strin
   const commercial = trpc.contracts.getProjectRegister.useQuery({ tenantId, projectId });
   const supplierSource = trpc.procurement.register.useQuery({ tenantId, projectId });
   const registeredSuppliers = supplierSource.data?.suppliers;
-  const [draft, setDraft] = useState({ contractId: "", commitmentId: "", wbsItemId: "", purchaseOrderNumber: "", supplierId: "", supplierName: "", orderDate: today, amount: "", currency: "USD", summary: "" });
+  const [draft, setDraft] = useState({ contractId: "", commitmentId: "", wbsItemId: "", purchaseOrderNumber: "", supplierId: "", supplierName: "", orderDate: today, amount: "", currency: "SAR", summary: "" });
   const [notice, setNotice] = useState("");
   const t = isArabic
     ? { registeredSupplier: "المورد من السجل", unregisteredSupplier: "مورد غير مسجَّل (اكتب اسمه)", title: "سجل أوامر الشراء", number: "رقم أمر الشراء", supplier: "المورد", contract: "العقد", commitment: "الالتزام", wbsItem: "بند WBS", optional: "بدون ربط", date: "تاريخ الأمر", amount: "القيمة", currency: "العملة", summary: "ملخص الأمر", create: "حفظ أمر الشراء", move: "تحديث الحالة", empty: "لا توجد أوامر شراء لهذا المشروع.", draft: "مسودة", submitted: "مرسل", approved: "معتمد", issued: "صادر", received: "مستلم", cancelled: "ملغى", saved: "تم حفظ أمر الشراء.", moved: "تم تحديث حالة أمر الشراء." }
     : { registeredSupplier: "Supplier from the register", unregisteredSupplier: "Unregistered supplier (type the name)", title: "Purchase-order register", number: "Purchase-order number", supplier: "Supplier", contract: "Contract", commitment: "Commitment", wbsItem: "WBS item", optional: "No link", date: "Order date", amount: "Amount", currency: "Currency", summary: "Order summary", create: "Save purchase order", move: "Update status", empty: "No purchase orders are registered for this project.", draft: "Draft", submitted: "Submitted", approved: "Approved", issued: "Issued", received: "Received", cancelled: "Cancelled", saved: "Purchase order saved.", moved: "Purchase-order status updated." };
-  const create = trpc.purchaseOrders.create.useMutation({ onSuccess: () => { setDraft({ contractId: "", commitmentId: "", wbsItemId: "", purchaseOrderNumber: "", supplierId: "", supplierName: "", orderDate: today, amount: "", currency: "USD", summary: "" }); setNotice(t.saved); void list.refetch(); } });
+  const create = trpc.purchaseOrders.create.useMutation({ onSuccess: () => { setDraft({ contractId: "", commitmentId: "", wbsItemId: "", purchaseOrderNumber: "", supplierId: "", supplierName: "", orderDate: today, amount: "", currency: "SAR", summary: "" }); setNotice(t.saved); void list.refetch(); } });
   const transition = trpc.purchaseOrders.transitionStatus.useMutation({ onSuccess: () => { setNotice(t.moved); void list.refetch(); } });
   const error = list.error ?? commercial.error ?? create.error ?? transition.error;
   const displayDate = (value: Date | string) => new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(value));
-  const displayAmount = (value: string, currency: string) => new Intl.NumberFormat(isArabic ? "ar" : "en", { style: "currency", currency }).format(Number(value));
+  const displayAmount = (value: string, currency: string) => formatMoney(Number(value), currency, isArabic, 2);
   if (list.isLoading || commercial.isLoading) return null;
   if (!list.data || !commercial.data) return <p className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>;
   const contractLabel = new Map(commercial.data.contracts.map(contract => [contract.id, contract.code]));

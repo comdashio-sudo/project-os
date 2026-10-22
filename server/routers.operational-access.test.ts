@@ -354,7 +354,7 @@ describe("operational API authorization", () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.contracts.create({ tenantId: tenantB, projectId: projectB, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.contracts.create({ tenantId: tenantB, projectId: projectB, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
 
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
@@ -862,7 +862,7 @@ describe("operational API authorization", () => {
     });
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "USD" })).rejects.toThrow("PROJECT_OS_CONTRACT_NOT_FOUND");
+    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "SAR" })).rejects.toThrow("PROJECT_OS_CONTRACT_NOT_FOUND");
 
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
@@ -881,7 +881,7 @@ describe("operational API authorization", () => {
     databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.contracts.create({ tenantId: tenantA, projectId: projectA, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+    await expect(caller.contracts.create({ tenantId: tenantA, projectId: projectA, code: "CTR-01", title: "Civil Works", counterparty: "Build Co", contractValue: 1000, currency: "SAR" })).resolves.toMatchObject({ id: expect.any(String) });
 
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
@@ -901,7 +901,7 @@ describe("operational API authorization", () => {
     databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+    await expect(caller.contracts.createCommitment({ tenantId: tenantA, projectId: projectA, contractId: "99999999-9999-4999-8999-999999999999", code: "COM-01", description: "Steel package", amount: 250, currency: "SAR" })).resolves.toMatchObject({ id: expect.any(String) });
 
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
@@ -1471,7 +1471,7 @@ describe("operational API authorization", () => {
     databaseDouble.select.mockReturnValue(queryResult([]));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.resources.create({ tenantId: tenantB, projectId: projectB, resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "USD" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.resources.create({ tenantId: tenantB, projectId: projectB, resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect(databaseDouble.select).toHaveBeenCalledTimes(1);
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
@@ -1479,7 +1479,7 @@ describe("operational API authorization", () => {
   it("rejects resource allocation above its plan before any database read or write", async () => {
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-02", name: "Civil crew", resourceType: "labor", plannedUnits: 5, allocatedUnits: 6, unitCost: 100, currency: "USD" })).rejects.toThrow("PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN");
+    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-02", name: "Civil crew", resourceType: "labor", plannedUnits: 5, allocatedUnits: 6, unitCost: 100, currency: "SAR" })).rejects.toThrow("PROJECT_OS_RESOURCE_ALLOCATION_EXCEEDS_PLAN");
     expect(databaseDouble.select).not.toHaveBeenCalled();
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
@@ -1498,7 +1498,7 @@ describe("operational API authorization", () => {
     databaseDouble.transaction.mockImplementation(async (callback: (tx: typeof transactionDouble) => Promise<unknown>) => callback(transactionDouble));
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-03", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "USD" })).resolves.toMatchObject({ id: expect.any(String) });
+    await expect(caller.resources.create({ tenantId: tenantA, projectId: projectA, resourceCode: "LAB-03", name: "Civil crew", resourceType: "labor", plannedUnits: 10, allocatedUnits: 5, unitCost: 100, currency: "SAR" })).resolves.toMatchObject({ id: expect.any(String) });
     expect(transactionDouble.insert).toHaveBeenCalledTimes(2);
   });
 

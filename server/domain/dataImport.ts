@@ -292,11 +292,12 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
       if (!title) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "title" });
       if (!counterparty) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "counterparty" });
       if (contractValue === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "contractValue" });
-      if (!/^[A-Z]{3}$/.test(currency)) errors.push({ rowNumber, code: "IMPORT_INVALID_CURRENCY", field: "currency" });
+      // V1 money is in the riyal only (see domain/currency.ts): any other code is refused here, before a row can reach the database.
+      if (currency !== "SAR") errors.push({ rowNumber, code: "IMPORT_INVALID_CURRENCY", field: "currency" });
       const duplicateCode = Boolean(code && fileKeys.has(code));
       if (duplicateCode) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" });
       if (code && !duplicateCode) fileKeys.add(code);
-      if (code && title && counterparty && contractValue !== undefined && /^[A-Z]{3}$/.test(currency) && !duplicateCode) validRows.push({ rowNumber, values: { code, title, counterparty, contractValue, currency } });
+      if (code && title && counterparty && contractValue !== undefined && currency === "SAR" && !duplicateCode) validRows.push({ rowNumber, values: { code, title, counterparty, contractValue, currency } });
     });
   }
 
