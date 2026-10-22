@@ -4,105 +4,55 @@ import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const text = (file: string) => readFileSync(path.join(root, file), "utf8");
+const build = text("scripts/build-vercel.mjs");
+const guide = text("docs/GO_LIVE.md");
+const vercel = JSON.parse(text("vercel.json")) as Record<string, unknown>;
 
-// A deliberately small reader for render.yaml: services, their env var blocks.
-type EnvVar = { key: string; value?: string; sync?: boolean; generateValue?: boolean; fromService?: boolean };
-function parseBlueprint(source: string) {
-  const services: Array<{ name: string; type: string; fields: Record<string, string>; env: EnvVar[] }> = [];
-  let service: (typeof services)[number] | null = null;
-  let current: EnvVar | null = null;
-  for (const raw of source.split("\n")) {
-    const line = raw.replace(/\s+#.*$/, "").trimEnd();
-    if (!line.trim() || line.trim().startsWith("#")) continue;
-    const typeMatch = /^ {2}- type: (\w+)/.exec(line);
-    if (typeMatch) { service = { name: "", type: typeMatch[1], fields: {}, env: [] }; services.push(service); current = null; continue; }
-    if (!service) continue;
-    const keyMatch = /^ {6}- key: (\S+)/.exec(line);
-    if (keyMatch) { current = { key: keyMatch[1] }; service.env.push(current); continue; }
-    const envField = /^ {8}(\w+): (.*)$/.exec(line);
-    if (envField && current) {
-      const [, field, value] = envField;
-      if (field === "value") current.value = value.replace(/^"|"$/g, "");
-      if (field === "sync") current.sync = value === "true";
-      if (field === "generateValue") current.generateValue = value === "true";
-      if (field === "fromService") current.fromService = true;
-      continue;
-    }
-    if (/^ {8,}\w+:/.test(line) && current) { if (/fromService/.test(line)) current.fromService = true; continue; }
-    const field = /^ {4}(\w+): ?(.*)$/.exec(line);
-    if (field) { service.fields[field[1]] = field[2]; if (field[1] === "name") service.name = field[2]; current = null; }
-  }
-  return services;
-}
-
-const services = parseBlueprint(text("render.yaml"));
-const web = services.find(s => s.type === "web")!;
-const crons = services.filter(s => s.type === "cron");
-const cron = crons.find(s => s.name === "project-os-license-expiry")!;
-const emailCron = crons.find(s => s.name === "project-os-email-notifications")!;
-const backupCron = crons.find(s => s.name === "project-os-backup")!;
-
-describe("render.yaml", () => {
-  it("describes one web service and three cron jobs (daily licence and snapshots, hourly e-mail, daily backup)", () => {
-    expect(services.map(s => s.type).sort()).toEqual(["cron", "cron", "cron", "web"]);
+describe("vercel.json and the Vercel build", () => {
+  it("builds with one command, installs from the lockfile, and names no framework (the build writes the whole output itself)", () => {
+    expect(vercel).toMatchObject({ framework: null, installCommand: "pnpm install --frozen-lockfile", buildCommand: "pnpm build:vercel" });
+    expect(JSON.parse(text("package.json")).scripts["build:vercel"]).toBe("node --import tsx scripts/build-vercel.mjs");
   });
 
-  it("never deploys by itself and checks health on /healthz", () => {
-    expect(web.fields.autoDeploy).toBe("false");
-    expect(web.fields.healthCheckPath).toBe("/healthz");
-    expect(web.fields.preDeployCommand).toBe("node scripts/predeploy.mjs");
-    expect(web.fields.startCommand).toBe("pnpm start");
-    expect(web.fields.buildCommand).toContain("--frozen-lockfile");
-    expect(web.fields.buildCommand).toContain("--prod=false");
-    expect(web.env.find(e => e.key === "NODE_VERSION")?.value).toBe("22");
+  it("holds no secret: vercel.json and the build script carry no key, password, token or connection string", () => {
+    for (const file of ["vercel.json", "scripts/build-vercel.mjs"]) expect(text(file), file).not.toMatch(/postgres(ql)?:\/\/[^\s'"`]*@|eyJ[A-Za-z0-9_-]{20,}|sk_[a-z]+_|service_role/);
   });
 
-  it("holds no secret value: every sensitive variable is asked for or generated", () => {
-    const sensitive = /SECRET|PASSWORD|TOKEN|KEY|DATABASE_URL|EMAIL/;
-    for (const variable of [...web.env, ...cron.env, ...emailCron.env, ...backupCron.env]) {
-      if (variable.key === "EMAIL_NOTIFICATIONS_ENABLED") continue; // an on/off switch, not a secret: its value is checked below
-      if (!sensitive.test(variable.key)) continue;
-      expect(variable.value, variable.key).toBeUndefined();
-      expect(variable.sync === false || variable.generateValue === true || variable.fromService === true, variable.key).toBe(true);
-    }
+  it("serves the API as one function and everything else from the CDN, with the single-page fallback last", () => {
+    expect(build).toContain('{ src: "/api/(.*)", dest: "/api" }');
+    expect(build).toContain('{ src: "/healthz", dest: "/api" }');
+    expect(build.indexOf('handle: "filesystem"')).toBeLessThan(build.indexOf('dest: "/index.html"'));
+    expect(build).toContain('runtime: "nodejs22.x"');
+    expect(build).toContain("supportsResponseStreaming: true");
   });
 
-  it("keeps e-mail notifications off in the blueprint until the owner switches them on", () => {
-    expect(web.env.find(e => e.key === "EMAIL_NOTIFICATIONS_ENABLED")?.value).toBe("false");
+  it("attaches the same security headers to every response the CDN serves, before any other route", () => {
+    expect(build).toContain('{ src: "/(.*)", headers: responseSecurityHeaders(true), continue: true }');
+    expect(build.indexOf("responseSecurityHeaders(true)")).toBeLessThan(build.indexOf('dest: "/api"'));
   });
 
-  it("runs the e-mail cycle hourly through the same secret, with nothing else", () => {
-    expect(emailCron.fields.schedule).toBe('"0 * * * *"');
-    expect(emailCron.fields.startCommand).toContain("/api/scheduled/emailNotifications");
-    expect(emailCron.fields.startCommand).toContain("Authorization: Bearer $CRON_SECRET");
-    expect(emailCron.env.map(e => e.key).sort()).toEqual(["APP_BASE_URL", "CRON_SECRET"]);
+  it("schedules the three jobs the server answers, daily licence expiry and snapshots and hourly e-mail", () => {
+    const crons = [...build.matchAll(/\{ path: "(\/api\/scheduled\/\w+)", schedule: "([^"]+)" \}/g)].map(match => [match[1], match[2]]);
+    expect(crons).toEqual([["/api/scheduled/licenseExpiry", "0 2 * * *"], ["/api/scheduled/profitabilitySnapshots", "10 2 * * *"], ["/api/scheduled/emailNotifications", "0 * * * *"], ["/api/scheduled/importJobs", "*/5 * * * *"]]);
+    const app = text("server/_core/app.ts");
+    for (const [route] of crons) expect(app, route).toContain(route);
+    expect(app).toContain("app.get(path, asSystem(reason), handler)"); // Vercel Cron calls with GET
   });
 
-  it("backs the database up daily, encrypted, to R2, taking its connection from the web service and its key from the owner", () => {
-    expect(backupCron.fields.schedule).toBe('"30 1 * * *"');
-    expect(backupCron.fields.startCommand).toBe("node --import tsx scripts/export-database.mjs --to-r2");
-    expect(backupCron.fields.buildCommand).toContain("--frozen-lockfile");
-    expect(backupCron.fields.buildCommand).toContain("--prod=false"); // tsx is a development dependency
-    expect(backupCron.env.map(e => e.key).sort()).toEqual(["BACKUP_DATABASE_URL", "BACKUP_ENCRYPTION_KEY", "BACKUP_R2_BUCKET", "DATABASE_URL", "NODE_VERSION", "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_SECRET_ACCESS_KEY"]);
-    // the key is never generated for the owner by the platform: if only Render held it, losing Render would make every backup unreadable
-    expect(backupCron.env.find(e => e.key === "BACKUP_ENCRYPTION_KEY")?.generateValue).toBeUndefined();
-    expect(backupCron.env.find(e => e.key === "BACKUP_ENCRYPTION_KEY")?.sync).toBe(false);
-    for (const key of ["DATABASE_URL", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]) expect(backupCron.env.find(e => e.key === key)?.fromService, key).toBe(true);
+  it("keeps a file below the host's 4.5 MB request ceiling once it is base64 (3,000,000 bytes -> about 4.0 MB)", () => {
+    const limit = Number(/VITE_MAX_UPLOAD_BYTES \?\? "(\d+)"/.exec(build)?.[1]);
+    expect(limit).toBeGreaterThan(0);
+    expect(Math.ceil(limit / 3) * 4 + 4096).toBeLessThan(4.5 * 1024 * 1024);
+  });
+});
+
+describe("the go-live guide", () => {
+  it("names the two separate projects and keeps other platforms' keys out", () => {
+    for (const needed of ["Supabase", "Vercel", "`dashio`", "Transaction pooler", "provision:app-role", "verify:db-security", "/healthz", "Email OTP", "Private", "service_role"]) expect(guide, needed).toContain(needed);
+    for (const gone of ["TiDB", "Resend", "Cloudflare", "R2", "Render", "render.yaml"]) expect(guide, gone).not.toContain(gone);
   });
 
-  it("keeps the language model off in the blueprint", () => {
-    expect(web.env.find(e => e.key === "LLM_ENABLED")?.value).toBe("false");
-  });
-
-  it("calls the scheduled endpoint with the shared secret", () => {
-    expect(cron.fields.startCommand).toContain("/api/scheduled/licenseExpiry");
-    expect(cron.fields.startCommand).toContain("/api/scheduled/profitabilitySnapshots");
-    expect(cron.fields.startCommand).toContain("Authorization: Bearer $CRON_SECRET");
-    expect(cron.env.map(e => e.key).sort()).toEqual(["APP_BASE_URL", "CRON_SECRET"]);
-    expect(web.env.find(e => e.key === "CRON_SECRET")?.generateValue).toBe(true);
-  });
-
-  it("declares every variable the server reads", () => {
+  it("lists every environment variable the server reads (tests, tooling and the platform's own are excluded)", () => {
     const files: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(path.join(root, dir))) {
@@ -114,30 +64,15 @@ describe("render.yaml", () => {
     walk("server");
     const used = new Set<string>();
     for (const file of files) for (const m of text(file).matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)) used.add(m[1]);
-    // Read only by tooling, tests or the platform itself, never needed in the web service.
-    const notForRender = new Set(["VITEST", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "PROJECT_OS_AUDIT_ADMIN_PASSWORD", "AUDIT_APP_DATABASE_URL", "TEST_DATABASE_URL", "PORT", "APP_ID", "RESEND_API_URL", "R2_TEST_ENDPOINT"]); // R2_TEST_ENDPOINT: points file storage at a fake S3 on 127.0.0.1 (loopback only, refused otherwise) for local rehearsals; it must NOT exist in production. RESEND_API_URL: points the sender at a fake provider on 127.0.0.1 for local rehearsals; it must NOT exist in production
-    const declared = new Set(web.env.map(e => e.key));
-    const missing = [...used].filter(name => !notForRender.has(name) && !declared.has(name));
+    // Set by the platform, by a test, or only by a local rehearsal — never needed in the production project.
+    const notForProduction = new Set(["VITEST", "TEST_DATABASE_URL", "PORT", "APP_ID", "NODE_ENV", "TEST_DB_NO_FALLBACK", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "SUPABASE_AUTH_URL", "DATABASE_SSL", "DATABASE_SSL_VERIFY", "STORAGE_TEST_BUCKET"]);
+    const missing = [...used].filter(name => !notForProduction.has(name) && !guide.includes(name));
     expect(missing).toEqual([]);
   });
 
-  it("puts every variable the blueprint declares on the one-page go-live guide, and keeps the local-only ones off it", () => {
-    const guide = text("docs/GO_LIVE.md");
-    for (const variable of [...web.env, ...cron.env, ...backupCron.env]) expect(guide, variable.key).toContain(variable.key);
-    // the guide may name these only to forbid them
-    for (const forbidden of ["RESEND_API_URL", "R2_TEST_ENDPOINT", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "TEST_DATABASE_URL"]) {
+  it("forbids the local-only and unsafe variables rather than recommending them", () => {
+    for (const forbidden of ["TEST_DATABASE_URL", "PROJECT_OS_USE_ADMIN_DATABASE_URL", "SUPABASE_AUTH_URL", "DATABASE_SSL=off", "DATABASE_SSL_VERIFY=off"]) {
       for (const line of guide.split("\n").filter(entry => entry.includes(forbidden))) expect(line, forbidden).toMatch(/لا تضع أبدًا/);
     }
-    // the four accounts, and the audit_logs protection step with its proof lines
-    for (const needed of ["TiDB Cloud", "Resend", "Cloudflare R2", "Render", "provision:audit-app", "predeploy", "verify:audit-grants", "deleteDenied", "/healthz"]) expect(guide, needed).toContain(needed);
-  });
-
-  it("never declares a rehearsal-only variable in the production blueprint", () => {
-    for (const name of ["RESEND_API_URL", "R2_TEST_ENDPOINT"]) for (const service of [web, cron, backupCron]) expect(service.env.some(entry => entry.key === name), `${name} in the blueprint`).toBe(false);
-  });
-
-  it("documents every variable the blueprint asks for", () => {
-    const guide = text("docs/OWNER_ACTIONS.md");
-    for (const variable of [...web.env, ...backupCron.env].filter(e => e.sync === false)) expect(guide, variable.key).toContain(variable.key);
   });
 });

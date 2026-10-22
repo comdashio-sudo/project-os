@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { evaluateTenantLicenseLifecycle } from "./db";
 import { logError } from "./_core/logger";
 
-// The platform scheduler (a Render cron job, see render.yaml) calls this
+// The platform scheduler (Vercel Cron, see vercel.json / scripts/build-vercel.mjs) calls this
 // endpoint with `Authorization: Bearer <CRON_SECRET>`. With CRON_SECRET unset
 // the endpoint refuses every request, so a deployment that forgot the secret is
 // closed, not open.

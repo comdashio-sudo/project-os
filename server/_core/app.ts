@@ -1,14 +1,17 @@
+import { ENV } from "./env";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { randomUUID } from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { appRouter } from "../routers";
 import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 import { tenantExportHandler } from "../tenantExportRoute";
+import { scheduledImportJobsHandler } from "../scheduledImportJobs";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
 import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
 import { apiRateLimit, apiRateLimitFromEnvironment } from "./apiRateLimit";
 import { registerDefaultAuthRoutes } from "./auth";
 import { createContext } from "./context";
+import { asSystem } from "./requestContext";
 import { errorPageHtml, errorPageStatus, type ErrorPageKind } from "./errorPages";
 import { logError, safePath } from "./logger";
 import { securityHeaders } from "./securityHeaders";
@@ -42,10 +45,10 @@ function failureKind(status: number): ErrorPageKind {
  */
 export function createApp(options: AppOptions) {
   const app = express();
-  // Behind Render's proxy: one hop, so req.ip is the client address.
+  // Behind the host's proxy (Vercel): one hop, so req.ip is the client address.
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
-  app.use(securityHeaders({ production: options.production }));
+  app.use(securityHeaders({ production: options.production, storageEndpoint: ENV.storageS3Endpoint }));
   app.use((req, res, next) => {
     const id = randomUUID();
     res.locals.requestId = id;
@@ -63,9 +66,17 @@ export function createApp(options: AppOptions) {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   (options.registerAuth ?? registerDefaultAuthRoutes)(app);
   app.get("/api/tenant-export/:tenantId", tenantExportHandler);
-  app.post("/api/scheduled/licenseExpiry", scheduledLicenseExpiryHandler);
-  app.post("/api/scheduled/profitabilitySnapshots", scheduledProfitabilitySnapshotsHandler);
-  app.post("/api/scheduled/emailNotifications", scheduledEmailNotificationsHandler);
+  // Scheduled jobs: Vercel Cron calls with GET and `Authorization: Bearer $CRON_SECRET`; an operator (or any other scheduler) may POST the same header.
+  // Each handler refuses anything without the secret, and with CRON_SECRET unset it refuses everything.
+  for (const [path, reason, handler] of [
+    ["/api/scheduled/licenseExpiry", "licence expiry job", scheduledLicenseExpiryHandler],
+    ["/api/scheduled/profitabilitySnapshots", "profitability snapshot job", scheduledProfitabilitySnapshotsHandler],
+    ["/api/scheduled/emailNotifications", "e-mail notification job", scheduledEmailNotificationsHandler],
+    ["/api/scheduled/importJobs", "import job sweep", scheduledImportJobsHandler],
+  ] as const) {
+    app.get(path, asSystem(reason), handler);
+    app.post(path, asSystem(reason), handler);
+  }
   options.extraRoutes?.(app);
   // tRPC API
   app.use(

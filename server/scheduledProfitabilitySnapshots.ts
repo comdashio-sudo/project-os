@@ -3,7 +3,7 @@ import { captureScheduledProfitabilitySnapshots } from "./db";
 import { isAuthorizedScheduledRequest } from "./scheduledLicenseExpiry";
 import { logError } from "./_core/logger";
 
-// Called by the same daily Render cron job as the license check. It is safe to
+// Called by a daily Vercel Cron, shortly after the license check. It is safe to
 // call every day: a project that already has this month's profit snapshot is
 // skipped, so a missed day is made up the next day and a repeat is a no-op.
 type Dependencies = {

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import * as serverDb from "./db";
@@ -10,11 +10,11 @@ import { appRouter } from "./routers";
 // every governed action (the denial is the permission error, never anything else), and the
 // separation-of-duties pairs by role name AND by power. Synthetic data only.
 const SLUG = "g120-sod";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@perm.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const DENIED = "Required permission is not granted.";
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = "";
 let projectId = "";
 const userIds = new Map<string, number>();
@@ -44,7 +44,7 @@ const activate = (key: string) => connection.query("UPDATE memberships SET statu
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("operational permissions and separation of duties on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["owner", ...operationalRoleDefinitions.map(role => role.code), "nobody", "custom"];
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [openIdOf(key), `Perm ${key}`, `${openIdOf(key)}@perm.example.test`]));

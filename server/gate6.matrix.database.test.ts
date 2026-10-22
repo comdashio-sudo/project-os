@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { governedActionPermissions } from "./domain/operationalPermissions";
@@ -14,7 +14,7 @@ import { appRouter } from "./routers";
 //   5. for every governed write that takes a project: a role limited to project Q is refused on project P and not refused on Q.   (cross-project, with its allowed control)
 // "Refused" means an authorization error, never a validation error or a crash: a function that validates first is listed with the input that makes it reach the check.
 // The audit half is `gate6.test.ts` (every mutation writes an audit row) plus the live tests of each record; docs/GATE6_RECORDS.md says which.
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@matrix.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
 const dir = __dirname;
@@ -55,7 +55,7 @@ const REFUSALS = ["Tenant scope is invalid.", "Active tenant membership is requi
 const isRefusal = (error: unknown) => error instanceof Error && REFUSALS.some(text => error.message.includes(text));
 const describeError = (error: unknown) => (error instanceof Error ? error.message.split("\n")[0].slice(0, 90) : String(error).slice(0, 90));
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const ids = { ownerA: 0, ownerB: 0, ownerC: 0, stranger: 0, scoped: 0 };
 let tenantA = ""; let tenantB = ""; let tenantC = "";
 const P = "7b000000-0000-4000-8000-000000000001"; const Q = "7b000000-0000-4000-8000-000000000002"; const R = "7b000000-0000-4000-8000-000000000003"; const PC = "7b000000-0000-4000-8000-000000000004";
@@ -80,7 +80,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Gate 6 live matrix for every tenant function", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["ownerA", "ownerB", "ownerC", "stranger", "scoped"] as const;
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [`g110-${key}`, `Matrix ${key}`, `g110-${key}@matrix.example.test`]));

@@ -63,7 +63,7 @@ export async function setPmcStatusFactors(input: Scope & { factors: Partial<Reco
   assertValidFactors(next);
   await db.transaction(async tx => {
     for (const status of Object.keys(input.factors) as PmcUnitActivityStatus[]) {
-      await tx.insert(pmcStatusFactors).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, status, factor: String(next[status]), updatedByUserId: input.userId }).onDuplicateKeyUpdate({ set: { factor: String(next[status]), updatedByUserId: input.userId } });
+      await tx.insert(pmcStatusFactors).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, status, factor: String(next[status]), updatedByUserId: input.userId }).onConflictDoUpdate({ target: [pmcStatusFactors.projectId, pmcStatusFactors.status], set: { factor: String(next[status]), updatedByUserId: input.userId } });
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.status_factors_changed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ before: current, after: next }) });
     await syncPmcProgressToEvm(tx, input, new Date());
@@ -85,7 +85,7 @@ export async function savePmcVerificationStatuses(input: Scope & { statuses: Arr
   if (new Set(codes).size !== codes.length) throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_STATUS_CODE_DUPLICATE");
   await db.transaction(async tx => {
     for (const status of input.statuses) {
-      await tx.insert(pmcVerificationStatuses).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: status.code, label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false }).onDuplicateKeyUpdate({ set: { label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false } });
+      await tx.insert(pmcVerificationStatuses).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: status.code, label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false }).onConflictDoUpdate({ target: [pmcVerificationStatuses.projectId, pmcVerificationStatuses.code], set: { label: status.label, sortOrder: status.sortOrder, active: status.active, pending: status.pending ?? false } });
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.verification_statuses_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ codes }) });
   });

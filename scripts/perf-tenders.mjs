@@ -9,7 +9,7 @@
 // Exit code 1 when a timing exceeds its limit. It never touches a database that is not project_os_integration_test.
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { users } from "../drizzle/schema.ts";
 import { createProjectForTenant, createTenantForUser, getDb, upsertUser } from "../server/db.ts";
 import { awardTender, getTenderComparison, listTenderPackages } from "../server/tenderService.ts";
@@ -33,7 +33,8 @@ const { tenantId } = await createTenantForUser({ userId: owner.id, legalName: `P
 const { id: projectId } = await createProjectForTenant({ userId: owner.id, tenantId, code: `PT-${run.toUpperCase()}`, name: `Perf tender villas ${run}`, projectType: "residential", currency: "SAR" });
 const connection = await mysql.createConnection({ uri: dbUrl.toString(), multipleStatements: false });
 async function bulk(table, columns, rows) {
-  for (let i = 0; i < rows.length; i += 1000) await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ?`, [rows.slice(i, i + 1000)]);
+  const tuple = `(${columns.map(() => "?").join(",")})`;
+  for (let i = 0; i < rows.length; i += 1000) { const chunk = rows.slice(i, i + 1000); await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ${chunk.map(() => tuple).join(",")}`, chunk.flat()); }
 }
 
 const started = Date.now();
@@ -61,9 +62,8 @@ await bulk("tender_packages", ["id", "tenantId", "projectId", "packageCode", "ti
 await bulk("tender_invitees", ["id", "tenantId", "projectId", "packageId", "supplierId", "status", "invitedByUserId"], invitees);
 await bulk("tender_bids", ["id", "tenantId", "projectId", "packageId", "supplierId", "amount", "currency", "durationDays", "status", "enteredByUserId"], bids);
 await bulk("tender_bid_adjustments", ["id", "tenantId", "projectId", "packageId", "bidId", "kind", "description", "amount", "createdByUserId"], adjustments);
-// the planner reads statistics: refresh them the way an import would (TiDB only; a harmless statement elsewhere is skipped)
-const [[{ v }]] = await connection.query("SELECT VERSION() AS v");
-if (/TiDB/i.test(String(v))) for (const table of ["tender_packages", "tender_invitees", "tender_bids", "tender_bid_adjustments", "suppliers"]) await connection.query(`ANALYZE TABLE \`${table}\``);
+// the planner reads statistics: refresh them the way an import would (PostgreSQL's autovacuum would catch up within about a minute)
+for (const table of ["tender_packages", "tender_invitees", "tender_bids", "tender_bid_adjustments", "suppliers"]) await connection.query(`ANALYZE ${table}`);
 console.log(JSON.stringify({ seeded: { packages: packages.length, bids: bids.length, invitees: invitees.length, adjustments: adjustments.length, suppliers: SUPPLIERS }, seconds: Math.round((Date.now() - started) / 100) / 10 }));
 
 const timed = async (name, limitMs, work) => {
@@ -86,6 +86,6 @@ const award = await timed("award of a closed package (contract + commitment + st
 results.push({ ...award, result: undefined });
 const [[row]] = await connection.query("SELECT (SELECT COUNT(*) FROM contracts WHERE projectId = ? AND code LIKE 'PERF-%') AS contracts, (SELECT COUNT(*) FROM commitments WHERE projectId = ? AND code LIKE 'PERF-%') AS commitments", [projectId, projectId]);
 const exactlyOnce = Number(row.contracts) === 1 && Number(row.commitments) === 1;
-console.log(JSON.stringify({ engine: String(v), results: results.map(({ result, ...rest }) => rest), awardedExactlyOnce: exactlyOnce }, null, 1));
+console.log(JSON.stringify({ engine: String((await connection.query("SELECT version() AS v"))[0][0].v), results: results.map(({ result, ...rest }) => rest), awardedExactlyOnce: exactlyOnce }, null, 1));
 await connection.end();
 process.exit(results.every(item => item.ok) && exactlyOnce ? 0 : 1);

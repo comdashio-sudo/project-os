@@ -29,7 +29,7 @@ async function start(options: { production?: boolean; perMinute?: number } = {})
     now: () => clock.value,
     registerAuth: () => undefined,
     extraRoutes: target => {
-      target.get("/boom", () => { throw Object.assign(new Error(`Duplicate entry '${SECRETS.email}' ${SECRETS.sql} ${SECRETS.message}`), { code: "ER_DUP_ENTRY" }); });
+      target.get("/boom", () => { throw Object.assign(new Error(`Duplicate entry '${SECRETS.email}' ${SECRETS.sql} ${SECRETS.message}`), { code: "23505" }); });
       target.get("/api/boom", () => { throw new Error(`${SECRETS.message} ${SECRETS.email}`); });
       target.post("/api/echo", (req, res) => { res.json({ ok: true, got: req.body }); });
     },
@@ -76,7 +76,7 @@ describe("security headers", () => {
     const script = csp.split("; ").find(part => part.startsWith("script-src "))!;
     expect(script).toBe("script-src 'self'");
     expect(csp).not.toContain("unsafe-eval");
-    expect(csp.split("; ").find(part => part.startsWith("connect-src "))).toBe("connect-src 'self'");
+    expect(csp.split("; ").find(part => part.startsWith("connect-src "))).toBe("connect-src 'self' https://*.supabase.co");
   });
 
   it("outside production sends the always-on headers but neither CSP nor HSTS (the development server needs inline scripts)", async () => {
@@ -180,7 +180,7 @@ describe("failures", () => {
     expect(html).not.toMatch(/\bat .*\.(ts|js):\d+/); // no stack frame
     expect(logs).toHaveLength(1);
     expect(leaks(logs[0])).toEqual([]);
-    expect(JSON.parse(logs[0])).toMatchObject({ level: "error", event: "http.unhandled_error", status: 500, path: "/boom", errorCode: "ER_DUP_ENTRY", requestId: response.headers.get("x-request-id") });
+    expect(JSON.parse(logs[0])).toMatchObject({ level: "error", event: "http.unhandled_error", status: 500, path: "/boom", errorCode: "23505", requestId: response.headers.get("x-request-id") });
   });
 
   it("answers an API failure with a JSON code and the request id, not a page", async () => {

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import * as serverDb from "./db";
@@ -10,10 +10,10 @@ const T = "74000000-0000-4000-8000-0000000000a1";
 const P = "74000000-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `74000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [W1, W2, MAT] = [101, 102, 103].map(uid);
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { cfo: 0, ops: 0, reader: 0, plain: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@cash.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -36,7 +36,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("cash flow, committed cost and cost sources on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["cfo", "ops", "reader", "plain"];
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [`cfd-${key}`, `Cash ${key}`, `cfd-${key}@cash.example.test`]));

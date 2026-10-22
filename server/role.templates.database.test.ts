@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { operationalRoleDefinitions } from "./domain/operationalRoles";
@@ -9,12 +9,12 @@ import { appRouter } from "./routers";
 // the design and tender modules: each is allowed exactly what it holds and refused (with the permission message, never anything else) the rest.
 // Synthetic data only.
 const SLUG = "role-templates";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@templates.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const DENIED = "Required permission is not granted.";
 const TEMPLATES = ["EXECUTIVE", "PMO_LEAD", "COST_CONTROLLER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL", "CONTRACTS_MANAGER"] as const;
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = ""; let projectId = "";
 const userIds: Record<string, number> = {}; const roleIds: Record<string, string> = {};
 const callers: Record<string, ReturnType<typeof callerFor>> = {};
@@ -57,7 +57,7 @@ const outcome = async (run: () => Promise<unknown>) => { try { await run(); retu
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the ready-made role templates on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     const keys = ["owner", ...TEMPLATES];
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${keys.map(() => "(?, ?, ?, 'user')").join(",")}`, keys.flatMap(key => [`tpl-${key}`, `Template ${key}`, `tpl-${key}@templates.example.test`]));

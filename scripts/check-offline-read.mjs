@@ -11,7 +11,7 @@
 //   . env (DATABASE_URL naming project_os_integration_test, JWT_SECRET, BASE_URL)   +   NODE_ENV=production node dist/index.js &
 //   node --import tsx scripts/check-offline-read.mjs
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3100";

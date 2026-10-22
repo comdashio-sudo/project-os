@@ -1,33 +1,26 @@
-// Render's preDeployCommand: runs before a new version takes traffic, and a non-zero exit stops the deploy (the old version keeps serving).
-//   1. apply the schema migrations (on TiDB, refresh the table statistics when the schema changed);
-//   2. when PROJECT_OS_APP_DB_PASSWORD is set — i.e. audit_logs protection is switched on — re-provision the restricted application account so it
-//      holds the tables this migration created, then PROVE it: it must see and read EVERY table, and the audit_logs probes must pass
-//      (scripts/verify-audit-log-grants.mjs). Otherwise the new version would start against tables its own database account cannot touch.
-// Without that password the site runs as the administrative account (the first deployment, docs/GO_LIVE.md step 3): a loud warning, not a failure.
+// The deploy's pre-deploy step (docs/GO_LIVE.md): runs before a new version takes traffic, and a non-zero exit stops the deploy (the old
+// version keeps serving).
+//   1. apply the schema migrations (each re-applies the row-level-security / grant conventions to every table);
+//   2. when PROJECT_OS_APP_DB_PASSWORD is set — i.e. the application connects as the restricted role project_os_app — (re)provision that role so
+//      it holds the tables this migration created, then PROVE it (scripts/verify-db-security.mjs): it must read every table, hold only
+//      SELECT/INSERT on audit_logs, and see no tenant row without a context. Otherwise the new version would start against tables its own
+//      database account cannot touch, or against an unprotected audit trail.
+// Without that password the site would run as the owner role (the first deployment): a loud warning, not a failure.
 // Prints names and counts, never a URL or a password.
 import { spawnSync } from "node:child_process";
-import { provisionAuditAppAccount, restrictedAccountVisibility } from "./lib/auditProtection.mjs";
 
-const run = script => spawnSync(process.execPath, script, { stdio: "inherit", env: process.env });
+const run = args => spawnSync(process.execPath, args, { stdio: "inherit", env: process.env });
 const migrated = run(["scripts/migrate.mjs"]);
 if (migrated.status !== 0) process.exit(migrated.status ?? 1);
 
-const rootUrl = process.env.DATABASE_URL; const appPassword = process.env.PROJECT_OS_APP_DB_PASSWORD;
-if (!appPassword) {
-  console.warn(JSON.stringify({ auditProtection: "OFF", warning: "PROJECT_OS_APP_DB_PASSWORD is not set: the site writes as the administrative account, so audit_logs is NOT protected at the database level. Do the audit protection step (docs/GO_LIVE.md, step 5) before real data." }));
+if (!process.env.PROJECT_OS_APP_DB_PASSWORD) {
+  console.warn(JSON.stringify({ auditProtection: "OFF", warning: "PROJECT_OS_APP_DB_PASSWORD is not set: the site would write as the owner role, so audit_logs and row-level security are NOT enforced on the application's connection. Do the application-role step (docs/GO_LIVE.md)." }));
   process.exit(0);
 }
-try {
-  const provisioned = await provisionAuditAppAccount({ rootUrl, appPassword });
-  const seen = await restrictedAccountVisibility({ rootUrl, appPassword });
-  if (seen.visible === 0 || seen.missing.length) {
-    console.error(JSON.stringify({ auditProtection: "FAILED", reason: "the restricted application account cannot see every table", expected: seen.expected, visible: seen.visible, missing: seen.missing.slice(0, 20) }));
-    process.exit(1);
-  }
-  console.log(JSON.stringify({ auditProtection: "provisioned", account: provisioned.account, tables: provisioned.tableCount, restrictedAccountSees: seen.visible }));
-} catch (error) {
-  console.error(JSON.stringify({ auditProtection: "FAILED", reason: String(error?.message ?? error).slice(0, 200) }));
-  process.exit(1);
-}
-const verified = run(["--import", "tsx", "scripts/verify-audit-log-grants.mjs"]);
-if (verified.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: "verify-audit-log-grants did not approve the account" })); process.exit(1); }
+const provisioned = spawnSync(process.execPath, ["scripts/provision-app-role.mjs"], { encoding: "utf8", env: process.env });
+if (provisioned.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: (provisioned.stderr || "provisioning failed").trim().slice(0, 200) })); process.exit(1); }
+const report = JSON.parse(provisioned.stdout);
+const verified = spawnSync(process.execPath, ["--import", "tsx", "scripts/verify-db-security.mjs"], { encoding: "utf8", env: process.env });
+process.stdout.write(verified.stdout ?? "");
+if (verified.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: "verify-db-security did not approve the application role", detail: (verified.stderr ?? "").trim().slice(0, 200) })); process.exit(1); }
+console.log(JSON.stringify({ auditProtection: "provisioned", role: report.role, tables: report.tablesConfigured, restrictedRoleSees: JSON.parse(verified.stdout).tables }));

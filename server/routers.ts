@@ -13,7 +13,7 @@ import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmc
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { getPmcProjectSummaryForTenant } from "./db";
-import { reanalyzeDataImport } from "./db";
+import { createImportUpload, getImportProgress, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -51,6 +51,14 @@ const masterPlanVisualizationRuleSchema = z.discriminatedUnion("metric", [
 const pmcFiltersInput = z.object({ zone: z.string().max(80).optional(), block: z.string().max(80).optional(), unitFrom: z.number().int().min(0).optional(), unitTo: z.number().int().min(0).optional(), group: z.string().max(80).optional(), stage: z.string().max(80).optional(), activity: z.string().max(80).optional(), contractor: z.string().max(255).optional(), consultant: z.string().max(255).optional(), since: z.date().optional(), until: z.date().optional() }).optional();
 const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput });
 const pmcScreen = <N extends PmcScreenName>(screen: N) => protectedProcedure.input(pmcScreenInput).query(({ ctx, input }) => getPmcScreen({ userId: ctx.user.id, screen, ...input }));
+
+const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "schedule", "openingBalances"]);
+const importDuplicateModeSchema = z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
+/** Which file formats a module accepts: a schedule is xlsx or XER, every other module xlsx or csv. */
+const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
+  if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" });
+  if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
+};
 
 export const appRouter = router({
   system: systemRouter,
@@ -143,8 +151,12 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid().optional() })).query(({ ctx, input }) => getDataImportsForTenant({ userId: ctx.user.id, ...input })),
     detail: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getDataImportDetailForTenant({ userId: ctx.user.id, ...input })),
     analyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "contracts", "materials", "schedule", "openingBalances"]), fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), base64: z.string().min(1).max(14_000_000), duplicateMode: z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]).optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).optional() }).superRefine((value, context) => { if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" }); if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" }); if (value.mappingOverride && Object.keys(value.mappingOverride).length > 6) context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }); })).mutation(({ ctx, input }) => createAndAnalyzeDataImport({ userId: ctx.user.id, ...input })),
-    reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => reanalyzeDataImport({ userId: ctx.user.id, ...input })),
-    confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => confirmAndImportData({ userId: ctx.user.id, ...input })),
+    reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => requestImportReanalysis({ userId: ctx.user.id, ...input })),
+    confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
+    // Direct upload (work order 6): the file goes browser → Storage by a signed URL, and is analysed / imported by a job the screen polls.
+    createUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: importModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]) }).superRefine(importFormatRule)).mutation(({ ctx, input }) => createImportUpload({ userId: ctx.user.id, ...input })),
+    registerUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: importModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), uploadKey: z.string().min(1).max(1024), duplicateMode: importDuplicateModeSchema.optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).refine(value => Object.keys(value).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => registerImportUpload({ userId: ctx.user.id, ...input })),
+    progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities"]), format: z.enum(["xlsx", "csv"]), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => createDataExport({ userId: ctx.user.id, ...input })),
   }),
   licensing: router({

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
@@ -15,9 +15,9 @@ const P_OTHER = "70000000-0000-4000-8000-0000000000d2";
 const uid = (n: number) => `70000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [Z1, B1, G1, S1, D_WALLS, D_PAINT, W_WALLS, W_PAINT, W_FREE] = [101, 102, 103, 104, 105, 106, 107, 108, 109].map(uid);
 const U = [1, 2, 3, 4].map(n => uid(200 + n));
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { manager: 0, reader: 0, none: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pmc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -44,7 +44,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC programme and EVM bridge on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pmcg-manager','Programme Manager','pmcg-manager@pmc.example.test','user'),('pmcg-reader','Programme Reader','pmcg-reader@pmc.example.test','user'),('pmcg-none','Programme None','pmcg-none@pmc.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'pmcg-%'");

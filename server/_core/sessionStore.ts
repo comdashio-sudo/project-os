@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { authSessions } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { rowsAffected } from "./database";
 
 // Server-side half of a session. The cookie only names a row; the row decides whether the session still counts.
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -22,7 +23,7 @@ export type SessionStore = {
   revokeAllForUser(userId: number, now?: Date): Promise<number>;
 };
 
-const affected = (result: unknown) => Number((Array.isArray(result) ? result[0] : result as { affectedRows?: number })?.affectedRows ?? 0);
+const affected = rowsAffected;
 
 export const sessionStore: SessionStore = {
   async create({ userId, expiresAt, now = new Date() }) {

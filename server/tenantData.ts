@@ -17,26 +17,27 @@ import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { getDb } from "./db";
 import { logError } from "./_core/logger";
+import { rowsAffected } from "./_core/database";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
 /** Child tables hold no tenantId; they reach the company through a parent that does. Declared here, and checked against the schema. */
 export const TENANT_CHILD_TABLES = [
-  { table: "data_import_errors", parent: "data_imports", column: "importId" },
-  { table: "data_import_row_results", parent: "data_imports", column: "importId" },
-  { table: "membership_roles", parent: "memberships", column: "membershipId" },
-  { table: "role_permissions", parent: "roles", column: "roleId" },
-  { table: "subcontract_certificate_lines", parent: "subcontract_certificates", column: "certificateId" },
-  { table: "tenant_license_feature_overrides", parent: "tenant_licenses", column: "tenantLicenseId" },
+  { table: "data_import_errors", parent: "data_imports", column: "import_id" },
+  { table: "data_import_row_results", parent: "data_imports", column: "import_id" },
+  { table: "membership_roles", parent: "memberships", column: "membership_id" },
+  { table: "role_permissions", parent: "roles", column: "role_id" },
+  { table: "subcontract_certificate_lines", parent: "subcontract_certificates", column: "certificate_id" },
+  { table: "tenant_license_feature_overrides", parent: "tenant_licenses", column: "tenant_license_id" },
 ] as const;
 
 /** Tables with no tenantId that are not a company's data: the product's catalogue, the platform's own bookkeeping, or a person's identity. */
 export const NOT_COMPANY_DATA = [
-  "__drizzle_migrations", // migration bookkeeping
+  "__project_os_migrations", // migration bookkeeping (schema drizzle)
   "commercial_features", "commercial_plans", "plan_feature_entitlements", // the plan catalogue, shared by every company
   "permissions", // the permission catalogue, shared by every company
-  "scheduled_jobs", "invoice_counters", // platform bookkeeping
-  "users", "auth_sessions", "login_codes", "self_service_signup_attempts", // people, handled by the scrub step
+  "scheduled_jobs", "invoice_counters", "auth_code_attempts", // platform bookkeeping (auth_code_attempts holds a hash of an address and a counter, no company data)
+  "users", "auth_sessions", "self_service_signup_attempts", // people, handled by the scrub step
   "companies", // kept as a tombstone
 ] as const;
 
@@ -44,14 +45,14 @@ export const NOT_COMPANY_DATA = [
 export const RETAINED_TENANT_TABLES = ["audit_logs"] as const;
 
 /** Columns never written to an export: they authorise something and are not the company's information. */
-export const REDACTED_COLUMNS: Record<string, string[]> = { membership_invitations: ["tokenHash"] };
+export const REDACTED_COLUMNS: Record<string, string[]> = { membership_invitations: ["token_hash"] };
 
 /** Tables whose rows point at a stored file; erasure removes the file too. column = where the object key is. */
 export const FILE_TABLES = [
-  { table: "document_versions", column: "storageKey" },
-  { table: "master_plan_versions", column: "storageKey" },
-  { table: "data_imports", column: "fileKey" },
-  { table: "pmc_site_plans", column: "fileKey" },
+  { table: "document_versions", column: "storage_key" },
+  { table: "master_plan_versions", column: "storage_key" },
+  { table: "data_imports", column: "file_key" },
+  { table: "pmc_site_plans", column: "file_key" },
 ] as const;
 
 /** Memberships and roles go last, so a half-finished erasure can still be resumed by the owner who started it. */
@@ -62,13 +63,9 @@ export const DELETION_TOKEN_TTL_MS = 15 * 60 * 1000;
 const PAGE = 2000;
 const DELETE_BATCH = 5000;
 
-const q = async <T = Record<string, unknown>>(db: Db, statement: ReturnType<typeof sql>): Promise<T[]> => {
-  const result = (await db.execute(statement)) as unknown as [T[], unknown];
-  return result[0];
-};
+const q = async <T = Record<string, unknown>>(db: Db, statement: ReturnType<typeof sql>): Promise<T[]> => (await db.execute(statement)).rows as T[];
 const affected = async (db: Db, statement: ReturnType<typeof sql>) => {
-  const result = (await db.execute(statement)) as unknown as [{ affectedRows?: number }, unknown];
-  return Number(result[0]?.affectedRows ?? 0);
+  return rowsAffected(await db.execute(statement));
 };
 const id = (name: string) => sql.identifier(name);
 
@@ -84,18 +81,18 @@ export type SchemaMap = {
 };
 
 export async function readSchemaMap(db: Db): Promise<SchemaMap> {
-  const tables = (await q<{ t: string }>(db, sql`SELECT table_name AS t FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name`)).map(row => row.t);
-  const columnRows = await q<{ t: string; c: string }>(db, sql`SELECT table_name AS t, column_name AS c FROM information_schema.columns WHERE table_schema = DATABASE() ORDER BY table_name, ordinal_position`);
+  const tables = (await q<{ t: string }>(db, sql`SELECT c.relname AS t FROM pg_class c INNER JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' ORDER BY c.relname`)).map(row => row.t);
+  const columnRows = await q<{ t: string; c: string }>(db, sql`SELECT c.relname AS t, a.attname AS c FROM pg_attribute a INNER JOIN pg_class c ON c.oid = a.attrelid INNER JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped ORDER BY c.relname, a.attnum`);
   const columns: Record<string, string[]> = {};
   for (const row of columnRows) (columns[row.t] ??= []).push(row.c);
-  const keyRows = await q<{ t: string; c: string }>(db, sql`SELECT table_name AS t, column_name AS c FROM information_schema.key_column_usage WHERE table_schema = DATABASE() AND constraint_name = 'PRIMARY' ORDER BY table_name, ordinal_position`);
+  const keyRows = await q<{ t: string; c: string }>(db, sql`SELECT c.relname AS t, a.attname AS c FROM pg_index i INNER JOIN pg_class c ON c.oid = i.indrelid INNER JOIN pg_namespace n ON n.oid = c.relnamespace INNER JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY (i.indkey) WHERE i.indisprimary AND n.nspname = 'public' ORDER BY c.relname, array_position(i.indkey::int2[], a.attnum)`);
   const primaryKeys: Record<string, string[]> = {};
   for (const row of keyRows) (primaryKeys[row.t] ??= []).push(row.c);
-  const fkRows = await q<{ t: string; r: string }>(db, sql`SELECT DISTINCT table_name AS t, referenced_table_name AS r FROM information_schema.key_column_usage WHERE table_schema = DATABASE() AND referenced_table_name IS NOT NULL`);
+  const fkRows = await q<{ t: string; r: string }>(db, sql`SELECT DISTINCT cl.relname AS t, rf.relname AS r FROM pg_constraint c INNER JOIN pg_class cl ON cl.oid = c.conrelid INNER JOIN pg_class rf ON rf.oid = c.confrelid INNER JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.contype = 'f' AND n.nspname = 'public'`);
 
   const childNames = new Set<string>(TENANT_CHILD_TABLES.map(child => child.table));
   const notCompany = new Set<string>(NOT_COMPANY_DATA);
-  const tenantTables = tables.filter(table => columns[table]?.includes("tenantId"));
+  const tenantTables = tables.filter(table => columns[table]?.includes("tenant_id"));
   const tenantSet = new Set(tenantTables);
   const unclassified = tables.filter(table => !tenantSet.has(table) && !childNames.has(table) && !notCompany.has(table));
   // the declared children must still look like children (parent exists with a tenantId, the column exists)
@@ -132,8 +129,8 @@ const childFor = (table: string) => TENANT_CHILD_TABLES.find(child => child.tabl
 async function countRows(db: Db, tenantId: string, table: string): Promise<number> {
   const child = childFor(table);
   const rows = child
-    ? await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenantId = ${tenantId}`)
-    : await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(table)} WHERE tenantId = ${tenantId}`);
+    ? await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenant_id = ${tenantId}`)
+    : await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(table)} WHERE tenant_id = ${tenantId}`);
   return Number(rows[0]?.n ?? 0);
 }
 
@@ -147,20 +144,20 @@ export async function countTenantData(db: Db, tenantId: string, map?: SchemaMap)
   for (const table of names) tables.push({ table, rows: await countRows(db, tenantId, table) });
   const auditRows = await countRows(db, tenantId, "audit_logs");
   let files = 0;
-  for (const file of FILE_TABLES) files += Number((await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(file.table)} WHERE tenantId = ${tenantId} AND ${id(file.column)} IS NOT NULL`))[0]?.n ?? 0);
+  for (const file of FILE_TABLES) files += Number((await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(file.table)} WHERE tenant_id = ${tenantId} AND ${id(file.column)} IS NOT NULL`))[0]?.n ?? 0);
   const usersToScrub = (await personIdsOnlyIn(db, tenantId)).length;
   return { tables, totalRows: tables.reduce((sum, item) => sum + item.rows, 0), auditRows, files, usersToScrub };
 }
 
 /** People who belong to this company and to no other: their identity is scrubbed when the company is erased. */
 async function personIdsOnlyIn(db: Db, tenantId: string): Promise<number[]> {
-  const rows = await q<{ userId: number }>(db, sql`SELECT m.userId AS userId FROM memberships m WHERE m.tenantId = ${tenantId} AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.userId = m.userId AND o.tenantId <> ${tenantId})`);
+  const rows = await q<{ userId: number }>(db, sql`SELECT m.user_id AS "userId" FROM memberships m WHERE m.tenant_id = ${tenantId} AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.user_id = m.user_id AND o.tenant_id <> ${tenantId})`);
   return rows.map(row => Number(row.userId));
 }
 
 /** Only the person who holds the TENANT_OWNER role at company scope on an active membership. */
 export async function assertTenantOwner(db: Db, userId: number, tenantId: string) {
-  const rows = await q(db, sql`SELECT 1 AS ok FROM memberships m INNER JOIN membership_roles mr ON mr.membershipId = m.id INNER JOIN roles r ON r.id = mr.roleId WHERE m.tenantId = ${tenantId} AND m.userId = ${userId} AND m.status = 'active' AND r.tenantId = ${tenantId} AND r.code = 'TENANT_OWNER' AND mr.scopeType = 'company' LIMIT 1`);
+  const rows = await q(db, sql`SELECT 1 AS ok FROM memberships m INNER JOIN membership_roles mr ON mr.membership_id = m.id INNER JOIN roles r ON r.id = mr.role_id WHERE m.tenant_id = ${tenantId} AND m.user_id = ${userId} AND m.status = 'active' AND r.tenant_id = ${tenantId} AND r.code = 'TENANT_OWNER' AND mr.scope_type = 'company' LIMIT 1`);
   if (!rows.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_OWNER_REQUIRED" });
 }
 
@@ -172,29 +169,29 @@ export type ExportLine = { kind: "manifest" | "table-start" | "row" | "table-end
 export async function* exportTenantLines(db: Db, tenantId: string, options: { signedUrl?: (key: string) => Promise<string | null>; now?: Date } = {}): AsyncGenerator<ExportLine> {
   const map = await readSchemaMap(db);
   assertSchemaClassified(map);
-  const company = (await q(db, sql`SELECT id, legalName, slug, status, defaultLocale, createdAt FROM companies WHERE id = ${tenantId}`))[0];
+  const company = (await q(db, sql`SELECT id, legal_name AS "legalName", slug, status, default_locale AS "defaultLocale", created_at AS "createdAt" FROM companies WHERE id = ${tenantId}`))[0];
   if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TENANT_NOT_FOUND" });
   const tableNames = [...TENANT_CHILD_TABLES.map(child => child.table), ...map.tenantTables].sort();
-  yield { kind: "manifest", format: "project-os-tenant-export/1", exportedAt: (options.now ?? new Date()).toISOString(), company, tables: tableNames, redactedColumns: REDACTED_COLUMNS, note: "A row is one line. Stored files are listed with their object keys; a time-limited download link is included for each when the storage service is configured." };
+  yield { kind: "manifest", format: "project-os-tenant-export/2", exportedAt: (options.now ?? new Date()).toISOString(), company, tables: tableNames, redactedColumns: REDACTED_COLUMNS, note: "A row is one line. Stored files are listed with their object keys; a time-limited download link is included for each when the storage service is configured." };
 
   const counts: Record<string, number> = {};
   for (const table of tableNames) {
     const child = childFor(table);
     const keys = map.primaryKeys[table] ?? [];
-    const order = (keys.length ? keys : [map.columns[table][0]]).map(key => `${child ? "c." : ""}\`${key}\``).join(", ");
+    const order = (keys.length ? keys : [map.columns[table][0]]).map(key => `${child ? "c." : ""}"${key}"`).join(", ");
     const redacted = new Set(REDACTED_COLUMNS[table] ?? []);
     yield { kind: "table-start", table };
     counts[table] = 0;
     // One-column keys page by "after the last key seen" (a deep OFFSET is re-read from the start on every page, which made a 130,000-row
-    // company take 61 s to export on TiDB instead of 3 s); the single table with a composite key (role_permissions) is small and uses OFFSET.
+    // company take 61 s to export on the previous engine instead of 3 s); the single table with a composite key (role_permissions) is small and uses OFFSET.
     const keyset = keys.length === 1;
     let last: unknown = null;
     for (let offset = 0; ; offset += PAGE) {
       const after = keyset && last !== null ? sql` AND ${sql.raw(child ? "c." : "")}${id(keys[0])} > ${last}` : sql``;
       const skip = keyset ? sql`` : sql` OFFSET ${sql.raw(String(offset))}`;
       const rows = await q<Record<string, unknown>>(db, child
-        ? sql`SELECT c.* FROM ${id(table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenantId = ${tenantId}${after} ORDER BY ${sql.raw(order)} LIMIT ${sql.raw(String(PAGE))}${skip}`
-        : sql`SELECT * FROM ${id(table)} WHERE tenantId = ${tenantId}${after} ORDER BY ${sql.raw(order)} LIMIT ${sql.raw(String(PAGE))}${skip}`);
+        ? sql`SELECT c.* FROM ${id(table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenant_id = ${tenantId}${after} ORDER BY ${sql.raw(order)} LIMIT ${sql.raw(String(PAGE))}${skip}`
+        : sql`SELECT * FROM ${id(table)} WHERE tenant_id = ${tenantId}${after} ORDER BY ${sql.raw(order)} LIMIT ${sql.raw(String(PAGE))}${skip}`);
       if (keyset && rows.length) last = rows[rows.length - 1][keys[0]];
       for (const row of rows) {
         redacted.forEach(column => { delete row[column]; });
@@ -208,7 +205,7 @@ export async function* exportTenantLines(db: Db, tenantId: string, options: { si
     yield { kind: "table-end", table, rows: counts[table] };
   }
   // people who belong to the company: name and address only (never the sign-in identity)
-  const people = await q(db, sql`SELECT u.id, u.name, u.email, u.lastSignedIn FROM users u INNER JOIN memberships m ON m.userId = u.id WHERE m.tenantId = ${tenantId} ORDER BY u.id`);
+  const people = await q(db, sql`SELECT u.id, u.name, u.email, u.last_signed_in AS "lastSignedIn" FROM users u INNER JOIN memberships m ON m.user_id = u.id WHERE m.tenant_id = ${tenantId} ORDER BY u.id`);
   yield { kind: "table-start", table: "users" };
   for (const person of people) yield { kind: "row", table: "users", row: person };
   yield { kind: "table-end", table: "users", rows: people.length };
@@ -271,7 +268,7 @@ const IN_PROGRESS_WINDOW_MS = 5 * 60 * 1000;
 
 async function collectObjectKeys(db: Db, tenantId: string): Promise<string[]> {
   const keys: string[] = [];
-  for (const file of FILE_TABLES) for (const row of await q<{ k: string }>(db, sql`SELECT ${id(file.column)} AS k FROM ${id(file.table)} WHERE tenantId = ${tenantId} AND ${id(file.column)} IS NOT NULL`)) keys.push(row.k);
+  for (const file of FILE_TABLES) for (const row of await q<{ k: string }>(db, sql`SELECT ${id(file.column)} AS k FROM ${id(file.table)} WHERE tenant_id = ${tenantId} AND ${id(file.column)} IS NOT NULL`)) keys.push(row.k);
   return keys;
 }
 
@@ -282,18 +279,17 @@ async function collectObjectKeys(db: Db, tenantId: string): Promise<string[]> {
  */
 export async function freezeTenant(db: Db, tenantId: string, actorUserId: number, now: () => Date = () => new Date()) {
   await db.transaction(async tx => {
-    const rows = (await tx.execute(sql`SELECT status FROM companies WHERE id = ${tenantId} FOR UPDATE`)) as unknown as [Array<{ status: string }>, unknown];
-    const company = rows[0][0];
+    const company = (await tx.execute(sql`SELECT status FROM companies WHERE id = ${tenantId} FOR UPDATE`)).rows[0] as { status: string } | undefined;
     if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TENANT_NOT_FOUND" });
     if (company.status === "archived") return; // already erased: finishing it again is allowed and harmless
-    const recent = (await tx.execute(sql`SELECT createdAt AS at FROM audit_logs WHERE tenantId = ${tenantId} AND action = 'tenant.deletion_frozen' ORDER BY createdAt DESC LIMIT 1`)) as unknown as [Array<{ at: Date | string }>, unknown];
-    if (recent[0][0] && now().getTime() - new Date(recent[0][0].at).getTime() < IN_PROGRESS_WINDOW_MS) {
-      const finished = (await tx.execute(sql`SELECT 1 AS ok FROM audit_logs WHERE tenantId = ${tenantId} AND action = 'tenant.data_deleted' AND createdAt >= ${new Date(recent[0][0].at)} LIMIT 1`)) as unknown as [unknown[], unknown];
-      if (!finished[0].length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_DELETION_IN_PROGRESS" });
+    const recent = (await tx.execute(sql`SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at FROM audit_logs WHERE tenant_id = ${tenantId} AND action = 'tenant.deletion_frozen' ORDER BY created_at DESC LIMIT 1`)).rows[0] as { at: string } | undefined;
+    if (recent && now().getTime() - new Date(recent.at).getTime() < IN_PROGRESS_WINDOW_MS) {
+      const finished = (await tx.execute(sql`SELECT 1 AS ok FROM audit_logs WHERE tenant_id = ${tenantId} AND action = 'tenant.data_deleted' AND created_at >= ${new Date(recent.at)} LIMIT 1`)).rows;
+      if (!finished.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_DELETION_IN_PROGRESS" });
     }
-    await tx.execute(sql`UPDATE tenant_entitlements SET active = false WHERE tenantId = ${tenantId}`);
+    await tx.execute(sql`UPDATE tenant_entitlements SET active = false WHERE tenant_id = ${tenantId}`);
     await tx.execute(sql`UPDATE companies SET status = 'suspended' WHERE id = ${tenantId} AND status = 'active'`);
-    await tx.execute(sql`INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType, entityId, metadata) VALUES (${randomUUID()}, ${tenantId}, ${actorUserId}, 'tenant.deletion_frozen', 'company', ${tenantId}, ${JSON.stringify({ at: now().toISOString() })})`);
+    await tx.execute(sql`INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, entity_type, entity_id, metadata) VALUES (${randomUUID()}, ${tenantId}, ${actorUserId}, 'tenant.deletion_frozen', 'company', ${tenantId}, ${JSON.stringify({ at: now().toISOString() })})`);
   });
 }
 
@@ -304,7 +300,7 @@ async function erasePass(db: Db, tenantId: string, map: SchemaMap, deleted: Map<
     if (IDENTITY_TABLES.includes(child.table)) continue;
     let total = 0;
     for (;;) {
-      const n = await affected(db, sql`DELETE c FROM ${id(child.table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenantId = ${tenantId}`);
+      const n = await affected(db, sql`DELETE FROM ${id(child.table)} c USING ${id(child.parent)} p WHERE c.${id(child.column)} = p.id AND p.tenant_id = ${tenantId}`);
       total += n; if (!n) break;
     }
     deleted.set(child.table, (deleted.get(child.table) ?? 0) + total);
@@ -314,8 +310,8 @@ async function erasePass(db: Db, tenantId: string, map: SchemaMap, deleted: Map<
     let total = 0;
     for (;;) {
       const n = child
-        ? await affected(db, sql`DELETE c FROM ${id(table)} c INNER JOIN ${id(child.parent)} p ON c.${id(child.column)} = p.id WHERE p.tenantId = ${tenantId}`)
-        : await affected(db, sql`DELETE FROM ${id(table)} WHERE tenantId = ${tenantId} LIMIT ${batch}`);
+        ? await affected(db, sql`DELETE FROM ${id(table)} c USING ${id(child.parent)} p WHERE c.${id(child.column)} = p.id AND p.tenant_id = ${tenantId}`)
+        : await affected(db, sql`DELETE FROM ${id(table)} WHERE ctid IN (SELECT ctid FROM ${id(table)} WHERE tenant_id = ${tenantId} LIMIT ${batch})`);
       total += n; if (!n || child) break;
     }
     deleted.set(table, (deleted.get(table) ?? 0) + total);
@@ -343,7 +339,7 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
   const before = await countTenantData(db, tenantId, map);
   const objectKeys = new Set<string>(await collectObjectKeys(db, tenantId));
   const onlyHere = await personIdsOnlyIn(db, tenantId);
-  const everyone = (await q<{ userId: number }>(db, sql`SELECT userId FROM memberships WHERE tenantId = ${tenantId}`)).map(row => Number(row.userId));
+  const everyone = (await q<{ userId: number }>(db, sql`SELECT user_id AS "userId" FROM memberships WHERE tenant_id = ${tenantId}`)).map(row => Number(row.userId));
 
   // 3. erase, children first; and repeat until a count taken afterwards is zero. The freeze stops every request that starts after it, but one that
   //    passed its access check a moment BEFORE it may still be writing; it is caught here by the next pass (and, failing that, by the final count).
@@ -361,13 +357,13 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
   // 4. people: identity removed for those who belong to no other company; their sessions end
   if (onlyHere.length) {
     const ids = sql.join(onlyHere.map(userId => sql`${userId}`), sql`, `);
-    await db.execute(sql`DELETE FROM auth_sessions WHERE userId IN (${ids})`);
-    await db.execute(sql`DELETE FROM self_service_signup_attempts WHERE userId IN (${ids})`);
-    await db.execute(sql`UPDATE users SET name = 'Deleted user', email = NULL, openId = CONCAT('deleted:', UUID()), loginMethod = NULL WHERE id IN (${ids})`);
+    await db.execute(sql`DELETE FROM auth_sessions WHERE user_id IN (${ids})`);
+    await db.execute(sql`DELETE FROM self_service_signup_attempts WHERE user_id IN (${ids})`);
+    await db.execute(sql`UPDATE users SET name = 'Deleted user', email = NULL, open_id = 'deleted:' || gen_random_uuid()::text, login_method = NULL WHERE id IN (${ids})`);
   }
 
   // 5. the company row stays as a tombstone (audit rows point at it)
-  await db.execute(sql`UPDATE companies SET status = 'archived', legalName = ${`Deleted company ${tenantId.slice(0, 8)}`}, slug = ${`deleted-${tenantId}`} WHERE id = ${tenantId}`);
+  await db.execute(sql`UPDATE companies SET status = 'archived', legal_name = ${`Deleted company ${tenantId.slice(0, 8)}`}, slug = ${`deleted-${tenantId}`} WHERE id = ${tenantId}`);
 
   // 6. stored files (after the rows: a failure here loses nothing the database still depends on; the keys are in the report)
   const keys = Array.from(objectKeys);
@@ -399,16 +395,16 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
     files,
   };
   // 8. the record of the erasure itself — appended to the audit trail, which is never deleted
-  await db.execute(sql`INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType, entityId, metadata) VALUES (${randomUUID()}, ${tenantId}, ${input.actorUserId}, 'tenant.data_deleted', 'company', ${tenantId}, ${JSON.stringify({ ...report, perTable: report.perTable.filter(item => item.before > 0 || item.after > 0) })})`);
+  await db.execute(sql`INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, entity_type, entity_id, metadata) VALUES (${randomUUID()}, ${tenantId}, ${input.actorUserId}, 'tenant.data_deleted', 'company', ${tenantId}, ${JSON.stringify({ ...report, perTable: report.perTable.filter(item => item.before > 0 || item.after > 0) })})`);
   return report;
 }
 
 /** True when this company was exported by someone in the last EXPORT_FRESH_DAYS days (read from the audit trail; no table of its own). */
 export async function latestExportAt(db: Db, tenantId: string): Promise<Date | null> {
-  const rows = await q<{ at: Date | string }>(db, sql`SELECT createdAt AS at FROM audit_logs WHERE tenantId = ${tenantId} AND action = 'tenant.data_exported' ORDER BY createdAt DESC LIMIT 1`);
+  const rows = await q<{ at: string }>(db, sql`SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at FROM audit_logs WHERE tenant_id = ${tenantId} AND action = 'tenant.data_exported' ORDER BY created_at DESC LIMIT 1`);
   return rows[0] ? new Date(rows[0].at) : null;
 }
 
 export async function recordAudit(db: Db, input: { tenantId: string; actorUserId: number; action: string; metadata: unknown }) {
-  await db.execute(sql`INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType, entityId, metadata) VALUES (${randomUUID()}, ${input.tenantId}, ${input.actorUserId}, ${input.action}, 'company', ${input.tenantId}, ${JSON.stringify(input.metadata)})`);
+  await db.execute(sql`INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, entity_type, entity_id, metadata) VALUES (${randomUUID()}, ${input.tenantId}, ${input.actorUserId}, ${input.action}, 'company', ${input.tenantId}, ${JSON.stringify(input.metadata)})`);
 }

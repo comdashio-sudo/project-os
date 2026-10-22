@@ -6,7 +6,7 @@ export const INTEGRATION_TEST_DATABASE = "project_os_integration_test";
 export function databaseNameFromUrl(value: string | undefined): string | null {
   try {
     const url = new URL(value ?? "");
-    if (!/^mysql2?:$/.test(url.protocol) || !url.hostname) return null;
+    if (!/^postgres(ql)?:$/.test(url.protocol) || !url.hostname) return null;
     return decodeURIComponent(url.pathname.replace(/^\/+/, "")) || null;
   } catch {
     return null;
@@ -24,6 +24,6 @@ export function assertTestDatabaseUrl(value: string | undefined, variableName: s
   const databaseName = databaseNameFromUrl(value);
   throw new Error(
     `${variableName} must point at the test database "${INTEGRATION_TEST_DATABASE}"; ` +
-      (databaseName ? `it points at "${databaseName}". Refusing to run tests against it.` : "it is not a mysql:// URL with a database name."),
+      (databaseName ? `it points at "${databaseName}". Refusing to run tests against it.` : "it is not a postgres:// URL with a database name."),
   );
 }

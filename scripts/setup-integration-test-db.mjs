@@ -1,32 +1,40 @@
-import { readFile, readdir } from "node:fs/promises";
-import path from "node:path";
-import mysql from "mysql2/promise";
+// Prepares the local test database: creates project_os_integration_test when it is missing, applies every migration, and gives the
+// application role a login so tests can connect as it. DATABASE_URL (or ADMIN_DATABASE_URL) must be a superuser or database owner on a
+// LOCAL or otherwise non-production PostgreSQL; the database name is forced to project_os_integration_test.
+//
+//   PROJECT_OS_APP_DB_PASSWORD  password to give project_os_app for the tests (default: a fixed local-only value, refused off localhost)
+import { spawn } from "node:child_process";
+import pg from "pg";
 
-const sourceUrl = process.env.DATABASE_URL;
-if (!sourceUrl) throw new Error("DATABASE_URL is required to derive the isolated test connection.");
-const url = new URL(sourceUrl);
-url.pathname = "/project_os_integration_test";
-const connection = await mysql.createConnection({ uri: url.toString(), multipleStatements: true });
+const sourceUrl = process.env.ADMIN_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!sourceUrl) throw new Error("DATABASE_URL (a superuser on the local test server) is required.");
+const admin = new URL(sourceUrl);
+const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(admin.hostname);
+const testUrl = new URL(sourceUrl);
+testUrl.pathname = "/project_os_integration_test";
+const appPassword = process.env.PROJECT_OS_APP_DB_PASSWORD ?? (local ? "project-os-local-test-only" : "");
+if (!appPassword) throw new Error("PROJECT_OS_APP_DB_PASSWORD is required off localhost.");
+
+const maintenance = new URL(sourceUrl);
+maintenance.pathname = "/postgres";
+const root = new pg.Client({ connectionString: maintenance.toString() });
+await root.connect();
 try {
-  const migrationsDir = path.resolve("drizzle");
-  const migrations = (await readdir(migrationsDir)).filter(name => /^\d{4}_.*\.sql$/.test(name)).sort();
-  await connection.query("CREATE TABLE IF NOT EXISTS integration_schema_migrations (migration_name varchar(255) PRIMARY KEY, applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-  const [existing] = await connection.query("SELECT migration_name FROM integration_schema_migrations");
-  const applied = new Set(existing.map(row => row.migration_name));
-  const [tables] = await connection.query("SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'users'");
-  if (applied.size === 0 && Number(tables[0].count) > 0) {
-    for (const migration of migrations.slice(0, -1)) await connection.query("INSERT IGNORE INTO integration_schema_migrations (migration_name) VALUES (?)", [migration]);
-  }
-  for (const migration of migrations) {
-    const [seen] = await connection.query("SELECT 1 AS present FROM integration_schema_migrations WHERE migration_name = ? LIMIT 1", [migration]);
-    if (seen.length) continue;
-    const raw = await readFile(path.join(migrationsDir, migration), "utf8");
-    const sql = raw.replaceAll("--> statement-breakpoint", ";");
-    await connection.query(sql);
-    await connection.query("INSERT INTO integration_schema_migrations (migration_name) VALUES (?)", [migration]);
-  }
-  const [rows] = await connection.query("SELECT DATABASE() AS database_name, COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE()");
+  const exists = (await root.query("SELECT 1 FROM pg_database WHERE datname = 'project_os_integration_test'")).rowCount;
+  if (!exists) await root.query("CREATE DATABASE project_os_integration_test");
+} finally {
+  await root.end();
+}
+
+const code = await new Promise(resolve => spawn(process.execPath, ["scripts/migrate.mjs"], { stdio: "inherit", env: { ...process.env, DATABASE_URL: testUrl.toString() } }).on("exit", c => resolve(c ?? 1)));
+if (code !== 0) process.exit(code);
+
+const owner = new pg.Client({ connectionString: testUrl.toString() });
+await owner.connect();
+try {
+  await owner.query(`ALTER ROLE project_os_app WITH LOGIN PASSWORD ${pg.Client.prototype.escapeLiteral.call(owner, appPassword)}`);
+  const { rows } = await owner.query("SELECT current_database() AS database_name, (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS table_count");
   console.log(JSON.stringify(rows));
 } finally {
-  await connection.end();
+  await owner.end();
 }

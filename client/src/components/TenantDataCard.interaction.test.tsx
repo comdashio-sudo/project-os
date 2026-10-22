@@ -85,4 +85,12 @@ describe("TenantDataCard", () => {
     expect(screen.getByText("tenants/x/a.pdf")).toBeTruthy();
     expect(screen.getByText("projects: 1")).toBeTruthy();
   });
+
+  it("keeps the verdict on screen after the erasure, even though the preview then fails (the company and the owner's membership are gone)", () => {
+    state.confirm = { mutate: vi.fn(), data: { verification: "PASS", rowsDeleted: 12, tablesChecked: 118, remaining: [], files: { found: 2, deleted: 2, failedKeys: [] } }, error: null, isPending: false };
+    state.preview = { data: undefined, error: new Error("PROJECT_OS_TENANT_ACCESS_DENIED"), isLoading: false, refetch: vi.fn() }; // the refetch the erasure triggers
+    render(<TenantDataCard tenantId="t1" />);
+    expect(screen.getByText("اكتمل الحذف")).toBeTruthy();
+    expect(screen.getByText(/التحقق: نجح/)).toBeTruthy();
+  });
 });

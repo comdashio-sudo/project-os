@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BackupKeyError, decryptBackupToFile, generateBackupKey, HEADER_LENGTH, parseBackupKey, readEncryptedBackupText, writeEncryptedBackup } from "./backupCrypto";
-import { backupObjectKey, r2TargetFromEnvironment, uploadBackup } from "./exportDatabase";
+import { backupObjectKey, backupTargetFromEnvironment, uploadBackup } from "./exportDatabase";
 import { quoteIdentifier, readDumpMarkers, sqlValue } from "./sqlDump";
 
 const dir = mkdtempSync(join(tmpdir(), "backup-unit-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const KEY = parseBackupKey("0123456789abcdef".repeat(4));
 const OTHER_KEY = parseBackupKey("fedcba9876543210".repeat(4));
-const SQL = `-- demo\nINSERT INTO \`t\` VALUES ('مرحبا · ${"x".repeat(50_000)}');\n-- BACKUP COMPLETE tables=1 rows=1\n`;
+const SQL = `-- demo\nINSERT INTO "t" VALUES ('مرحبا · ${"x".repeat(50_000)}');\n-- BACKUP COMPLETE tables=1 rows=1\n`;
 
 async function backupFile(name: string, text = SQL) {
   const path = join(dir, name);
@@ -20,25 +20,21 @@ async function backupFile(name: string, text = SQL) {
 }
 
 describe("SQL literals", () => {
-  it("quotes and escapes every character that could end a string early or change a statement", () => {
+  it("quotes every string and doubles the one character that could end it early; a backslash is only a backslash", () => {
     expect(sqlValue("plain")).toBe("'plain'");
-    expect(sqlValue("it's")).toBe("'it\\'s'");
-    expect(sqlValue('say "hi"')).toBe("'say \\\"hi\\\"'");
-    expect(sqlValue("a\\b")).toBe("'a\\\\b'");
-    expect(sqlValue("line1\nline2\r")).toBe("'line1\\nline2\\r'");
-    expect(sqlValue("nul\0byte")).toBe("'nul\\0byte'");
-    expect(sqlValue("ctrl\x1az")).toBe("'ctrl\\Zz'");
-    expect(sqlValue("'; DROP TABLE users; --")).toBe("'\\'; DROP TABLE users; --'");
+    expect(sqlValue("it's")).toBe("'it''s'");
+    expect(sqlValue('say "hi"')).toBe("'say \"hi\"'");
+    expect(sqlValue("a\\b")).toBe("'a\\b'");
+    expect(sqlValue("line1\nline2\r")).toBe("'line1\nline2\r'");
+    expect(sqlValue("'; DROP TABLE users; --")).toBe("'''; DROP TABLE users; --'");
     expect(sqlValue("مرحبا 🌍")).toBe("'مرحبا 🌍'");
   });
-  it("writes NULL for null, bytes as hexadecimal, and an empty string as an empty string", () => {
+  it("writes NULL for null and an empty string as an empty string", () => {
     expect(sqlValue(null)).toBe("NULL");
     expect(sqlValue(undefined)).toBe("NULL");
-    expect(sqlValue(Buffer.from([0, 255, 16]))).toBe("X'00ff10'");
-    expect(sqlValue(Buffer.alloc(0))).toBe("X''");
     expect(sqlValue("")).toBe("''");
   });
-  it("quotes identifiers, doubling a backtick", () => { expect(quoteIdentifier("a`b")).toBe("`a``b`"); });
+  it("quotes identifiers, doubling a double quote", () => { expect(quoteIdentifier('a"b')).toBe('"a""b"'); });
 });
 
 describe("dump markers", () => {
@@ -111,19 +107,20 @@ describe("the encrypted file", () => {
 });
 
 describe("storing the backup", () => {
-  const env = { R2_ACCOUNT_ID: "acct", R2_ACCESS_KEY_ID: "key-id", R2_SECRET_ACCESS_KEY: "secret-value-0123", R2_BUCKET: "files", BACKUP_R2_BUCKET: "" };
-  it("needs every R2 value, names the ones missing, and never prints a value", () => {
-    expect(() => r2TargetFromEnvironment({ ...env, R2_SECRET_ACCESS_KEY: "" })).toThrow(/R2_SECRET_ACCESS_KEY/);
-    try { r2TargetFromEnvironment({ ...env, R2_ACCOUNT_ID: "", BACKUP_R2_BUCKET: "", R2_BUCKET: "" }); } catch (error) { expect((error as Error).message).toMatch(/R2_ACCOUNT_ID/); expect((error as Error).message).not.toContain("secret-value-0123"); }
+  const env = { STORAGE_S3_ENDPOINT: "https://ref0123.storage.supabase.co/storage/v1/s3", STORAGE_S3_REGION: "eu-west-1", STORAGE_S3_ACCESS_KEY_ID: "key-id", STORAGE_S3_SECRET_ACCESS_KEY: "secret-value-0123", BACKUP_BUCKET: "backups-only" };
+  it("needs every storage value, names the ones missing, and never prints a value", () => {
+    expect(() => backupTargetFromEnvironment({ ...env, STORAGE_S3_SECRET_ACCESS_KEY: "" })).toThrow(/STORAGE_S3_SECRET_ACCESS_KEY/);
+    try { backupTargetFromEnvironment({ ...env, STORAGE_S3_REGION: "", BACKUP_BUCKET: "" }); } catch (error) { expect((error as Error).message).toMatch(/STORAGE_S3_REGION, BACKUP_BUCKET/); expect((error as Error).message).not.toContain("secret-value-0123"); }
   });
-  it("prefers the dedicated backup bucket and falls back to the files bucket", () => {
-    expect(r2TargetFromEnvironment(env).bucket).toBe("files");
-    expect(r2TargetFromEnvironment({ ...env, BACKUP_R2_BUCKET: "backups-only" }).bucket).toBe("backups-only");
+  it("uses its own bucket, never the bucket that holds company files, and refuses an endpoint that is not https", () => {
+    expect(backupTargetFromEnvironment(env).bucket).toBe("backups-only");
+    expect(() => backupTargetFromEnvironment({ ...env, STORAGE_BUCKET: "files", BACKUP_BUCKET: "" })).toThrow(/BACKUP_BUCKET/);
+    expect(() => backupTargetFromEnvironment({ ...env, STORAGE_S3_ENDPOINT: "http://files.example.test/s3" })).toThrow(/STORAGE_S3_ENDPOINT/);
   });
   it("uploads under backups/<year>/<month>/ with the exact file size, to the chosen bucket", async () => {
     const path = await backupFile("upload.enc");
     const sent: Array<{ input: Record<string, unknown> }> = [];
-    const result = await uploadBackup(path, r2TargetFromEnvironment({ ...env, BACKUP_R2_BUCKET: "backups-only" }), new Date("2026-10-16T01:30:00Z"), { send: async (command: { input: Record<string, unknown> }) => { sent.push(command); return {}; } } as never);
+    const result = await uploadBackup(path, backupTargetFromEnvironment(env), new Date("2026-10-16T01:30:00Z"), { send: async (command: { input: Record<string, unknown> }) => { sent.push(command); return {}; } } as never);
     expect(result).toEqual({ bucket: "backups-only", key: "backups/2026/10/upload.enc" });
     expect(sent).toHaveLength(1);
     expect(sent[0].input).toMatchObject({ Bucket: "backups-only", Key: "backups/2026/10/upload.enc", ContentLength: statSync(path).size });
@@ -135,9 +132,9 @@ describe("the command line", () => {
   const run = (args: string[], env: Record<string, string>) => spawnSync(process.execPath, ["--import", "tsx", "scripts/export-database.mjs", ...args], { cwd: join(__dirname, "..", ".."), env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf8", timeout: 60_000 });
 
   it("fails the run (exit 3) when the upload is not configured, naming what is missing and printing no value", () => {
-    const result = run(["--to-r2"], { DATABASE_URL: "mysql://user:Sup3rS3cretPassw0rd@127.0.0.1:1/x", BACKUP_ENCRYPTION_KEY: "0123456789abcdef".repeat(4) });
+    const result = run(["--to-storage"], { DATABASE_URL: "postgres://user:Sup3rS3cretPassw0rd@127.0.0.1:1/x", BACKUP_ENCRYPTION_KEY: "0123456789abcdef".repeat(4) });
     expect(result.status).toBe(3);
-    expect(result.stderr).toContain("R2_ACCOUNT_ID");
+    expect(result.stderr).toContain("STORAGE_S3_ENDPOINT");
     expect(result.stdout + result.stderr).not.toContain("Sup3rS3cretPassw0rd");
   });
 

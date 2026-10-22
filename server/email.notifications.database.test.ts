@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import type { Mailer, OutgoingMail } from "./_core/auth/emailCode";
@@ -14,18 +14,19 @@ const P1 = "7a000000-0000-4000-8000-0000000000a2";
 const P2 = "7a000000-0000-4000-8000-0000000000a3";
 const Q1 = "7a000000-0000-4000-8000-0000000000b2";
 const uid = (n: number) => `7a000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
-let connection: mysql.Connection;
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+let connection: fixtureDb.Connection;
 const names = ["pm", "pm1", "approver", "buyer", "support", "optout", "noaddr", "left", "other", "reporter"] as const;
 const users = {} as Record<(typeof names)[number], number>;
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mail.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
-const saved = { enabled: process.env.EMAIL_NOTIFICATIONS_ENABLED, key: process.env.RESEND_API_KEY, from: process.env.EMAIL_FROM, base: process.env.APP_BASE_URL };
+const smtpVariables = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD"] as const;
+const saved = { enabled: process.env.EMAIL_NOTIFICATIONS_ENABLED, smtp: Object.fromEntries(smtpVariables.map(name => [name, process.env[name]])), from: process.env.EMAIL_FROM, base: process.env.APP_BASE_URL };
 const sent: OutgoingMail[] = [];
 const history: OutgoingMail[] = []; // everything sent in this file, in order: the later tests read what the earlier ones caused
 let failNext = 0;
 const mailer: Mailer = { async send(mail) { if (failNext > 0) { failNext -= 1; throw new Error("Resend rejected the message (503)"); } sent.push(mail); history.push(mail); } };
-const turnOn = () => { process.env.EMAIL_NOTIFICATIONS_ENABLED = "true"; process.env.RESEND_API_KEY = "test-key-not-real"; process.env.EMAIL_FROM = "no-reply@mail.example.test"; process.env.APP_BASE_URL = "https://app.example.test"; };
-const turnOff = () => { delete process.env.EMAIL_NOTIFICATIONS_ENABLED; delete process.env.RESEND_API_KEY; delete process.env.EMAIL_FROM; delete process.env.APP_BASE_URL; };
+const turnOn = () => { process.env.EMAIL_NOTIFICATIONS_ENABLED = "true"; process.env.SMTP_HOST = "smtp.example.test"; process.env.SMTP_PORT = "587"; process.env.SMTP_USER = "mailer"; process.env.SMTP_PASSWORD = "test-password-not-real"; process.env.EMAIL_FROM = "no-reply@mail.example.test"; process.env.APP_BASE_URL = "https://app.example.test"; }; // secret-scan:allow fake value
+const turnOff = () => { delete process.env.EMAIL_NOTIFICATIONS_ENABLED; for (const name of smtpVariables) delete process.env[name]; delete process.env.EMAIL_FROM; delete process.env.APP_BASE_URL; };
 
 async function clear() {
   const t = [T, T2];
@@ -50,7 +51,7 @@ async function clear() {
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("e-mail notifications behind one switch, on a real database", () => {
   beforeAll(async () => {
     useMailerForTests(mailer);
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${names.map(n => `('eml-${n}','${n}',${n === "noaddr" ? "NULL" : `'eml-${n}@mail.example.test'`},'user')`).join(",")}`);
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'eml-%'");
@@ -95,7 +96,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("e-mail notifications beh
     await connection.query("INSERT INTO progress_entries (id, tenantId, projectId, progressPercent, status, measuredAt) VALUES (?, ?, ?, 10, 'submitted', '2026-11-02 09:00:00')", [uid(163), T, P1]);
     await connection.query("INSERT INTO email_notification_preferences (id, tenantId, userId, kind, enabled) VALUES (?, ?, ?, 'daily_digest', false)", [uid(170), T, users.optout]);
   }, 60_000);
-  afterAll(async () => { useMailerForTests(undefined); turnOff(); Object.assign(process.env, Object.fromEntries(Object.entries({ EMAIL_NOTIFICATIONS_ENABLED: saved.enabled, RESEND_API_KEY: saved.key, EMAIL_FROM: saved.from, APP_BASE_URL: saved.base }).filter(([, value]) => value !== undefined))); await clear(); await connection.end(); });
+  afterAll(async () => { useMailerForTests(undefined); turnOff(); Object.assign(process.env, Object.fromEntries(Object.entries({ EMAIL_NOTIFICATIONS_ENABLED: saved.enabled, ...saved.smtp, EMAIL_FROM: saved.from, APP_BASE_URL: saved.base }).filter(([, value]) => value !== undefined))); await clear(); await connection.end(); });
   beforeEach(() => { sent.length = 0; failNext = 0; });
   const sentMails = () => history;
 
@@ -111,7 +112,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("e-mail notifications beh
     process.env.EMAIL_NOTIFICATIONS_ENABLED = "true"; // the switch without a sender is still off
     expect(emailNotificationsActive()).toBe(false);
     expect(await runEmailNotificationCycle({ db: await db(), now: morning })).toEqual({ enabled: false });
-    delete process.env.EMAIL_NOTIFICATIONS_ENABLED; process.env.RESEND_API_KEY = "k"; process.env.EMAIL_FROM = "x@example.test"; // a sender without the switch is off too
+    delete process.env.EMAIL_NOTIFICATIONS_ENABLED; process.env.SMTP_HOST = "smtp.example.test"; process.env.SMTP_PORT = "587"; process.env.SMTP_USER = "mailer"; process.env.SMTP_PASSWORD = "k"; process.env.EMAIL_FROM = "x@example.test"; // a sender without the switch is off too
     expect(emailNotificationsActive()).toBe(false);
     turnOff();
     expect(await outbox()).toEqual([]);

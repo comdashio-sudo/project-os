@@ -8,11 +8,12 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLogs, commitments, contracts, suppliers, tenderBidAdjustments, tenderBids, tenderInvitees, tenderPackages } from "../drizzle/schema";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
+import { isUniqueViolation, rowsAffected } from "./_core/database";
 import { assertTenantAccess } from "./domain/authorization";
 import { levelBids, tenderTransitions, type AdjustmentKind, type TenderStatus } from "./domain/tenders";
 
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
-const isDuplicate = (error: unknown): boolean => { const e = error as { code?: string; errno?: number; cause?: unknown } | null; return Boolean(e) && (e!.code === "ER_DUP_ENTRY" || e!.errno === 1062 || (e!.cause !== undefined && isDuplicate(e!.cause))); };
+const isDuplicate = isUniqueViolation;
 const duplicateAs = async <T>(work: () => Promise<T>): Promise<T> => { try { return await work(); } catch (error) { if (isDuplicate(error)) throw refuse("CONFLICT", "PROJECT_OS_TENDER_DUPLICATE"); throw error; } };
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: { tenantId: string; projectId: string }) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
@@ -261,8 +262,8 @@ export async function awardTender(input: { userId: number; tenantId: string; pro
     await tx.insert(contracts).values({ id: contractId, tenantId: input.tenantId, projectId: input.projectId, code: input.contractCode, title: tender.title, counterparty: winner.supplierName, counterpartyKind: "supplier", supplierId: winner.supplierId, contractValue: String(value), currency: winner.currency, status: "draft" });
     await tx.insert(commitments).values({ id: commitmentId, tenantId: input.tenantId, projectId: input.projectId, contractId, code: `${input.contractCode}-C1`, description: `Tender award ${tender.packageCode}`, amount: String(value), currency: winner.currency, status: "committed", committedAt: now });
     // the status is part of the condition: two people awarding the same package at once cannot both win, the second finds it no longer closed and the whole transaction (contract and commitment included) is undone
-    const [header] = await tx.update(tenderPackages).set({ status: "awarded", awardedBidId: winner.id, awardedContractId: contractId, awardedCommitmentId: commitmentId, awardedAt: now, awardedByUserId: input.userId, awardJustification: input.justification?.trim() || null }).where(and(mine(tenderPackages, input), eq(tenderPackages.id, input.packageId), eq(tenderPackages.status, "closed")));
-    if ((header as { affectedRows?: number }).affectedRows !== 1) throw refuse("CONFLICT", "PROJECT_OS_TENDER_NOT_CLOSED");
+    const header = await tx.update(tenderPackages).set({ status: "awarded", awardedBidId: winner.id, awardedContractId: contractId, awardedCommitmentId: commitmentId, awardedAt: now, awardedByUserId: input.userId, awardJustification: input.justification?.trim() || null }).where(and(mine(tenderPackages, input), eq(tenderPackages.id, input.packageId), eq(tenderPackages.status, "closed")));
+    if (rowsAffected(header) !== 1) throw refuse("CONFLICT", "PROJECT_OS_TENDER_NOT_CLOSED");
     await audit(tx, input, "tender.awarded", "tender_package", input.packageId, { packageCode: tender.packageCode, bidId: winner.id, supplierId: winner.supplierId, levelledTotal: value, contractId, commitmentId, comparableBids: levelled.comparable, justified: Boolean(input.justification?.trim()) });
     await audit(tx, input, "project.contract_created", "contract", contractId, { code: input.contractCode, contractValue: value, source: "tender_award", packageId: input.packageId });
     await audit(tx, input, "project.commitment_created", "commitment", commitmentId, { contractId, amount: value, source: "tender_award", packageId: input.packageId });

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -11,9 +11,9 @@ const T = "30000000-0000-4000-8000-0000000000a1";
 const T_OTHER = "30000000-0000-4000-8000-0000000000b1";
 const P = "30000000-0000-4000-8000-0000000000a2";
 const P_OTHER = "30000000-0000-4000-8000-0000000000b2";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const ids = { engineer: 0, low: 0 };
 const callerFor = (id: number, openId: string) => appRouter.createCaller({ user: { id, openId, name: openId, email: `${openId}@field.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 
@@ -36,7 +36,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Phone entry context and writes on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('field-engineer','Field Engineer','field-engineer@field.example.test','user'),('field-low','Field Low','field-low@field.example.test','user')");
     const [users] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'field-%'");

@@ -15,7 +15,7 @@
 // numbers; the estimate multiplies them by the stated per-action costs.
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { eq } from "drizzle-orm";
 import { companies, users } from "../drizzle/schema.ts";
 import { sdk } from "../server/_core/sdk.ts";
@@ -87,7 +87,7 @@ async function measure(name, steps) {
     type: async (locator, value) => { typedFields += 1; await locator.fill(value); },
   };
   const started = Date.now();
-  await page.goto(`${BASE_URL}/m/${tenantId}/${projectId}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE_URL}/m/${tenantId}/${projectId}?lang=en`, { waitUntil: "domcontentloaded" }); // the labels below are the English ones; the screen opens in Arabic by default
   await steps(page, actions);
   await page.getByRole("status").filter({ hasText: /saved|تم الحفظ|حُفظ/i }).first().waitFor({ timeout: 10_000 });
   const seconds = (Date.now() - started) / 1000;

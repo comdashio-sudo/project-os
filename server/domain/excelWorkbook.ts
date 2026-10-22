@@ -2,8 +2,13 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { Readable } from "node:stream";
 
-export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
-export const MAX_IMPORT_ROWS = 10_000;
+// The file reaches the server by direct upload to Storage (not inside a request body), so the ceiling is 50 MB (owner decision, work order 6).
+export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 50_000;
+/** A Primavera XER carries one line per activity; 150,000 lines is about 100 MB of text, so the byte ceiling binds first for wide rows. */
+export const MAX_XER_ROWS = 150_000;
+/** What a workbook may expand to once unzipped. A 50 MB .xlsx that inflates past this is a zip bomb, not a spreadsheet. */
+export const MAX_WORKBOOK_UNCOMPRESSED_BYTES = 400 * 1024 * 1024;
 export const MAX_IMPORT_COLUMNS = 60;
 
 export type SpreadsheetReadResult =
@@ -26,6 +31,8 @@ export async function readSpreadsheetSafely(input: Uint8Array | string, format: 
       return { ok: false, code: "IMPORT_WORKBOOK_INVALID" };
     }
     const zip = await JSZip.loadAsync(bytes);
+    const inflated = Object.values(zip.files).reduce((sum, entry) => sum + Number((entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0), 0);
+    if (inflated > MAX_WORKBOOK_UNCOMPRESSED_BYTES) return { ok: false, code: "IMPORT_FILE_TOO_LARGE" };
     if (Object.keys(zip.files).some(name => /(^|\/)vbaProject\.bin$/i.test(name))) {
       return { ok: false, code: "IMPORT_MACRO_WORKBOOK_REJECTED" };
     }

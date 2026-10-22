@@ -8,7 +8,7 @@
 // It writes straight to the TEST database in batches of a thousand rows (the point is volume, not the API path), then prints
 // the ids that scripts/perf-measure.mjs needs. It never touches a database that is not project_os_integration_test.
 import { randomBytes, randomUUID } from "node:crypto";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { createTenantForUser, getDb, upsertUser } from "../server/db.ts";
 import { users } from "../drizzle/schema.ts";
 import { eq } from "drizzle-orm";
@@ -33,7 +33,8 @@ const connection = await mysql.createConnection({ uri: dbUrl.toString(), multipl
 async function bulk(table, columns, rows) {
   for (let i = 0; i < rows.length; i += 1000) {
     const chunk = rows.slice(i, i + 1000);
-    await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ?`, [chunk]);
+    const tuple = `(${columns.map(() => "?").join(",")})`;
+    await connection.query(`INSERT INTO \`${table}\` (${columns.map(c => `\`${c}\``).join(",")}) VALUES ${chunk.map(() => tuple).join(",")}`, chunk.flat());
   }
 }
 const started = Date.now();
@@ -76,6 +77,8 @@ await bulk("activities", ["id", "tenantId", "projectId", "wbsItemId", "code", "n
 await bulk("cost_entries", ["id", "tenantId", "projectId", "wbsItemId", "amount", "entryType", "status", "incurredAt", "category"], costs);
 await bulk("progress_entries", ["id", "tenantId", "projectId", "wbsItemId", "progressPercent", "status", "measuredAt"], progress);
 await bulk("warehouse_inventory_transactions", ["id", "tenantId", "projectId", "warehouseId", "materialId", "transactionType", "quantityDelta", "referenceNumber", "occurredAt", "createdByUserId", "unitCost", "valueDelta"], txns);
+// the planner reads statistics: refresh them the way an import would (autovacuum would catch up within about a minute)
+for (const table of ["projects", "wbs_items", "budget_lines", "activities", "cost_entries", "progress_entries", "warehouse_inventory_transactions", "material_masters", "project_warehouses"]) await connection.query(`ANALYZE ${table}`);
 const [[counts]] = await connection.query("SELECT (SELECT COUNT(*) FROM projects WHERE tenantId = ?) AS projects, (SELECT COUNT(*) FROM activities WHERE tenantId = ?) AS activities, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE tenantId = ?) AS movements", [tenantId, tenantId, tenantId]);
 console.log(JSON.stringify({ seeded: true, seconds: Math.round((Date.now() - started) / 1000), tenantId, ownerEmail: email, firstProjectId: projectIds[0], counts }));
 await connection.end();

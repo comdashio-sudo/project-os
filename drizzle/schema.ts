@@ -1,28 +1,30 @@
 import {
   boolean,
-  decimal,
   foreignKey,
   index,
-  int,
-  mysqlEnum,
-  mysqlTable,
+  integer,
+  numeric,
+  pgEnum,
+  pgTable,
   primaryKey,
   text,
   timestamp,
   uniqueIndex,
   varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+export const usersRoleEnum = pgEnum("users_role", ["user", "admin"]);
+export const users = pgTable("users", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  openId: varchar("open_id", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  loginMethod: varchar("login_method", { length: 64 }),
+  role: usersRoleEnum("role").default("user").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  lastSignedIn: timestamp("last_signed_in", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const productCodes = ["EXECUTIVE", "PMO", "PROJECT"] as const;
@@ -36,30 +38,33 @@ export const subscriptionPackageCodes = [
   "ALL-IN-ONE",
 ] as const;
 
-export const companies = mysqlTable(
+export const companiesStatusEnum = pgEnum("companies_status", ["active", "suspended", "archived"]);
+export const companiesDefaultLocaleEnum = pgEnum("companies_default_locale", ["ar", "en"]);
+export const companies = pgTable(
   "companies",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    legalName: varchar("legalName", { length: 255 }).notNull(),
+    legalName: varchar("legal_name", { length: 255 }).notNull(),
     slug: varchar("slug", { length: 120 }).notNull(),
-    status: mysqlEnum("status", ["active", "suspended", "archived"]).default("active").notNull(),
-    defaultLocale: mysqlEnum("defaultLocale", ["ar", "en"]).default("ar").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: companiesStatusEnum("status").default("active").notNull(),
+    defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("companies_slug_unique").on(table.slug)],
 );
 
-export const memberships = mysqlTable(
+export const membershipsStatusEnum = pgEnum("memberships_status", ["invited", "active", "suspended", "revoked"]);
+export const memberships = pgTable(
   "memberships",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    userId: int("userId").notNull().references(() => users.id),
-    status: mysqlEnum("status", ["invited", "active", "suspended", "revoked"]).default("invited").notNull(),
-    joinedAt: timestamp("joinedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    userId: integer("user_id").notNull().references(() => users.id),
+    status: membershipsStatusEnum("status").default("invited").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("memberships_tenant_user_unique").on(table.tenantId, table.userId),
@@ -67,26 +72,28 @@ export const memberships = mysqlTable(
   ],
 );
 
-export const employees = mysqlTable(
+export const employeesEmploymentStatusEnum = pgEnum("employees_employment_status", ["active", "suspended", "terminated"]);
+export const employeesRetentionPolicyEnum = pgEnum("employees_retention_policy", ["standard", "extended", "legal_hold"]);
+export const employees = pgTable(
   "employees",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    employeeNumber: varchar("employeeNumber", { length: 80 }).notNull(),
-    fullName: varchar("fullName", { length: 255 }).notNull(),
-    jobTitle: varchar("jobTitle", { length: 160 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    employeeNumber: varchar("employee_number", { length: 80 }).notNull(),
+    fullName: varchar("full_name", { length: 255 }).notNull(),
+    jobTitle: varchar("job_title", { length: 160 }).notNull(),
     department: varchar("department", { length: 160 }).notNull(),
-    hireDate: timestamp("hireDate").notNull(),
-    employmentStatus: mysqlEnum("employmentStatus", ["active", "suspended", "terminated"]).default("active").notNull(),
+    hireDate: timestamp("hire_date", { withTimezone: true }).notNull(),
+    employmentStatus: employeesEmploymentStatusEnum("employment_status").default("active").notNull(),
     nationality: varchar("nationality", { length: 120 }),
-    identityDocumentType: varchar("identityDocumentType", { length: 80 }),
-    identityReference: varchar("identityReference", { length: 512 }),
-    linkedUserId: int("linkedUserId").references(() => users.id),
-    retentionPolicy: mysqlEnum("retentionPolicy", ["standard", "extended", "legal_hold"]).default("standard").notNull(),
-    archivedAt: timestamp("archivedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    identityDocumentType: varchar("identity_document_type", { length: 80 }),
+    identityReference: varchar("identity_reference", { length: 512 }),
+    linkedUserId: integer("linked_user_id").references(() => users.id),
+    retentionPolicy: employeesRetentionPolicyEnum("retention_policy").default("standard").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("employees_tenant_number_unique").on(table.tenantId, table.employeeNumber),
@@ -95,72 +102,76 @@ export const employees = mysqlTable(
   ],
 );
 
-export const employmentContracts = mysqlTable(
+export const employmentContractsContractTypeEnum = pgEnum("employment_contracts_contract_type", ["permanent", "fixed_term", "temporary", "consulting"]);
+export const employmentContractsStatusEnum = pgEnum("employment_contracts_status", ["active", "ended", "terminated"]);
+export const employmentContractsRetentionPolicyEnum = pgEnum("employment_contracts_retention_policy", ["standard", "extended", "legal_hold"]);
+export const employmentContracts = pgTable(
   "employment_contracts",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    contractType: mysqlEnum("contractType", ["permanent", "fixed_term", "temporary", "consulting"]).notNull(),
-    startDate: timestamp("startDate").notNull(),
-    endDate: timestamp("endDate"),
-    probationEndDate: timestamp("probationEndDate"),
-    renewalOfContractId: varchar("renewalOfContractId", { length: 36 }),
-    status: mysqlEnum("status", ["active", "ended", "terminated"]).default("active").notNull(),
-    terminationReason: varchar("terminationReason", { length: 1000 }),
-    retentionPolicy: mysqlEnum("retentionPolicy", ["standard", "extended", "legal_hold"]).default("standard").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    contractType: employmentContractsContractTypeEnum("contract_type").notNull(),
+    startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+    endDate: timestamp("end_date", { withTimezone: true }),
+    probationEndDate: timestamp("probation_end_date", { withTimezone: true }),
+    renewalOfContractId: varchar("renewal_of_contract_id", { length: 36 }),
+    status: employmentContractsStatusEnum("status").default("active").notNull(),
+    terminationReason: varchar("termination_reason", { length: 1000 }),
+    retentionPolicy: employmentContractsRetentionPolicyEnum("retention_policy").default("standard").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("employment_contracts_tenant_employee_idx").on(table.tenantId, table.employeeId, table.status)],
 );
 
-export const salaryStructures = mysqlTable(
+export const salaryStructuresEosAccrualModeEnum = pgEnum("salary_structures_eos_accrual_mode", ["computed", "manual"]);
+export const salaryStructures = pgTable(
   "salary_structures",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    baseSalary: decimal("baseSalary", { precision: 18, scale: 2 }).notNull(),
-    housingAllowance: decimal("housingAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
-    transportAllowance: decimal("transportAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
-    hardshipAllowance: decimal("hardshipAllowance", { precision: 18, scale: 2 }).default("0").notNull(),
-    gosiRate: decimal("gosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
-    otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).default("0").notNull(),
-    eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).default("0").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    baseSalary: numeric("base_salary", { precision: 18, scale: 2 }).notNull(),
+    housingAllowance: numeric("housing_allowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    transportAllowance: numeric("transport_allowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    hardshipAllowance: numeric("hardship_allowance", { precision: 18, scale: 2 }).default("0").notNull(),
+    gosiRate: numeric("gosi_rate", { precision: 7, scale: 6 }).default("0").notNull(),
+    otherDeductions: numeric("other_deductions", { precision: 18, scale: 2 }).default("0").notNull(),
+    eosMonthlyAccrual: numeric("eos_monthly_accrual", { precision: 18, scale: 2 }).default("0").notNull(),
     // 'computed' = the accrual follows the length of service and the tenant's rule; 'manual' = the amount above, as entered before work order 3.
-    eosAccrualMode: mysqlEnum("eosAccrualMode", ["computed", "manual"]).default("computed").notNull(),
+    eosAccrualMode: salaryStructuresEosAccrualModeEnum("eos_accrual_mode").default("computed").notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
     active: boolean("active").default(true).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("salary_structures_tenant_employee_unique").on(table.tenantId, table.employeeId), index("salary_structures_tenant_active_idx").on(table.tenantId, table.active)],
 );
 
-export const tenantSettings = mysqlTable(
+export const tenantSettings = pgTable(
   "tenant_settings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     // Labour loading and the working calendar (G-015, G-016, G-124). Defaults load nothing and use the Sunday-Thursday week.
     // Deprecated: the single rate used before work order 3. Nothing reads it any more; the two columns below replace it. Kept (not dropped) so no data is lost.
-    employerGosiRate: decimal("employerGosiRate", { precision: 7, scale: 6 }).default("0").notNull(),
+    employerGosiRate: numeric("employer_gosi_rate", { precision: 7, scale: 6 }).default("0").notNull(),
     // Owner defaults (work order 3): 11.75% for a Saudi, 2% for anyone else, on basic + housing.
-    employerGosiRateSaudi: decimal("employerGosiRateSaudi", { precision: 7, scale: 6 }).default("0.117500").notNull(),
-    employerGosiRateNonSaudi: decimal("employerGosiRateNonSaudi", { precision: 7, scale: 6 }).default("0.020000").notNull(),
+    employerGosiRateSaudi: numeric("employer_gosi_rate_saudi", { precision: 7, scale: 6 }).default("0.117500").notNull(),
+    employerGosiRateNonSaudi: numeric("employer_gosi_rate_non_saudi", { precision: 7, scale: 6 }).default("0.020000").notNull(),
     // End-of-service accrual: months of pay per year of service, for the first N years and after (owner default: 0.5 for 5 years, then 1).
-    eosFirstPeriodYears: int("eosFirstPeriodYears").default(5).notNull(),
-    eosFirstPeriodMonthsPerYear: decimal("eosFirstPeriodMonthsPerYear", { precision: 5, scale: 2 }).default("0.50").notNull(),
-    eosLaterMonthsPerYear: decimal("eosLaterMonthsPerYear", { precision: 5, scale: 2 }).default("1.00").notNull(),
-    indirectLoadingPercent: decimal("indirectLoadingPercent", { precision: 7, scale: 4 }).default("0").notNull(),
-    hoursPerDay: decimal("hoursPerDay", { precision: 5, scale: 2 }).default("8").notNull(),
-    workingDays: varchar("workingDays", { length: 20 }).default("0,1,2,3,4").notNull(),
-    updatedByUserId: int("updatedByUserId").references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    eosFirstPeriodYears: integer("eos_first_period_years").default(5).notNull(),
+    eosFirstPeriodMonthsPerYear: numeric("eos_first_period_months_per_year", { precision: 5, scale: 2 }).default("0.50").notNull(),
+    eosLaterMonthsPerYear: numeric("eos_later_months_per_year", { precision: 5, scale: 2 }).default("1.00").notNull(),
+    indirectLoadingPercent: numeric("indirect_loading_percent", { precision: 7, scale: 4 }).default("0").notNull(),
+    hoursPerDay: numeric("hours_per_day", { precision: 5, scale: 2 }).default("8").notNull(),
+    workingDays: varchar("working_days", { length: 20 }).default("0,1,2,3,4").notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("tenant_settings_tenant_unique").on(table.tenantId)],
 );
@@ -169,97 +180,100 @@ export const tenantSettings = mysqlTable(
  * A request the phone sent with its own identifier (G-033). A retry after a lost answer carries the same identifier and gets
  * the stored result back instead of running again, so a queued item sent twice never makes two records.
  */
-export const clientRequests = mysqlTable(
+export const clientRequestsStatusEnum = pgEnum("client_requests_status", ["started", "done"]);
+export const clientRequests = pgTable(
   "client_requests",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    userId: int("userId").notNull().references(() => users.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    userId: integer("user_id").notNull().references(() => users.id),
     action: varchar("action", { length: 60 }).notNull(),
-    status: mysqlEnum("status", ["started", "done"]).default("started").notNull(),
-    resultJson: text("resultJson"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: clientRequestsStatusEnum("status").default("started").notNull(),
+    resultJson: text("result_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("client_requests_tenant_created_idx").on(table.tenantId, table.createdAt)],
 );
 
-export const payrollRuns = mysqlTable(
+export const payrollRunsStatusEnum = pgEnum("payroll_runs_status", ["draft", "review", "approved", "paid"]);
+export const payrollRuns = pgTable(
   "payroll_runs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    periodStart: timestamp("periodStart").notNull(),
-    periodEnd: timestamp("periodEnd").notNull(),
-    status: mysqlEnum("status", ["draft", "review", "approved", "paid"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
-    approvedByUserId: int("approvedByUserId").references(() => users.id),
-    approvedAt: timestamp("approvedAt"),
-    paidAt: timestamp("paidAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    status: payrollRunsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("payroll_runs_tenant_period_unique").on(table.tenantId, table.periodStart, table.periodEnd), index("payroll_runs_tenant_status_idx").on(table.tenantId, table.status)],
 );
 
-export const payrollEntries = mysqlTable(
+export const payrollEntries = pgTable(
   "payroll_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    payrollRunId: varchar("payrollRunId", { length: 36 }).notNull().references(() => payrollRuns.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    salaryStructureId: varchar("salaryStructureId", { length: 36 }).notNull().references(() => salaryStructures.id),
-    baseSalary: decimal("baseSalary", { precision: 18, scale: 2 }).notNull(),
-    housingAllowance: decimal("housingAllowance", { precision: 18, scale: 2 }).notNull(),
-    transportAllowance: decimal("transportAllowance", { precision: 18, scale: 2 }).notNull(),
-    hardshipAllowance: decimal("hardshipAllowance", { precision: 18, scale: 2 }).notNull(),
-    gosiDeduction: decimal("gosiDeduction", { precision: 18, scale: 2 }).notNull(),
-    otherDeductions: decimal("otherDeductions", { precision: 18, scale: 2 }).notNull(),
-    eosMonthlyAccrual: decimal("eosMonthlyAccrual", { precision: 18, scale: 2 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    payrollRunId: varchar("payroll_run_id", { length: 36 }).notNull().references(() => payrollRuns.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    salaryStructureId: varchar("salary_structure_id", { length: 36 }).notNull().references(() => salaryStructures.id),
+    baseSalary: numeric("base_salary", { precision: 18, scale: 2 }).notNull(),
+    housingAllowance: numeric("housing_allowance", { precision: 18, scale: 2 }).notNull(),
+    transportAllowance: numeric("transport_allowance", { precision: 18, scale: 2 }).notNull(),
+    hardshipAllowance: numeric("hardship_allowance", { precision: 18, scale: 2 }).notNull(),
+    gosiDeduction: numeric("gosi_deduction", { precision: 18, scale: 2 }).notNull(),
+    otherDeductions: numeric("other_deductions", { precision: 18, scale: 2 }).notNull(),
+    eosMonthlyAccrual: numeric("eos_monthly_accrual", { precision: 18, scale: 2 }).notNull(),
     // The loaded cost the run was made with, kept on the entry so a later change of the tenant's rates never moves a closed month.
-    employerSocialInsurance: decimal("employerSocialInsurance", { precision: 18, scale: 2 }).default("0").notNull(),
-    indirectLoading: decimal("indirectLoading", { precision: 18, scale: 2 }).default("0").notNull(),
-    nationalityClass: varchar("nationalityClass", { length: 12 }),
+    employerSocialInsurance: numeric("employer_social_insurance", { precision: 18, scale: 2 }).default("0").notNull(),
+    indirectLoading: numeric("indirect_loading", { precision: 18, scale: 2 }).default("0").notNull(),
+    nationalityClass: varchar("nationality_class", { length: 12 }),
     currency: varchar("currency", { length: 3 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("payroll_entries_run_employee_unique").on(table.payrollRunId, table.employeeId), index("payroll_entries_tenant_run_idx").on(table.tenantId, table.payrollRunId)],
 );
 
-export const payrollAllocations = mysqlTable(
+export const payrollAllocationsSourceEnum = pgEnum("payroll_allocations_source", ["manual", "auto_hours"]);
+export const payrollAllocations = pgTable(
   "payroll_allocations",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    payrollEntryId: varchar("payrollEntryId", { length: 36 }).notNull().references(() => payrollEntries.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
-    costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    payrollEntryId: varchar("payroll_entry_id", { length: 36 }).notNull().references(() => payrollEntries.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activity_id", { length: 36 }).references(() => activities.id),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
+    costEntryId: varchar("cost_entry_id", { length: 36 }).references(() => costEntries.id),
     // 'auto_hours' = shared out by the approved hours of the period; the hours and the share are kept so the split can be re-derived.
-    source: mysqlEnum("source", ["manual", "auto_hours"]).default("manual").notNull(),
-    hoursBasis: decimal("hoursBasis", { precision: 12, scale: 2 }),
-    sharePercent: decimal("sharePercent", { precision: 9, scale: 4 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    source: payrollAllocationsSourceEnum("source").default("manual").notNull(),
+    hoursBasis: numeric("hours_basis", { precision: 12, scale: 2 }),
+    sharePercent: numeric("share_percent", { precision: 9, scale: 4 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("payroll_allocations_tenant_project_idx").on(table.tenantId, table.projectId), uniqueIndex("payroll_allocations_cost_entry_unique").on(table.costEntryId)],
 );
 
 /** Every manual change to a payroll allocation: who, what it was, what it became, and why. The reason is not optional. */
-export const payrollAllocationAdjustments = mysqlTable(
+export const payrollAllocationAdjustments = pgTable(
   "payroll_allocation_adjustments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    allocationId: varchar("allocationId", { length: 36 }).notNull(),
-    previousAmount: decimal("previousAmount", { precision: 18, scale: 2 }).notNull(),
-    newAmount: decimal("newAmount", { precision: 18, scale: 2 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    allocationId: varchar("allocation_id", { length: 36 }).notNull(),
+    previousAmount: numeric("previous_amount", { precision: 18, scale: 2 }).notNull(),
+    newAmount: numeric("new_amount", { precision: 18, scale: 2 }).notNull(),
     reason: varchar("reason", { length: 500 }).notNull(),
-    adjustedByUserId: int("adjustedByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    adjustedByUserId: integer("adjusted_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     index("payroll_allocation_adjustments_allocation_idx").on(table.allocationId, table.createdAt),
@@ -274,23 +288,25 @@ export const payrollAllocationAdjustments = mysqlTable(
  * E-mail waiting to be sent (work order 3, decision 6). Nothing is written here unless e-mail notifications are switched on AND a mail sender is configured,
  * so turning them on later never sends a backlog. `dedupeKey` makes every producer safe to run twice: one escalation, one reminder per day, one digest per day.
  */
-export const emailOutbox = mysqlTable(
+export const emailOutboxKindEnum = pgEnum("email_outbox_kind", ["support_escalation", "approvals_waiting", "daily_digest"]);
+export const emailOutboxStatusEnum = pgEnum("email_outbox_status", ["pending", "sent", "failed", "skipped"]);
+export const emailOutbox = pgTable(
   "email_outbox",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    recipientUserId: int("recipientUserId").notNull(),
-    kind: mysqlEnum("kind", ["support_escalation", "approvals_waiting", "daily_digest"]).notNull(),
-    dedupeKey: varchar("dedupeKey", { length: 160 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    recipientUserId: integer("recipient_user_id").notNull(),
+    kind: emailOutboxKindEnum("kind").notNull(),
+    dedupeKey: varchar("dedupe_key", { length: 160 }).notNull(),
     subject: varchar("subject", { length: 300 }).notNull(),
-    bodyText: text("bodyText").notNull(),
-    bodyHtml: text("bodyHtml").notNull(),
-    status: mysqlEnum("status", ["pending", "sent", "failed", "skipped"]).default("pending").notNull(),
-    attempts: int("attempts").default(0).notNull(),
+    bodyText: text("body_text").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    status: emailOutboxStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
     // The sender's status line only: never the response body, which can name the recipient.
-    lastError: varchar("lastError", { length: 200 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    sentAt: timestamp("sentAt"),
+    lastError: varchar("last_error", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   table => [
     uniqueIndex("email_outbox_dedupe_unique").on(table.tenantId, table.recipientUserId, table.kind, table.dedupeKey),
@@ -301,15 +317,16 @@ export const emailOutbox = mysqlTable(
 );
 
 /** A person's choice, per kind of e-mail, in one company. No row means the default: on. */
-export const emailNotificationPreferences = mysqlTable(
+export const emailNotificationPreferencesKindEnum = pgEnum("email_notification_preferences_kind", ["support_escalation", "approvals_waiting", "daily_digest"]);
+export const emailNotificationPreferences = pgTable(
   "email_notification_preferences",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    userId: int("userId").notNull(),
-    kind: mysqlEnum("kind", ["support_escalation", "approvals_waiting", "daily_digest"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    userId: integer("user_id").notNull(),
+    kind: emailNotificationPreferencesKindEnum("kind").notNull(),
     enabled: boolean("enabled").notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("email_preferences_unique").on(table.tenantId, table.userId, table.kind),
@@ -318,83 +335,89 @@ export const emailNotificationPreferences = mysqlTable(
   ],
 );
 
-export const employeeAssignments = mysqlTable(
+export const employeeAssignmentsStatusEnum = pgEnum("employee_assignments_status", ["planned", "active", "closed", "cancelled"]);
+export const employeeAssignments = pgTable(
   "employee_assignments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    projectResourceId: varchar("projectResourceId", { length: 36 }).notNull().references(() => projectResources.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
-    plannedStartAt: timestamp("plannedStartAt").notNull(),
-    plannedFinishAt: timestamp("plannedFinishAt").notNull(),
-    plannedHours: decimal("plannedHours", { precision: 12, scale: 2 }).notNull(),
-    status: mysqlEnum("status", ["planned", "active", "closed", "cancelled"]).default("planned").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    projectResourceId: varchar("project_resource_id", { length: 36 }).notNull(),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activity_id", { length: 36 }).references(() => activities.id),
+    plannedStartAt: timestamp("planned_start_at", { withTimezone: true }).notNull(),
+    plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }).notNull(),
+    plannedHours: numeric("planned_hours", { precision: 12, scale: 2 }).notNull(),
+    status: employeeAssignmentsStatusEnum("status").default("planned").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("employee_assignments_tenant_project_idx").on(table.tenantId, table.projectId, table.status), index("employee_assignments_employee_window_idx").on(table.tenantId, table.employeeId, table.plannedStartAt, table.plannedFinishAt)],
+  table => [foreignKey({ columns: [table.projectResourceId], foreignColumns: [projectResources.id], name: "employee_assignments_resource_fk" }), index("employee_assignments_tenant_project_idx").on(table.tenantId, table.projectId, table.status), index("employee_assignments_employee_window_idx").on(table.tenantId, table.employeeId, table.plannedStartAt, table.plannedFinishAt)],
 );
 
-export const employeeAttendance = mysqlTable(
+export const employeeAttendanceAttendanceStatusEnum = pgEnum("employee_attendance_attendance_status", ["present", "absent", "leave", "secondment"]);
+export const employeeAttendanceStatusEnum = pgEnum("employee_attendance_status", ["draft", "submitted", "approved", "rejected"]);
+export const employeeAttendance = pgTable(
   "employee_attendance",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    attendanceDate: timestamp("attendanceDate").notNull(),
-    attendanceStatus: mysqlEnum("attendanceStatus", ["present", "absent", "leave", "secondment"]).notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    attendanceDate: timestamp("attendance_date", { withTimezone: true }).notNull(),
+    attendanceStatus: employeeAttendanceAttendanceStatusEnum("attendance_status").notNull(),
+    status: employeeAttendanceStatusEnum("status").default("draft").notNull(),
     note: varchar("note", { length: 1000 }),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("employee_attendance_tenant_day_unique").on(table.tenantId, table.employeeId, table.attendanceDate), index("employee_attendance_tenant_status_idx").on(table.tenantId, table.status, table.attendanceDate)],
 );
 
-export const employeeTimeEntries = mysqlTable(
+export const employeeTimeEntriesStatusEnum = pgEnum("employee_time_entries_status", ["draft", "submitted", "approved", "rejected"]);
+export const employeeTimeEntriesRateSourceEnum = pgEnum("employee_time_entries_rate_source", ["loaded", "resource"]);
+export const employeeTimeEntries = pgTable(
   "employee_time_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    assignmentId: varchar("assignmentId", { length: 36 }).notNull().references(() => employeeAssignments.id),
-    employeeId: varchar("employeeId", { length: 36 }).notNull().references(() => employees.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    workDate: timestamp("workDate").notNull(),
-    actualHours: decimal("actualHours", { precision: 8, scale: 2 }).notNull(),
-    reportedProgressPercent: decimal("reportedProgressPercent", { precision: 5, scale: 2 }),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
-    costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    assignmentId: varchar("assignment_id", { length: 36 }).notNull().references(() => employeeAssignments.id),
+    employeeId: varchar("employee_id", { length: 36 }).notNull().references(() => employees.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    workDate: timestamp("work_date", { withTimezone: true }).notNull(),
+    actualHours: numeric("actual_hours", { precision: 8, scale: 2 }).notNull(),
+    reportedProgressPercent: numeric("reported_progress_percent", { precision: 5, scale: 2 }),
+    status: employeeTimeEntriesStatusEnum("status").default("draft").notNull(),
+    costEntryId: varchar("cost_entry_id", { length: 36 }).references(() => costEntries.id),
     // How the cost of the approved hours was priced: from payroll (loaded) or from the resource plan rate. The rate itself is not kept here: it would reveal pay.
-    rateSource: mysqlEnum("rateSource", ["loaded", "resource"]),
-    progressEntryId: varchar("progressEntryId", { length: 36 }).references(() => progressEntries.id),
+    rateSource: employeeTimeEntriesRateSourceEnum("rate_source"),
+    progressEntryId: varchar("progress_entry_id", { length: 36 }).references(() => progressEntries.id),
     // Set when an approved payroll shared this employee's pay out by hours: the provisional cost of these hours was replaced by the payroll's, so it must not be counted again.
-    supersededByPayrollEntryId: varchar("supersededByPayrollEntryId", { length: 36 }),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    supersededByPayrollEntryId: varchar("superseded_by_payroll_entry_id", { length: 36 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("employee_time_entries_assignment_day_unique").on(table.assignmentId, table.workDate), uniqueIndex("employee_time_entries_cost_entry_unique").on(table.costEntryId), index("employee_time_entries_tenant_project_idx").on(table.tenantId, table.projectId, table.status, table.workDate)],
 );
 
-export const employeePerformanceExclusions = mysqlTable(
+export const employeePerformanceExclusionsSourceTypeEnum = pgEnum("employee_performance_exclusions_source_type", ["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]);
+export const employeePerformanceExclusions = pgTable(
   "employee_performance_exclusions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    employeeId: varchar("employeeId", { length: 36 }).notNull(),
-    sourceType: mysqlEnum("sourceType", ["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]).notNull(),
-    sourceId: varchar("sourceId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    employeeId: varchar("employee_id", { length: 36 }).notNull(),
+    sourceType: employeePerformanceExclusionsSourceTypeEnum("source_type").notNull(),
+    sourceId: varchar("source_id", { length: 36 }).notNull(),
     reason: varchar("reason", { length: 1000 }).notNull(),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("epe_source_unique").on(table.tenantId, table.employeeId, table.sourceType, table.sourceId),
@@ -406,21 +429,22 @@ export const employeePerformanceExclusions = mysqlTable(
   ],
 );
 
-export const employeePerformanceObjections = mysqlTable(
+export const employeePerformanceObjectionsStatusEnum = pgEnum("employee_performance_objections_status", ["submitted", "under_review", "resolved", "rejected"]);
+export const employeePerformanceObjections = pgTable(
   "employee_performance_objections",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    employeeId: varchar("employeeId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    employeeId: varchar("employee_id", { length: 36 }).notNull(),
     statement: text("statement").notNull(),
-    status: mysqlEnum("status", ["submitted", "under_review", "resolved", "rejected"]).default("submitted").notNull(),
-    resolutionNote: varchar("resolutionNote", { length: 1000 }),
-    createdByUserId: int("createdByUserId").notNull(),
-    reviewedByUserId: int("reviewedByUserId"),
-    reviewedAt: timestamp("reviewedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: employeePerformanceObjectionsStatusEnum("status").default("submitted").notNull(),
+    resolutionNote: varchar("resolution_note", { length: 1000 }),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    reviewedByUserId: integer("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     index("epo_tenant_project_employee_idx").on(table.tenantId, table.projectId, table.employeeId, table.status),
@@ -432,23 +456,25 @@ export const employeePerformanceObjections = mysqlTable(
   ],
 );
 
-export const membershipInvitations = mysqlTable(
+export const membershipInvitationsScopeTypeEnum = pgEnum("membership_invitations_scope_type", ["company", "portfolio", "program", "project"]);
+export const membershipInvitationsStatusEnum = pgEnum("membership_invitations_status", ["pending", "accepted", "expired", "revoked"]);
+export const membershipInvitations = pgTable(
   "membership_invitations",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     email: varchar("email", { length: 320 }).notNull(),
-    roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id),
-    scopeType: mysqlEnum("scopeType", ["company", "portfolio", "program", "project"]).notNull(),
-    scopeId: varchar("scopeId", { length: 36 }),
-    tokenHash: varchar("tokenHash", { length: 64 }).notNull(),
-    status: mysqlEnum("status", ["pending", "accepted", "expired", "revoked"]).default("pending").notNull(),
-    invitedByUserId: int("invitedByUserId").notNull().references(() => users.id),
-    acceptedByUserId: int("acceptedByUserId").references(() => users.id),
-    expiresAt: timestamp("expiresAt").notNull(),
-    acceptedAt: timestamp("acceptedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id),
+    scopeType: membershipInvitationsScopeTypeEnum("scope_type").notNull(),
+    scopeId: varchar("scope_id", { length: 36 }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    status: membershipInvitationsStatusEnum("status").default("pending").notNull(),
+    invitedByUserId: integer("invited_by_user_id").notNull().references(() => users.id),
+    acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("membership_invitations_token_hash_unique").on(table.tokenHash),
@@ -457,33 +483,36 @@ export const membershipInvitations = mysqlTable(
   ],
 );
 
-export const subscriptions = mysqlTable(
+export const subscriptionsPackageCodeEnum = pgEnum("subscriptions_package_code", subscriptionPackageCodes);
+export const subscriptionsStatusEnum = pgEnum("subscriptions_status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]);
+export const subscriptions = pgTable(
   "subscriptions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    packageCode: mysqlEnum("packageCode", subscriptionPackageCodes).notNull(),
-    status: mysqlEnum("status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]).default("trialing").notNull(),
-    startsAt: timestamp("startsAt").notNull(),
-    endsAt: timestamp("endsAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    packageCode: subscriptionsPackageCodeEnum("package_code").notNull(),
+    status: subscriptionsStatusEnum("status").default("trialing").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("subscriptions_tenant_status_idx").on(table.tenantId, table.status)],
 );
 
-export const tenantEntitlements = mysqlTable(
+export const tenantEntitlementsProductCodeEnum = pgEnum("tenant_entitlements_product_code", productCodes);
+export const tenantEntitlements = pgTable(
   "tenant_entitlements",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
-    productCode: mysqlEnum("productCode", productCodes).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscription_id", { length: 36 }).notNull().references(() => subscriptions.id),
+    productCode: tenantEntitlementsProductCodeEnum("product_code").notNull(),
     active: boolean("active").default(true).notNull(),
-    startsAt: timestamp("startsAt").notNull(),
-    endsAt: timestamp("endsAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("tenant_entitlements_subscription_product_unique").on(table.subscriptionId, table.productCode),
@@ -491,261 +520,279 @@ export const tenantEntitlements = mysqlTable(
   ],
 );
 
-export const commercialPlans = mysqlTable(
+export const commercialPlansPackageCodeEnum = pgEnum("commercial_plans_package_code", subscriptionPackageCodes);
+export const commercialPlans = pgTable(
   "commercial_plans",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
-    packageCode: mysqlEnum("packageCode", subscriptionPackageCodes).notNull(),
+    packageCode: commercialPlansPackageCodeEnum("package_code").notNull(),
     active: boolean("active").default(true).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("commercial_plans_code_unique").on(table.code), index("commercial_plans_package_active_idx").on(table.packageCode, table.active)],
 );
 
-export const commercialFeatures = mysqlTable(
+export const commercialFeaturesProductCodeEnum = pgEnum("commercial_features_product_code", productCodes);
+export const commercialFeatures = pgTable(
   "commercial_features",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     code: varchar("code", { length: 120 }).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
-    productCode: mysqlEnum("productCode", productCodes).notNull(),
+    productCode: commercialFeaturesProductCodeEnum("product_code").notNull(),
     active: boolean("active").default(true).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("commercial_features_code_unique").on(table.code), index("commercial_features_product_active_idx").on(table.productCode, table.active)],
 );
 
-export const planFeatureEntitlements = mysqlTable(
+export const planFeatureEntitlements = pgTable(
   "plan_feature_entitlements",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    planId: varchar("planId", { length: 36 }).notNull().references(() => commercialPlans.id),
-    featureId: varchar("featureId", { length: 36 }).notNull().references(() => commercialFeatures.id),
+    planId: varchar("plan_id", { length: 36 }).notNull().references(() => commercialPlans.id),
+    featureId: varchar("feature_id", { length: 36 }).notNull().references(() => commercialFeatures.id),
     active: boolean("active").default(true).notNull(),
-    limitValue: int("limitValue"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    limitValue: integer("limit_value"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("plan_feature_entitlements_plan_feature_unique").on(table.planId, table.featureId), index("plan_feature_entitlements_feature_idx").on(table.featureId)],
 );
 
-export const tenantLicenses = mysqlTable(
+export const tenantLicensesStatusEnum = pgEnum("tenant_licenses_status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]);
+export const tenantLicenses = pgTable(
   "tenant_licenses",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
-    planId: varchar("planId", { length: 36 }).notNull().references(() => commercialPlans.id),
-    status: mysqlEnum("status", ["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]).default("trialing").notNull(),
-    seats: int("seats").default(1).notNull(),
-    priceAmount: decimal("priceAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    discountAmount: decimal("discountAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    manualActivation: boolean("manualActivation").default(false).notNull(),
-    startsAt: timestamp("startsAt").notNull(),
-    endsAt: timestamp("endsAt"),
-    trialEndsAt: timestamp("trialEndsAt"),
-    graceEndsAt: timestamp("graceEndsAt"),
-    createdByUserId: int("createdByUserId").references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscription_id", { length: 36 }).notNull().references(() => subscriptions.id),
+    planId: varchar("plan_id", { length: 36 }).notNull().references(() => commercialPlans.id),
+    status: tenantLicensesStatusEnum("status").default("trialing").notNull(),
+    seats: integer("seats").default(1).notNull(),
+    priceAmount: numeric("price_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    discountAmount: numeric("discount_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    manualActivation: boolean("manual_activation").default(false).notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    graceEndsAt: timestamp("grace_ends_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("tenant_licenses_subscription_unique").on(table.subscriptionId), index("tenant_licenses_tenant_status_idx").on(table.tenantId, table.status), index("tenant_licenses_plan_idx").on(table.planId)],
 );
 
-export const selfServiceSignupAttempts = mysqlTable(
+export const selfServiceSignupAttempts = pgTable(
   "self_service_signup_attempts",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: int("userId").notNull().references(() => users.id),
-    emailHash: varchar("emailHash", { length: 64 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    userId: integer("user_id").notNull().references(() => users.id),
+    emailHash: varchar("email_hash", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("ssa_user_created_idx").on(table.userId, table.createdAt), index("ssa_email_created_idx").on(table.emailHash, table.createdAt)],
 );
 
-export const invoiceCounters = mysqlTable("invoice_counters", {
+export const invoiceCounters = pgTable("invoice_counters", {
   id: varchar("id", { length: 40 }).primaryKey(),
-  nextNumber: int("nextNumber").notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  nextNumber: integer("next_number").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const invoices = mysqlTable(
+export const invoicesStatusEnum = pgEnum("invoices_status", ["issued", "void"]);
+export const invoicesRendererEnum = pgEnum("invoices_renderer", ["structured_json"]);
+export const invoices = pgTable(
   "invoices",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
-    sequenceNumber: int("sequenceNumber").notNull(),
-    invoiceNumber: varchar("invoiceNumber", { length: 64 }).notNull(),
-    status: mysqlEnum("status", ["issued", "void"]).default("issued").notNull(),
-    issuedAt: timestamp("issuedAt").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscription_id", { length: 36 }).notNull().references(() => subscriptions.id),
+    sequenceNumber: integer("sequence_number").notNull(),
+    invoiceNumber: varchar("invoice_number", { length: 64 }).notNull(),
+    status: invoicesStatusEnum("status").default("issued").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-    sellerName: varchar("sellerName", { length: 255 }).notNull(),
-    sellerTaxNumber: varchar("sellerTaxNumber", { length: 80 }).notNull(),
-    buyerName: varchar("buyerName", { length: 255 }).notNull(),
-    buyerTaxNumber: varchar("buyerTaxNumber", { length: 80 }).notNull(),
-    subtotalAmount: decimal("subtotalAmount", { precision: 18, scale: 2 }).notNull(),
-    vatAmount: decimal("vatAmount", { precision: 18, scale: 2 }).notNull(),
-    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
-    renderer: mysqlEnum("renderer", ["structured_json"]).default("structured_json").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    sellerName: varchar("seller_name", { length: 255 }).notNull(),
+    sellerTaxNumber: varchar("seller_tax_number", { length: 80 }).notNull(),
+    buyerName: varchar("buyer_name", { length: 255 }).notNull(),
+    buyerTaxNumber: varchar("buyer_tax_number", { length: 80 }).notNull(),
+    subtotalAmount: numeric("subtotal_amount", { precision: 18, scale: 2 }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: numeric("total_amount", { precision: 18, scale: 2 }).notNull(),
+    renderer: invoicesRendererEnum("renderer").default("structured_json").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("inv_sequence_unique").on(table.sequenceNumber), uniqueIndex("inv_number_unique").on(table.invoiceNumber), index("inv_tenant_issued_idx").on(table.tenantId, table.issuedAt)],
 );
 
-export const paymentRecords = mysqlTable(
+export const paymentRecordsProviderEnum = pgEnum("payment_records_provider", ["manual", "mock"]);
+export const paymentRecordsOperationEnum = pgEnum("payment_records_operation", ["create", "renew", "cancel", "refund"]);
+export const paymentRecordsStatusEnum = pgEnum("payment_records_status", ["pending", "confirmed", "cancelled", "refunded", "failed"]);
+export const paymentRecords = pgTable(
   "payment_records",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    subscriptionId: varchar("subscriptionId", { length: 36 }).notNull().references(() => subscriptions.id),
-    invoiceId: varchar("invoiceId", { length: 36 }).references(() => invoices.id),
-    provider: mysqlEnum("provider", ["manual", "mock"]).notNull(),
-    operation: mysqlEnum("operation", ["create", "renew", "cancel", "refund"]).notNull(),
-    status: mysqlEnum("status", ["pending", "confirmed", "cancelled", "refunded", "failed"]).notNull(),
-    providerReference: varchar("providerReference", { length: 120 }).notNull(),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    subscriptionId: varchar("subscription_id", { length: 36 }).notNull().references(() => subscriptions.id),
+    invoiceId: varchar("invoice_id", { length: 36 }).references(() => invoices.id),
+    provider: paymentRecordsProviderEnum("provider").notNull(),
+    operation: paymentRecordsOperationEnum("operation").notNull(),
+    status: paymentRecordsStatusEnum("status").notNull(),
+    providerReference: varchar("provider_reference", { length: 120 }).notNull(),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
     metadata: text("metadata"),
-    confirmedAt: timestamp("confirmedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pay_provider_ref_unique").on(table.provider, table.providerReference), index("pay_tenant_sub_idx").on(table.tenantId, table.subscriptionId)],
 );
 
-export const supportTickets = mysqlTable(
+export const supportTicketsCategoryEnum = pgEnum("support_tickets_category", ["technical", "billing", "account", "general"]);
+export const supportTicketsPriorityEnum = pgEnum("support_tickets_priority", ["low", "normal", "high", "urgent"]);
+export const supportTicketsStatusEnum = pgEnum("support_tickets_status", ["open", "waiting_customer", "in_progress", "resolved", "closed"]);
+export const supportTicketsEscalationStatusEnum = pgEnum("support_tickets_escalation_status", ["none", "requested", "escalated"]);
+export const supportTickets = pgTable(
   "support_tickets",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    ownerUserId: int("ownerUserId").references(() => users.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    ownerUserId: integer("owner_user_id").references(() => users.id),
     subject: varchar("subject", { length: 255 }).notNull(),
-    category: mysqlEnum("category", ["technical", "billing", "account", "general"]).notNull(),
-    priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal").notNull(),
-    status: mysqlEnum("status", ["open", "waiting_customer", "in_progress", "resolved", "closed"]).default("open").notNull(),
-    escalationStatus: mysqlEnum("escalationStatus", ["none", "requested", "escalated"]).default("none").notNull(),
-    tagsJson: varchar("tagsJson", { length: 1000 }).default("[]").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    category: supportTicketsCategoryEnum("category").notNull(),
+    priority: supportTicketsPriorityEnum("priority").default("normal").notNull(),
+    status: supportTicketsStatusEnum("status").default("open").notNull(),
+    escalationStatus: supportTicketsEscalationStatusEnum("escalation_status").default("none").notNull(),
+    tagsJson: varchar("tags_json", { length: 1000 }).default("[]").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("spt_tenant_status_idx").on(table.tenantId, table.status, table.updatedAt), index("spt_owner_status_idx").on(table.ownerUserId, table.status)],
 );
 
-export const supportMessages = mysqlTable(
+export const supportMessagesSenderTypeEnum = pgEnum("support_messages_sender_type", ["customer", "agent", "assistant", "system"]);
+export const supportMessages = pgTable(
   "support_messages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    ticketId: varchar("ticketId", { length: 36 }).notNull().references(() => supportTickets.id),
-    authorUserId: int("authorUserId").references(() => users.id),
-    senderType: mysqlEnum("senderType", ["customer", "agent", "assistant", "system"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    ticketId: varchar("ticket_id", { length: 36 }).notNull().references(() => supportTickets.id),
+    authorUserId: integer("author_user_id").references(() => users.id),
+    senderType: supportMessagesSenderTypeEnum("sender_type").notNull(),
     body: text("body").notNull(),
-    citationsJson: text("citationsJson"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    citationsJson: text("citations_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("spm_ticket_created_idx").on(table.ticketId, table.createdAt), index("spm_tenant_created_idx").on(table.tenantId, table.createdAt)],
 );
 
-export const knowledgeArticles = mysqlTable(
+export const knowledgeArticlesStatusEnum = pgEnum("knowledge_articles_status", ["draft", "published", "archived"]);
+export const knowledgeArticles = pgTable(
   "knowledge_articles",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    sourceDocumentId: varchar("sourceDocumentId", { length: 36 }).notNull().references(() => projectDocuments.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    sourceDocumentId: varchar("source_document_id", { length: 36 }).notNull().references(() => projectDocuments.id),
     title: varchar("title", { length: 255 }).notNull(),
     content: text("content").notNull(),
-    status: mysqlEnum("status", ["draft", "published", "archived"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    publishedByUserId: int("publishedByUserId").references(() => users.id),
-    publishedAt: timestamp("publishedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: knowledgeArticlesStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    publishedByUserId: integer("published_by_user_id").references(() => users.id),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("kba_document_unique").on(table.sourceDocumentId), index("kba_tenant_status_idx").on(table.tenantId, table.status, table.updatedAt)],
 );
 
-export const scheduledJobs = mysqlTable(
+export const scheduledJobsPurposeEnum = pgEnum("scheduled_jobs_purpose", ["license_lifecycle"]);
+export const scheduledJobs = pgTable(
   "scheduled_jobs",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    purpose: mysqlEnum("purpose", ["license_lifecycle"]).notNull(),
-    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }).unique(),
+    purpose: scheduledJobsPurposeEnum("purpose").notNull(),
+    scheduleCronTaskUid: varchar("schedule_cron_task_uid", { length: 65 }).unique(),
     enabled: boolean("enabled").default(true).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("scheduled_jobs_task_uid_idx").on(table.scheduleCronTaskUid)],
 );
 
-export const tenantLicenseFeatureOverrides = mysqlTable(
+export const tenantLicenseFeatureOverrides = pgTable(
   "tenant_license_feature_overrides",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantLicenseId: varchar("tenantLicenseId", { length: 36 }).notNull().references(() => tenantLicenses.id),
-    featureId: varchar("featureId", { length: 36 }).notNull().references(() => commercialFeatures.id),
+    tenantLicenseId: varchar("tenant_license_id", { length: 36 }).notNull(),
+    featureId: varchar("feature_id", { length: 36 }).notNull(),
     active: boolean("active").default(true).notNull(),
-    limitValue: int("limitValue"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    limitValue: integer("limit_value"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("tenant_license_feature_overrides_license_feature_unique").on(table.tenantLicenseId, table.featureId), index("tenant_license_feature_overrides_feature_idx").on(table.featureId)],
+  table => [foreignKey({ columns: [table.featureId], foreignColumns: [commercialFeatures.id], name: "tl_feature_overrides_feature_fk" }), foreignKey({ columns: [table.tenantLicenseId], foreignColumns: [tenantLicenses.id], name: "tl_feature_overrides_license_fk" }), uniqueIndex("tenant_license_feature_overrides_license_feature_unique").on(table.tenantLicenseId, table.featureId), index("tenant_license_feature_overrides_feature_idx").on(table.featureId)],
 );
 
-export const roles = mysqlTable(
+export const rolesProductCodeEnum = pgEnum("roles_product_code", productCodes);
+export const roles = pgTable(
   "roles",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
-    productCode: mysqlEnum("productCode", productCodes),
+    productCode: rolesProductCodeEnum("product_code"),
     description: text("description"),
-    systemManaged: boolean("systemManaged").default(false).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    systemManaged: boolean("system_managed").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("roles_tenant_code_unique").on(table.tenantId, table.code)],
 );
 
-export const permissions = mysqlTable(
+export const permissionsProductCodeEnum = pgEnum("permissions_product_code", productCodes);
+export const permissions = pgTable(
   "permissions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     code: varchar("code", { length: 120 }).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
-    productCode: mysqlEnum("productCode", productCodes).notNull(),
+    productCode: permissionsProductCodeEnum("product_code").notNull(),
     description: text("description"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("permissions_code_unique").on(table.code)],
 );
 
-export const rolePermissions = mysqlTable(
+export const rolePermissions = pgTable(
   "role_permissions",
   {
-    roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id),
-    permissionId: varchar("permissionId", { length: 36 }).notNull().references(() => permissions.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id),
+    permissionId: varchar("permission_id", { length: 36 }).notNull().references(() => permissions.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [primaryKey({ columns: [table.roleId, table.permissionId], name: "role_permissions_pk" })],
 );
 
-export const membershipRoles = mysqlTable(
+export const membershipRolesScopeTypeEnum = pgEnum("membership_roles_scope_type", ["company", "portfolio", "program", "project"]);
+export const membershipRoles = pgTable(
   "membership_roles",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    membershipId: varchar("membershipId", { length: 36 }).notNull().references(() => memberships.id),
-    roleId: varchar("roleId", { length: 36 }).notNull().references(() => roles.id),
-    scopeType: mysqlEnum("scopeType", ["company", "portfolio", "program", "project"]).default("company").notNull(),
-    scopeId: varchar("scopeId", { length: 36 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    membershipId: varchar("membership_id", { length: 36 }).notNull().references(() => memberships.id),
+    roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id),
+    scopeType: membershipRolesScopeTypeEnum("scope_type").default("company").notNull(),
+    scopeId: varchar("scope_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("membership_roles_scope_unique").on(table.membershipId, table.roleId, table.scopeType, table.scopeId),
@@ -753,230 +800,242 @@ export const membershipRoles = mysqlTable(
   ],
 );
 
-export const auditLogs = mysqlTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    actorUserId: int("actorUserId").references(() => users.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    actorUserId: integer("actor_user_id").references(() => users.id),
     action: varchar("action", { length: 120 }).notNull(),
-    entityType: varchar("entityType", { length: 120 }).notNull(),
-    entityId: varchar("entityId", { length: 36 }),
-    requestId: varchar("requestId", { length: 80 }),
+    entityType: varchar("entity_type", { length: 120 }).notNull(),
+    entityId: varchar("entity_id", { length: 36 }),
+    requestId: varchar("request_id", { length: 80 }),
     metadata: text("metadata"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("audit_logs_tenant_entity_idx").on(table.tenantId, table.entityType, table.entityId)],
 );
 
-export const internalNotifications = mysqlTable(
+export const internalNotifications = pgTable(
   "internal_notifications",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    recipientUserId: int("recipientUserId").notNull().references(() => users.id),
-    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
-    notificationCode: varchar("notificationCode", { length: 120 }).notNull(),
-    entityType: varchar("entityType", { length: 120 }),
-    entityId: varchar("entityId", { length: 36 }),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    recipientUserId: integer("recipient_user_id").notNull().references(() => users.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
+    notificationCode: varchar("notification_code", { length: 120 }).notNull(),
+    entityType: varchar("entity_type", { length: 120 }),
+    entityId: varchar("entity_id", { length: 36 }),
     payload: text("payload").notNull(),
-    acknowledgedAt: timestamp("acknowledgedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("internal_notifications_recipient_tenant_ack_idx").on(table.recipientUserId, table.tenantId, table.acknowledgedAt), index("internal_notifications_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const portfolios = mysqlTable(
+export const portfoliosStatusEnum = pgEnum("portfolios_status", ["active", "on_hold", "closed"]);
+export const portfolios = pgTable(
   "portfolios",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    status: mysqlEnum("status", ["active", "on_hold", "closed"]).default("active").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: portfoliosStatusEnum("status").default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("portfolios_tenant_code_unique").on(table.tenantId, table.code)],
 );
 
-export const programs = mysqlTable(
+export const programsStatusEnum = pgEnum("programs_status", ["active", "on_hold", "closed"]);
+export const programs = pgTable(
   "programs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    portfolioId: varchar("portfolioId", { length: 36 }).references(() => portfolios.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    portfolioId: varchar("portfolio_id", { length: 36 }).references(() => portfolios.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    status: mysqlEnum("status", ["active", "on_hold", "closed"]).default("active").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: programsStatusEnum("status").default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("programs_tenant_code_unique").on(table.tenantId, table.code), index("programs_tenant_portfolio_idx").on(table.tenantId, table.portfolioId)],
 );
 
-export const projects = mysqlTable(
+export const projectsLifecycleStageEnum = pgEnum("projects_lifecycle_stage", ["opportunity", "pre_award", "tender", "award", "mobilization", "planning", "design", "procurement", "execution", "commissioning", "handover", "closeout", "post_project_review"]);
+export const projectsStatusEnum = pgEnum("projects_status", ["draft", "active", "on_hold", "closed", "cancelled"]);
+export const projects = pgTable(
   "projects",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    portfolioId: varchar("portfolioId", { length: 36 }).references(() => portfolios.id),
-    programId: varchar("programId", { length: 36 }).references(() => programs.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    portfolioId: varchar("portfolio_id", { length: 36 }).references(() => portfolios.id),
+    programId: varchar("program_id", { length: 36 }).references(() => programs.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    projectType: varchar("projectType", { length: 120 }).notNull(),
-    lifecycleStage: mysqlEnum("lifecycleStage", ["opportunity", "pre_award", "tender", "award", "mobilization", "planning", "design", "procurement", "execution", "commissioning", "handover", "closeout", "post_project_review"]).default("planning").notNull(),
-    status: mysqlEnum("status", ["draft", "active", "on_hold", "closed", "cancelled"]).default("draft").notNull(),
+    projectType: varchar("project_type", { length: 120 }).notNull(),
+    lifecycleStage: projectsLifecycleStageEnum("lifecycle_stage").default("planning").notNull(),
+    status: projectsStatusEnum("status").default("draft").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    originalBudget: decimal("originalBudget", { precision: 18, scale: 2 }).default("0").notNull(),
-    currentBudget: decimal("currentBudget", { precision: 18, scale: 2 }).default("0").notNull(),
-    actualCost: decimal("actualCost", { precision: 18, scale: 2 }).default("0").notNull(),
-    committedCost: decimal("committedCost", { precision: 18, scale: 2 }).default("0").notNull(),
-    forecastCost: decimal("forecastCost", { precision: 18, scale: 2 }).default("0").notNull(),
-    plannedStartAt: timestamp("plannedStartAt"),
-    plannedFinishAt: timestamp("plannedFinishAt"),
-    forecastFinishAt: timestamp("forecastFinishAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    contractValue: numeric("contract_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    originalBudget: numeric("original_budget", { precision: 18, scale: 2 }).default("0").notNull(),
+    currentBudget: numeric("current_budget", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualCost: numeric("actual_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    committedCost: numeric("committed_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    forecastCost: numeric("forecast_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    plannedStartAt: timestamp("planned_start_at", { withTimezone: true }),
+    plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }),
+    forecastFinishAt: timestamp("forecast_finish_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("projects_tenant_code_unique").on(table.tenantId, table.code), index("projects_tenant_portfolio_idx").on(table.tenantId, table.portfolioId), index("projects_tenant_program_idx").on(table.tenantId, table.programId)],
 );
 
-export const contracts = mysqlTable(
+export const contractsCounterpartyKindEnum = pgEnum("contracts_counterparty_kind", ["client", "supplier", "other"]);
+export const contractsStatusEnum = pgEnum("contracts_status", ["draft", "active", "suspended", "closed", "cancelled"]);
+export const contracts = pgTable(
   "contracts",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
     // Who the other side is (G-103): a client has no register, so it stays a name; a supplier is chosen from the tenant's supplier register and its name is copied from there.
-    counterpartyKind: mysqlEnum("counterpartyKind", ["client", "supplier", "other"]).default("other").notNull(),
-    supplierId: varchar("supplierId", { length: 36 }),
-    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).default("0").notNull(),
+    counterpartyKind: contractsCounterpartyKindEnum("counterparty_kind").default("other").notNull(),
+    supplierId: varchar("supplier_id", { length: 36 }),
+    contractValue: numeric("contract_value", { precision: 18, scale: 2 }).default("0").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    status: mysqlEnum("status", ["draft", "active", "suspended", "closed", "cancelled"]).default("draft").notNull(),
-    startAt: timestamp("startAt"),
-    endAt: timestamp("endAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: contractsStatusEnum("status").default("draft").notNull(),
+    startAt: timestamp("start_at", { withTimezone: true }),
+    endAt: timestamp("end_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("contracts_project_code_unique").on(table.projectId, table.code), index("contracts_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("contracts_supplier_idx").on(table.supplierId), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "contracts_supplier_fk" })],
 );
 
-export const commitments = mysqlTable(
+export const commitmentsStatusEnum = pgEnum("commitments_status", ["draft", "committed", "released", "cancelled"]);
+export const commitments = pgTable(
   "commitments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contract_id", { length: 36 }).references(() => contracts.id),
     code: varchar("code", { length: 80 }).notNull(),
     description: varchar("description", { length: 255 }).notNull(),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    status: mysqlEnum("status", ["draft", "committed", "released", "cancelled"]).default("draft").notNull(),
-    committedAt: timestamp("committedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: commitmentsStatusEnum("status").default("draft").notNull(),
+    committedAt: timestamp("committed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("commitments_project_code_unique").on(table.projectId, table.code), index("commitments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("commitments_contract_idx").on(table.contractId)],
 );
 
-export const projectDocuments = mysqlTable(
+export const projectDocumentsCategoryEnum = pgEnum("project_documents_category", ["drawing", "specification", "method_statement", "report", "correspondence", "commercial", "other"]);
+export const projectDocumentsStatusEnum = pgEnum("project_documents_status", ["draft", "for_review", "approved", "superseded", "archived"]);
+export const projectDocuments = pgTable(
   "project_documents",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    documentNumber: varchar("documentNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    documentNumber: varchar("document_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    category: mysqlEnum("category", ["drawing", "specification", "method_statement", "report", "correspondence", "commercial", "other"]).default("other").notNull(),
-    status: mysqlEnum("status", ["draft", "for_review", "approved", "superseded", "archived"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    category: projectDocumentsCategoryEnum("category").default("other").notNull(),
+    status: projectDocumentsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("project_documents_project_number_unique").on(table.projectId, table.documentNumber), index("project_documents_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const documentVersions = mysqlTable(
+export const documentVersions = pgTable(
   "document_versions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    documentId: varchar("documentId", { length: 36 }).notNull().references(() => projectDocuments.id),
-    versionNumber: int("versionNumber").notNull(),
-    originalName: varchar("originalName", { length: 255 }).notNull(),
-    storageKey: varchar("storageKey", { length: 512 }).notNull(),
-    mimeType: varchar("mimeType", { length: 120 }).notNull(),
-    sizeBytes: int("sizeBytes").notNull(),
-    checksumSha256: varchar("checksumSha256", { length: 64 }).notNull(),
-    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    documentId: varchar("document_id", { length: 36 }).notNull().references(() => projectDocuments.id),
+    versionNumber: integer("version_number").notNull(),
+    originalName: varchar("original_name", { length: 255 }).notNull(),
+    storageKey: varchar("storage_key", { length: 512 }).notNull(),
+    mimeType: varchar("mime_type", { length: 120 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }).notNull(),
+    uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("document_versions_document_version_unique").on(table.documentId, table.versionNumber), index("document_versions_tenant_project_document_idx").on(table.tenantId, table.projectId, table.documentId)],
 );
 
-export const masterPlans = mysqlTable(
+export const masterPlansStatusEnum = pgEnum("master_plans_status", ["active", "superseded", "archived"]);
+export const masterPlans = pgTable(
   "master_plans",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    status: mysqlEnum("status", ["active", "superseded", "archived"]).default("active").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: masterPlansStatusEnum("status").default("active").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("master_plans_project_code_unique").on(table.projectId, table.code), index("master_plans_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const masterPlanVersions = mysqlTable(
+export const masterPlanVersionsVersionKindEnum = pgEnum("master_plan_versions_version_kind", ["original", "revision", "updated"]);
+export const masterPlanVersions = pgTable(
   "master_plan_versions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    masterPlanId: varchar("masterPlanId", { length: 36 }).notNull().references(() => masterPlans.id),
-    versionNumber: int("versionNumber").notNull(),
-    versionKind: mysqlEnum("versionKind", ["original", "revision", "updated"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanId: varchar("master_plan_id", { length: 36 }).notNull().references(() => masterPlans.id),
+    versionNumber: integer("version_number").notNull(),
+    versionKind: masterPlanVersionsVersionKindEnum("version_kind").notNull(),
     description: text("description"),
-    changeSummary: text("changeSummary"),
-    sourceFileName: varchar("sourceFileName", { length: 255 }),
-    storageKey: varchar("storageKey", { length: 512 }),
-    checksumSha256: varchar("checksumSha256", { length: 64 }),
+    changeSummary: text("change_summary"),
+    sourceFileName: varchar("source_file_name", { length: 255 }),
+    storageKey: varchar("storage_key", { length: 512 }),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }),
     // The plan underlay's turn (degrees, -180..180) and the real size of the plan area in metres, so an entity's map units read as metres (G-135).
-    rotationDegrees: int("rotationDegrees").default(0).notNull(),
-    mapWidthMeters: decimal("mapWidthMeters", { precision: 12, scale: 2 }),
-    mapHeightMeters: decimal("mapHeightMeters", { precision: 12, scale: 2 }),
-    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    rotationDegrees: integer("rotation_degrees").default(0).notNull(),
+    mapWidthMeters: numeric("map_width_meters", { precision: 12, scale: 2 }),
+    mapHeightMeters: numeric("map_height_meters", { precision: 12, scale: 2 }),
+    uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("master_plan_versions_plan_version_unique").on(table.masterPlanId, table.versionNumber), index("master_plan_versions_tenant_project_plan_idx").on(table.tenantId, table.projectId, table.masterPlanId)],
 );
 
-export const masterPlanSnapshots = mysqlTable(
+export const masterPlanSnapshotsMetricEnum = pgEnum("master_plan_snapshots_metric", ["progress", "status", "cost", "risk", "quality", "hse", "production", "custom"]);
+export const masterPlanSnapshots = pgTable(
   "master_plan_snapshots",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    masterPlanVersionId: varchar("masterPlanVersionId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanVersionId: varchar("master_plan_version_id", { length: 36 }).notNull(),
     label: varchar("label", { length: 160 }).notNull(),
-    metric: mysqlEnum("metric", ["progress", "status", "cost", "risk", "quality", "hse", "production", "custom"]).notNull(),
-    filtersJson: text("filtersJson").notNull(),
-    viewportJson: text("viewportJson").notNull(),
-    layersJson: text("layersJson").notNull(),
+    metric: masterPlanSnapshotsMetricEnum("metric").notNull(),
+    filtersJson: text("filters_json").notNull(),
+    viewportJson: text("viewport_json").notNull(),
+    layersJson: text("layers_json").notNull(),
     // false: only its creator sees it (the original rule); true: everyone who can read this project's Master Plan (G-136)
-    sharedWithProject: boolean("sharedWithProject").default(false).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    sharedWithProject: boolean("shared_with_project").default(false).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     foreignKey({ columns: [table.masterPlanVersionId], foreignColumns: [masterPlanVersions.id], name: "mps_plan_version_fk" }),
@@ -984,17 +1043,18 @@ export const masterPlanSnapshots = mysqlTable(
   ],
 );
 
-export const masterPlanVisualizationRules = mysqlTable(
+export const masterPlanVisualizationRulesMetricEnum = pgEnum("master_plan_visualization_rules_metric", ["progress", "status", "cost"]);
+export const masterPlanVisualizationRules = pgTable(
   "master_plan_visualization_rules",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    metric: mysqlEnum("metric", ["progress", "status", "cost"]).notNull(),
-    rulesJson: text("rulesJson").notNull(),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    metric: masterPlanVisualizationRulesMetricEnum("metric").notNull(),
+    rulesJson: text("rules_json").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpvr_tenant_fk" }),
@@ -1005,105 +1065,115 @@ export const masterPlanVisualizationRules = mysqlTable(
   ],
 );
 
-export const masterPlanSpatialEntities = mysqlTable(
+export const masterPlanSpatialEntitiesEntityTypeEnum = pgEnum("master_plan_spatial_entities_entity_type", ["block", "building", "zone", "unit", "area"]);
+export const masterPlanSpatialEntitiesStatusEnum = pgEnum("master_plan_spatial_entities_status", ["not_started", "in_progress", "completed", "blocked"]);
+export const masterPlanSpatialEntities = pgTable(
   "master_plan_spatial_entities",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    masterPlanVersionId: varchar("masterPlanVersionId", { length: 36 }).notNull().references(() => masterPlanVersions.id),
-    parentEntityId: varchar("parentEntityId", { length: 36 }),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    masterPlanVersionId: varchar("master_plan_version_id", { length: 36 }).notNull(),
+    parentEntityId: varchar("parent_entity_id", { length: 36 }),
     code: varchar("code", { length: 120 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    entityType: mysqlEnum("entityType", ["block", "building", "zone", "unit", "area"]).notNull(),
+    entityType: masterPlanSpatialEntitiesEntityTypeEnum("entity_type").notNull(),
     geometry: text("geometry").notNull(),
-    status: mysqlEnum("status", ["not_started", "in_progress", "completed", "blocked"]).default("not_started").notNull(),
-    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).default("0").notNull(),
-    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    actualValue: decimal("actualValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    forecastValue: decimal("forecastValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: masterPlanSpatialEntitiesStatusEnum("status").default("not_started").notNull(),
+    progressPercent: numeric("progress_percent", { precision: 5, scale: 2 }).default("0").notNull(),
+    plannedValue: numeric("planned_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualValue: numeric("actual_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    forecastValue: numeric("forecast_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activity_id", { length: 36 }).references(() => activities.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("master_plan_spatial_entities_version_code_unique").on(table.masterPlanVersionId, table.code), index("master_plan_spatial_entities_tenant_project_version_idx").on(table.tenantId, table.projectId, table.masterPlanVersionId), index("master_plan_spatial_entities_version_status_idx").on(table.masterPlanVersionId, table.status)],
+  table => [foreignKey({ columns: [table.masterPlanVersionId], foreignColumns: [masterPlanVersions.id], name: "mp_spatial_entities_version_fk" }), uniqueIndex("master_plan_spatial_entities_version_code_unique").on(table.masterPlanVersionId, table.code), index("master_plan_spatial_entities_tenant_project_version_idx").on(table.tenantId, table.projectId, table.masterPlanVersionId), index("master_plan_spatial_entities_version_status_idx").on(table.masterPlanVersionId, table.status)],
 );
 
-export const rfis = mysqlTable(
+export const rfisStatusEnum = pgEnum("rfis_status", ["draft", "submitted", "under_review", "answered", "closed", "cancelled"]);
+export const rfis = pgTable(
   "rfis",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    rfiNumber: varchar("rfiNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    rfiNumber: varchar("rfi_number", { length: 120 }).notNull(),
     subject: varchar("subject", { length: 255 }).notNull(),
     question: text("question").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "under_review", "answered", "closed", "cancelled"]).default("draft").notNull(),
-    dueAt: timestamp("dueAt"),
-    submittedAt: timestamp("submittedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: rfisStatusEnum("status").default("draft").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("rfis_project_number_unique").on(table.projectId, table.rfiNumber), index("rfis_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
-export const ncrs = mysqlTable(
+export const ncrsStatusEnum = pgEnum("ncrs_status", ["open", "under_investigation", "corrective_action", "verification", "closed", "cancelled"]);
+export const ncrs = pgTable(
   "ncrs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    ncrNumber: varchar("ncrNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    ncrNumber: varchar("ncr_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
-    status: mysqlEnum("status", ["open", "under_investigation", "corrective_action", "verification", "closed", "cancelled"]).default("open").notNull(),
-    dueAt: timestamp("dueAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: ncrsStatusEnum("status").default("open").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("ncrs_project_number_unique").on(table.projectId, table.ncrNumber), index("ncrs_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
-export const hseObservations = mysqlTable(
+export const hseObservationsCategoryEnum = pgEnum("hse_observations_category", ["safety", "health", "environment"]);
+export const hseObservationsSeverityEnum = pgEnum("hse_observations_severity", ["low", "medium", "high", "critical"]);
+export const hseObservationsStatusEnum = pgEnum("hse_observations_status", ["open", "assigned", "remediation", "verification", "closed", "cancelled"]);
+export const hseObservations = pgTable(
   "hse_observations",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    observationNumber: varchar("observationNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    observationNumber: varchar("observation_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
-    category: mysqlEnum("category", ["safety", "health", "environment"]).notNull(),
-    severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-    status: mysqlEnum("status", ["open", "assigned", "remediation", "verification", "closed", "cancelled"]).default("open").notNull(),
-    dueAt: timestamp("dueAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    category: hseObservationsCategoryEnum("category").notNull(),
+    severity: hseObservationsSeverityEnum("severity").default("medium").notNull(),
+    status: hseObservationsStatusEnum("status").default("open").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("hse_observations_project_number_unique").on(table.projectId, table.observationNumber), index("hse_observations_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
-export const fieldReports = mysqlTable(
+export const fieldReportsReportTypeEnum = pgEnum("field_reports_report_type", ["daily", "inspection", "progress"]);
+export const fieldReportsShiftEnum = pgEnum("field_reports_shift", ["day", "night"]);
+export const fieldReportsStatusEnum = pgEnum("field_reports_status", ["draft", "submitted", "reviewed", "approved", "rejected"]);
+export const fieldReports = pgTable(
   "field_reports",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    reportNumber: varchar("reportNumber", { length: 120 }).notNull(),
-    reportType: mysqlEnum("reportType", ["daily", "inspection", "progress"]).notNull(),
-    reportedAt: timestamp("reportedAt").notNull(),
-    shift: mysqlEnum("shift", ["day", "night"]).default("day").notNull(),
-    workforceCount: int("workforceCount").default(0).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportNumber: varchar("report_number", { length: 120 }).notNull(),
+    reportType: fieldReportsReportTypeEnum("report_type").notNull(),
+    reportedAt: timestamp("reported_at", { withTimezone: true }).notNull(),
+    shift: fieldReportsShiftEnum("shift").default("day").notNull(),
+    workforceCount: integer("workforce_count").default(0).notNull(),
     weather: varchar("weather", { length: 160 }),
     summary: text("summary").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "reviewed", "approved", "rejected"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: fieldReportsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("field_reports_project_number_unique").on(table.projectId, table.reportNumber),
@@ -1111,21 +1181,24 @@ export const fieldReports = mysqlTable(
   ],
 );
 
-export const qualityInspections = mysqlTable(
+export const qualityInspectionsInspectionTypeEnum = pgEnum("quality_inspections_inspection_type", ["hold_point", "witness", "surveillance", "testing"]);
+export const qualityInspectionsOutcomeEnum = pgEnum("quality_inspections_outcome", ["pass", "fail", "conditional"]);
+export const qualityInspectionsStatusEnum = pgEnum("quality_inspections_status", ["draft", "submitted", "accepted", "rejected"]);
+export const qualityInspections = pgTable(
   "quality_inspections",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    inspectionNumber: varchar("inspectionNumber", { length: 120 }).notNull(),
-    inspectionType: mysqlEnum("inspectionType", ["hold_point", "witness", "surveillance", "testing"]).notNull(),
-    inspectedAt: timestamp("inspectedAt").notNull(),
-    outcome: mysqlEnum("outcome", ["pass", "fail", "conditional"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    inspectionNumber: varchar("inspection_number", { length: 120 }).notNull(),
+    inspectionType: qualityInspectionsInspectionTypeEnum("inspection_type").notNull(),
+    inspectedAt: timestamp("inspected_at", { withTimezone: true }).notNull(),
+    outcome: qualityInspectionsOutcomeEnum("outcome").notNull(),
     summary: text("summary").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "accepted", "rejected"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: qualityInspectionsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("quality_inspections_project_number_unique").on(table.projectId, table.inspectionNumber),
@@ -1133,29 +1206,30 @@ export const qualityInspections = mysqlTable(
   ],
 );
 
-export const purchaseOrders = mysqlTable(
+export const purchaseOrdersStatusEnum = pgEnum("purchase_orders_status", ["draft", "submitted", "approved", "issued", "received", "cancelled"]);
+export const purchaseOrders = pgTable(
   "purchase_orders",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
-    commitmentId: varchar("commitmentId", { length: 36 }).references(() => commitments.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contract_id", { length: 36 }).references(() => contracts.id),
+    commitmentId: varchar("commitment_id", { length: 36 }).references(() => commitments.id),
     // The WBS item the order is for, so its open commitment can be shown beside plan, actual and forecast at that level.
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
     // The supplier register entry the order is placed with (G-103); supplierName stays as the name printed on the order and is copied from the register when an entry is chosen.
-    supplierId: varchar("supplierId", { length: 36 }),
-    purchaseOrderNumber: varchar("purchaseOrderNumber", { length: 120 }).notNull(),
-    supplierName: varchar("supplierName", { length: 240 }).notNull(),
-    orderDate: timestamp("orderDate").notNull(),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    supplierId: varchar("supplier_id", { length: 36 }),
+    purchaseOrderNumber: varchar("purchase_order_number", { length: 120 }).notNull(),
+    supplierName: varchar("supplier_name", { length: 240 }).notNull(),
+    orderDate: timestamp("order_date", { withTimezone: true }).notNull(),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
     summary: text("summary").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "issued", "received", "cancelled"]).default("draft").notNull(),
-    receivedAt: timestamp("receivedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: purchaseOrdersStatusEnum("status").default("draft").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("purchase_orders_project_number_unique").on(table.projectId, table.purchaseOrderNumber),
@@ -1168,31 +1242,32 @@ export const purchaseOrders = mysqlTable(
   ],
 );
 
-export const goodsReceiptNotes = mysqlTable(
+export const goodsReceiptNotesReceiptModeEnum = pgEnum("goods_receipt_notes_receipt_mode", ["warehouse_stock", "direct_to_site"]);
+export const goodsReceiptNotes = pgTable(
   "goods_receipt_notes",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    purchaseOrderId: varchar("purchaseOrderId", { length: 36 }).notNull(),
-    materialId: varchar("materialId", { length: 36 }).notNull(),
-    qualityInspectionId: varchar("qualityInspectionId", { length: 36 }),
-    ncrId: varchar("ncrId", { length: 36 }),
-    grnNumber: varchar("grnNumber", { length: 120 }).notNull(),
-    receivedQuantity: decimal("receivedQuantity", { precision: 18, scale: 3 }).notNull(),
-    rejectedQuantity: decimal("rejectedQuantity", { precision: 18, scale: 3 }).notNull(),
-    unitCost: decimal("unitCost", { precision: 18, scale: 2 }).notNull().default("0"),
-    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
-    receivedAt: timestamp("receivedAt").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    purchaseOrderId: varchar("purchase_order_id", { length: 36 }).notNull(),
+    materialId: varchar("material_id", { length: 36 }).notNull(),
+    qualityInspectionId: varchar("quality_inspection_id", { length: 36 }),
+    ncrId: varchar("ncr_id", { length: 36 }),
+    grnNumber: varchar("grn_number", { length: 120 }).notNull(),
+    receivedQuantity: numeric("received_quantity", { precision: 18, scale: 3 }).notNull(),
+    rejectedQuantity: numeric("rejected_quantity", { precision: 18, scale: 3 }).notNull(),
+    unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull().default("0"),
+    unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
     note: text("note"),
-    costEntryId: varchar("costEntryId", { length: 36 }).references(() => costEntries.id),
+    costEntryId: varchar("cost_entry_id", { length: 36 }).references(() => costEntries.id),
     // 'warehouse_stock' raises the shelf and charges the cost when the material is issued to a WBS item; 'direct_to_site' charges the cost at receipt and never touches the shelf.
     // Rows that existed before stock valuation are 'direct_to_site': their cost was booked at receipt and no stock was ever raised.
-    receiptMode: mysqlEnum("receiptMode", ["warehouse_stock", "direct_to_site"]).default("direct_to_site").notNull(),
-    warehouseId: varchar("warehouseId", { length: 36 }),
-    inventoryTransactionId: varchar("inventoryTransactionId", { length: 36 }),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    receiptMode: goodsReceiptNotesReceiptModeEnum("receipt_mode").default("direct_to_site").notNull(),
+    warehouseId: varchar("warehouse_id", { length: 36 }),
+    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("grn_project_number_unique").on(table.projectId, table.grnNumber),
@@ -1211,32 +1286,33 @@ export const goodsReceiptNotes = mysqlTable(
   ],
 );
 
-export const suppliers = mysqlTable(
+export const suppliers = pgTable(
   "suppliers",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), legalName: varchar("legalName", { length: 240 }).notNull(), contactName: varchar("contactName", { length: 160 }), contactEmail: varchar("contactEmail", { length: 254 }), contactPhone: varchar("contactPhone", { length: 60 }), active: boolean("active").default(true).notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), legalName: varchar("legal_name", { length: 240 }).notNull(), contactName: varchar("contact_name", { length: 160 }), contactEmail: varchar("contact_email", { length: 254 }), contactPhone: varchar("contact_phone", { length: 60 }), active: boolean("active").default(true).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() },
   table => [uniqueIndex("suppliers_tenant_code_unique").on(table.tenantId, table.code), index("suppliers_tenant_active_idx").on(table.tenantId, table.active), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "sup_tenant_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "sup_creator_fk" })],
 );
 
-export const procurementRequisitions = mysqlTable(
+export const procurementRequisitionsStatusEnum = pgEnum("procurement_requisitions_status", ["draft", "submitted", "approved", "partially_issued", "closed", "rejected", "cancelled"]);
+export const procurementRequisitions = pgTable(
   "procurement_requisitions",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), requisitionNumber: varchar("requisitionNumber", { length: 120 }).notNull(), supplierId: varchar("supplierId", { length: 36 }), materialId: varchar("materialId", { length: 36 }), wbsItemId: varchar("wbsItemId", { length: 36 }), activityId: varchar("activityId", { length: 36 }), purchaseOrderId: varchar("purchaseOrderId", { length: 36 }), purchaseOrderLinkedAt: timestamp("purchaseOrderLinkedAt"), purchaseOrderLinkedByUserId: int("purchaseOrderLinkedByUserId"), description: text("description").notNull(), requestedQuantity: decimal("requestedQuantity", { precision: 18, scale: 3 }).notNull(), unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(), requiredAt: timestamp("requiredAt").notNull(), status: mysqlEnum("status", ["draft", "submitted", "approved", "partially_issued", "closed", "rejected", "cancelled"]).default("draft").notNull(), reviewedAt: timestamp("reviewedAt"), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), requisitionNumber: varchar("requisition_number", { length: 120 }).notNull(), supplierId: varchar("supplier_id", { length: 36 }), materialId: varchar("material_id", { length: 36 }), wbsItemId: varchar("wbs_item_id", { length: 36 }), activityId: varchar("activity_id", { length: 36 }), purchaseOrderId: varchar("purchase_order_id", { length: 36 }), purchaseOrderLinkedAt: timestamp("purchase_order_linked_at", { withTimezone: true }), purchaseOrderLinkedByUserId: integer("purchase_order_linked_by_user_id"), description: text("description").notNull(), requestedQuantity: numeric("requested_quantity", { precision: 18, scale: 3 }).notNull(), unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(), requiredAt: timestamp("required_at", { withTimezone: true }).notNull(), status: procurementRequisitionsStatusEnum("status").default("draft").notNull(), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() },
   table => [uniqueIndex("procurement_requisitions_project_number_unique").on(table.projectId, table.requisitionNumber), index("procurement_requisitions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("procurement_requisitions_purchase_order_idx").on(table.purchaseOrderId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "prq_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "prq_project_fk" }), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "prq_supplier_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "prq_material_fk" }), foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "prq_wbs_fk" }), foreignKey({ columns: [table.activityId], foreignColumns: [activities.id], name: "prq_activity_fk" }), foreignKey({ columns: [table.purchaseOrderId], foreignColumns: [purchaseOrders.id], name: "prq_purchase_order_fk" }), foreignKey({ columns: [table.purchaseOrderLinkedByUserId], foreignColumns: [users.id], name: "prq_po_linker_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "prq_creator_fk" })],
 );
 
-export const materialMasters = mysqlTable(
+export const materialMasters = pgTable(
   "material_masters",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     code: varchar("code", { length: 120 }).notNull(),
     description: varchar("description", { length: 255 }).notNull(),
-    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
+    unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(),
     category: varchar("category", { length: 120 }).notNull(),
-    referenceSpecification: varchar("referenceSpecification", { length: 255 }),
+    referenceSpecification: varchar("reference_specification", { length: 255 }),
     active: boolean("active").default(true).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("material_masters_tenant_code_unique").on(table.tenantId, table.code),
@@ -1244,20 +1320,20 @@ export const materialMasters = mysqlTable(
   ],
 );
 
-export const projectMaterialOverrides = mysqlTable(
+export const projectMaterialOverrides = pgTable(
   "project_material_overrides",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    materialId: varchar("materialId", { length: 36 }).notNull().references(() => materialMasters.id),
-    projectDescription: varchar("projectDescription", { length: 255 }),
-    referenceSpecification: varchar("referenceSpecification", { length: 255 }),
-    reorderLevel: decimal("reorderLevel", { precision: 18, scale: 3 }),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    materialId: varchar("material_id", { length: 36 }).notNull().references(() => materialMasters.id),
+    projectDescription: varchar("project_description", { length: 255 }),
+    referenceSpecification: varchar("reference_specification", { length: 255 }),
+    reorderLevel: numeric("reorder_level", { precision: 18, scale: 3 }),
     active: boolean("active").default(true).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("project_material_overrides_project_material_unique").on(table.projectId, table.materialId),
@@ -1265,322 +1341,342 @@ export const projectMaterialOverrides = mysqlTable(
   ],
 );
 
-export const projectWarehouses = mysqlTable(
+export const projectWarehouses = pgTable(
   "project_warehouses",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), name: varchar("name", { length: 160 }).notNull(), locationDescription: varchar("locationDescription", { length: 255 }), active: boolean("active").default(true).notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), code: varchar("code", { length: 80 }).notNull(), name: varchar("name", { length: 160 }).notNull(), locationDescription: varchar("location_description", { length: 255 }), active: boolean("active").default(true).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() },
   table => [uniqueIndex("project_warehouses_project_code_unique").on(table.projectId, table.code), index("project_warehouses_tenant_project_active_idx").on(table.tenantId, table.projectId, table.active), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "pwh_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "pwh_project_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "pwh_creator_fk" })],
 );
 
-export const warehouseInventoryTransfers = mysqlTable(
+export const warehouseInventoryTransfers = pgTable(
   "warehouse_inventory_transfers",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), sourceWarehouseId: varchar("sourceWarehouseId", { length: 36 }).notNull(), destinationWarehouseId: varchar("destinationWarehouseId", { length: 36 }).notNull(), materialId: varchar("materialId", { length: 36 }).notNull(), quantity: decimal("quantity", { precision: 18, scale: 3 }).notNull(), referenceNumber: varchar("referenceNumber", { length: 120 }), note: varchar("note", { length: 500 }), transferredAt: timestamp("transferredAt").notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), sourceWarehouseId: varchar("source_warehouse_id", { length: 36 }).notNull(), destinationWarehouseId: varchar("destination_warehouse_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(), referenceNumber: varchar("reference_number", { length: 120 }), note: varchar("note", { length: 500 }), transferredAt: timestamp("transferred_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [index("witf_tenant_project_date_idx").on(table.tenantId, table.projectId, table.transferredAt), index("witf_source_destination_idx").on(table.sourceWarehouseId, table.destinationWarehouseId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "witf_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "witf_project_fk" }), foreignKey({ columns: [table.sourceWarehouseId], foreignColumns: [projectWarehouses.id], name: "witf_source_fk" }), foreignKey({ columns: [table.destinationWarehouseId], foreignColumns: [projectWarehouses.id], name: "witf_destination_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "witf_material_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "witf_creator_fk" })],
 );
 
-export const warehouseInventoryTransactions = mysqlTable(
+export const warehouseInventoryTransactionsTransactionTypeEnum = pgEnum("warehouse_inventory_transactions_transaction_type", ["receipt", "issue", "adjustment"]);
+export const warehouseInventoryTransactions = pgTable(
   "warehouse_inventory_transactions",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), warehouseId: varchar("warehouseId", { length: 36 }).notNull(), materialId: varchar("materialId", { length: 36 }).notNull(), requisitionId: varchar("requisitionId", { length: 36 }), transferId: varchar("transferId", { length: 36 }), transactionType: mysqlEnum("transactionType", ["receipt", "issue", "adjustment"]).notNull(), quantityDelta: decimal("quantityDelta", { precision: 18, scale: 3 }).notNull(), unitCost: decimal("unitCost", { precision: 18, scale: 4 }), valueDelta: decimal("valueDelta", { precision: 18, scale: 2 }), referenceNumber: varchar("referenceNumber", { length: 120 }), note: varchar("note", { length: 500 }), occurredAt: timestamp("occurredAt").notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), warehouseId: varchar("warehouse_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), requisitionId: varchar("requisition_id", { length: 36 }), transferId: varchar("transfer_id", { length: 36 }), transactionType: warehouseInventoryTransactionsTransactionTypeEnum("transaction_type").notNull(), quantityDelta: numeric("quantity_delta", { precision: 18, scale: 3 }).notNull(), unitCost: numeric("unit_cost", { precision: 18, scale: 4 }), valueDelta: numeric("value_delta", { precision: 18, scale: 2 }), referenceNumber: varchar("reference_number", { length: 120 }), note: varchar("note", { length: 500 }), occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [index("warehouse_inventory_transactions_tenant_project_date_idx").on(table.tenantId, table.projectId, table.occurredAt), index("warehouse_inventory_transactions_warehouse_material_idx").on(table.warehouseId, table.materialId), index("warehouse_inventory_transactions_requisition_idx").on(table.requisitionId, table.transactionType), index("wit_transfer_idx").on(table.transferId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "wit_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "wit_project_fk" }), foreignKey({ columns: [table.warehouseId], foreignColumns: [projectWarehouses.id], name: "wit_warehouse_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "wit_material_fk" }), foreignKey({ columns: [table.requisitionId], foreignColumns: [procurementRequisitions.id], name: "wit_requisition_fk" }), foreignKey({ columns: [table.transferId], foreignColumns: [warehouseInventoryTransfers.id], name: "wit_transfer_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "wit_creator_fk" })],
 );
 
-export const materialIssues = mysqlTable(
+export const materialIssues = pgTable(
   "material_issues",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenantId", { length: 36 }).notNull(), projectId: varchar("projectId", { length: 36 }).notNull(), inventoryTransactionId: varchar("inventoryTransactionId", { length: 36 }).notNull(), costEntryId: varchar("costEntryId", { length: 36 }).notNull(), materialId: varchar("materialId", { length: 36 }).notNull(), wbsItemId: varchar("wbsItemId", { length: 36 }).notNull(), activityId: varchar("activityId", { length: 36 }), issuedQuantity: decimal("issuedQuantity", { precision: 18, scale: 3 }).notNull(), unitCost: decimal("unitCost", { precision: 18, scale: 2 }).notNull(), totalCost: decimal("totalCost", { precision: 18, scale: 2 }).notNull(), issuedAt: timestamp("issuedAt").notNull(), createdByUserId: int("createdByUserId").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull(), costEntryId: varchar("cost_entry_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), wbsItemId: varchar("wbs_item_id", { length: 36 }).notNull(), activityId: varchar("activity_id", { length: 36 }), issuedQuantity: numeric("issued_quantity", { precision: 18, scale: 3 }).notNull(), unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull(), totalCost: numeric("total_cost", { precision: 18, scale: 2 }).notNull(), issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [uniqueIndex("material_issues_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_issues_cost_unique").on(table.costEntryId), index("material_issues_tenant_project_idx").on(table.tenantId, table.projectId, table.issuedAt), index("material_issues_wbs_activity_idx").on(table.wbsItemId, table.activityId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mi_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mi_project_fk" }), foreignKey({ columns: [table.inventoryTransactionId], foreignColumns: [warehouseInventoryTransactions.id], name: "mi_tx_fk" }), foreignKey({ columns: [table.costEntryId], foreignColumns: [costEntries.id], name: "mi_cost_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "mi_material_fk" }), foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "mi_wbs_fk" }), foreignKey({ columns: [table.activityId], foreignColumns: [activities.id], name: "mi_activity_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "mi_creator_fk" })],
 );
 
-export const changeRequests = mysqlTable(
+export const changeRequestsStatusEnum = pgEnum("change_requests_status", ["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]);
+export const changeRequests = pgTable(
   "change_requests",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    changeNumber: varchar("changeNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    changeNumber: varchar("change_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
-    impactScheduleDays: int("impactScheduleDays").default(0).notNull(),
-    impactCost: decimal("impactCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    impactScheduleDays: integer("impact_schedule_days").default(0).notNull(),
+    impactCost: numeric("impact_cost", { precision: 18, scale: 2 }).default("0").notNull(),
     // Effect of an APPROVED change order on the client contract value (can be negative).
     // impactCost is the cost side; this is the price side the profitability screen adds.
-    contractValueImpact: decimal("contractValueImpact", { precision: 18, scale: 2 }).default("0").notNull(),
+    contractValueImpact: numeric("contract_value_impact", { precision: 18, scale: 2 }).default("0").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    submittedAt: timestamp("submittedAt"),
-    reviewedByUserId: int("reviewedByUserId").references(() => users.id),
-    reviewedAt: timestamp("reviewedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: changeRequestsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("change_requests_project_number_unique").on(table.projectId, table.changeNumber), index("change_requests_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const claims = mysqlTable(
+export const claimsStatusEnum = pgEnum("claims_status", ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"]);
+export const claims = pgTable(
   "claims",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    contractId: varchar("contractId", { length: 36 }).references(() => contracts.id),
-    claimNumber: varchar("claimNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    contractId: varchar("contract_id", { length: 36 }).references(() => contracts.id),
+    claimNumber: varchar("claim_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
-    claimedAmount: decimal("claimedAmount", { precision: 18, scale: 2 }).notNull(),
-    approvedAmount: decimal("approvedAmount", { precision: 18, scale: 2 }),
+    claimedAmount: numeric("claimed_amount", { precision: 18, scale: 2 }).notNull(),
+    approvedAmount: numeric("approved_amount", { precision: 18, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"]).default("draft").notNull(),
-    submittedAt: timestamp("submittedAt"),
-    resolvedAt: timestamp("resolvedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: claimsStatusEnum("status").default("draft").notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("claims_project_number_unique").on(table.projectId, table.claimNumber), index("claims_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("claims_contract_idx").on(table.contractId)],
 );
 
-export const projectResources = mysqlTable(
+export const projectResourcesResourceTypeEnum = pgEnum("project_resources_resource_type", ["labor", "equipment", "material", "service"]);
+export const projectResources = pgTable(
   "project_resources",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    resourceCode: varchar("resourceCode", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    resourceCode: varchar("resource_code", { length: 120 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    resourceType: mysqlEnum("resourceType", ["labor", "equipment", "material", "service"]).notNull(),
-    plannedUnits: decimal("plannedUnits", { precision: 14, scale: 2 }).default("0").notNull(),
-    allocatedUnits: decimal("allocatedUnits", { precision: 14, scale: 2 }).default("0").notNull(),
-    unitCost: decimal("unitCost", { precision: 18, scale: 2 }).default("0").notNull(),
+    resourceType: projectResourcesResourceTypeEnum("resource_type").notNull(),
+    plannedUnits: numeric("planned_units", { precision: 14, scale: 2 }).default("0").notNull(),
+    allocatedUnits: numeric("allocated_units", { precision: 14, scale: 2 }).default("0").notNull(),
+    unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).default("0").notNull(),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("project_resources_project_code_unique").on(table.projectId, table.resourceCode), index("project_resources_tenant_project_type_idx").on(table.tenantId, table.projectId, table.resourceType)],
 );
 
-export const wbsItems = mysqlTable(
+export const wbsItems = pgTable(
   "wbs_items",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    parentId: varchar("parentId", { length: 36 }),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    parentId: varchar("parent_id", { length: 36 }),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    earnedValue: decimal("earnedValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    actualCost: decimal("actualCost", { precision: 18, scale: 2 }).default("0").notNull(),
-    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).default("0").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    plannedValue: numeric("planned_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    earnedValue: numeric("earned_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualCost: numeric("actual_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    progressPercent: numeric("progress_percent", { precision: 5, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("wbs_items_project_code_unique").on(table.projectId, table.code), index("wbs_items_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const activities = mysqlTable(
+export const activitiesStatusEnum = pgEnum("activities_status", ["not_started", "in_progress", "completed", "blocked"]);
+export const activities = pgTable(
   "activities",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    status: mysqlEnum("status", ["not_started", "in_progress", "completed", "blocked"]).default("not_started").notNull(),
-    plannedValue: decimal("plannedValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    earnedValue: decimal("earnedValue", { precision: 18, scale: 2 }).default("0").notNull(),
-    plannedStartAt: timestamp("plannedStartAt"),
-    plannedFinishAt: timestamp("plannedFinishAt"),
-    actualStartAt: timestamp("actualStartAt"),
-    actualFinishAt: timestamp("actualFinishAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: activitiesStatusEnum("status").default("not_started").notNull(),
+    plannedValue: numeric("planned_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    earnedValue: numeric("earned_value", { precision: 18, scale: 2 }).default("0").notNull(),
+    plannedStartAt: timestamp("planned_start_at", { withTimezone: true }),
+    plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }),
+    actualStartAt: timestamp("actual_start_at", { withTimezone: true }),
+    actualFinishAt: timestamp("actual_finish_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("activities_project_code_unique").on(table.projectId, table.code), index("activities_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const budgetLines = mysqlTable(
+export const budgetLines = pgTable(
   "budget_lines",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    costCode: varchar("costCode", { length: 80 }).notNull(),
-    originalAmount: decimal("originalAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    currentAmount: decimal("currentAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    costCode: varchar("cost_code", { length: 80 }).notNull(),
+    originalAmount: numeric("original_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    currentAmount: numeric("current_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("budget_lines_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const costEntries = mysqlTable(
+export const costEntriesEntryTypeEnum = pgEnum("cost_entries_entry_type", ["actual", "accrual", "adjustment"]);
+export const costEntriesStatusEnum = pgEnum("cost_entries_status", ["draft", "posted", "void"]);
+export const costEntriesCategoryEnum = pgEnum("cost_entries_category", ["materials", "labour", "subcontract", "other"]);
+export const costEntries = pgTable(
   "cost_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
-    entryType: mysqlEnum("entryType", ["actual", "accrual", "adjustment"]).notNull(),
-    status: mysqlEnum("status", ["draft", "posted", "void"]).default("draft").notNull(),
-    incurredAt: timestamp("incurredAt").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
+    entryType: costEntriesEntryTypeEnum("entry_type").notNull(),
+    status: costEntriesStatusEnum("status").default("draft").notNull(),
+    incurredAt: timestamp("incurred_at", { withTimezone: true }).notNull(),
     // What the cost is and the document it came from, so profit can be drilled down to its source.
-    category: mysqlEnum("category", ["materials", "labour", "subcontract", "other"]).default("other").notNull(),
-    sourceType: varchar("sourceType", { length: 40 }),
-    sourceId: varchar("sourceId", { length: 36 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    category: costEntriesCategoryEnum("category").default("other").notNull(),
+    sourceType: varchar("source_type", { length: 40 }),
+    sourceId: varchar("source_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("cost_entries_tenant_project_date_idx").on(table.tenantId, table.projectId, table.incurredAt)],
 );
 
-export const progressEntries = mysqlTable(
+export const progressEntriesStatusEnum = pgEnum("progress_entries_status", ["draft", "submitted", "validated", "rejected"]);
+export const progressEntries = pgTable(
   "progress_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    activityId: varchar("activityId", { length: 36 }).references(() => activities.id),
-    progressPercent: decimal("progressPercent", { precision: 5, scale: 2 }).notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "validated", "rejected"]).default("draft").notNull(),
-    measuredAt: timestamp("measuredAt").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    activityId: varchar("activity_id", { length: 36 }).references(() => activities.id),
+    progressPercent: numeric("progress_percent", { precision: 5, scale: 2 }).notNull(),
+    status: progressEntriesStatusEnum("status").default("draft").notNull(),
+    measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("progress_entries_tenant_project_date_idx").on(table.tenantId, table.projectId, table.measuredAt)],
 );
 
-export const evmSnapshots = mysqlTable(
+export const evmSnapshotsEacMethodEnum = pgEnum("evm_snapshots_eac_method", ["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]);
+export const evmSnapshots = pgTable(
   "evm_snapshots",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    periodAt: timestamp("periodAt").notNull(),
-    pv: decimal("pv", { precision: 18, scale: 2 }).notNull(),
-    ev: decimal("ev", { precision: 18, scale: 2 }).notNull(),
-    ac: decimal("ac", { precision: 18, scale: 2 }).notNull(),
-    bac: decimal("bac", { precision: 18, scale: 2 }).notNull(),
-    cv: decimal("cv", { precision: 18, scale: 2 }).notNull(),
-    sv: decimal("sv", { precision: 18, scale: 2 }).notNull(),
-    cpi: decimal("cpi", { precision: 12, scale: 4 }),
-    spi: decimal("spi", { precision: 12, scale: 4 }),
-    eac: decimal("eac", { precision: 18, scale: 2 }).notNull(),
-    etc: decimal("etc", { precision: 18, scale: 2 }).notNull(),
-    vac: decimal("vac", { precision: 18, scale: 2 }).notNull(),
-    tcpi: decimal("tcpi", { precision: 12, scale: 4 }),
-    eacMethod: mysqlEnum("eacMethod", ["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    periodAt: timestamp("period_at", { withTimezone: true }).notNull(),
+    pv: numeric("pv", { precision: 18, scale: 2 }).notNull(),
+    ev: numeric("ev", { precision: 18, scale: 2 }).notNull(),
+    ac: numeric("ac", { precision: 18, scale: 2 }).notNull(),
+    bac: numeric("bac", { precision: 18, scale: 2 }).notNull(),
+    cv: numeric("cv", { precision: 18, scale: 2 }).notNull(),
+    sv: numeric("sv", { precision: 18, scale: 2 }).notNull(),
+    cpi: numeric("cpi", { precision: 12, scale: 4 }),
+    spi: numeric("spi", { precision: 12, scale: 4 }),
+    eac: numeric("eac", { precision: 18, scale: 2 }).notNull(),
+    etc: numeric("etc", { precision: 18, scale: 2 }).notNull(),
+    vac: numeric("vac", { precision: 18, scale: 2 }).notNull(),
+    tcpi: numeric("tcpi", { precision: 12, scale: 4 }),
+    eacMethod: evmSnapshotsEacMethodEnum("eac_method").notNull(),
     // Profitability extension (null on snapshots taken before it existed).
-    adjustedContractValue: decimal("adjustedContractValue", { precision: 18, scale: 2 }),
-    fpac: decimal("fpac", { precision: 18, scale: 2 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    adjustedContractValue: numeric("adjusted_contract_value", { precision: 18, scale: 2 }),
+    fpac: numeric("fpac", { precision: 18, scale: 2 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("evm_snapshots_project_period_unique").on(table.projectId, table.periodAt), index("evm_snapshots_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const risks = mysqlTable(
+export const risksStatusEnum = pgEnum("risks_status", ["open", "mitigating", "accepted", "closed"]);
+export const risks = pgTable(
   "risks",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     cause: text("cause"),
     event: text("event"),
     impact: text("impact"),
-    probability: int("probability").notNull(),
-    severity: int("severity").notNull(),
-    residualProbability: int("residualProbability"),
-    residualSeverity: int("residualSeverity"),
+    probability: integer("probability").notNull(),
+    severity: integer("severity").notNull(),
+    residualProbability: integer("residual_probability"),
+    residualSeverity: integer("residual_severity"),
     response: text("response"),
     mitigation: text("mitigation"),
     trigger: text("trigger"),
-    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
-    dueAt: timestamp("dueAt"),
-    status: mysqlEnum("status", ["open", "mitigating", "accepted", "closed"]).default("open").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    ownerMembershipId: varchar("owner_membership_id", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    status: risksStatusEnum("status").default("open").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("risks_project_code_unique").on(table.projectId, table.code), index("risks_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const issues = mysqlTable(
+export const issuesPriorityEnum = pgEnum("issues_priority", ["low", "medium", "high", "critical"]);
+export const issuesEscalationStatusEnum = pgEnum("issues_escalation_status", ["none", "pending", "escalated"]);
+export const issuesStatusEnum = pgEnum("issues_status", ["open", "in_progress", "resolved", "closed"]);
+export const issues = pgTable(
   "issues",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     cause: text("cause"),
     impact: text("impact"),
-    priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
-    dueAt: timestamp("dueAt"),
-    escalationStatus: mysqlEnum("escalationStatus", ["none", "pending", "escalated"]).default("none").notNull(),
-    status: mysqlEnum("status", ["open", "in_progress", "resolved", "closed"]).default("open").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    priority: issuesPriorityEnum("priority").default("medium").notNull(),
+    ownerMembershipId: varchar("owner_membership_id", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    escalationStatus: issuesEscalationStatusEnum("escalation_status").default("none").notNull(),
+    status: issuesStatusEnum("status").default("open").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("issues_project_code_unique").on(table.projectId, table.code), index("issues_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const actions = mysqlTable(
+export const actionsPriorityEnum = pgEnum("actions_priority", ["low", "medium", "high", "critical"]);
+export const actionsEscalationStatusEnum = pgEnum("actions_escalation_status", ["none", "pending", "escalated"]);
+export const actionsStatusEnum = pgEnum("actions_status", ["open", "in_progress", "completed", "cancelled"]);
+export const actions = pgTable(
   "actions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
-    priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-    ownerMembershipId: varchar("ownerMembershipId", { length: 36 }).references(() => memberships.id),
-    dueAt: timestamp("dueAt"),
-    evidenceDocumentId: varchar("evidenceDocumentId", { length: 36 }),
-    escalationStatus: mysqlEnum("escalationStatus", ["none", "pending", "escalated"]).default("none").notNull(),
-    status: mysqlEnum("status", ["open", "in_progress", "completed", "cancelled"]).default("open").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    priority: actionsPriorityEnum("priority").default("medium").notNull(),
+    ownerMembershipId: varchar("owner_membership_id", { length: 36 }).references(() => memberships.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    evidenceDocumentId: varchar("evidence_document_id", { length: 36 }),
+    escalationStatus: actionsEscalationStatusEnum("escalation_status").default("none").notNull(),
+    status: actionsStatusEnum("status").default("open").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("actions_tenant_project_due_idx").on(table.tenantId, table.projectId, table.dueAt)],
 );
 
-export const decisions = mysqlTable(
+export const decisionsStatusEnum = pgEnum("decisions_status", ["draft", "submitted", "approved", "rejected", "implemented"]);
+export const decisions = pgTable(
   "decisions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
     problem: text("problem").notNull(),
     options: text("options").notNull(),
     recommendation: text("recommendation"),
-    costImpact: decimal("costImpact", { precision: 18, scale: 2 }),
-    scheduleImpactDays: int("scheduleImpactDays"),
-    riskImpact: text("riskImpact"),
-    decisionOwnerMembershipId: varchar("decisionOwnerMembershipId", { length: 36 }).references(() => memberships.id),
+    costImpact: numeric("cost_impact", { precision: 18, scale: 2 }),
+    scheduleImpactDays: integer("schedule_impact_days"),
+    riskImpact: text("risk_impact"),
+    decisionOwnerMembershipId: varchar("decision_owner_membership_id", { length: 36 }).references(() => memberships.id),
     decision: text("decision"),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected", "implemented"]).default("draft").notNull(),
-    decidedAt: timestamp("decidedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: decisionsStatusEnum("status").default("draft").notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("decisions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const controlRecordLinks = mysqlTable(
+export const controlRecordLinksSourceTypeEnum = pgEnum("control_record_links_source_type", ["risk", "issue", "action", "decision"]);
+export const controlRecordLinksTargetTypeEnum = pgEnum("control_record_links_target_type", ["risk", "issue", "action", "decision", "rfi", "ncr"]);
+export const controlRecordLinks = pgTable(
   "control_record_links",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    sourceType: mysqlEnum("sourceType", ["risk", "issue", "action", "decision"]).notNull(),
-    sourceId: varchar("sourceId", { length: 36 }).notNull(),
-    targetType: mysqlEnum("targetType", ["risk", "issue", "action", "decision", "rfi", "ncr"]).notNull(),
-    targetId: varchar("targetId", { length: 36 }).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    sourceType: controlRecordLinksSourceTypeEnum("source_type").notNull(),
+    sourceId: varchar("source_id", { length: 36 }).notNull(),
+    targetType: controlRecordLinksTargetTypeEnum("target_type").notNull(),
+    targetId: varchar("target_id", { length: 36 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("control_record_links_project_source_target_unique").on(table.projectId, table.sourceType, table.sourceId, table.targetType, table.targetId),
@@ -1589,61 +1685,74 @@ export const controlRecordLinks = mysqlTable(
   ],
 );
 
-export const projectHealthSnapshots = mysqlTable(
+export const projectHealthSnapshotsStatusEnum = pgEnum("project_health_snapshots_status", ["green", "amber", "red"]);
+export const projectHealthSnapshotsConfidenceEnum = pgEnum("project_health_snapshots_confidence", ["low", "medium", "high"]);
+export const projectHealthSnapshots = pgTable(
   "project_health_snapshots",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    periodAt: timestamp("periodAt").notNull(),
-    overallScore: decimal("overallScore", { precision: 5, scale: 2 }).notNull(),
-    status: mysqlEnum("status", ["green", "amber", "red"]).notNull(),
-    confidence: mysqlEnum("confidence", ["low", "medium", "high"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    periodAt: timestamp("period_at", { withTimezone: true }).notNull(),
+    overallScore: numeric("overall_score", { precision: 5, scale: 2 }).notNull(),
+    status: projectHealthSnapshotsStatusEnum("status").notNull(),
+    confidence: projectHealthSnapshotsConfidenceEnum("confidence").notNull(),
     drivers: text("drivers").notNull(),
     exceptions: text("exceptions").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("project_health_period_unique").on(table.projectId, table.periodAt), index("project_health_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const dataImports = mysqlTable(
+export const dataImportsSourceFormatEnum = pgEnum("data_imports_source_format", ["xlsx", "csv", "xer"]);
+export const dataImportsStatusEnum = pgEnum("data_imports_status", ["uploaded", "analyzing", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]);
+export const dataImportsDuplicateModeEnum = pgEnum("data_imports_duplicate_mode", ["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
+export const dataImports = pgTable(
   "data_imports",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).references(() => projects.id),
-    moduleCode: varchar("moduleCode", { length: 64 }).notNull(),
-    templateCode: varchar("templateCode", { length: 64 }).notNull(),
-    sourceFormat: mysqlEnum("sourceFormat", ["xlsx", "csv", "xer"]).notNull(),
-    fileName: varchar("fileName", { length: 255 }).notNull(),
-    fileKey: varchar("fileKey", { length: 512 }).notNull(),
-    fileHash: varchar("fileHash", { length: 64 }).notNull(),
-    status: mysqlEnum("status", ["uploaded", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]).default("uploaded").notNull(),
-    duplicateMode: mysqlEnum("duplicateMode", ["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]).default("fail_on_duplicate").notNull(),
-    totalRows: int("totalRows").default(0).notNull(), validRows: int("validRows").default(0).notNull(), invalidRows: int("invalidRows").default(0).notNull(), createdRows: int("createdRows").default(0).notNull(), updatedRows: int("updatedRows").default(0).notNull(), skippedRows: int("skippedRows").default(0).notNull(),
-    mappingJson: text("mappingJson"), summaryJson: text("summaryJson"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    startedAt: timestamp("startedAt"), completedAt: timestamp("completedAt"), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
+    moduleCode: varchar("module_code", { length: 64 }).notNull(),
+    templateCode: varchar("template_code", { length: 64 }).notNull(),
+    sourceFormat: dataImportsSourceFormatEnum("source_format").notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileKey: varchar("file_key", { length: 512 }).notNull(),
+    fileHash: varchar("file_hash", { length: 64 }).notNull(),
+    status: dataImportsStatusEnum("status").default("uploaded").notNull(),
+    duplicateMode: dataImportsDuplicateModeEnum("duplicate_mode").default("fail_on_duplicate").notNull(),
+    totalRows: integer("total_rows").default(0).notNull(), validRows: integer("valid_rows").default(0).notNull(), invalidRows: integer("invalid_rows").default(0).notNull(), createdRows: integer("created_rows").default(0).notNull(), updatedRows: integer("updated_rows").default(0).notNull(), skippedRows: integer("skipped_rows").default(0).notNull(),
+    mappingJson: text("mapping_json"), summaryJson: text("summary_json"),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    // Background job state (work order 6, direct upload): a file larger than a request can carry is analysed and imported by a job whose progress the
+    // user sees. `analyzing`/`importing` are the in-flight statuses; `failed` carries `failureReason` (a code the UI translates). `heartbeatAt` and
+    // `attempts` let a stalled job (function killed at its time limit) be resumed, a bounded number of times, by the next poll or the daily sweep.
+    progressPercent: integer("progress_percent").default(0).notNull(), progressStage: varchar("progress_stage", { length: 32 }), failureReason: varchar("failure_reason", { length: 128 }),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }), attempts: integer("attempts").default(0).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }), completedAt: timestamp("completed_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash)],
+  // A file whose job failed releases its hash: the same file may be uploaded again (or re-analysed) instead of being refused as a duplicate of a dead row.
+  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash).where(sql`${table.status} <> 'failed'`)],
 );
 
-export const dataImportErrors = mysqlTable(
+export const dataImportErrorsSeverityEnum = pgEnum("data_import_errors_severity", ["error", "warning"]);
+export const dataImportErrors = pgTable(
   "data_import_errors",
-  { id: varchar("id", { length: 36 }).primaryKey(), importId: varchar("importId", { length: 36 }).notNull().references(() => dataImports.id), rowNumber: int("rowNumber").notNull(), columnName: varchar("columnName", { length: 128 }), value: text("value"), code: varchar("code", { length: 96 }).notNull(), severity: mysqlEnum("severity", ["error", "warning"]).notNull(), suggestedFix: text("suggestedFix"), createdAt: timestamp("createdAt").defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), importId: varchar("import_id", { length: 36 }).notNull().references(() => dataImports.id), rowNumber: integer("row_number").notNull(), columnName: varchar("column_name", { length: 128 }), value: text("value"), code: varchar("code", { length: 96 }).notNull(), severity: dataImportErrorsSeverityEnum("severity").notNull(), suggestedFix: text("suggested_fix"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [index("data_import_errors_import_row_idx").on(table.importId, table.rowNumber)],
 );
 
-export const dataImportRowResults = mysqlTable(
+export const dataImportRowResultsActionEnum = pgEnum("data_import_row_results_action", ["created", "updated", "skipped"]);
+export const dataImportRowResults = pgTable(
   "data_import_row_results",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    importId: varchar("importId", { length: 36 }).notNull().references(() => dataImports.id),
-    rowNumber: int("rowNumber").notNull(),
-    rowKey: varchar("rowKey", { length: 160 }).notNull(),
-    action: mysqlEnum("action", ["created", "updated", "skipped"]).notNull(),
-    entityId: varchar("entityId", { length: 36 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    importId: varchar("import_id", { length: 36 }).notNull().references(() => dataImports.id),
+    rowNumber: integer("row_number").notNull(),
+    rowKey: varchar("row_key", { length: 160 }).notNull(),
+    action: dataImportRowResultsActionEnum("action").notNull(),
+    entityId: varchar("entity_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     index("data_import_row_results_import_row_idx").on(table.importId, table.rowNumber),
@@ -1651,24 +1760,25 @@ export const dataImportRowResults = mysqlTable(
   ],
 );
 
-export const boqItems = mysqlTable(
+export const boqItemsStatusEnum = pgEnum("boq_items_status", ["active", "cancelled"]);
+export const boqItems = pgTable(
   "boq_items",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    wbsItemId: varchar("wbsItemId", { length: 36 }),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }),
     code: varchar("code", { length: 80 }).notNull(),
     description: text("description").notNull(),
-    unitOfMeasure: varchar("unitOfMeasure", { length: 40 }).notNull(),
-    quantity: decimal("quantity", { precision: 18, scale: 3 }).notNull(),
-    unitRate: decimal("unitRate", { precision: 18, scale: 2 }).notNull(),
-    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
+    unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(),
+    quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(),
+    unitRate: numeric("unit_rate", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: numeric("total_amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-    status: mysqlEnum("status", ["active", "cancelled"]).default("active").notNull(),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: boqItemsStatusEnum("status").default("active").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("boq_project_code_unique").on(table.projectId, table.code),
@@ -1680,24 +1790,25 @@ export const boqItems = mysqlTable(
   ]
 );
 
-export const subcontractContracts = mysqlTable(
+export const subcontractContractsStatusEnum = pgEnum("subcontract_contracts_status", ["draft", "active", "suspended", "closed", "cancelled"]);
+export const subcontractContracts = pgTable(
   "subcontract_contracts",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
     code: varchar("code", { length: 80 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    subcontractorName: varchar("subcontractorName", { length: 255 }).notNull(),
+    subcontractorName: varchar("subcontractor_name", { length: 255 }).notNull(),
     // The supplier-register entry the subcontract is with (G-103); the name above is copied from it when one is chosen.
-    supplierId: varchar("supplierId", { length: 36 }),
-    contractValue: decimal("contractValue", { precision: 18, scale: 2 }).notNull(),
-    retentionPercent: decimal("retentionPercent", { precision: 5, scale: 2 }).default("0").notNull(),
-    advancePaymentPercent: decimal("advancePercent", { precision: 5, scale: 2 }).default("0").notNull(),
-    status: mysqlEnum("status", ["draft", "active", "suspended", "closed", "cancelled"]).default("draft").notNull(),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    supplierId: varchar("supplier_id", { length: 36 }),
+    contractValue: numeric("contract_value", { precision: 18, scale: 2 }).notNull(),
+    retentionPercent: numeric("retention_percent", { precision: 5, scale: 2 }).default("0").notNull(),
+    advancePaymentPercent: numeric("advance_percent", { precision: 5, scale: 2 }).default("0").notNull(),
+    status: subcontractContractsStatusEnum("status").default("draft").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("subcontract_project_code_unique").on(table.projectId, table.code),
@@ -1710,26 +1821,27 @@ export const subcontractContracts = mysqlTable(
   ]
 );
 
-export const subcontractCertificates = mysqlTable(
+export const subcontractCertificatesStatusEnum = pgEnum("subcontract_certificates_status", ["draft", "submitted", "approved", "paid", "cancelled"]);
+export const subcontractCertificates = pgTable(
   "subcontract_certificates",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    subcontractId: varchar("subcontractId", { length: 36 }).notNull(),
-    certificateNumber: varchar("certificateNumber", { length: 80 }).notNull(),
-    periodStart: timestamp("periodStart").notNull(),
-    periodEnd: timestamp("periodEnd").notNull(),
-    grossAmount: decimal("grossAmount", { precision: 18, scale: 2 }).notNull(),
-    retentionAmount: decimal("retentionAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    advanceRecoveryAmount: decimal("advanceRecoveryAmount", { precision: 18, scale: 2 }).default("0").notNull(),
-    netAmount: decimal("netAmount", { precision: 18, scale: 2 }).notNull(),
-    status: mysqlEnum("status", ["draft", "submitted", "approved", "paid", "cancelled"]).default("draft").notNull(),
-    approvedByUserId: int("approvedByUserId"),
-    approvedAt: timestamp("approvedAt"),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    subcontractId: varchar("subcontract_id", { length: 36 }).notNull(),
+    certificateNumber: varchar("certificate_number", { length: 80 }).notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    grossAmount: numeric("gross_amount", { precision: 18, scale: 2 }).notNull(),
+    retentionAmount: numeric("retention_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    advanceRecoveryAmount: numeric("advance_recovery_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    netAmount: numeric("net_amount", { precision: 18, scale: 2 }).notNull(),
+    status: subcontractCertificatesStatusEnum("status").default("draft").notNull(),
+    approvedByUserId: integer("approved_by_user_id"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("subcert_project_number_unique").on(table.projectId, table.certificateNumber),
@@ -1742,18 +1854,18 @@ export const subcontractCertificates = mysqlTable(
   ]
 );
 
-export const subcontractCertificateLines = mysqlTable(
+export const subcontractCertificateLines = pgTable(
   "subcontract_certificate_lines",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    certificateId: varchar("certificateId", { length: 36 }).notNull(),
-    boqItemId: varchar("boqItemId", { length: 36 }).notNull(),
-    previousQuantity: decimal("previousQuantity", { precision: 18, scale: 3 }).notNull(),
-    currentQuantity: decimal("currentQuantity", { precision: 18, scale: 3 }).notNull(),
-    cumulativeQuantity: decimal("cumulativeQuantity", { precision: 18, scale: 3 }).notNull(),
-    unitRate: decimal("unitRate", { precision: 18, scale: 2 }).notNull(),
-    currentAmount: decimal("currentAmount", { precision: 18, scale: 2 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    certificateId: varchar("certificate_id", { length: 36 }).notNull(),
+    boqItemId: varchar("boq_item_id", { length: 36 }).notNull(),
+    previousQuantity: numeric("previous_quantity", { precision: 18, scale: 3 }).notNull(),
+    currentQuantity: numeric("current_quantity", { precision: 18, scale: 3 }).notNull(),
+    cumulativeQuantity: numeric("cumulative_quantity", { precision: 18, scale: 3 }).notNull(),
+    unitRate: numeric("unit_rate", { precision: 18, scale: 2 }).notNull(),
+    currentAmount: numeric("current_amount", { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("subcert_line_unique").on(table.certificateId, table.boqItemId),
@@ -1762,25 +1874,26 @@ export const subcontractCertificateLines = mysqlTable(
   ]
 );
 
-export const projectCommercialInvoices = mysqlTable(
+export const projectCommercialInvoicesStatusEnum = pgEnum("project_commercial_invoices_status", ["draft", "issued", "paid", "void"]);
+export const projectCommercialInvoices = pgTable(
   "project_commercial_invoices",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull(),
-    projectId: varchar("projectId", { length: 36 }).notNull(),
-    invoiceNumber: varchar("invoiceNumber", { length: 80 }).notNull(),
-    invoiceDate: timestamp("invoiceDate").notNull(),
-    clientName: varchar("clientName", { length: 255 }).notNull(),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
-    vatAmount: decimal("vatAmount", { precision: 18, scale: 2 }).notNull(),
-    totalAmount: decimal("totalAmount", { precision: 18, scale: 2 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    invoiceNumber: varchar("invoice_number", { length: 80 }).notNull(),
+    invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull(),
+    clientName: varchar("client_name", { length: 255 }).notNull(),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 18, scale: 2 }).notNull(),
+    totalAmount: numeric("total_amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-    status: mysqlEnum("status", ["draft", "issued", "paid", "void"]).default("draft").notNull(),
+    status: projectCommercialInvoicesStatusEnum("status").default("draft").notNull(),
     // When the money arrived: what places a receipt in a month of the cash flow.
-    paidAt: timestamp("paidAt"),
-    createdByUserId: int("createdByUserId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("proj_inv_project_number_unique").on(table.projectId, table.invoiceNumber),
@@ -1797,213 +1910,218 @@ export type ProductCode = (typeof productCodes)[number];
 export type SubscriptionPackageCode = (typeof subscriptionPackageCodes)[number];
 
 
-export const pmcZones = mysqlTable(
+export const pmcZones = pgTable(
   "pmc_zones",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_zones_project_code_unique").on(table.projectId, table.code), index("pmc_zones_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const pmcBlocks = mysqlTable(
+export const pmcBlocks = pgTable(
   "pmc_blocks",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    zoneId: varchar("zoneId", { length: 36 }).notNull().references(() => pmcZones.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    zoneId: varchar("zone_id", { length: 36 }).notNull().references(() => pmcZones.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_blocks_project_code_unique").on(table.projectId, table.code), index("pmc_blocks_tenant_project_zone_idx").on(table.tenantId, table.projectId, table.zoneId)],
 );
 
-export const pmcUnits = mysqlTable(
+export const pmcUnits = pgTable(
   "pmc_units",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    blockId: varchar("blockId", { length: 36 }).notNull().references(() => pmcBlocks.id),
-    unitNumber: int("unitNumber").notNull(),
-    modelCode: varchar("modelCode", { length: 80 }).notNull(),
-    saleStatus: varchar("saleStatus", { length: 80 }),
-    geometryJson: text("geometryJson"),
-    unitWeight: decimal("unitWeight", { precision: 12, scale: 4 }).default("1").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    blockId: varchar("block_id", { length: 36 }).notNull().references(() => pmcBlocks.id),
+    unitNumber: integer("unit_number").notNull(),
+    modelCode: varchar("model_code", { length: 80 }).notNull(),
+    saleStatus: varchar("sale_status", { length: 80 }),
+    geometryJson: text("geometry_json"),
+    unitWeight: numeric("unit_weight", { precision: 12, scale: 4 }).default("1").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
-export const pmcActivityGroups = mysqlTable(
+export const pmcActivityGroups = pgTable(
   "pmc_activity_groups",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_groups_project_code_unique").on(table.projectId, table.code), index("pmc_groups_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const pmcActivityStages = mysqlTable(
+export const pmcActivityStages = pgTable(
   "pmc_activity_stages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    groupId: varchar("groupId", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    groupId: varchar("group_id", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_stages_project_code_unique").on(table.projectId, table.code), index("pmc_stages_tenant_project_group_idx").on(table.tenantId, table.projectId, table.groupId)],
 );
 
-export const pmcActivityDefinitions = mysqlTable(
+export const pmcActivityDefinitions = pgTable(
   "pmc_activity_definitions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    groupId: varchar("groupId", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
-    stageId: varchar("stageId", { length: 36 }).notNull().references(() => pmcActivityStages.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    modelCode: varchar("modelCode", { length: 80 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    groupId: varchar("group_id", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
+    stageId: varchar("stage_id", { length: 36 }).notNull().references(() => pmcActivityStages.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    modelCode: varchar("model_code", { length: 80 }).notNull(),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
-    weightPercent: decimal("weightPercent", { precision: 7, scale: 4 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    weightPercent: numeric("weight_percent", { precision: 7, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_activity_defs_model_code_unique").on(table.projectId, table.modelCode, table.code), index("pmc_activity_defs_tenant_project_model_idx").on(table.tenantId, table.projectId, table.modelCode)],
 );
 
-export const pmcUnitActivityProgress = mysqlTable(
+export const pmcUnitActivityProgressStatusEnum = pgEnum("pmc_unit_activity_progress_status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]);
+export const pmcUnitActivityProgress = pgTable(
   "pmc_unit_activity_progress",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    unitId: varchar("unitId", { length: 36 }).notNull().references(() => pmcUnits.id),
-    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
-    status: mysqlEnum("status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).default("NOT_STARTED").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unit_id", { length: 36 }).notNull().references(() => pmcUnits.id),
+    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
+    status: pmcUnitActivityProgressStatusEnum("status").default("NOT_STARTED").notNull(),
     // Where the cell stands in the verifier / disbursement list the project configured.
-    verificationStatusId: varchar("verificationStatusId", { length: 36 }),
-    assignedUserId: int("assignedUserId").references(() => users.id),
-    lastChangedByUserId: int("lastChangedByUserId").references(() => users.id),
-    lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    verificationStatusId: varchar("verification_status_id", { length: 36 }),
+    assignedUserId: integer("assigned_user_id").references(() => users.id),
+    lastChangedByUserId: integer("last_changed_by_user_id").references(() => users.id),
+    lastChangedAt: timestamp("last_changed_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_unit_activity_unique").on(table.unitId, table.activityDefinitionId), index("pmc_unit_progress_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_progress_activity_fk" }), foreignKey({ columns: [table.verificationStatusId], foreignColumns: [pmcVerificationStatuses.id], name: "pmc_progress_verification_fk" })],
 );
 
-export const pmcUnitActivityHistory = mysqlTable(
+export const pmcUnitActivityHistoryFromStatusEnum = pgEnum("pmc_unit_activity_history_from_status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]);
+export const pmcUnitActivityHistoryToStatusEnum = pgEnum("pmc_unit_activity_history_to_status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]);
+export const pmcUnitActivityHistory = pgTable(
   "pmc_unit_activity_history",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    unitActivityProgressId: varchar("unitActivityProgressId", { length: 36 }).notNull(),
-    fromStatus: mysqlEnum("fromStatus", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]),
-    toStatus: mysqlEnum("toStatus", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).notNull(),
-    changedByUserId: int("changedByUserId").notNull().references(() => users.id),
-    changedAt: timestamp("changedAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitActivityProgressId: varchar("unit_activity_progress_id", { length: 36 }).notNull(),
+    fromStatus: pmcUnitActivityHistoryFromStatusEnum("from_status"),
+    toStatus: pmcUnitActivityHistoryToStatusEnum("to_status").notNull(),
+    changedByUserId: integer("changed_by_user_id").notNull().references(() => users.id),
+    changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
     note: varchar("note", { length: 1000 }),
   },
   table => [index("pmc_history_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt), foreignKey({ columns: [table.unitActivityProgressId], foreignColumns: [pmcUnitActivityProgress.id], name: "pmc_hist_progress_fk" })],
 );
 
-export const pmcVerificationStatuses = mysqlTable(
+export const pmcVerificationStatuses = pgTable(
   "pmc_verification_statuses",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     label: varchar("label", { length: 160 }).notNull(),
-    sortOrder: int("sortOrder").default(0).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
     active: boolean("active").default(true).notNull(),
     // A status that means "waiting on the verifier"; screen 9 lists cells in these and how long they have waited.
     pending: boolean("pending").default(false).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_verification_status_project_code_unique").on(table.projectId, table.code), index("pmc_verification_status_tenant_project_idx").on(table.tenantId, table.projectId, table.active)],
 );
 
-export const pmcInspectionRequests = mysqlTable(
+export const pmcInspectionRequestsResponseCodeEnum = pgEnum("pmc_inspection_requests_response_code", ["A", "B", "C", "UR"]);
+export const pmcInspectionRequests = pgTable(
   "pmc_inspection_requests",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    requestCode: varchar("requestCode", { length: 80 }).notNull(),
-    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    requestCode: varchar("request_code", { length: 80 }).notNull(),
+    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
     // Superseded by pmc_inspection_request_units; kept so rows written before 0055 stay readable.
-    unitIdsJson: text("unitIdsJson"),
-    contractorLabel: varchar("contractorLabel", { length: 255 }),
-    consultantLabel: varchar("consultantLabel", { length: 255 }),
-    responseCode: mysqlEnum("responseCode", ["A", "B", "C", "UR"]),
-    requestedAt: timestamp("requestedAt").notNull(),
+    unitIdsJson: text("unit_ids_json"),
+    contractorLabel: varchar("contractor_label", { length: 255 }),
+    consultantLabel: varchar("consultant_label", { length: 255 }),
+    responseCode: pmcInspectionRequestsResponseCodeEnum("response_code"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
     notes: text("notes"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_inspections_project_code_unique").on(table.projectId, table.requestCode), index("pmc_inspections_tenant_project_activity_idx").on(table.tenantId, table.projectId, table.activityDefinitionId), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_insp_activity_fk" })],
 );
 
-export const pmcInspectionSteps = mysqlTable(
+export const pmcInspectionStepsStatusEnum = pgEnum("pmc_inspection_steps_status", ["pending", "in_progress", "complete", "rejected"]);
+export const pmcInspectionSteps = pgTable(
   "pmc_inspection_steps",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    inspectionRequestId: varchar("inspectionRequestId", { length: 36 }).notNull(),
-    stepCode: varchar("stepCode", { length: 80 }).notNull(),
-    stepOrder: int("stepOrder").default(0).notNull(),
-    holderLabel: varchar("holderLabel", { length: 255 }),
-    status: mysqlEnum("status", ["pending", "in_progress", "complete", "rejected"]).default("pending").notNull(),
-    completedAt: timestamp("completedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    inspectionRequestId: varchar("inspection_request_id", { length: 36 }).notNull(),
+    stepCode: varchar("step_code", { length: 80 }).notNull(),
+    stepOrder: integer("step_order").default(0).notNull(),
+    holderLabel: varchar("holder_label", { length: 255 }),
+    status: pmcInspectionStepsStatusEnum("status").default("pending").notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_inspection_step_unique").on(table.inspectionRequestId, table.stepCode), index("pmc_inspection_steps_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), foreignKey({ columns: [table.inspectionRequestId], foreignColumns: [pmcInspectionRequests.id], name: "pmc_step_request_fk" })],
 );
 
-export const pmcBaselines = mysqlTable(
+export const pmcBaselines = pgTable(
   "pmc_baselines",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    activityDefinitionId: varchar("activityDefinitionId", { length: 36 }).notNull(),
-    periodAt: timestamp("periodAt").notNull(),
-    plannedPercent: decimal("plannedPercent", { precision: 7, scale: 4 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
+    periodAt: timestamp("period_at", { withTimezone: true }).notNull(),
+    plannedPercent: numeric("planned_percent", { precision: 7, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_baseline_activity_period_unique").on(table.activityDefinitionId, table.periodAt), index("pmc_baselines_tenant_project_period_idx").on(table.tenantId, table.projectId, table.periodAt), foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_base_activity_fk" })],
 );
 
-export const pmcInspectionRequestUnits = mysqlTable(
+export const pmcInspectionRequestUnits = pgTable(
   "pmc_inspection_request_units",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    inspectionRequestId: varchar("inspectionRequestId", { length: 36 }).notNull(),
-    unitId: varchar("unitId", { length: 36 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    inspectionRequestId: varchar("inspection_request_id", { length: 36 }).notNull(),
+    unitId: varchar("unit_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("pmc_inspection_unit_unique").on(table.inspectionRequestId, table.unitId),
@@ -2015,16 +2133,17 @@ export const pmcInspectionRequestUnits = mysqlTable(
 
 // Tenant decision per project: how much of an activity's weight counts at each
 // status (for example UNDER_REVIEW = 0.9). Absent rows mean the defaults in domain/pmc.ts.
-export const pmcStatusFactors = mysqlTable(
+export const pmcStatusFactorsStatusEnum = pgEnum("pmc_status_factors_status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]);
+export const pmcStatusFactors = pgTable(
   "pmc_status_factors",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    status: mysqlEnum("status", ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).notNull(),
-    factor: decimal("factor", { precision: 5, scale: 4 }).notNull(),
-    updatedByUserId: int("updatedByUserId").references(() => users.id),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    status: pmcStatusFactorsStatusEnum("status").notNull(),
+    factor: numeric("factor", { precision: 5, scale: 4 }).notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_status_factor_unique").on(table.projectId, table.status), index("pmc_status_factors_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
@@ -2032,20 +2151,20 @@ export const pmcStatusFactors = mysqlTable(
 // The site plan a user uploads (PNG or JPEG). The newest row is the plan in use; unit
 // polygons are stored on pmc_units.geometryJson in coordinates normalised to this
 // image (0..1, origin at the top left), so any resolution works.
-export const pmcSitePlans = mysqlTable(
+export const pmcSitePlans = pgTable(
   "pmc_site_plans",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    fileKey: varchar("fileKey", { length: 512 }).notNull(),
-    fileName: varchar("fileName", { length: 255 }).notNull(),
-    mimeType: varchar("mimeType", { length: 64 }).notNull(),
-    widthPx: int("widthPx").notNull(),
-    heightPx: int("heightPx").notNull(),
-    fileHash: varchar("fileHash", { length: 64 }).notNull(),
-    uploadedByUserId: int("uploadedByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    fileKey: varchar("file_key", { length: 512 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 64 }).notNull(),
+    widthPx: integer("width_px").notNull(),
+    heightPx: integer("height_px").notNull(),
+    fileHash: varchar("file_hash", { length: 64 }).notNull(),
+    uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("pmc_site_plans_tenant_project_idx").on(table.tenantId, table.projectId, table.createdAt)],
 );
@@ -2054,14 +2173,14 @@ export const pmcSitePlans = mysqlTable(
 // address and an HMAC of the code, never either value itself.
 // One row per signed-in browser. The session cookie is a signed token that names a row here (`sid`), and a request is accepted only while the row is
 // unexpired and unrevoked: that is what lets "log out" end a session in the server, not just in the browser that asked.
-export const authSessions = mysqlTable(
+export const authSessions = pgTable(
   "auth_sessions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: int("userId").notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    expiresAt: timestamp("expiresAt").notNull(),
-    revokedAt: timestamp("revokedAt"),
+    userId: integer("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   table => [
     foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "auth_sessions_user_fk" }).onDelete("cascade"),
@@ -2069,34 +2188,30 @@ export const authSessions = mysqlTable(
   ],
 );
 
-export const loginCodes = mysqlTable(
-  "login_codes",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    emailHash: varchar("emailHash", { length: 64 }).notNull(),
-    codeHash: varchar("codeHash", { length: 64 }).notNull(),
-    expiresAt: timestamp("expiresAt").notNull(),
-    attempts: int("attempts").default(0).notNull(),
-    consumedAt: timestamp("consumedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-  },
-  table => [index("login_codes_email_created_idx").on(table.emailHash, table.createdAt)],
-);
+// Wrong sign-in codes per address (a hash, never the address). Supabase Auth owns the code itself; this is the guess limit it does not give:
+// five wrong codes lock the address for fifteen minutes, whatever IP they come from, and a new code request does not clear the count.
+export const authCodeAttempts = pgTable("auth_code_attempts", {
+  emailHash: varchar("email_hash", { length: 64 }).primaryKey(),
+  failures: integer("failures").default(0).notNull(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).defaultNow().notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // Per-WBS EAC captured with each profitability snapshot: the history that lets
 // the screen say which work items moved the profit since the last snapshot.
-export const evmWbsSnapshots = mysqlTable(
+export const evmWbsSnapshots = pgTable(
   "evm_wbs_snapshots",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    snapshotId: varchar("snapshotId", { length: 36 }).notNull().references(() => evmSnapshots.id),
-    wbsItemId: varchar("wbsItemId", { length: 36 }).references(() => wbsItems.id),
-    bac: decimal("bac", { precision: 18, scale: 2 }).notNull(),
-    ac: decimal("ac", { precision: 18, scale: 2 }).notNull(),
-    eac: decimal("eac", { precision: 18, scale: 2 }).notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    snapshotId: varchar("snapshot_id", { length: 36 }).notNull().references(() => evmSnapshots.id),
+    wbsItemId: varchar("wbs_item_id", { length: 36 }).references(() => wbsItems.id),
+    bac: numeric("bac", { precision: 18, scale: 2 }).notNull(),
+    ac: numeric("ac", { precision: 18, scale: 2 }).notNull(),
+    eac: numeric("eac", { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
     uniqueIndex("evm_wbs_snapshots_unique").on(table.snapshotId, table.wbsItemId),
@@ -2106,202 +2221,215 @@ export const evmWbsSnapshots = mysqlTable(
 
 // ---------------------------------------------------------------- Technical and architectural coordination (work order 5, item 7)
 // Every row carries the tenant and the project; every query filters on both. Numbers are typed by the coordinator and unique within the project (as RFIs are).
-export const designDrawings = mysqlTable(
+export const designDrawingsDisciplineEnum = pgEnum("design_drawings_discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]);
+export const designDrawingsStatusEnum = pgEnum("design_drawings_status", ["registered", "under_review", "approved", "cancelled"]);
+export const designDrawings = pgTable(
   "design_drawings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    drawingNumber: varchar("drawingNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    drawingNumber: varchar("drawing_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    discipline: mysqlEnum("discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]).notNull(),
-    status: mysqlEnum("status", ["registered", "under_review", "approved", "cancelled"]).default("registered").notNull(),
-    currentRevision: varchar("currentRevision", { length: 20 }).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    discipline: designDrawingsDisciplineEnum("discipline").notNull(),
+    status: designDrawingsStatusEnum("status").default("registered").notNull(),
+    currentRevision: varchar("current_revision", { length: 20 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("design_drawings_project_number_unique").on(table.projectId, table.drawingNumber), index("design_drawings_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.discipline)],
 );
 
-export const designDrawingRevisions = mysqlTable(
+export const designDrawingRevisions = pgTable(
   "design_drawing_revisions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    drawingId: varchar("drawingId", { length: 36 }).notNull().references(() => designDrawings.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    drawingId: varchar("drawing_id", { length: 36 }).notNull().references(() => designDrawings.id),
     revision: varchar("revision", { length: 20 }).notNull(),
     description: varchar("description", { length: 500 }),
-    isCurrent: boolean("isCurrent").default(true).notNull(),
-    issuedAt: timestamp("issuedAt").defaultNow().notNull(),
-    issuedByUserId: int("issuedByUserId").notNull().references(() => users.id),
-    approvedAt: timestamp("approvedAt"),
-    approvedByUserId: int("approvedByUserId").references(() => users.id),
+    isCurrent: boolean("is_current").default(true).notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).defaultNow().notNull(),
+    issuedByUserId: integer("issued_by_user_id").notNull().references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
   },
   table => [uniqueIndex("design_revisions_drawing_revision_unique").on(table.drawingId, table.revision), index("design_revisions_tenant_project_idx").on(table.tenantId, table.projectId, table.drawingId)],
 );
 
-export const designTransmittals = mysqlTable(
+export const designTransmittalsDirectionEnum = pgEnum("design_transmittals_direction", ["outgoing", "incoming"]);
+export const designTransmittalsStatusEnum = pgEnum("design_transmittals_status", ["draft", "sent", "acknowledged"]);
+export const designTransmittals = pgTable(
   "design_transmittals",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    transmittalNumber: varchar("transmittalNumber", { length: 120 }).notNull(),
-    direction: mysqlEnum("direction", ["outgoing", "incoming"]).default("outgoing").notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    transmittalNumber: varchar("transmittal_number", { length: 120 }).notNull(),
+    direction: designTransmittalsDirectionEnum("direction").default("outgoing").notNull(),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
     subject: varchar("subject", { length: 255 }).notNull(),
-    status: mysqlEnum("status", ["draft", "sent", "acknowledged"]).default("draft").notNull(),
-    sentAt: timestamp("sentAt"),
-    acknowledgedAt: timestamp("acknowledgedAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    status: designTransmittalsStatusEnum("status").default("draft").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("design_transmittals_project_number_unique").on(table.projectId, table.transmittalNumber), index("design_transmittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
 );
 
-export const designTransmittalItems = mysqlTable(
+export const designTransmittalItems = pgTable(
   "design_transmittal_items",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    transmittalId: varchar("transmittalId", { length: 36 }).notNull().references(() => designTransmittals.id),
-    revisionId: varchar("revisionId", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    transmittalId: varchar("transmittal_id", { length: 36 }).notNull(),
+    revisionId: varchar("revision_id", { length: 36 }).notNull(),
   },
-  // named by hand: the generated name for this foreign key is longer than the 64 characters MySQL allows
-  table => [foreignKey({ columns: [table.revisionId], foreignColumns: [designDrawingRevisions.id], name: "design_trm_items_revision_fk" }), uniqueIndex("design_transmittal_items_unique").on(table.transmittalId, table.revisionId), index("design_transmittal_items_revision_idx").on(table.revisionId)],
+  // named by hand: the generated name for this foreign key is longer than the 63 characters PostgreSQL allows
+  table => [foreignKey({ columns: [table.transmittalId], foreignColumns: [designTransmittals.id], name: "design_trm_items_transmittal_fk" }), foreignKey({ columns: [table.revisionId], foreignColumns: [designDrawingRevisions.id], name: "design_trm_items_revision_fk" }), uniqueIndex("design_transmittal_items_unique").on(table.transmittalId, table.revisionId), index("design_transmittal_items_revision_idx").on(table.revisionId)],
 );
 
-export const designComments = mysqlTable(
+export const designCommentsSeverityEnum = pgEnum("design_comments_severity", ["minor", "major", "critical"]);
+export const designCommentsStatusEnum = pgEnum("design_comments_status", ["open", "responded", "closed"]);
+export const designComments = pgTable(
   "design_comments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    drawingId: varchar("drawingId", { length: 36 }).notNull().references(() => designDrawings.id),
-    revisionId: varchar("revisionId", { length: 36 }).notNull().references(() => designDrawingRevisions.id),
-    commentNumber: varchar("commentNumber", { length: 120 }).notNull(),
-    raisedBy: varchar("raisedBy", { length: 255 }).notNull(),
-    severity: mysqlEnum("severity", ["minor", "major", "critical"]).default("minor").notNull(),
-    commentText: text("commentText").notNull(),
-    status: mysqlEnum("status", ["open", "responded", "closed"]).default("open").notNull(),
-    responseText: text("responseText"),
-    respondedAt: timestamp("respondedAt"),
-    respondedByUserId: int("respondedByUserId").references(() => users.id),
-    closedAt: timestamp("closedAt"),
-    closedByUserId: int("closedByUserId").references(() => users.id),
-    dueAt: timestamp("dueAt"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    drawingId: varchar("drawing_id", { length: 36 }).notNull().references(() => designDrawings.id),
+    revisionId: varchar("revision_id", { length: 36 }).notNull().references(() => designDrawingRevisions.id),
+    commentNumber: varchar("comment_number", { length: 120 }).notNull(),
+    raisedBy: varchar("raised_by", { length: 255 }).notNull(),
+    severity: designCommentsSeverityEnum("severity").default("minor").notNull(),
+    commentText: text("comment_text").notNull(),
+    status: designCommentsStatusEnum("status").default("open").notNull(),
+    responseText: text("response_text"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    respondedByUserId: integer("responded_by_user_id").references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: integer("closed_by_user_id").references(() => users.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("design_comments_project_number_unique").on(table.projectId, table.commentNumber), index("design_comments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt), index("design_comments_drawing_idx").on(table.drawingId, table.status)],
 );
 
-export const designSubmittals = mysqlTable(
+export const designSubmittalsDisciplineEnum = pgEnum("design_submittals_discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]);
+export const designSubmittalsStatusEnum = pgEnum("design_submittals_status", ["draft", "submitted", "replied", "closed"]);
+export const designSubmittalsReplyCodeEnum = pgEnum("design_submittals_reply_code", ["A", "B", "C", "D"]);
+export const designSubmittals = pgTable(
   "design_submittals",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    submittalNumber: varchar("submittalNumber", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    submittalNumber: varchar("submittal_number", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    discipline: mysqlEnum("discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]).notNull(),
-    drawingId: varchar("drawingId", { length: 36 }).references(() => designDrawings.id),
-    resubmissionOfId: varchar("resubmissionOfId", { length: 36 }),
-    status: mysqlEnum("status", ["draft", "submitted", "replied", "closed"]).default("draft").notNull(),
-    submittedAt: timestamp("submittedAt"),
-    submittedByUserId: int("submittedByUserId").references(() => users.id),
-    dueAt: timestamp("dueAt"),
-    replyCode: mysqlEnum("replyCode", ["A", "B", "C", "D"]),
-    replyNote: text("replyNote"),
-    repliedAt: timestamp("repliedAt"),
-    repliedByUserId: int("repliedByUserId").references(() => users.id),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    discipline: designSubmittalsDisciplineEnum("discipline").notNull(),
+    drawingId: varchar("drawing_id", { length: 36 }).references(() => designDrawings.id),
+    resubmissionOfId: varchar("resubmission_of_id", { length: 36 }),
+    status: designSubmittalsStatusEnum("status").default("draft").notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    replyCode: designSubmittalsReplyCodeEnum("reply_code"),
+    replyNote: text("reply_note"),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    repliedByUserId: integer("replied_by_user_id").references(() => users.id),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("design_submittals_project_number_unique").on(table.projectId, table.submittalNumber), index("design_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
 // ---------------------------------------------------------------- Tenders before award (work order 5, item 8)
 // A package is invited, bid on, levelled and awarded; the award creates the contract and the commitment in the same transaction.
-export const tenderPackages = mysqlTable(
+export const tenderPackagesStatusEnum = pgEnum("tender_packages_status", ["draft", "open", "closed", "awarded", "cancelled"]);
+export const tenderPackages = pgTable(
   "tender_packages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    packageCode: varchar("packageCode", { length: 120 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    packageCode: varchar("package_code", { length: 120 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
-    scopeSummary: text("scopeSummary"),
-    estimateAmount: decimal("estimateAmount", { precision: 18, scale: 2 }),
+    scopeSummary: text("scope_summary"),
+    estimateAmount: numeric("estimate_amount", { precision: 18, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-    status: mysqlEnum("status", ["draft", "open", "closed", "awarded", "cancelled"]).default("draft").notNull(),
-    closingAt: timestamp("closingAt"),
-    awardedBidId: varchar("awardedBidId", { length: 36 }),
-    awardedContractId: varchar("awardedContractId", { length: 36 }),
-    awardedCommitmentId: varchar("awardedCommitmentId", { length: 36 }),
-    awardedAt: timestamp("awardedAt"),
-    awardedByUserId: int("awardedByUserId").references(() => users.id),
-    awardJustification: text("awardJustification"),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: tenderPackagesStatusEnum("status").default("draft").notNull(),
+    closingAt: timestamp("closing_at", { withTimezone: true }),
+    awardedBidId: varchar("awarded_bid_id", { length: 36 }),
+    awardedContractId: varchar("awarded_contract_id", { length: 36 }),
+    awardedCommitmentId: varchar("awarded_commitment_id", { length: 36 }),
+    awardedAt: timestamp("awarded_at", { withTimezone: true }),
+    awardedByUserId: integer("awarded_by_user_id").references(() => users.id),
+    awardJustification: text("award_justification"),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("tender_packages_project_code_unique").on(table.projectId, table.packageCode), index("tender_packages_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.createdAt)],
 );
 
-export const tenderInvitees = mysqlTable(
+export const tenderInviteesStatusEnum = pgEnum("tender_invitees_status", ["invited", "declined", "submitted"]);
+export const tenderInvitees = pgTable(
   "tender_invitees",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
-    supplierId: varchar("supplierId", { length: 36 }).notNull().references(() => suppliers.id),
-    status: mysqlEnum("status", ["invited", "declined", "submitted"]).default("invited").notNull(),
-    invitedAt: timestamp("invitedAt").defaultNow().notNull(),
-    invitedByUserId: int("invitedByUserId").notNull().references(() => users.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("package_id", { length: 36 }).notNull().references(() => tenderPackages.id),
+    supplierId: varchar("supplier_id", { length: 36 }).notNull().references(() => suppliers.id),
+    status: tenderInviteesStatusEnum("status").default("invited").notNull(),
+    invitedAt: timestamp("invited_at", { withTimezone: true }).defaultNow().notNull(),
+    invitedByUserId: integer("invited_by_user_id").notNull().references(() => users.id),
   },
   table => [uniqueIndex("tender_invitees_package_supplier_unique").on(table.packageId, table.supplierId), index("tender_invitees_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const tenderBids = mysqlTable(
+export const tenderBidsStatusEnum = pgEnum("tender_bids_status", ["submitted", "withdrawn", "disqualified"]);
+export const tenderBids = pgTable(
   "tender_bids",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
-    supplierId: varchar("supplierId", { length: 36 }).notNull().references(() => suppliers.id),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("package_id", { length: 36 }).notNull().references(() => tenderPackages.id),
+    supplierId: varchar("supplier_id", { length: 36 }).notNull().references(() => suppliers.id),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).default("SAR").notNull(),
-    durationDays: int("durationDays"),
-    validityDays: int("validityDays"),
+    durationDays: integer("duration_days"),
+    validityDays: integer("validity_days"),
     notes: text("notes"),
-    status: mysqlEnum("status", ["submitted", "withdrawn", "disqualified"]).default("submitted").notNull(),
-    statusReason: varchar("statusReason", { length: 500 }),
-    enteredByUserId: int("enteredByUserId").notNull().references(() => users.id),
-    enteredAt: timestamp("enteredAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    status: tenderBidsStatusEnum("status").default("submitted").notNull(),
+    statusReason: varchar("status_reason", { length: 500 }),
+    enteredByUserId: integer("entered_by_user_id").notNull().references(() => users.id),
+    enteredAt: timestamp("entered_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("tender_bids_package_supplier_unique").on(table.packageId, table.supplierId), index("tender_bids_package_status_idx").on(table.packageId, table.status), index("tender_bids_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const tenderBidAdjustments = mysqlTable(
+export const tenderBidAdjustmentsKindEnum = pgEnum("tender_bid_adjustments_kind", ["scope_gap", "exclusion", "correction", "discount"]);
+export const tenderBidAdjustments = pgTable(
   "tender_bid_adjustments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenantId", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("projectId", { length: 36 }).notNull().references(() => projects.id),
-    packageId: varchar("packageId", { length: 36 }).notNull().references(() => tenderPackages.id),
-    bidId: varchar("bidId", { length: 36 }).notNull().references(() => tenderBids.id),
-    kind: mysqlEnum("kind", ["scope_gap", "exclusion", "correction", "discount"]).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    packageId: varchar("package_id", { length: 36 }).notNull().references(() => tenderPackages.id),
+    bidId: varchar("bid_id", { length: 36 }).notNull().references(() => tenderBids.id),
+    kind: tenderBidAdjustmentsKindEnum("kind").notNull(),
     description: varchar("description", { length: 500 }).notNull(),
-    amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
-    createdByUserId: int("createdByUserId").notNull().references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("tender_adjustments_bid_idx").on(table.bidId), index("tender_adjustments_package_idx").on(table.packageId)],
 );

@@ -16,8 +16,7 @@ const database = async () => {
 };
 
 async function companyOf(db: Awaited<ReturnType<typeof database>>, tenantId: string) {
-  const rows = (await db.execute(sql`SELECT id, legalName, status FROM companies WHERE id = ${tenantId}`)) as unknown as [Array<{ id: string; legalName: string; status: string }>, unknown];
-  const company = rows[0][0];
+  const company = (await db.execute(sql`SELECT id, legal_name AS "legalName", status FROM companies WHERE id = ${tenantId}`)).rows[0] as { id: string; legalName: string; status: string } | undefined;
   if (!company) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_TENANT_NOT_FOUND" });
   return company;
 }

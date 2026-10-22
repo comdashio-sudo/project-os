@@ -11,7 +11,7 @@
 // Automatic checks catch roughly a third of real accessibility problems: a clean run is "no violation axe can detect", not "accessible".
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { sdk } from "../server/_core/sdk.ts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3100";

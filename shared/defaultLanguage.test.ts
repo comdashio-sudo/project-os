@@ -11,7 +11,7 @@ describe("Arabic by default", () => {
   });
 
   it("the company table defaults to Arabic, and both ways of creating a company say so explicitly", () => {
-    expect(read("drizzle", "schema.ts")).toMatch(/defaultLocale: mysqlEnum\("defaultLocale", \["ar", "en"\]\)\.default\("ar"\)/);
+    expect(read("drizzle", "schema.ts")).toMatch(/defaultLocale: companiesDefaultLocaleEnum\("default_locale"\)\.default\("ar"\)/);
     const db = read("server", "db.ts");
     const inserts = Array.from(db.matchAll(/tx\.insert\(companies\)\.values\(\{[^}]*\}\)/g)).map(match => match[0]);
     expect(inserts.length).toBeGreaterThanOrEqual(2);

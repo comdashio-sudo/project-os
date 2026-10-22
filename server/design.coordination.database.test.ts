@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -9,11 +9,11 @@ import { appRouter } from "./routers";
 // not close it, whoever sent a submittal does not record its reply) are proved with the one person who holds every power: the company owner.
 // Synthetic data only.
 const SLUG = "design-coordination";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@design.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const DENIED = "Required permission is not granted.";
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 let tenantId = ""; let otherTenantId = ""; let projectId = ""; let otherProjectId = "";
 const ids: Record<string, number> = {};
 const KEYS = ["owner", "arch", "tech", "approver", "reader", "stranger", "otherOwner", "scoped"] as const;
@@ -49,7 +49,7 @@ const ROLES: Array<{ key: Key; code: string; permissions: string[]; scope?: "pro
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("technical and architectural coordination on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${KEYS.map(() => "(?, ?, ?, 'user')").join(",")}`, KEYS.flatMap(key => [`dsg-${key}`, `Design ${key}`, `dsg-${key}@design.example.test`]));
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'dsg-%'");

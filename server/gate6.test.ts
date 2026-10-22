@@ -31,9 +31,12 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   analyzePmcImport: "analysis only: nothing is written until the approved file is confirmed, and confirmation is audited",
   exportPmcScreen: "a read-only export; PMC reads are not audited (listed as a gap in docs/GATE6_RECORDS.md)",
   claimSupportTicket: "delegates to transitionSupportTicket, which writes the audit row",
+  createImportUpload: "mints a signed upload URL and records nothing; the import is recorded by registerImportUpload, whose job writes data_import_uploaded (or data_import_failed)",
+  requestImportConfirmation: "a small import is written by confirmAndImportData, which writes data_import_completed; a large one by runImportConfirmation, which calls the same function and writes data_import_failed when it cannot",
+  requestImportReanalysis: "a small import is re-analysed by reanalyzeDataImport; a large one by runImportAnalysis, whose job writes data_import_uploaded (or data_import_failed)",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
 };
-const PROJECT_GUARD = /assertProjectWithinTenant|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+const PROJECT_GUARD = /assertProjectWithinTenant|authorizeNewImport|assertImportAccess|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
 describe("Gate 6, static part (G-110)", () => {
   it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {

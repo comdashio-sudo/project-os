@@ -1,1 +1,0 @@
-ALTER TABLE `subscriptions` MODIFY COLUMN `status` enum('trialing','active','past_due','suspended','cancelled','expired','grace_period') NOT NULL DEFAULT 'trialing';

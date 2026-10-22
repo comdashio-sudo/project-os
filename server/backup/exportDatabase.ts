@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import mysql, { type Connection } from "mysql2/promise";
+import pg from "pg";
 import { parseBackupKey, readEncryptedBackupText, writeEncryptedBackup } from "./backupCrypto";
+import { storageEndpoint } from "../storage";
 import { dumpDatabase, readDumpMarkers, type DumpSummary } from "./sqlDump";
 
 export type ExportOptions = {
@@ -19,9 +20,16 @@ export type ExportResult = { file: string; bytes: number; sha256: string; tables
 
 const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
 
-/** Opens a read-only-purpose connection: the dump needs SELECT and SHOW only, so a backup account should hold nothing more. */
-export async function connectForBackup(databaseUrl: string): Promise<Connection> {
-  return mysql.createConnection({ uri: databaseUrl, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, charset: "utf8mb4" });
+/**
+ * Opens a connection for the dump. It only reads, but it must see every row, so it is the table owner (BACKUP_DATABASE_URL), not the
+ * application role, whose row-level security would hand back nothing without a request context.
+ */
+export async function connectForBackup(databaseUrl: string): Promise<pg.Client> {
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(databaseUrl).hostname);
+  const ca = (process.env.DATABASE_SSL_CA ?? "").replace(/\\n/g, "\n").trim();
+  const client = new pg.Client({ connectionString: databaseUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(ca ? { ca } : {}) } });
+  await client.connect();
+  return client;
 }
 
 /**
@@ -32,7 +40,7 @@ export async function exportDatabase(options: ExportOptions): Promise<ExportResu
   const key = parseBackupKey(options.encryptionKeyHex);
   const connection = await connectForBackup(options.databaseUrl);
   try {
-    const [[{ name }]] = (await connection.query("SELECT DATABASE() AS name")) as unknown as [[{ name: string }]];
+    const { rows: [{ name }] } = await connection.query<{ name: string }>("SELECT current_database() AS name");
     const file = join(options.outDir, `project_os-${stamp(options.now ?? new Date())}.sql.gz.enc`);
     await mkdir(dirname(file), { recursive: true });
     const summary: DumpSummary = { tables: [], totalRows: 0 };
@@ -50,20 +58,21 @@ export async function exportDatabase(options: ExportOptions): Promise<ExportResu
   }
 }
 
-export type R2Target = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string };
+export type BackupTarget = { endpoint: string; region: string; accessKeyId: string; secretAccessKey: string; bucket: string };
 
-export function r2TargetFromEnvironment(env: NodeJS.ProcessEnv = process.env): R2Target {
-  const target = { accountId: env.R2_ACCOUNT_ID ?? "", accessKeyId: env.R2_ACCESS_KEY_ID ?? "", secretAccessKey: env.R2_SECRET_ACCESS_KEY ?? "", bucket: env.BACKUP_R2_BUCKET || env.R2_BUCKET || "" };
-  const missing = ([["R2_ACCOUNT_ID", target.accountId], ["R2_ACCESS_KEY_ID", target.accessKeyId], ["R2_SECRET_ACCESS_KEY", target.secretAccessKey], ["BACKUP_R2_BUCKET (or R2_BUCKET)", target.bucket]] as const).filter(([, value]) => !value).map(([label]) => label);
+/** The Supabase Storage S3 connection plus a private bucket for backups (BACKUP_BUCKET), kept apart from the bucket that holds company files. */
+export function backupTargetFromEnvironment(env: NodeJS.ProcessEnv = process.env): BackupTarget {
+  const target = { endpoint: env.STORAGE_S3_ENDPOINT ?? "", region: env.STORAGE_S3_REGION ?? "", accessKeyId: env.STORAGE_S3_ACCESS_KEY_ID ?? "", secretAccessKey: env.STORAGE_S3_SECRET_ACCESS_KEY ?? "", bucket: env.BACKUP_BUCKET ?? "" };
+  const missing = ([["STORAGE_S3_ENDPOINT", target.endpoint], ["STORAGE_S3_REGION", target.region], ["STORAGE_S3_ACCESS_KEY_ID", target.accessKeyId], ["STORAGE_S3_SECRET_ACCESS_KEY", target.secretAccessKey], ["BACKUP_BUCKET", target.bucket]] as const).filter(([, value]) => !value).map(([label]) => label);
   if (missing.length) throw new Error(`Backup upload is not configured: set ${missing.join(", ")}`);
-  return target;
+  return { ...target, endpoint: storageEndpoint(target.endpoint) };
 }
 
-/** The object key keeps backups in dated folders under `backups/`; a bucket lifecycle rule on that prefix is what expires old ones. */
+/** The object key keeps backups in dated folders under `backups/`; a retention job (or the bucket's own lifecycle) on that prefix is what expires old ones. */
 export const backupObjectKey = (file: string, now: Date) => `backups/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${file.split("/").pop()}`;
 
-export async function uploadBackup(file: string, target: R2Target, now: Date = new Date(), client?: Pick<S3Client, "send">): Promise<{ key: string; bucket: string }> {
-  const s3 = client ?? new S3Client({ region: "auto", endpoint: `https://${target.accountId}.r2.cloudflarestorage.com`, forcePathStyle: true, credentials: { accessKeyId: target.accessKeyId, secretAccessKey: target.secretAccessKey } });
+export async function uploadBackup(file: string, target: BackupTarget, now: Date = new Date(), client?: Pick<S3Client, "send">): Promise<{ key: string; bucket: string }> {
+  const s3 = client ?? new S3Client({ region: target.region, endpoint: target.endpoint, forcePathStyle: true, credentials: { accessKeyId: target.accessKeyId, secretAccessKey: target.secretAccessKey } });
   const key = backupObjectKey(file, now);
   await s3.send(new PutObjectCommand({ Bucket: target.bucket, Key: key, Body: createReadStream(file), ContentLength: (await stat(file)).size, ContentType: "application/octet-stream" }));
   return { key, bucket: target.bucket };

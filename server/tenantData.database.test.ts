@@ -1,11 +1,12 @@
 import { COOKIE_NAME } from "@shared/const";
 import express from "express";
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gunzipSync } from "node:zlib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 }); // erasing and counting a company touches every table: slow on a busy machine, and not a race to win
 import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
 import { seedDemoData } from "../scripts/lib/demoData.mjs";
 import { ENV } from "./_core/env";
@@ -15,7 +16,6 @@ import { confirmTenantDeletion, previewTenantData, requestTenantDeletion } from 
 import { NOT_COMPANY_DATA, RETAINED_TENANT_TABLES, TENANT_CHILD_TABLES, countTenantData, deleteTenantData, issueDeletionToken, readSchemaMap, recordAudit, verifyDeletionToken } from "./tenantData";
 import { tenantExportHandler } from "./tenantExportRoute";
 import { appRouter } from "./routers";
-import { getScopedAuditAppUsername } from "./domain/auditAccountIdentity";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // A company's data leaves with it, and goes when it asks — on a real database, with two companies side by side so "nothing else was
@@ -24,17 +24,18 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
   type Fixture = Awaited<ReturnType<typeof createRoleFixture>>;
   type Asked = Awaited<ReturnType<typeof requestTenantDeletion>>;
   let a: Fixture; let b: Fixture; let asked: Asked;
-  let connection: mysql.Connection;
+  let connection: fixtureDb.Connection;
   let server: Server; let base = "";
   const files = { a: [] as string[], b: [] as string[] };
   const extraTables: string[] = [];
 
-  // When the run uses the restricted application account (no PROJECT_OS_USE_ADMIN_DATABASE_URL), a table created here is invisible to it until
-  // it is granted — exactly as a table added by a later migration is until scripts/provision-audit-app-account.mjs is run again.
+  // A table created here is invisible to the restricted application role until it is granted — exactly as a table added by a later migration is
+  // until project_os_apply_conventions() has run (the migration runner does that after every migration). A table with a tenant_id goes through
+  // that same sweep, so it also gets its row-level-security policy; one without (the unclassified probe) is only granted.
   const grantToApplication = async (table: string) => {
-    if (process.env.PROJECT_OS_USE_ADMIN_DATABASE_URL === "true" || !process.env.PROJECT_OS_APP_DB_PASSWORD) return;
-    const database = decodeURIComponent(new URL(process.env.TEST_DATABASE_URL!).pathname.slice(1));
-    await connection.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON \`${database}\`.\`${table}\` TO \`${getScopedAuditAppUsername(process.env.DATABASE_URL!)}\`@\`%\``);
+    const [columns] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT 1 AS present FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = 'tenant_id'", [table]);
+    if (columns.length) await connection.query("SELECT project_os_apply_conventions()");
+    else await connection.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON "${table}" TO project_os_app`);
   };
   const rowsPerTable = async (tenantId: string) => {
     const db = (await getDb())!;
@@ -57,7 +58,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
   }
 
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     if (ENV.cookieSecret.length < 16) (ENV as { cookieSecret: string }).cookieSecret = "live-tenant-data-secret-0123456789abcdef";
     a = await createRoleFixture({ label: "erase" });
     b = await createRoleFixture({ label: "keep" });
@@ -110,8 +111,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
       await expect(previewTenantData({ userId: a.owner.id, tenantId: a.tenantId })).rejects.toThrow("PROJECT_OS_TENANT_SCHEMA_UNCLASSIFIED");
       await expect(deleteTenantData({ db, tenantId: a.tenantId, actorUserId: a.owner.id })).rejects.toThrow("PROJECT_OS_TENANT_SCHEMA_UNCLASSIFIED");
       // and the refusal happened BEFORE anything changed: the company is still active with its products on
-      const [[company]] = await connection.query<mysql.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [a.tenantId]);
-      const [[entitled]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ? AND active = true", [a.tenantId]);
+      const [[company]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [a.tenantId]);
+      const [[entitled]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ? AND active = true", [a.tenantId]);
       expect(company.status).toBe("active"); expect(Number(entitled.n)).toBeGreaterThan(0);
     } finally {
       await connection.query("DROP TABLE IF EXISTS zz_unclassified_probe");
@@ -137,7 +138,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
 
   it("will not ask for deletion before an export has been downloaded, and the audit trail records no export for a refused download", async () => {
     await expect(requestTenantDeletion({ userId: a.owner.id, tenantId: a.tenantId })).rejects.toThrow("PROJECT_OS_DELETION_EXPORT_REQUIRED");
-    const [[exports]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.data_exported'", [a.tenantId]);
+    const [[exports]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.data_exported'", [a.tenantId]);
     expect(Number(exports.n)).toBe(0);
   });
 
@@ -167,8 +168,14 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
     expect(rows.filter(line => line.table === "data_import_errors").length).toBe(1);
     expect(rows.filter(line => line.table === "role_permissions").length).toBeGreaterThan(0);
     // an interrupted download records nothing; a finished one records exactly one export
-    const [[exports]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.data_exported'", [a.tenantId]);
-    expect(Number(exports.n)).toBe(1);
+    // (the row is written after the last byte has been sent, so the client can have the whole file a moment before the row exists)
+    let exported = 0;
+    for (let attempt = 0; attempt < 40 && exported === 0; attempt++) {
+      const [[exports]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.data_exported'", [a.tenantId]);
+      exported = Number(exports.n);
+      if (exported === 0) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    expect(exported).toBe(1);
   }, 120_000);
 
   it("a table added to the schema is exported and erased with no code change (negative control for 'every table is covered')", async () => {
@@ -218,14 +225,14 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
     await expect(call({})).rejects.toThrow("PROJECT_OS_DELETION_EXPORT_REQUIRED");
     await connection.query("UPDATE audit_logs SET createdAt = NOW() WHERE tenantId = ? AND action = 'tenant.data_exported'", [a.tenantId]);
     expect(await rowsPerTable(a.tenantId)).toEqual(before);
-    const [[company]] = await connection.query<mysql.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [a.tenantId]);
+    const [[company]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [a.tenantId]);
     expect(company.status).toBe("active");
   });
 
   it("erases company A completely, leaves company B and the person they share exactly as they were, and proves it", async () => {
     const beforeB = await rowsPerTable(b.tenantId);
-    const [sharedBefore] = await connection.query<mysql.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.site.id]);
-    const [onlyInABefore] = await connection.query<mysql.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
+    const [sharedBefore] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.site.id]);
+    const [onlyInABefore] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
     expect(onlyInABefore[0].email).toContain("@e2e.example.test");
     await connection.query("INSERT INTO auth_sessions (id, userId, expiresAt) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))", [randomUUID(), a.people.pm.id]);
     const deletedKeys: string[] = [];
@@ -244,27 +251,27 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
     expect(report.files).toMatchObject({ found: 2, deleted: 2, failed: 0 });
     expect(deletedKeys.sort()).toEqual([...files.a].sort());
     // the audit trail stays, with the export, the requests and now the erasure itself
-    const [audit] = await connection.query<mysql.RowDataPacket[]>("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'tenant.%' ORDER BY createdAt", [a.tenantId]);
+    const [audit] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'tenant.%' ORDER BY createdAt", [a.tenantId]);
     expect(audit.map(row => row.action)).toEqual(expect.arrayContaining(["tenant.data_exported", "tenant.deletion_requested", "tenant.deletion_confirmed", "tenant.data_deleted"]));
     expect(after.audit_logs).toBeGreaterThan(0);
     // the company row is a tombstone and its products are off
-    const [[company]] = await connection.query<mysql.RowDataPacket[]>("SELECT status, legalName, slug FROM companies WHERE id = ?", [a.tenantId]);
+    const [[company]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status, legalName, slug FROM companies WHERE id = ?", [a.tenantId]);
     expect(company.status).toBe("archived");
     expect(company.legalName).not.toContain("Role Rehearsal");
     expect(company.slug).toBe(`deleted-${a.tenantId}`);
-    const [[entitled]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ?", [a.tenantId]);
+    const [[entitled]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ?", [a.tenantId]);
     expect(Number(entitled.n)).toBe(0);
     // people: only-in-A are scrubbed and signed out; the person who also belongs to B is untouched
-    const [[scrubbed]] = await connection.query<mysql.RowDataPacket[]>("SELECT name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
+    const [[scrubbed]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
     expect(scrubbed.email).toBeNull(); expect(scrubbed.name).toBe("Deleted user"); expect(scrubbed.openId).toMatch(/^deleted:/);
-    const [[sessions]] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM auth_sessions WHERE userId = ?", [a.people.pm.id]);
+    const [[sessions]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM auth_sessions WHERE userId = ?", [a.people.pm.id]);
     expect(Number(sessions.n)).toBe(0);
-    const [[shared]] = await connection.query<mysql.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.site.id]);
+    const [[shared]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.site.id]);
     expect(shared).toEqual(sharedBefore[0]);
     expect(report.people.keptBecauseInAnotherCompany).toBe(1);
     // company B: every table, row for row
     expect(await rowsPerTable(b.tenantId)).toEqual(beforeB);
-    const [[bStatus]] = await connection.query<mysql.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [b.tenantId]);
+    const [[bStatus]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [b.tenantId]);
     expect(bStatus.status).toBe("active");
     // the owner is out: their own session no longer opens anything
     await expect(previewTenantData({ userId: a.owner.id, tenantId: a.tenantId })).rejects.toThrow("PROJECT_OS_TENANT_OWNER_REQUIRED");

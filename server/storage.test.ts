@@ -1,6 +1,6 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
-import { appendHashSuffix, createR2Storage, createStorage, normalizeKey, r2Configuration, SIGNED_URL_TTL_SECONDS, storageEndpoint } from "./storage";
+import { appendHashSuffix, createS3Storage, createStorage, MAX_DIRECT_UPLOAD_BYTES, normalizeKey, SIGNED_URL_TTL_SECONDS, storageConfiguration, storageEndpoint } from "./storage";
 
 function harness() {
   const send = vi.fn(async () => ({}));
@@ -71,33 +71,84 @@ describe("storage operations", () => {
   });
 });
 
-describe("R2 configuration", () => {
+const empty = { storageS3Endpoint: "", storageS3Region: "", storageS3AccessKeyId: "", storageS3SecretAccessKey: "", storageBucket: "" };
+
+describe("storage configuration", () => {
   it("names every missing variable and never a value", () => {
-    expect(() => r2Configuration({ r2AccountId: "", r2AccessKeyId: "", r2SecretAccessKey: "", r2Bucket: "" })).toThrow("R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET");
-    expect(() => r2Configuration({ r2AccountId: "acct", r2AccessKeyId: "key-id", r2SecretAccessKey: "", r2Bucket: "b" })).toThrow(/^Storage config missing: set R2_SECRET_ACCESS_KEY$/);
+    expect(() => storageConfiguration(empty)).toThrow("STORAGE_S3_ENDPOINT, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY_ID, STORAGE_S3_SECRET_ACCESS_KEY, STORAGE_BUCKET");
+    expect(() => storageConfiguration({ ...empty, storageS3Endpoint: "https://ref0123.storage.supabase.co/storage/v1/s3", storageS3Region: "eu-west-1", storageS3AccessKeyId: "key-id", storageBucket: "b" })).toThrow(/^Storage config missing: set STORAGE_S3_SECRET_ACCESS_KEY$/);
   });
 
-  it("builds an S3 client against the account's R2 endpoint without any network call", async () => {
-    const storage = createR2Storage({ accountId: "acct0123", accessKeyId: "AKEXAMPLE", secretAccessKey: "example-secret-value", bucket: "b1" });
+  it("builds an S3 client against the project's Supabase Storage endpoint without any network call", async () => {
+    const storage = createS3Storage(storageConfiguration({ storageS3Endpoint: "https://ref0123.storage.supabase.co/storage/v1/s3", storageS3Region: "eu-west-1", storageS3AccessKeyId: "AKEXAMPLE", storageS3SecretAccessKey: "example-secret-value", storageBucket: "b1" }));
     const url = new URL(await storage.storageGetSignedUrl("tenants/t1/doc.pdf"));
-    expect(url.host).toBe("acct0123.r2.cloudflarestorage.com");
-    expect(url.pathname).toBe("/b1/tenants/t1/doc.pdf");
+    expect(url.host).toBe("ref0123.storage.supabase.co");
+    expect(url.pathname).toBe("/storage/v1/s3/b1/tenants/t1/doc.pdf");
     expect(url.searchParams.get("X-Amz-Expires")).toBe(String(SIGNED_URL_TTL_SECONDS));
     expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    expect(url.searchParams.get("X-Amz-Credential")).toContain("/eu-west-1/s3/");
     expect(url.toString()).not.toContain("example-secret-value");
   });
 });
 
-describe("storageEndpoint (R2_TEST_ENDPOINT)", () => {
-  it("is the company's R2 address unless a rehearsal override is set", () => {
-    expect(storageEndpoint("acct0123", undefined)).toBe("https://acct0123.r2.cloudflarestorage.com");
-    expect(storageEndpoint("acct0123", "")).toBe("https://acct0123.r2.cloudflarestorage.com");
+describe("storageEndpoint", () => {
+  it("keeps the Supabase endpoint, path included, without a trailing slash", () => {
+    expect(storageEndpoint("https://ref0123.storage.supabase.co/storage/v1/s3/")).toBe("https://ref0123.storage.supabase.co/storage/v1/s3");
   });
-  it("accepts only an http loopback address as the override", () => {
-    expect(storageEndpoint("a", "http://127.0.0.1:9123")).toBe("http://127.0.0.1:9123");
-    expect(storageEndpoint("a", "http://localhost:9123/ignored/path")).toBe("http://localhost:9123");
+  it("accepts plain http only on this machine (a local rehearsal against a fake S3)", () => {
+    expect(storageEndpoint("http://127.0.0.1:9123")).toBe("http://127.0.0.1:9123");
+    expect(storageEndpoint("http://localhost:9123")).toBe("http://localhost:9123");
   });
-  it("refuses anything that would send files off this machine, or that is not a URL", () => {
-    for (const bad of ["https://evil.example.test", "http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "https://127.0.0.1:9000", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint("a", bad), bad).toThrow(/R2_TEST_ENDPOINT/);
+  it("refuses anything that would send files unencrypted across a network, or that is not a URL", () => {
+    for (const bad of ["http://evil.example.test:9000", "http://127.0.0.1.evil.example.test", "ftp://127.0.0.1", "not a url"]) expect(() => storageEndpoint(bad), bad).toThrow(/STORAGE_S3_ENDPOINT/);
+  });
+});
+
+describe("direct upload operations", () => {
+  it("fixes the direct-upload ceiling at 50 MB", () => {
+    expect(MAX_DIRECT_UPLOAD_BYTES).toBe(50 * 1024 * 1024);
+  });
+
+  it("mints a PUT URL for exactly one key, with the content type the browser must send", async () => {
+    const { presign, storage } = harness();
+    const upload = await storage.storageCreateUploadUrl("/imports/t1/p1/pending/abc/schedule.xer", "text/plain");
+    expect(upload).toMatchObject({ key: "imports/t1/p1/pending/abc/schedule.xer", headers: { "Content-Type": "text/plain" }, expiresInSeconds: SIGNED_URL_TTL_SECONDS });
+    const command = presign.mock.calls[0][0] as unknown as PutObjectCommand;
+    expect(command).toBeInstanceOf(PutObjectCommand);
+    expect(command.input).toMatchObject({ Bucket: "test-bucket", Key: "imports/t1/p1/pending/abc/schedule.xer", ContentType: "text/plain" });
+    await expect(storage.storageCreateUploadUrl("../other-tenant/file.xer")).rejects.toThrow(/relative path/);
+  });
+
+  it("reports an object's size, and null (not an error) when nothing was uploaded", async () => {
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof HeadObjectCommand && command.input.Key === "there") return { ContentLength: 31_468_176, ContentType: "text/plain" };
+      throw Object.assign(new Error("NotFound"), { name: "NotFound", $metadata: { httpStatusCode: 404 } });
+    });
+    const storage = createStorage({ bucket: "b", send, presign: vi.fn() });
+    expect(await storage.storageHead("there")).toEqual({ size: 31_468_176, contentType: "text/plain" });
+    expect(await storage.storageHead("missing")).toBeNull();
+    const broken = createStorage({ bucket: "b", send: async () => { throw Object.assign(new Error("denied"), { $metadata: { httpStatusCode: 403 } }); }, presign: vi.fn() });
+    await expect(broken.storageHead("x")).rejects.toThrow("denied");
+  });
+
+  it("reads an object whole, and pages through a listing", async () => {
+    const pages = [{ Contents: [{ Key: "imports/a", LastModified: new Date(1) }], IsTruncated: true, NextContinuationToken: "t1" }, { Contents: [{ Key: "imports/b", LastModified: new Date(2) }], IsTruncated: false }];
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetObjectCommand) return { Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } };
+      if (command instanceof ListObjectsV2Command) return pages[command.input.ContinuationToken ? 1 : 0];
+      return {};
+    });
+    const storage = createStorage({ bucket: "b", send, presign: vi.fn() });
+    expect([...await storage.storageRead("k")]).toEqual([1, 2, 3]);
+    expect((await storage.storageList("imports/")).map(item => item.key)).toEqual(["imports/a", "imports/b"]);
+  });
+
+  it("does not bake a checksum of an empty body into a presigned PUT (it made every real browser upload fail the digest check)", async () => {
+    const storage = createS3Storage({ endpoint: "http://127.0.0.1:9", region: "eu-west-1", accessKeyId: "AKIAEXAMPLE", secretAccessKey: "example-secret", bucket: "b" });
+    const { url } = await storage.storageCreateUploadUrl("imports/t/p/pending/x/file.xer", "text/plain");
+    const query = new URL(url).searchParams;
+    expect(query.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+    expect(query.get("X-Amz-SignedHeaders")).toBe("host");
+    expect([...query.keys()].filter(name => name.toLowerCase().includes("checksum"))).toEqual([]);
   });
 });

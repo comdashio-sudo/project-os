@@ -1,67 +1,77 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import mysql from "mysql2/promise";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { appUsernameFor, restrictedAccountVisibility } from "../scripts/lib/auditProtection.mjs";
+import { isTestDatabaseUrl } from "./testing/testDatabase";
 
-// The deploy path (scripts/predeploy.mjs) against a real engine. It needs an administrative account with a TiDB-Cloud-style prefixed name
-// (`prefix.root`) that may create databases and users, so it runs only when PREDEPLOY_ADMIN_URL names one (a local MySQL or TiDB); the schema it
-// builds is a throwaway database that is dropped at the end.
-const adminUrl = process.env.PREDEPLOY_ADMIN_URL;
-describe.skipIf(!adminUrl)("predeploy: migrations, then the restricted account, then proof", () => {
-  const databaseName = `predeploy_probe_${randomBytes(3).toString("hex")}`;
-  const appPassword = randomBytes(12).toString("hex");
-  let admin: mysql.Connection; let rootUrl = "";
+// The deploy path (scripts/predeploy.mjs) against a real PostgreSQL, on the one test database: migrations, then the restricted role, then proof.
+// TEST_DATABASE_URL is the OWNER of the test database; TEST_APP_DATABASE_URL is the same database as project_os_app (its password is what the deploy
+// is given as PROJECT_OS_APP_DB_PASSWORD). The migrations are already applied, so predeploy re-runs them as a no-op and re-provisions.
+const ownerUrl = process.env.TEST_DATABASE_URL;
+const appUrl = process.env.TEST_APP_DATABASE_URL;
+const enabled = isTestDatabaseUrl(ownerUrl) && isTestDatabaseUrl(appUrl);
+const appPassword = enabled ? decodeURIComponent(new URL(appUrl!).password) : "";
+const zz = "zz_predeploy_probe";
+
+describe.skipIf(!enabled)("predeploy: migrations, then the restricted role, then proof", () => {
+  let owner: pg.Client;
   const predeploy = (env: Record<string, string | undefined>) => spawnSync(process.execPath, ["scripts/predeploy.mjs"], { encoding: "utf8", env: { ...process.env, ...env, PATH: process.env.PATH } });
+  const verify = () => spawnSync(process.execPath, ["--import", "tsx", "scripts/verify-db-security.mjs"], { encoding: "utf8", env: { ...process.env, AUDIT_APP_DATABASE_URL: appUrl } });
 
-  beforeAll(async () => {
-    admin = await mysql.createConnection(adminUrl!);
-    await admin.query(`CREATE DATABASE \`${databaseName}\``);
-    const url = new URL(adminUrl!); url.pathname = `/${databaseName}`; rootUrl = url.toString();
-  }, 30_000);
-  afterAll(async () => {
-    await admin.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
-    await admin.query(`DROP USER IF EXISTS '${appUsernameFor(adminUrl!)}'@'%'`).catch(() => undefined);
-    await admin.end();
-  });
+  beforeAll(async () => { owner = new pg.Client({ connectionString: ownerUrl }); await owner.connect(); await owner.query(`DROP TABLE IF EXISTS ${zz}`); }, 30_000);
+  afterAll(async () => { await owner.query(`DROP TABLE IF EXISTS ${zz}`); await owner.end(); });
 
-  it("without the audit password it migrates and says loudly that audit_logs is not protected (the first deployment)", () => {
-    const run = predeploy({ DATABASE_URL: rootUrl, PROJECT_OS_APP_DB_PASSWORD: "" });
+  it("without the application password it migrates and says loudly that the audit trail is not protected on the application's connection (the first deployment)", () => {
+    const run = predeploy({ DATABASE_URL: ownerUrl, PROJECT_OS_APP_DB_PASSWORD: "" });
     expect(run.status, run.stderr).toBe(0);
     expect(`${run.stdout}${run.stderr}`).toContain('"auditProtection":"OFF"');
   }, 120_000);
 
-  it("with the password it provisions the restricted account and proves it sees every table", async () => {
-    const run = predeploy({ DATABASE_URL: rootUrl, PROJECT_OS_APP_DB_PASSWORD: appPassword });
+  it("with the password it provisions the restricted role and proves it reads every table, with the audit trail append-only", () => {
+    const run = predeploy({ DATABASE_URL: ownerUrl, PROJECT_OS_APP_DB_PASSWORD: appPassword });
     expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0);
     const line = run.stdout.split("\n").find(entry => entry.includes('"auditProtection":"provisioned"'))!;
     const report = JSON.parse(line);
     expect(report.tables).toBeGreaterThan(90);
-    expect(report.restrictedAccountSees).toBe(report.tables);
+    expect(report.restrictedRoleSees).toBe(report.tables);
     expect(run.stdout).toContain('"approved": true');
+    expect(run.stdout + run.stderr).not.toContain(appPassword);
   }, 180_000);
 
-  it("a table a later migration creates is INVISIBLE to the restricted account until the next predeploy grants it — and the check names it", async () => {
-    await admin.query(`CREATE TABLE \`${databaseName}\`.zz_new_after_provisioning (id int PRIMARY KEY)`);
-    const before = await restrictedAccountVisibility({ rootUrl, appPassword });
-    expect(before.missing).toEqual(["zz_new_after_provisioning"]);
-    const run = predeploy({ DATABASE_URL: rootUrl, PROJECT_OS_APP_DB_PASSWORD: appPassword });
-    expect(run.status, `${run.stdout}\n${run.stderr}`).toBe(0);
-    const after = await restrictedAccountVisibility({ rootUrl, appPassword });
-    expect(after.missing).toEqual([]);
-    expect(after.visible).toBe(after.expected);
+  const provision = () => spawnSync(process.execPath, ["scripts/provision-app-role.mjs"], { encoding: "utf8", env: { ...process.env, DATABASE_URL: ownerUrl, PROJECT_OS_APP_DB_PASSWORD: appPassword } });
+  const migrate = () => spawnSync(process.execPath, ["scripts/migrate.mjs"], { encoding: "utf8", env: { ...process.env, DATABASE_URL: ownerUrl } });
+
+  it("a table that exists without row-level security fails the proof AND the migration guard; provisioning covers it; then the proof passes", async () => {
+    await owner.query(`CREATE TABLE ${zz} (id varchar(36) PRIMARY KEY, tenant_id varchar(36) NOT NULL)`);
+    const before = verify();
+    expect(before.status, "a new table with no RLS yet must fail the proof").toBe(1);
+    expect(JSON.parse(before.stdout).withoutRowLevelSecurity).toEqual([zz]);
+    const guarded = migrate();
+    expect(guarded.status).toBe(1);
+    expect(guarded.stderr).toContain("have no row-level security");
+    const provisioned = provision();
+    expect(provisioned.status, provisioned.stderr).toBe(0);
+    expect(verify().status).toBe(0);
+    expect(migrate().status).toBe(0);
+    // negative control: take the role's right to read it away after provisioning; the proof must name the table
+    await owner.query(`REVOKE SELECT ON ${zz} FROM project_os_app`);
+    const seen = verify();
+    expect(seen.status).toBe(1);
+    expect(JSON.parse(seen.stdout).unreadable).toEqual([zz]);
   }, 180_000);
 
-  it("FAILS the deploy when the account cannot see a table (negative control: the provisioning step is made unable to grant one)", async () => {
-    // a table whose name defeats the grant statement's quoting would be a contrived bug; instead take away the account's right to read one table
-    // AFTER provisioning and run only the proof — the same function predeploy calls — which must report it.
-    await admin.query(`REVOKE SELECT ON \`${databaseName}\`.\`zz_new_after_provisioning\` FROM '${appUsernameFor(adminUrl!)}'@'%'`);
-    const seen = await restrictedAccountVisibility({ rootUrl, appPassword });
-    expect(seen.missing).toContain("zz_new_after_provisioning");
-  }, 60_000);
+  it("a table with no tenant_id that nobody classified stops provisioning (fail closed); it is not silently left open", async () => {
+    await owner.query(`DROP TABLE IF EXISTS ${zz}`);
+    await owner.query(`CREATE TABLE ${zz} (id varchar(36) PRIMARY KEY)`);
+    const run = provision();
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("App role provisioning failed during grant with P0001");
+    expect((await owner.query("SELECT relrowsecurity FROM pg_class WHERE relname = $1", [zz])).rows[0].relrowsecurity).toBe(false);
+    await owner.query(`DROP TABLE IF EXISTS ${zz}`);
+    expect(provision().status).toBe(0);
+  }, 180_000);
 
   it("a migration failure stops the deploy before any protection step is reported", () => {
-    const bad = new URL(rootUrl); bad.password = "wrong-password-for-this-test";
+    const bad = new URL(ownerUrl!); bad.password = "wrong-password-for-this-test";
     const run = predeploy({ DATABASE_URL: bad.toString(), PROJECT_OS_APP_DB_PASSWORD: appPassword });
     expect(run.status).not.toBe(0);
     expect(`${run.stdout}${run.stderr}`).not.toContain('"auditProtection":"provisioned"');

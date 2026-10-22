@@ -11,7 +11,7 @@
 // Technical terms that are the same in Arabic construction practice (WBS, EVM, BOQ, SAR...) are allowed; everything else is reported with where it appeared.
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
+import mysql from "../server/testing/pgCompat.ts";
 import { eq } from "drizzle-orm";
 import { users } from "../drizzle/schema.ts";
 import { sdk } from "../server/_core/sdk.ts";

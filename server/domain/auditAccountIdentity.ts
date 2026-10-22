@@ -1,15 +1,12 @@
+// The restricted application role. PostgreSQL role names are plain (no organisation prefix), but a connection pooler in front of the database
+// (Supabase's) addresses a role as `role.<project-ref>`; the suffix after the first dot of the administrative user is kept so the same
+// project reference reaches the application role through the pooler.
+export const APP_ROLE = "project_os_app";
+
 export function getScopedAuditAppUsername(rootDatabaseUrl: string) {
   const rootUsername = decodeURIComponent(new URL(rootDatabaseUrl).username);
-  const prefix = rootUsername.split(".")[0];
-  if (!prefix) throw new Error("Database account does not contain a TiDB Cloud user prefix.");
-  return `${prefix}.project_os_app`;
-}
-
-export function getScopedAuditAdminUsername(rootDatabaseUrl: string) {
-  const rootUsername = decodeURIComponent(new URL(rootDatabaseUrl).username);
-  const prefix = rootUsername.split(".")[0];
-  if (!prefix) throw new Error("Database account does not contain a TiDB Cloud user prefix.");
-  return `${prefix}.audit_admin`;
+  const suffix = rootUsername.includes(".") ? rootUsername.slice(rootUsername.indexOf(".")) : "";
+  return `${APP_ROLE}${suffix}`;
 }
 
 export function buildRestrictedAppDatabaseUrl(rootDatabaseUrl: string, appPassword?: string, useAdministrativeConnection = false) {

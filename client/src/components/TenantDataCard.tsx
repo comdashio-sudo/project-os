@@ -48,14 +48,8 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         leftover: "Files that were not deleted:", home: "Back to the home page",
       };
 
-  // not the owner (or nothing to show yet): no card, and no hint that one exists
-  if (preview.error || (!preview.data && !preview.isLoading)) return null;
-  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-slate-500">{t.loading}</CardContent></Card>;
-  const data = preview.data!;
-  const asked = request.data;
   const report = confirm.data;
-  const canDelete = Boolean(asked) && typedName.trim() === asked!.companyName && understood && !confirm.isPending;
-
+  // The verdict first: after the erasure the preview query refetches, fails (the company and the caller's membership are gone) and would hide this card before it is read.
   if (report) {
     return (
       <Card className="mt-6 border-red-200" role="status">
@@ -71,6 +65,13 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
       </Card>
     );
   }
+
+  // not the owner (or nothing to show yet): no card, and no hint that one exists
+  if (preview.error || (!preview.data && !preview.isLoading)) return null;
+  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-slate-500">{t.loading}</CardContent></Card>;
+  const data = preview.data!;
+  const asked = request.data;
+  const canDelete = Boolean(asked) && typedName.trim() === asked!.companyName && understood && !confirm.isPending;
 
   return (
     <Card className="mt-6">

@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
@@ -11,7 +11,7 @@ const T = "50000000-0000-4000-8000-0000000000a1";
 const T_OTHER = "50000000-0000-4000-8000-0000000000b1";
 const P = "50000000-0000-4000-8000-0000000000a2";
 const P_OTHER = "50000000-0000-4000-8000-0000000000b2";
-const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^mysql(?:2)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
+const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 const MODELS = ["A", "B", "C", "D", "E"];
 const UNITS = 500;
@@ -21,7 +21,7 @@ const modelOf = (unit: number) => MODELS[(unit - 1) % MODELS.length];
 const STATUS_WORDS = ["Not started", "In progress", "Under review", "Complete"];
 const MANAGER_EMAIL = "pmc-import-manager@pmc.example.test";
 
-let connection: mysql.Connection;
+let connection: fixtureDb.Connection;
 const users = { manager: 0, reader: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pmc.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
@@ -61,7 +61,7 @@ async function clear() {
 
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC import (500 units x 60 activities) on a real database", () => {
   beforeAll(async () => {
-    connection = await mysql.createConnection(process.env.TEST_DATABASE_URL!);
+    connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
     await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('pmc-import-manager','Import Manager', ?, 'user'),('pmc-import-reader','Import Reader','pmc-import-reader@pmc.example.test','user')", [MANAGER_EMAIL]);
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'pmc-import-%'");
