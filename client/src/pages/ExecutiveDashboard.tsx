@@ -169,7 +169,7 @@ export default function ExecutiveDashboard() {
           <p className="mt-2 text-slate-300">{t.sub}</p>
         </section>
         <SectionErrorBoundary title={t.title} isArabic={isArabic}>
-        {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} onRetry={() => void metricsQuery.refetch()} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Metric
             icon={Landmark}
             label={t.budget}
@@ -189,7 +189,7 @@ export default function ExecutiveDashboard() {
         </SectionErrorBoundary>
         {metricsQuery.data && <SectionErrorBoundary title={isArabic ? "ربحية المشاريع" : "Project profitability"} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
-        {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" /></div> : cashFlowQuery.data.cashFlow ? (
+        {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" error={cashFlowQuery.error} onRetry={() => void cashFlowQuery.refetch()} /></div> : cashFlowQuery.data.cashFlow ? (
           <Card className="mt-6 border-amber-200 bg-amber-50">
             <CardHeader>
               <CardTitle>{cash.title}</CardTitle>
@@ -279,7 +279,7 @@ export default function ExecutiveDashboard() {
         </SectionErrorBoundary>
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
           <SectionErrorBoundary title={t.attention} isArabic={isArabic}>
-          {projectsQuery.isLoading ? <SectionMessage title={t.attention} isArabic={isArabic} kind="loading" /> : projectsQuery.error || !projectsQuery.data ? <SectionMessage title={t.attention} isArabic={isArabic} kind="error" detail={projectsQuery.error ? getLocalizedProjectError(projectsQuery.error, isArabic) : undefined} /> : <Card>
+          {projectsQuery.isLoading ? <SectionMessage title={t.attention} isArabic={isArabic} kind="loading" /> : projectsQuery.error || !projectsQuery.data ? <SectionMessage title={t.attention} isArabic={isArabic} kind="error" detail={projectsQuery.error ? getLocalizedProjectError(projectsQuery.error, isArabic) : undefined} onRetry={() => void projectsQuery.refetch()} /> : <Card>
             <CardHeader>
               <CardTitle>{t.attention}</CardTitle>
             </CardHeader>
@@ -309,7 +309,7 @@ export default function ExecutiveDashboard() {
           </Card>}
           </SectionErrorBoundary>
           <SectionErrorBoundary title={t.decisions} isArabic={isArabic}>
-          {decisionsQuery.isLoading ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="loading" /> : decisionsQuery.error || !decisionsQuery.data ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="error" detail={decisionsQuery.error ? getLocalizedProjectError(decisionsQuery.error, isArabic) : undefined} /> : <Card>
+          {decisionsQuery.isLoading ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="loading" /> : decisionsQuery.error || !decisionsQuery.data ? <SectionMessage title={t.decisions} isArabic={isArabic} kind="error" detail={decisionsQuery.error ? getLocalizedProjectError(decisionsQuery.error, isArabic) : undefined} onRetry={() => void decisionsQuery.refetch()} /> : <Card>
             <CardHeader>
               <CardTitle>{t.decisions}</CardTitle>
             </CardHeader>

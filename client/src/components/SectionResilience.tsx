@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
+import { isRefusal, refusalSentence } from "@/components/ScreenStates";
 
 type SectionErrorBoundaryProps = {
   children: React.ReactNode;
@@ -45,7 +46,8 @@ export function GuardedPanels({ children, isArabic, titles }: { children: React.
   })}</>;
 }
 
-export function SectionMessage({ title, isArabic, kind, detail, onRetry }: { title: string; isArabic: boolean; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void }) {
+/** `error` is the source's error: a refusal says so in a sentence (the server's, when it sent one) instead of the generic failure copy. */
+export function SectionMessage({ title, isArabic, kind, detail, onRetry, error }: { title: string; isArabic: boolean; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
   const copy = isArabic
     ? {
         loading: "جارٍ تحميل هذا القسم…",
@@ -63,7 +65,7 @@ export function SectionMessage({ title, isArabic, kind, detail, onRetry }: { tit
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">
       {kind === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? copy[kind]}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}</div>
+      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? (kind === "error" && isRefusal(error) ? refusalSentence(error, isArabic, "section") : copy[kind])}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}</div>
     </div>
   </section>;
 }

@@ -540,6 +540,42 @@ export const projectErrorMessages = {
     ar: "كمية حركة المخزون لا تتوافق مع نوع الاستلام أو الصرف أو التعديل.",
     en: "The inventory quantity does not match the selected receipt, issue, or adjustment type.",
   },
+  PROJECT_OS_INVENTORY_TRANSFER_SAME_PROJECT: {
+    ar: "المشروع المصدر والمشروع الوجهة واحد؛ استعمل التحويل بين مستودعات المشروع.",
+    en: "The source and destination project are the same; use the transfer between the project's own warehouses.",
+  },
+  PROJECT_OS_MATERIAL_ISSUE_NOT_FOUND: {
+    ar: "عملية الصرف المطلوب الإرجاع منها غير موجودة في هذا المشروع.",
+    en: "The issue being returned from does not exist in this project.",
+  },
+  PROJECT_OS_MATERIAL_RETURN_EXCEEDS_ISSUE: {
+    ar: "الكمية المرجعة أكبر مما بقي من الصرف الأصلي.",
+    en: "The returned quantity is more than what remains of the original issue.",
+  },
+  PROJECT_OS_MATERIAL_RETURN_QUANTITY_INVALID: {
+    ar: "أدخل كمية إرجاع موجبة.",
+    en: "Enter a positive quantity to return.",
+  },
+  PROJECT_OS_PMC_ACTIVITY_MODEL_MISMATCH: {
+    ar: "هذا النشاط يتبع نموذجًا غير نموذج الوحدة المختارة.",
+    en: "This activity belongs to a different model than the chosen unit.",
+  },
+  PROJECT_OS_PMC_ACTIVITY_NOT_LINKED_TO_WBS: {
+    ar: "هذا النشاط غير مربوط ببند WBS، فلا يمكن تحميل تكلفة عليه. اربطه أولًا.",
+    en: "This activity is not linked to a WBS item, so no cost can be charged to it. Link it first.",
+  },
+  PROJECT_OS_STOCKTAKE_DUPLICATE_MATERIAL: {
+    ar: "مادة مذكورة أكثر من مرة في الجرد؛ لكل مادة سطر واحد.",
+    en: "A material appears more than once in the count; give each material one line.",
+  },
+  PROJECT_OS_STOCKTAKE_EMPTY: {
+    ar: "الجرد بلا أسطر؛ أضف مادة واحدة على الأقل.",
+    en: "The count has no lines; add at least one material.",
+  },
+  PROJECT_OS_STOCKTAKE_QUANTITY_INVALID: {
+    ar: "الكمية المعدودة يجب أن تكون صفرًا أو أكثر.",
+    en: "A counted quantity must be zero or more.",
+  },
   PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK: {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
     en: "The movement cannot result in a negative stock balance.",
