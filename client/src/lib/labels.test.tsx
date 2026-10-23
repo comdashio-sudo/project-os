@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { operationalPermissionCatalog, operationalRoleDefinitions } from "../../../server/domain/operationalRoles";
-import { enumLabel, hasArabicLabel, hasArabicPermission, permissionLabel, productLabel } from "./labels";
+import { enumLabel, hasArabicLabel, hasArabicPermission, permissionLabel, permissionNote, productLabel } from "./labels";
 import { getOperationalRoleName } from "./operationalRolePresentation";
 
 const schema = readFileSync(join(__dirname, "..", "..", "..", "drizzle", "schema.ts"), "utf8");
@@ -51,6 +51,39 @@ describe("every code the database can hold has an Arabic name", () => {
   it("names the three products", () => {
     expect(["EXECUTIVE", "PMO", "PROJECT"].map(code => productLabel(code, true))).toEqual(["المستوى التنفيذي", "مكتب إدارة المشاريع", "إدارة المشروع"]);
     expect(productLabel("PROJECT", false)).toBe("PROJECT");
+  });
+});
+
+describe("the two permissions whose meaning the owner defined", () => {
+  it("names tenant.manage and executive.read in Arabic, as the owner worded them", () => {
+    expect(permissionLabel("tenant.manage", "Manage the company", true)).toBe("إدارة الشركة");
+    expect(permissionLabel("executive.read", "Senior management dashboard", true)).toBe("لوحة الإدارة العليا");
+    expect(permissionNote("tenant.manage", true)).toBe("المستخدمون والإعدادات والاشتراك في الشركة. لمدير النظام في الشركة فقط.");
+    expect(permissionNote("executive.read", true)).toBe("للاطلاع فقط. للمدير العام ولرئيس إدارة المشاريع.");
+  });
+  it("names them in English with the same meaning", () => {
+    expect(permissionLabel("tenant.manage", "Manage the company", false)).toBe("Manage the company");
+    expect(permissionLabel("executive.read", "Senior management dashboard", false)).toBe("Senior management dashboard");
+    expect(permissionNote("tenant.manage", false)).toBe("The company's users, settings and subscription. For the company's system administrator only.");
+    expect(permissionNote("executive.read", false)).toBe("View only. For the general manager and the head of project management.");
+  });
+  it("never shows the raw code as the name, and the old Arabic name is gone", () => {
+    for (const code of ["tenant.manage", "executive.read"]) {
+      expect(permissionLabel(code, code, true)).not.toBe(code);
+      expect(permissionLabel(code, code, true)).toMatch(/[؀-ۿ]/);
+      expect(permissionNote(code, true)).not.toContain(code);
+      expect(permissionNote(code, false)).not.toContain(code);
+    }
+    expect(permissionLabel("executive.read", "x", true)).not.toContain("عرض المستوى التنفيذي");
+  });
+  it("has a note only for the two permissions the owner defined", () => {
+    expect(permissionNote("project.read", true)).toBeUndefined();
+    expect(permissionNote("project.read", false)).toBeUndefined();
+  });
+  it("uses the English names the server catalogue stores, so the English page and the API agree", () => {
+    const db = readFileSync(join(__dirname, "..", "..", "..", "server", "db.ts"), "utf8");
+    expect(db).toContain('{ code: "tenant.manage", name: "Manage the company", productCode: "EXECUTIVE" as const }');
+    expect(db).toContain('{ code: "executive.read", name: "Senior management dashboard", productCode: "EXECUTIVE" as const }');
   });
 });
 

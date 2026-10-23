@@ -44,7 +44,7 @@ export function enumLabel(code: string | null | undefined, isArabic: boolean): s
 export const hasArabicLabel = (code: string) => code.trim().toLowerCase().replace(/[\s-]+/g, "_") in STATUS_AR;
 
 const PERMISSION_AR: Record<string, string> = {
-  "executive.read": "عرض المستوى التنفيذي (1)", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
+  "executive.read": "لوحة الإدارة العليا", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
   "project.design.manage": "إدارة سجل المخططات والإحالات وملاحظات التصميم والتقديمات", "project.design.architectural": "سلطة التخصصات المعمارية (عمارة وتصميم داخلي وتنسيق مواقع)", "project.design.technical": "سلطة التخصصات الفنية (إنشائي ومدني وميكانيكا وكهرباء وسباكة وإطفاء)", "project.design.approve": "اعتماد المخططات للتنفيذ وتسجيل ردود الاستشاري", 
   "project.tender.manage": "إدارة حزم المناقصات والدعوات", "project.tender.bids": "إدخال العروض وتعديلها", "project.tender.level": "تسوية العروض ومقارنتها", "project.tender.award": "ترسية المناقصة", "project.create": "إنشاء المشاريع", "payment.prepare": "إعداد الدفعات", "payment.approve": "اعتماد الدفعات", "schedule.write": "كتابة الجدول الزمني والخطة الرئيسية", 
   "project.write": "تحرير بيانات المشروع", "project.manage": "إدارة المشروع", "tenant.manage": "إدارة الشركة", "project.attendance.manage": "إدارة الحضور",
@@ -57,9 +57,17 @@ const PERMISSION_AR: Record<string, string> = {
   "project.quality.manage": "إدارة الجودة", "project.rfi.manage": "إدارة طلبات المعلومات", "project.schedule.manage": "إدارة الجدول الزمني", "project.settings.labour": "ضبط إعدادات تكلفة العمالة",
   "project.wbs.manage": "إدارة هيكل تجزئة العمل (WBS)",
 };
-/** A permission's Arabic name; the code itself is shown beside it, small, because it is what an administrator searches for. */
+/** A permission's name in the page's language. The raw code is never its text: a screen keeps it in a title attribute (the administrator can still search it). */
 export const permissionLabel = (code: string, fallbackName: string, isArabic: boolean) => (isArabic && PERMISSION_AR[code]) || fallbackName || code;
 export const hasArabicPermission = (code: string) => code in PERMISSION_AR;
+
+/** One line of meaning under a permission's name, for the two permissions whose scope the owner has defined. Arabic and English, as the owner worded them. */
+const PERMISSION_NOTE: Record<string, { ar: string; en: string }> = {
+  "tenant.manage": { ar: "المستخدمون والإعدادات والاشتراك في الشركة. لمدير النظام في الشركة فقط.", en: "The company's users, settings and subscription. For the company's system administrator only." },
+  "executive.read": { ar: "للاطلاع فقط. للمدير العام ولرئيس إدارة المشاريع.", en: "View only. For the general manager and the head of project management." },
+};
+/** The meaning of a permission whose scope is defined here, or undefined for every other permission. */
+export const permissionNote = (code: string, isArabic: boolean) => PERMISSION_NOTE[code]?.[isArabic ? "ar" : "en"];
 
 const PRODUCT_AR: Record<string, string> = { EXECUTIVE: "المستوى التنفيذي", PMO: "مكتب إدارة المشاريع", PROJECT: "إدارة المشروع" };
 export const productLabel = (code: string, isArabic: boolean) => (isArabic && PRODUCT_AR[code]) || code;

@@ -1806,7 +1806,27 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     expect(beforeExclusion).toMatchObject({ employee: { id: employee.id, isOwn: true }, metrics: { sourceCounts: { activity: 1 } } });
     expect(beforeExclusion.metrics.assignedCount).toBeGreaterThanOrEqual(1);
     const unassignedEmployee = await caller.employees.create({ tenantId: tenantA, employeeNumber: "EMP-PERF-UNASSIGNED", fullName: "Unassigned Performance Employee", jobTitle: "Engineer", department: "Delivery", hireDate: new Date("2026-09-01T00:00:00.000Z"), retentionPolicy: "standard" });
-    await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: unassignedEmployee.id })).rejects.toThrow("PROJECT_OS_ASSIGNMENT_NOT_FOUND");
+    // Owner decision (2026-10-23): each person sees only their own indicators, whatever their role. Another employee's id is refused as FORBIDDEN
+    // before any of that employee's records are read, even for a caller who holds the management permission.
+    await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: unassignedEmployee.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: unassignedEmployee.id })).rejects.toThrow("PROJECT_OS_PERFORMANCE_SELF_ONLY");
+    await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).resolves.toMatchObject({ employee: { id: employee.id, isOwn: true } });
+    // A member of the company with no linked employee record is refused, and so is a linked record that is no longer active (tested with a suspended record).
+    const unlinkedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+    const unlinked = appRouter.createCaller(unlinkedContext);
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-perf-unlinked', ?, ?, 'active')", [tenantA, unassignedUserId]);
+    try {
+      await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
+      await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
+    } finally {
+      await connection.query("DELETE FROM memberships WHERE id = 'int-membership-perf-unlinked'");
+    }
+    await connection.query("UPDATE employees SET employmentStatus = 'suspended' WHERE id = ?", [employee.id]);
+    try {
+      await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
+    } finally {
+      await connection.query("UPDATE employees SET employmentStatus = 'active' WHERE id = ?", [employee.id]);
+    }
     await expect(caller.performance.exclude({ tenantId: tenantA, projectId: projectB, employeeId: employee.id, sourceType: "activity", sourceId: activity.id, reason: "External client access delay documented outside the employee's control." })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     const exclusion = await caller.performance.exclude({ tenantId: tenantA, projectId: projectA, employeeId: employee.id, sourceType: "activity", sourceId: activity.id, reason: "External client access delay documented outside the employee's control." });
     expect((await caller.performance.get({ tenantId: tenantA, projectId: projectA })).metrics).toMatchObject({ assignedCount: beforeExclusion.metrics.assignedCount - 1, excludedCount: 1 });
