@@ -822,8 +822,8 @@ const anyImportPermission = Array.from(new Set(Object.values(importModulePermiss
 export const importPermissionFor = (moduleCode: string) => importModulePermissions[moduleCode as keyof typeof importModulePermissions] ?? anyImportPermission;
 
 const ownerPermissions = [
-  { code: "tenant.manage", name: "Manage tenant settings", productCode: "EXECUTIVE" as const },
-  { code: "executive.read", name: "View Level 1", productCode: "EXECUTIVE" as const },
+  { code: "tenant.manage", name: "Manage the company", productCode: "EXECUTIVE" as const },
+  { code: "executive.read", name: "Senior management dashboard", productCode: "EXECUTIVE" as const },
   { code: "pmo.read", name: "View Level 2", productCode: "PMO" as const },
   { code: "pmo.write", name: "Manage Level 2", productCode: "PMO" as const },
   { code: "project.read", name: "View Level 3", productCode: "PROJECT" as const },
