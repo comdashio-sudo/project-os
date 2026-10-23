@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
+import { ErrorState } from "@/components/ScreenStates";
 import { getOperationalRoleName } from "@/lib/operationalRolePresentation";
 import { trpc } from "@/lib/trpc";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
@@ -117,7 +118,7 @@ export default function TenantAdministration() {
   const membershipStatus = (status: string) => ({ active: t.active, invited: t.invited, suspended: t.suspended, revoked: t.revoked }[status] ?? status);
 
   if (query.isLoading) return <main className="min-h-screen bg-[#f4f6f8] text-slate-900"><header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><div className="flex items-center gap-2 font-semibold text-[var(--dashio-indigo)]"><ShieldCheck className="h-5 w-5 text-[var(--dashio-aqua)]" />Dashio</div><LanguageToggle /></div></header><section className="mx-auto flex min-h-[560px] max-w-7xl items-center px-5 py-10"><div className="grid w-full gap-8 rounded-3xl border border-[#d7ebe6] bg-white p-7 shadow-sm lg:grid-cols-[1.05fr_.95fr]"><div className="flex flex-col justify-center"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--dashio-bg-dark)] text-[var(--dashio-aqua)]"><LoaderCircle className="h-6 w-6 animate-spin" /></div><p className="mt-6 text-xs font-bold tracking-[.16em] text-[var(--dashio-aqua)]">{isArabic ? "DASHIO · إدارة الشركة" : "DASHIO CONTROL"}</p><h1 className="mt-2 text-3xl font-semibold text-[var(--dashio-bg-dark)]">{isArabic ? "يتم تجهيز إدارة الفريق والأدوار" : "Preparing team & role administration"}</h1><p className="mt-3 max-w-xl leading-7 text-slate-600">{isArabic ? "نحمّل العضويات والأدوار ونطاقات الوصول المصرح بها. لن تظهر أي صلاحيات قبل تحقق الحراسة الخادمية." : "Loading authorized memberships, roles, and access scopes. No permission is displayed before server-side guards are confirmed."}</p></div><div className="grid gap-3 sm:grid-cols-2" aria-hidden="true"><div className="h-32 rounded-2xl bg-[#effaf7]" /><div className="h-32 rounded-2xl bg-slate-100" /><div className="h-32 rounded-2xl bg-slate-100" /><div className="h-32 rounded-2xl bg-[#effaf7]" /></div></div></section></main>;
-  if (query.error || !query.data) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(query.error, isArabic)}</main>;
+  if (query.error || !query.data) return <main className="min-h-screen bg-[#f4f6f8] p-8"><div className="mx-auto max-w-3xl"><ErrorState isArabic={isArabic} error={query.error} title={isArabic ? "تعذّر تحميل إدارة الشركة" : "Company administration could not be loaded"} onRetry={() => query.refetch()} retrying={query.isFetching} /></div></main>;
 
   const data = query.data;
   const displayRoleName = (role: { code: string; name: string }) => getOperationalRoleName(role, isArabic);
