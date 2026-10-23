@@ -190,7 +190,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
     IMPORT_UNSUPPORTED_COLUMN: isArabic ? "يوجد عمود غير معتمد لنوع البيانات المحدد." : "The file includes a column not approved for the selected data type.",
     IMPORT_DUPLICATE_FILE_KEY: isArabic ? "يوجد رمز مكرر داخل الملف. صحح التكرار قبل التحليل." : "A business key is repeated inside the file. Correct the duplicate before analysis.",
       IMPORT_MAPPING_INVALID: isArabic ? "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد." : "A file column cannot be assigned to more than one approved field.",
-      IMPORT_INVALID_CURRENCY: isArabic ? "العملة يجب أن تكون رمزًا من ثلاثة أحرف مثل SAR أو USD." : "Currency must be a three-letter code such as SAR or USD.",
+      IMPORT_INVALID_CURRENCY: isArabic ? "العملة يجب أن تكون الريال السعودي SAR؛ في الإصدار الأول لا تُقبل عملة أخرى." : "The currency must be the Saudi riyal, SAR; no other currency is accepted in this first version.",
       SCHEDULE_RECORD_TYPE_INVALID: isArabic ? "نوع السجل يجب أن يكون WBS أو Activity." : "Record type must be WBS or Activity.",
       SCHEDULE_WBS_REFERENCE_UNRESOLVED: isArabic ? "يشير النشاط إلى رمز WBS غير موجود في الملف." : "The activity references a WBS code that is absent from the file.",
       SCHEDULE_DATE_INVALID: isArabic ? "تاريخ النشاط غير صالح أو أن النهاية تسبق البداية." : "An activity date is invalid or the finish precedes the start.",

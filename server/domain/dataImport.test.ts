@@ -58,6 +58,11 @@ describe("analyzeImportFile", () => {
     const result = await analyzeImportFile({ moduleCode: "contracts", format: "xlsx", bytes: await workbookBytes([{ "Contract Code": "CON-001", "Contract Title": "Civil works", Counterparty: "Main Contractor", "Contract Value": 100, Currency: "Saudi Riyal" }, { "Contract Code": "CON-001", "Contract Title": "MEP works", Counterparty: "MEP Contractor", "Contract Value": 200, Currency: "SAR" }]) });
     expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({ rowNumber: 2, code: "IMPORT_INVALID_CURRENCY", field: "currency" }), expect.objectContaining({ rowNumber: 3, code: "IMPORT_DUPLICATE_FILE_KEY", field: "code" })])); expect(result.validRows).toEqual([]);
   });
+  it("refuses a contract row in dollars and keeps a riyal row (V1: the riyal only)", async () => {
+    const result = await analyzeImportFile({ moduleCode: "contracts", format: "xlsx", bytes: await workbookBytes([{ "Contract Code": "CON-USD", "Contract Title": "Civil works", Counterparty: "Main Contractor", "Contract Value": 100, Currency: "USD" }, { "Contract Code": "CON-SAR", "Contract Title": "MEP works", Counterparty: "MEP Contractor", "Contract Value": 200, Currency: "SAR" }]) });
+    expect(result.errors).toEqual([expect.objectContaining({ rowNumber: 2, code: "IMPORT_INVALID_CURRENCY", field: "currency" })]);
+    expect(result.validRows.map(row => row.values.currency)).toEqual(["SAR"]);
+  });
   it("reads the opening-balance template in English and Arabic, with a decimal quantity", async () => {
     const english = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "Warehouse Code": "WH-01", "Material Code": "CEM", Quantity: "1,250.5", "Unit Cost": "12.50" }]) });
     const arabic = await analyzeImportFile({ moduleCode: "openingBalances", format: "xlsx", bytes: await workbookBytes([{ "رمز المستودع": "WH-01", "رمز المادة": "CEM", "الكمية": 40, "تكلفة الوحدة": 8 }]) });

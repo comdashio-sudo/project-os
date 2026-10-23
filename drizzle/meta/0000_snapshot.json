@@ -1,5 +1,5 @@
 {
-  "id": "526520b2-4025-488e-9e66-dbc93043aa24",
+  "id": "b73ffec3-e6b4-4a9b-a20e-9997183f9584",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1015,7 +1015,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "status": {
           "name": "status",
@@ -1237,7 +1237,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "status": {
           "name": "status",
@@ -1762,7 +1762,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "status": {
           "name": "status",
@@ -2048,7 +2048,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "status": {
           "name": "status",
@@ -15444,7 +15444,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "created_by_user_id": {
           "name": "created_by_user_id",
@@ -15796,7 +15796,7 @@
           "type": "varchar(3)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'USD'"
+          "default": "'SAR'"
         },
         "contract_value": {
           "name": "contract_value",

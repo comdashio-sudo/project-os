@@ -5,9 +5,18 @@ describe("profitability view helpers", () => {
   it("formats money with a sign and the currency, in both languages", () => {
     expect(formatMoney(1234567, "SAR", false)).toBe("1,234,567 SAR");
     expect(formatMoney(-250, "SAR", false)).toBe("-250 SAR");
-    expect(formatMoney(-250, "SAR", true)).toBe("\u2066-250 SAR\u2069");
+    expect(formatMoney(-250, "SAR", true)).toBe("\u2066-250 \u0631\u064a\u0627\u0644\u2069");
     expect(formatPercent(-95.5, true)).toMatch(/^\u2066\u200e?-95\.5%\u2069$/);
     expect(formatPercent(null, true)).toBe("—");
+  });
+  it("shows the riyal whatever the stored code: a legacy USD amount is still displayed in riyals", () => {
+    expect(formatMoney(1500, "USD", false)).toBe("1,500 SAR");
+    expect(formatMoney(250, "USD", true)).toBe("⁦250 ريال⁩");
+    expect(formatMoney(1500, "USD", false)).not.toContain("USD");
+  });
+  it("keeps the decimals a screen asks for", () => {
+    expect(formatMoney(12.5, "SAR", false, 2)).toBe("12.50 SAR");
+    expect(formatMoney(12.5, "SAR", false)).toBe("13 SAR");
   });
   it("reads a profit change as good, bad or flat", () => {
     expect(trend(10)).toEqual({ tone: "good", arrow: "▲" });

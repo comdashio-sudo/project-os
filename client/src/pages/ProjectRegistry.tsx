@@ -39,7 +39,7 @@ export default function ProjectRegistry() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { isArabic } = useLanguage();
   const projects = trpc.projects.list.useQuery({ tenantId });
-  const [form, setForm] = useState({ code: "", name: "", projectType: isArabic ? "بنية تحتية" : "Infrastructure", currency: "USD" });
+  const [form, setForm] = useState({ code: "", name: "", projectType: isArabic ? "بنية تحتية" : "Infrastructure", currency: "SAR" });
   const [nextStages, setNextStages] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<LifecycleFeedback | null>(null);
   const [projectSearch, setProjectSearch] = useState("");

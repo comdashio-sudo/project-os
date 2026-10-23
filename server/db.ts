@@ -832,7 +832,29 @@ const ownerPermissions = [
 
 const allCatalogPermissions = [...ownerPermissions, ...operationalPermissionCatalog];
 
-async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string) {
+type OperationalDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type OperationalTx = Parameters<Parameters<OperationalDb["transaction"]>[0]>[0];
+
+/**
+ * Installs the ready-made roles (operationalRoleDefinitions) into one company, with the rows they have always had. Called from the two
+ * company-creation transactions (new companies only) and from the administration read (ensureTenantOperationalRoles), as it always was.
+ * Idempotent: role rows are upserted and permission links use ON CONFLICT DO NOTHING, so a call adds nothing beyond the template.
+ */
+async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string) {
+  for (const definition of operationalRoleDefinitions) {
+    await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onConflictDoUpdate({ target: [roles.tenantId, roles.code], set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
+    const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
+    const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
+    if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
+    for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
+  }
+}
+
+/**
+ * Runs on every administration read: the catalog upsert, the TENANT_OWNER grant, and the ready-made roles as they have always been installed.
+ * The template content is unchanged by this commit, so the read writes no grant that a company did not already have from its template.
+ */
+async function ensureTenantOperationalRoles(db: OperationalDb, tenantId: string) {
   await db.transaction(async tx => {
     for (const permission of allCatalogPermissions) {
       await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
@@ -843,13 +865,7 @@ async function ensureTenantOperationalRoles(db: NonNullable<Awaited<ReturnType<t
       const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
       for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onConflictDoNothing();
     }
-    for (const definition of operationalRoleDefinitions) {
-      await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onConflictDoUpdate({ target: [roles.tenantId, roles.code], set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
-      const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
-      const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
-      if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
-      for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
-    }
+    await installOperationalRoleTemplates(tx, tenantId);
   });
 }
 
@@ -887,6 +903,7 @@ async function createTenantForUserUnscoped(input: NewTenantInput): Promise<{ ten
     const permissionRows = await tx.select({ id: permissions.id }).from(permissions);
     const permissionIds = permissionRows.filter(row => row.id).map(row => row.id);
     await tx.insert(rolePermissions).values(permissionIds.map(permissionId => ({ roleId: ownerRoleId, permissionId })));
+    await installOperationalRoleTemplates(tx, tenantId);
     await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
     await tx.insert(auditLogs).values({
       id: crypto.randomUUID(),
@@ -952,6 +969,7 @@ async function createSelfServiceTenantUnscoped(input: SelfServiceTenantInput) {
       await tx.insert(roles).values({ id: ownerRoleId, tenantId, code: "TENANT_OWNER", name: "Tenant Owner", systemManaged: true });
       for (const permission of allCatalogPermissions) await tx.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
       const permissionRows = await tx.select({ id: permissions.id }).from(permissions); await tx.insert(rolePermissions).values(permissionRows.map(permission => ({ roleId: ownerRoleId, permissionId: permission.id })));
+      await installOperationalRoleTemplates(tx, tenantId);
       await tx.insert(membershipRoles).values({ id: crypto.randomUUID(), membershipId, roleId: ownerRoleId, scopeType: "company" });
       await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: input.userId, action: "self_service.tenant_created", entityType: "company", entityId: tenantId, metadata: JSON.stringify({ planCode: input.planCode, seats: input.seats, verification: "authenticated_email_present" }) });
     });

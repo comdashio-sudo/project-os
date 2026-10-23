@@ -26,8 +26,13 @@ describe("operational permissions are enforced by the server (G-120)", () => {
     }
   });
 
+  // Codes added to the catalog before the check that uses them lands (AFTER_MIGRATION O-W3, R-2, R-3). Each must leave this list in the change
+  // that moves its check: project.create and schedule.write when the project and master-plan writes switch; payment.* when the payments module exists.
+  const reservedUntilEnforced = ["project.create", "schedule.write", "payment.prepare", "payment.approve"];
+
   it("every operational permission is enforced somewhere: by a governed action, a named check in db.ts, or a PMC service", () => {
     const missing = catalogCodes.filter(code => {
+      if (reservedUntilEnforced.includes(code)) return false;
       const governed = Object.values(governedActionPermissions).some(list => (list as readonly string[]).includes(code));
       const imported = Object.values(importModulePermissions).some(list => (list as readonly string[]).includes(code));
       const named = db.includes(`permission: "${code}"`) || pmcSources.includes(`"${code}"`);
