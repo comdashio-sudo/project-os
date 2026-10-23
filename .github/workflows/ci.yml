@@ -62,6 +62,19 @@ jobs:
           DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
           PROJECT_OS_APP_DB_PASSWORD: project-os-local-test-only # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
 
+  workflows:
+    name: workflow syntax (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # A workflow file GitHub rejects does not fail one job: it shows a failed run with no jobs on EVERY push (bootstrap.yml did, for a `runner` context in a job-level env).
+      - name: actionlint (pinned release)
+        run: |
+          set -euo pipefail
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color .github/workflows/*.yml
+
   secrets:
     name: secret scan
     runs-on: ubuntu-latest
