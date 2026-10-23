@@ -265,7 +265,8 @@
  * It lives in the utilities layer so it beats the components-layer `.flex { min-height: 0 }` above. :where() keeps the selectors
  * at zero specificity, so any utility class on a control (h-9, size-8, min-h-0, hidden) still wins.
  * Not sized: native and Radix checkboxes, radios and switches (their drawn size is part of the look, so the label row that holds
- * them is the 44px target), file pickers (the Excel import controls), and hidden inputs.
+ * them is the 44px target), and hidden inputs. A file picker is the control itself (drawn at the 36px field height), so it takes
+ * the 44px minimum height; a date or number field gets the 44px minimum width below, because the shared Input carries `min-w-0`.
  */
 @layer utilities {
   @media (pointer: coarse) {
@@ -299,6 +300,17 @@
     /* A checkbox or radio keeps its 16px drawn size. The label row that holds it is the 44px target. */
     :where(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
       min-height: 44px;
+    }
+
+    /* A file picker is the field itself: 36px by default, so it takes the 44px minimum height the other fields have. */
+    :where(input[type="file"]) {
+      min-height: 44px;
+    }
+
+    /* The shared Input has the utility class min-w-0, which beats the :where() rule above, so a narrow date or number field
+       in a row stayed under 44px wide. This selector is not :where(), so it wins over min-w-0 (specificity 0,4,1). */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]) {
+      min-width: 44px;
     }
   }
 }
