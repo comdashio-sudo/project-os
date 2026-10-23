@@ -25,6 +25,7 @@
     "check:pdf-export": "node --import tsx scripts/check-pdf-export.mjs",
     "check:offline-read": "node --import tsx scripts/check-offline-read.mjs",
     "e2e:setup-wizard": "node --import tsx scripts/e2e-setup-wizard.mjs",
+    "e2e:quick-issue": "node --import tsx scripts/e2e-quick-issue.mjs",
     "capture:guide": "node --import tsx scripts/capture-guide.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed-demo": "node --import tsx scripts/seed-demo-tenant.mjs"

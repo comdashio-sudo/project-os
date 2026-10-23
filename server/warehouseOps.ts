@@ -14,7 +14,9 @@ import {
   materialMasters,
   materialReturns,
   pmcActivityDefinitions,
+  pmcBlocks,
   pmcUnits,
+  pmcZones,
   projectWarehouses,
   warehouseInventoryTransactions,
   warehouseInventoryTransfers,
@@ -216,3 +218,19 @@ export async function issueMaterialToCellForTenant(input: { userId: number; tena
   });
 }
 
+
+// ------------------------------------------------------------------------------------------------------------------------ what the phone picks from
+
+/** The warehouses, units and activities the quick-issue screen offers. Only activities that name a WBS item are offered: the others could not carry a cost. */
+export async function getIssueCellOptionsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await authorizeInventory(input);
+  const where = (table: { tenantId: unknown; projectId: unknown }) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+  const [warehouses, units, definitions] = await Promise.all([
+    db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name }).from(projectWarehouses).where(and(where(projectWarehouses), eq(projectWarehouses.active, true))).orderBy(asc(projectWarehouses.code)),
+    db.select({ id: pmcUnits.id, number: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, block: pmcBlocks.code, zone: pmcZones.code }).from(pmcUnits)
+      .innerJoin(pmcBlocks, eq(pmcBlocks.id, pmcUnits.blockId)).innerJoin(pmcZones, eq(pmcZones.id, pmcBlocks.zoneId)).where(where(pmcUnits)).orderBy(asc(pmcUnits.unitNumber)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, linked: sql<boolean>`${pmcActivityDefinitions.wbsItemId} IS NOT NULL` }).from(pmcActivityDefinitions)
+      .where(where(pmcActivityDefinitions)).orderBy(asc(pmcActivityDefinitions.code)),
+  ]);
+  return { warehouses, units, activities: definitions.filter(item => item.linked).map(({ linked: _linked, ...item }) => item), activitiesWithoutWbs: definitions.filter(item => !item.linked).length };
+}
