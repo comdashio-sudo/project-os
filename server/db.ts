@@ -3707,7 +3707,9 @@ export async function previewDataImportDiff(input: { userId: number; tenantId: s
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } }); // the licence is checked before the record is even looked up, like every other import function
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
   // Reading the differences is part of deciding to import, so it needs the import permission of the module, not just read access.
