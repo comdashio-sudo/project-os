@@ -23,8 +23,8 @@ function simulate(routes: Record<string, (call: Call) => { status?: number; body
 }
 const REF = SUPABASE_PROJECT_REF;
 const supabaseOk = (over: { id?: string; org?: string; orgName?: string } = {}) => ({
-  [`GET /v1/projects/${REF}`]: () => ({ body: { id: over.id ?? REF, organization_slug: over.org ?? "org-dashio", region: "ap-southeast-1", name: "dashio" } }),
-  [`GET /v1/organizations/${over.org ?? "org-dashio"}`]: () => ({ body: { name: over.orgName ?? "dashio" } }),
+  [`GET /v1/projects/${REF}`]: () => ({ body: { id: "7a7d2d7e-0000-4000-8000-000000000001", ref: over.id ?? REF, organization_id: "org-uuid", organization_slug: over.org ?? "org-dashio", region: "ap-southeast-1", name: "dashio", status: "ACTIVE_HEALTHY" } }), // V1ProjectWithDatabaseResponse: `ref` is the project reference
+  [`GET /v1/organizations/${over.org ?? "org-dashio"}`]: () => ({ body: { id: "org-uuid", slug: over.org ?? "org-dashio", name: over.orgName ?? "dashio" } }), // OrganizationResponseV1
 });
 
 describe("Supabase guard: one project, inside one organisation, checked before any write", () => {
@@ -49,7 +49,7 @@ describe("Supabase guard: one project, inside one organisation, checked before a
   });
 
   it("REFUSES a project that does not name its organisation", async () => {
-    const sim = simulate({ [`GET /v1/projects/${REF}`]: () => ({ body: { id: REF } }) });
+    const sim = simulate({ [`GET /v1/projects/${REF}`]: () => ({ body: { id: "7a7d2d7e-0000-4000-8000-000000000001", ref: REF } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toBeInstanceOf(GuardError);
   });
 
@@ -61,7 +61,7 @@ describe("Supabase guard: one project, inside one organisation, checked before a
       [`PATCH /v1/projects/${REF}/postgrest`]: () => ({ body: {} }),
       [`GET /v1/projects/${REF}/postgrest`]: () => ({ body: { db_schema: "graphql_public" } }),
       [`GET /v1/projects/${REF}/api-keys`]: () => ({ body: [{ name: "service_role", api_key: "SERVICE-ROLE-MUST-NOT-LEAK" }, { name: "anon", api_key: "anon-key-value" }] }),
-      [`GET /v1/projects/${REF}/config/database/pooler`]: () => ({ body: [{ db_host: "aws-0-ap-southeast-1.pooler.supabase.com", db_port: 5432 }] }),
+      [`GET /v1/projects/${REF}/config/database/pooler`]: () => ({ body: [{ identifier: "x", database_type: "READ_REPLICA", db_user: "postgres", db_host: "replica-0.pooler.supabase.com", db_port: 6543, db_name: "postgres", pool_mode: "transaction", is_using_scram_auth: true }, { identifier: "x", database_type: "PRIMARY", db_user: "postgres", db_host: "aws-0-ap-southeast-1.pooler.supabase.com", db_port: 6543, db_name: "postgres", pool_mode: "transaction", is_using_scram_auth: true }] }), // SupavisorConfigResponse[]: the PRIMARY entry is the one to use
     });
     const api = supabaseApi(sim.fetchImpl, "t");
     await api.assertTarget(); await api.applyAuthSettings("T"); await api.closeDataApi();
@@ -135,7 +135,7 @@ describe("Vercel guard: one project named dashio, linked to the one repository",
   it("never lists projects: every path names dashio or its id", async () => {
     const sim = simulate({
       "GET /v9/projects/dashio": () => ({ body: { id: "prj_1", serverlessFunctionRegion: "sin1", link: { type: "github", org: "comdashio-sudo", repo: "project-os" } } }),
-      "GET /v9/projects/prj_1/env": () => ({ body: { envs: [{ key: "JWT_SECRET", target: ["production"] }] } }),
+      "GET /v10/projects/prj_1/env": () => ({ body: { envs: [{ key: "JWT_SECRET", target: ["production"] }] } }),
       "POST /v10/projects/prj_1/env": () => ({}),
     });
     const api = vercelApi(sim.fetchImpl, "t");
@@ -203,5 +203,27 @@ describe("the workflow", () => {
     const run = text("scripts/bootstrap/run.ts");
     for (const secret of ["databasePassword", "appRolePassword", "jwtSecret", "cronSecret", "anonKey", "urls.adminSession", "urls.appTransaction"]) expect(run, secret).toMatch(new RegExp(`mask\\(${secret.replace(".", "\\.")}\\)`));
     expect(run).not.toMatch(/console\.log\([^)]*(Password|Secret|anonKey|jwt)/i);
+  });
+});
+
+describe("the calls match the official API shapes (work order 11)", () => {
+  it("reads the Vercel environment list from the current /v10 route and deploys with the documented query flags", async () => {
+    const sim = simulate({
+      "GET /v10/projects/prj_1/env": () => ({ body: { envs: [{ key: "JWT_SECRET", target: ["production"] }] } }),
+      "POST /v13/deployments": () => ({ body: { id: "dpl_1" } }),
+    });
+    const api = vercelApi(sim.fetchImpl, "t");
+    expect(Array.from(await api.existingEnvKeys("prj_1"))).toEqual(["JWT_SECRET"]);
+    await api.deployProduction();
+    const deploy = sim.calls.find(call => call.method === "POST")!;
+    expect(deploy.url).toBe("https://api.vercel.com/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1");
+    expect(deploy.body).toEqual({ name: "dashio", project: "dashio", target: "production", gitSource: { type: "github", org: "comdashio-sudo", repo: "project-os", ref: "main" } });
+  });
+
+  it("the workflow file is valid for GitHub: no `runner` context in a job-level env (it made every push show a failed run with no jobs)", () => {
+    const yml = readFileSync(path.join(process.cwd(), ".github/workflows/bootstrap.yml"), "utf8");
+    const jobEnv = yml.slice(yml.indexOf("    env:"), yml.indexOf("    steps:"));
+    expect(jobEnv).not.toMatch(/\$\{\{\s*runner\./);
+    expect(yml).toMatch(/BOOTSTRAP_STATE=\$RUNNER_TEMP\/bootstrap-state\.json/);
   });
 });
