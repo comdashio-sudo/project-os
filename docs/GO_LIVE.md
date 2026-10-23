@@ -1,8 +1,34 @@
 # الإطلاق — صفحة واحدة، نقرٌ فقط (Supabase + Vercel + GitHub)
 
-مشروعان **جديدان ومنفصلان تمامًا**: مشروع Supabase باسم `dashio` ومشروع Vercel باسم `dashio`. لا تُعِد استعمال قاعدة أو مفتاح أو مشروع من أي منصة أخرى عندك. **لا حاجة إلى طرفية:** كل ما كان يحتاج أمرًا صار زرًّا في GitHub (Actions ← **Supabase setup** ← **Run workflow**) أو إعدادًا تنقر عليه في لوحة Supabase أو Vercel.
+مشروعان **جديدان ومنفصلان تمامًا**: مشروع Supabase باسم `dashio` ومشروع Vercel باسم `dashio`. لا تُعِد استعمال قاعدة أو مفتاح أو مشروع من أي منصة أخرى عندك. **لا حاجة إلى طرفية، وأسرع منها زر واحد (القسم التالي):** كل ما كان يحتاج أمرًا صار زرًّا في GitHub (Actions ← **Supabase setup** ← **Run workflow**) أو إعدادًا تنقر عليه في لوحة Supabase أو Vercel.
 
 **الخطة الآن مجانية:** Supabase Free وVercel Hobby. القسم ٦ يذكر صراحةً ما يتعطل أو يتغير بدون Pro. المنطقة: مشروع Supabase في **سنغافورة**، ودوال Vercel مضبوطة في الملف على `sin1` (سنغافورة) فلا تغيّرها.
+
+## الطريق المختصر: زر واحد (يُنصح به)
+
+يُعدّ الزر كل ما في هذه الوثيقة آليًا: إعدادات الدخول وقالبا الرمز في Supabase، وإغلاق Data API، وبناء الاتصالات، والترحيلات وحساب التطبيق والحاويات والتحقق، ثم مشروع Vercel `dashio` بمنطقة `sin1` ومتغيرات Production والنشر والرابط وفحص `/healthz`. **ثلاثة أسرار فقط** تضعها في GitHub (المستودع ← **Settings ← Secrets and variables ← Actions ← New repository secret**):
+
+| السر | من أين تنسخه |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Supabase ← صورتك أسفل اليسار ← **Account preferences ← Access Tokens ← Generate new token** (اسمه مثلًا `dashio-bootstrap`) ← انسخه فور ظهوره |
+| `VERCEL_TOKEN` | Vercel ← صورتك ← **Account Settings ← Tokens ← Create Token** (النطاق: حسابك) ← انسخه فور ظهوره |
+| `SUPABASE_DB_PASSWORD` | كلمة مرور قاعدة مشروع `dashio` التي اخترتها عند إنشائه (إن نسيتها: **Project Settings ← Database ← Reset database password**، ثم اكتب الجديدة هنا) |
+
+ثم: GitHub ← **Actions ← Bootstrap launch ← Run workflow** ← اكتب بريدك في `owner_email` ← **Run workflow**. في آخر التشغيل افتح **Summary** (بالعربية): فيه ما أُنجز والرابط ونتيجة `/healthz` وأي خطوة يدوية متبقية.
+
+**الحراسة (المفتاحان يريان مشاريعك الأخرى):** الزر لا يعمل إلا على مشروع Supabase واحد معرّفه `dzfxgxccnlyhcjgqstgn` داخل منظمة اسمها `dashio`، ويتحقق من الاثنين قبل أي كتابة ويتوقف إن لم يتطابقا؛ ولا يسرد مشاريعك ولا يقرأ غير هذا المشروع. وفي Vercel لا ينشئ أو يحدّث إلا مشروعًا اسمه `dashio` مربوطًا بالمستودع `comdashio-sudo/project-os`، ويتوقف إن وجد مشروعًا بهذا الاسم مربوطًا بمستودع آخر. **بعد نجاح الإطلاق احذف الرمزين** (Supabase وVercel) من حسابيك ومن GitHub Secrets، وأنشئ غيرهما عند الحاجة.
+
+**آمن لإعادة التشغيل:** كلمة مرور حساب التطبيق تُشتق ثابتةً من `SUPABASE_DB_PASSWORD` فلا تتغير؛ و`JWT_SECRET` و`CRON_SECRET` يُولَّدان مرة واحدة ولا يُستبدلان إن كانا موجودين في Vercel؛ والترحيلات والحاويات تكرارها لا يضر.
+
+**الخطوة اليدوية الوحيدة المتوقعة: مفتاح التخزين (S3).** واجهة Supabase البرمجية لا تنشئه. بعد أول تشغيل: Supabase ← **Project Settings ← Storage ← S3 Connection ← New access key** ← انسخ **Access key ID** و**Secret access key** (السر يظهر مرة واحدة) ← الصقهما في Vercel ← `dashio` ← **Settings ← Environment Variables** باسمَي `STORAGE_S3_ACCESS_KEY_ID` و`STORAGE_S3_SECRET_ACCESS_KEY` (Production) ثم **Deployments ← Redeploy**؛ أو أضفهما سرّين في GitHub بالاسمين نفسهما وأعد تشغيل الزر. بدونهما يعمل كل شيء عدا رفع الملفات.
+
+**إن توقف الزر عند Vercel** بأن المستودع غير مرئي: GitHub ← صورتك ← **Settings ← Applications ← Installed GitHub Apps ← Vercel ← Configure ← Repository access ← Only select repositories ← أضف `project-os` ← Save**، ثم أعد تشغيل الزر (يقول الملخص هذا بالضبط).
+
+**البريد (SMTP) مؤجَّل** إلى ما قبل دعوة مستخدمين آخرين: الزر لا يضبطه. إلى ذلك الحين يصل رمز الدخول عبر بريد Supabase المدمج، وهو محدود جدًا وقد لا يرسل إلا لعناوين أعضاء منظمة `dashio` في Supabase؛ فاستعمل بريدًا هو عضو فيها. قبل أي مستخدم آخر نفّذ الخطوة ١-٣ أدناه.
+
+الأقسام التالية هي **الطريق اليدوي البديل** (نقر في اللوحات) لمن لا يريد استعمال الرموز، وتبقى مرجعًا لما يفعله الزر.
+
+---
 
 ## الأسرار كلها: الاسم ← من أين تنسخ ← أين تلصق
 
@@ -43,7 +69,7 @@
 **الدخول برمز البريد (كلها نقر في لوحة Supabase):**
 ١. **Authentication ← Providers ← Email** ← مفعّل ← **Confirm email** مفعّل ← **Email OTP Length = 6** ← **Email OTP Expiration = 3600**. (الشاشة تقبل 6 أرقام؛ لا تغيّر الطول.)
 ٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `PROJECT OS sign-in code`.
-٣. **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. **هذا إلزامي حتى على المجانية:** بريد Supabase المدمج لا يرسل إلا عددًا ضئيلًا جدًا في الساعة ولا يصلح لأي مستخدم حقيقي.
+٣. **(مؤجَّل إلى ما قبل دعوة مستخدمين آخرين)** **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. **هذا إلزامي حتى على المجانية:** بريد Supabase المدمج لا يرسل إلا عددًا ضئيلًا جدًا في الساعة ولا يصلح لأي مستخدم حقيقي.
 ٤. **Authentication ← Rate Limits** ← ارفع **Rate limit for sending emails** و**Rate limit for token verifications** إن سمحت لوحتك بذلك بعد تفعيل SMTP المخصص (حد التحقق يُحسب لكل IP، وكل مستخدمي Vercel يصلون من عدد قليل من العناوين).
 ٥. **Authentication ← Sign In / Providers** ← **Allow new users to sign up** مفعّل. لا تفعّل مزودًا آخر.
 
