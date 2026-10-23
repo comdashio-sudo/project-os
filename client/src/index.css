@@ -258,3 +258,47 @@
     }
   }
 }
+
+/**
+ * Touch targets (docs/UI_AUDIT.md). On a touch screen every control is at least 44px high and wide, so a finger can hit it.
+ * Only the hit size changes: on a fine pointer (desktop) nothing here applies, so the desktop look is unchanged.
+ * It lives in the utilities layer so it beats the components-layer `.flex { min-height: 0 }` above. :where() keeps the selectors
+ * at zero specificity, so any utility class on a control (h-9, size-8, min-h-0, hidden) still wins.
+ * Not sized: native and Radix checkboxes, radios and switches (their drawn size is part of the look, so the label row that holds
+ * them is the 44px target), file pickers (the Excel import controls), and hidden inputs.
+ */
+@layer utilities {
+  @media (pointer: coarse) {
+    :where(
+      button:not([role="checkbox"]):not([role="switch"]):not([role="radio"]),
+      [role="button"],
+      [role="tab"],
+      [role="combobox"],
+      [role="option"],
+      [role="menuitem"],
+      input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+      select,
+      textarea
+    ) {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* An inline text link has no height to set; as inline-block it takes the same minimum. */
+    :where(a[href]) {
+      display: inline-block;
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* The tabs list is 36px (h-9). Its triggers are 44px, so the list needs 44px plus its 3px padding on each side. */
+    :where([data-slot="tabs-list"]) {
+      min-height: 50px;
+    }
+
+    /* A checkbox or radio keeps its 16px drawn size. The label row that holds it is the 44px target. */
+    :where(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+      min-height: 44px;
+    }
+  }
+}
