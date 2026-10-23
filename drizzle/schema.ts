@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   foreignKey,
   index,
   integer,
@@ -1123,6 +1124,9 @@ export const ncrs = pgTable(
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
     status: ncrsStatusEnum("status").default("open").notNull(),
+    // The cell (unit x activity) the non-conformance was found in; both empty for a site-wide NCR (work order 12, item 6).
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
+    pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }),
     dueAt: timestamp("due_at", { withTimezone: true }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -2489,4 +2493,146 @@ export const tenderBidAdjustments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("tender_adjustments_bid_idx").on(table.bidId), index("tender_adjustments_package_idx").on(table.packageId)],
+);
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Work order 12, items 4 to 7: the site's daily report, the consultant's submittals, quality, and what ties them to a unit and an activity.
+
+export const siteDailyReportsStatusEnum = pgEnum("site_daily_reports_status", ["draft", "submitted", "approved", "rejected"]);
+// One report per engineer per project per day. The project manager's approval is what moves the progress of the cells the report names.
+export const siteDailyReports = pgTable(
+  "site_daily_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportDate: date("report_date", { mode: "string" }).notNull(),
+    weather: varchar("weather", { length: 24 }),
+    temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }),
+    summary: text("summary"),
+    obstacles: text("obstacles"),
+    status: siteDailyReportsStatusEnum("status").default("draft").notNull(),
+    preparedByUserId: integer("prepared_by_user_id").notNull().references(() => users.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: varchar("review_note", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("site_daily_reports_project_date_preparer_unique").on(table.projectId, table.reportDate, table.preparedByUserId), index("site_daily_reports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+);
+
+export const siteDailyReportLinesTypeEnum = pgEnum("site_daily_report_lines_line_type", ["labour", "equipment", "work"]);
+export const siteDailyReportLines = pgTable(
+  "site_daily_report_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull().references(() => siteDailyReports.id),
+    lineType: siteDailyReportLinesTypeEnum("line_type").notNull(),
+    pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
+    // a trade or a piece of equipment; empty for a work line
+    label: varchar("label", { length: 160 }),
+    // headcount for labour, number of machines for equipment
+    quantity: numeric("quantity", { precision: 10, scale: 2 }),
+    hours: numeric("hours", { precision: 6, scale: 2 }),
+    description: text("description"),
+    // work lines only: the status the cell is reported to have reached; applied when the report is approved
+    reportedStatus: pmcUnitActivityProgressStatusEnum("reported_status"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("site_daily_report_lines_report_idx").on(table.reportId), index("site_daily_report_lines_cell_idx").on(table.pmcUnitId, table.pmcActivityDefinitionId)],
+);
+
+export const siteDailyReportPhotos = pgTable(
+  "site_daily_report_photos",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull().references(() => siteDailyReports.id),
+    storageKey: varchar("storage_key", { length: 512 }).notNull(),
+    fileName: varchar("file_name", { length: 160 }).notNull(),
+    contentType: varchar("content_type", { length: 80 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    caption: varchar("caption", { length: 255 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey)],
+);
+
+export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
+export const consultantSubmittalsStatusEnum = pgEnum("consultant_submittals_status", ["draft", "sent", "replied", "closed"]);
+// What the contractor sends the consultant for approval: execution drawings, a material, a method statement, a sample. A resubmission is a new row with the next revision.
+export const consultantSubmittals = pgTable(
+  "consultant_submittals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    submittalType: consultantSubmittalsTypeEnum("submittal_type").notNull(),
+    submittalNumber: varchar("submittal_number", { length: 120 }).notNull(),
+    revision: integer("revision").default(0).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    status: consultantSubmittalsStatusEnum("status").default("draft").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    // one of the company's own reply codes (submittal_reply_codes)
+    replyCode: varchar("reply_code", { length: 8 }),
+    replyNote: varchar("reply_note", { length: 500 }),
+    pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
+    // a material approval names the material it approves
+    materialId: varchar("material_id", { length: 36 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    sentByUserId: integer("sent_by_user_id").references(() => users.id),
+    repliedByUserId: integer("replied_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("consultant_submittals_number_revision_unique").on(table.projectId, table.submittalNumber, table.revision), index("consultant_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("consultant_submittals_material_idx").on(table.projectId, table.materialId)],
+);
+
+// The reply codes a company uses (A/B/C/D by default) and whether each one counts as an approval.
+export const submittalReplyCodes = pgTable(
+  "submittal_reply_codes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 8 }).notNull(),
+    labelAr: varchar("label_ar", { length: 120 }).notNull(),
+    labelEn: varchar("label_en", { length: 120 }).notNull(),
+    approved: boolean("approved").default(false).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("submittal_reply_codes_tenant_code_unique").on(table.tenantId, table.code)],
+);
+
+export const tenantPoliciesModeEnum = pgEnum("tenant_policies_mode", ["off", "warn", "block"]);
+// The company's choices for the rules that tie quality, submittals and the warehouse to progress (work order 12, item 7). Absent row = the defaults below.
+export const tenantPolicies = pgTable(
+  "tenant_policies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    // an activity cannot be COMPLETE before the consultant accepted an inspection of that unit and activity
+    qcCompletionMode: tenantPoliciesModeEnum("qc_completion_mode").default("warn").notNull(),
+    // which inspection response codes count as an acceptance (comma separated)
+    qcAcceptedCodes: varchar("qc_accepted_codes", { length: 40 }).default("A,B").notNull(),
+    // issuing a material whose approval submittal has not been approved
+    materialApprovalMode: tenantPoliciesModeEnum("material_approval_mode").default("warn").notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("tenant_policies_tenant_unique").on(table.tenantId)],
 );
