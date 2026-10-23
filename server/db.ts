@@ -1,3 +1,4 @@
+import { resolveScopedAccess } from "./scopeAccess";
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -1245,7 +1246,9 @@ export async function listProjectsForTenant(input: { userId: number; tenantId: s
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read" });
-  return db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId));
+  // Only the projects the caller's own project.read assignment covers (G-143): a project-scoped person does not read the company's whole register.
+  const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.read"] });
+  return (await db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId))).filter(project => covered.projectIds.has(project.id));
 }
 
 /** Per commitment, the cost already booked from goods received against its purchase orders (so exposure does not count it twice). */

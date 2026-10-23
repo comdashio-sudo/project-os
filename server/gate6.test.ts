@@ -38,7 +38,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
 };
-const PROJECT_GUARD = /assertProjectWithinTenant|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
 describe("Gate 6, static part (G-110)", () => {
   it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {
