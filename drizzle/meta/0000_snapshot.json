@@ -1,5 +1,5 @@
 {
-  "id": "b73ffec3-e6b4-4a9b-a20e-9997183f9584",
+  "id": "83607fde-129c-49b3-8fc9-2ae3025c09e2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -9419,6 +9419,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "pmc_unit_id": {
+          "name": "pmc_unit_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pmc_activity_definition_id": {
+          "name": "pmc_activity_definition_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "issued_quantity": {
           "name": "issued_quantity",
           "type": "numeric(18, 3)",
@@ -9793,6 +9805,250 @@
           "tableTo": "users",
           "columnsFrom": [
             "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.material_returns": {
+      "name": "material_returns",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_issue_id": {
+          "name": "material_issue_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inventory_transaction_id": {
+          "name": "inventory_transaction_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cost_entry_id": {
+          "name": "cost_entry_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_cost": {
+          "name": "unit_cost",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_cost": {
+          "name": "total_cost",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "returned_at": {
+          "name": "returned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "material_returns_tx_unique": {
+          "name": "material_returns_tx_unique",
+          "columns": [
+            {
+              "expression": "inventory_transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "material_returns_cost_unique": {
+          "name": "material_returns_cost_unique",
+          "columns": [
+            {
+              "expression": "cost_entry_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "material_returns_issue_idx": {
+          "name": "material_returns_issue_idx",
+          "columns": [
+            {
+              "expression": "material_issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "material_returns_tenant_project_idx": {
+          "name": "material_returns_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "returned_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "material_returns_tenant_id_companies_id_fk": {
+          "name": "material_returns_tenant_id_companies_id_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "material_returns_project_id_projects_id_fk": {
+          "name": "material_returns_project_id_projects_id_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "material_returns_material_issue_id_material_issues_id_fk": {
+          "name": "material_returns_material_issue_id_material_issues_id_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "material_issues",
+          "columnsFrom": [
+            "material_issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "material_returns_cost_entry_id_cost_entries_id_fk": {
+          "name": "material_returns_cost_entry_id_cost_entries_id_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "cost_entries",
+          "columnsFrom": [
+            "cost_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "material_returns_created_by_user_id_users_id_fk": {
+          "name": "material_returns_created_by_user_id_users_id_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "material_returns_tx_fk": {
+          "name": "material_returns_tx_fk",
+          "tableFrom": "material_returns",
+          "tableTo": "warehouse_inventory_transactions",
+          "columnsFrom": [
+            "inventory_transaction_id"
           ],
           "columnsTo": [
             "id"
@@ -20486,6 +20742,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "destination_project_id": {
+          "name": "destination_project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "material_id": {
           "name": "material_id",
           "type": "varchar(36)",
@@ -20649,6 +20911,359 @@
         "witf_creator_fk": {
           "name": "witf_creator_fk",
           "tableFrom": "warehouse_inventory_transfers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.warehouse_stocktake_lines": {
+      "name": "warehouse_stocktake_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stocktake_id": {
+          "name": "stocktake_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "system_quantity": {
+          "name": "system_quantity",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counted_quantity": {
+          "name": "counted_quantity",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "variance": {
+          "name": "variance",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value_delta": {
+          "name": "value_delta",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inventory_transaction_id": {
+          "name": "inventory_transaction_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "warehouse_stocktake_lines_material_unique": {
+          "name": "warehouse_stocktake_lines_material_unique",
+          "columns": [
+            {
+              "expression": "stocktake_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "warehouse_stocktake_lines_tenant_project_idx": {
+          "name": "warehouse_stocktake_lines_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "warehouse_stocktake_lines_tenant_id_companies_id_fk": {
+          "name": "warehouse_stocktake_lines_tenant_id_companies_id_fk",
+          "tableFrom": "warehouse_stocktake_lines",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "warehouse_stocktake_lines_project_id_projects_id_fk": {
+          "name": "warehouse_stocktake_lines_project_id_projects_id_fk",
+          "tableFrom": "warehouse_stocktake_lines",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "warehouse_stocktake_lines_material_id_material_masters_id_fk": {
+          "name": "warehouse_stocktake_lines_material_id_material_masters_id_fk",
+          "tableFrom": "warehouse_stocktake_lines",
+          "tableTo": "material_masters",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "wh_stocktake_lines_stocktake_fk": {
+          "name": "wh_stocktake_lines_stocktake_fk",
+          "tableFrom": "warehouse_stocktake_lines",
+          "tableTo": "warehouse_stocktakes",
+          "columnsFrom": [
+            "stocktake_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "wh_stocktake_lines_tx_fk": {
+          "name": "wh_stocktake_lines_tx_fk",
+          "tableFrom": "warehouse_stocktake_lines",
+          "tableTo": "warehouse_inventory_transactions",
+          "columnsFrom": [
+            "inventory_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.warehouse_stocktakes": {
+      "name": "warehouse_stocktakes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counted_at": {
+          "name": "counted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "warehouse_stocktakes_tenant_project_idx": {
+          "name": "warehouse_stocktakes_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "counted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "warehouse_stocktakes_warehouse_idx": {
+          "name": "warehouse_stocktakes_warehouse_idx",
+          "columns": [
+            {
+              "expression": "warehouse_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "warehouse_stocktakes_tenant_id_companies_id_fk": {
+          "name": "warehouse_stocktakes_tenant_id_companies_id_fk",
+          "tableFrom": "warehouse_stocktakes",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "warehouse_stocktakes_project_id_projects_id_fk": {
+          "name": "warehouse_stocktakes_project_id_projects_id_fk",
+          "tableFrom": "warehouse_stocktakes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "warehouse_stocktakes_warehouse_id_project_warehouses_id_fk": {
+          "name": "warehouse_stocktakes_warehouse_id_project_warehouses_id_fk",
+          "tableFrom": "warehouse_stocktakes",
+          "tableTo": "project_warehouses",
+          "columnsFrom": [
+            "warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "warehouse_stocktakes_created_by_user_id_users_id_fk": {
+          "name": "warehouse_stocktakes_created_by_user_id_users_id_fk",
+          "tableFrom": "warehouse_stocktakes",
           "tableTo": "users",
           "columnsFrom": [
             "created_by_user_id"

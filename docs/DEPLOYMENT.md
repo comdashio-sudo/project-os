@@ -17,7 +17,7 @@ node scripts/run-integration-database-test.mjs # بقاعدة محلية: يبن
 pnpm build:vercel                              # يكتب .vercel/output (دالة واحدة + ملفات ثابتة + الجدولة)
 ```
 
-تغيير المخطط: عدّل `drizzle/schema.ts` (أو `drizzle/baseline-security.sql`) ثم `pnpm db:baseline`. بعد أول نشر لا تُعدَّل `0000_baseline.sql`: أضف ترحيلة مرقّمة تالية؛ `scripts/migrate.mjs` يطبّقها وفق بصمة الملف ثم يشغّل `project_os_apply_conventions()` ويرفض الإنهاء إن بقي جدول بلا RLS.
+تغيير المخطط: عدّل `drizzle/schema.ts` (أو `drizzle/baseline-security.sql`) ثم `pnpm db:baseline`. الأساس يُعاد توليده مع كل تغيير مخطط (اختبار ثابت يفرض مساواته لـ`schema.ts`)، **وتُضاف معه ترحيلة مرقّمة قابلة لإعادة التشغيل** بالتغيير نفسه لقاعدة بنت أساسًا أقدم؛ و`scripts/migrate.mjs` لا يعدّ تغيّر بصمة `0000_baseline.sql` خطأً (أي ترحيلة أخرى تغيّرت بعد تطبيقها خطأ) ويطبّق الترحيلات وفق بصمة الملف ثم يشغّل `project_os_apply_conventions()` ويرفض الإنهاء إن بقي جدول بلا RLS.
 
 ## قاعدة التكامل المعزولة
 
