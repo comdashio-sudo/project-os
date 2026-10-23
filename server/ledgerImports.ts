@@ -92,7 +92,7 @@ const entry = (rowNumber: number, key: string, kind: DiffEntry["kind"], changes:
 
 // ------------------------------------------------------------------------------------------------------------------------------------------- costs
 const COST_CATEGORIES: Record<string, "materials" | "labour" | "subcontract" | "other"> = {
-  materials: "materials", material: "materials", مواد: "materials", labour: "labour", labor: "labour", عمالة: "labour", subcontract: "subcontract", "مقاول من الباطن": "subcontract", other: "other", أخرى: "other", اخرى: "other",
+  materials: "materials", material: "materials", مواد: "materials", labour: "labour", labor: "labour", عمالة: "labour", subcontract: "subcontract", "مقاول من الباطن": "subcontract", other: "other", أخرى: "other", "\u0627\u062E\u0631\u0649": "other",
 };
 
 async function planCosts(db: Db, scope: LedgerScope, rows: ParsedRow[]): Promise<LedgerPlan> {
