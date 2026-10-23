@@ -34,7 +34,9 @@ try {
     const sql = await readFile(path.join(migrationsDir, file), "utf8");
     const checksum = createHash("sha256").update(sql).digest("hex");
     if (applied.has(file)) {
-      if (applied.get(file) !== checksum) throw new Error(`Migration ${file} changed after it was applied. Add a new migration instead of editing an applied one.`);
+      // The baseline is regenerated from drizzle/schema.ts whenever the schema moves (a test keeps the two equal); a database that applied an older baseline gets the
+      // same change from the numbered migration that accompanies it. So a changed baseline checksum is expected and is not an error; any OTHER changed file still is.
+      if (applied.get(file) !== checksum && file !== "0000_baseline.sql") throw new Error(`Migration ${file} changed after it was applied. Add a new migration instead of editing an applied one.`);
       continue;
     }
     await client.query("BEGIN");

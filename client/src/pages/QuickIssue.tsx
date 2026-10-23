@@ -126,6 +126,7 @@ export default function QuickIssue() {
                 </div>
                 {scanFailed && <p role="alert" className="text-sm text-red-700">{t.scanFailed}</p>}
                 {scanning && <Scanner label={t.scanning} onFail={() => { setScanning(false); setScanFailed(true); }} onCode={code => { setScanning(false); setQuery(code); }} />}
+                {found.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(found.error, isArabic)}</p>}
                 {query.trim() && found.data && found.data.length === 0 && <p className="text-sm text-slate-500">{t.noResults}</p>}
                 <ul className="space-y-2">
                   {(found.data ?? []).map(item => (

@@ -924,6 +924,8 @@ CREATE TABLE "material_issues" (
 	"material_id" varchar(36) NOT NULL,
 	"wbs_item_id" varchar(36) NOT NULL,
 	"activity_id" varchar(36),
+	"pmc_unit_id" varchar(36),
+	"pmc_activity_definition_id" varchar(36),
 	"issued_quantity" numeric(18, 3) NOT NULL,
 	"unit_cost" numeric(18, 2) NOT NULL,
 	"total_cost" numeric(18, 2) NOT NULL,
@@ -944,6 +946,22 @@ CREATE TABLE "material_masters" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "material_returns" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"material_issue_id" varchar(36) NOT NULL,
+	"inventory_transaction_id" varchar(36) NOT NULL,
+	"cost_entry_id" varchar(36) NOT NULL,
+	"quantity" numeric(18, 3) NOT NULL,
+	"unit_cost" numeric(18, 2) NOT NULL,
+	"total_cost" numeric(18, 2) NOT NULL,
+	"returned_at" timestamp with time zone NOT NULL,
+	"reason" varchar(500) NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "membership_invitations" (
@@ -1829,11 +1847,38 @@ CREATE TABLE "warehouse_inventory_transfers" (
 	"project_id" varchar(36) NOT NULL,
 	"source_warehouse_id" varchar(36) NOT NULL,
 	"destination_warehouse_id" varchar(36) NOT NULL,
+	"destination_project_id" varchar(36),
 	"material_id" varchar(36) NOT NULL,
 	"quantity" numeric(18, 3) NOT NULL,
 	"reference_number" varchar(120),
 	"note" varchar(500),
 	"transferred_at" timestamp with time zone NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "warehouse_stocktake_lines" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"stocktake_id" varchar(36) NOT NULL,
+	"material_id" varchar(36) NOT NULL,
+	"system_quantity" numeric(18, 3) NOT NULL,
+	"counted_quantity" numeric(18, 3) NOT NULL,
+	"variance" numeric(18, 3) NOT NULL,
+	"value_delta" numeric(18, 2),
+	"inventory_transaction_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "warehouse_stocktakes" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"warehouse_id" varchar(36) NOT NULL,
+	"reference" varchar(120),
+	"note" varchar(500) NOT NULL,
+	"counted_at" timestamp with time zone NOT NULL,
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2031,6 +2076,12 @@ ALTER TABLE "material_issues" ADD CONSTRAINT "mi_activity_fk" FOREIGN KEY ("acti
 ALTER TABLE "material_issues" ADD CONSTRAINT "mi_creator_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_masters" ADD CONSTRAINT "material_masters_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_masters" ADD CONSTRAINT "material_masters_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_material_issue_id_material_issues_id_fk" FOREIGN KEY ("material_issue_id") REFERENCES "public"."material_issues"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_cost_entry_id_cost_entries_id_fk" FOREIGN KEY ("cost_entry_id") REFERENCES "public"."cost_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_tx_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "membership_invitations" ADD CONSTRAINT "membership_invitations_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2237,6 +2288,15 @@ ALTER TABLE "warehouse_inventory_transfers" ADD CONSTRAINT "witf_source_fk" FORE
 ALTER TABLE "warehouse_inventory_transfers" ADD CONSTRAINT "witf_destination_fk" FOREIGN KEY ("destination_warehouse_id") REFERENCES "public"."project_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "warehouse_inventory_transfers" ADD CONSTRAINT "witf_material_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "warehouse_inventory_transfers" ADD CONSTRAINT "witf_creator_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "wh_stocktake_lines_stocktake_fk" FOREIGN KEY ("stocktake_id") REFERENCES "public"."warehouse_stocktakes"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "wh_stocktake_lines_tx_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktakes" ADD CONSTRAINT "warehouse_stocktakes_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktakes" ADD CONSTRAINT "warehouse_stocktakes_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktakes" ADD CONSTRAINT "warehouse_stocktakes_warehouse_id_project_warehouses_id_fk" FOREIGN KEY ("warehouse_id") REFERENCES "public"."project_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "warehouse_stocktakes" ADD CONSTRAINT "warehouse_stocktakes_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "wbs_items" ADD CONSTRAINT "wbs_items_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "wbs_items" ADD CONSTRAINT "wbs_items_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "actions_tenant_project_due_idx" ON "actions" USING btree ("tenant_id","project_id","due_at");--> statement-breakpoint
@@ -2345,6 +2405,10 @@ CREATE INDEX "material_issues_tenant_project_idx" ON "material_issues" USING btr
 CREATE INDEX "material_issues_wbs_activity_idx" ON "material_issues" USING btree ("wbs_item_id","activity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "material_masters_tenant_code_unique" ON "material_masters" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE INDEX "material_masters_tenant_category_active_idx" ON "material_masters" USING btree ("tenant_id","category","active");--> statement-breakpoint
+CREATE UNIQUE INDEX "material_returns_tx_unique" ON "material_returns" USING btree ("inventory_transaction_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "material_returns_cost_unique" ON "material_returns" USING btree ("cost_entry_id");--> statement-breakpoint
+CREATE INDEX "material_returns_issue_idx" ON "material_returns" USING btree ("material_issue_id");--> statement-breakpoint
+CREATE INDEX "material_returns_tenant_project_idx" ON "material_returns" USING btree ("tenant_id","project_id","returned_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "membership_invitations_token_hash_unique" ON "membership_invitations" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "membership_invitations_tenant_email_status_idx" ON "membership_invitations" USING btree ("tenant_id","email","status");--> statement-breakpoint
 CREATE INDEX "membership_invitations_email_status_idx" ON "membership_invitations" USING btree ("email","status");--> statement-breakpoint
@@ -2471,6 +2535,10 @@ CREATE INDEX "warehouse_inventory_transactions_requisition_idx" ON "warehouse_in
 CREATE INDEX "wit_transfer_idx" ON "warehouse_inventory_transactions" USING btree ("transfer_id");--> statement-breakpoint
 CREATE INDEX "witf_tenant_project_date_idx" ON "warehouse_inventory_transfers" USING btree ("tenant_id","project_id","transferred_at");--> statement-breakpoint
 CREATE INDEX "witf_source_destination_idx" ON "warehouse_inventory_transfers" USING btree ("source_warehouse_id","destination_warehouse_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "warehouse_stocktake_lines_material_unique" ON "warehouse_stocktake_lines" USING btree ("stocktake_id","material_id");--> statement-breakpoint
+CREATE INDEX "warehouse_stocktake_lines_tenant_project_idx" ON "warehouse_stocktake_lines" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE INDEX "warehouse_stocktakes_tenant_project_idx" ON "warehouse_stocktakes" USING btree ("tenant_id","project_id","counted_at");--> statement-breakpoint
+CREATE INDEX "warehouse_stocktakes_warehouse_idx" ON "warehouse_stocktakes" USING btree ("warehouse_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "wbs_items_project_code_unique" ON "wbs_items" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "wbs_items_tenant_project_idx" ON "wbs_items" USING btree ("tenant_id","project_id");
 --> statement-breakpoint

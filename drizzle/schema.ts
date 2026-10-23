@@ -1375,7 +1375,7 @@ export const materialReturns = pgTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     materialIssueId: varchar("material_issue_id", { length: 36 }).notNull().references(() => materialIssues.id),
-    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull().references(() => warehouseInventoryTransactions.id),
+    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull(),
     costEntryId: varchar("cost_entry_id", { length: 36 }).notNull().references(() => costEntries.id),
     quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(),
     unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull(),
@@ -1385,7 +1385,7 @@ export const materialReturns = pgTable(
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("material_returns_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_returns_cost_unique").on(table.costEntryId), index("material_returns_issue_idx").on(table.materialIssueId), index("material_returns_tenant_project_idx").on(table.tenantId, table.projectId, table.returnedAt)],
+  table => [foreignKey({ columns: [table.inventoryTransactionId], foreignColumns: [warehouseInventoryTransactions.id], name: "material_returns_tx_fk" }), uniqueIndex("material_returns_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_returns_cost_unique").on(table.costEntryId), index("material_returns_issue_idx").on(table.materialIssueId), index("material_returns_tenant_project_idx").on(table.tenantId, table.projectId, table.returnedAt)],
 );
 
 // A stock count: what the books said, what was counted, and the adjustment each difference became (work order 12, item 3).
@@ -1411,16 +1411,16 @@ export const warehouseStocktakeLines = pgTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
-    stocktakeId: varchar("stocktake_id", { length: 36 }).notNull().references(() => warehouseStocktakes.id),
+    stocktakeId: varchar("stocktake_id", { length: 36 }).notNull(),
     materialId: varchar("material_id", { length: 36 }).notNull().references(() => materialMasters.id),
     systemQuantity: numeric("system_quantity", { precision: 18, scale: 3 }).notNull(),
     countedQuantity: numeric("counted_quantity", { precision: 18, scale: 3 }).notNull(),
     variance: numeric("variance", { precision: 18, scale: 3 }).notNull(),
     valueDelta: numeric("value_delta", { precision: 18, scale: 2 }),
-    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).references(() => warehouseInventoryTransactions.id),
+    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("warehouse_stocktake_lines_material_unique").on(table.stocktakeId, table.materialId), index("warehouse_stocktake_lines_tenant_project_idx").on(table.tenantId, table.projectId)],
+  table => [foreignKey({ columns: [table.stocktakeId], foreignColumns: [warehouseStocktakes.id], name: "wh_stocktake_lines_stocktake_fk" }), foreignKey({ columns: [table.inventoryTransactionId], foreignColumns: [warehouseInventoryTransactions.id], name: "wh_stocktake_lines_tx_fk" }), uniqueIndex("warehouse_stocktake_lines_material_unique").on(table.stocktakeId, table.materialId), index("warehouse_stocktake_lines_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
 export const changeRequestsStatusEnum = pgEnum("change_requests_status", ["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]);

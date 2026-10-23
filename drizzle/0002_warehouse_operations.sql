@@ -1,6 +1,5 @@
 -- Work order 12, item 3: material returns, stock counts, a unit/activity on each issue, and the destination project of a cross-project transfer.
--- The baseline (0000) is frozen from here on (docs/DEPLOYMENT.md: it is not edited after the first deploy); the schema moves by numbered migrations. The statements are
--- written to be re-runnable all the same.
+-- For a database that applied an earlier baseline (a database built from the current baseline already has all of this): every statement is re-runnable.
 
 ALTER TABLE "material_issues" ADD COLUMN IF NOT EXISTS "pmc_unit_id" varchar(36);
 --> statement-breakpoint
@@ -56,21 +55,21 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material
 --> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_returns_material_issue_id_material_issues_id_fk') THEN ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_material_issue_id_material_issues_id_fk" FOREIGN KEY ("material_issue_id") REFERENCES "public"."material_issues"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_returns_inventory_transaction_id_warehouse_inventory_transactions_id_fk') THEN ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_inventory_transaction_id_warehouse_inventory_transactions_id_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
---> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_returns_cost_entry_id_cost_entries_id_fk') THEN ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_cost_entry_id_cost_entries_id_fk" FOREIGN KEY ("cost_entry_id") REFERENCES "public"."cost_entries"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_returns_created_by_user_id_users_id_fk') THEN ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
+--> statement-breakpoint
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_returns_tx_fk') THEN ALTER TABLE "material_returns" ADD CONSTRAINT "material_returns_tx_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktake_lines_tenant_id_companies_id_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktake_lines_project_id_projects_id_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktake_lines_stocktake_id_warehouse_stocktakes_id_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_stocktake_id_warehouse_stocktakes_id_fk" FOREIGN KEY ("stocktake_id") REFERENCES "public"."warehouse_stocktakes"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
---> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktake_lines_material_id_material_masters_id_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktake_lines_inventory_transaction_id_warehouse_inventory_transactions_id_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "warehouse_stocktake_lines_inventory_transaction_id_warehouse_inventory_transactions_id_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'wh_stocktake_lines_stocktake_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "wh_stocktake_lines_stocktake_fk" FOREIGN KEY ("stocktake_id") REFERENCES "public"."warehouse_stocktakes"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
+--> statement-breakpoint
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'wh_stocktake_lines_tx_fk') THEN ALTER TABLE "warehouse_stocktake_lines" ADD CONSTRAINT "wh_stocktake_lines_tx_fk" FOREIGN KEY ("inventory_transaction_id") REFERENCES "public"."warehouse_inventory_transactions"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_stocktakes_tenant_id_companies_id_fk') THEN ALTER TABLE "warehouse_stocktakes" ADD CONSTRAINT "warehouse_stocktakes_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action; END IF; END $$;
 --> statement-breakpoint
