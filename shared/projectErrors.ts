@@ -720,6 +720,18 @@ export const projectErrorMessages = {
     ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
     en: "This file was already imported into this project.",
   },
+  PROJECT_OS_IMPORT_VERSION_CONFLICT: {
+    ar: "تغيّر صف واحد على الأقل في المنصة منذ تصدير الملف، أو أُعيد ترميزه في الملف. صدِّر الملف من جديد وأعد تطبيق تعديلاتك، فلا يُكتب شيء فوق عمل أحدث.",
+    en: "At least one row changed in the platform since this file was exported, or was re-keyed in the file. Export again and re-apply your edits; nothing is written over newer work.",
+  },
+  PROJECT_OS_IMPORT_DIFF_CHANGED: {
+    ar: "تغيّرت الفروق منذ أن راجعتها. راجع المعاينة من جديد ثم أكّد.",
+    en: "The differences changed since you reviewed them. Review the preview again, then confirm.",
+  },
+  PROJECT_OS_IMPORT_DIFF_UNAVAILABLE: {
+    ar: "معاينة الفروق غير متاحة قبل نجاح التحقق من الملف.",
+    en: "The difference preview is not available until the file passes validation.",
+  },
   PROJECT_OS_IMPORT_FILE_INVALID: {
     ar: "الملف غير صالح أو غير مقروء.",
     en: "The file is invalid or unreadable.",

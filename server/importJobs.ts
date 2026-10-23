@@ -16,7 +16,7 @@ import { TRPCError } from "@trpc/server";
 import { auditLogs, dataImportErrors, dataImports } from "../drizzle/schema";
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
-import { assertImportAccess, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
+import { assertImportAccess, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { assertTenantAccess } from "./domain/authorization";
 import { insertChunked } from "./importBulk";
@@ -176,18 +176,21 @@ async function readRecord(db: Db, input: { tenantId: string; projectId: string; 
 }
 
 /** Confirm. Small imports finish inside the request (the result is the final one); a large one becomes a background job and returns `importing`. */
-export async function requestImportConfirmation(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
+export async function requestImportConfirmation(input: { userId: number; tenantId: string; projectId: string; importId: string; approvedDiffHash?: string }) {
   const { db, snapshot } = await assertImportAccess(input);
   const record = await readRecord(db, input);
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
   if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  if (record.validRows <= IMPORT_SYNC_MAX_ROWS) return confirmAndImportData(input);
+  // The hash of the differences the user reviewed rides with the import, so the write (inline or in the background job) can refuse if the file or the stored rows moved since.
+  if (input.approvedDiffHash) await recordApprovedDiffHash(db, input, input.approvedDiffHash);
+  const { approvedDiffHash: _approved, ...ids } = input;
+  if (record.validRows <= IMPORT_SYNC_MAX_ROWS) return confirmAndImportData(ids);
   const taken = await db.update(dataImports)
     .set({ status: "importing", progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
     .where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "validated")))
     .returning({ id: dataImports.id });
   if (!taken.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  void runAfterResponse(`import.confirm:${input.importId}`, () => runImportConfirmation(input));
+  void runAfterResponse(`import.confirm:${input.importId}`, () => runImportConfirmation(ids));
   return { id: input.importId, status: "importing" as const };
 }
 

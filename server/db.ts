@@ -139,7 +139,8 @@ import { anyOf, insertChunked } from "./importBulk";
 /** How many error / result rows the detail screen lists. The record's counters carry the true totals. */
 export const IMPORT_DETAIL_MAX_ROWS = 1_000;
 const bulkInsert = <T extends PgTable>(executor: unknown, table: T) => ({ values: (rows: readonly T["$inferInsert"][]) => insertChunked(executor, table, rows) });
-import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
+import { diffHash, diffImportRows, summariseDiff, DIFF_PAGE_SIZE, CYCLE_MODULES, EXPORT_ID_HEADER, EXPORT_VERSION_HEADER, type CycleModuleCode, type FileRow, type StoredRow } from "./domain/importCycle";
+import { analyzeImportFile, buildImportTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { openIdForEmail } from "./_core/auth/emailCode";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
@@ -3653,6 +3654,65 @@ export async function reanalyzeDataImport(input: { userId: number; tenantId: str
 
 export type ImportStageReporter = (stage: "downloading" | "parsing" | "validating" | "writing", percent: number) => Promise<void> | void;
 
+// --- Export → edit → re-import (work order 7): the differences a file would make, computed against what is stored now.
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+const isCycleModule = (moduleCode: string): moduleCode is CycleModuleCode => (CYCLE_MODULES as readonly string[]).includes(moduleCode);
+
+export async function recordApprovedDiffHash(db: Db, input: { tenantId: string; projectId: string; importId: string }, approvedDiffHash: string) {
+  const [stored] = await db.select({ summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const summary = (() => { try { return stored?.summaryJson ? JSON.parse(stored.summaryJson) as Record<string, unknown> : {}; } catch { return {}; } })();
+  await db.update(dataImports).set({ summaryJson: JSON.stringify({ ...summary, approvedDiffHash }) }).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)));
+}
+
+async function loadStoredForCycle(db: Db, input: { tenantId: string; projectId: string; moduleCode: CycleModuleCode }): Promise<Map<string, StoredRow>> {
+  const entries: Array<[string, StoredRow]> = [];
+  if (input.moduleCode === "wbs") for (const row of await db.select({ id: wbsItems.id, updatedAt: wbsItems.updatedAt, code: wbsItems.code, name: wbsItems.name, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId)))) entries.push([row.code, { id: row.id, version: row.updatedAt.toISOString(), values: { code: row.code, name: row.name, plannedValue: row.plannedValue } }]);
+  else if (input.moduleCode === "budget") for (const row of await db.select({ id: budgetLines.id, updatedAt: budgetLines.updatedAt, costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId)))) entries.push([row.costCode, { id: row.id, version: row.updatedAt.toISOString(), values: { costCode: row.costCode, originalAmount: row.originalAmount, currentAmount: row.currentAmount } }]);
+  else if (input.moduleCode === "contracts") for (const row of await db.select({ id: contracts.id, updatedAt: contracts.updatedAt, code: contracts.code, title: contracts.title, counterparty: contracts.counterparty, contractValue: contracts.contractValue, currency: contracts.currency }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId)))) entries.push([row.code, { id: row.id, version: row.updatedAt.toISOString(), values: { code: row.code, title: row.title, counterparty: row.counterparty, contractValue: row.contractValue, currency: row.currency } }]);
+  else for (const row of await db.select({ id: materialMasters.id, updatedAt: materialMasters.updatedAt, code: materialMasters.code, description: materialMasters.description, unitOfMeasure: materialMasters.unitOfMeasure, category: materialMasters.category, referenceSpecification: materialMasters.referenceSpecification }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId))) entries.push([row.code, { id: row.id, version: row.updatedAt.toISOString(), values: { code: row.code, description: row.description, unitOfMeasure: row.unitOfMeasure, category: row.category, referenceSpecification: row.referenceSpecification } }]);
+  return new Map(entries);
+}
+
+/** `analysis.rows` are the raw sheet rows (header → cell); the reserved columns an export carries are read from there, the validated values from `validRows`. */
+function cycleFileRows(moduleCode: CycleModuleCode, analysis: { rows: Record<string, unknown>[]; validRows: Array<{ rowNumber: number; values: unknown }> }): FileRow[] {
+  const text = (value: unknown) => String(value ?? "").trim() || undefined;
+  void moduleCode;
+  return analysis.validRows.map(row => { const raw = analysis.rows[row.rowNumber - 2] ?? {}; return { rowNumber: row.rowNumber, values: row.values as Record<string, unknown>, fileId: text(raw[EXPORT_ID_HEADER]), fileVersion: text(raw[EXPORT_VERSION_HEADER]) }; });
+}
+
+async function computeCycleDiff(db: Db, input: { tenantId: string; projectId: string; moduleCode: CycleModuleCode; analysis: { rows: Record<string, unknown>[]; validRows: Array<{ rowNumber: number; values: unknown }> } }) {
+  const stored = await loadStoredForCycle(db, input);
+  return diffImportRows(input.moduleCode, cycleFileRows(input.moduleCode, input.analysis), stored);
+}
+
+export async function previewDataImportDiff(input: { userId: number; tenantId: string; projectId: string; importId: string; kind?: "new" | "modified" | "conflict" | "all"; offset?: number }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
+  // Reading the differences is part of deciding to import, so it needs the import permission of the module, not just read access.
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
+  if (!isCycleModule(record.moduleCode)) return { supported: false as const, moduleCode: record.moduleCode };
+  if (record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_DIFF_UNAVAILABLE" });
+  const fileResponse = await fetch(await storageGetSignedUrl(record.fileKey)); if (!fileResponse.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" });
+  const bytes = Buffer.from(await fileResponse.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const analysis = await analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat, bytes, mappingOverride: record.mappingJson ? JSON.parse(record.mappingJson) as Record<string, string> : undefined });
+  if (analysis.errors.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_DIFF_UNAVAILABLE" });
+  const diff = await computeCycleDiff(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, analysis });
+  const kind = input.kind ?? "all";
+  const shown = diff.entries.filter(entry => (kind === "all" ? entry.kind !== "unchanged" : entry.kind === kind));
+  const offset = input.offset ?? 0;
+  return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff(diff), diffHash: diffHash(diff), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: diff.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: diff.missing.length };
+}
+
+export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode; locale: "ar" | "en" }) {
+  const file = await buildImportTemplateFile(input);
+  return { fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64") };
+}
+
 export async function confirmAndImportData(input: { userId: number; tenantId: string; projectId: string; importId: string; asJob?: boolean; onStage?: ImportStageReporter }) {
   const result = await confirmAndImportDataInner(input);
   const db = await getDb();
@@ -3673,7 +3733,7 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: anyImportPermission, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
 
-  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, status: dataImports.status, duplicateMode: dataImports.duplicateMode, mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
   if (record.status !== expectedStatus) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials" && record.moduleCode !== "schedule" && record.moduleCode !== "openingBalances") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
@@ -3752,11 +3812,21 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
       : record.moduleCode === "contracts" ? await db.select({ id: contracts.id, key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), anyOf(contracts.code, keys))) : await db.select({ id: materialMasters.id, key: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), anyOf(materialMasters.code, keys)));
   if (existing.length && (record.duplicateMode === "fail_on_duplicate" || record.duplicateMode === "create_only")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existingByKey = new Map(existing.map(item => [item.key, item.id]));
+  // Export → re-import: refuse a file whose rows moved on in the platform since the export (never overwrite newer work), and refuse if what is being written is not what the user reviewed.
+  let unchangedKeys = new Set<string>();
+  if (isCycleModule(record.moduleCode)) {
+    const diff = await computeCycleDiff(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, analysis });
+    if (diff.entries.some(entry => entry.kind === "conflict")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VERSION_CONFLICT" });
+    const approved = (() => { try { return (JSON.parse(record.summaryJson ?? "{}") as { approvedDiffHash?: string }).approvedDiffHash; } catch { return undefined; } })();
+    if (approved && approved !== diffHash(diff)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DIFF_CHANGED" });
+    // A row identical to what is stored is not written: rewriting it would move its version and make every other copy of the same export conflict for no change at all.
+    if (analysis.headers?.includes(EXPORT_VERSION_HEADER)) unchangedKeys = new Set(diff.entries.filter(entry => entry.kind === "unchanged").map(entry => entry.key));
+  }
   const operations = records.map(row => {
     const key = record.moduleCode === "wbs" ? (row as WbsImportRow).values.code : record.moduleCode === "budget" ? (row as BudgetImportRow).values.costCode : record.moduleCode === "contracts" ? (row as ContractImportRow).values.code : (row as MaterialImportRow).values.code;
     const existingId = existingByKey.get(key);
     const action = existingId
-      ? (record.duplicateMode === "skip_duplicates" ? "skipped" as const : "updated" as const)
+      ? (record.duplicateMode === "skip_duplicates" || unchangedKeys.has(key) ? "skipped" as const : "updated" as const)
       : (record.duplicateMode === "update_existing" ? "skipped" as const : "created" as const);
     return { row, key, action, entityId: action === "created" ? crypto.randomUUID() : existingId ?? null };
   });
@@ -3795,11 +3865,16 @@ export async function createDataExport(input: { userId: number; tenantId: string
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_EXPORT", scope: { type: "project", id: input.projectId } });
 
+  const versioned = <T extends { id: string; updatedAt: Date }>(row: T) => ({ [EXPORT_ID_HEADER]: row.id, [EXPORT_VERSION_HEADER]: row.updatedAt.toISOString() });
   const rows: Record<string, unknown>[] = input.moduleCode === "wbs"
-    ? (await db.select({ code: wbsItems.code, name: wbsItems.name, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue) }))
+    ? (await db.select({ id: wbsItems.id, updatedAt: wbsItems.updatedAt, code: wbsItems.code, name: wbsItems.name, plannedValue: wbsItems.plannedValue }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))).orderBy(wbsItems.code)).map(row => ({ code: row.code, name: row.name, plannedValue: Number(row.plannedValue), ...versioned(row) }))
     : input.moduleCode === "budget"
-      ? (await db.select({ costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId)))).map(row => ({ ...row, originalAmount: Number(row.originalAmount), currentAmount: Number(row.currentAmount) }))
-      : (await db.select({ code: activities.code, name: activities.name, plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt, status: activities.status }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue), plannedStartAt: row.plannedStartAt?.toISOString().slice(0, 10) ?? "", plannedFinishAt: row.plannedFinishAt?.toISOString().slice(0, 10) ?? "" }));
+      ? (await db.select({ id: budgetLines.id, updatedAt: budgetLines.updatedAt, costCode: budgetLines.costCode, originalAmount: budgetLines.originalAmount, currentAmount: budgetLines.currentAmount }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId))).orderBy(budgetLines.costCode)).map(row => ({ costCode: row.costCode, originalAmount: Number(row.originalAmount), currentAmount: Number(row.currentAmount), ...versioned(row) }))
+      : input.moduleCode === "contracts"
+        ? (await db.select({ id: contracts.id, updatedAt: contracts.updatedAt, code: contracts.code, title: contracts.title, counterparty: contracts.counterparty, contractValue: contracts.contractValue, currency: contracts.currency }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId))).orderBy(contracts.code)).map(row => ({ code: row.code, title: row.title, counterparty: row.counterparty, contractValue: Number(row.contractValue), currency: row.currency, ...versioned(row) }))
+        : input.moduleCode === "materials"
+          ? (await db.select({ id: materialMasters.id, updatedAt: materialMasters.updatedAt, code: materialMasters.code, description: materialMasters.description, unitOfMeasure: materialMasters.unitOfMeasure, category: materialMasters.category, referenceSpecification: materialMasters.referenceSpecification }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)).orderBy(materialMasters.code)).map(row => ({ code: row.code, description: row.description, unitOfMeasure: row.unitOfMeasure, category: row.category, referenceSpecification: row.referenceSpecification ?? "", ...versioned(row) }))
+          : (await db.select({ code: activities.code, name: activities.name, plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt, status: activities.status }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId)))).map(row => ({ ...row, plannedValue: Number(row.plannedValue), plannedStartAt: row.plannedStartAt?.toISOString().slice(0, 10) ?? "", plannedFinishAt: row.plannedFinishAt?.toISOString().slice(0, 10) ?? "" }));
   if (feature.limitValue !== null && rows.length > feature.limitValue) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSE_LIMIT_EXCEEDED" });
   const file = await buildDataExportFile({ moduleCode: input.moduleCode, format: input.format, locale: input.locale, rows });
   if (file.bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "PROJECT_OS_EXPORT_FILE_TOO_LARGE" });
