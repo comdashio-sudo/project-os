@@ -10,9 +10,8 @@ import { WriteGate } from "@/lib/permissions";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
 import { getProjectError } from "@shared/projectErrors";
 import { importModulePermissions } from "@shared/importPermissions";
+import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { importTemplateHeaders } from "@shared/importTemplateHeaders";
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "../../../server/routers";
 
 type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate";
 
@@ -98,9 +97,6 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "في الانتظار", downloading: "قراءة الملف من التخزين", parsing: "قراءة الصفوف", validating: "التحقق من الصفوف", writing: "حفظ النتيجة" },
         failedTitle: "فشلت المعالجة", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
-        diffTitle: "معاينة الفروق قبل الحفظ", diffNew: "جديد", diffModified: "معدَّل", diffUnchanged: "بلا تغيير", diffConflict: "تعارض", diffMissing: "غائب عن الملف (لا يُحذف)", diffOld: "القديم", diffNewValue: "الجديد", diffMore: "تُعرض أول الصفوف فقط؛ العدد الكامل أعلاه.",
-        diffConflictNote: "تعارض: تغيّر هذا الصف في المنصة بعد التصدير أو أُعيد ترميزه في الملف. لن يُكتب. صدِّر الملف من جديد.", diffNoChanges: "لا تغييرات: كل الصفوف مطابقة لما هو محفوظ.", diffApprove: "ما تراه أعلاه هو ما سيُكتب بالضبط عند التأكيد.",
-        diffMissingNote: "صفوف موجودة في المنصة وغير موجودة في هذا الملف: لن تُحذف. الاستيراد لا يحذف أي سجل أبدًا؛ إن أردت حذف أحدها فاحذفه من داخل المنصة.",
       }
     : {
         title: "Data import",
@@ -153,9 +149,6 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
         failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
-        diffTitle: "Differences preview before saving", diffNew: "New", diffModified: "Modified", diffUnchanged: "Unchanged", diffConflict: "Conflict", diffMissing: "Absent from the file (never deleted)", diffOld: "Old", diffNewValue: "New", diffMore: "Only the first rows are shown; the full count is above.",
-        diffConflictNote: "Conflict: this row changed in the platform after the export, or was re-keyed in the file. It will not be written. Export again.", diffNoChanges: "No changes: every row matches what is stored.", diffApprove: "What you see above is exactly what will be written when you confirm.",
-        diffMissingNote: "Rows that exist in the platform but are not in this file will NOT be deleted. An import never deletes a record; to remove one, delete it inside the platform.",
       };
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
@@ -229,7 +222,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
           {Object.keys(current.analysis.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(current.analysis.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {String(header)}</li>)}</ul></div>}
           {current.analysis.errors.length > 0 && <div className="mt-3 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold">{t.errors}</p><ul className="mt-1 space-y-1">{current.analysis.errors.map((error, index) => <li key={`${error.code}-${error.field ?? ""}-${index}`}>{importErrorLabel(error.code)}{error.field ? ` (${error.field})` : ""}</li>)}</ul>{current.analysis.errorsTotal > current.analysis.errorsListed && <p className="mt-1">{t.moreErrors}</p>}</div>}
           {current.analysis.errors.length > 0 && current.analysis.headers.length > 0 && <WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}><div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(existing => ({ ...existing, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{current.analysis!.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: current.id, mappingOverride })}>{t.reanalyze}</Button></div></WriteGate>}
-          {current.status === "validated" && !current.analysis.errors.length ? <WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}>{diffReady && <DiffPreview diff={diffReady} isArabic={isArabic} t={t} />}{diff.error && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(diff.error, isArabic)}</p>}<Button className="mt-3" type="button" disabled={confirm.isPending || diff.isLoading || Boolean(diffReady && diffReady.summary.conflict > 0)} onClick={() => confirm.mutate({ tenantId, projectId, importId: current.id, approvedDiffHash: diffReady?.diffHash })}>{t.confirm}</Button></WriteGate> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
+          {current.status === "validated" && !current.analysis.errors.length ? <WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}>{diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={field => t.field[field as keyof typeof t.field]} />}{diff.error && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(diff.error, isArabic)}</p>}<Button className="mt-3" type="button" disabled={confirm.isPending || diff.isLoading || Boolean(diffReady && diffReady.summary.conflict > 0)} onClick={() => confirm.mutate({ tenantId, projectId, importId: current.id, approvedDiffHash: diffReady?.diffHash })}>{t.confirm}</Button></WriteGate> : <p className="mt-3 text-xs font-medium text-amber-800">{t.blocked}</p>}
         </>}
         {current.status === "completed" && <p className="mt-2">{t.created}: {current.createdRows} · {t.updated}: {current.updatedRows} · {t.skipped}: {current.skippedRows}</p>}
       </div>}
@@ -244,27 +237,4 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
 
 function Step({ icon: Icon, number, title }: { icon: typeof ListChecks; number: string; title: string }) {
   return <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-muted/40 p-3"><span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{number}</span><Icon className="h-4 w-4 text-primary" /><span className="text-xs font-semibold text-foreground">{title}</span></div>;
-}
-
-type DiffData = Extract<inferRouterOutputs<AppRouter>["dataImports"]["diff"], { supported: true }>;
-function DiffPreview({ diff, isArabic, t }: { diff: DiffData; isArabic: boolean; t: Record<string, any> }) {
-  const kindLabel = (kind: string) => (kind === "new" ? t.diffNew : kind === "modified" ? t.diffModified : t.diffConflict);
-  const kindClass = (kind: string) => (kind === "new" ? "bg-emerald-100 text-emerald-800" : kind === "modified" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800");
-  const noChanges = diff.summary.new === 0 && diff.summary.modified === 0 && diff.summary.conflict === 0;
-  return (
-    <div className="mt-3 rounded-[var(--radius-sm)] border border-border bg-background p-3" data-testid="import-diff">
-      <p className="font-semibold">{t.diffTitle}</p>
-      <p className="mt-1">{t.diffNew}: {diff.summary.new} · {t.diffModified}: {diff.summary.modified} · {t.diffUnchanged}: {diff.summary.unchanged} · {t.diffConflict}: {diff.summary.conflict} · {t.diffMissing}: {diff.summary.missing}</p>
-      {noChanges && <p className="mt-1 text-muted-foreground">{t.diffNoChanges}</p>}
-      {diff.summary.conflict > 0 && <p role="alert" className="mt-1 text-red-700">{t.diffConflictNote}</p>}
-      {diff.entries.length > 0 && <div className="mt-2 overflow-x-auto"><table className="w-full text-start text-xs"><thead><tr className="text-muted-foreground"><th className="p-1 text-start">#</th><th className="p-1 text-start">{isArabic ? "المفتاح" : "Key"}</th><th className="p-1 text-start">{isArabic ? "الحالة" : "Status"}</th><th className="p-1 text-start">{isArabic ? "الحقل" : "Field"}</th><th className="p-1 text-start">{t.diffOld}</th><th className="p-1 text-start">{t.diffNewValue}</th></tr></thead><tbody>
-        {diff.entries.flatMap(entry => (entry.changes.length ? entry.changes : [{ field: "", oldValue: "", newValue: "" }]).map((change, index) => (
-          <tr key={`${entry.rowNumber}-${index}`} className="border-t border-border"><td className="p-1">{index === 0 ? entry.rowNumber : ""}</td><td className="p-1">{index === 0 ? entry.key : ""}</td><td className="p-1">{index === 0 ? <span className={`rounded-full px-2 py-0.5 ${kindClass(entry.kind)}`}>{kindLabel(entry.kind)}</span> : ""}</td><td className="p-1">{t.field[change.field] ?? change.field}</td><td className="p-1">{entry.kind === "modified" ? change.oldValue : ""}</td><td className="p-1">{entry.kind === "conflict" ? "" : change.newValue}</td></tr>
-        )))}
-      </tbody></table></div>}
-      {diff.shownTotal > diff.entries.length + diff.offset && <p className="mt-1 text-muted-foreground">{t.diffMore}</p>}
-      {diff.missing.length > 0 && <div className="mt-2 rounded-[var(--radius-sm)] border border-border bg-muted/40 p-2" data-testid="import-diff-missing"><p className="font-medium">{t.diffMissingNote}</p><p className="mt-1 text-muted-foreground">{t.diffMissing}: {diff.missing.map(row => row.key).join("، ")}{diff.missingTotal > diff.missing.length ? " …" : ""}</p></div>}
-      <p className="mt-2 font-medium">{t.diffApprove}</p>
-    </div>
-  );
 }

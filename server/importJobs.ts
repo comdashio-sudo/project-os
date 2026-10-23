@@ -13,12 +13,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, dataImportErrors, dataImports } from "../drizzle/schema";
+import { auditLogs, dataImportErrors, dataImportRowResults, dataImports } from "../drizzle/schema";
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
-import { assertImportAccess, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
+import { assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, type ExternalContext, type ExternalModule } from "./externalImports";
+import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
+import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
 import { insertChunked } from "./importBulk";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageHead, storageList, storageRead } from "./storage";
@@ -156,10 +158,12 @@ async function confirmExternal(db: Db, job: JobIdentity, onStage: (stage: string
   const bytes = await storageRead(record.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   await onStage("writing", 40);
-  const counts = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, context: contextOf(record.summaryJson) });
+  const { results, ...counts } = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, importId: job.importId, approvedDiffHash: parseJson<{ approvedDiffHash?: string }>(record.summaryJson, {}).approvedDiffHash, context: contextOf(record.summaryJson) });
   await db.transaction(async tx => {
     const done = await tx.update(dataImports).set({ status: "completed", ...counts, progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null, completedAt: sql`now()` })
       .where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "importing"))).returning({ id: dataImports.id });
+    // what each row did, as the general importer records it (an operational import: costs, orders, employees, hours)
+    if (done.length && results?.length) { await tx.delete(dataImportRowResults).where(eq(dataImportRowResults.importId, job.importId)); await insertChunked(tx, dataImportRowResults, results.map(item => ({ id: randomUUID(), importId: job.importId, rowNumber: item.rowNumber, rowKey: item.key.slice(0, 160), action: item.action, entityId: item.entityId }))); }
     if (done.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_completed", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, ...counts }) });
   });
   return counts;
@@ -260,7 +264,17 @@ export async function requestImportConfirmation(input: { userId: number; tenantI
   // A small PMC / master-plan file is written inside the request like a small general import; a large one becomes a job the screen polls.
   if (external && record.validRows <= IMPORT_SYNC_MAX_ROWS) {
     await runImportConfirmation(ids);
-    return progressView(db, await readRecord(db, input), input);
+    const after = await readRecord(db, input);
+    if (after.status === "failed") {
+      // Inside the request a refusal is an answer, as it is for a general import: the person is told why, and a refusal that happened BEFORE anything was written
+      // (the preview is stale, the project changed, nothing to write) leaves the import where it was, ready to be looked at again.
+      const reason = after.failureReason ?? "PROJECT_OS_IMPORT_JOB_FAILED";
+      if (["PROJECT_OS_IMPORT_DIFF_CHANGED", "PROJECT_OS_IMPORT_VERSION_CONFLICT", "PROJECT_OS_IMPORT_NOTHING_TO_CONFIRM"].includes(reason)) {
+        await db.update(dataImports).set({ status: "validated", failureReason: null, progressStage: null, heartbeatAt: null, completedAt: null }).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.status, "failed")));
+      }
+      throw new TRPCError({ code: "BAD_REQUEST", message: reason });
+    }
+    return progressView(db, after, input);
   }
   void runAfterResponse(`import.confirm:${input.importId}`, () => runImportConfirmation(ids));
   return { id: input.importId, status: "importing" as const };
@@ -358,3 +372,26 @@ export async function sweepImportJobs(now = Date.now()) {
   }
   return { inFlight: rows.length, resumed, failed, orphansRemoved };
 }
+
+/**
+ * The differences preview of any import. The general modules' (master data) is computed by `previewDataImportDiff`; an operational module's (costs, purchase orders,
+ * employees, hours) is its own plan, and reading it passes that module's gate — for the HR modules the read is itself audited.
+ */
+export async function previewImportDiff(input: { userId: number; tenantId: string; projectId: string; importId: string; kind?: "new" | "modified" | "conflict" | "all"; offset?: number }) {
+  const { db } = await importAccess(input);
+  const record = await readRecord(db, input);
+  if (!isExternalModule(record.moduleCode)) return previewDataImportDiff(input);
+  await authorizeExternalImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, context: contextOf(record.summaryJson) });
+  if (!isLedgerModule(record.moduleCode)) return { supported: false as const, moduleCode: record.moduleCode };
+  if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_DIFF_UNAVAILABLE" });
+  const [file] = await db.select({ fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, sourceFormat: dataImports.sourceFormat }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const bytes = await storageRead(file!.fileKey);
+  if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== file!.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const plan = await planLedgerImport(db, input, record.moduleCode, file!.sourceFormat as "xlsx" | "csv", bytes);
+  if (plan.readsEmployeeRecords) await auditEmployeeRecordsRead(db, input, record.moduleCode, "preview", plan.totalRows);
+  const kind = input.kind ?? "all";
+  const shown = plan.entries.filter(item => (kind === "all" ? item.kind !== "unchanged" : item.kind === kind));
+  const offset = input.offset ?? 0;
+  return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff({ entries: plan.entries, missing: plan.missing }), rejected: plan.errors.length, rejections: plan.errors.slice(0, DIFF_PAGE_SIZE), diffHash: ledgerPlanHash(plan), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: plan.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: plan.missing.length };
+}
+

@@ -1,3 +1,4 @@
+import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { Button } from "@/components/ui/button";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -9,7 +10,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { AppRouter } from "../../../server/routers";
 
 export type DirectImportView = inferRouterOutputs<AppRouter>["dataImports"]["progress"];
-export type DirectImportModule = "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial";
+export type DirectImportModule = "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial" | "costs" | "purchaseOrders" | "employees" | "timeEntries";
 
 type Props = {
   tenantId: string; projectId: string; moduleCode: DirectImportModule;
@@ -20,6 +21,11 @@ type Props = {
   fileLabel: string; analyzeLabel: string; confirmLabel: string;
   /** Writes as soon as the analysis finds nothing wrong (the master-plan forms always applied in one click); otherwise the person reads the report and confirms. */
   autoConfirm?: boolean;
+  /** Shows the differences preview (new / modified old → new / conflict) before the confirm button, and confirms with the hash of exactly what was shown. For the operational imports. */
+  withDiff?: boolean;
+  /** The label of a field in the preview, and the sentence for a validation code; a code without a sentence is shown as it is. */
+  fieldLabel?: (field: string) => string | undefined;
+  errorLabel?: (code: string) => string | undefined;
   /** False when `renderReport` already lists the errors (the PMC report does, with more detail). */
   showErrors?: boolean;
   /** What the importer would do, shown between the verdict and the confirm button. */
@@ -50,7 +56,7 @@ const text = {
  * The file travels browser → Storage by a signed URL (no request body carries it, so the host's 4.5 MB ceiling does not apply, up to 50 MB), then a background job
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
-export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, showErrors = true, renderReport, onCompleted }: Props) {
+export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted }: Props) {
   const t = isArabic ? text.ar : text.en;
   const [file, setFile] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -65,6 +71,9 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
   );
   const confirm = trpc.dataImports.confirm.useMutation({ onSuccess: () => { void progress.refetch(); } });
   const view = progress.data;
+  const previewable = withDiff && Boolean(view) && (view?.status === "uploaded" || view?.status === "validated");
+  const diff = trpc.dataImports.diff.useQuery({ tenantId, projectId, importId: importId ?? "00000000-0000-0000-0000-000000000000" }, { enabled: previewable, retry: false });
+  const diffReady = diff.data?.supported ? diff.data : undefined;
   const busy = uploadPercent !== null || createUpload.isPending || registerUpload.isPending;
 
   // a different module (the PMC kind, the master-plan version) is a different import: start clean
@@ -120,10 +129,12 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
       </div>}
       {view && (view.status === "uploaded" || view.status === "validated") && <div className="space-y-3">
         <p className="text-sm">{t.rows}: {view.totalRows}</p>
-        {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{error.code}{error.field ? ` (${error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
+        {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{errorLabel?.(error.code) ?? error.code}{error.field ? ` (${fieldLabel?.(error.field) ?? error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
         {renderReport?.(view)}
+        {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
+        {withDiff && diff.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(diff.error, isArabic)}</p>}
         {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.nothingToConfirm}</p>}
-        {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id })}>{confirmLabel}</Button>}
+        {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
       {confirm.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
