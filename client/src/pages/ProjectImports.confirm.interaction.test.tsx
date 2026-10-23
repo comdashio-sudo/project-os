@@ -81,4 +81,14 @@ describe("ProjectImports confirmation", () => {
     expect((await screen.findByRole("alert", { name: "" })).textContent).toContain("Conflict");
     expect((screen.getByRole("button", { name: "Confirm import" }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("says in a sentence that rows absent from the file are never deleted, and lists them", async () => {
+    state.mock.diff = { ...previewOf({ unchanged: 1, missing: 2 }, []), missing: [{ key: "1.1" }, { key: "1.2" }], missingTotal: 2 };
+    await startImport();
+    const note = await screen.findByTestId("import-diff-missing");
+    expect(note.textContent).toContain("will NOT be deleted");
+    expect(note.textContent).toContain("An import never deletes a record");
+    expect(note.textContent).toContain("1.1"); expect(note.textContent).toContain("1.2");
+  });
 });
+
