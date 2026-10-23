@@ -43,7 +43,7 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
   /** Reads THIS project (never lists projects) and refuses unless the id and the organisation's name both match. Call before any write. */
   async function assertTarget() {
     const { data: project } = await call("GET", `/v1/projects/${ref}`);
-    const id = project?.id ?? project?.ref;
+    const id = project?.ref ?? project?.id; // `ref` is the project reference in the Management API response (V1ProjectWithDatabaseResponse); `id` is kept as a fallback
     if (id !== ref) throw new GuardError(`The Supabase project the token returned is not the expected one (expected ${ref}). Nothing was changed.`);
     const slug = project?.organization_slug ?? project?.organization_id;
     if (!slug) throw new GuardError("The Supabase project did not name its organisation. Nothing was changed.");
@@ -82,7 +82,7 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
     },
     async poolerHost(): Promise<string> {
       const { data } = await call("GET", `/v1/projects/${ref}/config/database/pooler`);
-      const entry = (Array.isArray(data) ? data : []).find((item: any) => typeof item?.db_host === "string" && /pooler\.supabase\.com$/.test(item.db_host));
+      const entry = (Array.isArray(data) ? data : []).find((item: any) => typeof item?.db_host === "string" && /pooler\.supabase\.com$/.test(item.db_host) && (item.database_type === undefined || item.database_type === "PRIMARY")); // SupavisorConfigResponse: PRIMARY, never a read replica
       if (!entry) throw new Error("no pooler host found for the project");
       return entry.db_host as string;
     },
@@ -138,6 +138,7 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
     const repo = linkedRepo(project);
     if (repo && repo !== want) throw new GuardError(`A Vercel project named "${VERCEL_PROJECT_NAME}" exists but is linked to another repository. Nothing was changed.`);
     if (!repo) {
+      // Not in the public OpenAPI (the documented way to connect a repository is `gitRepository` when the project is created). This is the call `vercel git connect` makes; any non-2xx falls back to the manual step.
       const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 403, 404]);
       if (linked.status !== 200 && linked.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
     }
@@ -148,7 +149,7 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
   return {
     ensureProject,
     async existingEnvKeys(projectId: string): Promise<Set<string>> {
-      const { data } = await call("GET", q(`/v9/projects/${projectId}/env`));
+      const { data } = await call("GET", q(`/v10/projects/${projectId}/env`));
       return new Set((data?.envs ?? []).filter((env: any) => (env.target ?? []).includes("production")).map((env: any) => env.key as string));
     },
     async setEnv(projectId: string, vars: VercelEnv[]) {
@@ -156,7 +157,7 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
       await call("POST", q(`/v10/projects/${projectId}/env?upsert=true`), vars.map(v => ({ key: v.key, value: v.value, type: v.secret ? "sensitive" : "plain", target: ["production"] })));
     },
     async deployProduction(): Promise<{ id: string }> {
-      const deployed = await call("POST", q("/v13/deployments?forceNew=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 403, 404]);
+      const deployed = await call("POST", q("/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 403, 404]);
       if (deployed.status !== 200 && deployed.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
       return { id: deployed.data.id };
     },
