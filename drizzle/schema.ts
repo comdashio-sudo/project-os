@@ -1349,7 +1349,7 @@ export const projectWarehouses = pgTable(
 
 export const warehouseInventoryTransfers = pgTable(
   "warehouse_inventory_transfers",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), sourceWarehouseId: varchar("source_warehouse_id", { length: 36 }).notNull(), destinationWarehouseId: varchar("destination_warehouse_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(), referenceNumber: varchar("reference_number", { length: 120 }), note: varchar("note", { length: 500 }), transferredAt: timestamp("transferred_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), sourceWarehouseId: varchar("source_warehouse_id", { length: 36 }).notNull(), destinationWarehouseId: varchar("destination_warehouse_id", { length: 36 }).notNull(), /* set only when the stock moved to another project of the company (work order 12, item 3) */ destinationProjectId: varchar("destination_project_id", { length: 36 }), materialId: varchar("material_id", { length: 36 }).notNull(), quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(), referenceNumber: varchar("reference_number", { length: 120 }), note: varchar("note", { length: 500 }), transferredAt: timestamp("transferred_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [index("witf_tenant_project_date_idx").on(table.tenantId, table.projectId, table.transferredAt), index("witf_source_destination_idx").on(table.sourceWarehouseId, table.destinationWarehouseId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "witf_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "witf_project_fk" }), foreignKey({ columns: [table.sourceWarehouseId], foreignColumns: [projectWarehouses.id], name: "witf_source_fk" }), foreignKey({ columns: [table.destinationWarehouseId], foreignColumns: [projectWarehouses.id], name: "witf_destination_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "witf_material_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "witf_creator_fk" })],
 );
 
@@ -1362,8 +1362,65 @@ export const warehouseInventoryTransactions = pgTable(
 
 export const materialIssues = pgTable(
   "material_issues",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull(), costEntryId: varchar("cost_entry_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), wbsItemId: varchar("wbs_item_id", { length: 36 }).notNull(), activityId: varchar("activity_id", { length: 36 }), issuedQuantity: numeric("issued_quantity", { precision: 18, scale: 3 }).notNull(), unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull(), totalCost: numeric("total_cost", { precision: 18, scale: 2 }).notNull(), issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull(), costEntryId: varchar("cost_entry_id", { length: 36 }).notNull(), materialId: varchar("material_id", { length: 36 }).notNull(), wbsItemId: varchar("wbs_item_id", { length: 36 }).notNull(), activityId: varchar("activity_id", { length: 36 }), /* the cell the material went into: a unit and its inspection activity (work order 12, item 3) */ pmcUnitId: varchar("pmc_unit_id", { length: 36 }), pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }), issuedQuantity: numeric("issued_quantity", { precision: 18, scale: 3 }).notNull(), unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull(), totalCost: numeric("total_cost", { precision: 18, scale: 2 }).notNull(), issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() },
   table => [uniqueIndex("material_issues_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_issues_cost_unique").on(table.costEntryId), index("material_issues_tenant_project_idx").on(table.tenantId, table.projectId, table.issuedAt), index("material_issues_wbs_activity_idx").on(table.wbsItemId, table.activityId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mi_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mi_project_fk" }), foreignKey({ columns: [table.inventoryTransactionId], foreignColumns: [warehouseInventoryTransactions.id], name: "mi_tx_fk" }), foreignKey({ columns: [table.costEntryId], foreignColumns: [costEntries.id], name: "mi_cost_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "mi_material_fk" }), foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "mi_wbs_fk" }), foreignKey({ columns: [table.activityId], foreignColumns: [activities.id], name: "mi_activity_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "mi_creator_fk" })],
+);
+
+// Material taken back from the work to the shelf (work order 12, item 3). The issue and its cost entry stay as they were; the return is its own
+// receipt movement and its own NEGATIVE actual cost entry at the unit cost of the issue, so what was charged and what was undone are both on the books.
+export const materialReturns = pgTable(
+  "material_returns",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    materialIssueId: varchar("material_issue_id", { length: 36 }).notNull().references(() => materialIssues.id),
+    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).notNull().references(() => warehouseInventoryTransactions.id),
+    costEntryId: varchar("cost_entry_id", { length: 36 }).notNull().references(() => costEntries.id),
+    quantity: numeric("quantity", { precision: 18, scale: 3 }).notNull(),
+    unitCost: numeric("unit_cost", { precision: 18, scale: 2 }).notNull(),
+    totalCost: numeric("total_cost", { precision: 18, scale: 2 }).notNull(),
+    returnedAt: timestamp("returned_at", { withTimezone: true }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("material_returns_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_returns_cost_unique").on(table.costEntryId), index("material_returns_issue_idx").on(table.materialIssueId), index("material_returns_tenant_project_idx").on(table.tenantId, table.projectId, table.returnedAt)],
+);
+
+// A stock count: what the books said, what was counted, and the adjustment each difference became (work order 12, item 3).
+export const warehouseStocktakes = pgTable(
+  "warehouse_stocktakes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    warehouseId: varchar("warehouse_id", { length: 36 }).notNull().references(() => projectWarehouses.id),
+    reference: varchar("reference", { length: 120 }),
+    note: varchar("note", { length: 500 }).notNull(),
+    countedAt: timestamp("counted_at", { withTimezone: true }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("warehouse_stocktakes_tenant_project_idx").on(table.tenantId, table.projectId, table.countedAt), index("warehouse_stocktakes_warehouse_idx").on(table.warehouseId)],
+);
+
+export const warehouseStocktakeLines = pgTable(
+  "warehouse_stocktake_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    stocktakeId: varchar("stocktake_id", { length: 36 }).notNull().references(() => warehouseStocktakes.id),
+    materialId: varchar("material_id", { length: 36 }).notNull().references(() => materialMasters.id),
+    systemQuantity: numeric("system_quantity", { precision: 18, scale: 3 }).notNull(),
+    countedQuantity: numeric("counted_quantity", { precision: 18, scale: 3 }).notNull(),
+    variance: numeric("variance", { precision: 18, scale: 3 }).notNull(),
+    valueDelta: numeric("value_delta", { precision: 18, scale: 2 }),
+    inventoryTransactionId: varchar("inventory_transaction_id", { length: 36 }).references(() => warehouseInventoryTransactions.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("warehouse_stocktake_lines_material_unique").on(table.stocktakeId, table.materialId), index("warehouse_stocktake_lines_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
 export const changeRequestsStatusEnum = pgEnum("change_requests_status", ["draft", "submitted", "under_review", "approved", "rejected", "cancelled"]);

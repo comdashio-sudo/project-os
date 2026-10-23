@@ -28,6 +28,7 @@ const mutations = Array.from(routers.matchAll(/(\w+): protectedProcedure[\s\S]*?
 const calledNames = new Set(Array.from(routers.matchAll(/\b([a-zA-Z]+)\(\{/g)).map(match => match[1]));
 
 const NO_AUDIT_BY_DESIGN: Record<string, string> = {
+  issueMaterialToCellForTenant: "delegates to createMaterialIssueForTenant, which writes the warehouse.material_issued_to_work audit row in the same transaction",
   analyzePmcImport: "analysis only: nothing is written until the approved file is confirmed, and confirmation is audited",
   exportPmcScreen: "a read-only export; PMC reads are not audited (listed as a gap in docs/GATE6_RECORDS.md)",
   claimSupportTicket: "delegates to transitionSupportTicket, which writes the audit row",
@@ -39,7 +40,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
 };
-const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeInventory|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
 describe("Gate 6, static part (G-110)", () => {
   it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {
