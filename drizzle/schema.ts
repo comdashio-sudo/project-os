@@ -2636,3 +2636,181 @@ export const tenantPolicies = pgTable(
   },
   table => [uniqueIndex("tenant_policies_tenant_unique").on(table.tenantId)],
 );
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Work order 12, items 8 and 9: the company's integration layer. API keys with named powers, outbound signed webhooks, the mapping between the
+// company's other systems' identifiers and ours, and the log of every exchange (what arrived, what was refused, why).
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    name: varchar("name", { length: 120 }).notNull(),
+    // the first characters of the key, shown in lists and used to find it; the key itself is shown once and only its SHA-256 is kept
+    keyPrefix: varchar("key_prefix", { length: 16 }).notNull(),
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    // comma separated powers: erp.write erp.read export.read external.write mappings.write sync.read
+    scopes: varchar("scopes", { length: 400 }).notNull(),
+    rateLimitPerMinute: integer("rate_limit_per_minute").default(120).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("api_keys_prefix_unique").on(table.keyPrefix), index("api_keys_tenant_idx").on(table.tenantId)],
+);
+
+// How many calls a key has made in each minute: the limit is counted in the database, so two server instances share one count.
+export const apiRateWindows = pgTable(
+  "api_rate_windows",
+  {
+    keyId: varchar("key_id", { length: 36 }).notNull().references(() => apiKeys.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    calls: integer("calls").default(0).notNull(),
+  },
+  table => [primaryKey({ columns: [table.keyId, table.windowStart] })],
+);
+
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    url: varchar("url", { length: 500 }).notNull(),
+    // sealed with the server's integration key (AES-256-GCM); the signing secret is shown once when the endpoint is made
+    secretSealed: text("secret_sealed").notNull(),
+    // comma separated event types, or * for all
+    events: varchar("events", { length: 400 }).default("*").notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("webhook_endpoints_tenant_idx").on(table.tenantId, table.active)],
+);
+
+export const webhookDeliveriesStatusEnum = pgEnum("webhook_deliveries_status", ["pending", "delivered", "failed"]);
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    endpointId: varchar("endpoint_id", { length: 36 }).notNull().references(() => webhookEndpoints.id),
+    eventType: varchar("event_type", { length: 80 }).notNull(),
+    payload: text("payload").notNull(),
+    status: webhookDeliveriesStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lastStatusCode: integer("last_status_code"),
+    lastError: varchar("last_error", { length: 300 }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt), index("webhook_deliveries_tenant_idx").on(table.tenantId, table.createdAt)],
+);
+
+export const integrationSystems = ["generic", "odoo", "sap_b1", "dynamics365", "netsuite", "quality", "submittals"] as const;
+// An identifier in another system and what it means here. entity_type: supplier, project, material, cost_code (our WBS item), cost_center (our project), purchase_order, actual_cost, submittal, inspection.
+export const integrationMappings = pgTable(
+  "integration_mappings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    system: varchar("system", { length: 24 }).notNull(),
+    entityType: varchar("entity_type", { length: 24 }).notNull(),
+    externalId: varchar("external_id", { length: 120 }).notNull(),
+    internalId: varchar("internal_id", { length: 36 }),
+    internalCode: varchar("internal_code", { length: 120 }),
+    // what was last applied for this identifier, to say "unchanged" the second time
+    payloadHash: varchar("payload_hash", { length: 64 }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("integration_mappings_unique").on(table.tenantId, table.system, table.entityType, table.externalId), index("integration_mappings_internal_idx").on(table.tenantId, table.entityType, table.internalId)],
+);
+
+export const integrationSyncRunsStatusEnum = pgEnum("integration_sync_runs_status", ["running", "ok", "partial", "failed"]);
+export const integrationSyncRuns = pgTable(
+  "integration_sync_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    system: varchar("system", { length: 24 }).notNull(),
+    // in = to the platform, out = from the platform
+    direction: varchar("direction", { length: 4 }).notNull(),
+    trigger: varchar("trigger", { length: 12 }).notNull(),
+    entityType: varchar("entity_type", { length: 24 }),
+    status: integrationSyncRunsStatusEnum("status").default("running").notNull(),
+    received: integer("received").default(0).notNull(),
+    accepted: integer("accepted").default(0).notNull(),
+    rejected: integer("rejected").default(0).notNull(),
+    apiKeyId: varchar("api_key_id", { length: 36 }),
+    startedByUserId: integer("started_by_user_id"),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    errorSummary: varchar("error_summary", { length: 300 }),
+  },
+  table => [index("integration_sync_runs_tenant_idx").on(table.tenantId, table.startedAt)],
+);
+
+export const integrationSyncItems = pgTable(
+  "integration_sync_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    runId: varchar("run_id", { length: 36 }).notNull().references(() => integrationSyncRuns.id),
+    entityType: varchar("entity_type", { length: 24 }).notNull(),
+    externalId: varchar("external_id", { length: 120 }),
+    // created, updated, unchanged, stored (kept, not applied), rejected
+    outcome: varchar("outcome", { length: 12 }).notNull(),
+    reason: varchar("reason", { length: 80 }),
+    detail: varchar("detail", { length: 300 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("integration_sync_items_run_idx").on(table.runId), index("integration_sync_items_tenant_outcome_idx").on(table.tenantId, table.outcome)],
+);
+
+// What an ERP sent that the platform has no table for yet (supplier invoices, payments, employee cost): kept as it arrived, flagged not applied, so nothing is lost and nothing is invented.
+export const integrationInboundRecords = pgTable(
+  "integration_inbound_records",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    system: varchar("system", { length: 24 }).notNull(),
+    entityType: varchar("entity_type", { length: 24 }).notNull(),
+    externalId: varchar("external_id", { length: 120 }).notNull(),
+    payload: text("payload").notNull(),
+    runId: varchar("run_id", { length: 36 }).references(() => integrationSyncRuns.id),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("integration_inbound_records_unique").on(table.tenantId, table.system, table.entityType, table.externalId)],
+);
+
+// A connection from the platform to a company's other system (Odoo, SAP Business One, Dynamics 365, NetSuite). The password or key is sealed with the server's integration key and never read back.
+export const integrationConnections = pgTable(
+  "integration_connections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    system: varchar("system", { length: 24 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    baseUrl: varchar("base_url", { length: 300 }).notNull(),
+    database: varchar("database", { length: 120 }),
+    username: varchar("username", { length: 160 }),
+    secretSealed: text("secret_sealed"),
+    // JSON: which project and which cost center map where, the batch size, the entities to pull
+    settings: text("settings"),
+    active: boolean("active").default(true).notNull(),
+    // pulled by the daily job when set
+    scheduledDaily: boolean("scheduled_daily").default(false).notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("integration_connections_tenant_system_name_unique").on(table.tenantId, table.system, table.name)],
+);

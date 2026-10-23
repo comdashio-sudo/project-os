@@ -11,6 +11,7 @@ import { assertTenantAccess } from "./domain/authorization";
 import type { PmcUnitActivityStatus } from "./domain/pmc";
 import { takeDirectUpload } from "./directUploadKeys";
 import { applyCellStatus, type CellWarning } from "./pmcService";
+import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { qcCompletionGate } from "./qualityGate";
 import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
 
@@ -161,7 +162,9 @@ export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: 
       warnings.push(...result.warnings);
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.approved", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, applied: applied.length, skipped: plan.skipped.length, warnings: warnings.length }) });
+    await emitWebhookEvent(tx, input.tenantId, "daily_report.approved", { reportId: report.id, projectId: input.projectId, reportDate: report.reportDate, cellsMoved: applied.length });
   });
+  kickWebhookDelivery();
   return { id: report.id, status: "approved" as const, applied, skipped: plan.skipped, warnings, notAccepted: [] as typeof plan.gate.notAccepted };
 }
 
