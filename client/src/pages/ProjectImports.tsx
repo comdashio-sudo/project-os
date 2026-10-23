@@ -100,6 +100,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
         diffTitle: "معاينة الفروق قبل الحفظ", diffNew: "جديد", diffModified: "معدَّل", diffUnchanged: "بلا تغيير", diffConflict: "تعارض", diffMissing: "غائب عن الملف (لا يُحذف)", diffOld: "القديم", diffNewValue: "الجديد", diffMore: "تُعرض أول الصفوف فقط؛ العدد الكامل أعلاه.",
         diffConflictNote: "تعارض: تغيّر هذا الصف في المنصة بعد التصدير أو أُعيد ترميزه في الملف. لن يُكتب. صدِّر الملف من جديد.", diffNoChanges: "لا تغييرات: كل الصفوف مطابقة لما هو محفوظ.", diffApprove: "ما تراه أعلاه هو ما سيُكتب بالضبط عند التأكيد.",
+        diffMissingNote: "صفوف موجودة في المنصة وغير موجودة في هذا الملف: لن تُحذف. الاستيراد لا يحذف أي سجل أبدًا؛ إن أردت حذف أحدها فاحذفه من داخل المنصة.",
       }
     : {
         title: "Data import",
@@ -154,6 +155,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
         diffTitle: "Differences preview before saving", diffNew: "New", diffModified: "Modified", diffUnchanged: "Unchanged", diffConflict: "Conflict", diffMissing: "Absent from the file (never deleted)", diffOld: "Old", diffNewValue: "New", diffMore: "Only the first rows are shown; the full count is above.",
         diffConflictNote: "Conflict: this row changed in the platform after the export, or was re-keyed in the file. It will not be written. Export again.", diffNoChanges: "No changes: every row matches what is stored.", diffApprove: "What you see above is exactly what will be written when you confirm.",
+        diffMissingNote: "Rows that exist in the platform but are not in this file will NOT be deleted. An import never deletes a record; to remove one, delete it inside the platform.",
       };
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
@@ -261,7 +263,7 @@ function DiffPreview({ diff, isArabic, t }: { diff: DiffData; isArabic: boolean;
         )))}
       </tbody></table></div>}
       {diff.shownTotal > diff.entries.length + diff.offset && <p className="mt-1 text-muted-foreground">{t.diffMore}</p>}
-      {diff.missing.length > 0 && <p className="mt-2 text-muted-foreground">{t.diffMissing}: {diff.missing.map(row => row.key).join("، ")}{diff.missingTotal > diff.missing.length ? " …" : ""}</p>}
+      {diff.missing.length > 0 && <div className="mt-2 rounded-[var(--radius-sm)] border border-border bg-muted/40 p-2" data-testid="import-diff-missing"><p className="font-medium">{t.diffMissingNote}</p><p className="mt-1 text-muted-foreground">{t.diffMissing}: {diff.missing.map(row => row.key).join("، ")}{diff.missingTotal > diff.missing.length ? " …" : ""}</p></div>}
       <p className="mt-2 font-medium">{t.diffApprove}</p>
     </div>
   );
