@@ -34,14 +34,16 @@ if (existing.length > 0) {
 
 // Same identity rule as the e-mail sign-in: openId = email:<40 hex of SHA-256(email)>.
 const openId = `email:${createHash("sha256").update(DEMO_EMAIL).digest("hex").slice(0, 40)}`;
-await upsertUser({ openId, name: "Demo Admin", email: DEMO_EMAIL, loginMethod: "email" });
+// The names a screen shows are Arabic (or neutral codes with no English word in them), so the demo reads as Arabic. They stay obviously
+// invented: the company and the project say "العرض التجريبي" (the demonstration). The e-mail address above is kept on purpose.
+await upsertUser({ openId, name: "مدير العرض التجريبي", email: DEMO_EMAIL, loginMethod: "email" });
 const [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
-const { tenantId } = await createTenantForUser({ userId: user.id, legalName: "Demo Construction Co.", slug: "demo-construction", packageCode: "ALL-IN-ONE" });
-const { id: projectId } = await createProjectForTenant({ userId: user.id, tenantId, code: "DEMO-001", name: "Demo Villas Project", projectType: "residential", currency: "SAR" });
-const foundation = await createWbsItem({ userId: user.id, tenantId, projectId, code: "1", name: "Foundations", plannedValue: 400000 });
-await createWbsItem({ userId: user.id, tenantId, projectId, code: "2", name: "Structure", plannedValue: 900000 });
-await createWbsItem({ userId: user.id, tenantId, projectId, code: "1.1", name: "Excavation", parentId: foundation.id, plannedValue: 150000 });
+const { tenantId } = await createTenantForUser({ userId: user.id, legalName: "شركة العرض التجريبي", slug: "co-1001", packageCode: "ALL-IN-ONE" });
+const { id: projectId } = await createProjectForTenant({ userId: user.id, tenantId, code: "PRJ-1001", name: "مشروع العرض التجريبي", projectType: "سكني", currency: "SAR" });
+const foundation = await createWbsItem({ userId: user.id, tenantId, projectId, code: "1", name: "الأساسات", plannedValue: 400000 });
+await createWbsItem({ userId: user.id, tenantId, projectId, code: "2", name: "الهيكل الإنشائي", plannedValue: 900000 });
+await createWbsItem({ userId: user.id, tenantId, projectId, code: "1.1", name: "أعمال الحفر", parentId: foundation.id, plannedValue: 150000 });
 
 console.log(JSON.stringify({ seeded: true, demoEmail: DEMO_EMAIL, tenantId, projectId }));
 process.exit(0);
