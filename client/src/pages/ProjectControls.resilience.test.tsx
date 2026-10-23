@@ -30,6 +30,7 @@ vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
 vi.mock("./ProjectClaims", () => ({ ProjectClaims: () => null }));
 vi.mock("./ProjectAdvisor", () => ({ ProjectAdvisor: () => null }));
 vi.mock("./ProjectImports", () => ({ ProjectImports: () => null }));
+vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () => null }));
 vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
 

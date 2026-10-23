@@ -24,7 +24,8 @@ export type FileRow = { rowNumber: number; values: Record<string, unknown>; file
 
 export type FieldChange = { field: string; oldValue: string; newValue: string };
 export type DiffKind = "new" | "modified" | "unchanged" | "conflict";
-export type ConflictReason = "VERSION_CHANGED" | "ID_KEY_MISMATCH";
+// the two the master-data cycle produces, and any reason code a module with workflow rules adds (a posted cost is read-only, an order left draft, …)
+export type ConflictReason = "VERSION_CHANGED" | "ID_KEY_MISMATCH" | (string & {});
 export type DiffEntry = { rowNumber: number; key: string; kind: DiffKind; changes: FieldChange[]; conflict?: ConflictReason };
 export type MissingRow = { key: string };
 
