@@ -2399,7 +2399,8 @@ async function assertPerformanceAccess(input: { userId: number; tenantId: string
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [employee] = await db.select({ id: employees.id, linkedUserId: employees.linkedUserId, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees).where(and(eq(employees.id, input.employeeId ?? ""), eq(employees.tenantId, input.tenantId))).limit(1);
-  const ownEmployee = input.employeeId ? employee : (await db.select({ id: employees.id, linkedUserId: employees.linkedUserId, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId))).limit(1))[0];
+  // The caller's own record is the active employee linked to the account; an archived (terminated) or suspended record does not count.
+  const ownEmployee = input.employeeId ? employee : (await db.select({ id: employees.id, linkedUserId: employees.linkedUserId, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId), eq(employees.employmentStatus, "active"))).limit(1))[0];
   if (!ownEmployee) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED" });
   const isOwn = ownEmployee.linkedUserId === input.userId;
   if (!isOwn) {
@@ -2412,9 +2413,16 @@ async function assertPerformanceAccess(input: { userId: number; tenantId: string
 
 function performanceRecord(input: PerformanceSourceRecord) { return input; }
 
+// Owner decision (2026-10-23): each person sees only their own indicators, whatever their role. The server enforces it: any other employee id
+// is refused before that employee's records are read. Managers keep their write path (performance.exclude) through loadEmployeePerformance.
 export async function getEmployeePerformanceForTenant(input: { userId: number; tenantId: string; projectId: string; employeeId?: string; now?: Date }) {
+  const access = await assertPerformanceAccess({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId });
+  if (input.employeeId !== undefined && input.employeeId !== access.employee.id) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_SELF_ONLY" });
+  return loadEmployeePerformance(input, access);
+}
+
+async function loadEmployeePerformance(input: { tenantId: string; projectId: string; now?: Date }, access: PerformanceAccess) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
-  const access = await assertPerformanceAccess(input);
   const [assignments, employeeMembership, rfiRows, ncrRows, qualityRows, reportRows, requisitionRows, exclusions, objections] = await Promise.all([
     db.select({ id: employeeAssignments.id, activityId: employeeAssignments.activityId, activityCode: activities.code, activityName: activities.name, activityStatus: activities.status, plannedFinishAt: activities.plannedFinishAt, actualFinishAt: activities.actualFinishAt, createdAt: activities.createdAt, updatedAt: activities.updatedAt }).from(employeeAssignments).innerJoin(activities, eq(employeeAssignments.activityId, activities.id)).where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), eq(employeeAssignments.employeeId, access.employee.id), ne(employeeAssignments.status, "cancelled"))),
     access.employee.linkedUserId ? db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, access.employee.linkedUserId))).limit(1) : Promise.resolve([]),
@@ -2444,7 +2452,7 @@ export async function createEmployeePerformanceExclusionForTenant(input: { userI
   if (input.reason.trim().length < 10) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PERFORMANCE_EXCLUSION_REASON_REQUIRED" });
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   await assertPerformanceManager(input);
-  const performance = await getEmployeePerformanceForTenant({ ...input, employeeId: input.employeeId });
+  const performance = await loadEmployeePerformance(input, await assertPerformanceAccess(input));
   if (!performance.metrics.sources.some(source => source.sourceType === input.sourceType && source.sourceId === input.sourceId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PERFORMANCE_SOURCE_NOT_FOUND" });
   const id = crypto.randomUUID();
   try { await db.transaction(async tx => { await tx.insert(employeePerformanceExclusions).values({ id, tenantId: input.tenantId, projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId, reason: input.reason.trim(), createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.performance_exclusion_created", entityType: "employee_performance_exclusion", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, employeeId: input.employeeId, sourceType: input.sourceType, sourceId: input.sourceId }) }); }); } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PERFORMANCE_SOURCE_ALREADY_EXCLUDED" }); throw error; }

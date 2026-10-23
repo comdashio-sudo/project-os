@@ -12,12 +12,12 @@ const EN = "Your account must be linked to an active employee record to view ind
 const AR = "يلزم ربط حسابك ببطاقة موظف نشطة لعرض مؤشراتك الفردية.";
 const LINK_REQUIRED = { message: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED", data: { code: "FORBIDDEN", projectError: { code: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED", messages: { ar: AR, en: EN } } } };
 
-const state = vi.hoisted(() => ({ isArabic: false, query: {} as unknown }));
+const state = vi.hoisted(() => ({ isArabic: false, query: {} as unknown, options: undefined as unknown }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav aria-label="navigation" /> }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { performance: {
-  get: { useQuery: () => state.query },
+  get: { useQuery: (_input: unknown, options: unknown) => { state.options = options; return state.query; } },
   objections: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } },
 } } }));
 
@@ -35,6 +35,14 @@ describe("MyPerformance when the account has no linked employee record", () => {
     expect(screen.queryByLabelText("My objections")).toBeNull();
     expect(screen.queryByText("Assigned")).toBeNull();
     expect(screen.queryByText("Formula & data sources")).toBeNull();
+  });
+
+  it("does not retry the refusal, so the reason shows at once; a network failure is still retried", () => {
+    render(<MyPerformance />);
+    const retry = (state.options as { retry: (failureCount: number, error: unknown) => boolean }).retry;
+    expect(retry(0, LINK_REQUIRED)).toBe(false);
+    expect(retry(0, new Error("Failed to fetch"))).toBe(true);
+    expect(retry(3, new Error("Failed to fetch"))).toBe(false);
   });
 
   it("gives the same reason in Arabic", () => {
