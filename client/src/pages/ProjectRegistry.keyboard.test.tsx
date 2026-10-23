@@ -39,6 +39,9 @@ describe("ProjectRegistry keyboard access", () => {
     expect(document.activeElement).toBe(workspace);
     await user.tab();
     expect(document.activeElement).toBe(language);
+    // The registry is empty here, so its empty state's next action (a link to the form) comes before the form in the focus path.
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Go to the new project form" }));
     await user.tab();
     expect(document.activeElement).toBe(projectCode);
   });

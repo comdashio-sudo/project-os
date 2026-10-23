@@ -3,6 +3,7 @@ import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
+import { ErrorState } from "@/components/ScreenStates";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Download, FileUp, Printer } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -125,7 +126,7 @@ function Frame<D>({ query, t, isArabic, isEmpty, children, onOptions }: { query:
   const options = query.data?.options;
   useEffect(() => { if (options) onOptions?.(options); }, [options]); // eslint-disable-line react-hooks/exhaustive-deps
   if (query.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
-  if (!query.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><Button className="mt-2 min-h-[44px]" variant="outline" onClick={() => query.refetch()}>{t.retry}</Button></div>;
+  if (!query.data) return <ErrorState isArabic={isArabic} error={query.error} title={isArabic ? "تعذّر تحميل ضبط المشروع PMC" : "The PMC workspace could not be loaded"} onRetry={() => query.refetch()} retryLabel={t.retry} />;
   return (
     <div className="space-y-4">
       <p className="flex flex-wrap gap-2 text-xs text-slate-600" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-slate-100 px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? f.source}: {ageText(t, f.ageDays)}</span>)}</p>

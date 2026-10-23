@@ -5,11 +5,13 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { OfflineCopyNotice } from "@/components/OfflineCopyNotice";
+import { shouldRetryQuery } from "@/components/ScreenStates";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { installCachedReads } from "@/lib/cachedReads";
 import "./index.css";
 
-const queryClient = new QueryClient();
+// A refused or rejected query is final (G-160): a page shows its no-permission sentence at once, not after three retries of "loading".
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery } } });
 // G-100: the shell's two allowlisted reads (who am I, which companies) survive an offline start; nothing financial is ever kept.
 const cachedReads = installCachedReads(queryClient);
 
