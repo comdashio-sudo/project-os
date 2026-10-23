@@ -480,6 +480,10 @@ export const projectErrorMessages = {
     ar: "يلزم ربط حسابك ببطاقة موظف نشطة لعرض مؤشراتك الفردية.",
     en: "Your account must be linked to an active employee record to view individual indicators.",
   },
+  PROJECT_OS_PERFORMANCE_SELF_ONLY: {
+    ar: "لا يمكن عرض مؤشرات موظف آخر هنا. تُعرض مؤشراتك الفردية فقط.",
+    en: "Another employee's indicators cannot be viewed here. Only your own individual indicators are shown.",
+  },
   PROJECT_OS_PERFORMANCE_EXCLUSION_REASON_REQUIRED: {
     ar: "أدخل سببًا موثقًا وواضحًا لاستبعاد هذا السجل من المؤشر.",
     en: "Enter a clear documented reason before excluding this record from the indicator.",
