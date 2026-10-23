@@ -19,10 +19,16 @@ const SCRUBBERS: Array<[RegExp, string]> = [
   [/\b\d{6}\b/g, "[code]"],
 ];
 
+// A request id or a record id is a UUID and carries no personal data; its digit runs (a last group of twelve digits, say) must not be read as a phone number.
+const UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
+
 export function scrub(text: string): string {
-  let out = text;
-  for (const [pattern, replacement] of SCRUBBERS) out = out.replace(pattern, replacement);
-  return out;
+  return text.split(UUID).map((part, index) => {
+    if (index % 2 === 1) return part; // a UUID, kept as it is
+    let out = part;
+    for (const [pattern, replacement] of SCRUBBERS) out = out.replace(pattern, replacement);
+    return out;
+  }).join("");
 }
 
 export type LogContext = Record<string, string | number | boolean | null | undefined>;

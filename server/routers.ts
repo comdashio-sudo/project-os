@@ -1,3 +1,4 @@
+import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { z } from "zod";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
@@ -333,6 +334,13 @@ export const appRouter = router({
       return { todayExceptions: dashboard.todayExceptions };
     }),
     reportSectionIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), product: z.enum(["EXECUTIVE", "PMO", "PROJECT"]), sectionKey: z.string().trim().min(2).max(80).regex(/^[a-z0-9:_-]+$/), state: z.enum(["error", "partial"]), projectId: z.string().uuid().optional() }).superRefine((value, context) => { if (value.product === "PROJECT" && !value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); if (value.product !== "PROJECT" && value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); })).mutation(({ ctx, input }) => reportDashboardSectionIssueForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
+  scopes: router({
+    company: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyLevel({ userId: ctx.user.id, ...input })),
+    portfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPortfolioLevel({ userId: ctx.user.id, ...input })),
+    project: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectLevel({ userId: ctx.user.id, ...input })),
+    warehouse: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid() })).query(({ ctx, input }) => getWarehouseLevel({ userId: ctx.user.id, ...input })),
   }),
   pmo: router({
     createPortfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(80), name: z.string().trim().min(2).max(255) })).mutation(({ ctx, input }) => createPortfolioForTenant({ userId: ctx.user.id, ...input })),

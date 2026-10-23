@@ -10,7 +10,7 @@ const sources = Object.fromEntries(readdirSync(serverDir).filter(name => /\.ts$/
 const routers = sources["routers.ts"];
 
 /** Helpers that end in `assertTenantAccess` (active membership + licensed product + permission + scope) or check the licence themselves. */
-const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled"];
+const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled", "resolveScopedAccess"];
 
 const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   acknowledgeInternalNotification: "own notification rows only (recipient = caller); active membership required; no product licence needed to read what was sent to you",
@@ -76,7 +76,7 @@ describe("entitlement gate on every tenant action (G-130)", () => {
       const start = db.search(new RegExp(`(?:async )?function ${gate}\\b`));
       expect(start, gate).toBeGreaterThan(-1);
       const body = db.slice(start, start + db.slice(start).search(/\n(?:export )?(?:async )?function |\nconst \w+ = /) + 1 || undefined);
-      expect(/assertTenantAccess\(|entitledProducts\.includes|assertPayrollAccess\(|assertTenantFeatureAccess\(|authorizeNewImport\(|assertImportAccess\(|authorizeExternalImport\(/.test(body), gate).toBe(true); // assertAnyPayrollAccess delegates to assertPayrollAccess; the import / upload helpers delegate to the gates listed above (each of which is checked by this same loop)
+      expect(/assertTenantAccess\(|entitledProducts\.includes|assertPayrollAccess\(|assertTenantFeatureAccess\(|authorizeNewImport\(|assertImportAccess\(|authorizeExternalImport\(|eq\(tenantEntitlements\.productCode, input\.product\)/.test(body), gate).toBe(true); // assertAnyPayrollAccess delegates to assertPayrollAccess; the import / upload helpers delegate to the gates listed above (each of which is checked by this same loop)
     }
   });
 
