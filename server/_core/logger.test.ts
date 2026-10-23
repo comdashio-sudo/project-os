@@ -18,6 +18,12 @@ const joined = (line: string) => line;
 const leaks = (line: string) => Object.entries(SECRETS).filter(([, value]) => line.includes(value)).map(([name]) => name);
 
 describe("scrub", () => {
+  it("keeps a UUID whole even when its groups are all digits (a request id is not a phone number), and still removes a phone number beside it", () => {
+    const requestId = "c90a4d4b-6692-416b-963f-469084681300";
+    const allDigits = "12345678-1234-4123-8123-123456789012";
+    expect(scrub(`request ${requestId} and ${allDigits}`)).toBe(`request ${requestId} and ${allDigits}`);
+    expect(scrub(`call ${SECRETS.phone} about ${requestId}`)).toBe(`call [number] about ${requestId}`);
+  });
   it("removes every kind of secret and personal value", () => {
     // A bare password with no shape cannot be recognised in free text; it is protected by never printing messages, and here it appears where it really travels: inside a URL.
     const { password: _bare, ...recognisable } = SECRETS;
