@@ -365,4 +365,4 @@ Runners-up: G-108 (support escalation never notifies owner), G-109 (45 unmapped 
 
 | البند | الحالة | الملاحظة |
 |---|---|---|
-| G-142 (جديد): القرار على قوالب `tenant.manage` و`executive.read` ومسار R-F | `BLOCKED_BY_OWNER` | الأسماء والمعنى مُنجزة وأُثبتت (`client/src/lib/labels.test.tsx`، `permissionCodeVisibility.test.tsx`). يبقى قرار التوزيع على الأدوار، ثم R-F. لم يُفحص أي حساب حقيقي. |
+| G-146 (جديد): القرار على قوالب `tenant.manage` و`executive.read` ومسار R-F | `BLOCKED_BY_OWNER` | الأسماء والمعنى مُنجزة وأُثبتت (`client/src/lib/labels.test.tsx`، `permissionCodeVisibility.test.tsx`). يبقى قرار التوزيع على الأدوار، ثم R-F. لم يُفحص أي حساب حقيقي. |
