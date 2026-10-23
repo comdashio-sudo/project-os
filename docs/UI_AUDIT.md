@@ -21,37 +21,73 @@
 - **أهداف لمس دون 44px على الجوال:** 21 صفحة من 24، بمعدل 2 إلى 45 عنصرًا لكل صفحة. السبب نظامي: أزرار وحقول نظام الأزرار والنماذج أقل من 44px على الشاشات اللمسية. الإصلاح المطلوب في الأساس المشترك، لا صفحة بصفحة.
 - **إنجليزية متروكة:** 38 صفحة. أغلبها بيانات مُختلَقة مقصودة (أسماء مشاريع وشركة تجريبية)، وهذه لا تُعدّ عيبًا. الحقيقي منها: رموز الأدوار الخام (`EXECUTIVE`، `ACCOUNTANT`)، وعناوين مثل «Master Plan» و«PDF»، وكلمات تقنية مثل `tenant` و`manage` ظاهرة للمستخدم، و«English» داخل زر تبديل اللغة (مقبول كاسم اللغة نفسها).
 
-## 3. جدول المسارات
+## 3. جدول المسارات (الجولة الثانية، على `404f228`)
 
-| المسار | صارم | عناصر الجوال | أقل من 44px | إنجليزية متروكة |
+الأعداد على الجوال (390px). المرجع الأول قبل الإصلاحات (`8884e48`) مذكور في القسم 2 وفي سجل الحالة.
+
+| المسار | صارم | عناصر الجوال | أقل من 44px | إنجليزية متروكة (أول ستة) |
 |---|---|---|---|---|
-| `/` | ✓ | 4 | 3 | Demo, Admin, English, Construction, demo-construction |
+| `/` | ✓ | 4 | 0 | English, Demo, Construction, demo-construction |
 | `/login` | ✓ | 2 | 0 | — |
-| `/profile` | ✓ | 5 | 5 | English, PROJECT, Demo, Admin, demo, admin |
-| `/evm` | ✓ | 9 | 9 | English |
-| `/invite/accept` | ✓ | 3 | 3 | — |
-| `/setup` | ✓ | 9 | 2 | English, Demo, Construction |
-| `/setup/{tenant}` | ✓ | 9 | 2 | English, Demo, Construction |
-| `/executive/{tenant}` | ✓ | 19 | 17 | English, Demo, Admin, PROJECT, DEMO-, Villas |
-| `/pmo/{tenant}` | ✓ | 45 | 45 | English, Demo, Admin, PROJECT, DEMO-, Villas |
-| `/licensing/{tenant}` | ✗ console-error | 1 | 1 | PROJECT |
-| `/billing/{tenant}` | ✓ | 1 | 1 | DASHIO, PDF- |
-| `/support/{tenant}` | ✓ | 10 | 8 | DASHIO |
-| `/people/{tenant}` | ✓ | 21 | 21 | Demo, Admin |
-| `/payroll/{tenant}` | ✓ | 14 | 14 | Demo, Admin |
-| `/tenants/{tenant}/administration` | ✓ | 39 | 39 | English, Demo, Admin, DASHIO, EXECUTIVE, ACCOUNTANT |
-| `/projects/{tenant}/{project}/my-performance` | ✗ console-error | 12 | 12 | Demo, Admin, PROJECT |
-| `/projects/{tenant}/{project}/controls` | ✓ | 230 | 211 | English, Demo, Admin, DEMO-, Villas, Project |
-| `/projects/{tenant}/{project}/commercial` | ✓ | 30 | 28 | — |
-| `/projects/{tenant}/{project}/profitability` | ✓ | 6 | 5 | — |
+| `/profile` | ✓ | 5 | 0 | English, PROJECT, Demo, Admin, demo, admin |
+| `/evm` | ✓ | 9 | 0 | English |
+| `/invite/accept` | ✓ | 3 | 0 | — |
+| `/setup` | ✓ | 9 | 0 | English, Demo, Construction |
+| `/setup/{tenant}` | ✓ | 9 | 0 | English, Demo, Construction |
+| `/executive/{tenant}` | ✓ | 19 | 0 | English, Demo, Admin, PROJECT, DEMO-, Villas |
+| `/pmo/{tenant}` | ✓ | 45 | 0 | English, Demo, Admin, PROJECT, DEMO-, Villas |
+| `/licensing/{tenant}` | ✓ | 1 | 0 | PROJECT |
+| `/billing/{tenant}` | ✓ | 1 | 0 | DASHIO, PDF- |
+| `/support/{tenant}` | ✓ | 10 | 0 | DASHIO |
+| `/people/{tenant}` | ✓ | 21 | 0 | Demo, Admin |
+| `/payroll/{tenant}` | ✓ | 14 | 0 | Demo, Admin |
+| `/tenants/{tenant}/administration` | ✓ | 39 | 2 | English, Demo, Admin, DASHIO, demo, admin |
+| `/projects/{tenant}/{project}/my-performance` | ✗ console-error | 12 | 0 | Demo, Admin, PROJECT |
+| `/projects/{tenant}/{project}/controls` | ✓ | 230 | 9 | English, Demo, Admin, DEMO-, Villas, Project |
+| `/projects/{tenant}/{project}/commercial` | ✓ | 30 | 0 | — |
+| `/projects/{tenant}/{project}/profitability` | ✓ | 6 | 0 | — |
 | `/m/{tenant}/{project}` | ✓ | 9 | 0 | Foundations, Excavation, Structure |
 | `/projects/{tenant}/{project}/pmc` | ✓ | 24 | 0 | — |
-| `/projects/{tenant}/{project}/guide` | ✓ | 14 | 1 | English |
-| `/projects/{tenant}` | ✓ | 21 | 21 | English, Demo, Admin, DEMO-, Villas, Project |
-| `/404` | ✓ | 2 | 2 | English |
+| `/projects/{tenant}/{project}/guide` | ✓ | 14 | 0 | English |
+| `/projects/{tenant}` | ✓ | 21 | 0 | English, Demo, Admin, DEMO-, Villas, Project |
+| `/404` | ✓ | 2 | 0 | English |
 
-## 4. ما أُصلح في هذه الجولة
-لا شيء بعد: هذه الجولة للقياس والتوثيق. الإصلاحات تأتي في طلبات صغيرة متتالية، وكل طلب يعيد تشغيل الأداة ويُظهر الأرقام قبل وبعد.
+## 5. ما لم يُفحص بعد
+- **الأدوار الستة عشر** (`scripts/e2e-roles.mjs` وقوالبها): كل دور يرى قائمته ويجرّب أزراره.
+- **حالات كل شاشة:** التحميل، والفارغة مع الإجراء التالي، والخطأ مع إعادة المحاولة، وعدم الصلاحية. الأداة الحالية تلتقط الصفحة بعد استقرار الشبكة فقط.
+- **إمكانية الوصول:** التسمية، وتباين AA، والتركيز بلوحة المفاتيح (`scripts/check-keyboard.mjs` موجود، ولم يُدمج في هذه الأداة).
+- **الاتساق البصري والعرض الإنجليزي الكامل.**
+- **الأقسام داخل `/controls` و`/pmc` و`/commercial`:** هذه الصفحات تحوي عشرات الأقسام والتبويبات (نحو 230 عنصر تحكم في `/controls` وحده). الجرد الحالي يسجلها كصفحة واحدة، والتجريد التفصيلي لكل قسم لاحق.
+- **شاشات الاستيراد والتصدير Excel ومنطقها:** خارج نطاق هذا الأمر، عند الوكيل 1.
+
+## 6. حدود معلنة
+- **اللقطات لا تُرفع إلى CI** لأن رفعها يحتاج تعديل `.github/workflows`، وهذا خارج نطاق هذا الأمر. تُكتب اللقطات إلى مجلد خارج المستودع (`OUT_DIR`)، ولا تدخل المستودع.
+- **Playwright لا يُضاف تبعية للمشروع** (تبعًا لما يفعله `scripts/e2e-roles.mjs`)، بل يُحمَّل من `PLAYWRIGHT_MODULE_DIR`.
+- **الفحص يعمل على قاعدة PostgreSQL محلية ومُختلَقة البيانات.** لم تُشغَّل اختبارات قاعدة CI، ولم يُفحص أي شيء على بيانات حقيقية.
+
+## 7. كيف تُعاد الأداة
+```
+. env                     # DATABASE_URL, JWT_SECRET, PORT
+node scripts/migrate.mjs
+SEED_CONFIRM=yes node --import tsx scripts/seed-demo-tenant.mjs   # قاعدة جديدة فقط
+pnpm build && NODE_ENV=production node dist/index.js &
+node --import tsx tests/ui/mintSession.mjs "$SESSION_FILE"
+TENANT_ID=... PROJECT_ID=... SESSION_FILE=... OUT_DIR=... node tests/ui/audit.mjs
+```## 4. ما أُصلح في هذه الجولة
+
+ثلاثة طلبات دُمجت في `main`، وقيست كل واحد بالأداة نفسها والجلسة نفسها.
+
+| الطلب | ما تغيّر | الأثر المقاس |
+|---|---|---|
+| [#73](https://github.com/comdashio-sudo/project-os/pull/73) | لمس 44px على الجوال عبر نظام التصميم، بلا تغيير على الحاسب | عناصر دون 44px: 450 في 21 صفحة ← 11 في صفحتين |
+| [#74](https://github.com/comdashio-sudo/project-os/pull/74) | `/licensing` لا يرسل طلب الكتالوج إلا لمدير | أخطاء 403 الصارمة: 4 ← 2 |
+| [#75](https://github.com/comdashio-sudo/project-os/pull/75) | رموز الأدوار `EXECUTIVE` و`ACCOUNTANT` و«Master Plan» تُعرض بالعربية | اختفت من الصفحات المفحوصة. عدد النتائج الإنجليزية لم يتغير (38)، لأن الصفحات نفسها تحمل بيانات العرض ورموز الصلاحيات |
+
+**ما بقي وسببه:**
+- **403 من `/projects/…/my-performance`:** الخادم يرفض حين لا يوجد سجل موظف نشط مربوط بالحساب، والواجهة لا تملك هذه الإشارة، فإخفاء الصفحة تخمين. يحتاج إشارة من الخادم. (`OPEN` في STATE.)
+- **11 عنصرًا دون 44px:** عنصران في `/tenants/…/administration`، وتسعة في صفحة المشروع. لم يُتحقق بعد أنها مربعات اختيار أو أزرار راديو، وهي تحتفظ بحجمها المرسوم وتُحتسب بصف التسمية.
+- **رموز الصلاحيات `tenant.manage` و`executive.read`** في نماذج الأدوار: قرار مالك (الدليل يسمح بالرمز للمشرفين).
+- **إنجليزية بيانات العرض وأسماء المنتجات** (`Demo`، `Villas`، `DASHIO`، `PDF-A3`): ليست نصًا للمنتج، وتبديل اللغة نفسه قرار.
 
 ## 5. ما لم يُفحص بعد
 - **الأدوار الستة عشر** (`scripts/e2e-roles.mjs` وقوالبها): كل دور يرى قائمته ويجرّب أزراره.
