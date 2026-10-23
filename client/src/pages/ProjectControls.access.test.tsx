@@ -41,6 +41,7 @@ vi.mock("@/lib/trpc", () => {
       getControlsFinancials: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined, refetch: vi.fn() }) },
       getControlsPerformance: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined, refetch: vi.fn() }) },
     },
+    directUploads: { create: { useMutation: mutation } }, // attachments upload straight to storage (G-139)
     wbs: { create: { useMutation: mutation } },
     activities: { create: { useMutation: mutation } },
     budgets: { create: { useMutation: mutation } },

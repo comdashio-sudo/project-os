@@ -1,3 +1,4 @@
+import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -255,39 +256,30 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
 
 function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; projectId: string; t: T; isArabic: boolean }) {
   const [kind, setKind] = useState<"locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("locations");
-  const [file, setFile] = useState<{ name: string; format: "xlsx" | "csv"; base64: string } | null>(null);
-  const analyze = trpc.pmc.analyzeImport.useMutation();
-  const confirm = trpc.pmc.confirmImport.useMutation();
-  const report = analyze.data;
-  const read = (selected: File | undefined) => {
-    analyze.reset(); confirm.reset();
-    if (!selected) { setFile(null); return; }
-    const reader = new FileReader();
-    reader.onload = () => setFile({ name: selected.name, format: selected.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx", base64: String(reader.result).split(",")[1] ?? "" });
-    reader.readAsDataURL(selected);
+  // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
+  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number } };
+  const renderReport = (view: DirectImportView) => {
+    const report = (view.external?.report as { pmc?: Report } | undefined)?.pmc;
+    if (!report) return null;
+    return (
+      <div className="space-y-3" data-testid="import-report">
+        <h3 className="font-semibold">{t.report}</h3>
+        <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-emerald-50 px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-amber-50 px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{t.errorsFound}: {report.errorCount}</span></p>
+        {report.errors.length > 0 && <DataTable exportAs={{ file: "pmc-import-rejected-rows", sheet: t.errorsFound, title: `${t.title} · ${t.errorsFound}` }} rows={report.errors} columns={h => [
+          { header: t.row, kind: "number", value: e => e.rowNumber || null, cell: e => e.rowNumber || "—" },
+          h.text(t.reason, e => [e.code, e.field, e.detail].filter(Boolean).join(" · ")),
+        ]} />}
+        {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.alreadyUpToDate}</p>}
+      </div>
+    );
   };
-  const error = analyze.error ?? confirm.error;
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">{t.nothingSaved}</p>
-      <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">{t.importKind}<select aria-label={t.importKind} className={`${field} mt-1 block`} value={kind} onChange={event => { setKind(event.target.value as typeof kind); analyze.reset(); confirm.reset(); }}>{Object.entries(t.importKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="text-sm">{t.chooseFile}<input aria-label={t.chooseFile} type="file" accept=".xlsx,.csv" className={`${field} mt-1 block`} onChange={event => read(event.target.files?.[0])} /></label>
-        <Button className="min-h-[44px]" disabled={!file || analyze.isPending} onClick={() => file && analyze.mutate({ tenantId, projectId, kind, format: file.format, base64: file.base64 })}><FileUp className="me-1 h-4 w-4" />{t.analyze}</Button>
+      <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="space-y-3">
+        <label className="text-sm">{t.importKind}<select aria-label={t.importKind} className={`${field} mt-1 block`} value={kind} onChange={event => setKind(event.target.value as typeof kind)}>{Object.entries(t.importKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
       </div></WriteGate>
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {report && (
-        <div className="space-y-3" data-testid="import-report">
-          <h3 className="font-semibold">{t.report}</h3>
-          <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-emerald-50 px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-amber-50 px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{t.errorsFound}: {report.errorCount}</span></p>
-          {report.errors.length > 0 && <DataTable exportAs={{ file: "pmc-import-rejected-rows", sheet: t.errorsFound, title: `${t.title} · ${t.errorsFound}` }} rows={report.errors} columns={h => [
-            { header: t.row, kind: "number", value: e => e.rowNumber || null, cell: e => e.rowNumber || "—" },
-            h.text(t.reason, e => [e.code, e.field, e.detail].filter(Boolean).join(" · ")),
-          ]} />}
-          {report.errorCount === 0 && !report.canConfirm && <p className="text-sm text-slate-600">{t.alreadyUpToDate}</p>}
-          {confirm.data ? <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.saved}: {t.create} {confirm.data.counts.create} · {t.update} {confirm.data.counts.update}</p> : <Button className="min-h-[44px]" disabled={!report.canConfirm || confirm.isPending || !file} onClick={() => file && confirm.mutate({ tenantId, projectId, kind, format: file.format, base64: file.base64, approvedHash: report.fileHash })}>{t.confirm}</Button>}
-        </div>
-      )}
     </div>
   );
 }
