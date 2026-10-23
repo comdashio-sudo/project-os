@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PmcSitePlan } from "./PmcSitePlan";
 
@@ -12,14 +12,17 @@ const h = vi.hoisted(() => ({
   withoutPolygon: 1,
   fail: false,
   upload: vi.fn(),
+  directCreate: vi.fn(),
+  put: vi.fn(),
   setStatus: vi.fn(),
   evm: null as null | { evBefore: number; evAfter: number; changed: unknown[] },
   save: vi.fn(),
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
+vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
 const square = (x: number, y: number) => ({ type: "Polygon", coordinates: [[[x, y], [x + 0.1, y], [x + 0.1, y + 0.1], [x, y + 0.1], [x, y]]] });
-vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
+vi.mock("@/lib/trpc", () => ({ trpc: { directUploads: { create: { useMutation: () => ({ mutateAsync: h.directCreate, isPending: false, error: null }) } }, pmc: {
   siteMap: { useQuery: (input: { activityCode?: string }) => {
     h.inputs.push(input);
     if (h.fail) return { isLoading: false, error: new Error("x"), data: undefined, refetch: vi.fn() };
@@ -118,4 +121,17 @@ describe("PmcSitePlan", () => {
     fireEvent.change(screen.getByLabelText("Change status: WALLS"), { target: { value: "IN_PROGRESS" } });
     expect(screen.getByTestId("evm-effect").textContent).toBe("No linked WBS item changed its progress");
   });
+
+  it("uploads the plan image straight to storage and sends only the key to the screen's own procedure (G-139)", async () => {
+    h.directCreate.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "uploads/t/p/sitePlan/pending/k/plan.png", headers: { "content-type": "image/png" }, maxBytes: 1 });
+    h.put.mockReset().mockResolvedValue(undefined); h.upload.mockClear();
+    render(<PmcSitePlan tenantId="t" projectId="p" />);
+    const file = new File([new Uint8Array(2048)], "plan.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Upload plan image"), { target: { files: [file] } });
+    await waitFor(() => expect(h.upload).toHaveBeenCalled());
+    expect(h.directCreate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", purpose: "sitePlan", fileName: "plan.png", contentType: "image/png" }));
+    expect(h.put).toHaveBeenCalledWith("https://storage.example.test/u", { "content-type": "image/png" }, file, expect.any(Function));
+    expect(h.upload).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", fileName: "plan.png", uploadKey: "uploads/t/p/sitePlan/pending/k/plan.png" });
+  });
 });
+

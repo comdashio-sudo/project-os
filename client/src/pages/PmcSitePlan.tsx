@@ -2,6 +2,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { useDirectUpload } from "@/lib/useDirectUpload";
 import React, { useState } from "react";
 import { WriteGate, useCan } from "@/lib/permissions";
 
@@ -27,7 +28,6 @@ type Geometry = { type: "Polygon"; coordinates: Ring[] } | { type: "MultiPolygon
 const polygonsOf = (geometry: Geometry): Ring[][] => (geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates);
 const pointsOf = (ring: Ring, w: number, h: number) => ring.map(([x, y]) => `${(x * w).toFixed(1)},${(y * h).toFixed(1)}`).join(" ");
 const fillFor = (status: string | null, progress: number | null) => (status ? COLORS[status] : progress === null ? "#e5e7eb" : `rgba(14, 107, 112, ${0.12 + (progress / 100) * 0.7})`);
-const readAsBase64 = (file: File) => new Promise<string>(resolve => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(",")[1] ?? ""); r.readAsDataURL(file); });
 
 export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic } = useLanguage();
@@ -40,6 +40,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   const [evm, setEvm] = useState<null | { evBefore: number; evAfter: number; moved: number }>(null);
   const canUpdateStatus = useCan("project.pmc.update", projectId);
   const change = trpc.pmc.setUnitActivityStatus.useMutation({ onSuccess: result => { setEvm(result.evm ? { evBefore: result.evm.evBefore, evAfter: result.evm.evAfter, moved: result.evm.changed.length } : null); map.refetch(); card.refetch(); } });
+  const direct = useDirectUpload({ tenantId, projectId, purpose: "sitePlan" }); // the image goes browser → Storage on a signed URL (G-139)
   const upload = trpc.pmc.uploadSitePlan.useMutation({ onSuccess: () => { setMessage(t.uploaded); map.refetch(); } });
   const geometries = trpc.pmc.saveUnitGeometries.useMutation({ onSuccess: result => { if (result.saved > 0) { setMessage(t.saved(result.saved)); map.refetch(); } } });
   const error = upload.error ?? geometries.error ?? change.error;
@@ -52,7 +53,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
     <div className="space-y-4" data-testid="site-plan">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{t.activity}<select aria-label={t.activity} className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" value={activityCode} onChange={event => { setActivityCode(event.target.value); setSelected(null); }}><option value="">{t.overall}</option>{activities.map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>
-        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadPlan}<input aria-label={t.uploadPlan} type="file" accept="image/png,image/jpeg" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) upload.mutate({ tenantId, projectId, fileName: file.name, base64: await readAsBase64(file) }); }} /></label></WriteGate>
+        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadPlan}<input aria-label={t.uploadPlan} type="file" accept="image/png,image/jpeg" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></label></WriteGate>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadGeo}<input aria-label={t.uploadGeo} type="file" accept=".geojson,.json,application/geo+json,application/json" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></label></WriteGate>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
