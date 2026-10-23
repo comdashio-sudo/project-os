@@ -241,19 +241,19 @@ export const projectErrorMessages = {
     en: "The selected document-status transition is not allowed from its current status.",
   },
   PROJECT_OS_MASTER_PLAN_CODE_EXISTS: {
-    ar: "رمز Master Plan مستخدم بالفعل ضمن هذا المشروع.",
+    ar: "رمز الخطة الرئيسية مستخدم بالفعل ضمن هذا المشروع.",
     en: "This Master Plan code is already in use in this project.",
   },
   PROJECT_OS_MASTER_PLAN_NOT_FOUND: {
-    ar: "Master Plan المحدد غير متاح ضمن المشروع ومساحة العمل الحاليين.",
+    ar: "الخطة الرئيسية المحددة غير متاحة ضمن المشروع ومساحة العمل الحاليين.",
     en: "The selected Master Plan is not available in the current project and workspace.",
   },
   PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND: {
-    ar: "إصدار Master Plan المحدد غير متاح ضمن المشروع الحالي.",
+    ar: "إصدار الخطة الرئيسية المحدد غير متاح ضمن المشروع الحالي.",
     en: "The selected Master Plan version is not available in the current project.",
   },
   PROJECT_OS_MASTER_PLAN_PARENT_NOT_FOUND: {
-    ar: "الكيان المكاني الأب المحدد غير متاح ضمن إصدار Master Plan الحالي.",
+    ar: "الكيان المكاني الأب المحدد غير متاح ضمن إصدار الخطة الرئيسية الحالي.",
     en: "The selected parent spatial entity is not available in the current Master Plan version.",
   },
   PROJECT_OS_MASTER_PLAN_PARENT_CYCLE: {
@@ -269,11 +269,11 @@ export const projectErrorMessages = {
     en: "A spatial entity progress percentage must be between 0 and 100.",
   },
   PROJECT_OS_MASTER_PLAN_SOURCE_INVALID: {
-    ar: "ملف أصل Master Plan يجب أن يكون PNG أو JPG أو WEBP أو PDF وباسم ونوع ملف صالحين.",
+    ar: "ملف أصل الخطة الرئيسية يجب أن يكون PNG أو JPG أو WEBP أو PDF وباسم ونوع ملف صالحين.",
     en: "The Master Plan source must be a PNG, JPG, WEBP, or PDF file with a valid file name and type.",
   },
   PROJECT_OS_MASTER_PLAN_MAPPING_VALIDATION_FAILED: {
-    ar: "تعذر تطبيق ملف الربط لأن الأعمدة أو القيم لا تحقق قالب Master Plan.",
+    ar: "تعذر تطبيق ملف الربط لأن الأعمدة أو القيم لا تحقق قالب الخطة الرئيسية.",
     en: "The mapping file could not be applied because its columns or values do not satisfy the Master Plan template.",
   },
   PROJECT_OS_MASTER_PLAN_SPATIAL_IMPORT_VALIDATION_FAILED: {
@@ -281,7 +281,7 @@ export const projectErrorMessages = {
     en: "Spatial entities could not be created because the file columns, geometry, or values do not satisfy the spatial-entity template.",
   },
   PROJECT_OS_MASTER_PLAN_ENTITY_CODE_EXISTS: {
-    ar: "يوجد رمز كيان مكاني مستخدم بالفعل ضمن إصدار Master Plan المحدد.",
+    ar: "يوجد رمز كيان مكاني مستخدم بالفعل ضمن إصدار الخطة الرئيسية المحدد.",
     en: "A spatial-entity code in the file already exists in the selected Master Plan version.",
   },
   PROJECT_OS_MASTER_PLAN_WBS_ACTIVITY_MISMATCH: {
@@ -289,7 +289,7 @@ export const projectErrorMessages = {
     en: "The activity in the spatial-entity file does not belong to the WBS item selected in the same row.",
   },
   PROJECT_OS_MASTER_PLAN_ENTITY_NOT_FOUND: {
-    ar: "لا يتطابق أحد رموز الوحدات في الملف مع كيان مكاني ضمن إصدار Master Plan المحدد.",
+    ar: "لا يتطابق أحد رموز الوحدات في الملف مع كيان مكاني ضمن إصدار الخطة الرئيسية المحدد.",
     en: "A unit code in the file does not match a spatial entity in the selected Master Plan version.",
   },
   PROJECT_OS_LICENSING_ADMIN_REQUIRED: {
