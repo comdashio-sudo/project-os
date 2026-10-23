@@ -98,7 +98,7 @@ jobs:
             const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n");
             const seed = JSON.parse(lines[lines.length - 1]);
             if (!seed.seeded || !seed.tenantId || !seed.projectId) throw new Error("the seed reported no tenant or project");
-            fs.appendFileSync(process.env.GITHUB_ENV, `TENANT_ID=${seed.tenantId}\nPROJECT_ID=${seed.projectId}\n`);
+            fs.appendFileSync(process.env.GITHUB_ENV, "TENANT_ID=" + seed.tenantId + "\nPROJECT_ID=" + seed.projectId + "\n");
           ' "$RUNNER_TEMP/seed.out"
         env:
           DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
@@ -112,7 +112,7 @@ jobs:
       - name: Production server on 127.0.0.1:3200
         run: |
           nohup node dist/index.js > "$RUNNER_TEMP/server.log" 2>&1 < /dev/null &
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:3200/healthz; then
               echo "server answered"
               exit 0
