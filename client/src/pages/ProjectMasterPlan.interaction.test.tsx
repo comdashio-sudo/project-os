@@ -5,12 +5,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 
+// the master-plan files go browser → Storage on a signed URL and are applied by a background job (G-139); `imp` stands in for the dataImports hooks they use
+const imp = vi.hoisted(() => ({ put: vi.fn(), state: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() } }));
 const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, visualizationRules: [{ id: null, metric: "progress", rules: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, configured: false, updatedAt: null }, { id: null, metric: "status", rules: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, configured: false, updatedAt: null }, { id: null, metric: "cost", rules: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, configured: false, updatedAt: null }], refetch: vi.fn(), snapshotRefetch: vi.fn(), visualizationRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn(), visualizationMutate: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1 } }) }));
-vi.mock("@/lib/trpc", () => ({
+vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: imp.put }));
+vi.mock("@/lib/trpc", async () => ({
   trpc: {
+    ...(await import("../test/importsTrpcMock")).importsTrpc(imp.state),
     useUtils: () => ({}),
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: state.data, refetch: state.refetch }) },
@@ -21,8 +25,6 @@ vi.mock("@/lib/trpc", () => ({
       create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: null }) },
       createVersion: { useMutation: () => ({ mutate: state.versionMutate, isPending: false, error: null }) },
       createSpatialEntity: { useMutation: () => ({ mutate: state.entityMutate, isPending: false, error: null }) },
-      applyExcelMapping: { useMutation: () => ({ mutate: state.mappingMutate, isPending: false, isSuccess: false, error: null }) },
-      importSpatialEntities: { useMutation: () => ({ mutate: state.spatialImportMutate, isPending: false, isSuccess: false, error: null }) },
       setVersionGeometry: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       updateEntityLayout: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       setSnapshotSharing: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
@@ -127,18 +129,40 @@ describe("ProjectMasterPlan", () => {
     expect(screen.getAllByLabelText("بند WBS").at(0)).toBeTruthy(); expect(screen.getAllByLabelText("النشاط").at(0)).toBeTruthy();
   });
 
-  it("uploads a CSV mapping for the selected Master Plan version", async () => {
-    state.mappingMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+  const IMPORT = "00000000-0000-4000-8000-0000000000f8";
+  const prepareImport = (progress: Record<string, unknown>) => {
+    imp.put.mockReset().mockResolvedValue(undefined);
+    imp.state.createUpload.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/tenant-1/project-1/pending/k/f", headers: {}, maxBytes: 1 });
+    imp.state.registerUpload.mockReset().mockResolvedValue({ id: IMPORT, status: "analyzing" });
+    imp.state.confirm.mockReset().mockResolvedValue({ id: IMPORT, status: "importing" });
+    imp.state.progress = { id: IMPORT, status: "validated", progressPercent: 100, progressStage: null, failureReason: null, totalRows: 1, validRows: 1, invalidRows: 0, createdRows: 0, updatedRows: 0, skippedRows: 0, analysis: { headers: [], mapping: {}, errors: [], errorsListed: 0, errorsTotal: 0 }, external: { canConfirm: true, report: {} }, ...progress };
+  };
+
+  it("uploads a CSV mapping straight to storage for the selected Master Plan version, and applies it once the analysis is clean", async () => {
+    prepareImport({}); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.upload(screen.getAllByLabelText("XLSX or CSV file").at(-1)!, new File(["Unit ID,Progress\nZONE-A,84%"], "mapping.csv", { type: "text/csv" }));
     await user.click(screen.getAllByRole("button", { name: "Apply mapping" }).at(-1)!);
-    await waitFor(() => expect(state.mappingMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", format: "csv", base64: expect.any(String) })));
+    await waitFor(() => expect(imp.state.createUpload).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", moduleCode: "masterPlanMapping", sourceFormat: "csv", context: { masterPlanVersionId: "version-1" } })));
+    expect(imp.put).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(imp.state.registerUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "masterPlanMapping", context: { masterPlanVersionId: "version-1" } })));
+    await waitFor(() => expect(imp.state.confirm).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", importId: IMPORT }));
   });
 
-  it("uploads a spatial-entity CSV for the selected Master Plan version", async () => {
-    state.spatialImportMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+  it("uploads a spatial-entity CSV for the selected Master Plan version through the same path", async () => {
+    prepareImport({}); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     await user.upload(screen.getByLabelText("Spatial-entity XLSX or CSV file"), new File(["Code,Name,Entity Type,X,Y,Width,Height\nZONE-NEW,New zone,zone,5,10,25,20"], "entities.csv", { type: "text/csv" }));
     await user.click(screen.getByRole("button", { name: "Create entities from file" }));
-    await waitFor(() => expect(state.spatialImportMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", format: "csv", base64: expect.any(String) })));
+    await waitFor(() => expect(imp.state.createUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "masterPlanSpatial", context: { masterPlanVersionId: "version-1" } })));
+    await waitFor(() => expect(imp.state.confirm).toHaveBeenCalled());
+  });
+
+  it("does not write a file the analysis rejected: the errors are shown and there is no confirmation", async () => {
+    prepareImport({ status: "uploaded", external: { canConfirm: false, report: {} }, analysis: { headers: [], mapping: {}, errors: [{ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "code" }], errorsListed: 1, errorsTotal: 1 } });
+    const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    await user.upload(screen.getAllByLabelText("XLSX or CSV file").at(-1)!, new File(["Progress\n84%"], "mapping.csv", { type: "text/csv" }));
+    await user.click(screen.getAllByRole("button", { name: "Apply mapping" }).at(-1)!);
+    expect((await screen.findAllByRole("alert")).map(node => node.textContent).join(" ")).toContain("IMPORT_REQUIRED_COLUMN_MISSING");
+    expect(imp.state.confirm).not.toHaveBeenCalled();
   });
 
   it("uploads an allowed source file when adding a Master Plan revision", async () => {

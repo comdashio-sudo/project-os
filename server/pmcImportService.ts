@@ -85,8 +85,9 @@ function decode(base64: string) {
 
 const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => ({ kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 });
 
-async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; base64: string }): Promise<Prepared> {
-  const { bytes, fileHash } = decode(input.base64);
+async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
+  // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
+  const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
   const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes });
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
   if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none), apply: null };
@@ -237,7 +238,8 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
 }
 
 /** Reads and checks a file; writes nothing. */
-export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; base64: string }): Promise<PmcImportReport> {
+/** `bytes` instead of `base64`: the file came through the direct-upload path (read from Storage by the background job). */
+export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })): Promise<PmcImportReport> {
   const db = await authorize(input);
   return (await prepare(db, input)).report;
 }
@@ -247,7 +249,7 @@ export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; for
  * that report: if the bytes differ, or the project changed so that the file no
  * longer passes, nothing is saved.
  */
-export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; base64: string; approvedHash: string }) {
+export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; approvedHash: string } & ({ base64: string } | { bytes: Buffer })) {
   const db = await authorize(input);
   const prepared = await prepare(db, input);
   if (prepared.report.fileHash !== input.approvedHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
@@ -262,3 +264,4 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
   void refreshStatisticsAfterBulkLoad(db, ["pmc_*"], prepared.report.totalRows); // never blocks (bulkLoadStats.ts)
   return { kind: input.kind, counts: prepared.report.counts, totalRows: prepared.report.totalRows, fileHash: prepared.report.fileHash };
 }
+

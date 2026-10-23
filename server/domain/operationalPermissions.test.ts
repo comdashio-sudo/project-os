@@ -63,7 +63,9 @@ describe("operational permissions are enforced by the server (G-120)", () => {
     expect(bodyOf("confirmAndImportData")).toContain("importPermissionFor(record.moduleCode)");
     // the background-job entry points read the record, then ask for ITS module's permission before they start anything
     const jobBody = (name: string) => { const start = importJobs.search(new RegExp(`export async function ${name}\\(`)); const next = importJobs.slice(start + 10).search(/\nexport (?:async )?function |\n\/\*\*/); return importJobs.slice(start, next < 0 ? undefined : start + 10 + next); };
-    for (const name of ["createImportUpload", "registerImportUpload"]) expect(jobBody(name), name).toContain("authorizeNewImport(input)");
+    // …through authorizeUpload, which sends a general module to authorizeNewImport (the module's own permission) and a PMC / master-plan module to its own gate
+    for (const name of ["createImportUpload", "registerImportUpload"]) expect(jobBody(name), name).toContain("authorizeUpload(input)");
+    expect(importJobs.slice(importJobs.indexOf("async function authorizeUpload("))).toContain("authorizeNewImport({ ...input, moduleCode: input.moduleCode })");
     for (const name of ["requestImportConfirmation", "requestImportReanalysis"]) {
       expect(jobBody(name), name).toContain("importPermissionFor(record.moduleCode)");
       expect(jobBody(name), name).not.toContain('permission: "project.write"');
