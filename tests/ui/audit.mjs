@@ -36,7 +36,9 @@ const ROUTES = [...new Set([...APP_SOURCE.matchAll(/path="([^"]+)"/g)].map(match
   .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID));
 
 // Words that are allowed to stay in English: product codes, units and standard acronyms the Arabic glossary keeps.
-const ALLOWED_ENGLISH = new Set(["WBS", "EVM", "PV", "EV", "AC", "SPI", "CPI", "EAC", "ETC", "VAC", "TCPI", "FPAC", "PMC", "PMO", "XER", "XLSX", "CSV", "PDF", "Excel", "Dashio", "SAR", "USD", "API", "ID", "OK", "RFI", "NCR", "HSE", "BOQ", "GRN", "PO", "MRN", "EOS", "AI", "ZATCA", "Power", "BI", "Primavera", "Microsoft", "Google", "Gmail", "Supabase", "Vercel", "Resend", "Chrome", "Edge", "Safari", "Firefox"]);
+const ALLOWED_ENGLISH = new Set(["WBS", "EVM", "PV", "EV", "AC", "SPI", "CPI", "EAC", "ETC", "VAC", "TCPI", "FPAC", "PMC", "PMO", "XER", "XLSX", "CSV", "PDF", "Excel", "Dashio", "SAR", "USD", "API", "ID", "OK", "RFI", "NCR", "HSE", "BOQ", "GRN", "PO", "MRN", "EOS", "AI", "ZATCA", "Power", "BI", "Primavera", "Microsoft", "Google", "Gmail", "Supabase", "Vercel", "Resend", "Chrome", "Edge", "Safari", "Firefox",
+  // Added with the English-leftovers pass (sanctioned by the owner's list): the product name in capitals, and an image file format named in upload hints.
+  "DASHIO", "WEBP"]);
 
 const findings = [];
 const pages = [];
@@ -68,16 +70,25 @@ async function auditPage(browser, route, vp, token) {
     await page.waitForTimeout(600);
     const measured = await page.evaluate(vpMobile => {
       const visible = element => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none"; };
-      const text = document.body?.innerText ?? "";
+      // The language switcher names the OTHER language ("English" while the page is in Arabic). That is its name, not text the screen is written in,
+      // so its label is hidden for the reading below and restored after it.
+      const switchers = [...document.querySelectorAll("button")].filter(button => button.textContent.trim() === "English");
+      const restore = switchers.map(button => [button, button.style.display]);
+      switchers.forEach(button => { button.style.display = "none"; });
+      const raw = document.body?.innerText ?? "";
+      restore.forEach(([button, display]) => { button.style.display = display; });
+      // An e-mail address is data (the synthetic *.example.test addresses are kept on purpose), and "PROJECT OS" is the product name.
+      const text = raw.replace(/[\w.+-]+@[\w.-]+/g, " ").replace(/PROJECT OS/g, " ");
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const targets = [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")].filter(visible);
       const small = vpMobile ? targets.filter(element => { const box = element.getBoundingClientRect(); return box.height < 44 || box.width < 44; }).length : 0;
-      const latin = [...new Set((text.match(/\b[A-Za-z][A-Za-z'-]{3,}\b/g) ?? []))].slice(0, 40);
-      return { textLength: text.trim().length, overflow, targets: targets.length, small, latin, dir: document.documentElement.dir, lang: document.documentElement.lang };
+      // Every distinct word of four or more Latin letters on the screen (not only the first forty), so a long page is read whole.
+      const latin = [...new Set(text.match(/\b[A-Za-z]{4,}\b/g) ?? [])];
+      return { textLength: raw.trim().length, overflow, targets: targets.length, small, latin, dir: document.documentElement.dir, lang: document.documentElement.lang };
     }, vp.mobile);
     const shot = path.join(OUT_DIR, `${route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "home"}-${vp.name}.jpg`);
     await page.screenshot({ path: shot, type: "jpeg", quality: 70, fullPage: false });
-    pages.push({ route, viewport: vp.name, ms: Date.now() - started, dir: measured.dir, lang: measured.lang, targets: measured.targets, smallTargets: measured.small, latinSample: measured.latin, screenshot: path.basename(shot) });
+    pages.push({ route, viewport: vp.name, ms: Date.now() - started, dir: measured.dir, lang: measured.lang, targets: measured.targets, smallTargets: measured.small, latinCount: measured.latin.length, latinSample: measured.latin.slice(0, 40), screenshot: path.basename(shot) });
     if (consoleErrors.length) note("console-error", route, vp.name, consoleErrors.slice(0, 3));
     if (pageErrors.length) note("uncaught-error", route, vp.name, pageErrors.slice(0, 3));
     if (serverFailures.length) note("server-failure", route, vp.name, [...new Set(serverFailures)].slice(0, 5));
