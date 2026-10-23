@@ -13,7 +13,7 @@ export function importsTrpc(state: ImportsMockState) {
   const mutation = (run: () => ReturnType<typeof vi.fn>) => (options?: Options) => ({
     mutate: (input: unknown) => { void Promise.resolve(run()(input)).then(result => options?.onSuccess?.(result)); },
     mutateAsync: async (input: unknown) => { const result = await run()(input); options?.onSuccess?.(result); return result; },
-    isPending: false, error: null, data: null,
+    isPending: false, error: null, data: null, reset: vi.fn(),
   });
   return {
     dataImports: {

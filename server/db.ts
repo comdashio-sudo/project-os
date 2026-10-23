@@ -133,6 +133,7 @@ import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
 import { invokeLLM, isLlmEnabled } from "./_core/llm";
 import { MAX_DIRECT_UPLOAD_BYTES, storageGetSignedUrl, storagePut } from "./storage";
+import { takeDirectUpload } from "./directUploadKeys";
 import { anyOf, insertChunked } from "./importBulk";
 
 // `bulkInsert(tx, table).values(rows)` has the shape of `tx.insert(table).values(rows)` but splits the rows into statements PostgreSQL accepts (import path only).
@@ -1459,6 +1460,11 @@ export async function getContractsCommitmentsForTenant(input: { userId: number; 
   return { contracts: contractRows, commitments: commitmentRows, wbsItems: wbsRows };
 }
 
+/** The bytes of a document's content: the base64 body of a small request, or the upload the browser made straight to Storage (`uploadKey`, up to 50 MB). */
+async function documentContent(input: { tenantId: string; projectId: string } & ({ contentBase64: string } | { uploadKey: string })) {
+  if ("uploadKey" in input) { const taken = await takeDirectUpload({ tenantId: input.tenantId, projectId: input.projectId, purpose: "document", uploadKey: input.uploadKey }); return { content: taken.bytes, discard: taken.discard }; }
+  return { content: decodeDocumentContent(input.contentBase64), discard: async () => undefined };
+}
 function decodeDocumentContent(contentBase64: string) {
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(contentBase64) || contentBase64.length % 4 !== 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DOCUMENT_CONTENT_INVALID" });
   const content = Buffer.from(contentBase64, "base64");
@@ -1494,14 +1500,14 @@ export async function getProjectDocumentsForTenant(input: { userId: number; tena
   return { documents, versions };
 }
 
-export async function createProjectDocumentWithVersion(input: { userId: number; tenantId: string; projectId: string; documentNumber: string; title: string; category: "drawing" | "specification" | "method_statement" | "report" | "correspondence" | "commercial" | "other"; originalName: string; mimeType: string; contentBase64: string }) {
+export async function createProjectDocumentWithVersion(input: { userId: number; tenantId: string; projectId: string; documentNumber: string; title: string; category: "drawing" | "specification" | "method_statement" | "report" | "correspondence" | "commercial" | "other"; originalName: string; mimeType: string } & ({ contentBase64: string } | { uploadKey: string })) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  const content = decodeDocumentContent(input.contentBase64);
+  const { content, discard } = await documentContent(input);
   const documentId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
   const checksumSha256 = createHash("sha256").update(content).digest("hex");
@@ -1513,10 +1519,11 @@ export async function createProjectDocumentWithVersion(input: { userId: number; 
     await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId, versionNumber: 1, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.document_created", entityType: "project_document", entityId: documentId, metadata: JSON.stringify({ projectId: input.projectId, versionId, versionNumber: 1, documentNumber: input.documentNumber, checksumSha256 }) });
   });
+  await discard(); // the content is stored for good; the pending object is no longer needed
   return { id: documentId, versionId, versionNumber: 1 };
 }
 
-export async function addProjectDocumentVersion(input: { userId: number; tenantId: string; projectId: string; documentId: string; originalName: string; mimeType: string; contentBase64: string }) {
+export async function addProjectDocumentVersion(input: { userId: number; tenantId: string; projectId: string; documentId: string; originalName: string; mimeType: string } & ({ contentBase64: string } | { uploadKey: string })) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -1526,7 +1533,7 @@ export async function addProjectDocumentVersion(input: { userId: number; tenantI
   const [document] = await db.select({ id: projectDocuments.id }).from(projectDocuments).where(and(eq(projectDocuments.id, input.documentId), eq(projectDocuments.tenantId, input.tenantId), eq(projectDocuments.projectId, input.projectId))).limit(1);
   if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_DOCUMENT_NOT_FOUND" });
   const [latestVersion] = await db.select({ versionNumber: documentVersions.versionNumber }).from(documentVersions).where(and(eq(documentVersions.documentId, input.documentId), eq(documentVersions.tenantId, input.tenantId), eq(documentVersions.projectId, input.projectId))).orderBy(desc(documentVersions.versionNumber)).limit(1);
-  const content = decodeDocumentContent(input.contentBase64);
+  const { content, discard } = await documentContent(input);
   const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
   const versionId = crypto.randomUUID();
   const checksumSha256 = createHash("sha256").update(content).digest("hex");
@@ -1537,6 +1544,7 @@ export async function addProjectDocumentVersion(input: { userId: number; tenantI
     await tx.insert(documentVersions).values({ id: versionId, tenantId: input.tenantId, projectId: input.projectId, documentId: input.documentId, versionNumber, originalName: input.originalName, storageKey: key, mimeType: input.mimeType, sizeBytes: content.length, checksumSha256, uploadedByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "documents.version_created", entityType: "document_version", entityId: versionId, metadata: JSON.stringify({ projectId: input.projectId, documentId: input.documentId, versionNumber, checksumSha256 }) });
   });
+  await discard();
   return { id: versionId, documentId: input.documentId, versionNumber };
 }
 
@@ -1678,13 +1686,13 @@ export async function createMasterPlanSpatialEntityForTenant(input: { userId: nu
   return { id, masterPlanVersionId: input.masterPlanVersionId };
 }
 
-export async function applyMasterPlanMappingFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv"; base64: string }) {
+export async function applyMasterPlanMappingFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN", scope: { type: "project", id: input.projectId } });
   const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
-  const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const bytes = "bytes" in input ? input.bytes : Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > ("bytes" in input ? MAX_DIRECT_UPLOAD_BYTES : 10 * 1024 * 1024)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" }); // `bytes`: read from Storage by the direct-upload job, size-checked at registration
   const analysis = await analyzeMasterPlanMappingFile({ format: input.format, bytes }); if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_MAPPING_VALIDATION_FAILED" });
   const codes = analysis.validRows.map(row => row.values.code); if (new Set(codes).size !== codes.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const entities = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), inArray(masterPlanSpatialEntities.code, codes)));
@@ -1699,13 +1707,13 @@ export async function applyMasterPlanMappingFile(input: { userId: number; tenant
   return { masterPlanVersionId: input.masterPlanVersionId, updatedRows: analysis.validRows.length, mapping: analysis.mapping };
 }
 
-export async function importMasterPlanSpatialEntitiesFromFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv"; base64: string }) {
+export async function importMasterPlanSpatialEntitiesFromFile(input: { userId: number; tenantId: string; projectId: string; masterPlanVersionId: string; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.write", featureCode: "MASTER_PLAN_ENTITIES", scope: { type: "project", id: input.projectId } });
   const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, input.masterPlanVersionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1); if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_MASTER_PLAN_VERSION_NOT_FOUND" });
-  const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const bytes = "bytes" in input ? input.bytes : Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > ("bytes" in input ? MAX_DIRECT_UPLOAD_BYTES : 10 * 1024 * 1024)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" }); // `bytes`: read from Storage by the direct-upload job, size-checked at registration
   const analysis = await analyzeMasterPlanSpatialEntityFile({ format: input.format, bytes }); if (analysis.errors.length || !analysis.validRows.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MASTER_PLAN_SPATIAL_IMPORT_VALIDATION_FAILED" });
   const codes = analysis.validRows.map(row => row.values.code); if (new Set(codes).size !== codes.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
   const existing = await db.select({ code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), inArray(masterPlanSpatialEntities.code, codes))); if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_MASTER_PLAN_ENTITY_CODE_EXISTS" });

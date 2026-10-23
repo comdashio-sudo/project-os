@@ -14,10 +14,10 @@ const state = vi.hoisted(() => ({
   fail: false,
   loading: false,
   empty: false,
-  analyze: vi.fn(),
-  confirm: vi.fn(),
   exportScreen: vi.fn(),
-  report: null as null | Record<string, unknown>,
+  put: vi.fn(),
+  // the direct-upload import: the stand-in for `trpc.dataImports` the import screens share (client/src/test/importsTrpcMock.ts)
+  imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() },
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/lib/pdfExport", () => ({ exportElementToPdf: vi.fn(async () => "x.pdf") }));
@@ -35,7 +35,8 @@ const h = vi.hoisted(() => {
   const reply = { key: "X", A: 1, B: 1, C: 0, UR: 0, pending: 1, total: 3 };
   return { screenQuery, reply };
 });
-vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
+vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: state.put }));
+vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmc: {
   latestUpdates: { useQuery: h.screenQuery({ engineers: [{ userId: 1, name: "Eng One", updates: 3, activeDays: 2, perDay: [], unitFrom: 1, unitTo: 4, addedProjectPercent: 40, byGroup: [{ groupCode: "CIV", groupName: "Civil", addedProjectPercent: 30, updates: 2 }] }], totals: { updates: 3, addedProjectPercent: 40 } }, { engineers: [], totals: { updates: 0, addedProjectPercent: 0 } }) },
   approvals: { useQuery: h.screenQuery({ requests: [{ code: "IR-1", activityCode: "WALLS", activityName: "Walls", requestedAt: new Date("2026-10-10"), contractor: "C1", consultant: "X", response: "A", units: 2 }], byConsultant: [h.reply], byDay: [h.reply], byActivity: [h.reply], contractors: [], consultants: [] }, { requests: [], byConsultant: [], byDay: [], byActivity: [], contractors: [], consultants: [] }) },
   inspectionFlow: { useQuery: h.screenQuery({ total: 4, byStage: [{ stage: "WAITING_CONSULTANT", count: 1, percent: 25 }], heldBy: [{ holder: "Consultant X", count: 1 }], stalledActivities: [{ activityCode: "PAINT", activityName: "Paint", open: 2, oldestDays: 14 }] }, { total: 0, byStage: [], heldBy: [], stalledActivities: [] }) },
@@ -52,11 +53,9 @@ vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
   uploadSitePlan: { useMutation: () => ({ mutate: () => undefined, error: null }) },
   saveUnitGeometries: { useMutation: () => ({ mutate: () => undefined, error: null, data: undefined }) },
   exportScreen: { useMutation: () => ({ mutate: state.exportScreen, isPending: false, error: null }) },
-  analyzeImport: { useMutation: () => ({ mutate: (input: unknown) => state.analyze(input), data: state.report ?? undefined, error: null, isPending: false, reset: vi.fn() }) },
-  confirmImport: { useMutation: () => ({ mutate: (input: unknown) => state.confirm(input), data: undefined, error: null, isPending: false, reset: vi.fn() }) },
 } } }));
 
-afterEach(() => { cleanup(); Object.assign(state, { arabic: false, inputs: [], fail: false, loading: false, empty: false, report: null }); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); Object.assign(state, { arabic: false, inputs: [], fail: false, loading: false, empty: false }); state.imports.progress = undefined; vi.clearAllMocks(); });
 const open = (tab: string) => fireEvent.click(screen.getByRole("tab", { name: tab }));
 
 describe("ProjectPmc screens", () => {
@@ -121,53 +120,85 @@ describe("ProjectPmc screens", () => {
   });
 });
 
-describe("ProjectPmc import", () => {
+describe("ProjectPmc import (direct upload, G-139)", () => {
+  const IMPORT = "00000000-0000-4000-8000-0000000000f9";
   const fileOf = (name: string) => new File(["a,b\n1,2\n"], name, { type: "text/csv" });
+  const view = (over: Record<string, unknown> = {}) => ({ id: IMPORT, status: "validated", progressPercent: 100, progressStage: null, failureReason: null, totalRows: 3, validRows: 3, invalidRows: 0, createdRows: 0, updatedRows: 0, skippedRows: 0, analysis: { headers: [], mapping: {}, errors: [], errorsListed: 0, errorsTotal: 0 }, ...over });
+  const pmcReport = (over: Record<string, unknown> = {}) => ({ kind: "status", fileHash: "a".repeat(64), totalRows: 3, errorCount: 0, errors: [], counts: { create: 3, update: 0, unchanged: 0 }, details: {}, canConfirm: true, ...over });
+  const external = (report: Record<string, unknown>) => ({ report: { pmc: report }, canConfirm: report.canConfirm });
+  beforeEach(() => {
+    state.put.mockReset().mockResolvedValue(undefined);
+    state.imports.createUpload.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/t/p/pending/k/f", headers: {}, maxBytes: 1 });
+    state.imports.registerUpload.mockReset().mockResolvedValue({ id: IMPORT, status: "analyzing" });
+    state.imports.confirm.mockReset().mockResolvedValue({ id: IMPORT, status: "importing" });
+  });
   const choose = async (name: string) => {
     open("Import");
     fireEvent.change(screen.getByLabelText("Choose an Excel or CSV file"), { target: { files: [fileOf(name)] } });
     await waitFor(() => expect((screen.getByText("Check the file").closest("button") as HTMLButtonElement).disabled).toBe(false));
   };
 
-  it("reads a file, shows the validation report with every rejected row and keeps Save disabled", async () => {
-    state.report = { kind: "status", fileHash: "a".repeat(64), totalRows: 3, errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], counts: { create: 0, update: 0, unchanged: 0 }, details: {}, canConfirm: false };
+  it("uploads straight to storage, shows the job's report with every rejected row, and offers no Save while there are errors", async () => {
+    state.imports.progress = view({ status: "uploaded", external: external(pmcReport({ errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], canConfirm: false })) });
     render(<ProjectPmc />);
     await choose("status.csv");
     fireEvent.change(screen.getByLabelText("File type"), { target: { value: "status" } });
     fireEvent.click(screen.getByText("Check the file"));
-    expect(state.analyze).toHaveBeenCalledWith(expect.objectContaining({ kind: "status", format: "csv", tenantId: "t", projectId: "p" }));
-    const report = screen.getByTestId("import-report");
+    await waitFor(() => expect(state.imports.registerUpload).toHaveBeenCalled());
+    expect(state.imports.createUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.status", sourceFormat: "csv", tenantId: "t", projectId: "p" }));
+    expect(state.put).toHaveBeenCalledTimes(1); // the file went to storage, not inside a request
+    expect(state.imports.registerUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.status", uploadKey: "imports/t/p/pending/k/f" }));
+    const report = await screen.findByTestId("import-report");
     expect(report.textContent).toContain("PMC_UNIT_NOT_FOUND");
     expect(report.textContent).toContain("Rejected rows: 2");
-    expect((screen.getByText("Save the approved file").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Save the approved file")).toBeNull();
   });
 
-  it("offers the baseline as start and end dates too, and sends that kind", async () => {
+  it("shows the progress of a running analysis", async () => {
+    state.imports.progress = view({ status: "analyzing", progressStage: "parsing", progressPercent: 40, analysis: null, external: null });
+    render(<ProjectPmc />);
+    await choose("big.csv");
+    fireEvent.click(screen.getByText("Check the file"));
+    expect((await screen.findByTestId("direct-import-progress")).textContent).toContain("(40%)");
+  });
+
+  it("offers the baseline as start and end dates too, and sends that module", async () => {
     render(<ProjectPmc />);
     await choose("dates.csv");
     expect(Array.from((screen.getByLabelText("File type") as HTMLSelectElement).options).map(option => option.textContent)).toContain("Baseline by start and end dates");
     fireEvent.change(screen.getByLabelText("File type"), { target: { value: "baselineDates" } });
     fireEvent.click(screen.getByText("Check the file"));
-    expect(state.analyze).toHaveBeenCalledWith(expect.objectContaining({ kind: "baselineDates" }));
+    await waitFor(() => expect(state.imports.createUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.baselineDates" })));
   });
 
-  it("saves only after the report is clean, sending the hash that was approved", async () => {
-    const fileHash = "b".repeat(64);
-    state.report = { kind: "locations", fileHash, totalRows: 500, errorCount: 0, errors: [], counts: { create: 500, update: 0, unchanged: 0 }, details: {}, canConfirm: true };
+  it("saves only after the report is clean, confirming the import the person read", async () => {
+    state.imports.progress = view({ external: external(pmcReport({ kind: "locations", totalRows: 500, counts: { create: 500, update: 0, unchanged: 0 } })) });
     render(<ProjectPmc />);
     await choose("units.csv");
     fireEvent.click(screen.getByText("Check the file"));
-    expect(screen.getByTestId("import-report").textContent).toContain("Will create: 500");
+    expect((await screen.findByTestId("import-report")).textContent).toContain("Will create: 500");
+    expect(state.imports.confirm).not.toHaveBeenCalled(); // the analysis alone writes nothing
     fireEvent.click(screen.getByText("Save the approved file"));
-    expect(state.confirm).toHaveBeenCalledWith(expect.objectContaining({ kind: "locations", approvedHash: fileHash }));
+    await waitFor(() => expect(state.imports.confirm).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", importId: IMPORT }));
   });
 
   it("says plainly when the file matches what is already stored", async () => {
-    state.report = { kind: "locations", fileHash: "c".repeat(64), totalRows: 500, errorCount: 0, errors: [], counts: { create: 0, update: 0, unchanged: 500 }, details: {}, canConfirm: false };
+    state.imports.progress = view({ external: external(pmcReport({ kind: "locations", totalRows: 500, counts: { create: 0, update: 0, unchanged: 500 }, canConfirm: false })) });
     render(<ProjectPmc />);
     await choose("units.csv");
     fireEvent.click(screen.getByText("Check the file"));
-    expect(screen.getByText("The file matches what is stored: nothing to save.")).toBeTruthy();
+    expect(await screen.findByText("The file matches what is stored: nothing to save.")).toBeTruthy();
+    expect(screen.queryByText("Save the approved file")).toBeNull();
+  });
+
+  it("refuses a file over 50 MB or of another type before any request", async () => {
+    render(<ProjectPmc />);
+    open("Import");
+    const big = new File(["x"], "big.csv", { type: "text/csv" }); Object.defineProperty(big, "size", { value: 51 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText("Choose an Excel or CSV file"), { target: { files: [big] } });
+    fireEvent.click(screen.getByText("Check the file"));
+    expect((await screen.findByRole("alert")).textContent).toContain("50 MB");
+    expect(state.imports.createUpload).not.toHaveBeenCalled();
   });
 
   it("has the site plan and programme tabs, and they replace the filters and the export (they are not filtered screens)", () => {
@@ -312,9 +343,14 @@ describe("ProjectPmc Excel export, table by table", () => {
   });
 
   it("the import report's rejected rows have their own export, with the same headers and rows as the table", async () => {
-    state.report = { kind: "status", fileHash: "a".repeat(64), totalRows: 3, errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], counts: { create: 0, update: 0, unchanged: 0 }, details: {}, canConfirm: false };
+    state.imports.progress = { id: "00000000-0000-4000-8000-0000000000f9", status: "uploaded", progressPercent: 100, progressStage: null, failureReason: null, totalRows: 3, validRows: 1, invalidRows: 2, createdRows: 0, updatedRows: 0, skippedRows: 0, analysis: { headers: [], mapping: {}, errors: [], errorsListed: 0, errorsTotal: 0 }, external: { canConfirm: false, report: { pmc: { kind: "status", fileHash: "a".repeat(64), totalRows: 3, errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], counts: { create: 0, update: 0, unchanged: 0 }, details: {}, canConfirm: false } } } };
+    state.imports.createUpload.mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/t/p/pending/k/f", headers: {}, maxBytes: 1 }); state.imports.registerUpload.mockResolvedValue({ id: "00000000-0000-4000-8000-0000000000f9", status: "analyzing" }); state.put.mockResolvedValue(undefined);
     render(<ProjectPmc />);
     open("Import");
+    fireEvent.change(screen.getByLabelText("Choose an Excel or CSV file"), { target: { files: [new File(["a\n1\n"], "s.csv", { type: "text/csv" })] } });
+    await waitFor(() => expect((screen.getByText("Check the file").closest("button") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByText("Check the file"));
+    await screen.findByTestId("import-report");
     const result = await exportTable(document.querySelector("table") as HTMLTableElement);
     expect(result.headers).toEqual(["Row", "Reason"]);
     expect(result.headers).toEqual(result.tableHeaders);

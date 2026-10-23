@@ -720,6 +720,18 @@ export const projectErrorMessages = {
     ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
     en: "This file was already imported into this project.",
   },
+  PROJECT_OS_UPLOAD_TYPE_INVALID: {
+    ar: "نوع الملف غير مقبول لهذا الرفع.",
+    en: "This file type is not accepted for this upload.",
+  },
+  PROJECT_OS_IMPORT_CONTEXT_REQUIRED: {
+    ar: "اختر إصدار الخطة الرئيسية الذي يخصه الملف قبل الرفع.",
+    en: "Choose the master-plan version the file belongs to before uploading.",
+  },
+  PROJECT_OS_IMPORT_NOTHING_TO_CONFIRM: {
+    ar: "الملف سليم لكنه لا يغيّر شيئًا: المشروع يحمل هذه البيانات بالفعل.",
+    en: "The file is valid but changes nothing: the project already holds this data.",
+  },
   PROJECT_OS_IMPORT_VERSION_CONFLICT: {
     ar: "تغيّر صف واحد على الأقل في المنصة منذ تصدير الملف، أو أُعيد ترميزه في الملف. صدِّر الملف من جديد وأعد تطبيق تعديلاتك، فلا يُكتب شيء فوق عمل أحدث.",
     en: "At least one row changed in the platform since this file was exported, or was re-keyed in the file. Export again and re-apply your edits; nothing is written over newer work.",

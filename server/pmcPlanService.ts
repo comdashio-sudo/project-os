@@ -9,6 +9,7 @@ import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultComm
 import { imageSize, parseGeoJsonUnits } from "./domain/pmcGeometry";
 import { siteMap, unitCard } from "./domain/pmcScreens";
 import { authorizePmcRead, loadPmcDataset } from "./pmcScreensService";
+import { takeDirectUpload } from "./directUploadKeys";
 import { storageGetSignedUrl, storagePut } from "./storage";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -25,9 +26,11 @@ async function authorizeManage(input: Scope) {
 }
 
 /** Stores a PNG or JPEG as the project's site plan; the newest upload is the one in use. */
-export async function uploadPmcSitePlan(input: Scope & { fileName: string; base64: string }) {
+export async function uploadPmcSitePlan(input: Scope & { fileName: string } & ({ base64: string } | { uploadKey: string })) {
   const db = await authorizeManage(input);
-  const bytes = Buffer.from(input.base64, "base64");
+  // `uploadKey`: the image went browser → Storage on a signed URL (G-139); the same size, format and dimension checks apply to its bytes
+  const taken = "uploadKey" in input ? await takeDirectUpload({ tenantId: input.tenantId, projectId: input.projectId, purpose: "sitePlan", uploadKey: input.uploadKey }) : null;
+  const bytes = taken ? taken.bytes : Buffer.from((input as { base64: string }).base64, "base64");
   if (bytes.length === 0 || bytes.length > MAX_PLAN_BYTES) throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_PLAN_FILE_INVALID");
   const size = imageSize(bytes);
   if (!size) throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_PLAN_FORMAT_UNSUPPORTED");
@@ -40,6 +43,7 @@ export async function uploadPmcSitePlan(input: Scope & { fileName: string; base6
     await tx.insert(pmcSitePlans).values({ id, tenantId: input.tenantId, projectId: input.projectId, fileKey: stored.key, fileName: safeName, mimeType: size.mimeType, widthPx: size.width, heightPx: size.height, fileHash, uploadedByUserId: input.userId });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.site_plan_uploaded", entityType: "pmc_site_plan", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, widthPx: size.width, heightPx: size.height, fileHash }) });
   });
+  await taken?.discard();
   return { id, widthPx: size.width, heightPx: size.height, mimeType: size.mimeType };
 }
 
