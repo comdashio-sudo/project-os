@@ -1,6 +1,6 @@
 // The company manager's read side of the exchange log and the mappings (the same data the API's /sync and /mappings give a key).
 import { assertTenantManager, getDb } from "../db";
-import { listMappings, type MappingType } from "./mappings";
+import { listMappings, saveMappings, type MappingRecord, type MappingType } from "./mappings";
 import { listSyncItems, listSyncRuns, type SyncOutcome } from "./sync";
 
 const database = async () => { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); return db; };
@@ -16,4 +16,8 @@ export async function listSyncItemsForManager(input: { userId: number; tenantId:
 export async function listMappingsForManager(input: { userId: number; tenantId: string; system?: string; type?: MappingType }) {
   await assertTenantManager(input.userId, input.tenantId);
   return listMappings(input);
+}
+export async function saveMappingsForManager(input: { userId: number; tenantId: string; system: string; type: MappingType; records: MappingRecord[] }) {
+  await assertTenantManager(input.userId, input.tenantId);
+  return saveMappings({ ...input, trigger: "manual" });
 }

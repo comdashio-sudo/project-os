@@ -1,6 +1,7 @@
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
 import { EXPORT_ENTITIES } from "./integrations/erpOutbound";
-import { listMappingsForManager, listSyncItemsForManager, listSyncRunsForManager } from "./integrations/manage";
+import { createConnectionForManager, listConnectionsForManager, runConnectionForManager, setConnectionActiveForManager, testConnectionForManager } from "./integrations/connections";
+import { listMappingsForManager, listSyncItemsForManager, listSyncRunsForManager, saveMappingsForManager } from "./integrations/manage";
 import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
@@ -385,6 +386,12 @@ export const appRouter = router({
     syncRuns: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listSyncRunsForManager({ userId: ctx.user.id, ...input })),
     syncItems: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), runId: z.string().uuid(), outcome: z.enum(["created", "updated", "unchanged", "stored", "rejected"]).optional() })).query(({ ctx, input }) => listSyncItemsForManager({ userId: ctx.user.id, ...input })),
     mappings: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().max(24).optional(), type: z.enum(MAPPING_TYPES).optional() })).query(({ ctx, input }) => listMappingsForManager({ userId: ctx.user.id, ...input })),
+    saveMappings: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().trim().min(1).max(24), type: z.enum(MAPPING_TYPES), records: z.array(z.object({ externalId: z.string().trim().min(1).max(120), ref: z.string().trim().min(1).max(120), project: z.string().trim().max(80).optional() })).min(1).max(1000) })).mutation(({ ctx, input }) => saveMappingsForManager({ userId: ctx.user.id, ...input })),
+    listConnections: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listConnectionsForManager({ userId: ctx.user.id, ...input })),
+    createConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().trim().min(1).max(24), name: z.string().trim().min(2).max(120), baseUrl: z.string().trim().url().max(500), database: z.string().trim().max(120).optional(), username: z.string().trim().max(255).optional(), secret: z.string().min(1).max(500), settings: z.record(z.string(), z.unknown()).optional(), scheduledDaily: z.boolean().optional() })).mutation(({ ctx, input }) => createConnectionForManager({ userId: ctx.user.id, ...input })),
+    setConnectionActive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), active: z.boolean(), scheduledDaily: z.boolean().optional() })).mutation(({ ctx, input }) => setConnectionActiveForManager({ userId: ctx.user.id, ...input })),
+    testConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid() })).mutation(({ ctx, input }) => testConnectionForManager({ userId: ctx.user.id, ...input })),
+    runConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), direction: z.enum(["in", "out", "both"]) })).mutation(({ ctx, input }) => runConnectionForManager({ userId: ctx.user.id, ...input })),
   }),
   // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
   scopes: router({
