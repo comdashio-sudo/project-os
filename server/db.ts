@@ -142,7 +142,8 @@ import { anyOf, insertChunked } from "./importBulk";
 export const IMPORT_DETAIL_MAX_ROWS = 1_000;
 const bulkInsert = <T extends PgTable>(executor: unknown, table: T) => ({ values: (rows: readonly T["$inferInsert"][]) => insertChunked(executor, table, rows) });
 import { diffHash, diffImportRows, summariseDiff, DIFF_PAGE_SIZE, CYCLE_MODULES, EXPORT_ID_HEADER, EXPORT_VERSION_HEADER, type CycleModuleCode, type FileRow, type StoredRow } from "./domain/importCycle";
-import { analyzeImportFile, buildImportTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
+import { isLedgerModule, type LedgerModule } from "@shared/ledgerImportColumns";
+import { analyzeImportFile, buildImportTemplateFile, buildLedgerTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { openIdForEmail } from "./_core/auth/emailCode";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
@@ -2207,7 +2208,7 @@ export async function createEmployeeAssignmentForTenant(input: { userId: number;
   return { id, capacity };
 }
 
-async function assertHrRecordAccess(input: { userId: number; tenantId: string; permission: "project.hr.manage" | "project.hr.sensitive.read" }) {
+export async function assertHrRecordAccess(input: { userId: number; tenantId: string; permission: "project.hr.manage" | "project.hr.sensitive.read" }) {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.permission, scope: { type: "company" } });
@@ -3747,8 +3748,8 @@ export async function previewDataImportDiff(input: { userId: number; tenantId: s
   return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff(diff), diffHash: diffHash(diff), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: diff.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: diff.missing.length };
 }
 
-export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode; locale: "ar" | "en" }) {
-  const file = await buildImportTemplateFile(input);
+export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode | LedgerModule; locale: "ar" | "en" }) {
+  const file = isLedgerModule(input.moduleCode) ? await buildLedgerTemplateFile({ moduleCode: input.moduleCode, locale: input.locale }) : await buildImportTemplateFile({ moduleCode: input.moduleCode, locale: input.locale });
   return { fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64") };
 }
 
