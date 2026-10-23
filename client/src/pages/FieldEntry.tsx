@@ -1,3 +1,4 @@
+import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -220,7 +221,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
               {!direct && (context.warehouses.length === 0
                 ? <p role="alert" className="col-span-2 text-xs text-red-700">{t.noWarehouseToReceive}</p>
                 : <label className="col-span-2 text-sm">{t.warehouse}<select aria-label={t.warehouse} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={receiveWarehouseId} onChange={event => setReceiveWarehouseId(event.target.value)}>{context.warehouses.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select><span className="block text-xs text-slate-500">{t.intoWarehouse}</span></label>)}
-              <p className="col-span-2 text-xs text-slate-600">{qty > 0 && cost > 0 && <>{t.total}: <b>{(qty * cost).toFixed(2)}</b> {order.currency} · </>}{t.rejectedHint}</p>
+              <p className="col-span-2 text-xs text-slate-600">{qty > 0 && cost > 0 && <>{t.total}: <b>{(qty * cost).toFixed(2)}</b> {riyalLabel(isArabic)} · </>}{t.rejectedHint}</p>
             </div>
           )}
         </>

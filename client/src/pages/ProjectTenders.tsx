@@ -1,3 +1,4 @@
+import { riyalLabel } from "@/lib/profitabilityView";
 // Tenders before award (work order 5, item 8): packages, the invitation list, bid entry, the levelled comparison and the award that creates the
 // contract and the commitment. Every write is shown only to someone who holds its power (WriteGate); the server judges every call anyway,
 // including the rule about people (whoever entered a bid of the package does not award it).
@@ -142,7 +143,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
                   {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId}><Button size="sm" variant="outline" disabled={withdrawBid.isPending} onClick={() => withdrawBid.mutate({ ...scope, bidId: item.id })}>{t.withdraw}</Button></WriteGate> : null}
                   {status === "closed" ? <WriteGate permission="project.tender.level" projectId={projectId}><Input aria-label={`${t.reason} ${item.supplierName}`} placeholder={t.reason} className="h-9 w-40" value={reasons[item.id] ?? ""} onChange={event => setReasons({ ...reasons, [item.id]: event.target.value })} /><Button size="sm" variant="outline" disabled={(reasons[item.id] ?? "").trim().length < 3 || disqualifyBid.isPending} onClick={() => disqualifyBid.mutate({ ...scope, bidId: item.id, reason: reasons[item.id]!.trim() })}>{t.disqualify}</Button></WriteGate> : null}
                 </div> : null}</td>
-              <td className="p-2">{money(item.amount)} {item.currency}</td><td className="p-2">{money(item.adjustments)}</td><td className="p-2 font-semibold">{money(item.levelledTotal)}</td>
+              <td className="p-2">{money(item.amount)} {riyalLabel(isArabic)}</td><td className="p-2">{money(item.adjustments)}</td><td className="p-2 font-semibold">{money(item.levelledTotal)}</td>
               <td className="p-2">{item.aboveLowestPercent === null ? "—" : `${item.aboveLowestPercent}%`}</td><td className="p-2">{pct(item.versusEstimatePercent)}</td><td className="p-2">{item.durationDays ?? "—"}</td>
               <td className="p-2 text-xs">{item.flags.map(flag => flagText(flag)).join("، ") || "—"}</td></tr>)}</tbody></table></div>
           {status === "closed" && live.length ? <WriteGate permission="project.tender.level" projectId={projectId} reason={noWrite("تسوية العروض", "level bids")}>

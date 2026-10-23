@@ -40,12 +40,19 @@ export const operationalPermissionCatalog = [
   { code: "project.tender.bids", name: "Enter and correct bids", productCode: "PROJECT" as const },
   { code: "project.tender.level", name: "Level and compare bids", productCode: "PROJECT" as const },
   { code: "project.tender.award", name: "Award a tender", productCode: "PROJECT" as const },
+  // Project creation is its own power (AFTER_MIGRATION O-W3). Nothing checks it yet: the check moves from project.write in a later change.
+  { code: "project.create", name: "Create projects", productCode: "PROJECT" as const },
+  // Payments (AFTER_MIGRATION R-2): the accountant prepares, the finance manager approves; paymentApproval.ts refuses one person doing both to the same payment.
+  { code: "payment.prepare", name: "Prepare a payment", productCode: "PROJECT" as const },
+  { code: "payment.approve", name: "Approve a payment", productCode: "PROJECT" as const },
+  // The schedule and the master plan (AFTER_MIGRATION R-3). The write checks move to it in a later change.
+  { code: "schedule.write", name: "Write the schedule and the master plan", productCode: "PROJECT" as const },
 ] as const;
 
 export type OperationalRoleDefinition = { code: string; name: string; productCode?: "PROJECT" | "EXECUTIVE" | "PMO"; permissions: readonly string[] };
 
 /**
- * The ready-made roles every company gets (installed the first time its administrator opens the administration screen). A role is single-product, so the
+ * The ready-made roles every company gets: installed when the company is created and again by the administration read, as before (db.ts `installOperationalRoleTemplates`). The codes added after this list (project.create, payment.*, schedule.write) are in no template; the owner decides their placement (AFTER_MIGRATION R-1). A role is single-product, so the
  * two company-level views name theirs; the rest are PROJECT roles. The first nine existed before work order 5 and are unchanged; the seven after
  * PROJECT_MANAGER are the templates of work order 5, item 3. Each states what its holder DOES; the powers that must never meet in one person are in
  * `conflictingPermissionPairs`, and `assertNoPermissionConflict` refuses any role or combination that holds both.

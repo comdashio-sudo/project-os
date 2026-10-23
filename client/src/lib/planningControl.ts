@@ -1,3 +1,5 @@
+import { riyalLabel } from "./profitabilityView";
+
 export type PlanningControlInput = {
   activities: Array<{ id: string; code: string; name: string; status: string; plannedStartAt?: Date | string | null; plannedFinishAt?: Date | string | null }>;
   boq: Array<{ id: string; code: string; description: string; quantity: string | number; unitRate: string | number; totalAmount: string | number; status: string; wbsItemId?: string | null }>;
@@ -73,8 +75,10 @@ export function formatPlanningPercent(value: number | null) {
   return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
 }
 
-export function formatPlanningAmount(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value) + ` ${currency}`;
+/** V1 shows the riyal (see formatMoney): the stored code is ignored, and the label follows the language. */
+export function formatPlanningAmount(value: number, currency: string, isArabic = false) {
+  void currency;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value) + ` ${riyalLabel(isArabic)}`;
 }
 
 export function planningControlLabel(code: string, isArabic: boolean) {

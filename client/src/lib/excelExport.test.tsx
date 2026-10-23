@@ -78,7 +78,7 @@ describe("per-cell kind and the base currency", () => {
   });
 
   it("a per-cell currency is not an input: every money figure is the base currency", () => {
-    const cell = buildExportLayout<Row>([{ header: "المبلغ", value: () => ({ value: 5, kind: "money", currency: "USD" } as { value: number; kind: "money" }) }], [rows[0]], meta);
+    const cell = buildExportLayout<Row>([{ header: "المبلغ", value: () => ({ value: 5, kind: "money", currency: "SAR" } as { value: number; kind: "money" }) }], [rows[0]], meta);
     expect(cell.rows[0][0]).toEqual({ value: 5, kind: "money" });
     expect(cell.headerRow).toEqual(["المبلغ (ريال)"]);
   });

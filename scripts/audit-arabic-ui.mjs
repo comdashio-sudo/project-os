@@ -22,7 +22,7 @@ const url = new URL(process.env.DATABASE_URL ?? "");
 if (url.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
 const require = createRequire(process.env.PLAYWRIGHT_MODULE_DIR ?? "/opt/node-tools/node_modules/");
 const { chromium } = require("playwright");
-const ALLOWED = new Set(["WBS", "EVM", "BOQ", "SAR", "PMO", "PMC", "NCR", "RFI", "HSE", "KPI", "GRN", "PO", "CPI", "SPI", "EAC", "BAC", "ETC", "VAC", "FPAC", "XLSX", "CSV", "XER", "PDF", "SKU", "ID", "OK", "AM", "PM", "SMS", "IBAN", "GOSI", "VAT", "PROJECT", "OS", "Dashio", "Master", "Plan", "P6", "Excel", "Resend", "TiDB", "R2", "GeoJSON", "QR", "URL", "API", "CRM", "ERP", "EN", "AR", "ITP", "PV", "EV", "AC", "SV", "CV", "TCPI", "CO", "MR", "WIR", "MIR", "SI", "DWG", "LLM", "ZATCA", "PNG", "JPG", "JPEG", "WEBP", "USD", "DASHIO", "English", "A3", "A", "alt", "PDF-A3", "PDF-A", "ACCOUNTANT"]);
+const ALLOWED = new Set(["WBS", "EVM", "BOQ", "SAR", "PMO", "PMC", "NCR", "RFI", "HSE", "KPI", "GRN", "PO", "CPI", "SPI", "EAC", "BAC", "ETC", "VAC", "FPAC", "XLSX", "CSV", "XER", "PDF", "SKU", "ID", "OK", "AM", "PM", "SMS", "IBAN", "GOSI", "VAT", "PROJECT", "OS", "Dashio", "Master", "Plan", "P6", "Excel", "Resend", "TiDB", "R2", "GeoJSON", "QR", "URL", "API", "CRM", "ERP", "EN", "AR", "ITP", "PV", "EV", "AC", "SV", "CV", "TCPI", "CO", "MR", "WIR", "MIR", "SI", "DWG", "LLM", "ZATCA", "PNG", "JPG", "JPEG", "WEBP", "DASHIO", "English", "A3", "A", "alt", "PDF-A3", "PDF-A", "ACCOUNTANT"]);
 // "English" is the name of the other language, shown in that language, as every language switch does.
 
 const email = process.env.SEED_DEMO_EMAIL ?? "demo.admin@example.test";
