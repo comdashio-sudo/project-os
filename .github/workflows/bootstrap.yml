@@ -33,9 +33,11 @@ jobs:
       VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.STORAGE_S3_ACCESS_KEY_ID }}
       STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.STORAGE_S3_SECRET_ACCESS_KEY }}
-      BOOTSTRAP_STATE: ${{ runner.temp }}/bootstrap-state.json
     steps:
       - uses: actions/checkout@v4
+      # `runner` is not an available context in a job-level `env:` (actionlint: "context runner is not allowed here"), which made GitHub reject the whole file and show a failed run on every push; a step may use it.
+      - name: State file path
+        run: echo "BOOTSTRAP_STATE=$RUNNER_TEMP/bootstrap-state.json" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

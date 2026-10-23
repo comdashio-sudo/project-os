@@ -12,12 +12,14 @@ import { useParams } from "wouter";
 import { enumLabel } from "@/lib/labels";
 
 const number = (value: number | null | undefined) => value === null || value === undefined ? "—" : `${value}`;
+// A server refusal (no active linked employee record) does not change on retry: show the server's reason at once instead of after three retries.
+const isRefusal = (error: unknown) => (error as { data?: { code?: string } } | null)?.data?.code === "FORBIDDEN";
 
 export default function MyPerformance() {
   const { tenantId, projectId } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic } = useLanguage();
   const [statement, setStatement] = useState("");
-  const query = trpc.performance.get.useQuery({ tenantId, projectId });
+  const query = trpc.performance.get.useQuery({ tenantId, projectId }, { retry: (failureCount, error) => !isRefusal(error) && failureCount < 3 });
   const objection = trpc.performance.objections.create.useMutation({ onSuccess: () => { setStatement(""); query.refetch(); } });
   const t = isArabic ? {
     title: "مؤشراتي", subtitle: "قراءة محسوبة من سجلات التشغيل الفعلية، وليست تقييمًا آليًا أو قرارًا تأديبيًا.", generated: "وقت الحساب", assigned: "المسند إلي", completed: "المنجز", overdue: "المتأخر", onTime: "الإنجاز في الموعد", response: "متوسط زمن الاستجابة", open: "البنود المفتوحة", hours: "ساعة", formula: "المعادلة ومصادر البيانات", sources: "مصادر التشغيل المستخدمة", exclusions: "الاستبعادات الموثقة", objections: "اعتراضاتي", objectionHint: "إن رأيت أن الرقم لا يعكس ظرفًا تشغيليًا، اشرح اعتراضك. لا ينشئ هذا المسار أي أثر تأديبي أو تعاقدي تلقائي.", submit: "إرسال الاعتراض", loading: "يتم حساب مؤشراتك من مصادر التشغيل…", empty: "لا توجد سجلات تشغيلية محسوبة ضمن نطاقك الحالي.", records: "سجلات محتسبة", excluded: "مستبعد بسبب موثق", status: "الحالة", source: "المصدر", notApplicable: "غير منطبق", error: "تعذر تحميل مؤشراتك الآن." } : {
