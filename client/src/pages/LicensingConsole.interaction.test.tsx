@@ -5,8 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import LicensingConsole from "./LicensingConsole";
 
-const state = vi.hoisted(() => ({ override: vi.fn(), provision: vi.fn(), transition: vi.fn(), invalidate: vi.fn(), catalog: { plans: [{ id: "plan-1", code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", active: true }], features: [], planFeatures: [] } }));
+const state = vi.hoisted(() => ({ user: { role: "admin" } as { role: string }, override: vi.fn(), provision: vi.fn(), transition: vi.fn(), invalidate: vi.fn(), catalog: { plans: [{ id: "plan-1", code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", active: true }], features: [], planFeatures: [] } }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user, loading: false }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { useUtils: () => ({ licensing: { tenantLicense: { invalidate: state.invalidate }, catalog: { invalidate: state.invalidate } } }), licensing: { tenantLicense: { useQuery: () => ({ isLoading: false, error: null, data: { license: { id: "license-1", planName: "All-In-One Standard", planCode: "ALL_IN_ONE_STANDARD", status: "active", seats: 5, manualActivation: true, startsAt: new Date(), endsAt: null }, featureOverrides: [] } }) }, catalog: { useQuery: () => ({ isLoading: false, error: null, data: state.catalog }) }, provision: { useMutation: () => ({ mutate: state.provision, isPending: false, error: null }) }, transition: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) }, setFeatureOverride: { useMutation: () => ({ mutate: state.override, isPending: false, error: null }) } } } }));
