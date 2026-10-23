@@ -95,8 +95,8 @@ describe("generated secrets and connection strings", () => {
 
   it("builds the session pooler URL for setup (postgres.<ref>, 5432) and the transaction pooler URL for the app (project_os_app.<ref>, 6543), encoding the passwords", () => {
     const urls = connectionUrls({ ref: REF, poolerHost: "aws-0-ap-southeast-1.pooler.supabase.com", databasePassword: "p@ss/word", appRolePassword: "app+pass" });
-    expect(urls.adminSession).toBe(`postgresql://postgres.${REF}:p%40ss%2Fword@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`);
-    expect(urls.appTransaction).toBe(`postgresql://project_os_app.${REF}:app%2Bpass@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`);
+    expect(urls.adminSession).toBe(`postgresql://postgres.${REF}:p%40ss%2Fword@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`); // secret-scan:allow: قيم وهمية في اختبار
+    expect(urls.appTransaction).toBe(`postgresql://project_os_app.${REF}:app%2Bpass@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`); // secret-scan:allow: قيم وهمية في اختبار
   });
 });
 

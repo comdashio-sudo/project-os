@@ -98,8 +98,8 @@ export function deriveAppRolePassword(databasePassword: string): string {
 export function connectionUrls(input: { ref: string; poolerHost: string; databasePassword: string; appRolePassword: string }) {
   const q = encodeURIComponent;
   return {
-    adminSession: `postgresql://postgres.${input.ref}:${q(input.databasePassword)}@${input.poolerHost}:5432/postgres`,
-    appTransaction: `postgresql://project_os_app.${input.ref}:${q(input.appRolePassword)}@${input.poolerHost}:6543/postgres`,
+    adminSession: `postgresql://postgres.${input.ref}:${q(input.databasePassword)}@${input.poolerHost}:5432/postgres`, // secret-scan:allow: يبني الرابط من متغيرات وقت التشغيل، لا سرّ حرفي
+    appTransaction: `postgresql://project_os_app.${input.ref}:${q(input.appRolePassword)}@${input.poolerHost}:6543/postgres`, // secret-scan:allow: يبني الرابط من متغيرات وقت التشغيل، لا سرّ حرفي
   };
 }
 
