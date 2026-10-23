@@ -18,6 +18,8 @@
   --dashio-paper:         #F5F7FC;
   --dashio-white:         #FFFFFF;
   --dashio-line:          #E4E9F4;
+  /* border of a form control (input, select, textarea): 3:1 against white and the tinted panels (WCAG 1.4.11). Cards keep --dashio-line. */
+  --dashio-control:       #7E8AA0;
   --dashio-slate:         #5F6D8A;
   /* neutrals — dark */
   --dashio-surface-dark:  #141A32;
@@ -124,10 +126,11 @@
   --muted-foreground: var(--dashio-slate);
   --accent: var(--dashio-aqua);
   --accent-foreground: var(--dashio-ink);
-  --destructive: var(--status-blocked);
+  /* error text and filled destructive buttons, light theme: 4.5:1 on white and on --dashio-paper (WCAG AA). --status-blocked stays for status marks. */
+  --destructive: #D62839;
   --destructive-foreground: var(--dashio-white);
   --border: var(--dashio-line);
-  --input: var(--dashio-line);
+  --input: var(--dashio-control);
   --ring: var(--dashio-indigo);
   --sidebar: var(--dashio-white);
   --sidebar-foreground: var(--dashio-ink);
@@ -312,5 +315,18 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]) {
       min-width: 44px;
     }
+  }
+}
+
+/* Form control borders (WCAG 1.4.11, 3:1), light theme. A select, textarea or text field keeps the control border token whatever border
+   colour its class names (the dark theme keeps its own colours): a hard-coded border-slate-300 or a plain border (which takes the card line) gave 1.2:1 to 1.5:1 on white. The
+   select and textarea selectors have specificity 0,2,1, above a single utility class, so they win whatever the order. An invalid field
+   keeps its red border, and a focused field keeps its focus border. Buttons, checkboxes, radios, ranges, colour pickers and hidden
+   inputs are left alone. A file picker is a field too, so it is included. */
+@layer utilities {
+  html:not(.dark) select:not([aria-invalid="true"]):not(:focus-visible),
+  html:not(.dark) textarea:not([aria-invalid="true"]):not(:focus-visible),
+  html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="color"]):not([aria-invalid="true"]):not(:focus-visible) {
+    border-color: var(--input);
   }
 }
