@@ -5,7 +5,10 @@
 // Hard failures (console error, uncaught error, 5xx, blank page, horizontal scroll on phone) make the run exit 1.
 // Soft findings (touch targets, English text) are written to the report for the audit document and do not fail the run.
 //
-//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR)
+// Each page record also lists the API procedures the server refused with 403 (`refusals`) and whether the page says so in words
+// (`noPermissionText`). tests/ui/runRoleVisits.mjs runs this once per role and summarises the results.
+//
+//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR; optional ROLE, SCREENSHOTS=0)
 //   node tests/ui/audit.mjs
 //
 // Playwright is not a project dependency (see scripts/e2e-roles.mjs): PLAYWRIGHT_MODULE_DIR (default /opt/node-tools/node_modules/) and
@@ -23,7 +26,13 @@ const PROJECT_ID = process.env.PROJECT_ID;
 const SESSION_FILE = process.env.SESSION_FILE;
 const OUT_DIR = process.env.OUT_DIR ?? "./ui-audit-out";
 const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+// ROLE labels the report (the all-roles visit runs this once per role); SCREENSHOTS=0 skips the JPEGs (the visit's summary does not need them).
+const ROLE = process.env.ROLE ?? "demo-admin";
+const SCREENSHOTS = process.env.SCREENSHOTS !== "0";
 if (!TENANT_ID || !PROJECT_ID || !SESSION_FILE) throw new Error("TENANT_ID, PROJECT_ID and SESSION_FILE are required");
+// A page that refuses the role says so in words: the server's no-permission sentence, or a short form of it. A refused page WITHOUT such a
+// sentence leaves a bare error on the screen, which is what the all-roles visit reports. (Heuristic; it reads the page text, nothing else.)
+const NO_PERMISSION_TEXT = /لا تملك|ليس لديك صلاحية|لا صلاحية/;
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800, mobile: false },
@@ -55,6 +64,8 @@ async function auditPage(browser, route, vp, token) {
   const consoleErrors = [];
   const pageErrors = [];
   const serverFailures = [];
+  const refusals = [];
+  const badResponses = [];
   page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text().slice(0, 240)); });
   page.on("pageerror", error => pageErrors.push(String(error.message ?? error).slice(0, 240)));
   page.on("response", response => {
@@ -62,13 +73,16 @@ async function auditPage(browser, route, vp, token) {
     if (url.origin !== new URL(BASE_URL).origin) return;
     const status = response.status();
     if (status >= 500 || (status === 404 && url.pathname.startsWith("/api/"))) serverFailures.push(`${status} ${url.pathname}`);
+    // the procedure(s) the server refused this role with 403 (tRPC batches name several, comma-separated)
+    if (status === 403 && url.pathname.startsWith("/api/")) refusals.push(url.pathname.replace(/^\/api\/trpc\//, "").slice(0, 120));
+    if (status >= 400) badResponses.push(`${status} ${url.pathname}`.slice(0, 140));
   });
   const started = Date.now();
   try {
     await page.goto(new URL(route, BASE_URL).toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
     await page.waitForTimeout(600);
-    const measured = await page.evaluate(vpMobile => {
+    const measured = await page.evaluate(([vpMobile, denialSource]) => {
       const visible = element => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none"; };
       // The language switcher names the OTHER language ("English" while the page is in Arabic). That is its name, not text the screen is written in,
       // so its label is hidden for the reading below and restored after it.
@@ -84,11 +98,18 @@ async function auditPage(browser, route, vp, token) {
       const small = vpMobile ? targets.filter(element => { const box = element.getBoundingClientRect(); return box.height < 44 || box.width < 44; }).length : 0;
       // Every distinct word of four or more Latin letters on the screen (not only the first forty), so a long page is read whole.
       const latin = [...new Set(text.match(/\b[A-Za-z]{4,}\b/g) ?? [])];
-      return { textLength: raw.trim().length, overflow, targets: targets.length, small, latin, dir: document.documentElement.dir, lang: document.documentElement.lang };
-    }, vp.mobile);
-    const shot = path.join(OUT_DIR, `${route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "home"}-${vp.name}.jpg`);
-    await page.screenshot({ path: shot, type: "jpeg", quality: 70, fullPage: false });
-    pages.push({ route, viewport: vp.name, ms: Date.now() - started, dir: measured.dir, lang: measured.lang, targets: measured.targets, smallTargets: measured.small, latinCount: measured.latin.length, latinSample: measured.latin.slice(0, 40), screenshot: path.basename(shot) });
+      const denied = new RegExp(denialSource).test(text);
+      // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
+      const loading = /جارٍ|جاري/.test(text);
+      return { textLength: raw.trim().length, overflow, targets: targets.length, small, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
+    }, [vp.mobile, NO_PERMISSION_TEXT.source]);
+    let screenshot = null;
+    if (SCREENSHOTS) {
+      const shot = path.join(OUT_DIR, `${route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "home"}-${vp.name}.jpg`);
+      await page.screenshot({ path: shot, type: "jpeg", quality: 70, fullPage: false });
+      screenshot = path.basename(shot);
+    }
+    pages.push({ route, viewport: vp.name, ms: Date.now() - started, dir: measured.dir, lang: measured.lang, targets: measured.targets, smallTargets: measured.small, latinCount: measured.latin.length, latinSample: measured.latin.slice(0, 40), screenshot, refusals: [...new Set(refusals)].slice(0, 12), badResponses: [...new Set(badResponses)].slice(0, 12), noPermissionText: measured.denied, stillLoading: measured.loading });
     if (consoleErrors.length) note("console-error", route, vp.name, consoleErrors.slice(0, 3));
     if (pageErrors.length) note("uncaught-error", route, vp.name, pageErrors.slice(0, 3));
     if (serverFailures.length) note("server-failure", route, vp.name, [...new Set(serverFailures)].slice(0, 5));
@@ -118,7 +139,7 @@ try {
 
 const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
-const report = { routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
+const report = { role: ROLE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));
 console.log(JSON.stringify({ routes: ROUTES.length, pages: pages.length, hard: hard.length, soft: soft.length, outDir: OUT_DIR }));
 process.exit(hard.length > 0 ? 1 : 0);
