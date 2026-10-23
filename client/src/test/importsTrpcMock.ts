@@ -5,6 +5,8 @@ type Options = { onSuccess?: (result: any) => void };
 export type ImportsMockState = {
   list: unknown[]; detail: unknown; progress: unknown;
   createUpload: ReturnType<typeof vi.fn>; registerUpload: ReturnType<typeof vi.fn>; reanalyze: ReturnType<typeof vi.fn>; confirm: ReturnType<typeof vi.fn>;
+  /** The differences preview of an export → re-import file; absent in a test that does not exercise it, which then sees a module without a preview. */
+  diff?: unknown; template?: ReturnType<typeof vi.fn>;
 };
 
 export function importsTrpc(state: ImportsMockState) {
@@ -22,6 +24,8 @@ export function importsTrpc(state: ImportsMockState) {
       registerUpload: { useMutation: mutation(() => state.registerUpload) },
       reanalyze: { useMutation: mutation(() => state.reanalyze) },
       confirm: { useMutation: mutation(() => state.confirm) },
+      template: { useMutation: mutation(() => state.template ?? vi.fn()) },
+      diff: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => ({ data: options?.enabled === false ? undefined : state.diff, isLoading: false, error: null, refetch: vi.fn() }) },
     },
   };
 }

@@ -75,11 +75,26 @@ export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<st
   return undefined;
 }
 
-export async function buildSpreadsheet(input: { sheetName: string; headers: string[]; rows: unknown[][]; format: "xlsx" | "csv" }): Promise<Buffer> {
+export type SpreadsheetOptions = {
+  /** 1-based columns kept in the file but hidden in Excel (row id / version of an exported row). */
+  hiddenColumns?: number[];
+  /** 1-based column → allowed values, applied to rows 2..200 so the template offers a drop-down. */
+  validations?: Array<{ column: number; list: string[] }>;
+};
+
+export async function buildSpreadsheet(input: { sheetName: string; headers: string[]; rows: unknown[][]; format: "xlsx" | "csv" } & SpreadsheetOptions): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(input.sheetName);
+  const sheet = workbook.addWorksheet(input.sheetName, { views: [{ rightToLeft: false, state: "frozen", ySplit: 1 }] });
   sheet.addRow(input.headers);
+  sheet.getRow(1).font = { bold: true };
   input.rows.forEach(row => sheet.addRow(row));
+  input.headers.forEach((header, index) => { sheet.getColumn(index + 1).width = Math.max(14, Math.min(40, header.length + 6)); });
+  for (const column of input.hiddenColumns ?? []) sheet.getColumn(column).hidden = true;
+  for (const validation of input.validations ?? []) {
+    const formula = `"${validation.list.join(",")}"`; // an inline list is capped at 255 characters by Excel
+    if (formula.length > 255) continue;
+    for (let row = 2; row <= 200; row += 1) sheet.getCell(row, validation.column).dataValidation = { type: "list", allowBlank: true, formulae: [formula] };
+  }
   const bytes = input.format === "csv" ? await workbook.csv.writeBuffer() : await workbook.xlsx.writeBuffer();
   return Buffer.from(bytes);
 }

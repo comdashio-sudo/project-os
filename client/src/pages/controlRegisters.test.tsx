@@ -142,6 +142,8 @@ vi.mock("@/lib/trpc", () => ({
       reanalyze: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       confirm: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
       export: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+      template: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, data: null }) },
+      diff: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: vi.fn() }) },
     },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, data: state.projectControlsData, refetch: vi.fn() }) },

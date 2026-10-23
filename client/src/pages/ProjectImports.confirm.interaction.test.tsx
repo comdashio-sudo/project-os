@@ -8,7 +8,7 @@ import { ProjectImports } from "./ProjectImports";
 const JOB = "00000000-0000-4000-8000-0000000000f2";
 const state = vi.hoisted(() => ({
   put: vi.fn(),
-  mock: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() },
+  mock: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, diff: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() },
 }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized import error" }));
@@ -30,7 +30,7 @@ describe("ProjectImports confirmation", () => {
     state.mock.createUpload.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/tenant-1/project-1/pending/k/f", headers: {}, maxBytes: 1 });
     state.mock.registerUpload.mockReset().mockResolvedValue({ id: JOB, status: "analyzing" });
     state.mock.confirm.mockReset().mockResolvedValue({ id: JOB, status: "importing" });
-    state.mock.progress = validated;
+    state.mock.progress = validated; state.mock.diff = undefined;
   });
 
   it("requires an explicit confirmation after a valid analysis", async () => {
@@ -53,5 +53,32 @@ describe("ProjectImports confirmation", () => {
     cleanup(); state.mock.progress = { ...validated, status: "completed", createdRows: 67728, updatedRows: 0, skippedRows: 0 };
     await startImport();
     await waitFor(() => expect(screen.getByText("Records created: 67728 · Records updated: 0 · Records skipped: 0")).toBeTruthy());
+  });
+
+  const hash = "a".repeat(64);
+  const previewOf = (summary: Record<string, number>, entries: unknown[]) => ({ supported: true, moduleCode: "wbs", summary: { new: 0, modified: 0, unchanged: 0, conflict: 0, missing: 0, total: 0, ...summary }, diffHash: hash, entries, shownTotal: entries.length, offset: 0, pageSize: 200, missing: [], missingTotal: 0 });
+
+  it("shows each changed row as old → new before anything is written, and confirms with the hash of exactly what was shown", async () => {
+    state.mock.diff = previewOf({ modified: 1, unchanged: 2 }, [{ rowNumber: 3, key: "1.2", kind: "modified", changes: [{ field: "plannedValue", oldValue: "2500.50", newValue: "3100.00" }] }]);
+    const user = await startImport();
+    const preview = await screen.findByTestId("import-diff");
+    expect(preview.textContent).toContain("Differences preview before saving");
+    expect(preview.textContent).toContain("1.2"); expect(preview.textContent).toContain("2500.50"); expect(preview.textContent).toContain("3100.00");
+    expect(state.mock.confirm).not.toHaveBeenCalled(); // viewing the differences writes nothing
+    await user.click(screen.getByRole("button", { name: "Confirm import" }));
+    expect(state.mock.confirm).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", importId: JOB, approvedDiffHash: hash });
+  });
+
+  it("an export re-imported with no edit says there is nothing to change", async () => {
+    state.mock.diff = previewOf({ unchanged: 25 }, []);
+    await startImport();
+    expect((await screen.findByTestId("import-diff")).textContent).toContain("No changes: every row matches what is stored.");
+  });
+
+  it("a conflicting row blocks the confirm button and says why", async () => {
+    state.mock.diff = previewOf({ conflict: 1, unchanged: 1 }, [{ rowNumber: 2, key: "1.1", kind: "conflict", changes: [] }]);
+    await startImport();
+    expect((await screen.findByRole("alert", { name: "" })).textContent).toContain("Conflict");
+    expect((screen.getByRole("button", { name: "Confirm import" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

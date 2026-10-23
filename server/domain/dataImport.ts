@@ -1,7 +1,9 @@
+import { EXPORT_ID_HEADER, EXPORT_VERSION_HEADER, RESERVED_EXPORT_HEADERS, CYCLE_MODULES } from "./importCycle";
+import { importTemplateHeaders as templateHeaders } from "@shared/importTemplateHeaders";
 import { buildSpreadsheet, MAX_XER_ROWS, readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
 export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule" | "openingBalances";
-export type ExportModuleCode = "wbs" | "budget" | "activities";
+export type ExportModuleCode = "wbs" | "budget" | "activities" | "contracts" | "materials";
 export type ImportError = { rowNumber: number; code: string; field?: string };
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
 export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
@@ -233,7 +235,7 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
   const errors: ImportError[] = Object.values(Object.fromEntries(requestedMapping)).length !== new Set(requestedMapping.map(([, header]) => header)).size
     ? [{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID" }]
     : [];
-  errors.push(...headers.filter(header => !knownHeaders.has(normalize(header)) && !explicitlyMappedHeaders.has(header)).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header })));
+  errors.push(...headers.filter(header => !knownHeaders.has(normalize(header)) && !explicitlyMappedHeaders.has(header) && !RESERVED_EXPORT_HEADERS.includes(header)).map(header => ({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header })));
   errors.push(...templates[input.moduleCode]
     .filter(field => field.required && !mapping[field.key])
     .map(field => ({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key })));
@@ -307,13 +309,42 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
 const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string, string>>> = {
   wbs: { ar: { code: "رمز WBS", name: "اسم WBS", plannedValue: "القيمة المخططة" }, en: { code: "WBS Code", name: "WBS Name", plannedValue: "Planned Value" } },
   budget: { ar: { costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية" }, en: { costCode: "Cost Code", originalAmount: "Original Amount", currentAmount: "Current Amount" } },
+  contracts: { ar: { code: "رمز العقد", title: "اسم العقد", counterparty: "الطرف المتعاقد", contractValue: "قيمة العقد", currency: "العملة" }, en: { code: "Contract Code", title: "Contract Title", counterparty: "Counterparty", contractValue: "Contract Value", currency: "Currency" } },
+  materials: { ar: { code: "رمز المادة", description: "وصف المادة", unitOfMeasure: "وحدة القياس", category: "الفئة", referenceSpecification: "المواصفة المرجعية" }, en: { code: "Material Code", description: "Description", unitOfMeasure: "Unit of Measure", category: "Category", referenceSpecification: "Reference Specification" } },
   activities: { ar: { code: "رمز النشاط", name: "اسم النشاط", plannedValue: "القيمة المخططة", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" }, en: { code: "Activity Code", name: "Activity Name", plannedValue: "Planned Value", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", status: "Status" } },
 };
 
 export async function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en"; rows: Record<string, unknown>[] }) {
   const headers = exportHeaders[input.moduleCode][input.locale];
-  const exportRows = input.rows.map(row => Object.keys(headers).map(key => safeSpreadsheetValue(row[key] ?? "")));
-  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: Object.values(headers), rows: exportRows, format: input.format });
+  // A module that takes part in the export → edit → re-import cycle carries each row's platform id and version in two reserved columns, hidden in Excel (and kept in CSV).
+  const cycle = (CYCLE_MODULES as readonly string[]).includes(input.moduleCode);
+  const exportRows = input.rows.map(row => [...Object.keys(headers).map(key => safeSpreadsheetValue(row[key] ?? "")), ...(cycle ? [String(row[EXPORT_ID_HEADER] ?? ""), String(row[EXPORT_VERSION_HEADER] ?? "")] : [])]);
+  const columnHeaders = [...Object.values(headers), ...(cycle ? [EXPORT_ID_HEADER, EXPORT_VERSION_HEADER] : [])];
+  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: columnHeaders, rows: exportRows, format: input.format, hiddenColumns: cycle ? [columnHeaders.length - 1, columnHeaders.length] : [] });
   const extension = input.format === "csv" ? "csv" : "xlsx";
   return { bytes, fileName: `${input.moduleCode}-export.${extension}`, contentType: input.format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+}
+
+// X-1: the import template is generated from the SAME field table the importer reads (`templates`), so a column added to an import appears in its template with no second edit.
+const templateExamples: Record<ImportModuleCode, Record<"ar" | "en", string[][]>> = {
+  wbs: { ar: [["1.1", "الأعمال التمهيدية", "100000"]], en: [["1.1", "Preliminaries", "100000"]] },
+  budget: { ar: [["CIVIL", "500000", "525000"]], en: [["CIVIL", "500000", "525000"]] },
+  contracts: { ar: [["CON-001", "عقد الأعمال المدنية", "المقاول الرئيسي", "2500000", "SAR"]], en: [["CON-001", "Civil works contract", "Main Contractor", "2500000", "SAR"]] },
+  materials: { ar: [["MAT-CONC-40", "خرسانة إنشائية", "m3", "خرسانة", "ASTM C94"]], en: [["MAT-CONC-40", "Structural concrete", "m3", "Concrete", "ASTM C94"]] },
+  openingBalances: { ar: [["WH-01", "MAT-CONC-40", "120", "310.00"]], en: [["WH-01", "MAT-CONC-40", "120", "310.00"]] },
+  schedule: { ar: [["WBS", "1.0", "أعمال مدنية", "", "", "", "", "100000", "Not Started"], ["Activity", "1.0", "", "A-100", "الأساسات", "2026-09-01", "2026-09-05", "50000", "In Progress"]], en: [["WBS", "1.0", "Civil works", "", "", "", "", "100000", "Not Started"], ["Activity", "1.0", "", "A-100", "Foundation", "2026-09-01", "2026-09-05", "50000", "In Progress"]] },
+};
+const templateLists: Partial<Record<ImportModuleCode, Array<{ field: string; list: string[] }>>> = {
+  contracts: [{ field: "currency", list: ["SAR", "USD", "EUR", "AED", "KWD", "QAR", "BHD", "OMR", "EGP"] }],
+  materials: [{ field: "unitOfMeasure", list: ["m", "m2", "m3", "kg", "ton", "no", "set", "lot", "l"] }],
+  schedule: [{ field: "recordType", list: ["WBS", "Activity"] }, { field: "status", list: ["Not Started", "In Progress", "Completed", "Blocked"] }],
+};
+
+export async function buildImportTemplateFile(input: { moduleCode: ImportModuleCode; locale: "ar" | "en" }) {
+  const headers = templateHeaders[input.moduleCode][input.locale];
+  const fields = templates[input.moduleCode];
+  if (headers.length !== fields.length) throw new Error(`Template headers for ${input.moduleCode} drifted from the import field table`); // the guard against the two lists diverging
+  const validations = (templateLists[input.moduleCode] ?? []).flatMap(entry => { const index = fields.findIndex(field => field.key === entry.field); return index < 0 ? [] : [{ column: index + 1, list: entry.list }]; });
+  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode === "schedule" ? "Schedule" : input.moduleCode.toUpperCase(), headers, rows: templateExamples[input.moduleCode][input.locale], format: "xlsx", validations });
+  return { bytes, fileName: `${input.moduleCode}-template.xlsx`, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 }
