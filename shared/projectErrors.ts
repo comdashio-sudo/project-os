@@ -688,6 +688,90 @@ export const projectErrorMessages = {
     ar: "هذا الإجراء غير متاح لحالة التسليم الحالية.",
     en: "That step is not available in the submittal's current state.",
   },
+  PROJECT_OS_API_EXPORT_UNKNOWN: {
+    ar: "نوع التصدير غير معروف.",
+    en: "The export type is unknown.",
+  },
+  PROJECT_OS_API_KEY_INVALID: {
+    ar: "مفتاح الـAPI غير صالح أو ملغى أو منتهٍ.",
+    en: "The API key is invalid, revoked or expired.",
+  },
+  PROJECT_OS_API_KEY_NOT_FOUND: {
+    ar: "المفتاح غير موجود أو أُلغي مسبقًا.",
+    en: "The key does not exist or was already revoked.",
+  },
+  PROJECT_OS_API_MAPPING_TYPE_UNKNOWN: {
+    ar: "نوع الربط غير معروف.",
+    en: "The mapping type is unknown.",
+  },
+  PROJECT_OS_API_PROJECT_UNKNOWN: {
+    ar: "المشروع المطلوب غير موجود في شركة هذا المفتاح.",
+    en: "The requested project does not exist in this key's company.",
+  },
+  PROJECT_OS_API_RATE_LIMITED: {
+    ar: "تجاوز المفتاح حد الطلبات في الدقيقة؛ أعد المحاولة بعد المدة المذكورة.",
+    en: "The key exceeded its calls per minute; retry after the stated time.",
+  },
+  PROJECT_OS_API_SCOPES_INVALID: {
+    ar: "صلاحيات المفتاح غير صالحة.",
+    en: "The key's powers are not valid.",
+  },
+  PROJECT_OS_API_SCOPE_MISSING: {
+    ar: "هذا المفتاح لا يملك الصلاحية اللازمة لهذا الطلب.",
+    en: "This key lacks the power this call needs.",
+  },
+  PROJECT_OS_API_VALIDATION: {
+    ar: "الطلب لا يطابق الشكل الموثّق.",
+    en: "The request does not match the documented shape.",
+  },
+  PROJECT_OS_API_CSV_CONTENT_TYPE: {
+    ar: "ملف CSV يُرسل بنوع المحتوى text/csv.",
+    en: "A CSV file is sent with the content type text/csv.",
+  },
+  PROJECT_OS_API_CSV_ENTITY_UNKNOWN: {
+    ar: "نوع السجلات غير معروف لقالب CSV.",
+    en: "That record type has no CSV template.",
+  },
+  PROJECT_OS_CONNECTION_INACTIVE: {
+    ar: "الاتصال معطّل؛ فعّله أولًا.",
+    en: "The connection is switched off; switch it on first.",
+  },
+  PROJECT_OS_CONNECTION_NOT_FOUND: {
+    ar: "الاتصال غير موجود.",
+    en: "The connection does not exist.",
+  },
+  PROJECT_OS_CONNECTION_PUSH_UNSUPPORTED: {
+    ar: "هذا الموصل يقرأ فقط ولا يرسل إلى النظام الآخر؛ استعمل واجهة التصدير.",
+    en: "This connector reads only and does not write to the other system; use the export API.",
+  },
+  PROJECT_OS_CONNECTION_SYSTEM_UNSUPPORTED: {
+    ar: "لا يوجد موصل لهذا النظام.",
+    en: "There is no connector for that system.",
+  },
+  PROJECT_OS_CONNECTION_URL_INVALID: {
+    ar: "عنوان النظام غير مقبول (يجب أن يكون https وليس عنوانًا داخليًا).",
+    en: "The system address is not accepted (it must be https and not an internal address).",
+  },
+  PROJECT_OS_WEBHOOK_EVENTS_INVALID: {
+    ar: "أنواع الأحداث غير معروفة.",
+    en: "The event types are not known.",
+  },
+  PROJECT_OS_WEBHOOK_NOT_FOUND: {
+    ar: "نقطة الـWebhook غير موجودة.",
+    en: "The webhook endpoint does not exist.",
+  },
+  PROJECT_OS_WEBHOOK_URL_INVALID: {
+    ar: "عنوان الـWebhook غير صالح.",
+    en: "The webhook address is not valid.",
+  },
+  PROJECT_OS_WEBHOOK_URL_NOT_HTTPS: {
+    ar: "عنوان الـWebhook يجب أن يبدأ بـhttps.",
+    en: "The webhook address must start with https.",
+  },
+  PROJECT_OS_WEBHOOK_URL_PRIVATE: {
+    ar: "عنوان الـWebhook يشير إلى شبكة داخلية أو خاصة ولا يُقبل.",
+    en: "The webhook address points inside a private network and is not accepted.",
+  },
   PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK: {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
     en: "The movement cannot result in a negative stock balance.",

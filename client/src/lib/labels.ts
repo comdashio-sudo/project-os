@@ -13,6 +13,8 @@ const STATUS_AR: Record<string, string> = {
   released: "مُفرَج عنه", committed: "ملتزم به", superseded: "حلّت محله نسخة أحدث", published: "منشور", trialing: "تجريبي", past_due: "متأخر السداد", grace_period: "فترة سماح",
   expired: "منتهي الصلاحية", posted: "مُرحَّل", planned: "مخطط", on_hold: "معلّق", hold: "معلّق", withdrawn: "مسحوب", implemented: "منفَّذ", mitigating: "قيد التخفيف",
   importing: "قيد الاستيراد", analyzing: "قيد المعالجة", validated: "تم التحقق", uploaded: "مرفوع", created: "أُنشئ", updated: "حُدّث", escalated: "مُصعَّد", pass: "مطابق", fail: "غير مطابق", conditional: "مطابق بشروط",
+  // integrations (work order 12)
+  delivered: "تم التسليم", running: "قيد التشغيل", ok: "ناجح", partial: "جزئي",
   // tenders
   awarded: "تمت الترسية", declined: "اعتذر", disqualified: "مستبعد", scope_gap: "ثغرة نطاق", exclusion: "استثناء", correction: "تصحيح", discount: "خصم",
   // design coordination

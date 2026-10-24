@@ -7,6 +7,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { auditLogs, consultantSubmittals, materialMasters, pmcActivityDefinitions, pmcUnits, submittalReplyCodes } from "../drizzle/schema";
 import { assertProjectWithinTenant, assertTenantManager, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
+import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { ensureReplyCodes } from "./qualityGate";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -93,7 +94,9 @@ export async function replyConsultantSubmittalForTenant(input: Scope & { submitt
     const changed = await tx.update(consultantSubmittals).set({ status: "replied", replyCode: code.code, replyNote: input.replyNote?.trim() || null, repliedAt, repliedByUserId: input.userId }).where(and(eq(consultantSubmittals.id, row.id), eq(consultantSubmittals.status, "sent"))).returning({ id: consultantSubmittals.id });
     if (!changed.length) throw refuse("CONFLICT", "PROJECT_OS_SUBMITTAL_TRANSITION_INVALID");
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "submittal.replied", entityType: "consultant_submittal", entityId: row.id, metadata: JSON.stringify({ projectId: input.projectId, submittalNumber: row.submittalNumber, revision: row.revision, replyCode: code.code, approved: code.approved }) });
+    await emitWebhookEvent(tx, input.tenantId, "submittal.replied", { submittalId: row.id, projectId: input.projectId, submittalNumber: row.submittalNumber, revision: row.revision, replyCode: code.code, approved: code.approved });
   });
+  kickWebhookDelivery();
   return { id: row.id, status: "replied" as const, replyCode: code.code, approved: code.approved };
 }
 
