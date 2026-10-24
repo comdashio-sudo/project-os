@@ -104,6 +104,7 @@ vi.mock("@/lib/trpc", () => ({
       },
       tenant: {
         administration: { invalidate: vi.fn() },
+        roleTemplateRemovals: { invalidate: vi.fn() },
       },
     }),
     profitability: { portfolio: { useQuery: () => ({ isLoading: false, error: null, data: { total: { currency: "SAR", fpac: 0 }, projects: [], unavailable: [] } }) } },
@@ -220,6 +221,8 @@ vi.mock("@/lib/trpc", () => ({
     },
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
+      roleTemplateRemovals: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      decideRoleTemplateRemovals: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
       createRole: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantRoleError, isSuccess: state.tenantRoleSuccess }) },

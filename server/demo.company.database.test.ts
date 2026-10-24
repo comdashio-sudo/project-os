@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.hoisted(() => { process.env.JWT_SECRET ||= "demo-company-test-only-secret-0123456789"; }); // the sign-in check below signs a session; the suite must not depend on the shell having set one
 import fixtureDb, { type Connection } from "./testing/pgCompat";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 import { wbsProgressFromPmc } from "./domain/pmcEvmBridge";

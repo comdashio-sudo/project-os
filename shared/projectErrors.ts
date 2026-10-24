@@ -56,6 +56,11 @@ export const projectErrorMessages = {
     en: "The deletion confirmation code has expired (15 minutes). Request the deletion again.",
     ur: "The deletion confirmation code has expired (15 minutes). Request the deletion again.",
   },
+  PROJECT_OS_TEMPLATE_REMOVAL_NOT_PENDING: {
+    ar: "هذا الاقتراح لم يعد بانتظار القرار (قُرّر سابقًا أو ليس لشركتك). حدّث الصفحة.",
+    en: "This proposal is no longer waiting for a decision (it was decided already, or it is not your company's). Refresh the page.",
+    ur: "یہ تجویز اب فیصلے کی منتظر نہیں (پہلے طے ہو چکی یا آپ کی کمپنی کی نہیں)۔ صفحہ تازہ کریں۔",
+  },
   PROJECT_OS_DELETION_IN_PROGRESS: {
     ar: "حذف هذه الشركة جارٍ الآن في عملية أخرى. انتظر خمس دقائق ثم أعد المحاولة إن لم يكتمل.",
     en: "Deletion of this company is already running in another operation. Wait five minutes and try again if it has not finished.",

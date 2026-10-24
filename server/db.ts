@@ -861,6 +861,15 @@ async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: stri
   if (options.audit) await proposeRetiredTemplateRemovals(tx, tenantId);
 }
 
+/** Puts every permission of the catalog back by code (an upsert). The catalog is shared by every company; a test that has to replace some of it uses this to leave it whole. */
+export async function restorePermissionCatalog(): Promise<void> {
+  await withSystemContext("restore the shared permission catalog", async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    for (const permission of allCatalogPermissions) await db.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
+  });
+}
+
 export async function getRoleTemplateRemovals(input: { userId: number; tenantId: string; status?: "pending" | "approved" | "declined" }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");

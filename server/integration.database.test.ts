@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
-import { evaluateTenantLicenseLifecycle } from "./db";
+import { evaluateTenantLicenseLifecycle, restorePermissionCatalog } from "./db";
 import { calculateOperationalEvm } from "./domain/operationalEvm";
 import { grantOperationalPermissions } from "./testing/grantOperational";
 vi.mock("./storage", async importOriginal => (await import("./testing/memoryStorage")).memoryStorageModule(await importOriginal<typeof import("./storage")>()));
@@ -307,6 +307,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM companies WHERE id IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user','integration-accountant-user')");
+    await restorePermissionCatalog(); // this file replaces some shared permission rows with its own and deletes them above: leave the catalog whole for whichever file runs next (work order 17, item 3)
     await connection?.end();
   });
 

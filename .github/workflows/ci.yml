@@ -170,6 +170,69 @@ jobs:
           path: ${{ runner.temp }}/ui-screenshots
           if-no-files-found: warn
           retention-days: 14
+  demo-journeys:
+    # Work order 17, item 5: the three journeys through the demonstration company (scripts/e2e-demo-journey.mjs) run on every change, in a real browser, as the people who would
+    # do them and with the numbers checked at every level: (1) daily report -> approval -> progress, (2) submittal -> reply A -> inspection -> acceptance, (3) material issue ->
+    # actual cost -> EVM -> expected profit on the board's dashboard. The script builds the demonstration company itself, starts the production build as the restricted role,
+    # and removes the company at the end.
+    name: demo journeys (3 end-to-end journeys)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PLAYWRIGHT_VERSION: 1.56.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Schema from the migrations, restricted application role
+        run: node scripts/setup-integration-test-db.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/postgres # secret-scan:allow container-local throw-away value
+      - name: Production build
+        run: pnpm build
+      - name: Playwright and Chromium (pinned version, installed outside the repo)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+          chromium="$(node -p "require('$RUNNER_TEMP/playwright/node_modules/playwright').chromium.executablePath()")"
+          test -x "$chromium"
+          echo "PLAYWRIGHT_MODULE_DIR=$RUNNER_TEMP/playwright/node_modules/" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_CHROMIUM=$chromium" >> "$GITHUB_ENV"
+      - name: The three journeys
+        run: |
+          set -o pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          JWT_SECRET="$secret" node --import tsx scripts/e2e-demo-journey.mjs | tee "$RUNNER_TEMP/journeys.out"
+          {
+            echo "## Demo journeys"
+            grep -E '^(ok|FAIL) ' "$RUNNER_TEMP/journeys.out" | sed -e 's/^ok   /- ✅ /' -e 's/^FAIL /- ❌ /'
+            tail -n 1 "$RUNNER_TEMP/journeys.out"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
+          SERVER_DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
+          OUT_DIR: ${{ runner.temp }}/demo-journey-out
+      - name: Upload the journey screenshots (kept 14 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-journey-screenshots
+          path: ${{ runner.temp }}/demo-journey-out
+          if-no-files-found: warn
+          retention-days: 14
   workflows:
     name: workflow syntax (actionlint)
     runs-on: ubuntu-latest

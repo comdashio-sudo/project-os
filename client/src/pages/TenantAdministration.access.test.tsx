@@ -22,7 +22,7 @@ vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false });
   return { trpc: {
     accessSummary: { mine: { useQuery: () => state.permission } },
-    useUtils: () => ({ tenant: { administration: { invalidate: vi.fn() } } }),
+    useUtils: () => ({ tenant: { administration: { invalidate: vi.fn() }, roleTemplateRemovals: { invalidate: vi.fn() } } }),
     tenantData: {
       preview: { useQuery: () => ({ data: undefined, error: null, isLoading: false }) },
       requestDeletion: { useMutation: mutation },
@@ -30,6 +30,8 @@ vi.mock("@/lib/trpc", () => {
     },
     tenant: {
       administration: { useQuery: () => state.administration },
+      roleTemplateRemovals: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      decideRoleTemplateRemovals: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       findAssignableUser: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) },
       assignMember: { useMutation: mutation },
       createRole: { useMutation: mutation },
