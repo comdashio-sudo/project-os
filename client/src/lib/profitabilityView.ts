@@ -57,14 +57,14 @@ export function sparklinePoints(values: readonly number[], width: number, height
  * Where a cost entry's source document lives, so the drill-down can lead there (G-023). The record screens are
  * sections of the project controls page, which opens the section named in the link; payroll has its own page.
  */
-export function sourceRoute(sourceType: string | null | undefined, tenantId: string, projectId: string): { href: string; label: { ar: string; en: string } } | null {
+export function sourceRoute(sourceType: string | null | undefined, tenantId: string, projectId: string): { href: string; label: { ar: string; en: string; ur: string } } | null {
   const controls = `/projects/${tenantId}/${projectId}/controls`;
   switch (sourceType) {
-    case "goods_receipt_note": return { href: `${controls}#manager-commercial`, label: { ar: "إيصال استلام", en: "Goods receipt" } };
-    case "purchase_order": return { href: `${controls}#manager-commercial`, label: { ar: "أمر الشراء", en: "Purchase order" } };
-    case "material_issue": return { href: `${controls}#manager-site`, label: { ar: "صرف مادة", en: "Material issue" } };
-    case "time_entry": return { href: `${controls}#manager-site`, label: { ar: "إدخال وقت", en: "Time entry" } };
-    case "payroll_allocation": return { href: `/payroll/${tenantId}`, label: { ar: "تخصيص رواتب", en: "Payroll allocation" } };
+    case "goods_receipt_note": return { href: `${controls}#manager-commercial`, label: { ar: "إيصال استلام", en: "Goods receipt", ur: "Goods receipt" } };
+    case "purchase_order": return { href: `${controls}#manager-commercial`, label: { ar: "أمر الشراء", en: "Purchase order", ur: "Purchase order" } };
+    case "material_issue": return { href: `${controls}#manager-site`, label: { ar: "صرف مادة", en: "Material issue", ur: "Material issue" } };
+    case "time_entry": return { href: `${controls}#manager-site`, label: { ar: "إدخال وقت", en: "Time entry", ur: "Time entry" } };
+    case "payroll_allocation": return { href: `/payroll/${tenantId}`, label: { ar: "تخصيص رواتب", en: "Payroll allocation", ur: "Payroll allocation" } };
     default: return null;
   }
 }

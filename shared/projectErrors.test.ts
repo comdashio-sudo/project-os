@@ -10,6 +10,7 @@ describe("project error map", () => {
       messages: {
         ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
         en: "The selected WBS item does not belong to the requested project.",
+        ur: "The selected WBS item does not belong to the requested project.",
       },
     });
   });
@@ -30,6 +31,7 @@ describe("project error map", () => {
       messages: {
         ar: "تم بلوغ عدد المقاعد المسموح به في الرخصة النشطة.",
         en: "The active license seat limit has been reached.",
+        ur: "The active license seat limit has been reached.",
       },
     });
   });
@@ -40,6 +42,7 @@ describe("project error map", () => {
       messages: {
         ar: "انتقال حالة العضوية المطلوب غير مسموح.",
         en: "The requested membership status transition is not allowed.",
+        ur: "The requested membership status transition is not allowed.",
       },
     });
     expect(getProjectError("PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN")).toEqual({
@@ -47,6 +50,7 @@ describe("project error map", () => {
       messages: {
         ar: "لا يمكن تعطيل آخر مالك نشط للمؤسسة.",
         en: "The last active tenant owner cannot be deactivated.",
+        ur: "The last active tenant owner cannot be deactivated.",
       },
     });
   });
@@ -57,6 +61,7 @@ describe("project error map", () => {
       messages: {
         ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
         en: "This workspace slug is already in use. Choose a different workspace slug.",
+        ur: "This workspace slug is already in use. Choose a different workspace slug.",
       },
     });
     expect(getProjectError("PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE")).toEqual({
@@ -64,6 +69,7 @@ describe("project error map", () => {
       messages: {
         ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",
         en: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
+        ur: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
       },
     });
   });

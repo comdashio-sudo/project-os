@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => {
 });
 const { state } = hoisted;
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useParams: () => (state.tenantId ? { tenantId: state.tenantId } : {}), useLocation: () => ["/", (to: string) => { state.navigated.push(to); }] }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("./ProjectImports", () => ({ ProjectImports: ({ projectId }: { projectId: string }) => <div data-testid="imports">imports {projectId}</div> }));

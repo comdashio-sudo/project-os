@@ -17,7 +17,7 @@ const PERFORMANCE = {
   objections: [{ id: "66666666-6666-4666-8666-666666666666", status: "submitted", statement: "Example objection statement for the review.", createdAt: "2026-10-01T08:00:00.000Z", resolutionNote: null }],
 };
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Workforce error" }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, data: undefined });

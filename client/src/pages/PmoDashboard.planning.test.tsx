@@ -7,7 +7,7 @@ import PmoDashboard from "./PmoDashboard";
 const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));

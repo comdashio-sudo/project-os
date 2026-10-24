@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized procurement error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {

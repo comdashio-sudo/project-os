@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectImports } from "./ProjectImports";
 
 const language = vi.hoisted(() => ({ arabic: false }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: language.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: language.arabic, language: (language.arabic) ? "ar" : "en", isRtl: language.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized import error" }));
 const state = vi.hoisted(() => ({
   mock: {

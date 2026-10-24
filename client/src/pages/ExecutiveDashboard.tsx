@@ -23,12 +23,13 @@ import { Link, useParams } from "wouter";
 import { PortfolioProfitability } from "./PortfolioProfitability";
 import { enumLabel } from "@/lib/labels";
 import { WriteGate } from "@/lib/permissions";
+import { pickLanguage } from "@/lib/language";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
 export default function ExecutiveDashboard() {
   const { tenantId } = useParams<{ tenantId: string }>();
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const utils = trpc.useUtils();
   const metricsQuery = trpc.dashboards.executiveMetrics.useQuery({ tenantId });
   const projectsQuery = trpc.dashboards.executiveProjects.useQuery({ tenantId });
@@ -46,8 +47,7 @@ export default function ExecutiveDashboard() {
       utils.dashboards.invalidate();
     },
   });
-  const t = isArabic
-    ? {
+  const t = pickLanguage(language, { ar: {
         back: "مساحة العمل",
         level: "المستوى 1 · القيادة التنفيذية",
         title: "نظرة القيادة",
@@ -71,8 +71,7 @@ export default function ExecutiveDashboard() {
         success: "تم حفظ مسودة القرار.",
         noProjects:
           "أنشئ مشروعًا ضمن نطاقك أولًا حتى يمكن ربط القرار بسجل مشروع محدد.",
-      }
-    : {
+      }, en: {
         back: "Workspace",
         level: "Level 1 · Executive Leadership",
         title: "Leadership view",
@@ -96,7 +95,31 @@ export default function ExecutiveDashboard() {
         success: "Decision draft saved.",
         noProjects:
           "Create a project in your scope first so the decision can be linked to a specific project record.",
-      };
+      }, ur: {
+        back: "Workspace",
+        level: "Level 1 · Executive Leadership",
+        title: "Leadership view",
+        sub: "Portfolio indicators and decisions requiring management attention.",
+        budget: "Current budget",
+        actual: "Actual cost",
+        forecast: "Forecast",
+        projects: "Projects",
+        decisions: "Open decisions",
+        attention: "Attention portfolio",
+        empty: "No portfolio data is available in the current access scope.",
+        loading: "Loading leadership dashboard…",
+        saving: "Saving decision draft…",
+        create: "Register decision",
+        project: "Project",
+        problem: "Problem or decision required",
+        options: "Options",
+        recommendation: "Recommendation",
+        select: "Select a project",
+        save: "Save decision draft",
+        success: "Decision draft saved.",
+        noProjects:
+          "Create a project in your scope first so the decision can be linked to a specific project record.",
+      } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
     return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
   }
@@ -111,8 +134,7 @@ export default function ExecutiveDashboard() {
     event.preventDefault();
     mutation.mutate({ tenantId, ...form });
   };
-  const cash = isArabic
-    ? {
+  const cash = pickLanguage(language, { ar: {
         title: "ملخص التدفق النقدي التنفيذي",
         budget: "الميزانية المخططة",
         actual: "التكلفة الفعلية",
@@ -124,8 +146,7 @@ export default function ExecutiveDashboard() {
         chart: "مقارنة التعرض والمتبقي حسب المحفظة",
         unassigned: "مشاريع غير مسندة لمحفظة",
         projects: "مشاريع",
-      }
-    : {
+      }, en: {
         title: "Executive cash-flow summary",
         budget: "Planned budget",
         actual: "Actual cost",
@@ -137,7 +158,19 @@ export default function ExecutiveDashboard() {
         chart: "Exposure and remaining budget by portfolio",
         unassigned: "Projects without a portfolio",
         projects: "Projects",
-      };
+      }, ur: {
+        title: "Executive cash-flow summary",
+        budget: "Planned budget",
+        actual: "Actual cost",
+        committed: "Commitments",
+        exposure: "Total exposure",
+        remaining: "Remaining budget",
+        byProject: "Exposure by project",
+        byPortfolio: "Cash flow by portfolio",
+        chart: "Exposure and remaining budget by portfolio",
+        unassigned: "Projects without a portfolio",
+        projects: "Projects",
+      } });
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b bg-white">
@@ -295,8 +328,8 @@ export default function ExecutiveDashboard() {
                         {project.code} · {project.name}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {enumLabel(project.status, isArabic)} ·{" "}
-                        {enumLabel(project.health?.status ?? "not assessed", isArabic)}
+                        {enumLabel(project.status, language)} ·{" "}
+                        {enumLabel(project.health?.status ?? "not assessed", language)}
                       </p>
                     </div>
                     <div className="text-end"><p className="text-sm font-semibold">{money(Number(project.forecastCost))}</p><div className="mt-2"><GovernedProjectControlLink tenantId={tenantId} projectId={project.id} compact /></div></div>
@@ -318,7 +351,7 @@ export default function ExecutiveDashboard() {
                 data.decisions.map(item => (
                   <div key={item.id} className="rounded-xl border p-4">
                     <p className="font-semibold">{item.problem}</p>
-                    <p className="mt-1 text-xs text-slate-500">{enumLabel(item.status, isArabic)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{enumLabel(item.status, language)}</p>
                   </div>
                 ))
               ) : (
@@ -338,7 +371,7 @@ export default function ExecutiveDashboard() {
             {!data.projects.length && (
               <p className="mb-4 text-sm text-amber-700">{t.noProjects}</p>
             )}
-            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you." }}><form className="grid gap-4" onSubmit={submit}>
+            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "You do not have permission to record executive decisions; this view is read-only for you." }}><form className="grid gap-4" onSubmit={submit}>
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectAdvisor } from "./ProjectAdvisor";
 
 const state = vi.hoisted(() => ({ mutate: vi.fn(), data: null as unknown }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized advisory error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { advisor: { project: { useMutation: (options: { onSuccess: (value: unknown) => void }) => ({ mutate: (input: unknown) => { state.mutate(input); if (state.data) options.onSuccess(state.data); }, isPending: false, error: null }) } } } }));
 

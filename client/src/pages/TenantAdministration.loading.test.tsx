@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import TenantAdministration from "./TenantAdministration";
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true, language: (true) ? "ar" : "en", isRtl: true }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">اللغة</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "خطأ" }));

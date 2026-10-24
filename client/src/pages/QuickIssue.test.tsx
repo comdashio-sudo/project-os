@@ -6,7 +6,7 @@ import QuickIssue from "./QuickIssue";
 
 const h = vi.hoisted(() => ({ arabic: false, issue: vi.fn(), search: vi.fn(), result: { totalCost: 250 } as { totalCost: number } | null, issueError: null as unknown }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const options = {
   warehouses: [{ id: "w1", code: "WH-1", name: "Main" }],
   units: [{ id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1" }, { id: "u13", number: 13, modelCode: "B", block: "B1", zone: "Z1" }],

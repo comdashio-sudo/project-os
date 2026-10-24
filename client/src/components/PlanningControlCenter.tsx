@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, Scale, TimerReset } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { calculatePlanningControl, formatPlanningAmount, formatPlanningPercent, planningControlLabel, type PlanningControlResult } from "@/lib/planningControl";
+import { pickLanguage } from "@/lib/language";
 
 type Props = {
   result: PlanningControlResult;
@@ -10,12 +11,14 @@ type Props = {
 };
 
 export function PlanningControlCenter({ result, currency, isLoading = false }: Props) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? {
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, { ar: {
     eyebrow: "مركز التخطيط وضبط التكلفة والكميات", title: "قرار واحد مبني على مصادر مترابطة", note: "يربط البرنامج والميزانية والتكلفة الفعلية والالتزامات والـBOQ وطلبات المواد والمستودع. لا يحوّل نقص البيانات إلى أرقام صفرية مضللة.", controlled: "تحت السيطرة", attention: "يحتاج انتباهًا", budget: "الميزانية الحالية", exposure: "التعرض المالي", variance: "المتبقي بعد التعرض", boq: "قيمة BOQ النشطة", quantities: "حركة الكميات", issued: "مصروف", remaining: "متبقٍ للطلبات", onHand: "الرصيد بالمستودع", schedule: "البرنامج", overdue: "أنشطة متأخرة", blocked: "أنشطة متعثرة", coverage: "تغطية التنفيذ", gaps: "فجوات البيانات التي تمنع قرارًا كاملًا", noGaps: "المصادر الأساسية مكتملة لهذا العرض", loading: "جارٍ حساب مركز التحكم…", sourceNote: "المؤشرات قراءة مشتقة فقط؛ لا تنشئ قيدًا ماليًا أو كمية جديدة.", lines: "بند" 
-  } : {
+  }, en: {
     eyebrow: "PLANNING · COST · QUANTITY CONTROL", title: "One decision view from connected sources", note: "Connects schedule, budget, actual cost, commitments, BOQ, material requests and warehouse balances. Missing data is never turned into misleading zeroes.", controlled: "Controlled", attention: "Needs attention", budget: "Current budget", exposure: "Financial exposure", variance: "Remaining after exposure", boq: "Active BOQ value", quantities: "Quantity movement", issued: "Issued", remaining: "Request balance", onHand: "Warehouse on hand", schedule: "Schedule", overdue: "Overdue activities", blocked: "Blocked activities", coverage: "Execution coverage", gaps: "Data gaps that prevent a complete decision", noGaps: "Core sources are complete for this view", loading: "Calculating control center…", sourceNote: "These are derived read-only indicators; no financial or quantity record is created.", lines: "line"
-  };
+  }, ur: {
+    eyebrow: "PLANNING · COST · QUANTITY CONTROL", title: "One decision view from connected sources", note: "Connects schedule, budget, actual cost, commitments, BOQ, material requests and warehouse balances. Missing data is never turned into misleading zeroes.", controlled: "Controlled", attention: "Needs attention", budget: "Current budget", exposure: "Financial exposure", variance: "Remaining after exposure", boq: "Active BOQ value", quantities: "Quantity movement", issued: "Issued", remaining: "Request balance", onHand: "Warehouse on hand", schedule: "Schedule", overdue: "Overdue activities", blocked: "Blocked activities", coverage: "Execution coverage", gaps: "Data gaps that prevent a complete decision", noGaps: "Core sources are complete for this view", loading: "Calculating control center…", sourceNote: "These are derived read-only indicators; no financial or quantity record is created.", lines: "line"
+  } });
   const tone = result.riskLevel === "attention" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50";
   return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
     <div className="flex flex-wrap items-start justify-between gap-4">

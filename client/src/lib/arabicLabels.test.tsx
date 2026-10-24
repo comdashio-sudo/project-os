@@ -18,14 +18,20 @@ const VISIBLE_ROLE_CODE = /(?:>\s*\{role\.code\}\s*<|·\s*\{role\.code\}|\{role\
 
 const parse = (source: string, name: string) => ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
-/** Every `isArabic ? {…} : {…}` in a file, as the key lists of its Arabic and English objects, with the line it starts on. */
+/** Every `pickLanguage(language, { ar, en, ur })` in a file, as the key lists of its Arabic, English and Urdu objects, with the line it starts on. */
 function dictionaryPairs(source: string, name: string) {
   const file = parse(source, name);
-  const pairs: Array<{ line: number; ar: string[]; en: string[] }> = [];
+  const pairs: Array<{ line: number; ar: string[]; en: string[]; ur: string[] }> = [];
   const keysOf = (object: ts.ObjectLiteralExpression) => object.properties.map(property => (property.name ? property.name.getText(file).replace(/^["']|["']$/g, "") : ""));
+  const sideOf = (object: ts.ObjectLiteralExpression, key: string) => {
+    const property = object.properties.find(candidate => candidate.name?.getText(file).replace(/^["']|["']$/g, "") === key);
+    return property && ts.isPropertyAssignment(property) && ts.isObjectLiteralExpression(property.initializer) ? property.initializer : undefined;
+  };
   const visit = (node: ts.Node) => {
-    if (ts.isConditionalExpression(node) && ts.isIdentifier(node.condition) && node.condition.text === "isArabic" && ts.isObjectLiteralExpression(node.whenTrue) && ts.isObjectLiteralExpression(node.whenFalse)) {
-      pairs.push({ line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1, ar: keysOf(node.whenTrue), en: keysOf(node.whenFalse) });
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "pickLanguage" && node.arguments[1] && ts.isObjectLiteralExpression(node.arguments[1])) {
+      const texts = node.arguments[1];
+      const ar = sideOf(texts, "ar"), en = sideOf(texts, "en"), ur = sideOf(texts, "ur");
+      if (ar && en && ur) pairs.push({ line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1, ar: keysOf(ar), en: keysOf(en), ur: keysOf(ur) });
     }
     ts.forEachChild(node, visit);
   };
@@ -86,15 +92,15 @@ describe("role codes are never visible text", () => {
 });
 
 describe("no translation key is missing from one language", () => {
-  it.each(SCREENS_TOUCHED)("%s: the Arabic and English dictionaries have the same keys", name => {
+  it.each(SCREENS_TOUCHED)("%s: the Arabic, English and Urdu dictionaries have the same keys", name => {
     const pairs = dictionaryPairs(read(pages(name)), name);
-    expect(pairs.length, `${name} has an isArabic dictionary`).toBeGreaterThan(0);
-    const gaps = pairs.map(({ line, ar, en }) => ({ line, onlyAr: ar.filter(key => !en.includes(key)), onlyEn: en.filter(key => !ar.includes(key)) })).filter(gap => gap.onlyAr.length || gap.onlyEn.length);
+    expect(pairs.length, `${name} has a pickLanguage dictionary`).toBeGreaterThan(0);
+    const gaps = pairs.map(({ line, ar, en, ur }) => ({ line, missing: [...ar.filter(key => !en.includes(key) || !ur.includes(key)), ...en.filter(key => !ar.includes(key) || !ur.includes(key)), ...ur.filter(key => !ar.includes(key) || !en.includes(key))] })).filter(gap => gap.missing.length);
     expect(gaps).toEqual([]);
   });
   it("the key check is not vacuous: it reports a key present on one side only", () => {
-    const pairs = dictionaryPairs('const t = isArabic ? { a: "x", b: "y" } : { a: "x", c: "z" };', "fixture.tsx");
-    expect(pairs).toEqual([{ line: 1, ar: ["a", "b"], en: ["a", "c"] }]);
+    const pairs = dictionaryPairs('const t = pickLanguage(language, { ar: { a: "x", b: "y" }, en: { a: "x", c: "z" }, ur: { a: "x", b: "y" } });', "fixture.tsx");
+    expect(pairs).toEqual([{ line: 1, ar: ["a", "b"], en: ["a", "c"], ur: ["a", "b"] }]);
   });
 });
 

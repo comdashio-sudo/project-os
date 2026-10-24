@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
   arabic: false, can: true, put: vi.fn(), template: vi.fn(), exporter: vi.fn(),
   imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, diff: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn(), template: vi.fn() },
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children, reason }: { children: React.ReactNode; reason?: { en: string } }) => (h.can ? <>{children}</> : <p role="note">{reason?.en}</p>) }));
 vi.mock("@/lib/trpc", async () => {

@@ -19,7 +19,7 @@ const hoisted = vi.hoisted(() => {
   return { state, mutation, bids };
 });
 const { state } = hoisted;
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { tenders: {
   packages: { useQuery: () => ({ data: { total: 1, packages: [{ id: "p1", packageCode: "P-1", title: "Structure works", status: state.packageStatus, estimateAmount: "1000000", currency: "SAR", invitees: 4, bids: 3, lowestLevelled: 950000 }] }, isLoading: false, error: null, refetch: vi.fn() }) },

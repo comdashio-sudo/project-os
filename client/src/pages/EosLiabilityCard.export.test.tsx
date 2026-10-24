@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
     employees: [{ employeeId: "c", employeeNumber: "E-C", fullName: "Employee C", cumulative: 601 }, { employeeId: "d", employeeNumber: "E-D", fullName: "Employee D", cumulative: 200.25 }],
   },
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { employees: { payroll: {
   capabilities: { useQuery: () => ({ data: { canReadSensitivePayroll: true } }) },
   eosLiability: { useQuery: () => ({ isLoading: false, error: null, data: h.empty ? { ...h.data, months: [] } : h.data }) },

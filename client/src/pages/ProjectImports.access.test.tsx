@@ -22,7 +22,7 @@ const analysisView = (over: Record<string, unknown> = {}, errors: Array<{ rowNum
   analysis: { headers: ["Work ID", "Work Name"], mapping: { code: "Work ID" }, errors, errorsListed: errors.length, errorsTotal: errors.length }, ...over,
 });
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized import error" }));
 vi.mock("@/components/SectionResilience", () => ({ SourceNotice: () => null }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: state.put }));

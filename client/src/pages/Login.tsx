@@ -4,6 +4,8 @@ import { BrandMark } from "@/components/BrandMark";
 import { safeNext } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import React from "react";
+import { pickLanguage } from "@/lib/language";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 type Step = "email" | "code";
 
@@ -56,7 +58,31 @@ const messages = {
       default: "Something went wrong. Try again.",
     },
   },
-} as const;
+  ur: {
+    title: "لاگ ان",
+    emailHelp: "اپنا ای میل درج کریں، ہم آپ کو 6 ہندسوں کا کوڈ بھیجیں گے۔",
+    email: "ای میل ایڈریس",
+    send: "کوڈ بھیجیں",
+    sending: "بھیجا جا رہا ہے…",
+    codeHelp: "ہم نے ایک کوڈ بھیجا ہے",
+    code: "لاگ ان کوڈ",
+    verify: "لاگ ان",
+    verifying: "جانچا جا رہا ہے…",
+    changeEmail: "کوئی اور ای میل استعمال کریں",
+    resend: "نیا کوڈ بھیجیں",
+    google: "Google کے ساتھ جاری رکھیں",
+    errors: {
+      PROJECT_OS_AUTH_EMAIL_INVALID: "یہ ای میل ایڈریس درست نہیں ہے۔",
+      PROJECT_OS_AUTH_RATE_LIMITED: "بہت زیادہ کوششیں۔ تھوڑی دیر انتظار کریں، پھر دوبارہ کوشش کریں۔",
+      PROJECT_OS_AUTH_MAIL_UNAVAILABLE: "ابھی کوڈ نہیں بھیجا جا سکا۔ تھوڑی دیر بعد دوبارہ کوشش کریں۔",
+      PROJECT_OS_AUTH_CODE_INVALID: "کوڈ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔",
+      google_denied: "Google سے لاگ ان منسوخ کر دیا گیا۔",
+      google_failed: "Google سے لاگ ان ناکام ہوا۔ اس کے بجائے اپنا ای میل آزمائیں۔",
+      google_unverified: "اس Google اکاؤنٹ کا ای میل تصدیق شدہ نہیں ہے۔",
+      default: "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔",
+    },
+  },
+}
 
 async function post(path: string, body: unknown): Promise<{ ok: boolean; code?: string }> {
   try {
@@ -69,8 +95,8 @@ async function post(path: string, body: unknown): Promise<{ ok: boolean; code?: 
 }
 
 export default function Login() {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? messages.ar : messages.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, messages);
   const params = React.useMemo(() => new URLSearchParams(window.location.search), []);
   const next = safeNext(params.get("next"));
   const [step, setStep] = React.useState<Step>("email");
@@ -115,7 +141,8 @@ export default function Login() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f4f6f8] p-5">
+    <main className="relative flex min-h-screen items-center justify-center bg-[#f4f6f8] p-5">
+      <div className="absolute end-4 top-4"><LanguageToggle showNote /></div>
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <BrandMark className="mx-auto mb-5 h-9 w-auto max-w-full" />
         <h1 className="text-center text-xl font-semibold">{t.title}</h1>

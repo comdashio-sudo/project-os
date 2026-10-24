@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectNotifications } from "./ProjectNotifications";
 
 const state = vi.hoisted(() => ({ arabic: false, setPref: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized notification error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { notifications: {
   list: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: [

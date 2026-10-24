@@ -14,6 +14,7 @@ import { PmcSitePlan } from "./PmcSitePlan";
 import { WriteGate } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -32,6 +33,20 @@ const text = {
     importKind: "نوع الملف", chooseFile: "اختر ملف Excel أو CSV", analyze: "فحص الملف", confirm: "حفظ الملف الموافَق عليه", report: "تقرير التحقق", rows: "الصفوف", create: "سيُنشأ", update: "سيُحدَّث", unchanged: "بلا تغيير", errorsFound: "صفوف مرفوضة", row: "الصف", reason: "السبب", saved: "تم الحفظ", nothingSaved: "لم يُحفظ شيء قبل موافقتك.", alreadyUpToDate: "الملف مطابق لما هو محفوظ: لا شيء ليُحفظ.",
   },
   en: {
+    title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
+    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
+    filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
+    freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
+    engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
+    request: "Request", activity: "Activity", date: "Date", contractor: "Contractor", consultant: "Consultant", reply: "Reply", units: "Units", pendingReply: "pending", perConsultant: "Replies per consultant", perDay: "Replies per day", perActivity: "Replies per activity",
+    stage: "Stage", count: "Count", percent: "Percent", heldBy: "Held by", stalled: "Most stalled activities", open: "Open", oldestDays: "Oldest (days)",
+    stageNames: { CONFIGURATIONS: "Configurations", MANAGER_APPROVAL: "Manager approval", TECHNICAL_ASSISTANT: "Technical assistant", WAITING_CONSULTANT: "Waiting for consultant", RESULT_RECEIVING: "Result receiving", ANSWERED: "Answered", REJECTED: "Rejected", NOT_STARTED: "Not started" } as Record<string, string>,
+    group: "Group", weight: "Weight", share: "Share of weight", zone: "Zone", cells: "Cells", complete: "Complete", completion: "Completion", unassigned: "Unassigned",
+    period: "Period from", status: "Status", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
+    unit: "Unit", verification: "Verification status", since: "Since", age: "Age (days)", buckets: "Waiting age", late: "Late activities", planned: "Planned", actual: "Actual", noLate: "No late activities",
+    importKinds: { locations: "Locations", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>,
+    importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
+  }, ur: {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
     tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
@@ -290,8 +305,8 @@ const PERIODS = [["default", undefined], ["d7", 7], ["d30", 30], ["d90", 90], ["
 /** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <main>, so the page keeps its single main landmark. */
 export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }) {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, isRtl, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const [tab, setTab] = useState<Tab>("latestUpdates");
   const [filters, setFilters] = useState<Filters>({});
   const bodyRef = useRef<HTMLElement>(null);
@@ -310,7 +325,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
     <label className="text-xs">{label}<select aria-label={label} className={`${field} mt-1 block`} value={(filters[key] as string | undefined) ?? ""} onChange={event => setFilters({ ...filters, [key]: event.target.value || undefined })}><option value="">{t.filters.all}</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
   );
   return (
-    <Shell embedded={embedded} isArabic={isArabic}>
+    <Shell embedded={embedded} isArabic={isArabic} isRtl={isRtl}>
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>{!embedded && <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>}{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
@@ -341,10 +356,10 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   );
 }
 
-function Shell({ embedded, isArabic, children }: { embedded: boolean; isArabic: boolean; children: React.ReactNode }) {
+function Shell({ embedded, isArabic, isRtl = isArabic, children }: { embedded: boolean; isArabic: boolean; isRtl?: boolean; children: React.ReactNode }) {
   return embedded
-    ? <div className="px-0 py-2 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>{children}</div>
-    : <main className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isArabic ? "rtl" : "ltr"}>{children}</main>;
+    ? <div className="px-0 py-2 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>{children}</div>
+    : <main className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isRtl ? "rtl" : "ltr"}>{children}</main>;
 }
 
 export default function ProjectPmc() {

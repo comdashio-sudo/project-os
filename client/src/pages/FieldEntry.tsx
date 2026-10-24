@@ -10,6 +10,8 @@ import { getProjectError } from "@shared/projectErrors";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { SourceNotice } from "@/components/SectionResilience";
+import { type Language, pickLanguage } from "@/lib/language";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 // Phone entry for the two things a site engineer does all day: log progress and
 // issue material. Built for speed: every control is at least 44px, the screen
@@ -33,7 +35,15 @@ const text = {
     queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
     averageCost: "Average cost", usesAverage: "Issued at the stock's average cost", directToSite: "Direct delivery to site (no warehouse, cost charged now)", intoWarehouse: "Goes into the warehouse; cost is charged when it is issued", noWarehouseToReceive: "There is no active warehouse to receive into. Record it as a direct delivery to site or add a warehouse.",
     receive: "Receive material", pickOrder: "Pick the purchase order", receivedQty: "Quantity received", noOrders: "This project has no issued purchase orders.", received: "Received", from: "from", grn: "Receipt note", rejectedHint: "Rejected quantity, with its evidence, is recorded from the desk receipt screen.",
-  },
+  }, ur: {
+    title: "سائٹ سے فوری اندراج", back: "پروجیکٹ کنٹرولز پر واپس", notAllowed: "آپ کا کردار اس اسکرین سے پیش رفت درج کرنے یا مادّہ اجرا کرنے کی اجازت نہیں دیتا۔", progress: "پیش رفت درج کریں", issue: "مادّہ اجرا کریں", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
+    pickItem: "کام کی آئٹم منتخب کریں", nowAt: "اب تک", never: "درج نہیں ہوئی", save: "محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "محفوظ ہو گیا", another: "ایک اور درج کریں", noWbs: "اس پروجیکٹ میں ابھی کوئی کام کی آئٹم نہیں ہے۔", plus5: "+5", minus5: "−5",
+    issueToUnit: "یونٹ کی سرگرمی پر اجرا (تلاش یا QR)", pickMaterial: "مادّہ منتخب کریں", quantity: "مقدار", unitCost: "فی یونٹ لاگت", warehouse: "گودام", workItem: "کام کی آئٹم", change: "تبدیل کریں", onHand: "دستیاب", total: "کل", noMaterials: "کیٹلاگ میں ابھی کوئی مادّہ نہیں ہے۔", noWarehouses: "اس پروجیکٹ میں کوئی فعال گودام نہیں ہے۔", issued: "اجرا ہوا", to: "کو",
+    team: "ٹیم کے گھنٹے", workDate: "کام کا دن", teamEmpty: "اس دن کے لیے کوئی تفویض نہیں۔", attendanceMissing: "حاضری ابھی منظور نہیں ہوئی", entered: "درج شدہ", hours: "گھنٹے", saveTeam: "ٹیم کے گھنٹے محفوظ کریں", teamSaved: "گھنٹے محفوظ ہو گئے", rows: "قطاریں", rowErrors: "کچھ محفوظ نہیں ہوا۔ یہ قطاریں درست کریں:",
+    queuedSaved: "اس فون پر محفوظ ہو گیا، کنکشن واپس آنے پر بھیجا جائے گا", queueNotSaved: "اسے فون پر محفوظ نہیں رکھا جا سکا (اسٹوریج بھری ہے یا بند ہے)۔ آن لائن ہونے پر دوبارہ بھیجیں۔", offline: "آف لائن", online: "آن لائن", pending: "بھیجے جانے کا منتظر", sendNow: "ابھی بھیجیں", sending: "بھیجا جا رہا ہے…", failedItems: "سرور کی طرف سے مسترد درخواستیں", discard: "حذف کریں", retryItem: "دوبارہ", cachedNotice: "آف لائن: یہ فون پر محفوظ آخری ڈیٹا ہے۔",
+    averageCost: "اوسط لاگت", usesAverage: "مادّہ اسٹاک کی اوسط لاگت پر اجرا ہوتا ہے", directToSite: "براہِ راست سائٹ پر سپلائی (گودام میں نہیں جاتا، لاگت ابھی منتقل ہوتی ہے)", intoWarehouse: "گودام میں جاتا ہے؛ اجرا کے وقت لاگت منتقل ہوتی ہے", noWarehouseToReceive: "وصولی کے لیے کوئی فعال گودام نہیں ہے۔ اسے براہِ راست سائٹ پر سپلائی کے طور پر درج کریں یا گودام شامل کریں۔",
+    receive: "مادّہ وصول کریں", pickOrder: "خریداری کا آرڈر منتخب کریں", receivedQty: "وصول شدہ مقدار", noOrders: "اس پروجیکٹ کے لیے جاری شدہ خریداری کے آرڈر نہیں ہیں۔", received: "وصول ہوا", from: "سے", grn: "وصولی نوٹ (GRN)", rejectedHint: "مسترد شدہ مقدار اپنے ثبوت کے ساتھ دفتری وصولی کی اسکرین سے درج ہوتی ہے۔",
+},
 };
 type T = typeof text.en;
 const PRESETS = [0, 25, 50, 75, 100];
@@ -52,7 +62,7 @@ const readCache = <V,>(key: string): V | null => { const raw = remembered(key); 
 // The phone may be offline while a form is open, and the library would then wait for the network instead of failing, so
 // field requests ask to be attempted either way; a failed attempt is what puts the request in the queue.
 const attempt = { networkMode: "always" as const };
-const localized = (code: string, isArabic: boolean) => { const messages = getProjectError(code).messages; return isArabic ? messages.ar : messages.en; };
+const localized = (code: string, language: Language) => pickLanguage(language, getProjectError(code).messages);
 
 function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const [itemId, setItemId] = useState<string | null>(null);
@@ -233,7 +243,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
   );
 }
 
-function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, keepOffline, online }: { tenantId: string; projectId: string; personId: number | null; t: T; isArabic: boolean; keepOffline: KeepOffline; online: boolean }) {
+function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, language, keepOffline, online }: { tenantId: string; projectId: string; personId: number | null; t: T; isArabic: boolean; language: Language; keepOffline: KeepOffline; online: boolean }) {
   const [date, setDate] = useState(todayIso);
   const [hours, setHours] = useState<Record<string, string>>({});
   const [unticked, setUnticked] = useState<Set<string>>(new Set());
@@ -279,7 +289,7 @@ function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, keepOfflin
           })}
         </ul>
       )}
-      {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, isArabic)}</li>)}</ul></div>}
+      {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, language)}</li>)}</ul></div>}
       {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
       {save.error && !isNetworkError(save.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(save.error, isArabic)}</p>}
       {done && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.teamSaved}: {done.count} {t.rows}</p>}
@@ -288,7 +298,7 @@ function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, keepOfflin
   );
 }
 
-function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, isArabic }: { items: QueueItem[]; online: boolean; flushing: boolean; onFlush: () => void; onDiscard: (id: string) => void; onRetry: (id: string) => void; t: T; isArabic: boolean }) {
+function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, isArabic, language }: { items: QueueItem[]; online: boolean; flushing: boolean; onFlush: () => void; onDiscard: (id: string) => void; onRetry: (id: string) => void; t: T; isArabic: boolean; language: Language }) {
   const pending = items.filter(item => item.status === "pending");
   const failed = items.filter(item => item.status === "failed");
   return (
@@ -298,7 +308,7 @@ function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, 
       {failed.length > 0 && (
         <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800">
           <p className="font-semibold">{t.failedItems}</p>
-          <ul className="mt-1 space-y-2">{failed.map(item => <li key={item.id}><span className="block">{item.summary}</span><span className="block text-xs">{localized(item.error ?? "", isArabic)}</span><span className="mt-1 flex gap-2"><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onRetry(item.id)}>{t.retryItem}</button><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onDiscard(item.id)}>{t.discard}</button></span></li>)}</ul>
+          <ul className="mt-1 space-y-2">{failed.map(item => <li key={item.id}><span className="block">{item.summary}</span><span className="block text-xs">{localized(item.error ?? "", language)}</span><span className="mt-1 flex gap-2"><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onRetry(item.id)}>{t.retryItem}</button><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onDiscard(item.id)}>{t.discard}</button></span></li>)}</ul>
         </div>
       )}
     </section>
@@ -348,8 +358,8 @@ function useOfflineQueue(scope: string | null) {
 
 export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, isRtl, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null);
@@ -363,12 +373,13 @@ export default function FieldEntry() {
   const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.receive ? "receive" : can.team ? "team" : "progress";
   const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
+    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <SourceNotice query={me} isArabic={isArabic} title={isArabic ? "التحقق من هويتك" : "Checking who you are"} fallback={isArabic ? "الحفظ دون اتصال معطّل إلى أن يعود؛ أعد المحاولة قبل أن تحفظ إدخالًا." : "Saving offline is off until it is back; try again before you save an entry."} />
-        <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} />
+        <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} language={language} />
         <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
           {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
         </div>
@@ -383,7 +394,7 @@ export default function FieldEntry() {
             ? <MaterialIssueEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
             : tab === "receive"
               ? <ReceiptEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
-              : <TeamHoursEntry tenantId={tenantId} projectId={projectId} personId={me.data?.id ?? null} t={t} isArabic={isArabic} keepOffline={queue.keep} online={queue.online} />)}
+              : <TeamHoursEntry tenantId={tenantId} projectId={projectId} personId={me.data?.id ?? null} t={t} isArabic={isArabic} language={language} keepOffline={queue.keep} online={queue.online} />)}
       </div>
     </main>
   );

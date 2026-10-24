@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -18,12 +19,16 @@ const text = {
     title: "Client invoices", number: "Number", date: "Date", client: "Client", total: "Total", status: "Status", paidOn: "Paid on", empty: "No invoices yet.", loading: "Loading…", retry: "Retry",
     statuses: { draft: "Draft", issued: "Issued", paid: "Paid", void: "Void" } as Record<string, string>, issue: "Issue", pay: "Record payment", void: "Void", payDate: "Payment date", confirm: "Confirm",
     note: "Receipts in the cash flow come from paid invoices, on the day they were paid.",
+  }, ur: {
+    title: "Client invoices", number: "Number", date: "Date", client: "Client", total: "Total", status: "Status", paidOn: "Paid on", empty: "No invoices yet.", loading: "Loading…", retry: "Retry",
+    statuses: { draft: "Draft", issued: "Issued", paid: "Paid", void: "Void" } as Record<string, string>, issue: "Issue", pay: "Record payment", void: "Void", payDate: "Payment date", confirm: "Confirm",
+    note: "Receipts in the cash flow come from paid invoices, on the day they were paid.",
   },
 };
 
 export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: { tenantId: string; projectId: string; currency: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const list = trpc.projectInvoices.list.useQuery({ tenantId, projectId });
   const [paying, setPaying] = useState<string | null>(null);
   const [paidOn, setPaidOn] = useState(() => new Date().toISOString().slice(0, 10));

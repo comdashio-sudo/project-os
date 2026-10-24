@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ arabic: false, report: { data: undefined, isLo
 vi.mock("./LabourLoadingCard", () => ({ default: () => null })); // tested on its own
 vi.mock("./CashFlowMonthly", () => ({ default: () => null }));
 vi.mock("./ProjectInvoicesPanel", () => ({ default: () => null }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { project: { useQuery: () => ({ ...state.report, refetch: state.refetch }) }, history: { useQuery: () => state.history }, costBreakdown: { useQuery: () => state.breakdown } } } }));
 afterEach(() => { cleanup(); state.arabic = false; state.report = { data: undefined, isLoading: false, error: null }; state.history = { data: [] }; state.breakdown = { data: undefined, isLoading: false, error: null }; state.refetch.mockReset(); });
 

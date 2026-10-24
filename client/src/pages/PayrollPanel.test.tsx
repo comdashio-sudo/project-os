@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   structureQuery: vi.fn(), detailsQuery: vi.fn(), save: vi.fn(), createRun: vi.fn(), transition: vi.fn(), allocate: vi.fn(), byHours: vi.fn(), adjust: vi.fn(), shares: [] as Array<{ id: string; projectCode: string; wbsCode: string | null; amount: number; source: "manual" | "auto_hours"; hoursBasis: number | null; sharePercent: number | null }>,
 }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized payroll error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {

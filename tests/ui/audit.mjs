@@ -8,8 +8,13 @@
 // Each page record also lists the API procedures the server refused with 403 (`refusals`) and whether the page says so in words
 // (`noPermissionText`). tests/ui/runRoleVisits.mjs runs this once per role and summarises the results.
 //
-//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR; optional ROLE, SCREENSHOTS=0)
+//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR; optional ROLE, SCREENSHOTS=0, AUDIT_LANGUAGE=ar|en|ur)
 //   node tests/ui/audit.mjs
+//
+// AUDIT_LANGUAGE chooses the interface language the audit runs in (default ar). It sets the stored language, the browser locale and the
+// direction expected (Arabic and Urdu right to left, English left to right). In Arabic the English words left on a screen are a hard
+// check; in Urdu the English words are the open fallback (docs/TRANSLATION_REVIEW.md), so they are reported as soft findings; in English
+// the English words are the text, so they are not checked.
 //
 // Playwright is not a project dependency (see scripts/e2e-roles.mjs): PLAYWRIGHT_MODULE_DIR (default /opt/node-tools/node_modules/) and
 // PLAYWRIGHT_CHROMIUM (default /opt/pw-browsers/chromium-1194/chrome-linux/chrome) locate it. Nothing here prints a secret.
@@ -29,6 +34,13 @@ const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1
 // ROLE labels the report (the all-roles visit runs this once per role); SCREENSHOTS=0 skips the JPEGs (the visit's summary does not need them).
 const ROLE = process.env.ROLE ?? "demo-admin";
 const SCREENSHOTS = process.env.SCREENSHOTS !== "0";
+// The interface language of this run: the audit visits every route in one language (the CI screenshot job runs all three).
+const LANGUAGE = process.env.AUDIT_LANGUAGE ?? "ar";
+if (!["ar", "en", "ur"].includes(LANGUAGE)) throw new Error(`AUDIT_LANGUAGE must be ar, en or ur (got ${LANGUAGE})`);
+const LOCALE = { ar: "ar-SA", en: "en-US", ur: "ur-PK" }[LANGUAGE];
+const EXPECTED_DIR = LANGUAGE === "en" ? "ltr" : "rtl";
+// The three language names, as the language switch shows them (each in its own script): hidden from the reading below, as before.
+const LANGUAGE_NAMES = ["العربية", "English", "اردو"];
 if (!TENANT_ID || !PROJECT_ID || !SESSION_FILE) throw new Error("TENANT_ID, PROJECT_ID and SESSION_FILE are required");
 // A page that refuses the role says so in words: the server's no-permission sentence, or a short form of it. A refused page WITHOUT such a
 // sentence leaves a bare error on the screen, which is what the all-roles visit reports. (Heuristic; it reads the page text, nothing else.)
@@ -57,8 +69,8 @@ function note(kind, route, vp, detail) {
 }
 
 async function auditPage(browser, route, vp, token) {
-  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "ar-SA", deviceScaleFactor: 1 });
-  await context.addInitScript(() => { try { window.localStorage.setItem("project-os-language", "ar"); } catch { /* storage blocked */ } });
+  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: LOCALE, deviceScaleFactor: 1 });
+  await context.addInitScript(language => { try { window.localStorage.setItem("project-os-language", language); } catch { /* storage blocked */ } }, LANGUAGE);
   await context.addCookies([{ name: "app_session_id", value: token, url: BASE_URL }]);
   const page = await context.newPage();
   const consoleErrors = [];
@@ -82,11 +94,11 @@ async function auditPage(browser, route, vp, token) {
     await page.goto(new URL(route, BASE_URL).toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
     await page.waitForTimeout(600);
-    const measured = await page.evaluate(([vpMobile, denialSource]) => {
+    const measured = await page.evaluate(([vpMobile, denialSource, names]) => {
       const visible = element => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none"; };
       // The language switcher names the OTHER language ("English" while the page is in Arabic). That is its name, not text the screen is written in,
       // so its label is hidden for the reading below and restored after it.
-      const switchers = [...document.querySelectorAll("button")].filter(button => button.textContent.trim() === "English");
+      const switchers = [...document.querySelectorAll("button")].filter(button => names.includes(button.textContent.trim()));
       const restore = switchers.map(button => [button, button.style.display]);
       switchers.forEach(button => { button.style.display = "none"; });
       const raw = document.body?.innerText ?? "";
@@ -102,7 +114,7 @@ async function auditPage(browser, route, vp, token) {
       // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
       const loading = /جارٍ|جاري/.test(text);
       return { textLength: raw.trim().length, overflow, targets: targets.length, small, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
-    }, [vp.mobile, NO_PERMISSION_TEXT.source]);
+    }, [vp.mobile, NO_PERMISSION_TEXT.source, LANGUAGE_NAMES]);
     let screenshot = null;
     if (SCREENSHOTS) {
       const shot = path.join(OUT_DIR, `${route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "home"}-${vp.name}.jpg`);
@@ -116,9 +128,11 @@ async function auditPage(browser, route, vp, token) {
     if (measured.textLength < 30) note("blank-page", route, vp.name, `text length ${measured.textLength}`);
     if (vp.mobile && measured.overflow > 1) note("horizontal-scroll", route, vp.name, `overflow ${measured.overflow}px`);
     if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, `${measured.small} of ${measured.targets} controls under 44px`);
-    if (measured.dir !== "rtl") note("not-rtl", route, vp.name, `dir=${measured.dir}`);
+    if (measured.dir !== EXPECTED_DIR) note("not-rtl", route, vp.name, `dir=${measured.dir}, expected ${EXPECTED_DIR} in ${LANGUAGE}`);
     const unexpected = measured.latin.filter(word => !ALLOWED_ENGLISH.has(word));
-    if (unexpected.length) note("english-text", route, vp.name, unexpected.slice(0, 12));
+    // Arabic: English words on the screen are a hard finding. Urdu: they are the open fallback, reported as soft. English: not a finding.
+    if (unexpected.length && LANGUAGE === "ar") note("english-text", route, vp.name, unexpected.slice(0, 12));
+    if (unexpected.length && LANGUAGE === "ur") note("english-text-open-fallback", route, vp.name, unexpected.slice(0, 12));
   } catch (error) {
     note("navigation-failed", route, vp.name, String(error.message ?? error).slice(0, 240));
   } finally {
@@ -139,7 +153,7 @@ try {
 
 const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
-const report = { role: ROLE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
+const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));
 console.log(JSON.stringify({ routes: ROUTES.length, pages: pages.length, hard: hard.length, soft: soft.length, outDir: OUT_DIR }));
 process.exit(hard.length > 0 ? 1 : 0);

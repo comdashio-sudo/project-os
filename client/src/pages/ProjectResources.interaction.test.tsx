@@ -7,7 +7,7 @@ import { ProjectResources } from "./ProjectResources";
 
 const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn(), allocationMutate: vi.fn() }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized resource error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "SAR" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) }, updateAllocation: { useMutation: () => ({ mutate: state.allocationMutate, isPending: false, error: null }) } } } }));
 

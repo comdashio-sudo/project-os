@@ -11,7 +11,7 @@ vi.mock("@/lib/excelExport", async importOriginal => {
 });
 
 const h = vi.hoisted(() => ({ arabic: false, empty: false }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const months = [
   { month: "2026-09", receipts: 0, outflows: 250, net: -250, cumulative: -250 },
   { month: "2026-10", receipts: 1725, outflows: 400, net: 1325, cumulative: 1075 },

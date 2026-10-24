@@ -3,19 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { operationalRoleProfiles, getOperationalRoleName } from "@/lib/operationalRolePresentation";
 import { ShieldCheck } from "lucide-react";
 import React from "react";
+import { type Language, pickLanguage } from "@/lib/language";
 
 type Role = { code: string; name: string; systemManaged: boolean; permissions: { code: string }[] };
 
-export function OperationalRoleGuide({ roles, isArabic }: { roles: Role[]; isArabic: boolean }) {
+export function OperationalRoleGuide({ roles, isArabic, language = isArabic ? "ar" : "en" }: { roles: Role[]; isArabic: boolean; language?: Language }) {
   const profiles = roles
     .filter(role => role.systemManaged && role.code in operationalRoleProfiles)
     .map(role => ({ role, profile: operationalRoleProfiles[role.code as keyof typeof operationalRoleProfiles][isArabic ? "ar" : "en"] }));
 
   if (!profiles.length) return null;
 
-  const text = isArabic
-    ? { title: "دليل الأدوار الجاهزة", sub: "اختر الدور بحسب المسؤولية، ثم حدد نطاقه. الصلاحيات الحساسة وفصل الواجبات تحمي القرار من التداخل.", focus: "يركز على", boundary: "الحد الفاصل", permissions: "صلاحيات" }
-    : { title: "Ready role guide", sub: "Choose the role by responsibility, then set its scope. Sensitive permissions and separation of duties protect decisions from overlap.", focus: "Focus", boundary: "Boundary", permissions: "Permissions" };
+  const text = pickLanguage(language, { ar: { title: "دليل الأدوار الجاهزة", sub: "اختر الدور بحسب المسؤولية، ثم حدد نطاقه. الصلاحيات الحساسة وفصل الواجبات تحمي القرار من التداخل.", focus: "يركز على", boundary: "الحد الفاصل", permissions: "صلاحيات" }, en: { title: "Ready role guide", sub: "Choose the role by responsibility, then set its scope. Sensitive permissions and separation of duties protect decisions from overlap.", focus: "Focus", boundary: "Boundary", permissions: "Permissions" }, ur: { title: "Ready role guide", sub: "Choose the role by responsibility, then set its scope. Sensitive permissions and separation of duties protect decisions from overlap.", focus: "Focus", boundary: "Boundary", permissions: "Permissions" } });
 
   return (
     <Card className="mt-6 border-[#b7e5dc] bg-[#f5fcfa]">

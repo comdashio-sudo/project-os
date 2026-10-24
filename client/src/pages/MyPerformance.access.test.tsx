@@ -13,7 +13,7 @@ const AR = "يلزم ربط حسابك ببطاقة موظف نشطة لعرض �
 const LINK_REQUIRED = { message: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED", data: { code: "FORBIDDEN", projectError: { code: "PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED", messages: { ar: AR, en: EN } } } };
 
 const state = vi.hoisted(() => ({ isArabic: false, query: {} as unknown, options: undefined as unknown }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav aria-label="navigation" /> }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { performance: {

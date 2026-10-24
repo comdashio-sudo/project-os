@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EosLiabilityCard } from "./EosLiabilityCard";
 
 const state = vi.hoisted(() => ({ arabic: false, canRead: true, query: {} as Record<string, unknown>, enabled: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized payroll error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { employees: { payroll: {
   capabilities: { useQuery: () => ({ data: { canReadSensitivePayroll: state.canRead } }) },

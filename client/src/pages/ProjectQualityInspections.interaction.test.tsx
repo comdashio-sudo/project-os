@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectQualityInspections } from "./ProjectQualityInspections";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized quality error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { qualityInspections: {
   list: { useQuery: () => ({ data: [{ id: "00000000-0000-4000-8000-0000000000f5", inspectionNumber: "QI-001", inspectionType: "hold_point", inspectedAt: new Date("2026-08-19T00:00:00.000Z"), outcome: "pass", summary: "Existing hold-point inspection summary.", status: "draft" }], refetch: vi.fn(), error: null, isLoading: false }) },

@@ -8,7 +8,7 @@ import MyPerformance from "./MyPerformance";
 // A refusal keeps its own test in MyPerformance.access.test.tsx.
 const state = vi.hoisted(() => ({ query: {} as unknown }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav aria-label="navigation" /> }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { performance: {

@@ -21,7 +21,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/lib/pdfExport", () => ({ exportElementToPdf: vi.fn(async () => "x.pdf") }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 
 const h = vi.hoisted(() => {
   const options = { zones: ["Z1", "Z2"], blocks: ["B1"], groups: ["CIV"], stages: ["INT"], activities: ["WALLS"] };

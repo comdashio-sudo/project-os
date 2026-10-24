@@ -6,7 +6,7 @@ import { ProjectEmployees } from "./ProjectEmployees";
 
 const state = vi.hoisted(() => ({ identityQuery: vi.fn(), create: vi.fn(), archive: vi.fn(), createContract: vi.fn() }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized employee error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { employees: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", jobTitle: "Planner", department: "Planning", hireDate: new Date("2026-08-01"), employmentStatus: "active", nationality: "Saudi", retentionPolicy: "standard", archivedAt: null }], refetch: vi.fn() }) }, identity: { useQuery: (...args: unknown[]) => { state.identityQuery(...args); return { data: { id: "employee-1", identityDocumentType: "National ID", identityReference: "ID-REDACTED-001" }, error: null }; } }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) }, archive: { useMutation: () => ({ mutate: state.archive, isPending: false, error: null }) }, contracts: { list: { useQuery: () => ({ data: [], error: null, refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.createContract, isPending: false, error: null }) } } } } }));
 

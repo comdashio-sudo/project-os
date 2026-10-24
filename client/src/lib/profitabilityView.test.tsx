@@ -42,7 +42,7 @@ describe("profitability view helpers", () => {
 describe("sourceRoute (G-023)", () => {
   it("leads each kind of cost source to the screen that holds the document, in both languages", async () => {
     const { sourceRoute } = await import("./profitabilityView");
-    expect(sourceRoute("goods_receipt_note", "t", "p")).toEqual({ href: "/projects/t/p/controls#manager-commercial", label: { ar: "إيصال استلام", en: "Goods receipt" } });
+    expect(sourceRoute("goods_receipt_note", "t", "p")).toEqual({ href: "/projects/t/p/controls#manager-commercial", label: { ar: "إيصال استلام", en: "Goods receipt", ur: "Goods receipt" } });
     expect(sourceRoute("purchase_order", "t", "p")?.href).toBe("/projects/t/p/controls#manager-commercial");
     expect(sourceRoute("material_issue", "t", "p")?.href).toBe("/projects/t/p/controls#manager-site");
     expect(sourceRoute("time_entry", "t", "p")?.href).toBe("/projects/t/p/controls#manager-site");

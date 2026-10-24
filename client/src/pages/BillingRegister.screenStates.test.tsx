@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
 const mutation = vi.hoisted(() => () => ({ mutate: vi.fn(), isPending: false, error: null }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ licensing: { tenantLicense: { invalidate: vi.fn() } } }),
   licensing: { tenantLicense: { useQuery: () => state.license } },

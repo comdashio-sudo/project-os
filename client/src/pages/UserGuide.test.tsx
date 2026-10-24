@@ -8,7 +8,7 @@ import { userGuide } from "@/lib/userGuide";
 
 const hoisted = vi.hoisted(() => ({ state: { arabic: true } }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useParams: () => ({ tenantId: "t1", projectId: "p1" }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: hoisted.state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: hoisted.state.arabic, language: (hoisted.state.arabic) ? "ar" : "en", isRtl: hoisted.state.arabic }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
 
 describe("UserGuide", () => {

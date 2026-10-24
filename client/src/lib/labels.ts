@@ -1,3 +1,5 @@
+import type { Language } from "./language";
+
 // The Arabic names for the codes the database stores in English (statuses, stages, movement types, roles, permissions, products). A screen
 // that prints a code straight from a row shows an Arabic reader "posted" or "TENANT_OWNER"; it prints `enumLabel(...)` instead. A code that has
 // no entry falls back to its own words (never a blank), and labels.test.ts checks that every value of every enum in the schema has one.
@@ -30,18 +32,78 @@ const STATUS_AR: Record<string, string> = {
   action: "إجراء", activity: "نشاط", decision: "قرار", field_report: "تقرير ميداني", material_request: "طلب مواد", ncr: "عدم مطابقة", quality_inspection: "فحص جودة", rfi: "طلب معلومات", risk: "مخاطرة",
 };
 
+// Urdu labels. Every key of the Arabic map has an Urdu label too (labels.test.tsx checks it), so Urdu never falls back to an English code.
+const STATUS_UR: Record<string, string> = {
+  "active": "فعال", "inactive": "غیر فعال", "suspended": "معطل", "archived": "محفوظ شدہ",
+  "invited": "مدعو", "revoked": "منسوخ", "ended": "ختم شدہ", "terminated": "ختم کیا گیا",
+  "draft": "مسودہ", "submitted": "جمع کرایا گیا", "under_review": "زیرِ جائزہ", "for_review": "جائزے کے لیے",
+  "reviewed": "جائزہ لیا گیا", "review": "جائزہ", "approved": "منظور شدہ", "rejected": "مسترد",
+  "accepted": "قبول شدہ", "answered": "جواب دیا گیا", "resolved": "حل شدہ", "closed": "بند",
+  "cancelled": "منسوخ", "canceled": "منسوخ", "completed": "مکمل", "complete": "مکمل",
+  "done": "ہو گیا", "started": "شروع ہوا", "blocked": "رکا ہوا", "in_progress": "جاری",
+  "not_started": "شروع نہیں ہوا", "open": "کھلا", "assigned": "تفویض کیا گیا", "remediation": "اصلاح جاری",
+  "verification": "تصدیق جاری", "corrective_action": "اصلاحی اقدام", "under_investigation": "تحقیقات جاری", "waiting_customer": "گاہک کے جواب کا منتظر",
+  "pending": "زیرِ التوا", "sent": "بھیجا گیا", "failed": "ناکام", "skipped": "چھوڑ دیا گیا",
+  "confirmed": "تصدیق شدہ", "refunded": "واپس کیا گیا", "refund": "واپسی", "void": "کالعدم",
+  "issued": "جاری شدہ", "paid": "ادا شدہ", "partially_issued": "جزوی طور پر جاری", "received": "موصول",
+  "requested": "درخواست کردہ", "released": "جاری کیا گیا", "committed": "وعدہ شدہ", "superseded": "نئے ورژن نے بدل دیا",
+  "published": "شائع شدہ", "trialing": "آزمائشی", "past_due": "ادائیگی میں تاخیر", "grace_period": "مہلت کی مدت",
+  "expired": "مدت ختم", "posted": "درج شدہ", "planned": "منصوبہ بند", "on_hold": "روکا ہوا",
+  "hold": "روکا ہوا", "withdrawn": "واپس لیا گیا", "implemented": "نافذ شدہ", "mitigating": "کم کیا جا رہا ہے",
+  "importing": "درآمد جاری", "analyzing": "تجزیہ جاری", "validated": "تصدیق ہو گئی", "uploaded": "اپ لوڈ شدہ",
+  "created": "بنایا گیا", "updated": "اپ ڈیٹ ہوا", "escalated": "اوپر بھیجا گیا", "pass": "مطابق",
+  "fail": "غیر مطابق", "conditional": "شرائط کے ساتھ مطابق", "awarded": "ٹھیکہ دیا گیا", "declined": "معذرت",
+  "disqualified": "نااہل", "scope_gap": "دائرۂ کار میں خلا", "exclusion": "استثنا", "correction": "درستگی",
+  "discount": "رعایت", "registered": "رجسٹر شدہ", "responded": "جواب دیا گیا", "acknowledged": "وصولی کی تصدیق",
+  "replied": "جواب دیا گیا", "minor": "معمولی", "major": "بڑا", "architectural": "تعمیراتی",
+  "interior": "اندرونی ڈیزائن", "landscape": "لینڈ سکیپ", "structural": "ساختی", "civil": "سول",
+  "mechanical": "میکانیکل", "electrical": "برقی", "plumbing": "پلمبنگ", "fire_fighting": "فائر فائٹنگ",
+  "other": "دیگر", "outgoing": "روانہ", "incoming": "موصول", "absent": "غیر حاضر",
+  "present": "حاضر", "leave": "رخصت", "error": "خرابی", "warning": "انتباہ",
+  "none": "کوئی نہیں", "opportunity": "موقع", "pre_award": "ٹھیکہ دینے سے پہلے", "tender": "ٹینڈر",
+  "award": "ٹھیکہ", "mobilization": "متحرک کرنا اور سائٹ کی تیاری", "planning": "منصوبہ بندی", "design": "ڈیزائن",
+  "procurement": "خریداری", "execution": "عمل درآمد", "commissioning": "کمیشننگ اور آزمائشی آپریشن", "handover": "حوالگی",
+  "closeout": "اختتام", "post_project_review": "پروجیکٹ کے بعد کا جائزہ", "receipt": "وصولی", "issue": "اجرا",
+  "adjustment": "ایڈجسٹمنٹ", "transfer": "منتقلی", "warehouse_stock": "گودام کو", "direct_to_site": "براہِ راست سائٹ پر سپلائی",
+  "green": "درست", "amber": "توجہ درکار", "red": "خطرناک", "critical": "خطرناک",
+  "high": "بلند", "medium": "درمیانہ", "low": "کم", "urgent": "فوری",
+  "normal": "معمول", "not_assessed": "جانچا نہیں گیا", "secondment": "عارضی تبادلہ", "action": "اقدام",
+  "activity": "سرگرمی", "decision": "فیصلہ", "field_report": "فیلڈ رپورٹ", "material_request": "مواد کی درخواست",
+  "ncr": "عدم مطابقت (NCR)", "quality_inspection": "معیار کا معائنہ", "rfi": "معلومات کی درخواست (RFI)", "risk": "خطرہ",
+};
+const PERMISSION_UR: Record<string, string> = {
+  "executive.read": "سینئر انتظامیہ کا ڈیش بورڈ", "pmo.read": "پی ایم او ڈیش بورڈ دیکھیں (2)", "pmo.write": "پی ایم او ڈیش بورڈ میں ترمیم", "project.read": "پروجیکٹ دیکھیں (3)",
+  "project.design.manage": "ڈیزائن رجسٹر، حوالہ جات، ڈیزائن نوٹس اور جمع کرائی گئی دستاویزات کا انتظام", "project.design.architectural": "تعمیراتی شعبوں کا اختیار (فن تعمیر، اندرونی ڈیزائن، لینڈ سکیپ)", "project.design.technical": "تکنیکی شعبوں کا اختیار (ساختی، سول، میکانیکل، برقی، پلمبنگ، فائر فائٹنگ)", "project.design.approve": "عمل درآمد کے لیے ڈیزائن کی منظوری اور مشیر کے جوابات درج کرنا",
+  "project.tender.manage": "ٹینڈر پیکیج اور دعوت نامے منظم کریں", "project.tender.bids": "بولیاں درج کرنا اور ان میں ترمیم", "project.tender.level": "بولیوں کا موازنہ اور ہم وار کرنا", "project.tender.award": "ٹینڈر کا ٹھیکہ دینا",
+  "project.create": "پروجیکٹ بنانا", "payment.prepare": "ادائیگیاں تیار کرنا", "payment.approve": "ادائیگیوں کی منظوری", "schedule.write": "شیڈول اور ماسٹر پلان لکھنا",
+  "project.write": "پروجیکٹ کا ڈیٹا تبدیل کرنا", "project.manage": "پروجیکٹ کا انتظام", "tenant.manage": "کمپنی کا انتظام", "project.attendance.manage": "حاضری کا انتظام",
+  "project.budget.manage": "بجٹ کا انتظام", "project.cashflow.read": "کیش فلو دیکھنا", "project.commitment.manage": "وعدوں کا انتظام", "project.cost.enter": "اصل لاگت درج کرنا",
+  "project.evm.manage": "اکتسابی قدر (EVM) کا انتظام", "project.field.manage": "فیلڈ ڈیٹا انٹری کا انتظام", "project.hr.manage": "ملازمین کا انتظام", "project.hr.sensitive.read": "ملازمین کا حساس ڈیٹا پڑھنا",
+  "project.hse.manage": "صحت، حفاظت اور ماحول کا انتظام", "project.inventory.manage": "اسٹاک کا انتظام", "project.invoice.match": "انوائسز کا ملان", "project.material.request": "مواد کی درخواست",
+  "project.ncr.manage": "عدم مطابقت کے معاملات کا انتظام", "project.payroll.approve": "تنخواہوں کی منظوری", "project.payroll.run": "تنخواہوں کا عمل چلانا", "project.payroll.sensitive.read": "حساس تنخواہیں پڑھنا",
+  "project.payroll.structure": "تنخواہوں کے ڈھانچے طے کرنا", "project.performance.manage": "کارکردگی کے اشاریوں کا انتظام", "project.performance.read_own": "اپنے کارکردگی کے اشاریے پڑھنا", "project.pmc.manage": "پروجیکٹ کنٹرول (PMC) کا انتظام",
+  "project.pmc.read": "پروجیکٹ کنٹرول (PMC) دیکھنا", "project.pmc.update": "پروجیکٹ کنٹرول (PMC) کی تازہ کاری", "project.procurement.manage": "خریداری کا انتظام", "project.progress.manage": "کام کی پیش رفت کا انتظام",
+  "project.quality.manage": "معیار کا انتظام", "project.rfi.manage": "معلومات کی درخواستوں کا انتظام", "project.schedule.manage": "شیڈول کا انتظام", "project.settings.labour": "مزدوری کی لاگت کی ترتیبات",
+  "project.wbs.manage": "ورک بریک ڈاؤن اسٹرکچر (WBS) کا انتظام",
+};
+const PRODUCT_UR: Record<string, string> = {
+  "EXECUTIVE": "انتظامی سطح", "PMO": "پروجیکٹ مینجمنٹ آفس", "PROJECT": "پروجیکٹ مینجمنٹ",
+};
 const humanize = (code: string) => code.replace(/[_-]+/g, " ").trim();
 
 /** The label of a status, stage or type code, in the page's language. A code with no entry shows its own words, never nothing. */
-export function enumLabel(code: string | null | undefined, isArabic: boolean): string {
+export function enumLabel(code: string | null | undefined, language: Language): string {
   if (code === null || code === undefined || code === "") return "—";
   const key = String(code).trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (isArabic && key in STATUS_AR) return STATUS_AR[key];
+  if (language === "ar" && key in STATUS_AR) return STATUS_AR[key];
+  if (language === "ur" && key in STATUS_UR) return STATUS_UR[key];
   return humanize(String(code));
 }
 
 /** True when a code has an Arabic label (used by the test that every schema enum value is covered). */
 export const hasArabicLabel = (code: string) => code.trim().toLowerCase().replace(/[\s-]+/g, "_") in STATUS_AR;
+/** True when a code has an Urdu label (the test that every schema enum value is covered, in Urdu too). */
+export const hasUrduLabel = (code: string) => code.trim().toLowerCase().replace(/[\s-]+/g, "_") in STATUS_UR;
 
 const PERMISSION_AR: Record<string, string> = {
   "executive.read": "لوحة الإدارة العليا", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
@@ -58,16 +120,17 @@ const PERMISSION_AR: Record<string, string> = {
   "project.wbs.manage": "إدارة هيكل تجزئة العمل (WBS)",
 };
 /** A permission's name in the page's language. The raw code is never its text: a screen keeps it in a title attribute (the administrator can still search it). */
-export const permissionLabel = (code: string, fallbackName: string, isArabic: boolean) => (isArabic && PERMISSION_AR[code]) || fallbackName || code;
+export const permissionLabel = (code: string, fallbackName: string, language: Language) => (language === "ar" && PERMISSION_AR[code]) || (language === "ur" && PERMISSION_UR[code]) || fallbackName || code;
 export const hasArabicPermission = (code: string) => code in PERMISSION_AR;
+export const hasUrduPermission = (code: string) => code in PERMISSION_UR;
 
 /** One line of meaning under a permission's name, for the two permissions whose scope the owner has defined. Arabic and English, as the owner worded them. */
-const PERMISSION_NOTE: Record<string, { ar: string; en: string }> = {
-  "tenant.manage": { ar: "المستخدمون والإعدادات والاشتراك في الشركة. لمدير النظام في الشركة فقط.", en: "The company's users, settings and subscription. For the company's system administrator only." },
-  "executive.read": { ar: "للاطلاع فقط. للمدير العام ولرئيس إدارة المشاريع.", en: "View only. For the general manager and the head of project management." },
+const PERMISSION_NOTE: Record<string, { ar: string; en: string; ur: string }> = {
+  "tenant.manage": { ar: "المستخدمون والإعدادات والاشتراك في الشركة. لمدير النظام في الشركة فقط.", ur: "کمپنی کے صارفین، ترتیبات اور سبسکرپشن۔ صرف کمپنی کے ایڈمن کے لیے۔", en: "The company's users, settings and subscription. For the company's system administrator only." },
+  "executive.read": { ar: "للاطلاع فقط. للمدير العام ولرئيس إدارة المشاريع.", ur: "صرف دیکھنے کے لیے۔ جنرل مینیجر اور پروجیکٹ مینجمنٹ کے سربراہ کے لیے۔", en: "View only. For the general manager and the head of project management." },
 };
 /** The meaning of a permission whose scope is defined here, or undefined for every other permission. */
-export const permissionNote = (code: string, isArabic: boolean) => PERMISSION_NOTE[code]?.[isArabic ? "ar" : "en"];
+export const permissionNote = (code: string, language: Language) => PERMISSION_NOTE[code]?.[language];
 
 const PRODUCT_AR: Record<string, string> = { EXECUTIVE: "المستوى التنفيذي", PMO: "مكتب إدارة المشاريع", PROJECT: "إدارة المشروع" };
-export const productLabel = (code: string, isArabic: boolean) => (isArabic && PRODUCT_AR[code]) || code;
+export const productLabel = (code: string, language: Language) => (language === "ar" && PRODUCT_AR[code]) || (language === "ur" && PRODUCT_UR[code]) || code;

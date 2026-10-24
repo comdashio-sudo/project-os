@@ -7,7 +7,7 @@ import { ProjectWorkforce } from "./ProjectWorkforce";
 const state = vi.hoisted(() => ({ isArabic: false, attendanceTransition: vi.fn(), timeTransition: vi.fn(), excludePerformance: vi.fn(), objectionTransition: vi.fn() }));
 const query = (data: unknown) => ({ data, error: null, isLoading: false, refetch: vi.fn() });
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized workforce error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {

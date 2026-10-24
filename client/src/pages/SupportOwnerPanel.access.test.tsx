@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({ permission: { data: undefined as unknown, erro
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const TICKET = { id: "22222222-2222-4222-8222-222222222222", subject: "Example ticket", ownerUserId: null, status: "open", escalationStatus: "none", tagsJson: "[]" };
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/SectionResilience", () => ({ SourceNotice: () => null }));
 vi.mock("@/lib/trpc", () => {
   const query = (data: unknown) => ({ data, error: null, isLoading: false, refetch: vi.fn() });

@@ -7,15 +7,16 @@ import { trpc } from "@/lib/trpc";
 import { TrendingUp } from "lucide-react";
 import React from "react";
 import { Link } from "wouter";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: { title: "ربحية المشاريع", note: "المشاريع الخاسرة أو المتجهة للخسارة أولًا. الحركة منذ آخر لقطة شهرية.", project: "المشروع", fpac: "الربح المتوقع (FPAC)", movement: "الحركة", total: "إجمالي الربح المتوقع", loading: "جارٍ احتساب الربحية…", empty: "لا مشاريع نشطة ضمن نطاقك.", mixed: "مشاريع بعملات مختلفة: لا يُعرض إجمالي واحد.", unavailable: "مشاريع تعذر احتسابها", none: "لا لقطة سابقة", open: "فتح" },
-  en: { title: "Project profitability", note: "Losing or loss-bound projects first. Movement is since the last monthly snapshot.", project: "Project", fpac: "Forecast profit (FPAC)", movement: "Movement", total: "Total forecast profit", loading: "Calculating profitability…", empty: "No active projects in your scope.", mixed: "Projects use different currencies: no single total is shown.", unavailable: "Projects that could not be calculated", none: "No earlier snapshot", open: "Open" },
+  en: { title: "Project profitability", note: "Losing or loss-bound projects first. Movement is since the last monthly snapshot.", project: "Project", fpac: "Forecast profit (FPAC)", movement: "Movement", total: "Total forecast profit", loading: "Calculating profitability…", empty: "No active projects in your scope.", mixed: "Projects use different currencies: no single total is shown.", unavailable: "Projects that could not be calculated", none: "No earlier snapshot", open: "Open" }, ur: { title: "Project profitability", note: "Losing or loss-bound projects first. Movement is since the last monthly snapshot.", project: "Project", fpac: "Forecast profit (FPAC)", movement: "Movement", total: "Total forecast profit", loading: "Calculating profitability…", empty: "No active projects in your scope.", mixed: "Projects use different currencies: no single total is shown.", unavailable: "Projects that could not be calculated", none: "No earlier snapshot", open: "Open" },
 };
 
 export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const query = trpc.profitability.portfolio.useQuery({ tenantId });
   const projects = query.data?.projects ?? [];
   // The "Open" link column is navigation, not data, so it is not exported.

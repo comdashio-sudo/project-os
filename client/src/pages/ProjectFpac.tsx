@@ -12,6 +12,7 @@ import CashFlowMonthly from "./CashFlowMonthly";
 import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
 import { SourceNotice } from "@/components/SectionResilience";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -45,6 +46,21 @@ const text = {
     empty: "Not enough data yet: add a budget, progress and actual cost for profitability to appear.",
     rows: { originalContract: ["Original contract value", "project contract value field"], approvedChanges: ["+ Approved change orders", "sum of approved change requests only"], adjustedContract: ["= Adjusted contract value", "original + approved"], eac: ["Estimate at completion (EAC)", "earned-value engine"], fpac: ["= FPAC", "adjusted contract − EAC"], margin: ["Profit margin %", "FPAC ÷ adjusted contract"], plannedProfit: ["Planned profit", "original contract − budget (BAC)"], profitVariance: ["Profit variance", "FPAC − planned profit"] } as Record<string, [string, string]>,
     sources: { project: "Project", changeOrders: "Change requests", computed: "Computed", operationalRecords: "Cost and progress records" } as Record<string, string>,
+  }, ur: {
+    title: "Project profitability", subtitle: "The answer today: is this project making money?", loading: "Calculating profitability…", retry: "Retry",
+    fpac: "Forecast profit at completion (FPAC)", margin: "Profit margin", loss: "This project is heading for a loss", plannedProfit: "Profit originally planned", variance: "Profit variance",
+    figure: "Figure", value: "Value", formula: "Formula", source: "Source", asOf: "As of",
+    movement: "Movement since the last snapshot", since: "since", delta: "Change", causes: "Why it moved (the three add up to the whole change)", contractValue: "Contract value (change orders)", actualCost: "Actual cost", forecastToComplete: "Forecast cost to complete",
+    raised: "Items that raised profit", lowered: "Items that lowered profit", trend: "FPAC across snapshots",
+    cash: "Profit is not cash", openCommitment: "Open commitment", receipts: "Receipts", outflows: "Outflows", netCash: "Net cash flow", cashWarning: "Profit is positive but net cash flow is negative: the project earns on paper and consumes liquidity.",
+    confidence: "Confidence in the number", staleWarning: (age: number, source: string) => `This number rests on ${source} last updated ${age} days ago`, neverWarning: (source: string) => `This number has no ${source} behind it: nothing has been recorded yet`, dominant: "● largest cause", percentWbs: (n: number) => `${n}% of items updated within 7 days`, openSource: "Open the stalest source",
+    progress: "progress", materials: "materials", labour: "labour", unknownFreshness: "There is not enough data to judge how fresh the number is.",
+    drill: "Top 5 WBS items by variance", item: "Item", planned: "Planned", actual: "Actual", committed: "Committed (open)", whole: "Whole project", forecast: "Forecast", gap: "Variance", unallocated: "Actual cost not allocated to any item", reconciliation: "Reconciliation difference between items and project",
+    breakdown: "Where the actual cost came from", category: "Category", materialsC: "Materials", labourC: "Labour", subcontractC: "Subcontract", otherC: "Other", sourceDoc: "Source document", noBreakdown: "No actual cost entries for this item.", open: "Show sources",
+    unavailable: "Unavailable", reasons: { NO_PREVIOUS_SNAPSHOT: "There is no earlier snapshot to compare with yet. One is saved automatically every month.", EVM_INPUTS_INCONSISTENT: "Cost and progress inputs are inconsistent; review the budget and progress.", EVM_UNAVAILABLE: "Earned value could not be calculated for this project.", CASH_SOURCES_UNAVAILABLE: "Purchase orders or receipts could not be read.", WBS_UNAVAILABLE: "The item breakdown could not be produced." } as Record<string, string>,
+    empty: "Not enough data yet: add a budget, progress and actual cost for profitability to appear.",
+    rows: { originalContract: ["Original contract value", "project contract value field"], approvedChanges: ["+ Approved change orders", "sum of approved change requests only"], adjustedContract: ["= Adjusted contract value", "original + approved"], eac: ["Estimate at completion (EAC)", "earned-value engine"], fpac: ["= FPAC", "adjusted contract − EAC"], margin: ["Profit margin %", "FPAC ÷ adjusted contract"], plannedProfit: ["Planned profit", "original contract − budget (BAC)"], profitVariance: ["Profit variance", "FPAC − planned profit"] } as Record<string, [string, string]>,
+    sources: { project: "Project", changeOrders: "Change requests", computed: "Computed", operationalRecords: "Cost and progress records" } as Record<string, string>,
   },
 };
 
@@ -56,8 +72,8 @@ function Unavailable({ reason, t }: { reason: string; t: T }) {
 }
 
 export function ProjectFpac({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const report = trpc.profitability.project.useQuery({ tenantId, projectId });
   const history = trpc.profitability.history.useQuery({ tenantId, projectId });
   const [openItem, setOpenItem] = useState<string | null>(null);
@@ -215,7 +231,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                         {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-slate-500">{t.noBreakdown}</p> : (
                           <>
                             <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-white px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
-                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (isArabic ? route.label.ar : route.label.en) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-[#0e6b70] underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
+                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (pickLanguage(language, route.label)) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-[#0e6b70] underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
                           </>
                         ))}
                       </td></tr>
@@ -229,7 +245,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
-      <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost" } }}>
+      <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow", ur: "Monthly cash flow" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices", ur: "Project invoices" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost", ur: "Loaded labour cost" } }}>
         <CashFlowMonthly tenantId={tenantId} projectId={projectId} currency={currency} />
         <ProjectInvoicesPanel tenantId={tenantId} projectId={projectId} currency={currency} />
         <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />

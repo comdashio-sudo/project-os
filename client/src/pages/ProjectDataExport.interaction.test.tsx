@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectDataExport } from "./ProjectDataExport";
 
 const state = vi.hoisted(() => ({ mutate: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized export error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { dataImports: { export: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: null, data: null }) } } } }));
 

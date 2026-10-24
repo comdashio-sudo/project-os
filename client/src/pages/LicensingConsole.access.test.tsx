@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user, loading: state.authLoading }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true, language: (true) ? "ar" : "en", isRtl: true }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ licensing: { tenantLicense: { invalidate: vi.fn() }, catalog: { invalidate: vi.fn() } } }),

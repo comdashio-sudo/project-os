@@ -4,6 +4,8 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
+import { pickLanguage } from "@/lib/language";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 // Issue material to a unit's activity from the phone, in four steps: find the material (type, or scan its QR), say how much, say which unit and
 // which activity, save. The screen keeps the warehouse, the unit and the activity of the last issue, so the next one is find → quantity → save.
@@ -24,7 +26,12 @@ const text = {
     quantity: "Quantity", unit: "Unit number", activity: "Activity", warehouse: "Warehouse", save: "Save issue", saving: "Saving…", onHand: "On hand", noResults: "No material by that name",
     unitUnknown: "No unit with that number in this project", pickActivity: "Pick the activity", more: "Issue another", saved: "Issued", cost: "Cost charged", tooMuch: "More than is on the shelf",
     noActivities: "No activity in this project is linked to a WBS item, so no cost can be charged.", loading: "Loading…", retry: "Retry", notAllowed: "Your role does not allow issuing from the warehouse.", model: "Model",
-  },
+  }, ur: {
+    title: "فوری اجرا: یونٹ کو", back: "فوری اندراج پر واپس", find: "کوڈ یا نام سے تلاش کریں", scan: "QR اسکین کریں", scanning: "کیمرا مادّے کے لیبل کی طرف کریں", scanFailed: "لیبل پڑھا نہیں جا سکا، کوڈ لکھیں",
+    quantity: "مقدار", unit: "یونٹ نمبر", activity: "سرگرمی", warehouse: "گودام", save: "اجرا محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", onHand: "دستیاب", noResults: "اس نام کا کوئی مادّہ نہیں",
+    unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں", pickActivity: "سرگرمی منتخب کریں", more: "ایک اور اجرا", saved: "اجرا ہو گیا", cost: "منتقل شدہ لاگت", tooMuch: "مقدار دستیاب سے زیادہ ہے",
+    noActivities: "اس پروجیکٹ میں کوئی سرگرمی WBS آئٹم سے منسلک نہیں، اس لیے لاگت منتقل نہیں ہو سکتی۔", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں", notAllowed: "آپ کا کردار گودام سے اجرا کی اجازت نہیں دیتا۔", model: "ماڈل",
+},
 };
 
 type Barcode = { rawValue: string };
@@ -57,8 +64,8 @@ function Scanner({ onCode, onFail, label }: { onCode: (code: string) => void; on
 
 export default function QuickIssue() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, isRtl, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const options = trpc.warehouses.cellOptions.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), networkMode: "always", retry: 1 });
   const key = (name: string) => `quickIssue:${projectId}:${name}`;
   const [warehouseId, setWarehouseId] = useState("");
@@ -95,7 +102,8 @@ export default function QuickIssue() {
   const again = () => { setDone(null); setPicked(null); setQuery(""); setQuantity("1"); };
 
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
+    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/m/${tenantId}/${projectId}`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>

@@ -7,19 +7,19 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { Download, ShieldAlert } from "lucide-react";
 import React, { useState } from "react";
+import { pickLanguage } from "@/lib/language";
 
 // The owner's two rights over the company's data: take a copy of everything, and erase everything for good. Deleting takes two separate
 // confirmations (ask, then type the company's exact name and tick the box), and only after a copy has been downloaded in the last 7 days.
 // Anyone who is not the owner never sees this card: the server refuses the preview, and a refused preview renders nothing.
 export function TenantDataCard({ tenantId }: { tenantId: string }) {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const preview = trpc.tenantData.preview.useQuery({ tenantId }, { retry: false, refetchOnWindowFocus: true });
   const request = trpc.tenantData.requestDeletion.useMutation();
   const confirm = trpc.tenantData.confirmDeletion.useMutation();
   const [typedName, setTypedName] = useState("");
   const [understood, setUnderstood] = useState(false);
-  const t = isArabic
-    ? {
+  const t = pickLanguage(language, { ar: {
         title: "بيانات الشركة: نسخة كاملة وحذف نهائي", note: "لمالك الشركة وحده. التصدير ملف واحد يضم كل ما تملكه الشركة؛ والحذف يمحو كل شيء نهائيًا ولا يمكن التراجع عنه.",
         loading: "جارٍ قراءة حجم بياناتك…", size: (rows: number, tables: number, files: number) => `تملك شركتك ${rows} سجلًا في ${tables} جدولًا و${files} ملفًا مخزّنًا.`,
         download: "تنزيل نسخة كاملة من بيانات الشركة", downloadNote: "ملف مضغوط (NDJSON) واحد. بعد انتهاء التنزيل اضغط «تحديث» ليُحتسب.", refresh: "تحديث",
@@ -32,8 +32,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         done: "اكتمل الحذف", pass: "التحقق: نجح — لا سجل واحد متبقٍّ في أي جدول.", fail: "التحقق: لم يكتمل — بقيت عناصر مذكورة أدناه. أعد المحاولة أو راسل الدعم.",
         report: (deleted: number, tables: number) => `حُذف ${deleted} سجلًا بعد فحص ${tables} جدولًا.`, files: (deleted: number, found: number) => `الملفات المحذوفة: ${deleted} من ${found}.`,
         leftover: "الملفات التي لم تُحذف:", home: "العودة إلى الصفحة الرئيسية",
-      }
-    : {
+      }, en: {
         title: "Company data: full copy and permanent deletion", note: "For the company owner only. The export is one file with everything the company owns; deletion erases everything for good and cannot be undone.",
         loading: "Reading the size of your data…", size: (rows: number, tables: number, files: number) => `Your company owns ${rows} records in ${tables} tables and ${files} stored files.`,
         download: "Download a full copy of the company's data", downloadNote: "One compressed (NDJSON) file. When the download finishes press Refresh so it counts.", refresh: "Refresh",
@@ -46,7 +45,20 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         done: "Deletion finished", pass: "Verification: passed — no record is left in any table.", fail: "Verification: incomplete — items remain, listed below. Try again or contact support.",
         report: (deleted: number, tables: number) => `${deleted} records deleted after checking ${tables} tables.`, files: (deleted: number, found: number) => `Files deleted: ${deleted} of ${found}.`,
         leftover: "Files that were not deleted:", home: "Back to the home page",
-      };
+      }, ur: {
+        title: "Company data: full copy and permanent deletion", note: "For the company owner only. The export is one file with everything the company owns; deletion erases everything for good and cannot be undone.",
+        loading: "Reading the size of your data…", size: (rows: number, tables: number, files: number) => `Your company owns ${rows} records in ${tables} tables and ${files} stored files.`,
+        download: "Download a full copy of the company's data", downloadNote: "One compressed (NDJSON) file. When the download finishes press Refresh so it counts.", refresh: "Refresh",
+        lastExport: (at: string) => `Last full export: ${at}`, noExport: "No full export yet.",
+        danger: "Permanent deletion", needExport: "Deletion is available only after a full copy was downloaded in the last 7 days.",
+        ask: "I want to delete the company's data permanently", asking: "Preparing…",
+        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the name and e-mail of ${people} people are erased unless they belong to another company. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
+        typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "Company name", understand: "I understand the deletion is permanent and cannot be undone.",
+        deleteNow: "Delete the company's data permanently", deleting: "Deleting…", expires: "This confirmation expires in 15 minutes.",
+        done: "Deletion finished", pass: "Verification: passed — no record is left in any table.", fail: "Verification: incomplete — items remain, listed below. Try again or contact support.",
+        report: (deleted: number, tables: number) => `${deleted} records deleted after checking ${tables} tables.`, files: (deleted: number, found: number) => `Files deleted: ${deleted} of ${found}.`,
+        leftover: "Files that were not deleted:", home: "Back to the home page",
+      } });
 
   const report = confirm.data;
   // The verdict first: after the erasure the preview query refetches, fails (the company and the caller's membership are gone) and would hide this card before it is read.

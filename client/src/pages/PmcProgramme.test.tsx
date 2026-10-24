@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
   mode: "ok" as "ok" | "loading" | "error" | "empty" | "nobaseline" | "nohistory",
   refetch: vi.fn(),
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const months = [
   { month: "2026-09-01", planned: 30, actual: 10, plannedInMonth: 30, actualInMonth: 10, variance: -20 },
   { month: "2026-10-01", planned: 68, actual: 65, plannedInMonth: 38, actualInMonth: 55, variance: -3 },

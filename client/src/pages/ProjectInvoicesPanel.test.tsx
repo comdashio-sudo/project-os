@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
 
 const h = vi.hoisted(() => ({ arabic: false, empty: false, move: vi.fn(), refetch: vi.fn(), error: null as unknown }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const invoices = [
   { id: "i1", invoiceNumber: "INV-1", invoiceDate: new Date("2026-10-05T00:00:00Z"), clientName: "Client", totalAmount: "1150.00", status: "draft", paidAt: null },
   { id: "i2", invoiceNumber: "INV-2", invoiceDate: new Date("2026-10-06T00:00:00Z"), clientName: "Client", totalAmount: "575.00", status: "issued", paidAt: null },

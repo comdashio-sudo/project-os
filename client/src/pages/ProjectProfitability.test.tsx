@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectProfitability from "./ProjectProfitability";
 const state = vi.hoisted(() => ({ arabic: false }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { projects: { getControlsFinancials: { useQuery: () => ({ data: { budgets: [{ currentAmount: "1000" }], costs: [{ amount: "250" }] }, isLoading: false, error: null }) } }, boq: { list: { useQuery: () => ({ data: [{ quantity: "10", unitRate: "100" }], isLoading: false, error: null }) } }, subcontracts: { list: { useQuery: () => ({ data: [{ contractValue: "400" }], isLoading: false, error: null }) } }, projectInvoices: { list: { useQuery: () => ({ data: [{ amount: "600", vatAmount: "90", totalAmount: "690" }], isLoading: false, error: null }) } }, profitability: { project: { useQuery: () => ({ data: undefined, isLoading: true, error: null, refetch: vi.fn() }) }, history: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, costBreakdown: { useQuery: () => ({ data: undefined, isLoading: false, error: null }) } } } }));
 afterEach(() => { cleanup(); state.arabic = false; });
 describe("ProjectProfitability", () => {

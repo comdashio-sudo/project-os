@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const square = (x: number, y: number) => ({ type: "Polygon", coordinates: [[[x, y], [x + 0.1, y], [x + 0.1, y + 0.1], [x, y + 0.1], [x, y]]] });
 vi.mock("@/lib/trpc", () => ({ trpc: { directUploads: { create: { useMutation: () => ({ mutateAsync: h.directCreate, isPending: false, error: null }) } }, pmc: {
   siteMap: { useQuery: (input: { activityCode?: string }) => {

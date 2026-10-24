@@ -11,7 +11,7 @@ vi.mock("@/lib/excelExport", async importOriginal => {
 });
 const state = vi.hoisted(() => ({ arabic: false, query: {} as Record<string, unknown> }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { portfolio: { useQuery: () => state.query } } } }));
 
 let clickSpy: { mockRestore: () => void };

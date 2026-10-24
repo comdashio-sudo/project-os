@@ -4,12 +4,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
-  const { isArabic } = useLanguage();
+  const { isArabic, isRtl } = useLanguage();
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
-      dir={isArabic ? "rtl" : "ltr"}
+      dir={isRtl ? "rtl" : "ltr"}
       containerAriaLabel={isArabic ? "الإشعارات" : "Notifications"}
       className="toaster group"
       style={
