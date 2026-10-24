@@ -58,7 +58,8 @@ describe("security headers", () => {
       expect(response.headers.get("x-content-type-options"), path).toBe("nosniff");
       expect(response.headers.get("strict-transport-security"), path).toBe("max-age=31536000; includeSubDomains");
       expect(response.headers.get("referrer-policy"), path).toBe("strict-origin-when-cross-origin");
-      expect(response.headers.get("permissions-policy"), path).toContain("camera=()");
+      expect(response.headers.get("permissions-policy"), path).toContain("camera=(self)");
+      expect(response.headers.get("permissions-policy"), path).toContain("microphone=()");
       expect(response.headers.get("cross-origin-opener-policy"), path).toBe("same-origin");
       expect(response.headers.get("x-powered-by"), path).toBeNull();
       const csp = response.headers.get("content-security-policy")!;
