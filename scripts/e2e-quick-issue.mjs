@@ -13,6 +13,7 @@
 //   node --import tsx scripts/e2e-quick-issue.mjs
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { serverDatabaseEnv } from "./lib/serverEnv.mjs";
 import mysql from "../server/testing/pgCompat.ts";
@@ -22,8 +23,14 @@ import { upsertUser } from "../server/db.ts";
 const PORT = Number(process.env.QUICK_ISSUE_PORT ?? 3310);
 const BASE_URL = `http://localhost:${PORT}`;
 const BUDGET_MS = 20_000;
-const KEY_DELAY_MS = 120;
-const THINK_MS = 700;
+// PACE=quick (default, the work-order-12 figure): 120 ms a keystroke, 700 ms before each tap. PACE=ordinary (work order 14): 250 ms a keystroke and 1500 ms
+// before each tap — a person who is reading the screen, not racing it. MODE=camera replaces typing the search with tapping "scan QR" and holding a real
+// QR code (tests/fixtures/camera-qr-cem-1.y4m, an encoded "CEM-1") in front of Chromium's fake camera: the screen's own getUserMedia → <video> → detector
+// loop runs; the detector is a shim around jsQR decoding the actual video frames, because headless Chromium on Linux has no native BarcodeDetector.
+const ORDINARY = process.env.PACE === "ordinary";
+const CAMERA = process.env.MODE === "camera";
+const KEY_DELAY_MS = ORDINARY ? 250 : 120;
+const THINK_MS = ORDINARY ? 1500 : 700;
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
 if (dbUrl.pathname !== "/project_os_integration_test") { console.error("Refusing to run: DATABASE_URL must name project_os_integration_test."); process.exit(2); }
 const { chromium } = createRequire(process.env.PLAYWRIGHT_MODULE_DIR ?? "/opt/node-tools/node_modules/")("playwright");
@@ -83,13 +90,30 @@ const invitation = await trpc(ownerToken, "tenant.createInvitation", { tenantId,
 await trpc(keeperToken, "tenant.acceptInvitation", { inviteToken: invitation.inviteToken });
 
 // ---- the walk
-const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const cameraArgs = CAMERA ? ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", `--use-file-for-fake-video-capture=${new URL("../tests/fixtures/camera-qr-cem-1.y4m", import.meta.url).pathname}`] : [];
+const browser = await chromium.launch({ args: cameraArgs, executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale: "ar-SA" });
+if (CAMERA) {
+  await context.grantPermissions(["camera"], { origin: BASE_URL });
+  const jsqrSource = readFileSync(createRequire(import.meta.url).resolve("jsqr/dist/jsQR.js"), "utf8");
+  await context.addInitScript(`${jsqrSource}
+    window.__scan = { frames: 0, hits: 0 };
+    window.BarcodeDetector = class { constructor() {} async detect(video) {
+      if (!video.videoWidth) return [];
+      const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d"); ctx.drawImage(video, 0, 0);
+      const image = ctx.getImageData(0, 0, canvas.width, canvas.height); window.__scan.frames += 1;
+      const code = window.jsQR(image.data, image.width, image.height);
+      if (code) { window.__scan.hits += 1; return [{ rawValue: code.data }]; }
+      return [];
+    } };`);
+}
 await context.addCookies([{ name: "app_session_id", value: keeperToken, url: BASE_URL }]);
 const page = await context.newPage();
 const errors = []; page.on("pageerror", error => errors.push(String(error.message).slice(0, 160)));
 const think = () => page.waitForTimeout(THINK_MS);
 
+const scans = [];
 async function pass(label, { fresh }) {
   const marks = []; let actions = 0; let waiting = 0;
   const mark = name => marks.push([name, Math.round(performance.now() - started)]);
@@ -98,7 +122,17 @@ async function pass(label, { fresh }) {
   const started = performance.now();
   await page.goto(`${BASE_URL}/m/${tenantId}/${projectId}/issue?lang=ar`, { waitUntil: "load" });
   await await_(() => page.getByLabel("ابحث بالرمز أو الاسم").waitFor({ timeout: 20_000 })); mark("screen ready");
-  await act(() => page.getByLabel("ابحث بالرمز أو الاسم").pressSequentially("cem", { delay: KEY_DELAY_MS }));
+  if (CAMERA) {
+    await act(() => page.getByRole("button", { name: "مسح QR" }).click());
+    try { await await_(() => page.waitForFunction(() => document.querySelector("input")?.value === "CEM-1", null, { timeout: 15_000 })); } catch (error) {
+      console.log("camera diagnostics:", JSON.stringify(await page.evaluate(() => ({ scan: window.__scan, video: (v => v && { w: v.videoWidth, h: v.videoHeight, ready: v.readyState, paused: v.paused })(document.querySelector("video")), input: document.querySelector("input")?.value, alert: document.querySelector("[role=alert]")?.textContent }))));
+      console.log("getUserMedia in the page:", JSON.stringify(await page.evaluate(async () => { try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); return { ok: true, tracks: s.getTracks().length }; } catch (e) { return { ok: false, name: e.name, message: String(e.message).slice(0, 120) }; } })));
+      throw error;
+    }
+    mark("QR read from the camera");
+  } else {
+    await act(() => page.getByLabel("ابحث بالرمز أو الاسم").pressSequentially("cem", { delay: KEY_DELAY_MS }));
+  }
   await await_(() => page.getByText("CEM-1").first().waitFor({ timeout: 10_000 })); mark("result shown");
   await act(() => page.getByText("CEM-1").first().click());
   await act(async () => { await page.getByLabel(/الكمية/).fill(""); await page.getByLabel(/الكمية/).pressSequentially("5", { delay: KEY_DELAY_MS }); });
@@ -111,16 +145,17 @@ async function pass(label, { fresh }) {
   mark("form filled");
   await act(() => page.getByRole("button", { name: "حفظ الصرف" }).click());
   await await_(() => page.getByRole("status").filter({ hasText: "تم الصرف" }).waitFor({ timeout: 10_000 })); mark("confirmed");
+  if (CAMERA) scans.push(await page.evaluate(() => window.__scan));
   const total = Math.round(performance.now() - started);
   return { total, actions, waitingOnApplicationMs: Math.round(waiting), marks };
 }
 
 const first = await pass("first issue", { fresh: true });
-console.log(JSON.stringify({ pass: "first issue (unit and activity typed)", keyDelayMs: KEY_DELAY_MS, thinkMs: THINK_MS, ...first }));
+console.log(JSON.stringify({ mode: CAMERA ? "camera" : "typed", pace: ORDINARY ? "ordinary" : "quick", pass: "first issue (unit and activity typed)", keyDelayMs: KEY_DELAY_MS, thinkMs: THINK_MS, ...first }));
 check(`first issue: confirmed in ${first.total} ms (budget ${BUDGET_MS} ms, ${first.actions} actions)`, first.total < BUDGET_MS, first.total);
 await page.getByRole("button", { name: "صرف آخر" }).click();
 const second = await pass("next issue", { fresh: false });
-console.log(JSON.stringify({ pass: "next issue (unit and activity remembered)", keyDelayMs: KEY_DELAY_MS, thinkMs: THINK_MS, ...second }));
+console.log(JSON.stringify({ mode: CAMERA ? "camera" : "typed", pace: ORDINARY ? "ordinary" : "quick", pass: "next issue (unit and activity remembered)", keyDelayMs: KEY_DELAY_MS, thinkMs: THINK_MS, ...second }));
 check(`next issue: confirmed in ${second.total} ms (budget ${BUDGET_MS} ms, ${second.actions} actions)`, second.total < BUDGET_MS && second.actions < first.actions, second.total);
 
 // ---- screen → database
@@ -128,6 +163,7 @@ const [issues] = await connection.query("SELECT i.issuedQuantity, i.totalCost, i
 check("both issues are in the database, charged to the activity's WBS item at the shelf's average (5 × 22)", issues.length === 2 && issues.every(row => Number(row.issuedQuantity) === 5 && Number(row.totalCost) === 110 && Number(row.amount) === 110 && row.status === "posted" && row.wbsItemId === wbs && row.pmcActivityDefinitionId === walls && row.pmcUnitId === units[11].id), issues.length);
 const [[shelf]] = await connection.query("SELECT SUM(quantityDelta) q FROM warehouse_inventory_transactions WHERE tenantId = ? AND warehouseId = ? AND materialId = ?", [tenantId, warehouse.id, material.id]);
 check("the shelf went from 500 to 490", Number(shelf.q) === 490, shelf.q);
+if (CAMERA) check(`the camera path really ran in both passes (frames decoded / frames that read the QR): ${JSON.stringify(scans)}`, scans.length === 2 && scans.every(scan => scan.hits >= 1), scans);
 check("no page error while walking the screen", errors.length === 0, errors);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 check("the screen does not scroll sideways at 390px", overflow <= 1, overflow);

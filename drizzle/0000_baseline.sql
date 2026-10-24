@@ -30,9 +30,6 @@ CREATE TYPE "public"."design_comments_severity" AS ENUM('minor', 'major', 'criti
 CREATE TYPE "public"."design_comments_status" AS ENUM('open', 'responded', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."design_drawings_discipline" AS ENUM('architectural', 'interior', 'landscape', 'structural', 'civil', 'mechanical', 'electrical', 'plumbing', 'fire_fighting', 'other');--> statement-breakpoint
 CREATE TYPE "public"."design_drawings_status" AS ENUM('registered', 'under_review', 'approved', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."design_submittals_discipline" AS ENUM('architectural', 'interior', 'landscape', 'structural', 'civil', 'mechanical', 'electrical', 'plumbing', 'fire_fighting', 'other');--> statement-breakpoint
-CREATE TYPE "public"."design_submittals_reply_code" AS ENUM('A', 'B', 'C', 'D');--> statement-breakpoint
-CREATE TYPE "public"."design_submittals_status" AS ENUM('draft', 'submitted', 'replied', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."design_transmittals_direction" AS ENUM('outgoing', 'incoming');--> statement-breakpoint
 CREATE TYPE "public"."design_transmittals_status" AS ENUM('draft', 'sent', 'acknowledged');--> statement-breakpoint
 CREATE TYPE "public"."email_notification_preferences_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest');--> statement-breakpoint
@@ -353,10 +350,14 @@ CREATE TABLE "consultant_submittals" (
 	"due_at" timestamp with time zone,
 	"replied_at" timestamp with time zone,
 	"reply_code" varchar(8),
-	"reply_note" varchar(500),
+	"reply_note" text,
 	"pmc_activity_definition_id" varchar(36),
 	"pmc_unit_id" varchar(36),
 	"material_id" varchar(36),
+	"consultant" varchar(160),
+	"discipline" varchar(24),
+	"drawing_id" varchar(36),
+	"resubmission_of_id" varchar(36),
 	"created_by_user_id" integer NOT NULL,
 	"sent_by_user_id" integer,
 	"replied_by_user_id" integer,
@@ -528,27 +529,6 @@ CREATE TABLE "design_drawings" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "design_submittals" (
-	"id" varchar(36) PRIMARY KEY NOT NULL,
-	"tenant_id" varchar(36) NOT NULL,
-	"project_id" varchar(36) NOT NULL,
-	"submittal_number" varchar(120) NOT NULL,
-	"title" varchar(255) NOT NULL,
-	"discipline" "design_submittals_discipline" NOT NULL,
-	"drawing_id" varchar(36),
-	"resubmission_of_id" varchar(36),
-	"status" "design_submittals_status" DEFAULT 'draft' NOT NULL,
-	"submitted_at" timestamp with time zone,
-	"submitted_by_user_id" integer,
-	"due_at" timestamp with time zone,
-	"reply_code" "design_submittals_reply_code",
-	"reply_note" text,
-	"replied_at" timestamp with time zone,
-	"replied_by_user_id" integer,
-	"created_by_user_id" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "design_transmittal_items" (
@@ -1926,6 +1906,7 @@ CREATE TABLE "tenant_policies" (
 	"qc_completion_mode" "tenant_policies_mode" DEFAULT 'warn' NOT NULL,
 	"qc_accepted_codes" varchar(40) DEFAULT 'A,B' NOT NULL,
 	"material_approval_mode" "tenant_policies_mode" DEFAULT 'warn' NOT NULL,
+	"ncr_acceptance_mode" "tenant_policies_mode" DEFAULT 'block' NOT NULL,
 	"updated_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -2163,6 +2144,7 @@ ALTER TABLE "commitments" ADD CONSTRAINT "commitments_project_id_projects_id_fk"
 ALTER TABLE "commitments" ADD CONSTRAINT "commitments_contract_id_contracts_id_fk" FOREIGN KEY ("contract_id") REFERENCES "public"."contracts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_drawing_id_design_drawings_id_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."design_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_sent_by_user_id_users_id_fk" FOREIGN KEY ("sent_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consultant_submittals" ADD CONSTRAINT "consultant_submittals_replied_by_user_id_users_id_fk" FOREIGN KEY ("replied_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2198,12 +2180,6 @@ ALTER TABLE "design_drawing_revisions" ADD CONSTRAINT "design_drawing_revisions_
 ALTER TABLE "design_drawings" ADD CONSTRAINT "design_drawings_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "design_drawings" ADD CONSTRAINT "design_drawings_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "design_drawings" ADD CONSTRAINT "design_drawings_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_drawing_id_design_drawings_id_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."design_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_submitted_by_user_id_users_id_fk" FOREIGN KEY ("submitted_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_replied_by_user_id_users_id_fk" FOREIGN KEY ("replied_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "design_submittals" ADD CONSTRAINT "design_submittals_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "design_transmittal_items" ADD CONSTRAINT "design_transmittal_items_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "design_transmittal_items" ADD CONSTRAINT "design_transmittal_items_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "design_transmittal_items" ADD CONSTRAINT "design_trm_items_transmittal_fk" FOREIGN KEY ("transmittal_id") REFERENCES "public"."design_transmittals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2611,8 +2587,6 @@ CREATE UNIQUE INDEX "design_revisions_drawing_revision_unique" ON "design_drawin
 CREATE INDEX "design_revisions_tenant_project_idx" ON "design_drawing_revisions" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_drawings_project_number_unique" ON "design_drawings" USING btree ("project_id","drawing_number");--> statement-breakpoint
 CREATE INDEX "design_drawings_tenant_project_status_idx" ON "design_drawings" USING btree ("tenant_id","project_id","status","discipline");--> statement-breakpoint
-CREATE UNIQUE INDEX "design_submittals_project_number_unique" ON "design_submittals" USING btree ("project_id","submittal_number");--> statement-breakpoint
-CREATE INDEX "design_submittals_tenant_project_status_idx" ON "design_submittals" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_transmittal_items_unique" ON "design_transmittal_items" USING btree ("transmittal_id","revision_id");--> statement-breakpoint
 CREATE INDEX "design_transmittal_items_revision_idx" ON "design_transmittal_items" USING btree ("revision_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_transmittals_project_number_unique" ON "design_transmittals" USING btree ("project_id","transmittal_number");--> statement-breakpoint
@@ -3020,6 +2994,11 @@ END $$;
 CREATE FUNCTION project_os_cell_qc_accepted(p_unit varchar, p_activity varchar) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT COALESCE((
     SELECT r.response_code::text = ANY (string_to_array(COALESCE((SELECT p.qc_accepted_codes FROM tenant_policies p WHERE p.tenant_id = r.tenant_id), 'A,B'), ','))
+       -- work order 14: while the company's NCR rule is "block" (its default) an open NCR on this unit and activity means the inspection does not count
+       AND NOT (
+         COALESCE((SELECT p.ncr_acceptance_mode::text FROM tenant_policies p WHERE p.tenant_id = r.tenant_id), 'block') = 'block'
+         AND EXISTS (SELECT 1 FROM ncrs n WHERE n.tenant_id = r.tenant_id AND n.pmc_unit_id = p_unit AND n.pmc_activity_definition_id = p_activity AND n.status NOT IN ('closed', 'cancelled'))
+       )
       FROM pmc_inspection_requests r
       JOIN pmc_inspection_request_units u ON u.inspection_request_id = r.id
      WHERE u.unit_id = p_unit AND r.activity_definition_id = p_activity AND r.response_code IS NOT NULL

@@ -26,6 +26,7 @@
     "check:offline-read": "node --import tsx scripts/check-offline-read.mjs",
     "e2e:setup-wizard": "node --import tsx scripts/e2e-setup-wizard.mjs",
     "e2e:quick-issue": "node --import tsx scripts/e2e-quick-issue.mjs",
+    "e2e:quick-issue:camera": "MODE=camera PACE=ordinary node --import tsx scripts/e2e-quick-issue.mjs",
     "capture:guide": "node --import tsx scripts/capture-guide.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed-demo": "node --import tsx scripts/seed-demo-tenant.mjs"
@@ -127,6 +128,7 @@
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",
+    "jsqr": "^1.4.0",
     "pngjs": "7.0.0",
     "pnpm": "^10.15.1",
     "postcss": "^8.4.47",

@@ -1,5 +1,5 @@
 {
-  "id": "a2f0d345-c569-49fe-b551-f55df41122a4",
+  "id": "e219bd63-2706-4122-910c-ea8cde219038",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2282,7 +2282,7 @@
         },
         "reply_note": {
           "name": "reply_note",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2300,6 +2300,30 @@
         },
         "material_id": {
           "name": "material_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consultant": {
+          "name": "consultant",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discipline": {
+          "name": "discipline",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "drawing_id": {
+          "name": "drawing_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resubmission_of_id": {
+          "name": "resubmission_of_id",
           "type": "varchar(36)",
           "primaryKey": false,
           "notNull": false
@@ -2434,6 +2458,19 @@
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "consultant_submittals_drawing_id_design_drawings_id_fk": {
+          "name": "consultant_submittals_drawing_id_design_drawings_id_fk",
+          "tableFrom": "consultant_submittals",
+          "tableTo": "design_drawings",
+          "columnsFrom": [
+            "drawing_id"
           ],
           "columnsTo": [
             "id"
@@ -4421,266 +4458,6 @@
         "design_drawings_created_by_user_id_users_id_fk": {
           "name": "design_drawings_created_by_user_id_users_id_fk",
           "tableFrom": "design_drawings",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.design_submittals": {
-      "name": "design_submittals",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(36)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "submittal_number": {
-          "name": "submittal_number",
-          "type": "varchar(120)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "discipline": {
-          "name": "discipline",
-          "type": "design_submittals_discipline",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "drawing_id": {
-          "name": "drawing_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resubmission_of_id": {
-          "name": "resubmission_of_id",
-          "type": "varchar(36)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "design_submittals_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "submitted_at": {
-          "name": "submitted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "submitted_by_user_id": {
-          "name": "submitted_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "due_at": {
-          "name": "due_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reply_code": {
-          "name": "reply_code",
-          "type": "design_submittals_reply_code",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reply_note": {
-          "name": "reply_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replied_at": {
-          "name": "replied_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replied_by_user_id": {
-          "name": "replied_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "design_submittals_project_number_unique": {
-          "name": "design_submittals_project_number_unique",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "submittal_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "design_submittals_tenant_project_status_idx": {
-          "name": "design_submittals_tenant_project_status_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "due_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "design_submittals_tenant_id_companies_id_fk": {
-          "name": "design_submittals_tenant_id_companies_id_fk",
-          "tableFrom": "design_submittals",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "design_submittals_project_id_projects_id_fk": {
-          "name": "design_submittals_project_id_projects_id_fk",
-          "tableFrom": "design_submittals",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "design_submittals_drawing_id_design_drawings_id_fk": {
-          "name": "design_submittals_drawing_id_design_drawings_id_fk",
-          "tableFrom": "design_submittals",
-          "tableTo": "design_drawings",
-          "columnsFrom": [
-            "drawing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "design_submittals_submitted_by_user_id_users_id_fk": {
-          "name": "design_submittals_submitted_by_user_id_users_id_fk",
-          "tableFrom": "design_submittals",
-          "tableTo": "users",
-          "columnsFrom": [
-            "submitted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "design_submittals_replied_by_user_id_users_id_fk": {
-          "name": "design_submittals_replied_by_user_id_users_id_fk",
-          "tableFrom": "design_submittals",
-          "tableTo": "users",
-          "columnsFrom": [
-            "replied_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "design_submittals_created_by_user_id_users_id_fk": {
-          "name": "design_submittals_created_by_user_id_users_id_fk",
-          "tableFrom": "design_submittals",
           "tableTo": "users",
           "columnsFrom": [
             "created_by_user_id"
@@ -21306,6 +21083,14 @@
           "notNull": true,
           "default": "'warn'"
         },
+        "ncr_acceptance_mode": {
+          "name": "ncr_acceptance_mode",
+          "type": "tenant_policies_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'block'"
+        },
         "updated_by_user_id": {
           "name": "updated_by_user_id",
           "type": "integer",
@@ -24069,42 +23854,6 @@
         "under_review",
         "approved",
         "cancelled"
-      ]
-    },
-    "public.design_submittals_discipline": {
-      "name": "design_submittals_discipline",
-      "schema": "public",
-      "values": [
-        "architectural",
-        "interior",
-        "landscape",
-        "structural",
-        "civil",
-        "mechanical",
-        "electrical",
-        "plumbing",
-        "fire_fighting",
-        "other"
-      ]
-    },
-    "public.design_submittals_reply_code": {
-      "name": "design_submittals_reply_code",
-      "schema": "public",
-      "values": [
-        "A",
-        "B",
-        "C",
-        "D"
-      ]
-    },
-    "public.design_submittals_status": {
-      "name": "design_submittals_status",
-      "schema": "public",
-      "values": [
-        "draft",
-        "submitted",
-        "replied",
-        "closed"
       ]
     },
     "public.design_transmittals_direction": {

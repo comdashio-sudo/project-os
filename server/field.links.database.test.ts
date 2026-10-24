@@ -265,7 +265,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     expect(card.unit.number).toBe(1);
     expect(card.activity?.code).toBe("WALLS");
     expect(card.status).toBe("COMPLETE");
-    expect(card.qc).toEqual({ policy: "off", accepted: true });
+    // work order 14: the earlier answer is an A, but an NCR is open on this unit and activity and the company's rule (default) is block: the card says why it is not accepted
+    expect(card.qc).toEqual({ policy: "off", accepted: false, ncrMode: "block", heldByNcr: true });
     expect(card.openNcrs).toBe(1);
     const kinds = new Set(card.events.map(event => event.kind));
     for (const kind of ["daily_report", "inspection", "ncr", "status_change"]) expect(kinds.has(kind as never)).toBe(true);
