@@ -84,7 +84,12 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
     expect(fullKeyA).toMatch(/^pos_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}$/);
     const [stored] = await connection.query<{ keyHash: string; keyPrefix: string }[]>("SELECT keyHash, keyPrefix FROM api_keys WHERE id = ?", [keyIdA]);
     expect(stored[0].keyHash).toHaveLength(64);
-    expect(JSON.stringify(stored[0])).not.toContain(fullKeyA.split("_")[2]);
+    // The secret is everything after "pos_<8 hex>_" — it is base64url, so it can itself contain "_". (This line used to take `split("_")[2]`, which is EMPTY or a one-letter
+    // piece for about 2 keys in 100, and a hex hash contains such a piece by chance: the first test of this file failed intermittently in CI for that reason.)
+    expect(fullKeyA).toMatch(/^pos_[0-9a-f]{8}_/);
+    const secret = fullKeyA.slice("pos_xxxxxxxx_".length);
+    expect(secret.length).toBeGreaterThanOrEqual(30);
+    expect(JSON.stringify(stored[0])).not.toContain(secret);
     const listed = await callers.ownerA.integrations.listKeys({ tenantId: tenantA });
     expect(listed[0]).toMatchObject({ name: "ERP A", keyPrefix: stored[0].keyPrefix });
     expect(JSON.stringify(listed)).not.toContain(fullKeyA);
@@ -108,6 +113,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
   });
 
   it("calls are limited per key per minute; the refusal says when to come back, and another key is not affected", async () => {
+    // The limit is counted per wall-clock minute. A run that straddles a minute boundary splits its calls over two windows and never reaches the limit, so this
+    // test (it failed once in CI, unreproducibly) starts only when there is room left in the minute for all of its calls.
+    const secondsIntoMinute = new Date().getSeconds() + new Date().getMilliseconds() / 1000;
+    if (secondsIntoMinute > 40) await new Promise(resolve => setTimeout(resolve, (60 - secondsIntoMinute) * 1000 + 250));
     const limited = await callers.ownerA.integrations.createKey({ tenantId: tenantA, name: "Limited", scopes: ["sync.read"], rateLimitPerMinute: 10 });
     const statuses: number[] = [];
     for (let index = 0; index < 12; index += 1) statuses.push((await call(limited.key, "GET", "/ping")).status);
@@ -117,7 +126,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(refused.json.code).toBe("PROJECT_OS_API_RATE_LIMITED");
     expect((await call(fullKeyA, "GET", "/ping")).status).toBe(200);
-  });
+  }, 40_000);
 
   it("the OpenAPI document describes every route that is served, and is served without a key", async () => {
     const response = await fetch(`${base}/api/v1/openapi.json`);
