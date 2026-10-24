@@ -1,0 +1,31 @@
+import React from "react";
+import { Link } from "wouter";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+/** Every control a thumb has to hit is at least 44 px (the phone screens of the field work). */
+export const tap = "min-h-[44px] min-w-[44px]";
+export const fieldInput = `${tap} w-full rounded-xl border bg-white px-3 text-base`;
+
+/** The frame the field screens share: the language switch, a way back, the title. Right to left for Arabic and Urdu, left to right for English. */
+export function FieldShell({ title, backHref, backLabel, wide, children }: { title: string; backHref: string; backLabel: string; wide?: boolean; children: React.ReactNode }) {
+  const { isRtl } = useLanguage();
+  return (
+    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
+      <div className={`mx-auto space-y-4 ${wide ? "max-w-5xl" : "max-w-md"}`}>
+        <Link href={backHref} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{backLabel}</Link>
+        <h1 className="text-xl font-semibold">{title}</h1>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+/** "2026-10-24" → the date as the person's language writes it, with Western digits (owner decision: numbers stay 0–9). */
+export function showDate(value: string | Date | null | undefined, language: "ar" | "en" | "ur"): string {
+  if (!value) return "—";
+  const date = typeof value === "string" ? new Date(value.length === 10 ? `${value}T00:00:00Z` : value) : value;
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(language === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : language === "ur" ? "ur-PK-u-nu-latn" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(date);
+}
