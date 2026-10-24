@@ -23,6 +23,13 @@ export class GuardError extends Error { constructor(message: string) { super(mes
 /** A step only a person can do: the exact click is in `instruction`. */
 export class ManualStep extends Error { constructor(readonly instruction: string) { super(instruction); this.name = "ManualStep"; } }
 
+/** A pasted address often ends with a space or a newline: trim it first, then check the shape. The address itself is never printed. */
+export function normalizeOwnerEmail(raw: string): string {
+  const email = raw.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new GuardError("بريد المالك في خانة owner_email ليس عنوان بريد صالحًا. لم يُكتب شيء.");
+  return email;
+}
+
 const parse = (text: string) => { try { return text ? JSON.parse(text) : null; } catch { return null; } };
 const shortCode = (body: unknown) => { const b = body as { message?: unknown; error?: { code?: unknown; message?: unknown } | string; code?: unknown } | null; const raw = b?.error && typeof b.error === "object" ? (b.error.code ?? b.error.message) : (b?.code ?? b?.message ?? b?.error); return typeof raw === "string" ? raw.slice(0, 120) : ""; };
 
@@ -44,11 +51,17 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
   async function assertTarget() {
     const { data: project } = await call("GET", `/v1/projects/${ref}`);
     const id = project?.ref ?? project?.id; // `ref` is the project reference in the Management API response (V1ProjectWithDatabaseResponse); `id` is kept as a fallback
-    if (id !== ref) throw new GuardError(`The Supabase project the token returned is not the expected one (expected ${ref}). Nothing was changed.`);
+    if (id !== ref) throw new GuardError(`المشروع الذي أعاده Supabase ليس المشروع المقصود (${ref}). لم يُكتب شيء.`);
     const slug = project?.organization_slug ?? project?.organization_id;
-    if (!slug) throw new GuardError("The Supabase project did not name its organisation. Nothing was changed.");
-    const { data: organisation } = await call("GET", `/v1/organizations/${encodeURIComponent(slug)}`);
-    if (String(organisation?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`The project belongs to an organisation not named "${SUPABASE_ORGANIZATION_NAME}". Nothing was changed.`);
+    if (!slug) throw new GuardError("مشروع Supabase لم يذكر منظمته، فلم يُتحقَّق من أنها dashio. لم يُكتب شيء.");
+    // A token scoped to one project may not be allowed to read its organisation. Then the name cannot be checked, so the run stops: it never assumes.
+    let organisation: any;
+    try {
+      ({ data: organisation } = await call("GET", `/v1/organizations/${encodeURIComponent(slug)}`));
+    } catch (error) {
+      throw new GuardError(`تعذّرت قراءة المنظمة من Supabase (${(error as Error).message})، فلم يُتحقَّق من أنها "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء. تأكد أن SUPABASE_ACCESS_TOKEN يملك صلاحية قراءة هذه المنظمة.`);
+    }
+    if (String(organisation?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`المشروع يتبع منظمة غير "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
     return { region: String(project?.region ?? "") };
   }
 
@@ -91,7 +104,7 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
 
 /** Deterministic, so a re-run provisions the same application-role password and never breaks the DATABASE_URL already set in Vercel. */
 export function deriveAppRolePassword(databasePassword: string): string {
-  if (!databasePassword || databasePassword.length < 8) throw new GuardError("SUPABASE_DB_PASSWORD is missing or too short.");
+  if (!databasePassword || databasePassword.length < 8) throw new GuardError("كلمة مرور قاعدة Supabase (SUPABASE_DB_PASSWORD) غير موجودة أو قصيرة جدًا.");
   return createHmac("sha256", databasePassword).update("project-os/app-role-password/v1").digest("base64url").slice(0, 40);
 }
 
@@ -136,7 +149,7 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
     }
     const project = found.data;
     const repo = linkedRepo(project);
-    if (repo && repo !== want) throw new GuardError(`A Vercel project named "${VERCEL_PROJECT_NAME}" exists but is linked to another repository. Nothing was changed.`);
+    if (repo && repo !== want) throw new GuardError(`يوجد مشروع Vercel باسم "${VERCEL_PROJECT_NAME}" مربوط بمستودع آخر. لم يُكتب شيء.`);
     if (!repo) {
       // Not in the public OpenAPI (the documented way to connect a repository is `gitRepository` when the project is created). This is the call `vercel git connect` makes; any non-2xx falls back to the manual step.
       const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 403, 404]);
