@@ -724,198 +724,247 @@ export const projectErrorMessages = {
   PROJECT_OS_MATERIAL_NOT_APPROVED: {
     ar: "هذه المادة لم يعتمد الاستشاري تسليمها، وسياسة الشركة تمنع صرفها.",
     en: "This material's approval submittal has not been approved, and the company's policy blocks issuing it.",
+    ur: "This material's approval submittal has not been approved, and the company's policy blocks issuing it.",
   },
   PROJECT_OS_POLICY_CODES_INVALID: {
     ar: "رموز القبول غير صالحة؛ استعمل رموزًا من حرف إلى أربعة (أحرف وأرقام).",
     en: "The acceptance codes are not valid; use codes of one to four letters or digits.",
+    ur: "The acceptance codes are not valid; use codes of one to four letters or digits.",
   },
   PROJECT_OS_QC_NOT_ACCEPTED: {
     ar: "لا يُحتسب النشاط مكتملًا قبل قبول فحص الجودة لهذه الوحدة وهذا النشاط، وسياسة الشركة تمنع ذلك.",
     en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
+    ur: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
   },
   PROJECT_OS_SITE_REPORT_DATE_FUTURE: {
     ar: "لا يُكتب تقرير يومي بتاريخ مستقبلي.",
     en: "A daily report cannot be dated in the future.",
+    ur: "A daily report cannot be dated in the future.",
   },
   PROJECT_OS_SITE_REPORT_DATE_INVALID: {
     ar: "تاريخ التقرير غير صالح.",
     en: "The report date is not valid.",
+    ur: "The report date is not valid.",
   },
   PROJECT_OS_SITE_REPORT_EMPTY: {
     ar: "التقرير فارغ؛ أضف بندًا أو ملخصًا قبل الإرسال.",
     en: "The report is empty; add a line or a summary before sending.",
+    ur: "The report is empty; add a line or a summary before sending.",
   },
   PROJECT_OS_SITE_REPORT_LINE_INVALID: {
     ar: "بند التقرير ناقص: العمالة والمعدات تحتاج اسمًا وعددًا موجبًا، وبند العمل يحتاج وصفًا أو حالة.",
     en: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
+    ur: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
   },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
     en: "The report has been sent or approved and cannot be changed.",
+    ur: "The report has been sent or approved and cannot be changed.",
   },
   PROJECT_OS_SITE_REPORT_NOT_FOUND: {
     ar: "التقرير اليومي غير موجود في هذا المشروع.",
     en: "The daily report does not exist in this project.",
+    ur: "The daily report does not exist in this project.",
   },
   PROJECT_OS_SITE_REPORT_NOT_SUBMITTED: {
     ar: "التقرير ليس بانتظار المراجعة.",
     en: "The report is not waiting for review.",
+    ur: "The report is not waiting for review.",
   },
   PROJECT_OS_SITE_REPORT_NOT_YOURS: {
     ar: "هذا التقرير يخص مهندسًا آخر.",
     en: "This report belongs to another engineer.",
+    ur: "This report belongs to another engineer.",
   },
   PROJECT_OS_SITE_REPORT_PHOTO_INVALID: {
     ar: "الملف ليس صورة (PNG أو JPEG أو WebP).",
     en: "The file is not an image (PNG, JPEG or WebP).",
+    ur: "The file is not an image (PNG, JPEG or WebP).",
   },
   PROJECT_OS_SITE_REPORT_PHOTO_TOO_LARGE: {
     ar: "الصورة أكبر من 10 MB.",
     en: "The photo is larger than 10 MB.",
+    ur: "The photo is larger than 10 MB.",
   },
   PROJECT_OS_SITE_REPORT_REJECT_REASON_REQUIRED: {
     ar: "اكتب سبب الإرجاع ليعرف المهندس ما يصحّحه.",
     en: "Write the reason so the engineer knows what to fix.",
+    ur: "Write the reason so the engineer knows what to fix.",
   },
   PROJECT_OS_SITE_REPORT_SELF_REVIEW: {
     ar: "لا تعتمد تقريرًا كتبته أنت؛ يعتمده مدير آخر.",
     en: "You cannot approve a report you wrote; another manager approves it.",
+    ur: "You cannot approve a report you wrote; another manager approves it.",
   },
   PROJECT_OS_SITE_REPORT_STATUS_NEEDS_CELL: {
     ar: "الحالة المبلَّغ عنها تحتاج وحدة ونشاطًا معًا.",
     en: "A reported status needs both a unit and an activity.",
+    ur: "A reported status needs both a unit and an activity.",
   },
   PROJECT_OS_SITE_REPORT_TOO_MANY_PHOTOS: {
     ar: "بلغ التقرير الحد الأقصى من الصور (30).",
     en: "The report has reached its photo limit (30).",
+    ur: "The report has reached its photo limit (30).",
   },
   PROJECT_OS_SUBMITTAL_CODES_INVALID: {
     ar: "رموز الرد مكررة أو غير صالحة.",
     en: "The reply codes are duplicated or not valid.",
+    ur: "The reply codes are duplicated or not valid.",
   },
   PROJECT_OS_SUBMITTAL_CODES_NEED_BOTH: {
     ar: "يلزم رمز معتمِد فعّال ورمز غير معتمِد فعّال على الأقل.",
     en: "At least one active approving code and one active non-approving code are required.",
+    ur: "At least one active approving code and one active non-approving code are required.",
   },
   PROJECT_OS_SUBMITTAL_DATE_FUTURE: {
     ar: "تاريخ الإرسال في المستقبل.",
     en: "The send date is in the future.",
+    ur: "The send date is in the future.",
   },
   PROJECT_OS_SUBMITTAL_MATERIAL_REQUIRED: {
     ar: "اعتماد المواد يحتاج تحديد المادة.",
     en: "A material approval needs the material.",
+    ur: "A material approval needs the material.",
   },
   PROJECT_OS_SUBMITTAL_NOT_FOUND: {
     ar: "التسليم غير موجود في هذا المشروع.",
     en: "The submittal does not exist in this project.",
+    ur: "The submittal does not exist in this project.",
   },
   PROJECT_OS_SUBMITTAL_NUMBER_EXISTS: {
     ar: "رقم التسليم مستعمل في هذا المشروع؛ لإعادة التقديم استعمل «إعادة تقديم».",
     en: "The submittal number is already used in this project; to resubmit, use the resubmit action.",
+    ur: "The submittal number is already used in this project; to resubmit, use the resubmit action.",
   },
   PROJECT_OS_SUBMITTAL_REPLY_BEFORE_SENT: {
     ar: "تاريخ الرد قبل تاريخ الإرسال.",
     en: "The reply date is before the send date.",
+    ur: "The reply date is before the send date.",
   },
   PROJECT_OS_SUBMITTAL_REPLY_CODE_UNKNOWN: {
     ar: "رمز الرد غير معرَّف أو متوقف عند الشركة.",
     en: "The reply code is not one of the company's active codes.",
+    ur: "The reply code is not one of the company's active codes.",
   },
   PROJECT_OS_SUBMITTAL_RESUBMISSION_INVALID: {
     ar: "لا يُعاد تقديم إلا تسليم ردّ عليه الاستشاري برمز غير معتمِد.",
     en: "Only a submittal answered with a non-approving code can be resubmitted.",
+    ur: "Only a submittal answered with a non-approving code can be resubmitted.",
   },
   PROJECT_OS_SUBMITTAL_SELF_REPLY: {
     ar: "من أرسل التسليم لا يسجّل ردّه.",
     en: "Whoever sent the submittal does not record its reply.",
+    ur: "Whoever sent the submittal does not record its reply.",
   },
   PROJECT_OS_SUBMITTAL_TRANSITION_INVALID: {
     ar: "هذا الإجراء غير متاح لحالة التسليم الحالية.",
     en: "That step is not available in the submittal's current state.",
+    ur: "That step is not available in the submittal's current state.",
   },
   PROJECT_OS_API_EXPORT_UNKNOWN: {
     ar: "نوع التصدير غير معروف.",
     en: "The export type is unknown.",
+    ur: "The export type is unknown.",
   },
   PROJECT_OS_API_KEY_INVALID: {
     ar: "مفتاح الـAPI غير صالح أو ملغى أو منتهٍ.",
     en: "The API key is invalid, revoked or expired.",
+    ur: "The API key is invalid, revoked or expired.",
   },
   PROJECT_OS_API_KEY_NOT_FOUND: {
     ar: "المفتاح غير موجود أو أُلغي مسبقًا.",
     en: "The key does not exist or was already revoked.",
+    ur: "The key does not exist or was already revoked.",
   },
   PROJECT_OS_API_MAPPING_TYPE_UNKNOWN: {
     ar: "نوع الربط غير معروف.",
     en: "The mapping type is unknown.",
+    ur: "The mapping type is unknown.",
   },
   PROJECT_OS_API_PROJECT_UNKNOWN: {
     ar: "المشروع المطلوب غير موجود في شركة هذا المفتاح.",
     en: "The requested project does not exist in this key's company.",
+    ur: "The requested project does not exist in this key's company.",
   },
   PROJECT_OS_API_RATE_LIMITED: {
     ar: "تجاوز المفتاح حد الطلبات في الدقيقة؛ أعد المحاولة بعد المدة المذكورة.",
     en: "The key exceeded its calls per minute; retry after the stated time.",
+    ur: "The key exceeded its calls per minute; retry after the stated time.",
   },
   PROJECT_OS_API_SCOPES_INVALID: {
     ar: "صلاحيات المفتاح غير صالحة.",
     en: "The key's powers are not valid.",
+    ur: "The key's powers are not valid.",
   },
   PROJECT_OS_API_SCOPE_MISSING: {
     ar: "هذا المفتاح لا يملك الصلاحية اللازمة لهذا الطلب.",
     en: "This key lacks the power this call needs.",
+    ur: "This key lacks the power this call needs.",
   },
   PROJECT_OS_API_VALIDATION: {
     ar: "الطلب لا يطابق الشكل الموثّق.",
     en: "The request does not match the documented shape.",
+    ur: "The request does not match the documented shape.",
   },
   PROJECT_OS_API_CSV_CONTENT_TYPE: {
     ar: "ملف CSV يُرسل بنوع المحتوى text/csv.",
     en: "A CSV file is sent with the content type text/csv.",
+    ur: "A CSV file is sent with the content type text/csv.",
   },
   PROJECT_OS_API_CSV_ENTITY_UNKNOWN: {
     ar: "نوع السجلات غير معروف لقالب CSV.",
     en: "That record type has no CSV template.",
+    ur: "That record type has no CSV template.",
   },
   PROJECT_OS_CONNECTION_INACTIVE: {
     ar: "الاتصال معطّل؛ فعّله أولًا.",
     en: "The connection is switched off; switch it on first.",
+    ur: "The connection is switched off; switch it on first.",
   },
   PROJECT_OS_CONNECTION_NOT_FOUND: {
     ar: "الاتصال غير موجود.",
     en: "The connection does not exist.",
+    ur: "The connection does not exist.",
   },
   PROJECT_OS_CONNECTION_PUSH_UNSUPPORTED: {
     ar: "هذا الموصل يقرأ فقط ولا يرسل إلى النظام الآخر؛ استعمل واجهة التصدير.",
     en: "This connector reads only and does not write to the other system; use the export API.",
+    ur: "This connector reads only and does not write to the other system; use the export API.",
   },
   PROJECT_OS_CONNECTION_SYSTEM_UNSUPPORTED: {
     ar: "لا يوجد موصل لهذا النظام.",
     en: "There is no connector for that system.",
+    ur: "There is no connector for that system.",
   },
   PROJECT_OS_CONNECTION_URL_INVALID: {
     ar: "عنوان النظام غير مقبول (يجب أن يكون https وليس عنوانًا داخليًا).",
     en: "The system address is not accepted (it must be https and not an internal address).",
+    ur: "The system address is not accepted (it must be https and not an internal address).",
   },
   PROJECT_OS_WEBHOOK_EVENTS_INVALID: {
     ar: "أنواع الأحداث غير معروفة.",
     en: "The event types are not known.",
+    ur: "The event types are not known.",
   },
   PROJECT_OS_WEBHOOK_NOT_FOUND: {
     ar: "نقطة الـWebhook غير موجودة.",
     en: "The webhook endpoint does not exist.",
+    ur: "The webhook endpoint does not exist.",
   },
   PROJECT_OS_WEBHOOK_URL_INVALID: {
     ar: "عنوان الـWebhook غير صالح.",
     en: "The webhook address is not valid.",
+    ur: "The webhook address is not valid.",
   },
   PROJECT_OS_WEBHOOK_URL_NOT_HTTPS: {
     ar: "عنوان الـWebhook يجب أن يبدأ بـhttps.",
     en: "The webhook address must start with https.",
+    ur: "The webhook address must start with https.",
   },
   PROJECT_OS_WEBHOOK_URL_PRIVATE: {
     ar: "عنوان الـWebhook يشير إلى شبكة داخلية أو خاصة ولا يُقبل.",
     en: "The webhook address points inside a private network and is not accepted.",
+    ur: "The webhook address points inside a private network and is not accepted.",
   },
   PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK: {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
