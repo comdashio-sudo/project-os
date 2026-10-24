@@ -7,7 +7,7 @@ import BillingRegister from "./BillingRegister";
 
 const state = vi.hoisted(() => ({ issue: vi.fn(), payment: vi.fn() }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1" }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: unknown) => String(error) }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {

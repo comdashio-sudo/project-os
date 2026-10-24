@@ -7,7 +7,7 @@ import { MasterPlanCanvas, MasterPlanEntityTools, MasterPlanVersionTools, Snapsh
 
 const hoisted = vi.hoisted(() => ({ state: { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>> }, mutation: (name: string) => ({ useMutation: () => ({ mutate: hoisted.state.calls[name] ?? (hoisted.state.calls[name] = vi.fn()), isPending: false, error: null }) }) }));
 const { state } = hoisted;
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { masterPlans: { setVersionGeometry: hoisted.mutation("setVersionGeometry"), updateEntityLayout: hoisted.mutation("updateEntityLayout"), setSnapshotSharing: hoisted.mutation("setSnapshotSharing") } } }));
 

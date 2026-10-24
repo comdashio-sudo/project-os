@@ -35,7 +35,7 @@ describe("SectionMessage", () => {
     let broken = true;
     function FirstPanel() { if (broken) throw new Error("deliberate panel failure"); return <p>First panel recovered</p>; }
     function SecondPanel() { return <p>Second panel works</p>; }
-    render(<GuardedPanels isArabic={false} titles={{ FirstPanel: { ar: "اللوحة الأولى", en: "The first panel" } }}><FirstPanel /><SecondPanel /></GuardedPanels>);
+    render(<GuardedPanels isArabic={false} titles={{ FirstPanel: { ar: "اللوحة الأولى", en: "The first panel", ur: "The first panel" } }}><FirstPanel /><SecondPanel /></GuardedPanels>);
     const failed = screen.getByRole("region", { name: "The first panel" });
     expect(failed.textContent).toContain("This section could not be loaded");
     expect(screen.getByText("Second panel works")).toBeTruthy();
@@ -49,7 +49,7 @@ describe("SectionMessage", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     function Known(): React.ReactElement { throw new Error("x"); }
     function Unknown(): React.ReactElement { throw new Error("y"); }
-    render(<GuardedPanels isArabic titles={{ Known: { ar: "لوحة معروفة", en: "Known" } }}><Known /><Unknown /></GuardedPanels>);
+    render(<GuardedPanels isArabic titles={{ Known: { ar: "لوحة معروفة", en: "Known", ur: "Known" } }}><Known /><Unknown /></GuardedPanels>);
     expect(screen.getByRole("region", { name: "لوحة معروفة" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "هذا القسم" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "أعد المحاولة" }).length).toBe(2);

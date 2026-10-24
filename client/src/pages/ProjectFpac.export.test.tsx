@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({ arabic: false, report: { data: undefined, isLo
 vi.mock("./LabourLoadingCard", () => ({ default: () => null }));
 vi.mock("./CashFlowMonthly", () => ({ default: () => null }));
 vi.mock("./ProjectInvoicesPanel", () => ({ default: () => null }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { project: { useQuery: () => ({ ...state.report, refetch: state.refetch }) }, history: { useQuery: () => state.history }, costBreakdown: { useQuery: () => state.breakdown } } } }));
 
 let clickSpy: { mockRestore: () => void };

@@ -8,7 +8,7 @@ import { RouteBoundary } from "./RouteBoundary";
 
 const state = vi.hoisted(() => ({ arabic: false, location: "/a", explode: true }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useLocation: () => [state.location] }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 function Page() { if (state.explode) throw new Error("page exploded"); return <p>page ok</p>; }
 
 beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });

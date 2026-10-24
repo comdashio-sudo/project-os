@@ -12,7 +12,7 @@ const forbidden = { message: "PROJECT_OS_PERMISSION_DENIED", data: { code: "FORB
 const state = vi.hoisted(() => ({ lists: {} as Record<string, { isLoading: boolean; isFetching: boolean; error: unknown; data: unknown; refetch: () => void }> }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => {
   const idleMutation = () => ({ mutate: vi.fn(), isPending: false, error: null });
   const procedure = (name: string) => ({

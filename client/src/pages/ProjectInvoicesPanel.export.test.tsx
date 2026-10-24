@@ -11,7 +11,7 @@ vi.mock("@/lib/excelExport", async importOriginal => {
 });
 // Invented example invoices: the names and amounts are placeholders.
 const h = vi.hoisted(() => ({ arabic: false, empty: false }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const invoices = [
   { id: "i1", invoiceNumber: "INV-1", invoiceDate: new Date("2026-10-05T00:00:00Z"), clientName: "Example Client", totalAmount: "1150.00", status: "draft", paidAt: null },
   { id: "i2", invoiceNumber: "INV-2", invoiceDate: new Date("2026-10-06T00:00:00Z"), clientName: "Example Client", totalAmount: "575.00", status: "issued", paidAt: null },

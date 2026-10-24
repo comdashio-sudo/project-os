@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectMaterials } from "./ProjectMaterials";
 
 const state = vi.hoisted(() => ({ error: null as unknown, isArabic: false, create: vi.fn(), override: vi.fn(), refetch: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized material error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { materials: { list: { useQuery: () => ({ isLoading: false, error: null, refetch: state.refetch, data: [{ id: "11111111-1111-4111-8111-111111111111", code: "MAT-01", description: "Concrete", unitOfMeasure: "m3", category: "Concrete", override: null }] }) }, createMaster: { useMutation: () => ({ mutate: state.create, isPending: false, error: state.error }) }, saveProjectOverride: { useMutation: () => ({ mutate: state.override, isPending: false, error: null }) } } } }));
 

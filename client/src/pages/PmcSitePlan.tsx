@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
 import React, { useState } from "react";
 import { WriteGate, useCan } from "@/lib/permissions";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -20,6 +21,12 @@ const text = {
     withoutPolygon: (n: number) => `${n} units have no outline on the plan`, legend: "Colour key", notInModel: "The activity is not in this unit's model",
     statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
     unit: "Unit", model: "Model", zone: "Zone", block: "Block", progress: "Progress", close: "Close", engineer: "Engineer", verification: "Verification", weight: "Weight", errors: "Problems in the file", planAlt: "Site plan", noNumber: "no number", changeStatus: "Change status", earned: "Earned value", linkedMoved: (n: number) => `${n} WBS item(s) moved`, evNone: "No linked WBS item changed its progress",
+  }, ur: {
+    activity: "Activity", overall: "Overall unit progress", loading: "Loading…", retry: "Retry", noPlan: "No site plan has been uploaded yet. Upload the plan image (PNG or JPEG), then a GeoJSON file with the unit outlines.",
+    uploadPlan: "Upload plan image", uploadGeo: "Upload unit GeoJSON", saved: (n: number) => `Saved outlines for ${n} units`, uploaded: "Plan uploaded",
+    withoutPolygon: (n: number) => `${n} units have no outline on the plan`, legend: "Colour key", notInModel: "The activity is not in this unit's model",
+    statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
+    unit: "Unit", model: "Model", zone: "Zone", block: "Block", progress: "Progress", close: "Close", engineer: "Engineer", verification: "Verification", weight: "Weight", errors: "Problems in the file", planAlt: "Site plan", noNumber: "no number", changeStatus: "Change status", earned: "Earned value", linkedMoved: (n: number) => `${n} WBS item(s) moved`, evNone: "No linked WBS item changed its progress",
   },
 };
 const COLORS: Record<string, string> = { NOT_STARTED: "#cbd5e1", IN_PROGRESS: "#fbbf24", UNDER_REVIEW: "#60a5fa", COMPLETE: "#34d399" };
@@ -30,8 +37,8 @@ const pointsOf = (ring: Ring, w: number, h: number) => ring.map(([x, y]) => `${(
 const fillFor = (status: string | null, progress: number | null) => (status ? COLORS[status] : progress === null ? "#e5e7eb" : `rgba(14, 107, 112, ${0.12 + (progress / 100) * 0.7})`);
 
 export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const [activityCode, setActivityCode] = useState<string>("");
   const [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);

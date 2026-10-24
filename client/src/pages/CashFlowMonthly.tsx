@@ -6,6 +6,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -17,12 +18,16 @@ const text = {
     title: "Net cash flow by month", month: "Month", receipts: "Received", outflows: "Paid out", net: "Net", cumulative: "Cumulative", empty: "No money movement recorded yet: receipts appear when invoices are paid.", loading: "Loading…", retry: "Retry",
     lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
     basis: "Received = paid invoices (with VAT) on the day paid. Paid out = posted actual cost on the day it was incurred, the nearest the platform has to payments because payments to suppliers are not recorded.",
+  }, ur: {
+    title: "Net cash flow by month", month: "Month", receipts: "Received", outflows: "Paid out", net: "Net", cumulative: "Cumulative", empty: "No money movement recorded yet: receipts appear when invoices are paid.", loading: "Loading…", retry: "Retry",
+    lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
+    basis: "Received = paid invoices (with VAT) on the day paid. Paid out = posted actual cost on the day it was incurred, the nearest the platform has to payments because payments to suppliers are not recorded.",
   },
 };
 
 export default function CashFlowMonthly({ tenantId, projectId, currency }: { tenantId: string; projectId: string; currency: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const query = trpc.profitability.cashFlow.useQuery({ tenantId, projectId });
   const money = (value: number) => formatMoney(value, currency, isArabic);
   if (query.isLoading) return <p role="status" className="mt-6 text-sm text-slate-500">{t.loading}</p>;

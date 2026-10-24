@@ -7,7 +7,7 @@ import ProjectControls from "./ProjectControls";
 const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));

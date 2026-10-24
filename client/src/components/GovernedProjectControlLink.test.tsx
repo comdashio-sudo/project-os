@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GovernedProjectControlLink } from "./GovernedProjectControlLink";
 
 const state = vi.hoisted(() => ({ isArabic: false, items: [] as Array<{ id: string; href: string }> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { navigation: { get: { useQuery: () => ({ data: state.items }) } } } }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => <a href={href} {...props}>{children}</a> }));
 

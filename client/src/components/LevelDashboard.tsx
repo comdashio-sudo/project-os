@@ -14,6 +14,7 @@ const navContext: Record<LevelId, "executive" | "pmo" | "project"> = { company: 
 const copy = {
   ar: { level: "المستوى", of: "من", down: (name: string) => `انتقل إلى مستوى: ${name}`, lowest: "أدنى مستوى: لا مستوى تحته.", label: "المستويات" },
   en: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels" },
+  ur: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels" },
 };
 
 export function LevelDashboard({ level, tenantId, projectId, title, belowHref, children }: {

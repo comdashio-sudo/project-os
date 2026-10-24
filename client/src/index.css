@@ -42,6 +42,26 @@
   /* type */
   --font-latin:  'Outfit', system-ui, -apple-system, sans-serif;
   --font-arabic: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-urdu:   'Noto Nastaliq Urdu', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+}
+
+/* Urdu face, hosted with the app (client/public/fonts, SIL Open Font License; see NOTO-NASTALIQ-URDU-OFL.txt). Declared here, applied only
+   under html[lang="ur"] below. The browser downloads it only when Urdu text is on the page. */
+@font-face {
+  font-family: 'Noto Nastaliq Urdu';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-nastaliq-urdu-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFC;
+}
+@font-face {
+  font-family: 'Noto Nastaliq Urdu';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-nastaliq-urdu-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
 }
 [data-theme="dark"] {
   --surface:     var(--dashio-surface-dark);
@@ -193,6 +213,12 @@
   }
   html[dir="rtl"] body {
     font-family: var(--font-arabic);
+  }
+  /* Urdu only: Nastaliq needs more line height than the Arabic face, or its strokes clip in buttons and table cells. The font family is
+     set only when the page language is Urdu (html[lang="ur"]); Arabic and English keep the rules above. */
+  html[lang="ur"] body {
+    font-family: var(--font-urdu);
+    line-height: 1.9;
   }
   html[dir="rtl"] input,
   html[dir="rtl"] textarea {

@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({ reads: {} as Record<string, { isLoading: boole
 const read = (name: string) => state.reads[name] ?? { isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() };
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("./ProjectFpac", () => ({ ProjectFpac: () => null }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   projects: { getControlsFinancials: { useQuery: () => read("financials") } },

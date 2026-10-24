@@ -8,15 +8,14 @@ import { trpc } from "@/lib/trpc";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import React from "react";
 import { Link, useSearch } from "wouter";
+import { pickLanguage } from "@/lib/language";
 
 export default function AcceptInvitation() {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const search = useSearch();
   const [inviteToken, setInviteToken] = React.useState(() => new URLSearchParams(search).get("token") ?? "");
   const acceptance = trpc.tenant.acceptInvitation.useMutation();
-  const t = isArabic
-    ? { title: "قبول دعوة الشركة", sub: "سجّل الدخول بالبريد الذي استلم الدعوة، ثم أكمل القبول لإضافة عضويتك ودورك ضمن الشركة.", token: "رمز القبول", submit: "قبول الدعوة", submitting: "جارٍ قبول الدعوة…", success: "تم قبول الدعوة وتفعيل عضويتك بنجاح.", back: "العودة إلى مساحة العمل" }
-    : { title: "Accept organization invitation", sub: "Sign in with the email address that received the invitation, then complete acceptance to add your membership and role.", token: "Acceptance token", submit: "Accept invitation", submitting: "Accepting invitation…", success: "The invitation was accepted and your membership is active.", back: "Back to workspace" };
+  const t = pickLanguage(language, { ar: { title: "قبول دعوة الشركة", sub: "سجّل الدخول بالبريد الذي استلم الدعوة، ثم أكمل القبول لإضافة عضويتك ودورك ضمن الشركة.", token: "رمز القبول", submit: "قبول الدعوة", submitting: "جارٍ قبول الدعوة…", success: "تم قبول الدعوة وتفعيل عضويتك بنجاح.", back: "العودة إلى مساحة العمل" }, en: { title: "Accept organization invitation", sub: "Sign in with the email address that received the invitation, then complete acceptance to add your membership and role.", token: "Acceptance token", submit: "Accept invitation", submitting: "Accepting invitation…", success: "The invitation was accepted and your membership is active.", back: "Back to workspace" }, ur: { title: "Accept organization invitation", sub: "Sign in with the email address that received the invitation, then complete acceptance to add your membership and role.", token: "Acceptance token", submit: "Accept invitation", submitting: "Accepting invitation…", success: "The invitation was accepted and your membership is active.", back: "Back to workspace" } });
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     acceptance.mutate({ inviteToken: inviteToken.trim() });

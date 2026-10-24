@@ -12,22 +12,21 @@ import { trpc } from "@/lib/trpc";
 import { WriteGate } from "@/lib/permissions";
 import { buildHitIndex, calibratedDimensions, entityAlerts, hitTest, normalizeRotation, wouldCreateCycle, type AlertActivity, type PlanGeometry } from "@shared/masterPlanTools";
 import { RotateCcw, RotateCw } from "lucide-react";
+import { pickLanguage } from "@/lib/language";
 
 export type ToolsEntity = { id: string; code: string; name: string; parentEntityId: string | null; geometry: string; status: string; progressPercent: string | number; plannedValue: string | number; actualValue: string | number; wbsItemId: string | null; activityId: string | null };
 export const parsePlanGeometry = (raw: string): PlanGeometry | null => { try { const value = JSON.parse(raw) as PlanGeometry; return [value.x, value.y, value.width, value.height].every(Number.isFinite) ? value : null; } catch { return null; } };
 
 // ---------------------------------------------------------------- rotation and the real size of the plan
 export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }: { tenantId: string; projectId: string; version: { id: string; rotationDegrees: number; mapWidthMeters: string | number | null; mapHeightMeters: string | number | null } | undefined; onSaved: () => void }) {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const save = trpc.masterPlans.setVersionGeometry.useMutation({ onSuccess: onSaved });
   const [rotation, setRotation] = useState(String(version?.rotationDegrees ?? 0));
   const [width, setWidth] = useState(version?.mapWidthMeters ? String(Number(version.mapWidthMeters)) : "");
   const [height, setHeight] = useState(version?.mapHeightMeters ? String(Number(version.mapHeightMeters)) : "");
   useEffect(() => { setRotation(String(version?.rotationDegrees ?? 0)); setWidth(version?.mapWidthMeters ? String(Number(version.mapWidthMeters)) : ""); setHeight(version?.mapHeightMeters ? String(Number(version.mapHeightMeters)) : ""); }, [version?.id, version?.rotationDegrees, version?.mapWidthMeters, version?.mapHeightMeters]);
   if (!version) return null;
-  const t = isArabic
-    ? { title: "تدوير الخطة ومعايرتها", note: "يدوّر الخلفية فقط، لا الكيانات. أدخل العرض والطول الحقيقيين لمنطقة الخطة بالأمتار لتظهر أبعاد كل كيان بالمتر.", rotation: "زاوية التدوير (درجة)", left: "تدوير 90° لليسار", right: "تدوير 90° لليمين", width: "عرض منطقة الخطة (م)", height: "طول منطقة الخطة (م)", save: "حفظ التدوير والمعايرة" }
-    : { title: "Rotate and calibrate the plan", note: "Turns the background only, not the entities. Enter the real width and length of the plan area in metres so each entity's size shows in metres.", rotation: "Rotation (degrees)", left: "Rotate 90° left", right: "Rotate 90° right", width: "Plan area width (m)", height: "Plan area length (m)", save: "Save rotation and calibration" };
+  const t = pickLanguage(language, { ar: { title: "تدوير الخطة ومعايرتها", note: "يدوّر الخلفية فقط، لا الكيانات. أدخل العرض والطول الحقيقيين لمنطقة الخطة بالأمتار لتظهر أبعاد كل كيان بالمتر.", rotation: "زاوية التدوير (درجة)", left: "تدوير 90° لليسار", right: "تدوير 90° لليمين", width: "عرض منطقة الخطة (م)", height: "طول منطقة الخطة (م)", save: "حفظ التدوير والمعايرة" }, en: { title: "Rotate and calibrate the plan", note: "Turns the background only, not the entities. Enter the real width and length of the plan area in metres so each entity's size shows in metres.", rotation: "Rotation (degrees)", left: "Rotate 90° left", right: "Rotate 90° right", width: "Plan area width (m)", height: "Plan area length (m)", save: "Save rotation and calibration" }, ur: { title: "Rotate and calibrate the plan", note: "Turns the background only, not the entities. Enter the real width and length of the plan area in metres so each entity's size shows in metres.", rotation: "Rotation (degrees)", left: "Rotate 90° left", right: "Rotate 90° right", width: "Plan area width (m)", height: "Plan area length (m)", save: "Save rotation and calibration" } });
   const turn = (by: number) => setRotation(String(normalizeRotation(Number(rotation || 0) + by)));
   return <WriteGate permission="project.write" projectId={projectId}><form className="mt-3 rounded-xl border border-dashed border-[#74d0c1] bg-[#f4fbfa] p-3" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, projectId, masterPlanVersionId: version.id, rotationDegrees: Number(rotation || 0), mapWidthMeters: width ? Number(width) : null, mapHeightMeters: height ? Number(height) : null }); }}>
     <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-slate-500">{t.note}</p>
@@ -66,18 +65,16 @@ export function MasterPlanCanvas({ entities, selectedId, colorOf, onSelect, labe
 
 // ---------------------------------------------------------------- one entity: alerts, jumps, parent, geometry
 const SECTION_LINKS = [
-  { id: "manager-schedule", ar: "فتح قسم الخطة والتكلفة (WBS والأنشطة)", en: "Open the schedule & cost section (WBS and activities)" },
-  { id: "manager-commercial", ar: "فتح قسم العقود والمستندات", en: "Open the contracts & documents section" },
+  { id: "manager-schedule", ar: "فتح قسم الخطة والتكلفة (WBS والأنشطة)", en: "Open the schedule & cost section (WBS and activities)", ur: "منصوبہ اور لاگت کا حصہ کھولیں (WBS اور سرگرمیاں)" },
+  { id: "manager-commercial", ar: "فتح قسم العقود والمستندات", en: "Open the contracts & documents section", ur: "معاہدوں اور دستاویزات کا حصہ کھولیں" },
 ];
 export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, activity, mapWidthMeters, mapHeightMeters, onChanged }: { tenantId: string; projectId: string; entity: ToolsEntity; entities: ToolsEntity[]; activity: AlertActivity; mapWidthMeters: string | number | null | undefined; mapHeightMeters: string | number | null | undefined; onChanged: () => void }) {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const update = trpc.masterPlans.updateEntityLayout.useMutation({ onSuccess: onChanged });
   const geometry = parsePlanGeometry(entity.geometry);
   const [draft, setDraft] = useState({ x: String(geometry?.x ?? 0), y: String(geometry?.y ?? 0), width: String(geometry?.width ?? 10), height: String(geometry?.height ?? 10) });
   useEffect(() => { const g = parsePlanGeometry(entity.geometry); setDraft({ x: String(g?.x ?? 0), y: String(g?.y ?? 0), width: String(g?.width ?? 10), height: String(g?.height ?? 10) }); }, [entity.id, entity.geometry]);
-  const t = isArabic
-    ? { alerts: "تنبيهات الكيان", none: "لا تنبيهات", blocked: "الكيان متعثر", overdue: "النشاط المرتبط تجاوز تاريخ نهايته المخطط بـ", days: "يوم", cost: "التكلفة الفعلية تتجاوز المخطط بـ", unlinked: "الكيان غير مرتبط ببند WBS ولا نشاط", size: "الأبعاد الحقيقية", meters: "م", area: "م²", parentTitle: "الأب في الشجرة", noParent: "بلا أب (جذر)", saveParent: "حفظ الأب", geometryTitle: "موضع الكيان وحجمه", x: "س", y: "ص", w: "العرض", h: "الارتفاع", saveGeometry: "حفظ الموضع والحجم", jumps: "الانتقال إلى" }
-    : { alerts: "Entity alerts", none: "No alerts", blocked: "The entity is blocked", overdue: "The linked activity is past its planned finish by", days: "days", cost: "Actual cost exceeds plan by", unlinked: "The entity is not linked to a WBS item or an activity", size: "Real size", meters: "m", area: "m²", parentTitle: "Parent in the tree", noParent: "No parent (root)", saveParent: "Save parent", geometryTitle: "Entity position and size", x: "X", y: "Y", w: "Width", h: "Height", saveGeometry: "Save position and size", jumps: "Jump to" };
+  const t = pickLanguage(language, { ar: { alerts: "تنبيهات الكيان", none: "لا تنبيهات", blocked: "الكيان متعثر", overdue: "النشاط المرتبط تجاوز تاريخ نهايته المخطط بـ", days: "يوم", cost: "التكلفة الفعلية تتجاوز المخطط بـ", unlinked: "الكيان غير مرتبط ببند WBS ولا نشاط", size: "الأبعاد الحقيقية", meters: "م", area: "م²", parentTitle: "الأب في الشجرة", noParent: "بلا أب (جذر)", saveParent: "حفظ الأب", geometryTitle: "موضع الكيان وحجمه", x: "س", y: "ص", w: "العرض", h: "الارتفاع", saveGeometry: "حفظ الموضع والحجم", jumps: "الانتقال إلى" }, en: { alerts: "Entity alerts", none: "No alerts", blocked: "The entity is blocked", overdue: "The linked activity is past its planned finish by", days: "days", cost: "Actual cost exceeds plan by", unlinked: "The entity is not linked to a WBS item or an activity", size: "Real size", meters: "m", area: "m²", parentTitle: "Parent in the tree", noParent: "No parent (root)", saveParent: "Save parent", geometryTitle: "Entity position and size", x: "X", y: "Y", w: "Width", h: "Height", saveGeometry: "Save position and size", jumps: "Jump to" }, ur: { alerts: "Entity alerts", none: "No alerts", blocked: "The entity is blocked", overdue: "The linked activity is past its planned finish by", days: "days", cost: "Actual cost exceeds plan by", unlinked: "The entity is not linked to a WBS item or an activity", size: "Real size", meters: "m", area: "m²", parentTitle: "Parent in the tree", noParent: "No parent (root)", saveParent: "Save parent", geometryTitle: "Entity position and size", x: "X", y: "Y", w: "Width", h: "Height", saveGeometry: "Save position and size", jumps: "Jump to" } });
   const alerts = entityAlerts({ status: entity.status, progressPercent: Number(entity.progressPercent), plannedValue: Number(entity.plannedValue), actualValue: Number(entity.actualValue), wbsItemId: entity.wbsItemId, activityId: entity.activityId }, activity);
   const alertText = (alert: ReturnType<typeof entityAlerts>[number]) => alert.code === "blocked" ? t.blocked : alert.code === "overdue" ? `${t.overdue} ${alert.days} ${t.days}` : alert.code === "cost_over" ? `${t.cost} ${alert.percent}%` : t.unlinked;
   const real = geometry ? calibratedDimensions(geometry, Number(mapWidthMeters) || null, Number(mapHeightMeters) || null) : null;
@@ -90,7 +87,7 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
     <section aria-label={t.alerts}><h4 className="font-semibold">{t.alerts}</h4>
       {alerts.length ? <ul className="mt-1 space-y-1">{alerts.map(alert => <li key={alert.code} className={`rounded-lg px-2 py-1 ${tone(alert.severity)}`}>{alertText(alert)}</li>)}</ul> : <p className="mt-1 text-slate-500">{t.none}</p>}
       {real ? <p className="mt-2 text-slate-700">{t.size}: {real.widthMeters} × {real.heightMeters} {t.meters} · {real.areaSquareMeters} {t.area}</p> : null}
-      <p className="mt-2 flex flex-wrap items-center gap-2"><span className="text-slate-500">{t.jumps}:</span>{SECTION_LINKS.map(link => <a key={link.id} href={`#${link.id}`} className="font-semibold text-[#0e6b70] underline">{isArabic ? link.ar : link.en}</a>)}</p>
+      <p className="mt-2 flex flex-wrap items-center gap-2"><span className="text-slate-500">{t.jumps}:</span>{SECTION_LINKS.map(link => <a key={link.id} href={`#${link.id}`} className="font-semibold text-[#0e6b70] underline">{pickLanguage(language, link)}</a>)}</p>
     </section>
     <WriteGate permission="project.write" projectId={projectId}>
       <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, parentEntityId: parent || null }); }}>

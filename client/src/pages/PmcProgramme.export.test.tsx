@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
     { month: "2026-11-01", planned: 80, actual: null, plannedInMonth: 12, actualInMonth: null, variance: null },
   ] as Array<{ month: string; planned: number | null; actual: number | null; plannedInMonth: number | null; actualInMonth: number | null; variance: number | null }>,
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { pmc: { programme: { useQuery: () => {
   const cards = { currency: "SAR", contractValue: 1000000, paid: { amount: 100000, percent: 10 }, confirmed: { amount: 150000, percent: 15 }, target: { amount: 680000, percent: 68 } };
   return {

@@ -5,6 +5,7 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
 import { WriteGate } from "@/lib/permissions";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -20,12 +21,18 @@ const text = {
     settings: "Tenant settings", gosi: "Employer insurance — Saudi (%)", gosiNon: "Employer insurance — non-Saudi (%)", eosYears: "Years at the first rate", eosFirst: "Months per year in that period", eosLater: "Months per year after it", estimateNote: "A cost estimate, not a legal calculation. Insurance is on (basic + housing); end of service is on pay and fixed allowances by length of service.", indirect: "Indirect loading (%)", hours: "Hours per day", days: "Working days", edit: "Edit", save: "Save", cancel: "Cancel", saved: "Settings saved",
     defaults: "Default settings: insurance 11.75% for a Saudi and 2% for anyone else, end of service half a month a year for the first five years then a month, Sunday to Thursday, eight hours.", loadedCost: "Approved loaded cost", note: "The factor is the loaded cost over pay and allowances alone for the same hours. No individual's pay is shown.",
     dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+  }, ur: {
+    title: "Loaded labour cost", factor: "Effective loading factor", none: "No hours have been priced from payroll yet", loading: "Loading…", retry: "Retry",
+    priced: (loaded: number, resource: number, hours: number) => `${loaded} time entries priced from payroll and ${resource} from the resource plan rate (no salary structure), ${hours} hours in all.`,
+    settings: "Tenant settings", gosi: "Employer insurance — Saudi (%)", gosiNon: "Employer insurance — non-Saudi (%)", eosYears: "Years at the first rate", eosFirst: "Months per year in that period", eosLater: "Months per year after it", estimateNote: "A cost estimate, not a legal calculation. Insurance is on (basic + housing); end of service is on pay and fixed allowances by length of service.", indirect: "Indirect loading (%)", hours: "Hours per day", days: "Working days", edit: "Edit", save: "Save", cancel: "Cancel", saved: "Settings saved",
+    defaults: "Default settings: insurance 11.75% for a Saudi and 2% for anyone else, end of service half a month a year for the first five years then a month, Sunday to Thursday, eight hours.", loadedCost: "Approved loaded cost", note: "The factor is the loaded cost over pay and allowances alone for the same hours. No individual's pay is shown.",
+    dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
   },
 };
 
 export default function LabourLoadingCard({ tenantId, projectId, currency }: { tenantId: string; projectId: string; currency: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const labour = trpc.profitability.labour.useQuery({ tenantId, projectId });
   const settings = trpc.labourSettings.get.useQuery({ tenantId });
   const [editing, setEditing] = useState(false);
@@ -56,7 +63,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
       {message && <p role="status" className="mt-2 text-sm text-emerald-700">{message}</p>}
       {s.canEdit && !editing && <Button variant="outline" className="mt-3 min-h-[44px]" onClick={open}>{t.edit}</Button>}
       {editing && (
-        <WriteGate permission={"project.settings.labour"} reason={{ ar: "لا تملك صلاحية ضبط تحميل تكلفة العمالة، فالشاشة للعرض فقط.", en: "You do not have permission to configure labour cost loading; this view is read-only for you." }}><form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); submit(); }}>
+        <WriteGate permission={"project.settings.labour"} reason={{ ar: "لا تملك صلاحية ضبط تحميل تكلفة العمالة، فالشاشة للعرض فقط.", en: "You do not have permission to configure labour cost loading; this view is read-only for you.", ur: "You do not have permission to configure labour cost loading; this view is read-only for you." }}><form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); submit(); }}>
           <label className="text-sm">{t.gosi}<input aria-label={t.gosi} type="number" step="0.01" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.gosi} onChange={event => setForm(f => ({ ...f, gosi: event.target.value }))} /></label>
           <label className="text-sm">{t.gosiNon}<input aria-label={t.gosiNon} type="number" step="0.01" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.gosiNon} onChange={event => setForm(f => ({ ...f, gosiNon: event.target.value }))} /></label>
           <label className="text-sm">{t.eosYears}<input aria-label={t.eosYears} type="number" step="1" min="0" max="50" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.eosYears} onChange={event => setForm(f => ({ ...f, eosYears: event.target.value }))} /></label>

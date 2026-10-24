@@ -37,7 +37,7 @@ export type ExportLayout = {
 
 const LABELS = {
   ar: { company: "الشركة", project: "المشروع", exported: "تاريخ التصدير" },
-  en: { company: "Company", project: "Project", exported: "Exported on" },
+  en: { company: "Company", project: "Project", exported: "Exported on" }, ur: { company: "Company", project: "Project", exported: "Exported on" },
 } as const;
 
 /** The calendar day where the person is, not in UTC: an export made after 21:00 in Riyadh must not carry tomorrow's date. */
@@ -48,7 +48,7 @@ function isCellSpec(value: unknown): value is ExportCellSpec {
 }
 
 /** V1 decision (STATE.md): the company's base currency is the riyal. Every money figure is exported in it, and the header says so. */
-const BASE_CURRENCY: Record<"ar" | "en", string> = { ar: "ريال", en: "SAR" };
+const BASE_CURRENCY: Record<"ar" | "en" | "ur", string> = { ar: "ريال", en: "SAR", ur: "SAR" };
 
 function normalise(value: string | number | Date | null | undefined): string | number | Date | null {
   if (value === undefined || value === null) return null;

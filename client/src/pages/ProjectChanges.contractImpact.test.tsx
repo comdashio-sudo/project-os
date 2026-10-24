@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectChanges } from "./ProjectChanges";
 
 const mutate = vi.hoisted(() => vi.fn());
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { changes: {
   list: { useQuery: () => ({ data: [{ id: "c1", changeNumber: "CO-1", title: "Variation", description: "d", impactScheduleDays: 0, impactCost: "10", contractValueImpact: "250.00", currency: "SAR", status: "draft" }], isLoading: false, error: null, refetch: vi.fn() }) },
   create: { useMutation: () => ({ mutate, isPending: false, error: null }) },

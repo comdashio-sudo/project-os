@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PermissionProvider, WriteGate, summaryAllows, useCan } from "./permissions";
 
 const state = vi.hoisted(() => ({ arabic: true, query: { data: undefined as unknown, error: null as unknown } }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { accessSummary: { mine: { useQuery: () => state.query } } } }));
 
 const PROJECT = "11111111-1111-4111-8111-111111111111";
@@ -37,7 +37,7 @@ function Probe() { return <span data-testid="probe">{useCan("project.rfi.manage"
 describe("WriteGate states", () => {
   beforeEach(() => { state.arabic = true; state.query = { data: undefined, error: null }; });
   afterEach(cleanup);
-  const gated = <WriteGate permission="project.rfi.manage" reason={{ ar: "لا تملك الصلاحية", en: "No permission" }}><button>write</button></WriteGate>;
+  const gated = <WriteGate permission="project.rfi.manage" reason={{ ar: "لا تملك الصلاحية", en: "No permission", ur: "No permission" }}><button>write</button></WriteGate>;
 
   it("outside a company route there is nothing to ask, so the control shows (the server still decides)", () => {
     render(gated);

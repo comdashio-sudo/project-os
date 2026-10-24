@@ -2,6 +2,7 @@ import React from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { isRefusal, refusalSentence } from "@/components/ScreenStates";
+import { type Language, pickLanguage } from "@/lib/language";
 
 type SectionErrorBoundaryProps = {
   children: React.ReactNode;
@@ -36,7 +37,7 @@ export class SectionErrorBoundary extends React.Component<SectionErrorBoundaryPr
  * Every panel in a composed page gets its own boundary (G-100): a panel that fails to render says so in its own place, with a retry, and its
  * neighbours keep working. `titles` names the panels by their component name, so the message says which one failed.
  */
-export function GuardedPanels({ children, isArabic, titles }: { children: React.ReactNode; isArabic: boolean; titles?: Record<string, { ar: string; en: string }> }) {
+export function GuardedPanels({ children, isArabic, titles }: { children: React.ReactNode; isArabic: boolean; titles?: Record<string, { ar: string; en: string; ur: string }> }) {
   return <>{React.Children.map(children, (child, index) => {
     if (!React.isValidElement(child)) return child;
     const type = child.type as { displayName?: string; name?: string };
@@ -47,20 +48,23 @@ export function GuardedPanels({ children, isArabic, titles }: { children: React.
 }
 
 /** `error` is the source's error: a refusal says so in a sentence (the server's, when it sent one) instead of the generic failure copy. */
-export function SectionMessage({ title, isArabic, kind, detail, onRetry, error }: { title: string; isArabic: boolean; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
-  const copy = isArabic
-    ? {
+export function SectionMessage({ title, isArabic, language = isArabic ? "ar" : "en", kind, detail, onRetry, error }: { title: string; isArabic: boolean; language?: Language; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
+  const copy = pickLanguage(language, { ar: {
         loading: "جارٍ تحميل هذا القسم…",
         empty: "لا توجد بيانات لهذا القسم ضمن نطاق الوصول الحالي.",
         error: "تعذّر تحميل هذا القسم. بقية اللوحة ما زالت متاحة.",
         partial: "تتوفر بيانات جزئية فقط؛ يُشار إلى المصادر الناقصة أدناه.",
-      }
-    : {
+      }, en: {
         loading: "Loading this section…",
         empty: "No data is available for this section in the current access scope.",
         error: "This section could not be loaded. The rest of the dashboard remains available.",
         partial: "Only partial data is available; missing sources are identified below.",
-      };
+      }, ur: {
+        loading: "Loading this section…",
+        empty: "No data is available for this section in the current access scope.",
+        error: "This section could not be loaded. The rest of the dashboard remains available.",
+        partial: "Only partial data is available; missing sources are identified below.",
+      } });
   const tone = kind === "error" ? "border-red-200 bg-red-50 text-red-800" : kind === "partial" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-border bg-muted/30 text-muted-foreground";
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">

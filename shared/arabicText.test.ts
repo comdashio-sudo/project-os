@@ -18,7 +18,11 @@ function sources(dir: string): string[] {
 const strings: Array<{ file: string; text: string }> = [];
 for (const root of roots) for (const file of sources(root)) {
   const source = readFileSync(file, "utf8");
-  for (const match of Array.from(source.matchAll(/(["`'])((?:(?!\1).)*[؀-ۿ](?:(?!\1).)*)\1/g))) if ((match[2].match(/[؀-ۿ]/g) ?? []).length >= 2) strings.push({ file: relative(repository, file), text: match[2] });
+  for (const match of Array.from(source.matchAll(/(["`'])((?:(?!\1).)*[؀-ۿ](?:(?!\1).)*)\1/g))) {
+    // Urdu text (its own letters) is out of this rule's scope: the rule is about Arabic spelling, and Urdu words such as «پلان» are not misspellings.
+    if (/[ٹڈڑںےھہۓپچژگکی]/.test(match[2])) continue;
+    if ((match[2].match(/[؀-ۿ]/g) ?? []).length >= 2) strings.push({ file: relative(repository, file), text: match[2] });
+  }
 }
 const tokens = (text: string) => text.match(/[ء-ْ]+/g) ?? [];
 const found = (predicate: (token: string) => boolean) => strings.flatMap(({ file, text }) => tokens(text).filter(predicate).map(token => `${file}: ${token} — «${text.slice(0, 60)}»`));

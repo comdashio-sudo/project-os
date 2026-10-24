@@ -13,11 +13,11 @@ export const LEVEL_IDS = ["company", "portfolio", "project", "warehouse"] as con
 export type LevelId = (typeof LEVEL_IDS)[number];
 
 /** Arabic first; English is the second language of the same screen, chosen by the page's `isArabic`. */
-export const LEVEL_NAMES: Record<LevelId, { ar: string; en: string }> = {
-  company: { ar: "الشركة ومجلس الإدارة", en: "Company and board" },
-  portfolio: { ar: "إدارة المشاريع (المحفظة)", en: "Projects management (portfolio)" },
-  project: { ar: "المشروع", en: "Project" },
-  warehouse: { ar: "المستودع", en: "Warehouse" },
+export const LEVEL_NAMES: Record<LevelId, { ar: string; en: string; ur: string }> = {
+  company: { ar: "الشركة ومجلس الإدارة", en: "Company and board", ur: "Company and board" },
+  portfolio: { ar: "إدارة المشاريع (المحفظة)", en: "Projects management (portfolio)", ur: "Projects management (portfolio)" },
+  project: { ar: "المشروع", en: "Project", ur: "Project" },
+  warehouse: { ar: "المستودع", en: "Warehouse", ur: "Warehouse" },
 };
 
 /** The navigation ids the server already returns for the two company-wide levels (server/domain/navigation.ts). */

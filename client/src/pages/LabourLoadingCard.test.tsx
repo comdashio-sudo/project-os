@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   save: vi.fn(),
   refetch: vi.fn(),
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   profitability: { labour: { useQuery: () => h.fail ? { isLoading: false, error: new Error("x"), data: undefined, refetch: h.refetch } : { isLoading: false, error: null, refetch: h.refetch, data: h.empty ? { approvedEntries: 0, loadedEntries: 0, resourceEntries: 0, hours: 0, loadedCost: 0, effectiveLoadingFactor: null, isDefault: true, settings: {} } : { approvedEntries: 3, loadedEntries: 2, resourceEntries: 1, hours: 24, loadedCost: 1122.64, effectiveLoadingFactor: 1.1788, isDefault: false, settings: {} } } } },
   labourSettings: {

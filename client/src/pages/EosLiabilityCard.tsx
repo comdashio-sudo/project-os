@@ -5,17 +5,18 @@ import React from "react";
 import { SourceNotice } from "@/components/SectionResilience";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
+import { pickLanguage } from "@/lib/language";
 
 // End-of-service liability by month (G-122). Shown only to a role that may read pay; it never calculates a legal
 // end-of-service entitlement, and the card says so next to the figures.
 const text = {
   ar: { title: "التزام نهاية الخدمة التراكمي", basis: "مجموع المخصصات الشهرية المسجّلة في مسيرات الرواتب المعتمدة أو المدفوعة فقط، وتُحسب افتراضيًا بمدة الخدمة (نصف شهر عن كل سنة من الخمس الأولى وشهر عن كل سنة بعدها، وللشركة تعديلها). تقدير للتكلفة، وليس احتسابًا قانونيًا.", month: "الشهر", accrued: "مخصص الشهر", cumulative: "الرصيد التراكمي", employees: "عدد الموظفين", byEmployee: "الرصيد حسب الموظف", total: "الإجمالي", sheet: "نهاية الخدمة", empty: "لا مسيرات معتمدة بمخصصات بعد.", loading: "جارٍ التحميل…", mixed: "تنبيه: مسيرات بعملات مختلفة؛ الإجمالي لا يفصل بينها." },
-  en: { title: "Cumulative end-of-service liability", basis: "The running sum of the monthly accruals booked in approved or paid payroll runs only. By default each month accrues by length of service (half a month a year for the first five years, a month a year after; the company can change it). A cost estimate, not a legal calculation.", month: "Month", accrued: "Accrued in month", cumulative: "Cumulative balance", employees: "Employees", byEmployee: "Balance by employee", total: "Total", sheet: "End of service", empty: "No approved runs with accruals yet.", loading: "Loading…", mixed: "Note: runs in different currencies; the total does not separate them." },
+  en: { title: "Cumulative end-of-service liability", basis: "The running sum of the monthly accruals booked in approved or paid payroll runs only. By default each month accrues by length of service (half a month a year for the first five years, a month a year after; the company can change it). A cost estimate, not a legal calculation.", month: "Month", accrued: "Accrued in month", cumulative: "Cumulative balance", employees: "Employees", byEmployee: "Balance by employee", total: "Total", sheet: "End of service", empty: "No approved runs with accruals yet.", loading: "Loading…", mixed: "Note: runs in different currencies; the total does not separate them." }, ur: { title: "Cumulative end-of-service liability", basis: "The running sum of the monthly accruals booked in approved or paid payroll runs only. By default each month accrues by length of service (half a month a year for the first five years, a month a year after; the company can change it). A cost estimate, not a legal calculation.", month: "Month", accrued: "Accrued in month", cumulative: "Cumulative balance", employees: "Employees", byEmployee: "Balance by employee", total: "Total", sheet: "End of service", empty: "No approved runs with accruals yet.", loading: "Loading…", mixed: "Note: runs in different currencies; the total does not separate them." },
 };
 
 export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const capabilities = trpc.employees.payroll.capabilities.useQuery({ tenantId });
   const allowed = Boolean(capabilities.data?.canReadSensitivePayroll);
   const liability = trpc.employees.payroll.eosLiability.useQuery({ tenantId }, { enabled: allowed });

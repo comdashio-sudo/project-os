@@ -49,6 +49,13 @@ const text = {
     stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" } as Record<string, string>,
     failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
     rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
+  }, ur: {
+    noFile: "Choose a file before analysing.", typeError: "Accepted formats are XLSX or CSV.", sizeError: `The file is larger than the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
+    uploadFailed: "The file could not be uploaded to storage. Check your connection and try again.",
+    uploading: "Uploading the file", analyzing: "Analysing the file", importing: "Writing the records", progressLabel: "Processing progress",
+    stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" } as Record<string, string>,
+    failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
+    rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
   },
 };
 

@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { ledgerColumns, ledgerImportPermission, LEDGER_MODULES, type LedgerModule } from "@shared/ledgerImportColumns";
 import { Download, FileSpreadsheet } from "lucide-react";
 import React, { useState } from "react";
+import { pickLanguage } from "@/lib/language";
 
 function download(file: { base64: string; fileName: string; contentType: string }) {
   const bytes = Uint8Array.from(window.atob(file.base64), value => value.charCodeAt(0));
@@ -38,12 +39,23 @@ const text = {
     } as Record<LedgerModule, string>,
     template: "Download the template", export: "Export the current data", chooseFile: "Excel or CSV file", analyze: "Upload and analyse", confirm: "Save what the preview showed", columns: "Columns", required: "required",
     denied: "You may not import this kind of data; this section offers the export and the template only.",
+  }, ur: {
+    title: "Excel for operational data", note: "Template → export → edit → re-upload, with a differences preview before anything is saved. The file writes only what you saw in the preview and never goes around an existing approval path.",
+    modules: { costs: "Actual costs", purchaseOrders: "Purchase orders", employees: "Employees", timeEntries: "Hours" } as Record<LedgerModule, string>,
+    rules: {
+      costs: "Every row is tied to an existing WBS item or to a budget line linked to one, or it is refused with its reason. Amounts are in riyals. A posted cost is not edited from a file: an edited exported row is refused.",
+      purchaseOrders: "Every order is tied to an existing contract or supplier. Orders are always created as drafts and only a draft can be changed. The Status column is for display: submitting and approving happen in the order's workflow.",
+      employees: "The working record only (number, name, title, department, hire date, status). No nationality or identity documents in the file, and termination is done on the HR screen. Every read of these records is written to the audit trail.",
+      timeEntries: "One row per employee per day against their assignment on this project, under the hours screen's own rule: a day without approved attendance is refused. Hours are created as drafts and a booked day is not edited from a file.",
+    } as Record<LedgerModule, string>,
+    template: "Download the template", export: "Export the current data", chooseFile: "Excel or CSV file", analyze: "Upload and analyse", confirm: "Save what the preview showed", columns: "Columns", required: "required",
+    denied: "You may not import this kind of data; this section offers the export and the template only.",
   },
 };
 
 export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const locale = isArabic ? "ar" : "en";
   const [moduleCode, setModuleCode] = useState<LedgerModule>("costs");
   const template = trpc.dataImports.template.useMutation({ onSuccess: download });
@@ -64,7 +76,7 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="mt-5 border-t border-border pt-4">
-        <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied }}>
+        <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.en.denied }}>
           <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} />
         </WriteGate>
       </div>

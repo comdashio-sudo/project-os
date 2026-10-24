@@ -37,11 +37,22 @@ const text = {
     inspection: "Inspection number", inspectedAt: "Inspection date", outcome: "Outcome", awaiting: "Awaiting a result", openNcrs: "Open non-conformances",
     notAvailable: "Not available",
   },
+  ur: {
+    title: "Project dashboard", loading: "Loading the project dashboard…",
+    profit: "Profitability", evm: "Earned value (EVM)", progress: "Progress", pv: "PV", ev: "EV", ac: "AC", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC",
+    evmUnavailable: "Earned value cannot be computed for this project yet.", progressUnavailable: "No progress is computed for this project yet.",
+    daily: "Daily report", dailyFailed: "Could not load the daily reports.", noDaily: "No daily report is registered for this project.",
+    report: "Report number", date: "Date", workforce: "Workforce", status: "Status",
+    handovers: "Handovers", handoversWhat: "No read route on main yet gives this project's handovers.",
+    inspections: "Inspections", inspectionsFailed: "Could not load the inspections.", noInspections: "No inspection is registered for this project.",
+    inspection: "Inspection number", inspectedAt: "Inspection date", outcome: "Outcome", awaiting: "Awaiting a result", openNcrs: "Open non-conformances",
+    notAvailable: "Not available",
+  },
 };
 
 export default function LevelProject() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const enabled = Boolean(tenantId && projectId);
   const query = trpc.scopes.project.useQuery({ tenantId, projectId }, { enabled });
@@ -89,7 +100,7 @@ export default function LevelProject() {
         : reports.data && dailyReports.length === 0 ? <p className="text-sm text-slate-600">{t.noDaily}</p>
         : dailyReports.length > 0 ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
             <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.report}</th><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.workforce}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{dailyReports.map(report => <tr key={report.id}><th scope="row" className="py-3 text-start font-medium">{report.reportNumber}</th><td className="py-3">{day(report.reportedAt)}</td><td className="py-3">{report.workforceCount}</td><td className="py-3">{enumLabel(report.status, isArabic)}</td></tr>)}</tbody>
+            <tbody className="divide-y divide-slate-100">{dailyReports.map(report => <tr key={report.id}><th scope="row" className="py-3 text-start font-medium">{report.reportNumber}</th><td className="py-3">{day(report.reportedAt)}</td><td className="py-3">{report.workforceCount}</td><td className="py-3">{enumLabel(report.status, language)}</td></tr>)}</tbody>
           </table></div> : null}
     </LevelSection>
     <LevelSection id="project-handovers" title={t.handovers}>
@@ -105,7 +116,7 @@ export default function LevelProject() {
         : inspections.data && latestInspections.length === 0 ? <p className="text-sm text-slate-600">{t.noInspections}</p>
         : latestInspections.length > 0 ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
             <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.inspection}</th><th scope="col" className="py-2 text-start">{t.inspectedAt}</th><th scope="col" className="py-2 text-start">{t.outcome}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{latestInspections.map(item => <tr key={item.id}><th scope="row" className="py-3 text-start font-medium">{item.inspectionNumber}</th><td className="py-3">{day(item.inspectedAt)}</td><td className="py-3">{enumLabel(item.outcome, isArabic)}</td><td className="py-3">{enumLabel(item.status, isArabic)}</td></tr>)}</tbody>
+            <tbody className="divide-y divide-slate-100">{latestInspections.map(item => <tr key={item.id}><th scope="row" className="py-3 text-start font-medium">{item.inspectionNumber}</th><td className="py-3">{day(item.inspectedAt)}</td><td className="py-3">{enumLabel(item.outcome, language)}</td><td className="py-3">{enumLabel(item.status, language)}</td></tr>)}</tbody>
           </table></div> : null}
     </LevelSection>
   </>);

@@ -12,11 +12,12 @@ import { getProjectError } from "@shared/projectErrors";
 import { importModulePermissions } from "@shared/importPermissions";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { importTemplateHeaders } from "@shared/importTemplateHeaders";
+import { pickLanguage } from "@/lib/language";
 
 type DuplicateMode = "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate";
 
 export function ProjectImports({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const [moduleCode, setModuleCode] = useState<"wbs" | "budget" | "contracts" | "materials" | "schedule" | "openingBalances">("wbs");
   const [file, setFile] = useState<File | null>(null);
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("fail_on_duplicate");
@@ -45,8 +46,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
   const confirm = trpc.dataImports.confirm.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
   const busy = uploadPercent !== null || createUpload.isPending || registerUpload.isPending;
-  const t = isArabic
-    ? {
+  const t = pickLanguage(language, { ar: {
         title: "استيراد بيانات",
         note: "ارفع XLSX أو CSV، واختر سياسة التكرار، ثم راجع النتيجة قبل تأكيد الكتابة التشغيلية.",
         wbs: "WBS",
@@ -97,8 +97,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "في الانتظار", downloading: "قراءة الملف من التخزين", parsing: "قراءة الصفوف", validating: "التحقق من الصفوف", writing: "حفظ النتيجة" },
         failedTitle: "فشلت المعالجة", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
-      }
-    : {
+      }, en: {
         title: "Data import",
         note: "Upload XLSX or CSV, select the duplicate policy, then review the result before confirming the operational write.",
         wbs: "WBS",
@@ -149,7 +148,58 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
         failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
-      };
+      }, ur: {
+        title: "Data import",
+        note: "Upload XLSX or CSV, select the duplicate policy, then review the result before confirming the operational write.",
+        wbs: "WBS",
+        budget: "Budget",
+        contracts: "Contracts",
+        materials: "Materials",
+        schedule: "Schedule",
+        openingBalances: "Opening balances",
+        openingRules: "An opening balance is the first movement of a material in a warehouse: it is refused for a pair that already has movements and never edits stock that has a history. The quantity is above zero and the warehouse and material exist and are active.",
+        analyze: "Analyze file",
+        reanalyze: "Reanalyze mapping",
+        chooseMapping: "Choose a file column",
+        confirm: "Confirm import",
+        rows: "Rows",
+        errors: "Validation errors",
+        created: "Records created",
+        updated: "Records updated",
+        skipped: "Records skipped",
+        history: "Import history",
+        details: "Import results",
+        viewDetails: "View results",
+        results: "Row results",
+        duplicateMode: "Duplicate-row policy",
+        choose: "Choose a file",
+        mapping: "Detected column mapping",
+        noRowResults: "No row results have been saved for this record yet.",
+        validationErrors: "Saved validation errors",
+        field: { code: "Code", name: "Name", plannedValue: "Planned value", costCode: "Cost code", originalAmount: "Original amount", currentAmount: "Current amount", title: "Contract title", counterparty: "Counterparty", contractValue: "Contract value", currency: "Currency", recordType: "Record type", wbsCode: "WBS code", wbsName: "WBS name", activityCode: "Activity code", activityName: "Activity name", plannedStartAt: "Planned start", plannedFinishAt: "Planned finish", status: "Status" },
+        status: { uploaded: "Uploaded", analyzing: "Processing", validated: "Ready to confirm", completed: "Completed", failed: "Failed", importing: "Processing", cancelled: "Cancelled", confirmed: "Confirmed" },
+        duplicate: { fail_on_duplicate: "Stop when a duplicate exists", skip_duplicates: "Skip existing rows", update_existing: "Update existing rows only", upsert: "Create new and update existing rows" },
+        action: { created: "Created", updated: "Updated", skipped: "Skipped" },
+        workflow: "Controlled import in three steps",
+        step1: "Choose the data type and template",
+        step2: "Upload the file and analyze mapping",
+        step3: "Review the result, then confirm the write",
+        instructions: "The system does not write a record until validation and mapping review succeed. Do not upload columns outside the selected data type or combined files from multiple areas.",
+        template: "Download Excel template",
+        templateNote: "The template contains only approved columns. Add data rows below the header without changing column names.",
+        requiredColumns: "Required columns",
+        accepted: `Accepted files: XLSX or CSV for standard templates, and XLSX or XER for schedule import, up to ${MAX_IMPORT_UPLOAD_MB} MB.`,
+        fileRules: "One file, one sheet, and one data type. The system rejects unapproved columns and repeated keys inside the file.",
+        noFile: "Choose a file before analysis.",
+        typeError: "The file format does not match the selected template.",
+        scheduleRules: "Schedule import accepts only named WBS and activity records. XER requires PROJWBS and TASK; unresolved WBS links and invalid dates are never ignored.",
+        sizeError: `The file exceeds the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
+        uploading: "Uploading the file",
+        analyzing: "Analysing the file", importing: "Writing the records", progressLabel: "Processing progress",
+        stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
+        failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
+        blocked: "Confirmation remains blocked until analysis has no validation errors.",
+      } });
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
     const format = file.name.toLowerCase().endsWith(".xer") ? "xer" : file.name.toLowerCase().endsWith(".csv") ? "csv" : file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : null;
@@ -214,7 +264,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         </div>}
         {current.status === "failed" && <div role="alert" className="mt-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-red-800">
           <p className="font-semibold">{t.failedTitle}</p>
-          <p className="mt-1">{current.failureReason ? (isArabic ? getProjectError(current.failureReason).messages.ar : getProjectError(current.failureReason).messages.en) : t.failedTitle}</p>
+          <p className="mt-1">{current.failureReason ? (pickLanguage(language, getProjectError(current.failureReason).messages)) : t.failedTitle}</p>
         </div>}
         {(current.status === "uploaded" || current.status === "validated") && current.analysis && <>
           <p>{t.rows}: {current.totalRows}</p>

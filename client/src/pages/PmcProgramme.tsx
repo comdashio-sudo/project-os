@@ -7,6 +7,7 @@ import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "r
 import { ChartLegend } from "@/components/ChartLegend";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
+import { pickLanguage } from "@/lib/language";
 
 const text = {
   ar: {
@@ -24,6 +25,13 @@ const text = {
     contract: "Contract value", paid: "Paid", confirmed: "Confirmed invoicing", target: "Target invoicing", targetHint: "Planned progress to date × contract value", needs: "Needs a baseline and a contract value",
     chart: "Planned vs actual (cumulative)", planned: "Planned", actual: "Actual", variance: "Variance", plannedMonth: "Planned in month", actualMonth: "Actual in month", month: "Month", empty: "No data",
     basis: "Amounts are before VAT. Paid = paid invoices; confirmed = issued and paid (not drafts or void).",
+  }, ur: {
+    table: "Programme table", sheet: "Programme",
+    loading: "Loading…", retry: "Retry", noBaseline: "No baseline has been imported yet, so the planned curve is not shown. Import the baseline file from the Import tab.",
+    noHistory: (n: number, actual: string, cells: string) => `${n} cells have a status but no history, so the actual curve (from history) reads ${actual} while project progress from the statuses is ${cells}.`,
+    contract: "Contract value", paid: "Paid", confirmed: "Confirmed invoicing", target: "Target invoicing", targetHint: "Planned progress to date × contract value", needs: "Needs a baseline and a contract value",
+    chart: "Planned vs actual (cumulative)", planned: "Planned", actual: "Actual", variance: "Variance", plannedMonth: "Planned in month", actualMonth: "Actual in month", month: "Month", empty: "No data",
+    basis: "Amounts are before VAT. Paid = paid invoices; confirmed = issued and paid (not drafts or void).",
   },
 };
 
@@ -31,8 +39,8 @@ const text = {
 const fraction = (value: number | null) => (value === null ? null : value / 100);
 
 export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const query = trpc.pmc.programme.useQuery({ tenantId, projectId });
   // The chart takes the width it is given (a phone is narrower than any fixed size); without ResizeObserver (tests) it keeps a default.
   const box = useRef<HTMLDivElement>(null);

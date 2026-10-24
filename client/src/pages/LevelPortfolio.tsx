@@ -31,6 +31,16 @@ const text = {
     qualityTitle: "Waiting for quality", qualityInspections: "Inspections awaiting a result", qualityNcrs: "Open non-conformances",
     nothingWaiting: "Nothing is waiting in this section.", emptyTitle: "No projects in your portfolio", emptyBody: "Your projects-management assignment does not cover any project yet.",
   },
+  ur: {
+    title: "Projects management (portfolio) dashboard", loading: "Loading the portfolio dashboard…",
+    totals: "Totals", projects: "Projects", avgProgress: "Average progress", late: "Projects with late activities",
+    waitingConsultant: "Waiting for the consultant", waitingQuality: "Waiting for quality",
+    comparison: "Project comparison", project: "Project", progress: "Progress", cpi: "CPI", spi: "SPI", profit: "Expected profit", lateActivities: "Late activities",
+    stockBelow: "Materials below reorder", open: "Open project",
+    consultantTitle: "Waiting for the consultant", consultantRequests: "Inspection requests without a reply", consultantSubmittals: "Submittals awaiting a reply",
+    qualityTitle: "Waiting for quality", qualityInspections: "Inspections awaiting a result", qualityNcrs: "Open non-conformances",
+    nothingWaiting: "Nothing is waiting in this section.", emptyTitle: "No projects in your portfolio", emptyBody: "Your projects-management assignment does not cover any project yet.",
+  },
 };
 
 export default function LevelPortfolio() {

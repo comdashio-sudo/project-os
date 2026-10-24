@@ -12,6 +12,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ProjectImports } from "./ProjectImports";
+import { pickLanguage } from "@/lib/language";
 
 type Step = "company" | "project" | "import" | "invite";
 const STEPS: Step[] = ["company", "project", "import", "invite"];
@@ -35,14 +36,22 @@ const text = {
     project: { head: "2. First project", code: "Project code", name: "Project name", type: "Project type", currency: "Currency (3 letters)", create: "Create the project", creating: "Creating…", exists: "Company projects", use: "Use this project", chosen: "Chosen project", none: "No project yet: create the first one.", defaultType: "Construction" },
     import: { head: "3. Import the project data", lead: "Upload your schedule (Primavera XER or Excel) or the data templates (Excel/CSV). Files are checked and shown to you before anything is written, and you can skip the step and come back to it from “Data import” inside the project.", needProject: "Choose the project in the previous step first." },
     invite: { head: "4. Invite the team with ready-made roles", lead: "Each role is ready with limited permissions and separation of duties. The invitation is limited to the first project by default.", email: "Invitee e-mail", role: "Role", scope: "Invitation scope", scopeProject: "First project only", scopeCompany: "Whole company", send: "Create the invitation", sending: "Creating…", link: "Invitation link — send it to the invitee (shown once)", purpose: "Purpose", focus: "Focus", boundary: "Boundary", sent: "Invitations from this session", noRoles: "No roles available.", pickRole: "Choose a role", finish: "Finish setup and go to the project", needProject: "Choose the project first." },
+  }, ur: {
+    back: "Workspace", title: "First-company setup", sub: "Four steps: the company, the first project, importing its data, then inviting your team with ready-made roles. Each step is saved as soon as it is done and you can return to it later.",
+    steps: { company: "Company", project: "First project", import: "Import", invite: "Invite team" },
+    stepOf: (n: number) => `Step ${n} of 4`, done: "Done", next: "Next", skip: "Skip this step for now", previous: "Previous",
+    company: { head: "1. Company", have: "Your company", legal: "Legal name", slug: "Identifier (lowercase letters, digits, dashes)", plan: "Plan", seats: "Seats", create: "Create the company", creating: "Creating…", loading: "Loading…", pick: "Choose a plan", choose: "Choose the company you are setting up", created: "The company was created. Go to the next step." },
+    project: { head: "2. First project", code: "Project code", name: "Project name", type: "Project type", currency: "Currency (3 letters)", create: "Create the project", creating: "Creating…", exists: "Company projects", use: "Use this project", chosen: "Chosen project", none: "No project yet: create the first one.", defaultType: "Construction" },
+    import: { head: "3. Import the project data", lead: "Upload your schedule (Primavera XER or Excel) or the data templates (Excel/CSV). Files are checked and shown to you before anything is written, and you can skip the step and come back to it from “Data import” inside the project.", needProject: "Choose the project in the previous step first." },
+    invite: { head: "4. Invite the team with ready-made roles", lead: "Each role is ready with limited permissions and separation of duties. The invitation is limited to the first project by default.", email: "Invitee e-mail", role: "Role", scope: "Invitation scope", scopeProject: "First project only", scopeCompany: "Whole company", send: "Create the invitation", sending: "Creating…", link: "Invitation link — send it to the invitee (shown once)", purpose: "Purpose", focus: "Focus", boundary: "Boundary", sent: "Invitations from this session", noRoles: "No roles available.", pickRole: "Choose a role", finish: "Finish setup and go to the project", needProject: "Choose the project first." },
   },
 };
 
 /** The setup wizard (item 11): company → first project → import → invite, composed only from procedures that already enforce their own permissions. */
 export default function SetupWizard() {
   const { tenantId: routeTenantId } = useParams<{ tenantId?: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, isRtl, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const [, navigate] = useLocation();
   const tenants = trpc.tenant.mine.useQuery();
   const tenantId = routeTenantId ?? "";
@@ -56,7 +65,7 @@ export default function SetupWizard() {
   const complete: Record<Step, boolean> = { company: Boolean(tenantId), project: Boolean(projectId), import: false, invite: false };
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900" dir={isArabic ? "rtl" : "ltr"}>
+    <main className="min-h-screen bg-[#f4f6f8] text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
       <header className="border-b bg-white"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></header>
       <div className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
@@ -124,7 +133,7 @@ function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetc
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
       {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3"><span><span dir="ltr" className="font-mono text-xs text-slate-500">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-emerald-700">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-slate-600">{t.none}</p>}
-      <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects." }}>
+      <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects.", ur: "You do not have permission to create projects." }}>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...form }); }}>
           <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /></div>
           <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /></div>
@@ -154,7 +163,7 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
       <p className="mt-2 leading-7 text-slate-600">{t.lead}</p>
       {admin.error ? <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(admin.error, isArabic)}</p> : null}
       {!roles.length && !admin.isLoading && !admin.error ? <p className="mt-3 text-sm text-slate-600">{t.noRoles}</p> : null}
-      <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite." }}>
+      <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite.", ur: "You do not have permission to manage the company, so you cannot invite." }}>
         <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!roleId) return; invite.mutate({ tenantId, email, roleId, scopeType: scope, scopeId: scope === "project" ? projectId : undefined }); }}>
           <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /></div>
           <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select></div>

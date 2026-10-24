@@ -17,7 +17,7 @@ const helpers = vi.hoisted(() => {
 });
 const { state, query, mutation } = helpers;
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true, language: (true) ? "ar" : "en", isRtl: true }) }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     procurement: { register: { useQuery: () => helpers.query({ suppliers: [{ id: "s1", code: "SUP-1", legalName: "Gulf Steel Co", active: true }] }, helpers.state.suppliers === "fail") } },

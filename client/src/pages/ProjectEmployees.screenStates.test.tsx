@@ -12,7 +12,7 @@ const forbidden = { message: "PROJECT_OS_PERMISSION_DENIED", data: { code: "FORB
 const state = vi.hoisted(() => ({ list: { isLoading: false, isFetching: false, error: null as unknown, data: [] as unknown[] | undefined, refetch: vi.fn() } }));
 const mutation = vi.hoisted(() => () => ({ mutate: vi.fn(), isPending: false, error: null, refetch: vi.fn() }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { employees: {
   list: { useQuery: () => state.list },
   create: { useMutation: mutation },

@@ -15,7 +15,7 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/support", vi.fn()],
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Support error" }));
 vi.mock("@/components/SectionResilience", () => ({ SourceNotice: () => null }));
 vi.mock("@/lib/trpc", () => {

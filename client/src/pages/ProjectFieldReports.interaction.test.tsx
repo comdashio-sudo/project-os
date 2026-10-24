@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectFieldReports } from "./ProjectFieldReports";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized field report error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { fieldReports: {
   list: { useQuery: () => ({ data: [{ id: "00000000-0000-4000-8000-0000000000f4", reportNumber: "FR-001", reportType: "daily", reportedAt: new Date("2026-08-19T00:00:00.000Z"), shift: "day", workforceCount: 12, weather: "Clear", summary: "Existing daily report summary.", status: "draft" }], refetch: vi.fn(), error: null, isLoading: false }) },

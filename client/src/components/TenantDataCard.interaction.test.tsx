@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   request: { mutate: vi.fn(), data: undefined as unknown, error: null as unknown, isPending: false },
   confirm: { mutate: vi.fn(), data: undefined as unknown, error: null as unknown, isPending: false },
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true, language: (true) ? "ar" : "en", isRtl: true }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "رسالة خطأ" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { tenantData: { preview: { useQuery: () => state.preview }, requestDeletion: { useMutation: () => state.request }, confirmDeletion: { useMutation: () => state.confirm } } } }));
 

@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => {
   return { state, mutation, query };
 });
 const { state } = hoisted;
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { design: {
   dashboard: hoisted.query({ drawings: { total: 4, approved: 1, completionPercent: 25, byStatus: {}, disciplines: [{ discipline: "architectural", total: 3, approved: 1 }, { discipline: "structural", total: 1, approved: 0 }] }, comments: { open: 1, responded: 1, closed: 3, overdue: 1 }, submittals: { draft: 0, awaitingReply: 2, replied: 1, closed: 0, overdue: 1, averageReplyDays: 4.5, replies: { A: 1, B: 0, C: 1, D: 0 } }, transmittals: { draft: 0, sent: 1, acknowledged: 0 } }),

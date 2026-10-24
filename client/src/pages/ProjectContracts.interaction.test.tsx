@@ -7,7 +7,7 @@ import { ProjectContracts } from "./ProjectContracts";
 
 const state = vi.hoisted(() => ({ contractError: null as unknown, commitmentError: null as unknown, contractMutate: vi.fn(), commitmentMutate: vi.fn() }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {

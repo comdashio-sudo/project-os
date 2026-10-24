@@ -23,7 +23,7 @@ function procedures(path: string[]): unknown {
   } });
 }
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { employees: procedures(["employees"]) } }));
 
 beforeEach(() => {

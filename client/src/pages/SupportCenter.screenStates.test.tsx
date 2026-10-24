@@ -16,7 +16,7 @@ const mutation = vi.hoisted(() => () => ({ mutate: vi.fn(), isPending: false, er
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("./SupportOwnerPanel", () => ({ SupportOwnerPanel: () => <section>owner</section> }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ support: { tickets: { invalidate: vi.fn() } } }),
   support: {

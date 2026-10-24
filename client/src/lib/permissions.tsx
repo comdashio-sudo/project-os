@@ -11,6 +11,7 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
+import { pickLanguage } from "@/lib/language";
 
 type Scope = { scopeType: string; scopeId: string | null };
 type Summary = { member: boolean; products: readonly string[]; permissions: readonly string[]; scopes: readonly Scope[] };
@@ -56,11 +57,11 @@ export function usePermissionsLoading(): boolean {
  * Hides what the person cannot use. With `reason` the place is not left silent: a form is replaced by one line saying which
  * kind of permission is missing, so "where did the button go" has an answer. Row actions pass nothing and simply do not appear.
  */
-export function WriteGate({ permission, projectId, reason, children }: { permission: string | readonly string[]; projectId?: string; reason?: { ar: string; en: string }; children: React.ReactNode }) {
+export function WriteGate({ permission, projectId, reason, children }: { permission: string | readonly string[]; projectId?: string; reason?: { ar: string; en: string; ur: string }; children: React.ReactNode }) {
   const allowed = useCan(permission, projectId);
   const loading = usePermissionsLoading();
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   if (allowed) return <>{children}</>;
   if (!reason || loading) return null;
-  return <p role="note" data-write-gate="denied" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{isArabic ? reason.ar : reason.en}</p>;
+  return <p role="note" data-write-gate="denied" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{pickLanguage(language, reason)}</p>;
 }

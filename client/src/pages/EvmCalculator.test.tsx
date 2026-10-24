@@ -6,7 +6,7 @@ import EvmCalculator from "./EvmCalculator";
 
 const state = vi.hoisted(() => ({ isArabic: false }));
 
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { controls: { calculateEvm: { useQuery: () => ({ data: undefined, isLoading: false, isError: false, error: null }) } } } }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("wouter", () => ({ Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));

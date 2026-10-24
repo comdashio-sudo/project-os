@@ -10,6 +10,7 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, Calculator, ChevronLeft, ChevronRight, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
+import { pickLanguage } from "@/lib/language";
 
 type Values = {
   pv: string;
@@ -24,11 +25,10 @@ const initialValues: Values = { pv: "", ev: "", ac: "", bac: "", manualEac: "", 
 const metrics = ["PV", "EV", "AC", "CV", "SV", "CPI", "SPI", "EAC", "ETC", "VAC", "TCPI"] as const;
 
 export default function EvmCalculator() {
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const [values, setValues] = useState<Values>(initialValues);
   const [submitted, setSubmitted] = useState(false);
-  const t = isArabic
-    ? {
+  const t = pickLanguage(language, { ar: {
         level: "محرّك الضبط المركزي",
         workspace: "مساحة العمل",
         engine: "محرك القيمة المكتسبة",
@@ -46,8 +46,7 @@ export default function EvmCalculator() {
         action: "الإجراء الموصى به:",
         secure: "الحساب مركزي ومحكوم",
         controlLabel: "ضوابط EVM",
-      }
-    : {
+      }, en: {
         level: "CENTRAL CONTROL ENGINE",
         workspace: "Workspace",
         engine: "Earned Value Engine",
@@ -65,7 +64,25 @@ export default function EvmCalculator() {
         action: "Recommended action:",
         secure: "Centralized and governed calculation",
         controlLabel: "EVM controls",
-      };
+      }, ur: {
+        level: "CENTRAL CONTROL ENGINE",
+        workspace: "Workspace",
+        engine: "Earned Value Engine",
+        engineSub: "A centralized, tested calculation for cost and schedule control.",
+        inputTitle: "Calculation inputs",
+        labels: ["PV — Planned Value", "EV — Earned Value", "AC — Actual Cost", "BAC — Budget at Completion"],
+        method: "EAC method",
+        manual: "Approved manual EAC",
+        calc: "Calculate EVM metrics",
+        outcome: "CONTROL OUTCOME",
+        title: "Cost and schedule performance",
+        empty: "Enter actual project-control values to calculate a decision-ready EVM view.",
+        loading: "Calculating central EVM metrics…",
+        guidance: "Management guidance",
+        action: "Recommended action:",
+        secure: "Centralized and governed calculation",
+        controlLabel: "EVM controls",
+      } });
 
   const input = {
     pv: Number(values.pv),
