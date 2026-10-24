@@ -576,6 +576,118 @@ export const projectErrorMessages = {
     ar: "الكمية المعدودة يجب أن تكون صفرًا أو أكثر.",
     en: "A counted quantity must be zero or more.",
   },
+  PROJECT_OS_MATERIAL_NOT_APPROVED: {
+    ar: "هذه المادة لم يعتمد الاستشاري تسليمها، وسياسة الشركة تمنع صرفها.",
+    en: "This material's approval submittal has not been approved, and the company's policy blocks issuing it.",
+  },
+  PROJECT_OS_POLICY_CODES_INVALID: {
+    ar: "رموز القبول غير صالحة؛ استعمل رموزًا من حرف إلى أربعة (أحرف وأرقام).",
+    en: "The acceptance codes are not valid; use codes of one to four letters or digits.",
+  },
+  PROJECT_OS_QC_NOT_ACCEPTED: {
+    ar: "لا يُحتسب النشاط مكتملًا قبل قبول فحص الجودة لهذه الوحدة وهذا النشاط، وسياسة الشركة تمنع ذلك.",
+    en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
+  },
+  PROJECT_OS_SITE_REPORT_DATE_FUTURE: {
+    ar: "لا يُكتب تقرير يومي بتاريخ مستقبلي.",
+    en: "A daily report cannot be dated in the future.",
+  },
+  PROJECT_OS_SITE_REPORT_DATE_INVALID: {
+    ar: "تاريخ التقرير غير صالح.",
+    en: "The report date is not valid.",
+  },
+  PROJECT_OS_SITE_REPORT_EMPTY: {
+    ar: "التقرير فارغ؛ أضف بندًا أو ملخصًا قبل الإرسال.",
+    en: "The report is empty; add a line or a summary before sending.",
+  },
+  PROJECT_OS_SITE_REPORT_LINE_INVALID: {
+    ar: "بند التقرير ناقص: العمالة والمعدات تحتاج اسمًا وعددًا موجبًا، وبند العمل يحتاج وصفًا أو حالة.",
+    en: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
+  },
+  PROJECT_OS_SITE_REPORT_LOCKED: {
+    ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
+    en: "The report has been sent or approved and cannot be changed.",
+  },
+  PROJECT_OS_SITE_REPORT_NOT_FOUND: {
+    ar: "التقرير اليومي غير موجود في هذا المشروع.",
+    en: "The daily report does not exist in this project.",
+  },
+  PROJECT_OS_SITE_REPORT_NOT_SUBMITTED: {
+    ar: "التقرير ليس بانتظار المراجعة.",
+    en: "The report is not waiting for review.",
+  },
+  PROJECT_OS_SITE_REPORT_NOT_YOURS: {
+    ar: "هذا التقرير يخص مهندسًا آخر.",
+    en: "This report belongs to another engineer.",
+  },
+  PROJECT_OS_SITE_REPORT_PHOTO_INVALID: {
+    ar: "الملف ليس صورة (PNG أو JPEG أو WebP).",
+    en: "The file is not an image (PNG, JPEG or WebP).",
+  },
+  PROJECT_OS_SITE_REPORT_PHOTO_TOO_LARGE: {
+    ar: "الصورة أكبر من 10 MB.",
+    en: "The photo is larger than 10 MB.",
+  },
+  PROJECT_OS_SITE_REPORT_REJECT_REASON_REQUIRED: {
+    ar: "اكتب سبب الإرجاع ليعرف المهندس ما يصحّحه.",
+    en: "Write the reason so the engineer knows what to fix.",
+  },
+  PROJECT_OS_SITE_REPORT_SELF_REVIEW: {
+    ar: "لا تعتمد تقريرًا كتبته أنت؛ يعتمده مدير آخر.",
+    en: "You cannot approve a report you wrote; another manager approves it.",
+  },
+  PROJECT_OS_SITE_REPORT_STATUS_NEEDS_CELL: {
+    ar: "الحالة المبلَّغ عنها تحتاج وحدة ونشاطًا معًا.",
+    en: "A reported status needs both a unit and an activity.",
+  },
+  PROJECT_OS_SITE_REPORT_TOO_MANY_PHOTOS: {
+    ar: "بلغ التقرير الحد الأقصى من الصور (30).",
+    en: "The report has reached its photo limit (30).",
+  },
+  PROJECT_OS_SUBMITTAL_CODES_INVALID: {
+    ar: "رموز الرد مكررة أو غير صالحة.",
+    en: "The reply codes are duplicated or not valid.",
+  },
+  PROJECT_OS_SUBMITTAL_CODES_NEED_BOTH: {
+    ar: "يلزم رمز معتمِد فعّال ورمز غير معتمِد فعّال على الأقل.",
+    en: "At least one active approving code and one active non-approving code are required.",
+  },
+  PROJECT_OS_SUBMITTAL_DATE_FUTURE: {
+    ar: "تاريخ الإرسال في المستقبل.",
+    en: "The send date is in the future.",
+  },
+  PROJECT_OS_SUBMITTAL_MATERIAL_REQUIRED: {
+    ar: "اعتماد المواد يحتاج تحديد المادة.",
+    en: "A material approval needs the material.",
+  },
+  PROJECT_OS_SUBMITTAL_NOT_FOUND: {
+    ar: "التسليم غير موجود في هذا المشروع.",
+    en: "The submittal does not exist in this project.",
+  },
+  PROJECT_OS_SUBMITTAL_NUMBER_EXISTS: {
+    ar: "رقم التسليم مستعمل في هذا المشروع؛ لإعادة التقديم استعمل «إعادة تقديم».",
+    en: "The submittal number is already used in this project; to resubmit, use the resubmit action.",
+  },
+  PROJECT_OS_SUBMITTAL_REPLY_BEFORE_SENT: {
+    ar: "تاريخ الرد قبل تاريخ الإرسال.",
+    en: "The reply date is before the send date.",
+  },
+  PROJECT_OS_SUBMITTAL_REPLY_CODE_UNKNOWN: {
+    ar: "رمز الرد غير معرَّف أو متوقف عند الشركة.",
+    en: "The reply code is not one of the company's active codes.",
+  },
+  PROJECT_OS_SUBMITTAL_RESUBMISSION_INVALID: {
+    ar: "لا يُعاد تقديم إلا تسليم ردّ عليه الاستشاري برمز غير معتمِد.",
+    en: "Only a submittal answered with a non-approving code can be resubmitted.",
+  },
+  PROJECT_OS_SUBMITTAL_SELF_REPLY: {
+    ar: "من أرسل التسليم لا يسجّل ردّه.",
+    en: "Whoever sent the submittal does not record its reply.",
+  },
+  PROJECT_OS_SUBMITTAL_TRANSITION_INVALID: {
+    ar: "هذا الإجراء غير متاح لحالة التسليم الحالية.",
+    en: "That step is not available in the submittal's current state.",
+  },
   PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK: {
     ar: "لا يمكن أن تؤدي الحركة إلى رصيد مخزون سالب.",
     en: "The movement cannot result in a negative stock balance.",

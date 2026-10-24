@@ -14,6 +14,8 @@ const ALLOWED_TYPES: Record<DirectUploadPurpose, RegExp> = {
   // a document is any file with a plain media type; the screen keeps its own rules about what it accepts
   document: /^[a-z]+\/[A-Za-z0-9.+-]+$/,
   sitePlan: /^image\/(png|jpeg)$/,
+  // a photo in a daily site report (work order 12, item 4)
+  sitePhoto: /^image\/(png|jpeg|webp)$/,
 };
 /** The permission the module's own procedure requires, so a person can upload exactly when they could have attached the file before. */
 async function authorizeDirectUpload(input: { userId: number; tenantId: string; projectId: string; purpose: DirectUploadPurpose }) {
@@ -27,7 +29,7 @@ async function authorizeDirectUpload(input: { userId: number; tenantId: string; 
   }
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write", scope: { type: "project", id: input.projectId } });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.purpose === "sitePhoto" ? "project.field.manage" : "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
 }
 

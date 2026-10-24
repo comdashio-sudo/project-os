@@ -28,6 +28,7 @@ const mutations = Array.from(routers.matchAll(/(\w+): protectedProcedure[\s\S]*?
 const calledNames = new Set(Array.from(routers.matchAll(/\b([a-zA-Z]+)\(\{/g)).map(match => match[1]));
 
 const NO_AUDIT_BY_DESIGN: Record<string, string> = {
+  setPmcUnitActivityStatus: "delegates to applyCellStatus (pmcService.ts), which writes the pmc.unit_activity_changed audit row in the same transaction",
   issueMaterialToCellForTenant: "delegates to createMaterialIssueForTenant, which writes the warehouse.material_issued_to_work audit row in the same transaction",
   analyzePmcImport: "analysis only: nothing is written until the approved file is confirmed, and confirmation is audited",
   exportPmcScreen: "a read-only export; PMC reads are not audited (listed as a gap in docs/GATE6_RECORDS.md)",
