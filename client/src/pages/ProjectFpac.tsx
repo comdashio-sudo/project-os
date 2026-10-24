@@ -136,7 +136,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
           {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
           <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} /></div>
-          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التكلفة والقيمة" : "Cost and value table"}>
+          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={pickLanguage(language, { ar: "جدول التكلفة والقيمة", en: "Cost and value table", ur: "لاگت اور قدر کا جدول" })}>
             <table className="w-full min-w-[34rem] text-start text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
@@ -183,7 +183,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           })()}
         </div>
       ) : <div className="mt-2"><Unavailable reason={data.movement.reason} t={t} /></div>}
-      <SourceNotice query={history} isArabic={isArabic} title={isArabic ? "سجل الربحية السابق (الرسم)" : "Profit history (the chart)"} fallback={isArabic ? "بقية الشاشة سليمة." : "The rest of the screen is unaffected."} />
+      <SourceNotice query={history} isArabic={isArabic} title={pickLanguage(language, { ar: "سجل الربحية السابق (الرسم)", en: "Profit history (the chart)", ur: "منافع کی پچھلی تاریخ (چارٹ)" })} fallback={pickLanguage(language, { ar: "بقية الشاشة سليمة.", en: "The rest of the screen is unaffected.", ur: "اسکرین کا باقی حصہ متاثر نہیں ہوا۔" })} />
       {points.length >= 2 && <div className="mt-3"><p className="text-xs text-slate-500">{t.trend}</p><svg role="img" aria-label={t.trend} viewBox="0 0 200 40" className="h-12 w-full max-w-md"><polyline fill="none" stroke="#0e6b70" strokeWidth="2" points={sparklinePoints(points, 200, 40)} /></svg></div>}
 
       <h3 className="mt-6 font-semibold">{t.cash}</h3>
@@ -210,7 +210,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{isArabic ? "التفاصيل" : "Details"}</span></th></tr></thead>
+              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{pickLanguage(language, { ar: "التفاصيل", en: "Details", ur: "تفصیلات" })}</span></th></tr></thead>
               <tbody>
                 <tr className="border-t bg-slate-50 font-semibold" data-testid="drill-totals">
                   <td className="py-1.5 pe-3">{t.whole}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.planned)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.actual)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.committed)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.forecast)}</td>
@@ -245,7 +245,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
-      <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow", ur: "Monthly cash flow" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices", ur: "Project invoices" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost", ur: "Loaded labour cost" } }}>
+      <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow", ur: "ماہانہ کیش فلو" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices", ur: "پروجیکٹ کی انوائسز" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost", ur: "شامل شدہ لیبر لاگت" } }}>
         <CashFlowMonthly tenantId={tenantId} projectId={projectId} currency={currency} />
         <ProjectInvoicesPanel tenantId={tenantId} projectId={projectId} currency={currency} />
         <LabourLoadingCard tenantId={tenantId} projectId={projectId} currency={currency} />
