@@ -14,8 +14,8 @@ const state = vi.hoisted(() => ({
 }));
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
-const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn() }));
-vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/raster/rasterFile")>()), readRasterImage: raster.readRasterImage }));
+const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), readPdfPage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn() }));
+vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/raster/rasterFile")>()), readRasterImage: raster.readRasterImage, readPdfPage: raster.readPdfPage }));
 vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWorker }));
 vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));
 
@@ -211,5 +211,38 @@ describe("MasterPlanDrawing", () => {
     await upload(container, "bytes", "plan.dwg");
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/not supported/));
     expect(raster.readRasterImage).not.toHaveBeenCalled();
+  });
+
+  it("offers a page choice for a multi-page PDF and reads the page the reviewer picks", async () => {
+    state.data = plan();
+    const blank: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
+    raster.readPdfPage.mockResolvedValue({ image: blank, pageCount: 3 });
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    // page 1 has one shape, page 2 has three: the count on screen says which page was analysed
+    const analysis = (shapeCount: number) => ({ drawing: buildRasterDrawing([], [], 1), shapeCount, labelCount: 0 });
+    raster.analyseRaster.mockResolvedValueOnce(analysis(1)).mockResolvedValueOnce(analysis(3));
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "%PDF synthetic", "plan.pdf");
+    const picker = await waitFor(() => screen.getByRole("combobox"));
+    expect(raster.readPdfPage).toHaveBeenLastCalledWith(expect.any(Uint8Array), 1);
+    expect(screen.getByRole("option", { name: "Page 2 of 3" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Page 3 of 3" })).toBeTruthy();
+    await waitFor(() => screen.getByText(/Found 1 shapes/));
+    fireEvent.change(picker, { target: { value: "2" } });
+    await waitFor(() => expect(raster.readPdfPage).toHaveBeenLastCalledWith(expect.any(Uint8Array), 2));
+    await waitFor(() => screen.getByText(/Found 3 shapes/));
+    expect(raster.readPdfPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows no page choice for a one-page PDF", async () => {
+    state.data = plan();
+    const blank: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
+    raster.readPdfPage.mockResolvedValue({ image: blank, pageCount: 1 });
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    raster.analyseRaster.mockResolvedValue({ drawing: buildRasterDrawing([], [], 1), shapeCount: 0, labelCount: 0 });
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "%PDF synthetic", "plan.pdf");
+    await waitFor(() => screen.getByText(/Found 0 shapes/));
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 });

@@ -54,15 +54,22 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
     if (id !== ref) throw new GuardError(`المشروع الذي أعاده Supabase ليس المشروع المقصود (${ref}). لم يُكتب شيء.`);
     const slug = project?.organization_slug ?? project?.organization_id;
     if (!slug) throw new GuardError("مشروع Supabase لم يذكر منظمته، فلم يُتحقَّق من أنها dashio. لم يُكتب شيء.");
-    // A token scoped to one project may not be allowed to read its organisation. Then the name cannot be checked, so the run stops: it never assumes.
+    // A token scoped to one project (Resource access = Project) may not be allowed to read its organisation. Then the organisation is checked from the project's own
+    // data instead: the project must be the one named "dashio", inside the organisation it names. Any mismatch stops the run; nothing is ever assumed.
     let organisation: any;
+    let refused: number | undefined;
     try {
       ({ data: organisation } = await call("GET", `/v1/organizations/${encodeURIComponent(slug)}`));
     } catch (error) {
-      throw new GuardError(`تعذّرت قراءة المنظمة من Supabase (${(error as Error).message})، فلم يُتحقَّق من أنها "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء. تأكد أن SUPABASE_ACCESS_TOKEN يملك صلاحية قراءة هذه المنظمة.`);
+      refused = Number(/-> (\d{3})/.exec((error as Error).message)?.[1]);
+      if (refused !== 401 && refused !== 403 && refused !== 404) throw new GuardError(`تعذّرت قراءة المنظمة من Supabase (${(error as Error).message})، فلم يُتحقَّق من أنها "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
     }
-    if (String(organisation?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`المشروع يتبع منظمة غير "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
-    return { region: String(project?.region ?? "") };
+    if (refused === undefined) {
+      if (String(organisation?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`المشروع يتبع منظمة غير "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
+      return { region: String(project?.region ?? ""), organisationCheck: "organisation" as const, organisationSlug: String(slug) };
+    }
+    if (String(project?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`مفتاح Supabase المحصور بمشروع واحد لا يقرأ المنظمة، وبيانات المشروع نفسها لا تطابق: اسم المشروع الذي أعاده Supabase ليس "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
+    return { region: String(project?.region ?? ""), organisationCheck: "project" as const, organisationSlug: String(slug) };
   }
 
   return {

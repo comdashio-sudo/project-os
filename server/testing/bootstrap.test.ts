@@ -30,7 +30,7 @@ const supabaseOk = (over: { id?: string; org?: string; orgName?: string } = {}) 
 describe("Supabase guard: one project, inside one organisation, checked before any write", () => {
   it("passes for the expected project in the organisation named dashio, reading nothing else", async () => {
     const sim = simulate(supabaseOk());
-    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).resolves.toEqual({ region: "ap-southeast-1" });
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).resolves.toMatchObject({ region: "ap-southeast-1", organisationCheck: "organisation" });
     expect(sim.writes()).toEqual([]);
     expect(sim.calls.map(call => call.url)).toEqual([`https://api.supabase.com/v1/projects/${REF}`, "https://api.supabase.com/v1/organizations/org-dashio"]);
   });
@@ -48,11 +48,31 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     expect(sim.writes()).toEqual([]);
   });
 
-  it("REFUSES, in Arabic and before any write, when the token cannot read the organisation (a project-scoped token): the name cannot be checked, so it never assumes", async () => {
+  it("a project-scoped token (Resource access = Project) cannot read the organisation: the check moves to the project's own data and PASSES for the project named dashio", async () => {
     const sim = simulate({ ...supabaseOk(), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
+    const target = await supabaseApi(sim.fetchImpl, "t").assertTarget();
+    expect(target).toMatchObject({ organisationCheck: "project", organisationSlug: "org-dashio", region: "ap-southeast-1" });
+    expect(sim.writes()).toEqual([]);
+  });
+
+  it("the same token, but the project's own data does not match (another project name): REFUSES in Arabic before any write", async () => {
+    const other = supabaseOk();
+    const sim = simulate({ ...other, [`GET /v1/projects/${REF}`]: () => ({ body: { ref: REF, organization_slug: "org-dashio", name: "another-company", region: "x" } }), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toBeInstanceOf(GuardError);
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/اسم المشروع الذي أعاده Supabase ليس "dashio"/);
+    expect(sim.writes()).toEqual([]);
+  });
+
+  it("an organisation read that fails for any other reason (a server error) still REFUSES, in Arabic: only 401/403/404 move to the project's data", async () => {
+    const sim = simulate({ ...supabaseOk(), [`GET /v1/organizations/org-dashio`]: () => ({ status: 500, body: { message: "boom" } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/تعذّرت قراءة المنظمة/);
     expect(sim.writes()).toEqual([]);
+  });
+
+  it("when the organisation CAN be read its name is still compared (readable and wrong is not rescued by the project's name)", async () => {
+    const sim = simulate(supabaseOk({ orgName: "another-company" }));
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/منظمة غير "dashio"/);
+    expect((await supabaseApi(simulate(supabaseOk()).fetchImpl, "t").assertTarget()).organisationCheck).toBe("organisation");
   });
 
   it("REFUSES a project that does not name its organisation", async () => {
