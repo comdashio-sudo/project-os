@@ -100,9 +100,11 @@ jobs:
         run: node scripts/setup-integration-test-db.mjs
         env:
           DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/postgres # secret-scan:allow container-local throw-away value
-      - name: Synthetic demo tenant into the empty database
+      # Work order 15: the screenshots are taken on the demonstration company "شركة العرض" (500 villas, three months of history), not on an empty shell,
+      # so a cut-off number, an overflowing table or a wrong direction shows up where the owner will look. The same script the owner's button runs.
+      - name: Demonstration company into the empty database
         run: |
-          SEED_CONFIRM=yes node --import tsx scripts/seed-demo-tenant.mjs > "$RUNNER_TEMP/seed.out"
+          JWT_SECRET="$(openssl rand -hex 32)" DEMO_CONFIRM=yes node --import tsx scripts/demo/seed-demo-company.mjs seed > "$RUNNER_TEMP/seed.out"
           node -e '
             const fs = require("node:fs");
             const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n");
