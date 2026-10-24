@@ -8,7 +8,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { matchDrawingToUnits, type ProjectUnit } from "@/lib/dxf/dxfMatch";
 import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
-import { rasterKind, readPdfFirstPage, readRasterImage } from "@/lib/raster/rasterFile";
+import { rasterKind, readPdfPage, readRasterImage } from "@/lib/raster/rasterFile";
+import { PanZoomControls, usePanZoom } from "@/components/PanZoomMap";
 import type { OcrWorker } from "@/lib/raster/ocrWorker";
 import {
   assignUnit,
@@ -64,6 +65,9 @@ const text = {
     map: "خريطة الرسم",
     zoomIn: "تكبير",
     zoomOut: "تصغير",
+    resetView: "إعادة ضبط العرض",
+    page: "الصفحة",
+    pageOption: (n: number, total: number) => `الصفحة ${n} من ${total}`,
     legend: "الألوان: حسب حالة الوحدة للمؤكَّد، أزرق للمقترح، رمادي لغير المربوط.",
     exportCsv: "تصدير الروابط المؤكدة (CSV)",
     exportJson: "تصدير الروابط المؤكدة (JSON)",
@@ -105,6 +109,9 @@ const text = {
     map: "Drawing map",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
+    resetView: "Reset view",
+    page: "Page",
+    pageOption: (n: number, total: number) => `Page ${n} of ${total}`,
     legend: "Colours: confirmed shapes use the unit status; blue is proposed; grey is unlinked.",
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
@@ -146,6 +153,9 @@ const text = {
     map: "Drawing map",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
+    resetView: "Reset view",
+    page: "Page",
+    pageOption: (n: number, total: number) => `Page ${n} of ${total}`,
     legend: "Colours: confirmed shapes use the unit status; blue is proposed; grey is unlinked.",
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
@@ -193,7 +203,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [choice, setChoice] = useState<Record<string, string>>({});
-  const [zoom, setZoom] = useState(1);
+  const [pdfSource, setPdfSource] = useState<{ file: File; pageCount: number; page: number } | null>(null);
   const [error, setError] = useState<ViewError | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [rasterStats, setRasterStats] = useState<{ shapes: number; labels: number } | null>(null);
@@ -204,6 +214,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const selected = items.find(item => item.polygonId === selectedId) ?? null;
   const geometry = drawing ? mapGeometry(drawing) : null;
   const ignoredCount = drawing ? Object.values(drawing.ignoredEntities).reduce((sum, value) => sum + value, 0) : 0;
+  const pan = usePanZoom(geometry);
 
   const applyResult = (result: ReviewResult) => {
     if (result.ok) {
@@ -221,6 +232,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setError({ kind: "file", code: "FILE_TOO_LARGE", message: { ar: text.ar.tooLarge, en: text.en.tooLarge, ur: text.ur.tooLarge } });
       return;
     }
+    setPdfSource(null);
     if (/\.dxf$/i.test(file.name)) {
       await readDxfFile(file);
       return;
@@ -230,7 +242,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setError({ kind: "file", code: "UNSUPPORTED_FILE", message: { ar: text.ar.unsupported, en: text.en.unsupported, ur: text.ur.unsupported } });
       return;
     }
-    await readRasterDrawing(file, kind);
+    await readRasterDrawing(file, kind, 1);
   }
 
   async function readDxfFile(file: File) {
@@ -250,12 +262,14 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   }
 
   // Tesseract and pdf.js load only here, so a plan page that never opens a raster drawing does not download them.
-  async function readRasterDrawing(file: File, kind: "image" | "pdf") {
+  async function readRasterDrawing(file: File, kind: "image" | "pdf", page: number) {
     setError(null);
     setProgress({ done: 0, total: 0 });
     let ocr: OcrWorker | null = null;
     try {
-      const image = kind === "pdf" ? await readPdfFirstPage(new Uint8Array(await file.arrayBuffer())) : await readRasterImage(file);
+      const pdf = kind === "pdf" ? await readPdfPage(new Uint8Array(await file.arrayBuffer()), page) : null;
+      const image = pdf ? pdf.image : await readRasterImage(file);
+      if (pdf) setPdfSource({ file, pageCount: pdf.pageCount, page });
       const [{ createOcrWorker }, { analyseRaster }] = await Promise.all([import("@/lib/raster/ocrWorker"), import("@/lib/raster/rasterAnalysis")]);
       ocr = await createOcrWorker(OCR_ASSETS);
       const analysis = await analyseRaster(image, ocr.recognize, (done, total) => setProgress({ done, total }));
@@ -302,6 +316,16 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
           {t.upload}
           <input type="file" accept=".dxf,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
         </label>
+        {pdfSource && pdfSource.pageCount > 1 ? (
+          <label className="flex flex-col text-xs">
+            {t.page}
+            <select className="min-h-[44px] rounded-lg border border-slate-300 px-2 text-sm" value={pdfSource.page} disabled={progress !== null} onChange={event => readRasterDrawing(pdfSource.file, "pdf", Number(event.target.value))}>
+              {Array.from({ length: pdfSource.pageCount }, (_, index) => (
+                <option key={index + 1} value={index + 1}>{t.pageOption(index + 1, pdfSource.pageCount)}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {progress ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{t.busy(progress.done, progress.total)}</p> : null}
@@ -316,11 +340,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
 
           {geometry ? (
             <div>
-              <div className="mb-2 flex gap-2">
-                <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => setZoom(z => Math.min(z * 1.5, 8))} aria-label={t.zoomIn}>+</button>
-                <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => setZoom(z => Math.max(z / 1.5, 0.5))} aria-label={t.zoomOut}>−</button>
-              </div>
-              <svg role="img" aria-label={t.map} viewBox={`${geometry.x + geometry.width / 2 - geometry.width / (2 * zoom)} ${geometry.y + geometry.height / 2 - geometry.height / (2 * zoom)} ${geometry.width / zoom} ${geometry.height / zoom}`} className="h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200">
+              <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView }} />
+              <svg role="img" aria-label={t.map} {...pan.svgProps} className="h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200">
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
                   if (!item) return null;
