@@ -7,7 +7,7 @@ import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listW
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
-import { getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
+import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
@@ -367,6 +367,7 @@ export const appRouter = router({
     saveReplyCodes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), codes: z.array(z.object({ code: z.string().trim().min(1).max(4), labelAr: z.string().trim().min(1).max(120), labelEn: z.string().trim().min(1).max(120), approved: z.boolean(), active: z.boolean() })).min(2).max(12) })).mutation(({ ctx, input }) => saveSubmittalReplyCodesForManager({ userId: ctx.user.id, ...input })),
   }),
   policy: router({
+    effective: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getEffectivePolicyForProject({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantPolicyForManager({ userId: ctx.user.id, ...input })),
     set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
   }),

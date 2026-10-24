@@ -1,0 +1,306 @@
+import { Button } from "@/components/ui/button";
+import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
+import { useCan, WriteGate } from "@/lib/permissions";
+import { getLocalizedProjectError } from "@/lib/projectErrors";
+import { trpc } from "@/lib/trpc";
+import { useDirectUpload } from "@/lib/useDirectUpload";
+import React, { useMemo, useState } from "react";
+import { useParams } from "wouter";
+
+// The daily site report on the phone (work order 14, item 1). The site engineer writes it in four short parts — the day, the people and equipment, the work done per
+// unit and activity, the photos — and sends it; the project manager sees what approving would move, then approves or sends it back with a reason. Nothing here
+// computes progress: the server moves the cells when the report is approved, and says which lines it left alone and why.
+const text = {
+  ar: {
+    title: "التقرير اليومي", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
+    day: "يوم العمل", weather: "الطقس", temperature: "الحرارة (°م)", summary: "ملخص اليوم", obstacles: "العوائق",
+    weatherClear: "صافٍ", weatherCloudy: "غائم", weatherRain: "مطر", weatherDust: "غبار", weatherHot: "حرارة شديدة", weatherWindy: "رياح",
+    labour: "العمالة", equipment: "المعدات", work: "الأعمال المنفذة", addLabour: "إضافة عمالة", addEquipment: "إضافة معدة", addWork: "إضافة عمل",
+    trade: "المهنة", machine: "المعدة", count: "العدد", hours: "الساعات", unit: "رقم الوحدة", activity: "النشاط", pickActivity: "اختر النشاط", status: "الحالة بعد العمل", notes: "ملاحظات", remove: "حذف",
+    unitUnknown: "لا وحدة بهذا الرقم في المشروع", forActivity: "لهذا النشاط (اختياري)", none: "بلا نشاط",
+    inProgress: "قيد التنفيذ", underReview: "قيد المراجعة", complete: "مكتمل",
+    save: "حفظ المسودة", saving: "جارٍ الحفظ…", saved: "حُفظت المسودة", submit: "إرسال للاعتماد", submitting: "جارٍ الإرسال…", submitted: "أُرسل التقرير للاعتماد",
+    photos: "الصور", takePhoto: "التقاط صورة", photoNeedsSave: "احفظ المسودة أولًا ثم أضف الصور.", photoAdded: "أُضيفت الصورة", noPhotos: "لا صور بعد.", uploading: "جارٍ الرفع…",
+    recent: "تقارير حديثة", noReports: "لا تقارير بعد.", open: "فتح", edit: "تعديل", view: "عرض", draft: "مسودة", pending: "بانتظار الاعتماد", approved: "معتمد", rejected: "أُعيد للتعديل",
+    rejectedNote: "سبب الإعادة", locked: "هذا التقرير مُرسَل أو معتمد ولا يُعدَّل.", newReport: "تقرير جديد",
+    review: "اعتماد التقارير", reviewHint: "تقارير بانتظار اعتمادك.", nothingToReview: "لا تقارير بانتظار الاعتماد.", preview: "ماذا سيتحرك؟", approve: "اعتماد", reject: "إعادة للتعديل", reason: "السبب (إلزامي)",
+    willMove: "ستتحرك هذه الخلايا", willSkip: "لن تتحرك (الخلية متقدمة أصلًا)", blocked: "تنبيه الجودة: لا فحص مقبول لهذه الخلايا", noMoves: "لا خلايا ستتحرك.", approvedDone: "اعتُمد التقرير وتحرك التقدم", rejectedDone: "أُعيد التقرير لكاتبه",
+    noPermission: "دورك لا يتيح كتابة التقرير اليومي.", noReview: "اعتماد التقارير لمدير المشروع.", otherReports: "تقارير الآخرين",
+  },
+  en: {
+    title: "Daily report", back: "Back to quick entry", loading: "Loading…", retry: "Retry",
+    day: "Work day", weather: "Weather", temperature: "Temperature (°C)", summary: "Summary of the day", obstacles: "Obstacles",
+    weatherClear: "Clear", weatherCloudy: "Cloudy", weatherRain: "Rain", weatherDust: "Dust", weatherHot: "Extreme heat", weatherWindy: "Windy",
+    labour: "Labour", equipment: "Equipment", work: "Work done", addLabour: "Add labour", addEquipment: "Add equipment", addWork: "Add work",
+    trade: "Trade", machine: "Equipment", count: "Count", hours: "Hours", unit: "Unit number", activity: "Activity", pickActivity: "Pick the activity", status: "Status after the work", notes: "Notes", remove: "Remove",
+    unitUnknown: "No unit with that number in this project", forActivity: "For this activity (optional)", none: "No activity",
+    inProgress: "In progress", underReview: "Under review", complete: "Complete",
+    save: "Save draft", saving: "Saving…", saved: "Draft saved", submit: "Send for approval", submitting: "Sending…", submitted: "The report was sent for approval",
+    photos: "Photos", takePhoto: "Take a photo", photoNeedsSave: "Save the draft first, then add photos.", photoAdded: "Photo added", noPhotos: "No photos yet.", uploading: "Uploading…",
+    recent: "Recent reports", noReports: "No reports yet.", open: "Open", edit: "Edit", view: "View", draft: "Draft", pending: "Awaiting approval", approved: "Approved", rejected: "Sent back",
+    rejectedNote: "Why it was sent back", locked: "This report is sent or approved and cannot be edited.", newReport: "New report",
+    review: "Approve reports", reviewHint: "Reports waiting for your approval.", nothingToReview: "No report is waiting for approval.", preview: "What will move?", approve: "Approve", reject: "Send back", reason: "Reason (required)",
+    willMove: "These cells will move", willSkip: "These will not move (already further on)", blocked: "Quality warning: no accepted inspection for these cells", noMoves: "No cell will move.", approvedDone: "Report approved and progress moved", rejectedDone: "Report sent back to its writer",
+    noPermission: "Your role does not allow writing the daily report.", noReview: "Approving reports belongs to the project manager.", otherReports: "Other people's reports",
+  },
+  ur: {
+    title: "روزانہ رپورٹ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش",
+    day: "کام کا دن", weather: "موسم", temperature: "درجۂ حرارت (°C)", summary: "دن کا خلاصہ", obstacles: "رکاوٹیں",
+    weatherClear: "صاف", weatherCloudy: "ابر آلود", weatherRain: "بارش", weatherDust: "گرد و غبار", weatherHot: "شدید گرمی", weatherWindy: "تیز ہوا",
+    labour: "مزدور", equipment: "سازوسامان", work: "مکمل کیا گیا کام", addLabour: "مزدور شامل کریں", addEquipment: "سازوسامان شامل کریں", addWork: "کام شامل کریں",
+    trade: "ہنر", machine: "سازوسامان", count: "تعداد", hours: "گھنٹے", unit: "یونٹ نمبر", activity: "سرگرمی", pickActivity: "سرگرمی منتخب کریں", status: "کام کے بعد کی حالت", notes: "نوٹس", remove: "حذف کریں",
+    unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں", forActivity: "اس سرگرمی کے لیے (اختیاری)", none: "کوئی سرگرمی نہیں",
+    inProgress: "جاری", underReview: "زیرِ جائزہ", complete: "مکمل",
+    save: "مسودہ محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "مسودہ محفوظ ہو گیا", submit: "منظوری کے لیے بھیجیں", submitting: "بھیجا جا رہا ہے…", submitted: "رپورٹ منظوری کے لیے بھیج دی گئی",
+    photos: "تصاویر", takePhoto: "تصویر لیں", photoNeedsSave: "پہلے مسودہ محفوظ کریں، پھر تصاویر شامل کریں۔", photoAdded: "تصویر شامل ہو گئی", noPhotos: "ابھی کوئی تصویر نہیں۔", uploading: "اپ لوڈ ہو رہا ہے…",
+    recent: "حالیہ رپورٹس", noReports: "ابھی کوئی رپورٹ نہیں۔", open: "کھولیں", edit: "ترمیم", view: "دیکھیں", draft: "مسودہ", pending: "منظوری کے انتظار میں", approved: "منظور شدہ", rejected: "واپس بھیجی گئی",
+    rejectedNote: "واپس بھیجنے کی وجہ", locked: "یہ رپورٹ بھیجی جا چکی ہے یا منظور ہے، اس میں ترمیم نہیں ہو سکتی۔", newReport: "نئی رپورٹ",
+    review: "رپورٹس کی منظوری", reviewHint: "آپ کی منظوری کی منتظر رپورٹس۔", nothingToReview: "منظوری کی منتظر کوئی رپورٹ نہیں۔", preview: "کیا آگے بڑھے گا؟", approve: "منظور کریں", reject: "واپس بھیجیں", reason: "وجہ (لازمی)",
+    willMove: "یہ خانے آگے بڑھیں گے", willSkip: "یہ آگے نہیں بڑھیں گے (پہلے ہی آگے ہیں)", blocked: "معیار کی تنبیہ: ان خانوں کا کوئی قبول شدہ معائنہ نہیں", noMoves: "کوئی خانہ آگے نہیں بڑھے گا۔", approvedDone: "رپورٹ منظور ہو گئی اور پیش رفت آگے بڑھی", rejectedDone: "رپورٹ لکھنے والے کو واپس بھیج دی گئی",
+    noPermission: "آپ کا کردار روزانہ رپورٹ لکھنے کی اجازت نہیں دیتا۔", noReview: "رپورٹس کی منظوری پروجیکٹ مینیجر کا کام ہے۔", otherReports: "دوسروں کی رپورٹس",
+  },
+};
+
+type Status = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE";
+type Line = { key: string; lineType: "labour" | "equipment" | "work"; label: string; quantity: string; hours: string; description: string; unitNumber: string; activityId: string; reportedStatus: Status };
+const WEATHER = ["clear", "cloudy", "rain", "dust", "hot", "windy"] as const;
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const blank = (lineType: Line["lineType"]): Line => ({ key: crypto.randomUUID(), lineType, label: "", quantity: "", hours: "", description: "", unitNumber: "", activityId: "", reportedStatus: "IN_PROGRESS" });
+const num = (value: string) => (value.trim() === "" || Number.isNaN(Number(value)) ? undefined : Number(value));
+
+export default function SiteDailyReport() {
+  const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
+  const { language } = useLanguage();
+  const isArabic = language === "ar";
+  const t = pickLanguage(language, text);
+  const scope = { tenantId, projectId };
+  const enabled = Boolean(tenantId && projectId);
+  const utils = trpc.useUtils();
+  const options = trpc.siteReports.options.useQuery(scope, { enabled });
+  const list = trpc.siteReports.list.useQuery(scope, { enabled });
+  const canWrite = useCan("project.field.manage", projectId);
+  const canReview = useCan("project.manage", projectId);
+
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [rejectedNote, setRejectedNote] = useState<string | null>(null);
+  const [date, setDate] = useState(today());
+  const [weather, setWeather] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [summary, setSummary] = useState("");
+  const [obstacles, setObstacles] = useState("");
+  const [lines, setLines] = useState<Line[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(null);
+
+  const units = options.data?.units ?? [];
+  const activities = options.data?.activities ?? [];
+  const unitOf = (number: string) => units.find(unit => String(unit.number) === number.trim());
+  const detail = trpc.siteReports.get.useQuery({ ...scope, reportId: reportId ?? "" }, { enabled: enabled && Boolean(reportId) });
+  const upload = useDirectUpload({ tenantId, projectId, purpose: "sitePhoto" });
+
+  const save = trpc.siteReports.save.useMutation({
+    onSuccess: result => { setReportId(result.id); setMessage(t.saved); void utils.siteReports.list.invalidate(); },
+  });
+  const submit = trpc.siteReports.submit.useMutation({
+    onSuccess: () => { setLocked(true); setMessage(t.submitted); void utils.siteReports.list.invalidate(); },
+  });
+  const attach = trpc.siteReports.attachPhoto.useMutation({ onSuccess: () => { setPhotoMessage(t.photoAdded); void detail.refetch(); } });
+
+  const problems = useMemo(() => lines.flatMap(line => {
+    if (line.lineType === "work") return !unitOf(line.unitNumber) || !line.activityId ? [line.key] : [];
+    return line.label.trim() === "" ? [line.key] : [];
+  }), [lines, units]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const body = () => ({
+    ...scope, reportDate: date, weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
+    lines: lines.map(line => ({
+      lineType: line.lineType, label: line.lineType === "work" ? undefined : line.label.trim(), quantity: line.lineType === "work" ? undefined : num(line.quantity), hours: line.lineType === "labour" ? num(line.hours) : undefined,
+      description: line.description.trim() || undefined, pmcUnitId: line.lineType === "work" ? unitOf(line.unitNumber)?.id : undefined,
+      pmcActivityDefinitionId: line.activityId || undefined, reportedStatus: line.lineType === "work" ? line.reportedStatus : undefined,
+    })),
+  });
+
+  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setMessage(null); setPhotoMessage(null); };
+  const openReport = async (id: string) => {
+    const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
+    const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");
+    setReportId(id); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
+    setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? "");
+    setLines(full.lines.map(line => ({ key: line.id, lineType: line.lineType, label: line.label ?? "", quantity: line.quantity === null ? "" : String(line.quantity), hours: line.hours === null ? "" : String(line.hours), description: line.description ?? "", unitNumber: unitNumber(line.pmcUnitId), activityId: line.pmcActivityDefinitionId ?? "", reportedStatus: (line.reportedStatus ?? "IN_PROGRESS") as Status })));
+    setLocked(full.report.status === "submitted" || full.report.status === "approved");
+    setRejectedNote(full.report.status === "rejected" ? (full.report.reviewNote ?? null) : null);
+    setMessage(null); setPhotoMessage(null);
+  };
+
+  const update = (key: string, patch: Partial<Line>) => setLines(current => current.map(line => (line.key === key ? { ...line, ...patch } : line)));
+  const statusName = (status: string) => ({ draft: t.draft, submitted: t.pending, approved: t.approved, rejected: t.rejected } as Record<string, string>)[status] ?? status;
+  const weatherName: Record<string, string> = { clear: t.weatherClear, cloudy: t.weatherCloudy, rain: t.weatherRain, dust: t.weatherDust, hot: t.weatherHot, windy: t.weatherWindy };
+  const reports = list.data ?? [];
+  const waiting = reports.filter(report => report.status === "submitted");
+  const error = save.error ?? submit.error ?? attach.error ?? detail.error;
+
+  const addPhoto = async (file: File | undefined) => {
+    if (!file || !reportId) return;
+    setPhotoMessage(t.uploading);
+    try {
+      const key = await upload.upload(file, file.type || "image/jpeg");
+      await attach.mutateAsync({ ...scope, reportId, uploadKey: key, fileName: file.name || "photo.jpg" });
+    } catch { setPhotoMessage(null); }
+  };
+
+  const section = (lineType: Line["lineType"]) => lines.filter(line => line.lineType === lineType);
+  const lineBox = (line: Line) => {
+    const unit = line.lineType === "work" ? unitOf(line.unitNumber) : undefined;
+    const choices = unit ? activities.filter(activity => activity.modelCode === unit.modelCode) : activities;
+    return (
+      <li key={line.key} className="space-y-2 rounded-xl border bg-white p-3" data-line={line.lineType}>
+        {line.lineType !== "work" ? (
+          <>
+            <label className="block text-sm font-medium">{line.lineType === "labour" ? t.trade : t.machine}
+              <input className={`${fieldInput} mt-1`} value={line.label} disabled={locked} onChange={event => update(line.key, { label: event.target.value })} /></label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-sm font-medium">{t.count}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" min="0" step="any" value={line.quantity} disabled={locked} onChange={event => update(line.key, { quantity: event.target.value })} /></label>
+              {line.lineType === "labour" && <label className="block text-sm font-medium">{t.hours}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" min="0" max="24" step="any" value={line.hours} disabled={locked} onChange={event => update(line.key, { hours: event.target.value })} /></label>}
+            </div>
+            <label className="block text-sm font-medium">{t.forActivity}
+              <select className={`${fieldInput} mt-1`} value={line.activityId} disabled={locked} onChange={event => update(line.key, { activityId: event.target.value })}>
+                <option value="">{t.none}</option>{activities.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}
+              </select></label>
+          </>
+        ) : (
+          <>
+            <label className="block text-sm font-medium">{t.unit}<input className={`${fieldInput} mt-1`} type="number" inputMode="numeric" min="1" step="1" value={line.unitNumber} disabled={locked} onChange={event => update(line.key, { unitNumber: event.target.value, activityId: "" })} /></label>
+            {line.unitNumber.trim() && !unit && <p role="alert" className="text-sm text-red-700">{t.unitUnknown}</p>}
+            <label className="block text-sm font-medium">{t.activity}
+              <select className={`${fieldInput} mt-1`} value={line.activityId} disabled={locked || !unit} onChange={event => update(line.key, { activityId: event.target.value })}>
+                <option value="">{t.pickActivity}</option>{choices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}
+              </select></label>
+            <label className="block text-sm font-medium">{t.status}
+              <select className={`${fieldInput} mt-1`} value={line.reportedStatus} disabled={locked} onChange={event => update(line.key, { reportedStatus: event.target.value as Status })}>
+                <option value="IN_PROGRESS">{t.inProgress}</option><option value="UNDER_REVIEW">{t.underReview}</option><option value="COMPLETE">{t.complete}</option>
+              </select></label>
+          </>
+        )}
+        <label className="block text-sm font-medium">{t.notes}<input className={`${fieldInput} mt-1`} value={line.description} disabled={locked} onChange={event => update(line.key, { description: event.target.value })} /></label>
+        {!locked && <Button type="button" variant="outline" className={tap} onClick={() => setLines(current => current.filter(item => item.key !== line.key))}>{t.remove}</Button>}
+      </li>
+    );
+  };
+  const group = (lineType: Line["lineType"], heading: string, addLabel: string) => (
+    <section className="space-y-2" aria-label={heading}>
+      <h2 className="text-base font-semibold">{heading}</h2>
+      <ul className="space-y-2">{section(lineType).map(lineBox)}</ul>
+      {!locked && <Button type="button" variant="outline" className={`${tap} w-full`} onClick={() => setLines(current => [...current, blank(lineType)])}>{addLabel}</Button>}
+    </section>
+  );
+
+  if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  const loadError = options.error ?? list.error;
+  if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
+
+  return (
+    <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
+      <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
+        <div className="space-y-4">
+          {reportId && <div className="flex items-center justify-between"><span className="text-sm text-slate-600">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
+          {rejectedNote && <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
+          {locked && <p role="note" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">{t.locked}</p>}
+          <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-sm font-medium">{t.weather}
+              <select className={`${fieldInput} mt-1`} value={weather} disabled={locked} onChange={event => setWeather(event.target.value)}>
+                <option value="">—</option>{WEATHER.map(value => <option key={value} value={value}>{weatherName[value]}</option>)}
+              </select></label>
+            <label className="block text-sm font-medium">{t.temperature}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" step="any" value={temperature} disabled={locked} onChange={event => setTemperature(event.target.value)} /></label>
+          </div>
+          <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-white p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
+          <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-white p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
+          {group("labour", t.labour, t.addLabour)}
+          {group("equipment", t.equipment, t.addEquipment)}
+          {group("work", t.work, t.addWork)}
+          <section className="space-y-2" aria-label={t.photos}>
+            <h2 className="text-base font-semibold">{t.photos}</h2>
+            {!reportId && <p className="text-sm text-slate-500">{t.photoNeedsSave}</p>}
+            {reportId && !locked && <label className={`${tap} flex cursor-pointer items-center justify-center rounded-xl border bg-white px-3 text-base font-semibold text-[#0e6b70]`}>{t.takePhoto}
+              <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={upload.busy || attach.isPending} onChange={event => { void addPhoto(event.target.files?.[0]); event.target.value = ""; }} /></label>}
+            {photoMessage && <p role="status" className="text-sm text-emerald-700">{photoMessage}</p>}
+            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-slate-500">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-slate-500">{t.noPhotos}</p>)}
+          </section>
+          {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+          {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
+          {!locked && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending} onClick={() => { setMessage(null); save.mutate(body()); }}>{save.isPending ? t.saving : t.save}</Button>
+              <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
+            </div>
+          )}
+        </div>
+      </WriteGate>
+
+      <section className="space-y-2" aria-label={t.recent}>
+        <h2 className="text-base font-semibold">{t.recent}</h2>
+        {reports.length === 0 && <p className="text-sm text-slate-500">{t.noReports}</p>}
+        <ul className="space-y-2">
+          {reports.slice(0, 15).map(report => (
+            <li key={report.id} className="flex items-center justify-between gap-2 rounded-xl border bg-white p-3" data-report-status={report.status}>
+              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}</span><span className="block text-xs text-slate-600">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
+              <Button type="button" variant="outline" className={tap} onClick={() => { void openReport(report.id); }}>{canWrite && (report.status === "draft" || report.status === "rejected") ? t.edit : t.view}</Button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {canReview && <ReviewPanel scope={scope} waiting={waiting} t={t} language={language} isArabic={isArabic} onDone={() => { void utils.siteReports.list.invalidate(); }} />}
+    </FieldShell>
+  );
+}
+
+type Waiting = { id: string; reportDate: string; weather: string | null };
+function ReviewPanel({ scope, waiting, t, language, isArabic, onDone }: { scope: { tenantId: string; projectId: string }; waiting: Waiting[]; t: (typeof text)["en"]; language: "ar" | "en" | "ur"; isArabic: boolean; onDone: () => void }) {
+  const [reason, setReason] = useState<Record<string, string>>({});
+  const [done, setDone] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ id: string; applied: Array<{ unitId: string; activityDefinitionId: string; from: string | null; to: string }>; skipped: Array<{ unitId: string; activityDefinitionId: string }>; gate?: { mode: string; notAccepted: Array<{ unitId: string; activityDefinitionId: string }> } } | null>(null);
+  const options = trpc.siteReports.options.useQuery(scope);
+  const review = trpc.siteReports.review.useMutation({
+    onSuccess: (result, variables) => {
+      if (variables.dryRun) { setPreview({ id: variables.reportId, applied: result.applied, skipped: result.skipped, gate: (result as { gate?: { mode: string; notAccepted: Array<{ unitId: string; activityDefinitionId: string }> } }).gate }); return; }
+      setPreview(null); setDone(variables.decision === "approve" ? t.approvedDone : t.rejectedDone); onDone();
+    },
+  });
+  const cellName = (cell: { unitId: string; activityDefinitionId: string }) => {
+    const unit = options.data?.units.find(item => item.id === cell.unitId); const activity = options.data?.activities.find(item => item.id === cell.activityDefinitionId);
+    return `${unit?.number ?? "?"} · ${activity?.code ?? "?"}`;
+  };
+  return (
+    <section className="space-y-2" aria-label={t.review}>
+      <h2 className="text-base font-semibold">{t.review}</h2>
+      <p className="text-sm text-slate-600">{t.reviewHint}</p>
+      {done && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{done}</p>}
+      {review.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {waiting.length === 0 && <p className="text-sm text-slate-500">{t.nothingToReview}</p>}
+      <ul className="space-y-3">
+        {waiting.map(report => (
+          <li key={report.id} className="space-y-2 rounded-xl border bg-white p-3" data-review={report.id}>
+            <p className="text-sm font-semibold">{showDate(report.reportDate, language)}</p>
+            <Button type="button" variant="outline" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve", dryRun: true })}>{t.preview}</Button>
+            {preview?.id === report.id && (
+              <div className="space-y-1 rounded-lg bg-slate-50 p-2 text-sm" data-preview>
+                {preview.applied.length === 0 ? <p>{t.noMoves}</p> : <><p className="font-semibold">{t.willMove}</p><ul>{preview.applied.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}: {cell.from ?? "—"} → {cell.to}</li>)}</ul></>}
+                {preview.skipped.length > 0 && <><p className="font-semibold">{t.willSkip}</p><ul>{preview.skipped.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
+                {preview.gate && preview.gate.notAccepted.length > 0 && <><p className="font-semibold text-amber-800">{t.blocked} ({preview.gate.mode})</p><ul>{preview.gate.notAccepted.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve" })}>{t.approve}</Button>
+              <Button type="button" variant="outline" className={tap} disabled={review.isPending || !(reason[report.id] ?? "").trim()} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "reject", note: reason[report.id]!.trim() })}>{t.reject}</Button>
+            </div>
+            <input className={fieldInput} aria-label={t.reason} placeholder={t.reason} value={reason[report.id] ?? ""} onChange={event => setReason(current => ({ ...current, [report.id]: event.target.value }))} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

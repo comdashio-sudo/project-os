@@ -182,7 +182,7 @@ export default function TenantAdministration() {
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div></div></header>
+      <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><div className="flex items-center gap-3"><Link href={`/integrations/${tenantId}`} className="text-sm font-semibold text-[#0e6b70]">{language === "ar" ? "إعدادات التكامل" : language === "ur" ? "انضمام کی ترتیبات" : "Integration settings"}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div></div></header>
       <div className="mx-auto max-w-7xl px-5 py-8">
         <EnterpriseNavigation tenantId={tenantId} context="administration" />
         <section className="rounded-3xl bg-[var(--dashio-bg-dark)] p-7 text-white"><p className="text-xs font-bold tracking-[.16em] text-[var(--dashio-aqua)]">{isArabic ? "DASHIO · إدارة الشركة" : "DASHIO CONTROL"}</p><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><p className="mt-2 text-slate-300">{t.sub}</p></section>

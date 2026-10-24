@@ -7,7 +7,8 @@
 import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auditLogs, consultantSubmittals, ncrs, submittalReplyCodes, tenantPolicies } from "../drizzle/schema";
-import { assertTenantManager, getDb } from "./db";
+import { assertProjectWithinTenant, assertTenantManager, getDb, getTenantAccessSnapshot } from "./db";
+import { assertTenantAccess } from "./domain/authorization";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 /** Any handle that can run a select/execute: the database or a transaction on it. */
@@ -26,6 +27,18 @@ export async function getTenantPolicyForManager(input: { userId: number; tenantI
   await assertTenantManager(input.userId, input.tenantId);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
+  return loadTenantPolicy(db, input.tenantId);
+}
+
+
+/** The rules that decide what a quality answer is worth, readable by anyone who may read the project (the quality screen shows them beside the answers; only a manager changes them). */
+export async function getEffectivePolicyForProject(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.pmc.read", "project.field.manage", "project.manage"], scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return loadTenantPolicy(db, input.tenantId);
 }
 
