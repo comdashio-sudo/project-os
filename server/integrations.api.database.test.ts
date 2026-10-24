@@ -108,6 +108,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
   });
 
   it("calls are limited per key per minute; the refusal says when to come back, and another key is not affected", async () => {
+    // The limit is counted per wall-clock minute. A run that straddles a minute boundary splits its calls over two windows and never reaches the limit, so this
+    // test (it failed once in CI, unreproducibly) starts only when there is room left in the minute for all of its calls.
+    const secondsIntoMinute = new Date().getSeconds() + new Date().getMilliseconds() / 1000;
+    if (secondsIntoMinute > 40) await new Promise(resolve => setTimeout(resolve, (60 - secondsIntoMinute) * 1000 + 250));
     const limited = await callers.ownerA.integrations.createKey({ tenantId: tenantA, name: "Limited", scopes: ["sync.read"], rateLimitPerMinute: 10 });
     const statuses: number[] = [];
     for (let index = 0; index < 12; index += 1) statuses.push((await call(limited.key, "GET", "/ping")).status);
