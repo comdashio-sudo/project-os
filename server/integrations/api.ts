@@ -3,12 +3,13 @@
 // document cannot drift from what is served (a test compares them). Authentication is a company API key in `Authorization: Bearer pos_…`; the key's powers, its calls per
 // minute, and the company it belongs to decide everything — a key sees and writes its own company only, and the database holds that again (row-level security).
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { Router } from "express";
+import express, { Router } from "express";
 import { z } from "zod";
 import { runWithDbContext } from "../_core/database";
 import { getDb } from "../db";
 import { authenticateApiKey, consumeApiRate, type ApiScope, type AuthenticatedKey } from "./apiKeys";
 import { applyExternalBatch } from "./external";
+import { csvTemplate, csvToRecords, CSV_ENTITIES } from "./csv";
 import { applyErpBatch, type ErpEntity } from "./erpInbound";
 import { EXPORT_ENTITIES, exportEntity, type ExportEntity } from "./erpOutbound";
 import { listMappings, MAPPING_TYPES, saveMappings, type MappingType } from "./mappings";
@@ -43,6 +44,24 @@ export const routes: Route[] = [
     summary: { suppliers: "Send suppliers from the ERP (created or updated by the ERP's own id).", "purchase-orders": "Send purchase orders: they arrive as drafts; only a draft is updated by a later send.", "actual-costs": "Send actual costs: posted on an existing WBS item, never changed once posted.", invoices: "Send supplier invoices: kept as received (the platform has no table for them), reported \"stored\".", payments: "Send payments: kept as received, reported \"stored\".", "employee-costs": "Send employee cost: kept as received, reported \"stored\"." }[entity],
     body: batch({ suppliers: supplier, "purchase-orders": purchaseOrder, "actual-costs": actualCost, invoices: generic, payments: generic, "employee-costs": generic }[entity]),
   })),
+  { method: "get", path: "/erp/csv-template/:entity", scope: "erp.write", summary: `The standard CSV template for an entity (${CSV_ENTITIES.join(", ")}): a header row and one synthetic example row.`, handler: async (req, res) => {
+    const entity = req.params.entity as ErpEntity;
+    if (!CSV_ENTITIES.includes(entity)) return fail(res, 404, "PROJECT_OS_API_CSV_ENTITY_UNKNOWN");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${entity}-template.csv"`);
+    return res.status(200).send(csvTemplate(entity));
+  } },
+  { method: "post", path: "/erp/csv/:entity", scope: "erp.write", summary: "Upload the standard CSV (Content-Type: text/csv; query `system` names the source). Rows that can be read are applied exactly as an API batch is; rows that cannot are returned with their line and why.", query: { system: "the source system's short name (default generic)" }, handler: async (req, res, key) => {
+    const entity = req.params.entity as ErpEntity;
+    if (!CSV_ENTITIES.includes(entity)) return fail(res, 404, "PROJECT_OS_API_CSV_ENTITY_UNKNOWN");
+    const system = typeof req.query.system === "string" ? req.query.system : "generic";
+    if (!/^[a-z0-9_]{2,24}$/.test(system)) return fail(res, 400, "PROJECT_OS_API_VALIDATION", { field: "system" });
+    if (typeof req.body !== "string") return fail(res, 415, "PROJECT_OS_API_CSV_CONTENT_TYPE");
+    let parsed: ReturnType<typeof csvToRecords>;
+    try { parsed = csvToRecords(entity, req.body); } catch (error) { return fail(res, 400, error instanceof Error ? error.message : "CSV_INVALID"); }
+    if (!parsed.records.length) return fail(res, 400, parsed.errors[0]?.reason ?? "CSV_EMPTY", { rowErrors: parsed.errors.slice(0, 50) });
+    const applied = await applyErpBatch({ actor: { tenantId: key.tenantId, apiKeyId: key.keyId }, system, entity, records: parsed.records });
+    return res.status(200).json({ ...applied, unreadableRows: parsed.errors.length, rowErrors: parsed.errors.slice(0, 50) });
+  } },
   { method: "post", path: "/external/submittals", scope: "external.write", summary: "Send consultant submittals from a submittal system (created or updated by that system's id; the reply code must be one of the company's codes).", body: batch(externalSubmittal), handler: async (req, res, key) => { const body = req.body as { system: string; records: unknown[] }; return res.status(200).json(await applyExternalBatch({ actor: { tenantId: key.tenantId, apiKeyId: key.keyId }, system: body.system, entity: "submittals", records: body.records })); } },
   { method: "post", path: "/external/inspections", scope: "external.write", summary: "Send inspection requests and their answers from a quality system (an answer in the company's accepted codes is the acceptance the quality gate reads).", body: batch(externalInspection), handler: async (req, res, key) => { const body = req.body as { system: string; records: unknown[] }; return res.status(200).json(await applyExternalBatch({ actor: { tenantId: key.tenantId, apiKeyId: key.keyId }, system: body.system, entity: "inspections", records: body.records })); } },
   { method: "put", path: "/mappings/:type", scope: "mappings.write", summary: `Map the other system's identifiers to ours. :type is one of ${MAPPING_TYPES.join(", ")}.`, body: mappingBody, handler: async (req, res, key) => {
@@ -97,6 +116,7 @@ const authenticated = (route: Route): RequestHandler => async (req: Request, res
 
 export function integrationApiRouter(): Router {
   const router = Router();
+  router.use(express.text({ type: "text/csv", limit: "5mb" }));
   router.get("/openapi.json", (_req, res) => { res.setHeader("Cache-Control", "public, max-age=300"); res.json(openApiDocument()); });
   for (const route of routes) router[route.method](route.path, authenticated(route));
   // anything else under /api/v1 is a JSON 404, not a page

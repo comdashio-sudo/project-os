@@ -10,7 +10,7 @@ import { withSystemContext } from "./_core/database";
 
 // Work order 12, item 10: the Odoo connector against a REAL Odoo Community (started by .github/workflows/odoo.yml, or locally with docker), both directions.
 // Skipped unless ODOO_URL names one. Synthetic data only; the Odoo credentials are the throw-away ones of the CI container.
-process.env.INTEGRATION_SECRET_KEY = "test-only-integration-secret-0123456789";
+process.env.INTEGRATION_SECRET_KEY = "test-only-integration-secret-0123456789"; // secret-scan:allow a test-only value, never a real key
 process.env.INTEGRATION_ALLOW_PRIVATE_WEBHOOKS = "1"; // Odoo listens on 127.0.0.1 in CI
 const ODOO = { url: process.env.ODOO_URL ?? "", db: process.env.ODOO_DB ?? "odoo_ci", login: process.env.ODOO_LOGIN ?? "admin", password: process.env.ODOO_PASSWORD ?? "" };
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };

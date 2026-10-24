@@ -724,6 +724,34 @@ export const projectErrorMessages = {
     ar: "الطلب لا يطابق الشكل الموثّق.",
     en: "The request does not match the documented shape.",
   },
+  PROJECT_OS_API_CSV_CONTENT_TYPE: {
+    ar: "ملف CSV يُرسل بنوع المحتوى text/csv.",
+    en: "A CSV file is sent with the content type text/csv.",
+  },
+  PROJECT_OS_API_CSV_ENTITY_UNKNOWN: {
+    ar: "نوع السجلات غير معروف لقالب CSV.",
+    en: "That record type has no CSV template.",
+  },
+  PROJECT_OS_CONNECTION_INACTIVE: {
+    ar: "الاتصال معطّل؛ فعّله أولًا.",
+    en: "The connection is switched off; switch it on first.",
+  },
+  PROJECT_OS_CONNECTION_NOT_FOUND: {
+    ar: "الاتصال غير موجود.",
+    en: "The connection does not exist.",
+  },
+  PROJECT_OS_CONNECTION_PUSH_UNSUPPORTED: {
+    ar: "هذا الموصل يقرأ فقط ولا يرسل إلى النظام الآخر؛ استعمل واجهة التصدير.",
+    en: "This connector reads only and does not write to the other system; use the export API.",
+  },
+  PROJECT_OS_CONNECTION_SYSTEM_UNSUPPORTED: {
+    ar: "لا يوجد موصل لهذا النظام.",
+    en: "There is no connector for that system.",
+  },
+  PROJECT_OS_CONNECTION_URL_INVALID: {
+    ar: "عنوان النظام غير مقبول (يجب أن يكون https وليس عنوانًا داخليًا).",
+    en: "The system address is not accepted (it must be https and not an internal address).",
+  },
   PROJECT_OS_WEBHOOK_EVENTS_INVALID: {
     ar: "أنواع الأحداث غير معروفة.",
     en: "The event types are not known.",

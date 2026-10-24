@@ -12,15 +12,22 @@ import { liveEvm, loadProfitabilityRows } from "../profitability";
 import { DEFAULT_EAC_METHOD } from "../profitability";
 import { applyErpBatch, type ErpEntity } from "./erpInbound";
 import { OdooClient, pullFromOdoo, pushToOdoo, type OdooSettings, type PushMemory } from "./connectors/odoo";
+import { vendorClientFor, VENDOR_SYSTEMS, type VendorSettings, type VendorSystem } from "./connectors/vendors";
 import { openSecret, sealSecret } from "./secretBox";
 import { finishSyncRun, recordSyncItems, stableHash, startSyncRun, type SyncItem } from "./sync";
 import { assertSafeWebhookUrl } from "./webhooks";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 export type ConnectorStatus = "PROVEN_IN_CI" | "UNVERIFIED";
-export const CONNECTOR_SYSTEMS = ["odoo"] as const;
+export const CONNECTOR_SYSTEMS = ["odoo", ...VENDOR_SYSTEMS] as const;
+const isVendor = (system: string): system is VendorSystem => (VENDOR_SYSTEMS as readonly string[]).includes(system);
+const VENDOR_PULLS: ErpEntity[] = ["suppliers", "purchase-orders", "invoices", "payments"];
 export const connectorRegistry: Record<string, { status: ConnectorStatus; pulls: ErpEntity[]; pushes: string[] }> = {
   odoo: { status: "PROVEN_IN_CI", pulls: ["suppliers", "purchase-orders", "actual-costs", "invoices", "payments"], pushes: ["projects", "suppliers", "progress"] },
+  // written against each vendor's documented API and tested against fixtures of its documented shapes; no account of theirs has ever answered (docs/INTEGRATIONS.md)
+  sap_b1: { status: "UNVERIFIED", pulls: VENDOR_PULLS, pushes: [] },
+  dynamics365: { status: "UNVERIFIED", pulls: VENDOR_PULLS, pushes: [] },
+  netsuite: { status: "UNVERIFIED", pulls: VENDOR_PULLS, pushes: [] },
 };
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND", message: string) => new TRPCError({ code, message });
 
@@ -64,6 +71,7 @@ async function connectionOf(db: Db, tenantId: string, id: string): Promise<Conne
   return row;
 }
 const odooFor = (connection: Connection, fetchImpl?: typeof fetch) => new OdooClient({ baseUrl: connection.baseUrl, database: connection.database ?? "", login: connection.username ?? "", secret: openSecret(connection.secretSealed ?? ""), fetchImpl });
+const vendorFor = (connection: Connection, fetchImpl?: typeof fetch) => vendorClientFor(connection.system as VendorSystem, { baseUrl: connection.baseUrl, database: connection.database, username: connection.username, secret: openSecret(connection.secretSealed ?? "") }, settingsOf(connection) as VendorSettings, fetchImpl);
 const settingsOf = (connection: Connection): OdooSettings => { try { return JSON.parse(connection.settings ?? "{}") as OdooSettings; } catch { return {}; } };
 
 export async function testConnectionForManager(input: { userId: number; tenantId: string; connectionId: string; fetchImpl?: typeof fetch }) {
@@ -72,6 +80,7 @@ export async function testConnectionForManager(input: { userId: number; tenantId
   if (!db) throw new Error("Database connection is not available");
   const connection = await connectionOf(db, input.tenantId, input.connectionId);
   try {
+    if (isVendor(connection.system)) return { ok: true as const, ...(await vendorFor(connection, input.fetchImpl).test()) };
     const client = odooFor(connection, input.fetchImpl);
     const version = await client.version();
     await client.authenticate();
@@ -88,14 +97,16 @@ export async function runConnection(input: { tenantId: string; connectionId: str
   if (!db) throw new Error("Database connection is not available");
   const connection = await connectionOf(db, input.tenantId, input.connectionId);
   if (!connection.active) throw refuse("BAD_REQUEST", "PROJECT_OS_CONNECTION_INACTIVE");
-  const client = odooFor(connection, input.fetchImpl);
+  const vendor = isVendor(connection.system);
+  if (vendor && input.direction === "out") throw refuse("BAD_REQUEST", "PROJECT_OS_CONNECTION_PUSH_UNSUPPORTED");
+  const client = vendor ? null : odooFor(connection, input.fetchImpl);
   const settings = settingsOf(connection);
   const result: ConnectionRunResult = { pulled: [], skipped: [], pushed: null };
   const actor = { tenantId: input.tenantId, userId: input.userId ?? connection.createdByUserId };
   const system = connection.system;
   if (input.direction === "in" || input.direction === "both") {
     const since = input.trigger === "scheduled" && settings.sinceDays ? new Date(Date.now() - settings.sinceDays * 86_400_000) : undefined;
-    const pulled = await pullFromOdoo(client, settings, since);
+    const pulled = vendor ? await vendorFor(connection, input.fetchImpl).pull(since) : await pullFromOdoo(client!, settings, since);
     result.skipped = pulled.skipped;
     // suppliers first: a purchase order names its supplier
     for (const entity of connectorRegistry[system].pulls) {
@@ -105,7 +116,7 @@ export async function runConnection(input: { tenantId: string; connectionId: str
       result.pulled.push({ entity, runId: batch.runId, status: batch.status, received: batch.received, accepted: batch.accepted, rejected: batch.rejected });
     }
   }
-  if (input.direction === "out" || input.direction === "both") result.pushed = await pushConnection(db, connection, client, input.userId);
+  if (!vendor && (input.direction === "out" || input.direction === "both")) result.pushed = await pushConnection(db, connection, client!, input.userId);
   await db.update(integrationConnections).set({ lastRunAt: new Date() }).where(eq(integrationConnections.id, connection.id));
   return result;
 }

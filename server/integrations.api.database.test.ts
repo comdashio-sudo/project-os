@@ -11,7 +11,7 @@ import { deliverDueWebhooks, isPrivateAddress, signWebhook } from "./integration
 
 // Work order 12, items 8 and 9: the documented integration API, the company's keys, the signed webhooks, the mappings and the exchange log, on a real database with the
 // application running as its restricted role. Two companies, so a key is shown to see only its own. Synthetic data only.
-process.env.INTEGRATION_SECRET_KEY = "test-only-integration-secret-0123456789";
+process.env.INTEGRATION_SECRET_KEY = "test-only-integration-secret-0123456789"; // secret-scan:allow a test-only value, never a real key
 process.env.INTEGRATION_ALLOW_PRIVATE_WEBHOOKS = "1"; // the receivers below listen on 127.0.0.1; the refusal of private addresses is tested through isPrivateAddress
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@integ.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} }, res: {} } as unknown as TrpcContext);
@@ -197,6 +197,35 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
   });
 
   // ----------------------------------------------------------------------------------------------------------------------------------- other systems in
+  it("the standard CSV: the template is served, rows that can be read are applied like an API batch, rows that cannot are returned with their line and why", async () => {
+    const csv = (key: string, path: string, body: string, type = "text/csv") => fetch(`${base}/api/v1${path}`, { method: "POST", headers: { "content-type": type, authorization: `Bearer ${key}` }, body }).then(async response => ({ status: response.status, json: await response.json() as Record<string, unknown> }));
+    const template = await fetch(`${base}/api/v1/erp/csv-template/purchase-orders`, { headers: { authorization: `Bearer ${fullKeyA}` } });
+    expect(template.status).toBe(200); expect(template.headers.get("content-type")).toContain("text/csv");
+    const header = (await template.text()).replace(/^\uFEFF/, "").split(/\r?\n/)[0];
+    expect(header).toBe("externalId,project,number,supplier,supplierName,orderDate,amount,currency,summary,costCode");
+    expect((await fetch(`${base}/api/v1/erp/csv-template/nonesuch`, { headers: { authorization: `Bearer ${fullKeyA}` } })).status).toBe(404);
+    const text = ["externalId,code,legalName,contactEmail", "CSV-1,CSV-SUP-1,\"Cement, Sand & Co.\",sales@csv.example.test", "CSV-2,CSV-SUP-2,,x@csv.example.test", "CSV-3,CSV-SUP-3,Second Supplier,"].join("\r\n");
+    const first = await csv(fullKeyA, "/erp/csv/suppliers?system=csvtest", text);
+    expect(first.status).toBe(200); expect(first.json).toMatchObject({ received: 2, accepted: 2, rejected: 0, unreadableRows: 1 });
+    expect(first.json.rowErrors).toEqual([{ line: 3, reason: "CSV_VALUE_MISSING", detail: "legalName" }]);
+    const [stored] = await connection.query<{ legalName: string }[]>("SELECT legalName FROM suppliers WHERE tenantId = ? AND code = 'CSV-SUP-1'", [tenantA]);
+    expect(stored[0].legalName).toBe("Cement, Sand & Co."); // a comma inside quotes stays one field
+    const again = await csv(fullKeyA, "/erp/csv/suppliers?system=csvtest", text);
+    expect(again.json).toMatchObject({ accepted: 2, rejected: 0 });
+    const items = await call(fullKeyA, "GET", `/sync/runs/${again.json.runId}/items`);
+    expect(items.json.items.every((item: { outcome: string }) => item.outcome === "unchanged")).toBe(true); // idempotent like the API
+    expect((await csv(fullKeyA, "/erp/csv/suppliers", "externalId,code\r\nX,Y", "text/csv")).json).toMatchObject({ code: "CSV_COLUMN_MISSING" });
+    expect((await csv(fullKeyA, "/erp/csv/suppliers", "externalId,code,legalName,surprise\r\nX,Y,Z,1")).json).toMatchObject({ code: "CSV_COLUMN_UNKNOWN" });
+    expect((await csv(fullKeyA, "/erp/csv/suppliers", "{}", "application/json")).status).toBe(415);
+    const costs = await csv(fullKeyA, "/erp/csv/actual-costs?system=csvtest", "externalId,project,costCode,amount,incurredAt\r\nGL-CSV-1,PRJ-1,1.1,\"1,250.50\",2026-10-05\r\nGL-CSV-2,PRJ-1,1.1,abc,2026-10-05");
+    expect(costs.json).toMatchObject({ accepted: 1, rejected: 0, unreadableRows: 1 }); expect(costs.json.rowErrors).toEqual([{ line: 3, reason: "CSV_NUMBER_INVALID", detail: "amount" }]);
+    const [cost] = await connection.query<{ amount: string }[]>("SELECT amount FROM cost_entries WHERE tenantId = ? AND projectId = ? AND amount = 1250.50", [tenantA, PA]);
+    expect(cost).toHaveLength(1);
+    const readOnly = await callers.ownerA.integrations.createKey({ tenantId: tenantA, name: "CSV read only", scopes: ["sync.read"] });
+    expect((await csv(readOnly.key, "/erp/csv/suppliers", text)).status).toBe(403);
+    expect((await csv(fullKeyB, "/erp/csv/actual-costs?system=csvtest", "externalId,project,costCode,amount,incurredAt\r\nGL-CSV-9,PRJ-1,1.1,5,2026-10-05")).json).toMatchObject({ accepted: 0, rejected: 1 }); // company B has no PRJ-1
+  });
+
   it("a submittal system's records: created with its own ids, answered with the company's codes, and refused when the code is not the company's", async () => {
     const submittal = (over: Record<string, unknown> = {}) => ({ externalId: "SUB-1", project: "PRJ-1", type: "shop_drawing", number: "SD-100", title: "Slab drawing", sentAt: "2026-10-01T08:00:00Z", ...over });
     const created = await call(fullKeyA, "POST", "/external/submittals", { system: "submittals", records: [submittal(), submittal({ externalId: "SUB-2", number: "SD-101", replyCode: "A", repliedAt: "2026-10-04T08:00:00Z" })] });
