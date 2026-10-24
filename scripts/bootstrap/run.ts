@@ -41,8 +41,8 @@ async function supabasePhase() {
     state.manual.unshift(TEMPLATE_TIER_INSTRUCTION); // first in the list: until it is done nobody can sign in with a code
     step("قالبا بريد الدخول (Confirm signup وMagic Link)", "manual", "رفضتهما Supabase على الخطة المجانية بمزوّد البريد الافتراضي — انظر أول بند أسفل الملخص");
   }
-  await api.closeDataApi();
-  step("واجهة Data API: أُزيل المخطط public من المكشوف", "ok");
+  const dataApi = await api.closeDataApi();
+  step("واجهة Data API: أُزيل المخطط public من المكشوف", "ok", dataApi.recovered ? "ردّ Supabase بخطأ خادم (500) لكن القراءة اللاحقة أثبتت أن التغيير طُبِّق" : dataApi.attempts > 1 ? `نجح بعد ${dataApi.attempts} محاولات` : undefined);
 
   const anonKey = await api.anonKey(); mask(anonKey);
   const poolerHost = await api.poolerHost();

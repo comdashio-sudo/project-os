@@ -145,6 +145,29 @@ describe("Supabase guard: one project, inside one organisation, checked before a
   });
 });
 
+describe("Data API closing when Supabase answers 500 (launch run 35)", () => {
+  const PG = `/v1/projects/${REF}/postgrest`;
+  const timeout500 = { status: 500, body: { message: "Postgrest config update did not succeed within the expected time frame. The intended change might not have been applied." } };
+  it("500 on the PATCH but the read-back shows public closed: succeeds and says it recovered", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => timeout500, [`GET ${PG}`]: () => ({ body: { db_schema: "graphql_public" } }) });
+    expect(await supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).toEqual({ attempts: 1, recovered: true });
+  });
+  it("500 and public still exposed: repeats, then succeeds when a later PATCH takes", async () => {
+    let patches = 0;
+    const sim = simulate({ [`PATCH ${PG}`]: () => (++patches < 2 ? timeout500 : { body: {} }), [`GET ${PG}`]: () => ({ body: { db_schema: patches < 2 ? "public,graphql_public" : "graphql_public" } }) });
+    expect(await supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).toEqual({ attempts: 2, recovered: false });
+  });
+  it("500 every time and public still exposed: FAILS after 3 attempts with Supabase's words", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => timeout500, [`GET ${PG}`]: () => ({ body: { db_schema: "public" } }) });
+    await expect(supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).rejects.toThrow(/after 3 attempts.*500/);
+  });
+  it("a 403 is a real refusal: no read-back rescue, no repeat", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => ({ status: 403, body: { message: "forbidden" } }), [`GET ${PG}`]: () => ({ body: { db_schema: "graphql_public" } }) });
+    await expect(supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).rejects.toThrow(/403/);
+    expect(sim.writes().length).toBe(1);
+  });
+});
+
 describe("owner email from the workflow input", () => {
   // The run that failed (run 26 on main) received "comdashio@gmail.com " with a trailing space and stopped in the first guard, before any call.
   it("accepts an address with a trailing space or newline, and returns it trimmed", () => {
@@ -262,6 +285,12 @@ describe("deployment polling and health", () => {
 });
 
 describe("the workflow", () => {
+  it("runs ONLY on workflow_dispatch: the button holds the real secrets, so no pull_request, push, schedule or other trigger may ever start it", () => {
+    const file = readFileSync(path.resolve(import.meta.dirname, "../..", ".github/workflows/bootstrap.yml"), "utf8");
+    const onBlock = file.slice(file.indexOf("\non:"), file.indexOf("\npermissions:"));
+    expect(onBlock.match(/^ {2}[a-z_]+:/gm)).toEqual(["  workflow_dispatch:"]);
+  });
+
   const text = (file: string) => readFileSync(path.resolve(import.meta.dirname, "../..", file), "utf8");
   const workflow = text(".github/workflows/bootstrap.yml");
   it("is manual, takes owner_email plus an optional organisation identifier, and reads exactly the three secrets the owner puts in GitHub (plus optional ones)", () => {
