@@ -12,6 +12,10 @@ on:
         description: "بريد المالك (أول دخول به يجعله مدير المنصة)"
         type: string
         required: true
+      supabase_org_slug:
+        description: "معرّف منظمة dashio في Supabase (اختياري إن ضُبط المتغير SUPABASE_ORGANIZATION_SLUG) — يلزم فقط إن كان مفتاح Supabase محصورًا بمشروع ولا يقرأ المنظمة"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -27,6 +31,7 @@ jobs:
     timeout-minutes: 45
     env:
       OWNER_EMAIL: ${{ inputs.owner_email }}
+      SUPABASE_ORGANIZATION_SLUG: ${{ inputs.supabase_org_slug || vars.SUPABASE_ORGANIZATION_SLUG }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

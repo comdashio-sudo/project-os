@@ -48,14 +48,14 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
   const ref = SUPABASE_PROJECT_REF;
 
   /** Reads THIS project (never lists projects) and refuses unless the id and the organisation's name both match. Call before any write. */
-  async function assertTarget() {
+  async function assertTarget(pinnedOrganisation?: string) {
     const { data: project } = await call("GET", `/v1/projects/${ref}`);
     const id = project?.ref ?? project?.id; // `ref` is the project reference in the Management API response (V1ProjectWithDatabaseResponse); `id` is kept as a fallback
     if (id !== ref) throw new GuardError(`المشروع الذي أعاده Supabase ليس المشروع المقصود (${ref}). لم يُكتب شيء.`);
     const slug = project?.organization_slug ?? project?.organization_id;
     if (!slug) throw new GuardError("مشروع Supabase لم يذكر منظمته، فلم يُتحقَّق من أنها dashio. لم يُكتب شيء.");
-    // A token scoped to one project (Resource access = Project) may not be allowed to read its organisation. Then the organisation is checked from the project's own
-    // data instead: the project must be the one named "dashio", inside the organisation it names. Any mismatch stops the run; nothing is ever assumed.
+    // A token scoped to one project (Resource access = Project) may not be allowed to read its organisation. Then the organisation is checked by IDENTIFIER: the project
+    // names its organisation (slug / id), and that must equal the identifier the owner pinned (`SUPABASE_ORGANIZATION_SLUG`, a non-secret). Not pinned, or different: stop.
     let organisation: any;
     let refused: number | undefined;
     try {
@@ -68,8 +68,11 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
       if (String(organisation?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`المشروع يتبع منظمة غير "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
       return { region: String(project?.region ?? ""), organisationCheck: "organisation" as const, organisationSlug: String(slug) };
     }
-    if (String(project?.name ?? "").trim().toLowerCase() !== SUPABASE_ORGANIZATION_NAME) throw new GuardError(`مفتاح Supabase المحصور بمشروع واحد لا يقرأ المنظمة، وبيانات المشروع نفسها لا تطابق: اسم المشروع الذي أعاده Supabase ليس "${SUPABASE_ORGANIZATION_NAME}". لم يُكتب شيء.`);
-    return { region: String(project?.region ?? ""), organisationCheck: "project" as const, organisationSlug: String(slug) };
+    const seen = [project?.organization_slug, project?.organization_id].filter((value): value is string => typeof value === "string" && value !== "").map(value => value.trim().toLowerCase());
+    const pinned = (pinnedOrganisation ?? "").trim().toLowerCase();
+    if (!pinned) throw new GuardError(`مفتاح Supabase المحصور بمشروع واحد لا يقرأ المنظمة، فلا يمكن مطابقة اسمها. المنظمة التي يذكرها المشروع: ${String(slug)}. إن كانت هذه منظمة dashio فثبّتها مرة واحدة: GitHub ← Settings ← Secrets and variables ← Actions ← Variables ← New repository variable، الاسم SUPABASE_ORGANIZATION_SLUG والقيمة ${String(slug)}؛ أو اكتبها في خانة supabase_org_slug عند تشغيل الزر. لم يُكتب شيء.`);
+    if (!seen.includes(pinned)) throw new GuardError(`المنظمة التي يذكرها المشروع (${String(slug)}) لا تطابق المنظمة المثبَّتة في SUPABASE_ORGANIZATION_SLUG. لم يُكتب شيء.`);
+    return { region: String(project?.region ?? ""), organisationCheck: "pinned" as const, organisationSlug: String(slug) };
   }
 
   return {

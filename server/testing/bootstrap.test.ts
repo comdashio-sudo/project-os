@@ -48,18 +48,25 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     expect(sim.writes()).toEqual([]);
   });
 
-  it("a project-scoped token (Resource access = Project) cannot read the organisation: the check moves to the project's own data and PASSES for the project named dashio", async () => {
-    const sim = simulate({ ...supabaseOk(), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
-    const target = await supabaseApi(sim.fetchImpl, "t").assertTarget();
-    expect(target).toMatchObject({ organisationCheck: "project", organisationSlug: "org-dashio", region: "ap-southeast-1" });
+  const scoped = () => simulate({ ...supabaseOk(), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
+
+  it("a project-scoped token (Resource access = Project) cannot read the organisation: the project's organisation id must equal the pinned one, and then it PASSES", async () => {
+    const sim = scoped();
+    const target = await supabaseApi(sim.fetchImpl, "t").assertTarget(" ORG-DASHIO\n");
+    expect(target).toMatchObject({ organisationCheck: "pinned", organisationSlug: "org-dashio", region: "ap-southeast-1" });
     expect(sim.writes()).toEqual([]);
   });
 
-  it("the same token, but the project's own data does not match (another project name): REFUSES in Arabic before any write", async () => {
-    const other = supabaseOk();
-    const sim = simulate({ ...other, [`GET /v1/projects/${REF}`]: () => ({ body: { ref: REF, organization_slug: "org-dashio", name: "another-company", region: "x" } }), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
+  it("the same token with NO pin: REFUSES in Arabic, prints the organisation the project names and the exact variable to set, writes nothing", async () => {
+    const sim = scoped();
     await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toBeInstanceOf(GuardError);
-    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/اسم المشروع الذي أعاده Supabase ليس "dashio"/);
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget("")).rejects.toThrow(/SUPABASE_ORGANIZATION_SLUG والقيمة org-dashio/);
+    expect(sim.writes()).toEqual([]);
+  });
+
+  it("the same token with a pin that does not match the project's organisation: REFUSES in Arabic before any write", async () => {
+    const sim = scoped();
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget("another-org")).rejects.toThrow(/لا تطابق المنظمة المثبَّتة/);
     expect(sim.writes()).toEqual([]);
   });
 
@@ -231,10 +238,11 @@ describe("deployment polling and health", () => {
 describe("the workflow", () => {
   const text = (file: string) => readFileSync(path.resolve(import.meta.dirname, "../..", file), "utf8");
   const workflow = text(".github/workflows/bootstrap.yml");
-  it("is manual, takes one input (owner_email), and reads exactly the three secrets the owner puts in GitHub (plus optional ones)", () => {
+  it("is manual, takes owner_email plus an optional organisation identifier, and reads exactly the three secrets the owner puts in GitHub (plus optional ones)", () => {
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(1);
+    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(2);
     expect(workflow).toContain("owner_email:");
+    expect(workflow).toContain("supabase_org_slug:");
     for (const secret of ["SUPABASE_ACCESS_TOKEN", "VERCEL_TOKEN", "SUPABASE_DB_PASSWORD"]) expect(workflow).toContain(`secrets.${secret}`);
     expect(workflow).not.toMatch(/\bon:\s*\n\s*(push|schedule|pull_request)/);
   });
