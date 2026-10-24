@@ -113,7 +113,7 @@ export default function ProjectSubmittals() {
     });
   }, [shown, replyCodes]);
 
-  const error = create.error ?? send.error ?? reply.error ?? close.error;
+  const error = create.error ?? send.error ?? reply.error ?? close.error ?? materials.error;
   const columns = [
     { header: t.number, value: (row: (typeof rows)[number]) => row.submittalNumber },
     { header: t.revision, value: (row: (typeof rows)[number]) => row.revision, kind: "number" as const },
@@ -128,15 +128,15 @@ export default function ProjectSubmittals() {
   ];
 
   const back = `/m/${tenantId}/${projectId}`;
-  if (list.isLoading || codes.isLoading) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  if (list.isLoading || codes.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
   const loadError = list.error ?? codes.error;
-  if (loadError) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void list.refetch(); void codes.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void list.refetch(); void codes.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   const canCreate = form.number.trim() !== "" && form.title.trim().length >= 2 && (form.type !== "material_approval" || form.materialId !== "");
   const tile = (label: string, value: string, flag?: boolean) => <div className={`rounded-xl border bg-white p-3 ${flag ? "border-red-300" : ""}`}><p className="text-xs text-slate-600">{label}</p><p className="text-xl font-semibold">{value}</p></div>;
 
   return (
-    <FieldShell wide title={t.title} backHref={back} backLabel={t.back}>
+    <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}>
       <section aria-label={t.total} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {tile(t.total, String(rows.length))}
         {tile(t.waiting, String(waiting.length))}

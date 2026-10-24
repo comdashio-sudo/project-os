@@ -197,12 +197,12 @@ export default function SiteDailyReport() {
     </section>
   );
 
-  if (options.isLoading || list.isLoading) return <FieldShell title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
   const loadError = options.error ?? list.error;
-  if (loadError) return <FieldShell title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   return (
-    <FieldShell title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
+    <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         <div className="space-y-4">
           {reportId && <div className="flex items-center justify-between"><span className="text-sm text-slate-600">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}

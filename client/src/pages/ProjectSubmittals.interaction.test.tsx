@@ -17,7 +17,7 @@ const codes = [
   { code: "A", labelAr: "معتمد", labelEn: "Approved", approved: true, active: true }, { code: "B", labelAr: "معتمد بملاحظات", labelEn: "Approved as noted", approved: true, active: true },
   { code: "C", labelAr: "أعد التقديم", labelEn: "Revise and resubmit", approved: false, active: true }, { code: "D", labelAr: "مرفوض", labelEn: "Rejected", approved: false, active: true },
 ];
-vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
 vi.mock("@/components/ExportExcelButton", () => ({ ExportExcelButton: ({ rows: exported }: { rows: unknown[] }) => <button type="button">export {exported.length}</button> }));
