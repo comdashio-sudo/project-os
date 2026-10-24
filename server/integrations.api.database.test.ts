@@ -84,7 +84,12 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
     expect(fullKeyA).toMatch(/^pos_[0-9a-f]{8}_[A-Za-z0-9_-]{20,}$/);
     const [stored] = await connection.query<{ keyHash: string; keyPrefix: string }[]>("SELECT keyHash, keyPrefix FROM api_keys WHERE id = ?", [keyIdA]);
     expect(stored[0].keyHash).toHaveLength(64);
-    expect(JSON.stringify(stored[0])).not.toContain(fullKeyA.split("_")[2]);
+    // The secret is everything after "pos_<8 hex>_" — it is base64url, so it can itself contain "_". (This line used to take `split("_")[2]`, which is EMPTY or a one-letter
+    // piece for about 2 keys in 100, and a hex hash contains such a piece by chance: the first test of this file failed intermittently in CI for that reason.)
+    expect(fullKeyA).toMatch(/^pos_[0-9a-f]{8}_/);
+    const secret = fullKeyA.slice("pos_xxxxxxxx_".length);
+    expect(secret.length).toBeGreaterThanOrEqual(30);
+    expect(JSON.stringify(stored[0])).not.toContain(secret);
     const listed = await callers.ownerA.integrations.listKeys({ tenantId: tenantA });
     expect(listed[0]).toMatchObject({ name: "ERP A", keyPrefix: stored[0].keyPrefix });
     expect(JSON.stringify(listed)).not.toContain(fullKeyA);
