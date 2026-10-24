@@ -20,9 +20,8 @@ vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () =
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    warehouses: { list: { useQuery: () => state.list } },
     scopes: { warehouse: { useQuery: (input: unknown) => { state.stockInput = input; return state.stock; } } },
-    levelReads: { warehouseUnapprovedMaterials: { useQuery: (input: unknown) => { state.unapprovedInput = input; return state.unapproved; } } },
+    levelReads: { projectWarehouses: { useQuery: () => state.list }, warehouseUnapprovedMaterials: { useQuery: (input: unknown) => { state.unapprovedInput = input; return state.unapproved; } } },
   },
 }));
 

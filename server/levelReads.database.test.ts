@@ -211,6 +211,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the level reads, scoped 
     });
   });
 
+  describe("the warehouse screen's list of warehouses (G-194)", () => {
+    it("lists the keeper's own project's warehouses, which the keeper can read without project.read", async () => {
+      const list = await callers.keeper.levelReads.projectWarehouses({ tenantId: tenantA, projectId: ids.a });
+      expect(list.warehouses.map(item => item.code)).toEqual(["LR-WH-A"]);
+      // the company's own list needs project.read, which the keeper does not hold: the reason the level has its own read
+      await expect(callers.keeper.warehouses.list({ tenantId: tenantA, projectId: ids.a })).rejects.toThrow(PERM_DENIED);
+    });
+
+    it("refuses the keeper another project's warehouses, and another company's caller this company's list", async () => {
+      await expect(callers.keeper.levelReads.projectWarehouses({ tenantId: tenantA, projectId: ids.b })).rejects.toThrow(SCOPE_DENIED);
+      await expect(callers.otherOwner.levelReads.projectWarehouses({ tenantId: tenantA, projectId: ids.a })).rejects.toThrow(NOT_A_MEMBER);
+      expect((await callers.otherOwner.levelReads.projectWarehouses({ tenantId: tenantB, projectId: ids.d })).warehouses.map(item => item.code)).toEqual(["LR-WH-D"]);
+    });
+  });
+
   describe("the unapproved materials of a warehouse (G-191)", () => {
     it("counts the materials held in the keeper's warehouse that the project has not approved, by the issue gate's own rule", async () => {
       const view = await callers.keeper.levelReads.warehouseUnapprovedMaterials({ tenantId: tenantA, projectId: ids.a, warehouseId: warehouseA });

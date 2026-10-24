@@ -52,7 +52,8 @@ export default function LevelWarehouse() {
   const { isArabic, language } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const enabled = Boolean(tenantId && projectId);
-  const list = trpc.warehouses.list.useQuery({ tenantId, projectId }, { enabled });
+  // The level's own list (levelReads.projectWarehouses): `warehouses.list` needs project.read, which a warehouse keeper does not hold.
+  const list = trpc.levelReads.projectWarehouses.useQuery({ tenantId, projectId }, { enabled });
   const warehouses = list.data?.warehouses ?? [];
   const requested = new URLSearchParams(search).get("warehouse");
   const chosen = warehouses.find(item => item.id === requested) ?? warehouses.find(item => item.active) ?? warehouses[0];

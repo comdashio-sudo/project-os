@@ -2,7 +2,7 @@
 // the caller's OWN assignment decides which projects count (scopeAccess.ts), a permission counts only on the assignment that carries it, and
 // every query filters by tenant and by those projects. A refusal is FORBIDDEN, never an empty answer that looks like a zero.
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { commitments, consultantSubmittals, contracts, materialMasters, projectWarehouses, projects, purchaseOrders, warehouseInventoryTransactions } from "../drizzle/schema";
@@ -95,6 +95,20 @@ export async function getWarehouseUnapprovedMaterials(input: { userId: number; t
   return { level: "warehouse" as const, warehouseId: input.warehouseId, stockedMaterials: held.length, unapprovedCount: unapproved.length, unapproved };
 }
 
+/**
+ * Level 4: the warehouses of one project, for the warehouse screen's chooser. `warehouses.list` needs project.read, which the warehouse keeper
+ * does not hold, so the level reads its own list under the warehouse permissions (the same ones `scopes.warehouse` accepts).
+ */
+export async function getProjectWarehouses(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const access = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.inventory.manage", "project.read", "project.manage"] });
+  assertProjectInScope(access, input.projectId);
+  const warehouses = await db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name, active: projectWarehouses.active }).from(projectWarehouses)
+    .where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId))).orderBy(asc(projectWarehouses.code));
+  return { level: "warehouse" as const, projectId: input.projectId, warehouses };
+}
+
 export type MoneyByCurrency = { count: number; byCurrency: { currency: string; amount: number }[] };
 
 /** Level 1: the company's commitments over every project, one figure per kind and per currency (no sum across currencies). */
@@ -129,6 +143,7 @@ export async function getCompanyCommitments(input: { userId: number; tenantId: s
 export const levelReadsRouter = router({
   entry: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getLevelEntry({ userId: ctx.user.id, ...input })),
   projectDeliveries: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectDeliveries({ userId: ctx.user.id, ...input })),
+  projectWarehouses: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectWarehouses({ userId: ctx.user.id, ...input })),
   warehouseUnapprovedMaterials: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid() })).query(({ ctx, input }) => getWarehouseUnapprovedMaterials({ userId: ctx.user.id, ...input })),
   companyCommitments: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyCommitments({ userId: ctx.user.id, ...input })),
 });
