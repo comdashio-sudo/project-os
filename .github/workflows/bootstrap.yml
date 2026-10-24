@@ -17,6 +17,12 @@ on:
         type: string
         required: false
 
+      preflight_only:
+        description: "افحص فقط (قراءة فقط، لا يكتب شيئًا): يجمع كل المشاكل في قائمة واحدة بالعربية في الملخص"
+        type: boolean
+        required: false
+        default: false
+
 permissions:
   contents: read
 
@@ -51,15 +57,23 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Read-only: every later phase's needs are checked first and ALL problems are listed at once (summary). A blocking problem stops the run here, before anything is written.
+      - name: Pre-flight — read-only check of everything the next steps need
+        run: node --import tsx scripts/bootstrap/run.ts preflight
       - name: Supabase — guard, sign-in settings, Data API, keys, connection strings
+        if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/bootstrap/run.ts supabase
       - name: Database — migrate, restricted role, proof
+        if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/predeploy.mjs
       - name: Storage — private buckets
+        if: ${{ !inputs.preflight_only }}
         run: node scripts/setup-storage.mjs
       - name: Database — verify security (read-only)
+        if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/verify-db-security.mjs
       - name: Vercel — project, variables, production deploy, health check
+        if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/bootstrap/run.ts vercel
       - name: Summary (Arabic, no secrets)
         if: always()

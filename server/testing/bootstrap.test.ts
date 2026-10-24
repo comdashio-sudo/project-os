@@ -266,9 +266,10 @@ describe("the workflow", () => {
   const workflow = text(".github/workflows/bootstrap.yml");
   it("is manual, takes owner_email plus an optional organisation identifier, and reads exactly the three secrets the owner puts in GitHub (plus optional ones)", () => {
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(2);
+    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(3);
     expect(workflow).toContain("owner_email:");
     expect(workflow).toContain("supabase_org_slug:");
+    expect(workflow).toContain("preflight_only:");
     for (const secret of ["SUPABASE_ACCESS_TOKEN", "VERCEL_TOKEN", "SUPABASE_DB_PASSWORD"]) expect(workflow).toContain(`secrets.${secret}`);
     expect(workflow).not.toMatch(/\bon:\s*\n\s*(push|schedule|pull_request)/);
   });
@@ -311,3 +312,20 @@ describe("the calls match the official API shapes (work order 11)", () => {
     expect(yml).toMatch(/BOOTSTRAP_STATE=\$RUNNER_TEMP\/bootstrap-state\.json/);
   });
 });
+
+describe("the workflow's pre-flight", () => {
+  const workflow = readFileSync(path.resolve(__dirname, "../../.github/workflows/bootstrap.yml"), "utf8");
+  it("runs first and read-only; every writing step after it is skipped when only the check is asked for", () => {
+    const steps = workflow.split(/\n      - /).slice(1);
+    const names = steps.map(step => /name: ([^\n]+)/.exec(step)?.[1] ?? "");
+    const index = names.findIndex(name => /^Pre-flight/.test(name));
+    expect(index).toBeGreaterThan(-1);
+    expect(names.slice(0, index).every(name => !/Supabase|Database|Storage|Vercel/.test(name))).toBe(true); // nothing that writes comes before it
+    for (const step of steps.slice(index + 1)) {
+      const name = /name: ([^\n]+)/.exec(step)?.[1] ?? "";
+      if (/^Summary/.test(name)) { expect(step).toContain("if: always()"); continue; }
+      expect(step, name).toContain("if: ${{ !inputs.preflight_only }}");
+    }
+  });
+});
+

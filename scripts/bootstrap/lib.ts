@@ -157,6 +157,18 @@ export async function downloadCa(fetchImpl: Fetch): Promise<string> {
 // ------------------------------------------------------------------------------------------------------------------ Vercel
 export type VercelEnv = { key: string; value: string; secret: boolean };
 
+/** Vercel's own words for a refusal: its code and message, short, never a secret. */
+export const vercelReason = (data: any) => { const e = data?.error ?? data; return `${e?.code ? `${String(e.code).slice(0, 60)}: ` : ""}${String(e?.message ?? "").replace(/\s+/g, " ").slice(0, 240)}`.trim(); };
+/** Only a refusal that is ABOUT the repository link / the GitHub app becomes the "connect GitHub" instruction; any other refusal (scope, plan, a rejected setting) is shown as what it is. */
+export const isGitLinkRefusal = (data: any) => /(repo|repository|github|git provider|git integration|git namespace|install)/i.test(vercelReason(data));
+
+/** The team a token acts for when VERCEL_TEAM_ID is not set: the account's own default team (a read). Undefined when Vercel does not say. */
+export async function discoverVercelTeam(fetchImpl: Fetch, token: string): Promise<string | undefined> {
+  const response = await fetchImpl("https://api.vercel.com/v2/user", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return undefined;
+  try { const id = JSON.parse(await response.text())?.user?.defaultTeamId; return typeof id === "string" && id ? id : undefined; } catch { return undefined; }
+}
+
 export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
   const call = client(fetchImpl, "https://api.vercel.com", token);
   const scope = teamId ? `teamId=${encodeURIComponent(teamId)}` : "";
@@ -171,8 +183,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
       const created = await call("POST", q("/v11/projects"), {
         name: VERCEL_PROJECT_NAME, framework: null, installCommand: "pnpm install --frozen-lockfile", buildCommand: "pnpm build:vercel", serverlessFunctionRegion: VERCEL_REGION,
         gitRepository: { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` },
-      }, [400, 403, 404]);
-      if (created.status !== 200 && created.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      }, [400, 402, 403, 404, 409]);
+      if (created.status !== 200 && created.status !== 201) {
+        if (isGitLinkRefusal(created.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v11/projects -> ${created.status} ${vercelReason(created.data)}`);
+      }
       return { id: created.data.id, created: true };
     }
     const project = found.data;
@@ -180,8 +195,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
     if (repo && repo !== want) throw new GuardError(`يوجد مشروع Vercel باسم "${VERCEL_PROJECT_NAME}" مربوط بمستودع آخر. لم يُكتب شيء.`);
     if (!repo) {
       // Not in the public OpenAPI (the documented way to connect a repository is `gitRepository` when the project is created). This is the call `vercel git connect` makes; any non-2xx falls back to the manual step.
-      const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 403, 404]);
-      if (linked.status !== 200 && linked.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 402, 403, 404, 409]);
+      if (linked.status !== 200 && linked.status !== 201) {
+        if (isGitLinkRefusal(linked.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v9/projects/{id}/link -> ${linked.status} ${vercelReason(linked.data)}`);
+      }
     }
     if (project.serverlessFunctionRegion !== VERCEL_REGION) await call("PATCH", q(`/v9/projects/${project.id}`), { serverlessFunctionRegion: VERCEL_REGION });
     return { id: project.id, created: false };
@@ -198,8 +216,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
       await call("POST", q(`/v10/projects/${projectId}/env?upsert=true`), vars.map(v => ({ key: v.key, value: v.value, type: v.secret ? "sensitive" : "plain", target: ["production"] })));
     },
     async deployProduction(): Promise<{ id: string }> {
-      const deployed = await call("POST", q("/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 403, 404]);
-      if (deployed.status !== 200 && deployed.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      const deployed = await call("POST", q("/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 402, 403, 404, 409]);
+      if (deployed.status !== 200 && deployed.status !== 201) {
+        if (isGitLinkRefusal(deployed.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v13/deployments -> ${deployed.status} ${vercelReason(deployed.data)}`);
+      }
       return { id: deployed.data.id };
     },
     async waitReady(deploymentId: string, options: { intervalMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void> } = {}) {
@@ -209,7 +230,13 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
         const { data } = await call("GET", q(`/v13/deployments/${deploymentId}`));
         const state = data?.readyState ?? data?.status;
         if (state === "READY") return { url: String(data.url ?? ""), aliases: (data.alias ?? []) as string[] };
-        if (state === "ERROR" || state === "CANCELED") throw new Error(`deployment ended as ${state}`);
+        if (state === "ERROR" || state === "CANCELED") {
+          const why = [data?.errorCode, data?.errorMessage].filter(Boolean).join(": ").replace(/\s+/g, " ").slice(0, 240);
+          // the last error lines of the build log (Vercel masks its own sensitive variables in them); a failure to read them changes nothing
+          const events = await call("GET", q(`/v3/deployments/${deploymentId}/events?limit=-1&direction=backward`), undefined, [400, 403, 404]).catch(() => ({ status: 0, data: null as any }));
+          const lines = (Array.isArray(events.data) ? events.data : []).map((event: any) => String(event?.text ?? event?.payload?.text ?? "")).filter((text: string) => /(error|failed|cannot|exceed|invalid|maxDuration|not allowed)/i.test(text)).slice(0, 5).map((text: string) => text.replace(/\s+/g, " ").slice(0, 160));
+          throw new Error(`deployment ended as ${state}${why ? ` — ${why}` : ""}${lines.length ? ` — ${lines.join(" | ")}` : ""}`);
+        }
         if (Date.now() > deadline) throw new Error("deployment did not finish in 15 minutes");
         await sleep(interval);
       }
