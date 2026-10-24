@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
+import { GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
 type State = { steps: Step[]; url?: string; health?: string; manual: string[] };
@@ -16,13 +16,15 @@ const state = readState();
 const save = () => writeFileSync(STATE_FILE, JSON.stringify(state));
 const step = (name: string, status: Step["status"], note?: string) => { state.steps.push({ name, status, ...(note ? { note } : {}) }); save(); };
 const mask = (value: string) => { if (value) console.log(`::add-mask::${value}`); };
-const need = (name: string) => { const value = process.env[name]; if (!value) throw new GuardError(`${name} is not set (GitHub: Settings ← Secrets and variables ← Actions).`); return value; };
+// Values pasted into GitHub often carry a trailing space or newline; trimming them is not a loosening of any guard, the checks still run on the value.
+const optional = (name: string) => (process.env[name] ?? "").trim();
+const need = (name: string) => { const value = optional(name); if (!value) throw new GuardError(`المتغير ${name} غير مضبوط في GitHub (Settings ← Secrets and variables ← Actions).`); return value; };
+const PHASE_LABEL: Record<string, string> = { supabase: "مرحلة Supabase", vercel: "مرحلة Vercel" };
 const exportEnv = (name: string, value: string) => { const file = process.env.GITHUB_ENV; if (!file) throw new Error("GITHUB_ENV is not available"); const tag = `EOF_${randomBytes(6).toString("hex")}`; appendFileSync(file, `${name}<<${tag}\n${value}\n${tag}\n`); };
 const realFetch: Fetch = (url, init) => fetch(url, init as RequestInit);
 
 async function supabasePhase() {
-  const ownerEmail = need("OWNER_EMAIL");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ownerEmail)) throw new GuardError("owner_email is not a valid address.");
+  const ownerEmail = normalizeOwnerEmail(need("OWNER_EMAIL"));
   const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
@@ -53,12 +55,12 @@ async function supabasePhase() {
 
 async function vercelPhase() {
   const token = need("VERCEL_TOKEN"); mask(token);
-  const api = vercelApi(realFetch, token, process.env.VERCEL_TEAM_ID || undefined);
+  const api = vercelApi(realFetch, token, optional("VERCEL_TEAM_ID") || undefined);
   const project = await api.ensureProject();
   step(project.created ? "أُنشئ مشروع Vercel باسم dashio مربوطًا بالمستودع في المنطقة sin1" : "مشروع Vercel dashio موجود ومربوط بالمستودع الصحيح، والمنطقة sin1", "ok");
 
   const existing = await api.existingEnvKeys(project.id);
-  const storageKeys = process.env.STORAGE_S3_ACCESS_KEY_ID && process.env.STORAGE_S3_SECRET_ACCESS_KEY ? { id: process.env.STORAGE_S3_ACCESS_KEY_ID, secret: process.env.STORAGE_S3_SECRET_ACCESS_KEY } : undefined;
+  const storageKeys = optional("STORAGE_S3_ACCESS_KEY_ID") && optional("STORAGE_S3_SECRET_ACCESS_KEY") ? { id: optional("STORAGE_S3_ACCESS_KEY_ID"), secret: optional("STORAGE_S3_SECRET_ACCESS_KEY") } : undefined;
   if (storageKeys) { mask(storageKeys.id); mask(storageKeys.secret); }
   const base = {
     ownerEmail: need("OWNER_EMAIL"), databaseUrl: need("BOOTSTRAP_APP_DATABASE_URL"), databaseCa: need("DATABASE_SSL_CA"), supabaseUrl: `https://${SUPABASE_PROJECT_REF}.supabase.co`,
@@ -111,6 +113,6 @@ try {
   else throw new Error("usage: run.ts supabase|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
-  else { step(phase, "failed", error instanceof GuardError ? `رفض الحارس: ${error.message}` : String((error as Error).message).slice(0, 200)); }
+  else { step(PHASE_LABEL[phase] ?? phase, "failed", error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`); }
   save(); process.exitCode = 1;
 }
