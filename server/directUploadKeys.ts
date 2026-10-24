@@ -2,7 +2,7 @@
 import { TRPCError } from "@trpc/server";
 import { MAX_DIRECT_UPLOAD_BYTES, storageDelete, storageHead, storageRead } from "./storage";
 
-export const DIRECT_UPLOAD_PURPOSES = ["document", "sitePlan", "sitePhoto"] as const;
+export const DIRECT_UPLOAD_PURPOSES = ["document", "sitePlan", "sitePhoto", "masterPlanDrawing"] as const;
 export type DirectUploadPurpose = (typeof DIRECT_UPLOAD_PURPOSES)[number];
 
 // letters of any script survive in the object key (Arabic file names are normal here); anything that could act as a path or control character becomes "_"

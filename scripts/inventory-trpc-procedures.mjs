@@ -40,6 +40,8 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/tender.award.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/role.templates.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/masterPlan.tools.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/masterPlanDrawing.database.test.ts", import.meta.url), "utf8"),
+
   readFile(new URL("../server/masterPlanVision.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/importJobs.database.test.ts", import.meta.url), "utf8"),
 ]);

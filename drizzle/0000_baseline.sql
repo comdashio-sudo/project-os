@@ -945,6 +945,55 @@ CREATE TABLE "knowledge_articles" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "master_plan_drawing_links" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"drawing_id" varchar(36) NOT NULL,
+	"polygon_id" varchar(36) NOT NULL,
+	"entity_id" varchar(36) NOT NULL,
+	"confirmed_by_user_id" integer NOT NULL,
+	"confirmed_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "master_plan_drawing_polygons" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"drawing_id" varchar(36) NOT NULL,
+	"ref" varchar(80) NOT NULL,
+	"label" varchar(120) DEFAULT '' NOT NULL,
+	"points" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "master_plan_drawing_versions" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"drawing_id" varchar(36) NOT NULL,
+	"version_number" integer NOT NULL,
+	"file_name" varchar(255) NOT NULL,
+	"mime_type" varchar(120) NOT NULL,
+	"size_bytes" integer NOT NULL,
+	"page_count" integer NOT NULL,
+	"checksum_sha256" varchar(64) NOT NULL,
+	"storage_key" varchar(512) NOT NULL,
+	"uploaded_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "master_plan_drawings" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"master_plan_version_id" varchar(36) NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "master_plan_snapshots" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -2282,6 +2331,23 @@ ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_tenant_id_co
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_source_document_id_project_documents_id_fk" FOREIGN KEY ("source_document_id") REFERENCES "public"."project_documents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_published_by_user_id_users_id_fk" FOREIGN KEY ("published_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_drawing_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."master_plan_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_polygon_fk" FOREIGN KEY ("polygon_id") REFERENCES "public"."master_plan_drawing_polygons"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_entity_fk" FOREIGN KEY ("entity_id") REFERENCES "public"."master_plan_spatial_entities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_confirmer_fk" FOREIGN KEY ("confirmed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_polygons" ADD CONSTRAINT "mpdp_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_polygons" ADD CONSTRAINT "mpdp_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_polygons" ADD CONSTRAINT "mpdp_drawing_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."master_plan_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_versions" ADD CONSTRAINT "mpdv_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_versions" ADD CONSTRAINT "mpdv_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_versions" ADD CONSTRAINT "mpdv_drawing_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."master_plan_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_versions" ADD CONSTRAINT "mpdv_uploader_fk" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawings" ADD CONSTRAINT "mpd_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawings" ADD CONSTRAINT "mpd_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawings" ADD CONSTRAINT "mpd_version_fk" FOREIGN KEY ("master_plan_version_id") REFERENCES "public"."master_plan_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawings" ADD CONSTRAINT "mpd_creator_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_snapshots" ADD CONSTRAINT "master_plan_snapshots_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_snapshots" ADD CONSTRAINT "master_plan_snapshots_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_snapshots" ADD CONSTRAINT "master_plan_snapshots_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2656,6 +2722,15 @@ CREATE UNIQUE INDEX "issues_project_code_unique" ON "issues" USING btree ("proje
 CREATE INDEX "issues_tenant_project_status_idx" ON "issues" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "kba_document_unique" ON "knowledge_articles" USING btree ("source_document_id");--> statement-breakpoint
 CREATE INDEX "kba_tenant_status_idx" ON "knowledge_articles" USING btree ("tenant_id","status","updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_links_polygon_unique" ON "master_plan_drawing_links" USING btree ("polygon_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_links_drawing_entity_unique" ON "master_plan_drawing_links" USING btree ("drawing_id","entity_id");--> statement-breakpoint
+CREATE INDEX "master_plan_drawing_links_tenant_project_drawing_idx" ON "master_plan_drawing_links" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_polygons_drawing_ref_unique" ON "master_plan_drawing_polygons" USING btree ("drawing_id","ref");--> statement-breakpoint
+CREATE INDEX "master_plan_drawing_polygons_tenant_project_drawing_idx" ON "master_plan_drawing_polygons" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_versions_drawing_version_unique" ON "master_plan_drawing_versions" USING btree ("drawing_id","version_number");--> statement-breakpoint
+CREATE INDEX "master_plan_drawing_versions_tenant_project_drawing_idx" ON "master_plan_drawing_versions" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawings_version_unique" ON "master_plan_drawings" USING btree ("master_plan_version_id");--> statement-breakpoint
+CREATE INDEX "master_plan_drawings_tenant_project_idx" ON "master_plan_drawings" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "master_plan_snapshots_tenant_project_version_creator_idx" ON "master_plan_snapshots" USING btree ("tenant_id","project_id","master_plan_version_id","created_by_user_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "master_plan_spatial_entities_version_code_unique" ON "master_plan_spatial_entities" USING btree ("master_plan_version_id","code");--> statement-breakpoint
 CREATE INDEX "master_plan_spatial_entities_tenant_project_version_idx" ON "master_plan_spatial_entities" USING btree ("tenant_id","project_id","master_plan_version_id");--> statement-breakpoint

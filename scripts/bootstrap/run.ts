@@ -30,8 +30,8 @@ async function supabasePhase() {
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
 
-  const { region, organisationCheck, organisationSlug } = await api.assertTarget(); // refuses (nothing written) unless project id AND organisation name match
-  step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}؛ ${organisationCheck === "organisation" ? "المنظمة dashio قُرئت وطابقت" : `المفتاح محصور بالمشروع ولا يقرأ المنظمة، فطُبِّق التحقق على بيانات المشروع نفسه (اسمه dashio، معرّف منظمته ${organisationSlug})`}`);
+  const { region, organisationCheck, organisationSlug } = await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
+  step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}؛ ${organisationCheck === "organisation" ? "المنظمة dashio قُرئت وطابقت" : `المفتاح محصور بالمشروع ولا يقرأ المنظمة، فطُبِّق التحقق بالمعرّف المثبَّت (${organisationSlug})`}`);
 
   await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
   step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
@@ -59,7 +59,7 @@ async function databasePhase() {
   const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
-  await api.assertTarget(); // refuses (nothing written) unless project id AND organisation name match
+  await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
   const poolerHost = await api.poolerHost();
   const ca = await downloadCa(realFetch);
   const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost, databasePassword, appRolePassword: deriveAppRolePassword(databasePassword) });

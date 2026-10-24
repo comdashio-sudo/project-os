@@ -16,6 +16,8 @@ const ALLOWED_TYPES: Record<DirectUploadPurpose, RegExp> = {
   sitePlan: /^image\/(png|jpeg)$/,
   // a photo in a daily site report (work order 12, item 4)
   sitePhoto: /^image\/(png|jpeg|webp)$/,
+  // a drawing of a Master Plan (G-189): PDF, PNG, JPEG or a DXF text file; the server checks the content itself
+  masterPlanDrawing: /^(application\/(pdf|dxf|octet-stream)|image\/(png|jpeg)|image\/vnd\.dxf|text\/plain)$/,
 };
 /** The permission the module's own procedure requires, so a person can upload exactly when they could have attached the file before. */
 async function authorizeDirectUpload(input: { userId: number; tenantId: string; projectId: string; purpose: DirectUploadPurpose }) {
