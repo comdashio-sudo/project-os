@@ -4,6 +4,8 @@
 // Addresses must be https and must not point inside a network (loopback, private, link-local, the cloud metadata address), checked when the endpoint is saved and again at each delivery.
 import { createHmac, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
@@ -35,16 +37,45 @@ export function isPrivateAddress(address: string): boolean {
   return lower === "::1" || lower === "::" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb");
 }
 
-export async function assertSafeWebhookUrl(raw: string) {
+/**
+ * Checks the address AND returns the one IP the check was made against. The delivery then connects to that IP (see `postPinned`) instead of resolving the name a second
+ * time: a name that answered with a public address for the check and a private one for the connection (DNS rebinding) can no longer reach the inside of a network.
+ */
+export async function resolveSafeWebhookTarget(raw: string): Promise<{ url: URL; address: string | null }> {
   let url: URL;
   try { url = new URL(raw); } catch { throw refuse("BAD_REQUEST", "PROJECT_OS_WEBHOOK_URL_INVALID"); }
   if (url.username || url.password) throw refuse("BAD_REQUEST", "PROJECT_OS_WEBHOOK_URL_INVALID");
   if (url.protocol !== "https:" && !(privateAllowed() && url.protocol === "http:")) throw refuse("BAD_REQUEST", "PROJECT_OS_WEBHOOK_URL_NOT_HTTPS");
-  if (privateAllowed()) return url;
+  if (privateAllowed()) return { url, address: null };
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map(entry => entry.address);
   if (!addresses.length || addresses.some(isPrivateAddress)) throw refuse("BAD_REQUEST", "PROJECT_OS_WEBHOOK_URL_PRIVATE");
-  return url;
+  return { url, address: addresses[0] };
+}
+
+export async function assertSafeWebhookUrl(raw: string) {
+  return (await resolveSafeWebhookTarget(raw)).url;
+}
+
+/** POST to `address` while the request still names `url.hostname` (Host header and TLS server name): the connection cannot go anywhere the check did not look. */
+export function postPinned(url: URL, address: string, init: { headers: Record<string, string>; body: string; timeoutMs: number }): Promise<{ status: number }> {
+  const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+  return new Promise((resolve, reject) => {
+    const request = send(url, {
+      method: "POST",
+      headers: { ...init.headers, "content-length": String(Buffer.byteLength(init.body)) },
+      timeout: init.timeoutMs,
+      // the only name resolution this connection ever does: the answer is the address that was checked
+      lookup: (_host, options, callback) => {
+        const family = isIP(address);
+        if ((options as { all?: boolean }).all) (callback as unknown as (error: null, addresses: Array<{ address: string; family: number }>) => void)(null, [{ address, family }]);
+        else callback(null, address, family);
+      },
+    }, response => { response.resume(); response.on("end", () => resolve({ status: response.statusCode ?? 0 })); });
+    request.on("timeout", () => request.destroy(new Error("TIMEOUT")));
+    request.on("error", reject);
+    request.end(init.body);
+  });
 }
 
 export async function createWebhookEndpointForManager(input: { userId: number; tenantId: string; url: string; events: string[] }) {
@@ -119,9 +150,13 @@ export async function deliverDueWebhooks(options: { now?: Date; limit?: number; 
       let statusCode: number | null = null; let error: string | null = null;
       try {
         if (!endpoint || !endpoint.active) throw new Error("ENDPOINT_INACTIVE");
-        const url = await assertSafeWebhookUrl(endpoint.url);
+        const target = await resolveSafeWebhookTarget(endpoint.url);
         const timestamp = Math.floor(now.getTime() / 1000);
-        const response = await doFetch(url, { method: "POST", redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), headers: { "content-type": "application/json", "user-agent": "ProjectOS-Webhooks/1", "x-projectos-event": delivery.eventType, "x-projectos-delivery": delivery.id, "x-projectos-signature": signWebhook(openSecret(endpoint.secretSealed), delivery.payload, timestamp) }, body: delivery.payload });
+        const headers = { "content-type": "application/json", "user-agent": "ProjectOS-Webhooks/1", "x-projectos-event": delivery.eventType, "x-projectos-delivery": delivery.id, "x-projectos-signature": signWebhook(openSecret(endpoint.secretSealed), delivery.payload, timestamp) };
+        // production connects to the checked address; a caller-supplied fetch (tests, a local receiver where private addresses are allowed) is used as given
+        const response = options.fetchImpl || !target.address
+          ? await doFetch(target.url, { method: "POST", redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), headers, body: delivery.payload })
+          : await postPinned(target.url, target.address, { headers, body: delivery.payload, timeoutMs: TIMEOUT_MS });
         statusCode = response.status;
         if (response.status < 200 || response.status >= 300) error = `HTTP_${response.status}`;
       } catch (caught) { error = caught instanceof Error ? caught.message.slice(0, 120) : "DELIVERY_ERROR"; }

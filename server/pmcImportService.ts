@@ -3,7 +3,7 @@
 // re-reads the same bytes (checked against the hash the person approved),
 // re-checks them against the project as it is now, and applies the plan in one
 // transaction. Re-importing a file the project already holds changes nothing.
-import { cellsWithoutAcceptedInspection, loadTenantPolicy } from "./qualityGate";
+import { cellsWithoutAcceptedInspection, loadTenantPolicy, ncrAcceptanceVerdict } from "./qualityGate";
 import { createHash } from "node:crypto";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { TRPCError } from "@trpc/server";
@@ -212,6 +212,20 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
     const existing = await db.select({ id: pmcInspectionRequests.id, requestCode: pmcInspectionRequests.requestCode, responseCode: pmcInspectionRequests.responseCode }).from(pmcInspectionRequests).where(mine(pmcInspectionRequests, scope));
     const plan = planRequests(parsed.rows, { units: unitMap, definitions: byModel, allActivityCodes, requests: new Map(existing.map(request => [request.requestCode, { id: request.id, responseCode: request.responseCode }])) });
     if (plan.errors.length) return { report: report("requests", fileHash, total, plan.errors, plan.counts), apply: null };
+    // work order 14: an accepted answer is not imported while the company's NCR rule (default block) sees an open NCR on its units and activity
+    const held: PmcImportError[] = [];
+    for (const request of plan.creates) {
+      if (!request.responseCode) continue;
+      const verdict = await ncrAcceptanceVerdict(db, input.tenantId, request.unitIds, request.activityDefinitionId, request.responseCode);
+      if (verdict.mode === "block" && verdict.openNcrs.length) held.push({ rowNumber: 0, code: "PMC_NCR_OPEN_BLOCKS_ACCEPTANCE", field: "responseCode", detail: `${request.requestCode}: ${verdict.openNcrs.slice(0, 5).join(",")}` });
+    }
+    for (const reply of plan.replies) {
+      const [target] = await db.select({ activityDefinitionId: pmcInspectionRequests.activityDefinitionId }).from(pmcInspectionRequests).where(eq(pmcInspectionRequests.id, reply.id)).limit(1);
+      const units = await db.select({ unitId: pmcInspectionRequestUnits.unitId }).from(pmcInspectionRequestUnits).where(eq(pmcInspectionRequestUnits.inspectionRequestId, reply.id));
+      const verdict = target ? await ncrAcceptanceVerdict(db, input.tenantId, units.map(unit => unit.unitId), target.activityDefinitionId, reply.responseCode) : { mode: "off" as const, openNcrs: [] as string[] };
+      if (verdict.mode === "block" && verdict.openNcrs.length) held.push({ rowNumber: 0, code: "PMC_NCR_OPEN_BLOCKS_ACCEPTANCE", field: "responseCode", detail: `${reply.requestCode}: ${verdict.openNcrs.slice(0, 5).join(",")}` });
+    }
+    if (held.length) return { report: report("requests", fileHash, total, held, plan.counts), apply: null };
     return {
       report: report("requests", fileHash, total, [], plan.counts),
       apply: async tx => {

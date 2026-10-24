@@ -22,7 +22,7 @@ let warehouseA = ""; let warehouseB = "";
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [SLUG]);
   for (const { id } of companies) {
-    for (const table of ["warehouse_inventory_transactions", "project_material_overrides", "project_warehouses", "material_masters", "design_submittals", "quality_inspections", "ncrs", "activities", "pmc_inspection_requests", "audit_logs", "membership_invitations"]) {
+    for (const table of ["warehouse_inventory_transactions", "project_material_overrides", "project_warehouses", "material_masters", "consultant_submittals", "quality_inspections", "ncrs", "activities", "pmc_inspection_requests", "audit_logs", "membership_invitations"]) {
       await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
     }
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
@@ -63,7 +63,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the four levels, scoped 
     // Facts to count on A: one overdue activity, one open NCR, one submittal at the consultant, one inspection awaiting a result, stock with a reorder level.
     await connection.query("INSERT INTO activities (id, tenantId, projectId, code, name, status, plannedStartAt, plannedFinishAt) VALUES (gen_random_uuid(), ?, ?, 'ACT-1', 'Late slab', 'in_progress', ?, ?)", [tenantId, ids.a, new Date("2026-01-01"), new Date("2026-02-01")]);
     await connection.query("INSERT INTO ncrs (id, tenantId, projectId, ncrNumber, title, description, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'NCR-1', 'Cracks', 'Cracks in slab', 'open', ?)", [tenantId, ids.a, userIds.owner]);
-    await connection.query("INSERT INTO design_submittals (id, tenantId, projectId, submittalNumber, title, discipline, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'SUB-1', 'Tiles', 'architectural', 'submitted', ?)", [tenantId, ids.a, userIds.owner]);
+    await connection.query("INSERT INTO consultant_submittals (id, tenantId, projectId, submittalType, submittalNumber, title, discipline, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'shop_drawing', 'SUB-1', 'Tiles', 'architectural', 'sent', ?)", [tenantId, ids.a, userIds.owner]);
     await connection.query("INSERT INTO quality_inspections (id, tenantId, projectId, inspectionNumber, inspectionType, inspectedAt, outcome, summary, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'QI-1', 'witness', ?, 'pass', 'Concrete pour', 'submitted', ?)", [tenantId, ids.a, new Date("2026-03-01"), userIds.owner]);
     await callers.owner.materials.createMaster({ tenantId, code: "CEM-1", description: "Cement bag", unitOfMeasure: "bag", category: "cement" });
     const [[material]] = await connection.query<{ id: string }[]>("SELECT id FROM material_masters WHERE tenantId = ? AND code = 'CEM-1'", [tenantId]);

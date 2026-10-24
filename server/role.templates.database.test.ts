@@ -24,7 +24,7 @@ const scope = () => ({ tenantId, projectId });
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [SLUG]);
   for (const { id } of companies) {
-    for (const table of ["tender_bid_adjustments", "tender_bids", "tender_invitees", "tender_packages", "commitments", "contracts", "suppliers", "design_transmittal_items", "design_comments", "design_submittals", "design_transmittals", "design_drawing_revisions", "design_drawings"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
+    for (const table of ["tender_bid_adjustments", "tender_bids", "tender_invitees", "tender_packages", "commitments", "contracts", "suppliers", "design_transmittal_items", "design_comments", "consultant_submittals", "design_transmittals", "design_drawing_revisions", "design_drawings"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
     await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [id]);
     await connection.query("DELETE FROM membership_invitations WHERE tenantId = ?", [id]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);

@@ -941,6 +941,11 @@ export const projectErrorMessages = {
     en: "The system address is not accepted (it must be https and not an internal address).",
     ur: "The system address is not accepted (it must be https and not an internal address).",
   },
+  PROJECT_OS_NCR_OPEN_BLOCKS_ACCEPTANCE: {
+    ar: "لا يُقبل الفحص: يوجد عدم مطابقة (NCR) مفتوح على هذه الوحدة وهذا النشاط. أغلقه أولًا.",
+    en: "The inspection cannot be accepted: an NCR is open on this unit and activity. Close it first.",
+    ur: "معائنہ قبول نہیں ہو سکتا: اس یونٹ اور سرگرمی پر NCR کھلا ہوا ہے۔ پہلے اسے بند کریں۔",
+  },
   PROJECT_OS_WEBHOOK_EVENTS_INVALID: {
     ar: "أنواع الأحداث غير معروفة.",
     en: "The event types are not known.",

@@ -4,22 +4,22 @@
 //   material_approval_mode off | warn | block  a material may be issued only after its approval submittal was approved
 // A company that never chose has the defaults (warn, A and B, warn). "block" is also enforced by the database on the table every path writes to
 // (project_os_qc_completion_guard in drizzle/baseline-security.sql); the checks here give the person the reason in words before that.
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, consultantSubmittals, submittalReplyCodes, tenantPolicies } from "../drizzle/schema";
+import { auditLogs, consultantSubmittals, ncrs, submittalReplyCodes, tenantPolicies } from "../drizzle/schema";
 import { assertTenantManager, getDb } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 /** Any handle that can run a select/execute: the database or a transaction on it. */
 type Reader = Pick<Db, "select" | "execute">;
 export type PolicyMode = "off" | "warn" | "block";
-export type TenantPolicy = { qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode };
-export const DEFAULT_POLICY: TenantPolicy = { qcCompletionMode: "warn", qcAcceptedCodes: ["A", "B"], materialApprovalMode: "warn" };
+export type TenantPolicy = { qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode: PolicyMode };
+export const DEFAULT_POLICY: TenantPolicy = { qcCompletionMode: "warn", qcAcceptedCodes: ["A", "B"], materialApprovalMode: "warn", ncrAcceptanceMode: "block" };
 
 export async function loadTenantPolicy(reader: Reader, tenantId: string): Promise<TenantPolicy> {
   const [row] = await reader.select().from(tenantPolicies).where(eq(tenantPolicies.tenantId, tenantId)).limit(1);
   if (!row) return DEFAULT_POLICY;
-  return { qcCompletionMode: row.qcCompletionMode, qcAcceptedCodes: row.qcAcceptedCodes.split(",").map(code => code.trim()).filter(Boolean), materialApprovalMode: row.materialApprovalMode };
+  return { qcCompletionMode: row.qcCompletionMode, qcAcceptedCodes: row.qcAcceptedCodes.split(",").map(code => code.trim()).filter(Boolean), materialApprovalMode: row.materialApprovalMode, ncrAcceptanceMode: row.ncrAcceptanceMode };
 }
 
 export async function getTenantPolicyForManager(input: { userId: number; tenantId: string }) {
@@ -29,19 +29,21 @@ export async function getTenantPolicyForManager(input: { userId: number; tenantI
   return loadTenantPolicy(db, input.tenantId);
 }
 
-export async function setTenantPolicyForManager(input: { userId: number; tenantId: string; qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode }) {
+export async function setTenantPolicyForManager(input: { userId: number; tenantId: string; qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode?: PolicyMode }) {
   await assertTenantManager(input.userId, input.tenantId);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const codes = Array.from(new Set(input.qcAcceptedCodes.map(code => code.trim().toUpperCase()).filter(Boolean)));
   if (!codes.length || codes.some(code => !/^[A-Z0-9]{1,4}$/.test(code)) || codes.join(",").length > 40) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_POLICY_CODES_INVALID" });
   const before = await loadTenantPolicy(db, input.tenantId);
+  // a caller that does not mention the NCR rule leaves it as it is
+  const ncrAcceptanceMode = input.ncrAcceptanceMode ?? before.ncrAcceptanceMode;
   await db.transaction(async tx => {
-    const values = { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes.join(","), materialApprovalMode: input.materialApprovalMode, updatedByUserId: input.userId };
+    const values = { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes.join(","), materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode, updatedByUserId: input.userId };
     await tx.insert(tenantPolicies).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ...values }).onConflictDoUpdate({ target: tenantPolicies.tenantId, set: { ...values, updatedAt: new Date() } });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "tenant.policy_changed", entityType: "tenant_policy", entityId: input.tenantId, metadata: JSON.stringify({ before, after: { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode } }) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "tenant.policy_changed", entityType: "tenant_policy", entityId: input.tenantId, metadata: JSON.stringify({ before, after: { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode } }) });
   });
-  return { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode } satisfies TenantPolicy;
+  return { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode } satisfies TenantPolicy;
 }
 
 export type CellRef = { unitId: string; activityDefinitionId: string };
@@ -54,6 +56,26 @@ export async function cellsWithoutAcceptedInspection(reader: Reader, cells: read
     return row?.ok === true;
   }));
   return cells.filter((_, index) => !verdicts[index]);
+}
+
+/** The open NCRs (not closed, not cancelled) raised on these units for this activity: the cells an inspection would be accepted on. */
+export async function openNcrNumbers(reader: Reader, tenantId: string, unitIds: readonly string[], activityDefinitionId: string): Promise<string[]> {
+  if (!unitIds.length) return [];
+  const rows = await reader.select({ number: ncrs.ncrNumber }).from(ncrs)
+    .where(and(eq(ncrs.tenantId, tenantId), eq(ncrs.pmcActivityDefinitionId, activityDefinitionId), inArray(ncrs.pmcUnitId, [...unitIds]), notInArray(ncrs.status, ["closed", "cancelled"])));
+  return Array.from(new Set(rows.map(row => row.number))).sort();
+}
+
+export type NcrAcceptanceVerdict = { mode: PolicyMode; openNcrs: string[] };
+/**
+ * Work order 14: may this inspection answer be recorded as an acceptance? An answer that is not one of the company's accepted codes is never held back (a rejection is always
+ * welcome). For an accepted code the company's NCR rule decides: `block` (the default) refuses while an NCR is open on the unit and activity, `warn` records it and says so,
+ * `off` ignores NCRs. The database reads the same rule when it counts acceptance (project_os_cell_qc_accepted), so a path that skips this check still cannot complete the cell.
+ */
+export async function ncrAcceptanceVerdict(reader: Reader, tenantId: string, unitIds: readonly string[], activityDefinitionId: string, responseCode: string | null): Promise<NcrAcceptanceVerdict> {
+  const policy = await loadTenantPolicy(reader, tenantId);
+  if (!responseCode || policy.ncrAcceptanceMode === "off" || !policy.qcAcceptedCodes.includes(responseCode)) return { mode: policy.ncrAcceptanceMode, openNcrs: [] };
+  return { mode: policy.ncrAcceptanceMode, openNcrs: await openNcrNumbers(reader, tenantId, unitIds, activityDefinitionId) };
 }
 
 export type QcGate = { mode: PolicyMode; notAccepted: CellRef[] };
