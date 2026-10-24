@@ -106,12 +106,29 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
       await verify(templates);
       return { templates: "applied" };
     },
-    /** The Data API serves only graphql_public: `public` (where the application's tables are) is not exposed. */
-    async closeDataApi() {
-      await call("PATCH", `/v1/projects/${ref}/postgrest`, { db_schema: "graphql_public" });
-      const { data: now } = await call("GET", `/v1/projects/${ref}/postgrest`);
-      const schemas = String(now?.db_schema ?? "").split(",").map((s: string) => s.trim());
-      if (schemas.includes("public")) throw new Error("the Data API still exposes the public schema");
+    /**
+     * The Data API serves only graphql_public: `public` (where the application's tables are) is not exposed.
+     * Supabase answers this PATCH with 500 "Postgrest config update did not succeed within the expected time frame ... The intended change might not have been applied" (launch run 35)
+     * even though the change may well have been applied; so a server error is never taken as the answer: the setting is read back, and only if `public` is still exposed is the
+     * PATCH repeated (up to 3 attempts, `pauseMs` apart). A 4xx (key/permission) is a real refusal and stops at once. The end state is always checked by reading, never assumed.
+     */
+    async closeDataApi(pauseMs = 5000): Promise<{ attempts: number; recovered: boolean }> {
+      const exposesPublic = async () => { const { data: now } = await call("GET", `/v1/projects/${ref}/postgrest`); return String(now?.db_schema ?? "").split(",").map((s: string) => s.trim()).includes("public"); };
+      let lastError = "";
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await call("PATCH", `/v1/projects/${ref}/postgrest`, { db_schema: "graphql_public" });
+          if (await exposesPublic()) throw new Error("the Data API still exposes the public schema");
+          return { attempts: attempt, recovered: false };
+        } catch (error) {
+          const message = (error as Error).message;
+          if (!/-> 5\d\d\b/.test(message)) throw error; // only a server-side error is worth reading back; anything else (4xx, "still exposes public") is final
+          lastError = message;
+          if (!(await exposesPublic())) return { attempts: attempt, recovered: true }; // the change was applied although the answer was an error
+          if (attempt < 3 && pauseMs > 0) await new Promise(resolve => setTimeout(resolve, pauseMs));
+        }
+      }
+      throw new Error(`the Data API still exposes the public schema after 3 attempts (${lastError})`);
     },
     /** Only the anon key is read from the list; the service_role entry is never copied, stored or printed. */
     async anonKey(): Promise<string> {
