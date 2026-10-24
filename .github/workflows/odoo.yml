@@ -46,15 +46,19 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: A database role for Odoo (it refuses to run as the postgres superuser)
+        run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE odoo LOGIN CREATEDB PASSWORD 'odoo-ci-throwaway'"
+        env:
+          PGPASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
       - name: Initialise the Odoo database (base, purchase, accounting, project; no demo data)
         run: |
           docker run --rm --network host \
-            -e HOST=127.0.0.1 -e PORT=5432 -e USER=postgres -e PASSWORD=ci-throwaway-postgres \
+            -e HOST=127.0.0.1 -e PORT=5432 -e USER=odoo -e PASSWORD=odoo-ci-throwaway \
             odoo:17.0 odoo -d odoo_ci -i base,purchase,account,project --without-demo=all --stop-after-init --log-level=warn
       - name: Start Odoo on 127.0.0.1:8069
         run: |
           docker run -d --name odoo_srv --network host \
-            -e HOST=127.0.0.1 -e PORT=5432 -e USER=postgres -e PASSWORD=ci-throwaway-postgres \
+            -e HOST=127.0.0.1 -e PORT=5432 -e USER=odoo -e PASSWORD=odoo-ci-throwaway \
             odoo:17.0 odoo -d odoo_ci --db-filter='^odoo_ci$' --log-level=warn
           for _ in $(seq 1 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:8069/web/health; then echo "odoo answered"; exit 0; fi
