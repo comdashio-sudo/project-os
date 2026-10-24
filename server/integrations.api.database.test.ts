@@ -359,6 +359,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
       expect(events.some(event => event.type === "submittal.replied" && event.data.submittalNumber === "MS-1" && event.data.approved === true)).toBe(true);
     });
 
+    it("a new delivery is due at a whole millisecond, so the sweep that follows always finds it (a database default carries microseconds the JS clock cannot reach)", async () => {
+      respondWith = 200;
+      for (let i = 0; i < 5; i++) await callers.ownerA.integrations.testWebhook({ tenantId: tenantA, endpointId: endpoint!.id });
+      const [rows] = await connection.query<{ sub: number; due: number }[]>("SELECT (extract(microseconds FROM nextAttemptAt)::bigint % 1000)::int AS sub, 1 AS due FROM webhook_deliveries WHERE tenantId = ? AND eventType = 'webhook.test' ORDER BY createdAt DESC LIMIT 5", [tenantA]);
+      expect(rows).toHaveLength(5);
+      expect(rows.map(row => Number(row.sub))).toEqual([0, 0, 0, 0, 0]);
+    });
+
     it("a receiver that is down is tried again later with growing gaps and given up on after six tries; the log shows each try", async () => {
       respondWith = 500;
       received.length = 0;

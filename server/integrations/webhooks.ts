@@ -130,13 +130,20 @@ export async function emitWebhookEvent(handle: Reader, tenantId: string, eventTy
   const wanted = endpoints.filter(endpoint => endpoint.events === "*" || endpoint.events.split(",").includes(eventType));
   if (!wanted.length) return 0;
   const body = JSON.stringify({ id: crypto.randomUUID(), type: eventType, createdAt: new Date().toISOString(), tenantId, data });
-  await handle.insert(webhookDeliveries).values(wanted.map(endpoint => ({ id: crypto.randomUUID(), tenantId, endpointId: endpoint.id, eventType, payload: body })));
+  await handle.insert(webhookDeliveries).values(wanted.map(endpoint => ({ id: crypto.randomUUID(), tenantId, endpointId: endpoint.id, eventType, payload: body, nextAttemptAt: dueNow() })));
   return wanted.length;
 }
 
 export const signWebhook = (secret: string, body: string, timestamp: number) => `t=${timestamp},v1=${createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex")}`;
 
 /** Delivers what is due. Runs as the system (it crosses companies); every statement still names its row. */
+/**
+ * When a new delivery becomes due. The column's database default is `now()`, which carries microseconds; the sweep that follows compares it with the JS clock,
+ * which has milliseconds. A delivery inserted and swept inside the same millisecond was therefore "not due yet" and skipped, so the first try was silently
+ * left for the next sweep (seen in CI as status pending with no status code). A whole-millisecond timestamp taken here can never be later than the sweep's.
+ */
+const dueNow = () => new Date();
+
 export async function deliverDueWebhooks(options: { now?: Date; limit?: number; fetchImpl?: typeof fetch } = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -178,7 +185,7 @@ export async function sendTestWebhookForManager(input: { userId: number; tenantI
   const [endpoint] = await db.select({ id: webhookEndpoints.id }).from(webhookEndpoints).where(and(eq(webhookEndpoints.id, input.endpointId), eq(webhookEndpoints.tenantId, input.tenantId))).limit(1);
   if (!endpoint) throw refuse("NOT_FOUND", "PROJECT_OS_WEBHOOK_NOT_FOUND");
   const id = crypto.randomUUID();
-  await db.insert(webhookDeliveries).values({ id, tenantId: input.tenantId, endpointId: endpoint.id, eventType: "webhook.test", payload: JSON.stringify({ id: crypto.randomUUID(), type: "webhook.test", createdAt: new Date().toISOString(), tenantId: input.tenantId, data: { message: "test" } }) });
+  await db.insert(webhookDeliveries).values({ id, tenantId: input.tenantId, endpointId: endpoint.id, eventType: "webhook.test", nextAttemptAt: dueNow(), payload: JSON.stringify({ id: crypto.randomUUID(), type: "webhook.test", createdAt: new Date().toISOString(), tenantId: input.tenantId, data: { message: "test" } }) });
   await deliverDueWebhooks({ limit: 200 });
   const [after] = await db.select({ status: webhookDeliveries.status, lastStatusCode: webhookDeliveries.lastStatusCode, lastError: webhookDeliveries.lastError }).from(webhookDeliveries).where(eq(webhookDeliveries.id, id)).limit(1);
   return { deliveryId: id, ...after };
