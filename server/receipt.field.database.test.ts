@@ -87,7 +87,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("receiving against a purc
     await expect(keeper.goodsReceipts.create(input({ grnNumber: "GRN-RC-2", receivedQuantity: 100, unitCost: 25 }))).rejects.toThrow("PROJECT_OS_GRN_COMMITMENT_INSUFFICIENT"); // 2,500 against 750 open
     await expect(keeper.goodsReceipts.create(input({ grnNumber: "GRN-RC-3", purchaseOrderId: PO_DRAFT }))).rejects.toThrow("PROJECT_OS_GRN_PURCHASE_ORDER_NOT_ISSUED");
     await expect(keeper.goodsReceipts.create(input({ grnNumber: "GRN-RC-4", unitOfMeasure: "ton" }))).rejects.toThrow("PROJECT_OS_REQUISITION_UNIT_MISMATCH");
-    await expect(callerFor(users.reader, "rcp-reader").goodsReceipts.create(input({ grnNumber: "GRN-RC-5" }))).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.reader, "rcp-reader").goodsReceipts.create(input({ grnNumber: "GRN-RC-5" }))).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
     expect(await count("SELECT COUNT(*) AS n FROM goods_receipt_notes WHERE tenantId = ?", [T])).toBe(1); // none of the refused ones was written
   });
 });

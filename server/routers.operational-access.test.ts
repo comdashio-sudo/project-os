@@ -1244,7 +1244,7 @@ describe("operational API authorization", () => {
     configureActiveMembershipWithoutProjectEntitlement();
     const caller = appRouter.createCaller(context());
 
-    await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: 99, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("not licensed");
+    await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: 99, roleId: "55555555-5555-4555-8555-555555555555", scopeType: "company" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
 
     expect(databaseDouble.select).toHaveBeenCalledTimes(4);
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
@@ -1286,7 +1286,7 @@ describe("operational API authorization", () => {
     configureActiveMembershipWithoutProjectEntitlement();
     const caller = appRouter.createCaller(context());
 
-    await expect(execute(caller)).rejects.toThrow("not licensed");
+    await expect(execute(caller)).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
   });
 
@@ -1313,7 +1313,7 @@ describe("operational API authorization", () => {
     configureActiveMembershipWithoutProjectEntitlement();
     const caller = appRouter.createCaller(context());
 
-    await expect(execute(caller)).rejects.toThrow("not licensed");
+    await expect(execute(caller)).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     expect(databaseDouble.transaction).not.toHaveBeenCalled();
     expect(databaseDouble.select).toHaveBeenCalledTimes(4);
   });

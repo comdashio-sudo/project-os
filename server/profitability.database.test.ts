@@ -133,9 +133,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Project profitability (F
     const scoped = callerFor(ids.scoped, "profit-scoped");
     await expect(manager.profitability.project({ tenantId: T, projectId: P_FOREIGN })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await expect(manager.profitability.costBreakdown({ tenantId: T, projectId: P_FOREIGN })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
-    await expect(low.profitability.project({ tenantId: T, projectId: P })).rejects.toThrow("Required permission is not granted.");
-    await expect(low.profitability.portfolio({ tenantId: T })).rejects.toThrow("Required permission is not granted.");
-    await expect(scoped.profitability.project({ tenantId: T, projectId: P2 })).rejects.toThrow("Role scope does not cover the requested resource.");
+    await expect(low.profitability.project({ tenantId: T, projectId: P })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(low.profitability.portfolio({ tenantId: T })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(scoped.profitability.project({ tenantId: T, projectId: P2 })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(scoped.profitability.project({ tenantId: T, projectId: P })).resolves.toMatchObject({ project: { id: P } });
   }, 60_000);
 
@@ -143,8 +143,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Project profitability (F
     const manager = callerFor(ids.manager, "profit-manager");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE id = 'profit-ent-a-project'");
     try {
-      await expect(manager.profitability.project({ tenantId: T, projectId: P })).rejects.toThrow("not licensed");
-      await expect(manager.profitability.history({ tenantId: T, projectId: P })).rejects.toThrow("not licensed");
+      await expect(manager.profitability.project({ tenantId: T, projectId: P })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
+      await expect(manager.profitability.history({ tenantId: T, projectId: P })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE id = 'profit-ent-a-project'");
     }

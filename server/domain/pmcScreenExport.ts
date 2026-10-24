@@ -1,3 +1,4 @@
+import { type ExportLocale } from "@shared/exportLocale";
 // Flat tables for the Excel export of each PMC screen: the same numbers the screen
 // shows, with Arabic or English headers.
 import type { activitiesMatrix, approvals, inspections, latestUpdates, pendingAtVerifier, periodReport, stagesView, zones } from "./pmcScreens";
@@ -5,7 +6,7 @@ import type { activitiesMatrix, approvals, inspections, latestUpdates, pendingAt
 export const PMC_SCREEN_NAMES = ["latestUpdates", "approvals", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages"] as const;
 export type PmcScreenName = (typeof PMC_SCREEN_NAMES)[number];
 export type ScreenTable = { sheetName: string; headers: string[]; rows: unknown[][] };
-type Locale = "ar" | "en";
+type Locale = ExportLocale;
 const pick = (locale: Locale, ar: string[], en: string[]) => (locale === "ar" ? ar : en);
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 // A cell that starts with = + - or @ would run as a formula when opened in a spreadsheet.

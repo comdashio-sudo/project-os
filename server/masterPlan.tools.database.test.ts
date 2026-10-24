@@ -8,7 +8,7 @@ import { appRouter } from "./routers";
 const SLUG = "mp-tools";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mp.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
-const DENIED = "Required permission is not granted.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED.";
 
 let connection: fixtureDb.Connection;
 let tenantId = ""; let projectId = ""; let otherProjectId = "";

@@ -1,3 +1,5 @@
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
+import { resolveLanguage } from "@/lib/language";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { Button } from "@/components/ui/button";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -50,12 +52,12 @@ const text = {
     failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
     rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
   }, ur: {
-    noFile: "Choose a file before analysing.", typeError: "Accepted formats are XLSX or CSV.", sizeError: `The file is larger than the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
-    uploadFailed: "The file could not be uploaded to storage. Check your connection and try again.",
-    uploading: "Uploading the file", analyzing: "Analysing the file", importing: "Writing the records", progressLabel: "Processing progress",
+    noFile: "تجزیہ سے پہلے ایک فائل منتخب کریں۔", typeError: "قابلِ قبول فارمیٹ XLSX یا CSV ہیں۔", sizeError: `The file is larger than the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
+    uploadFailed: "فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ اپنا کنکشن دیکھیں اور دوبارہ کوشش کریں۔",
+    uploading: "فائل اپ لوڈ ہو رہی ہے", analyzing: "فائل کا تجزیہ ہو رہا ہے", importing: "ریکارڈ لکھے جا رہے ہیں", progressLabel: "کارروائی کی پیش رفت",
     stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" } as Record<string, string>,
-    failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
-    rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
+    failedTitle: "کارروائی ناکام ہو گئی", errors: "توثیق کی غلطیاں", row: "قطار", moreErrors: "صرف پہلی غلطیاں دکھائی گئی ہیں؛ مکمل تعداد اوپر ہے۔",
+    rows: "قطاریں", created: "بنائے گئے ریکارڈ", updated: "اپ ڈیٹ ہونے والے ریکارڈ", skipped: "چھوڑے گئے ریکارڈ", nothingToConfirm: "فائل درست ہے مگر اس سے کچھ تبدیل نہیں ہوتا: پروجیکٹ میں یہ ڈیٹا پہلے سے موجود ہے۔", done: "محفوظ ہو گیا",
   },
 };
 
@@ -64,7 +66,8 @@ const text = {
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
 export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted }: Props) {
-  const t = isArabic ? text.ar : text.en;
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  const t = text[lang];
   const [file, setFile] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
@@ -111,7 +114,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
       await registerUpload.mutateAsync({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, uploadKey: target.uploadKey, context });
     } catch (error) {
       setUploadPercent(null);
-      setUploadError(error instanceof UploadFailure ? t.uploadFailed : getLocalizedProjectError(error, isArabic));
+      setUploadError(error instanceof UploadFailure ? t.uploadFailed : getLocalizedProjectError(error, lang));
     }
   };
 
@@ -132,20 +135,20 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
       </div>}
       {view?.status === "failed" && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         <p className="font-semibold">{t.failedTitle}</p>
-        <p className="mt-1">{view.failureReason ? (isArabic ? getProjectError(view.failureReason).messages.ar : getProjectError(view.failureReason).messages.en) : t.failedTitle}</p>
+        <p className="mt-1">{view.failureReason ? getProjectError(view.failureReason).messages[lang] : t.failedTitle}</p>
       </div>}
       {view && (view.status === "uploaded" || view.status === "validated") && <div className="space-y-3">
         <p className="text-sm">{t.rows}: {view.totalRows}</p>
         {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{errorLabel?.(error.code) ?? error.code}{error.field ? ` (${fieldLabel?.(error.field) ?? error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
         {renderReport?.(view)}
         {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
-        {withDiff && diff.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(diff.error, isArabic)}</p>}
+        {withDiff && diff.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(diff.error, lang)}</p>}
         {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.nothingToConfirm}</p>}
         {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
-      {confirm.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
-      {progress.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(progress.error, isArabic)}</p>}
+      {confirm.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(confirm.error, lang)}</p>}
+      {progress.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(progress.error, lang)}</p>}
     </div>
   );
 }

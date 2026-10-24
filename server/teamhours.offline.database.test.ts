@@ -141,8 +141,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("team hours and idempoten
 
   it("closes the team sheet and the bulk save to anyone without project.manage", async () => {
     const plain = callerFor(users.plain, "tmh-plain");
-    await expect(plain.teamHours.sheet({ ...scope, workDate: day("2026-10-14") })).rejects.toThrow("Required permission is not granted.");
-    await expect(plain.teamHours.save({ ...scope, workDate: day("2026-10-14"), entries: [{ assignmentId: A1, actualHours: 8 }] })).rejects.toThrow("Required permission is not granted.");
+    await expect(plain.teamHours.sheet({ ...scope, workDate: day("2026-10-14") })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(plain.teamHours.save({ ...scope, workDate: day("2026-10-14"), entries: [{ assignmentId: A1, actualHours: 8 }] })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
   });
 
   // G-130 found these two reads answering to a membership that was no longer active.

@@ -23,7 +23,7 @@ const answer = (content: unknown) => ({
   id: "vision-double", created: 1, model: "test-model",
   choices: [{ index: 0, message: { role: "assistant", content: typeof content === "string" ? content : JSON.stringify(content) }, finish_reason: "stop" }],
 });
-const DENIED = "Required permission is not granted.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED.";
 const LIMIT = 3 * 1024 * 1024;
 
 const KEYS = ["owner", "reader", "projectWriter", "stranger", "otherOwner", "platformAdmin"] as const;
@@ -158,7 +158,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Drawing reading on a rea
   it("a project-scoped writer reads the drawing of their own project, and not of another one", async () => {
     llm.invoke.mockResolvedValueOnce(goodAnswer());
     await expect(request("projectWriter")).resolves.toMatchObject({ saved: false, proposals: [{ shapeId: entity.a }, { shapeId: entity.b }] });
-    await expect(request("projectWriter", { projectId: otherProjectId, masterPlanVersionId: otherVersionId, shapeIds: [entity.foreign] })).rejects.toThrow("Role scope does not cover the requested resource.");
+    await expect(request("projectWriter", { projectId: otherProjectId, masterPlanVersionId: otherVersionId, shapeIds: [entity.foreign] })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     expect(llm.invoke).toHaveBeenCalledTimes(1);
   });
 

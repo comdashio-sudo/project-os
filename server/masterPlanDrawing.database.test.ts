@@ -12,7 +12,7 @@ vi.mock("./storage", async importOriginal => (await import("./testing/memoryStor
 const SLUG = "mp-drawing";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mpd.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
-const DENIED = "Required permission is not granted.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED.";
 const NIL = "00000000-0000-4000-8000-000000000000";
 
 /** A PDF with `pages` empty pages, written by hand (correct cross-reference table, so any reader counts the pages it says). */

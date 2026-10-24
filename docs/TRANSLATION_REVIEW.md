@@ -746,3 +746,923 @@
 - لم تُراجَع الترجمات الأردية والإنجليزية الجديدة من متحدث أصلي (كل سطر في الأقسام 1 و2 و3 «تحتاج مراجعة بشرية»).
 - لم تُفحص بصريًا كل شاشة بالأردية؛ فُحصت شاشة واحدة (الإدخال الميداني) في 390px، وذُكرت النتيجة في التقرير.
 
+
+## 5. الجزء 3 من البند 5 (الترجمة الكاملة): المكوّنات والمنطق المشترك والخادم والتصدير
+
+**النطاق:** `client/src/components` و`client/src/lib` (غير الاختبارات)، ونصوص الخادم المرئية (`shared/projectErrors.ts` ورسائل `TRPCError`)، وترويسات التصدير (`client/src/lib/excelExport.ts` وجداول الأعمدة في `shared/ledgerImportColumns.ts`، ولغات الخادم في التصدير). صفحات `client/src/pages` لم تُترجم في هذا الجزء؛ غيّر الجزء الثاني ما يخصها، واللمسات التي طلبها المنسّق منها مذكورة في الجدول أدناه.
+
+**كل نص أردي كتبته هذه الدفعة في الجدول أدناه** («تحتاج مراجعة بشرية»، بالملف والسطر والنص). الجدول مولَّد من إضافات الفرع (`git diff`) ولا يشمل إلا العبارات ذات الحروف الأردية الخاصة، فلا تدخل فيه العربية.
+
+### 5.1 القياس قبل وبعد (المكوّنات والمنطق المشترك، `client/src/components` و`client/src/lib`)
+
+| المجموعة | قبل | بعد | كيف قيس |
+|---|---|---|---|
+| الخانات الأردية التي تحمل النص الإنجليزي (`ur` = `en`، ومن ذلك المتداخل والكائنات الورقية) | 359 خانة (251 نصًا مختلفًا) | 2 (نص واحد: `PMO`، اختصار يبقى لاتينيًا بقاعدة المسرد 5) | مقارنة `ur` بـ`en` في كل قاموس `pickLanguage` وكل كائن `{ar,en,ur}` |
+| شرط `isArabic ? … : …` بلا فرع أردي | 74 | 2 (ليستا نصًا: وسم اللغة في `FieldShell` وهو ثلاثي أصلًا، واتجاه `RouteBoundary`) | ماسح الـAST على `ConditionalExpression` |
+| نص إنجليزي مكتوب في JSX خارج القاموس | 79 (قياس خام يشمل أسماء الفئات) | 0 (الاختبار الثابت `visibleText.test.tsx`) | الاختبار نفسه؛ الباقي بعد القياس الخام أسماء فئات وقيم `dir`/`aria-current` وعلامة «Dashio» |
+| مصفوفات `ur` إنجليزية في `healthPresentation.ts` (11 مصفوفة، 22 جملة) | 22 جملة إنجليزية | 0 | مسح يدوي للمصفوفات |
+
+### 5.2 القياس قبل وبعد (الخادم والتصدير)
+
+| المجموعة | قبل | بعد |
+|---|---|---|
+| إدخالات الكتالوج (`shared/projectErrors.ts`) التي تحمل النص الإنجليزي في خانة الأردية | 381 من 382 | 0 |
+| رسائل `TRPCError` الإنجليزية الحرفية في الخادم (12 موقعًا، وكلها تطابق كتالوجًا) | 12 | 0 (تحوّلت إلى مفتاح الكتالوج الذي يطابقه `getProjectError` اليوم، فلا يتغير الرمز المرمى ولا النص المعروض) |
+| ترويسات التصدير: الكتالوج الموحد للأعمدة (24 عمودًا في `shared/ledgerImportColumns.ts`) بلا أردية | 24 | 0 (عمود `ur` لكل عمود؛ والمستورد يقبل الاسم الأردي) |
+| ترويسات التصدير الإنجليزية في `excelExport.ts` (ثلاثة عناوين + عملة) | 4 خانات إنجليزية في الأردية | 0 (`ur`: كمپنی، پروجیکٹ، برآمد کی تاریخ، ریال) |
+| رموز الإجابة A–D للمراجعة (في الخادم) | بلا اسم أردي | اسم أردي لكل من A–D؛ الرمز المخصص للشركة يبقى بالإنجليزية |
+
+### 5.3 ما أُغلق من بنود المنسّق التسعة (الجزء الثاني، PR #120)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| 1. رموز الإجابة (`ProjectSubmittals`) | مغلق | `replyCodeLabelUr` في `server/consultantSubmittals.ts` (الاختبار `server/exportLocale.test.ts`) وصفحة `pickLanguage` بالخانات الثلاث |
+| 2. ملف الدور (`SetupWizard`) | مغلق | `profile[language]`؛ الملف الأردي موجود في `operationalRolePresentation.ts` |
+| 3. أسماء أعمدة الاستيراد التشغيلي (`ProjectOperationalImports`) | مغلق | `column.ur` في `shared/ledgerImportColumns.ts`، والمستورد يقبل الاسم الأردي عبر `acceptedHeaders` (الاختبار) |
+| 4. ترويسات قالب الاستيراد (`ProjectImports`) | مغلق بالبديل المعلن: الاستيراد يبقى يطابق الترويسة الإنجليزية، فيعرض القالب الترويسة الإنجليزية للأردية | `templateHeadersIn` في `shared/importTemplateHeaders.ts` واختبار `exportLocale.test.ts` |
+| 5. تصدير الخادم بالأردية (لوحة الخطة، ومحرر التصدير، ومستشار المشروع، وتصدير البيانات) | مغلق جزئيًا: كل نقاط النهاية تقبل `ur` في التحقق، ولغة المستشار `Urdu`، وتصدير الأعمدة الدفترية بالأردية. ترويسات شاشات PMC وترويسات تصدير البيانات الأخرى ما زالت بالإنجليزية (انظر 5.4) | `EXPORT_LOCALES` في `shared/exportLocale.ts`؛ ونقاط النهاية في `server/routers.ts` |
+| 6–9. مواقع الاستدعاء (`ProjectAdvisor`، `ProjectDataExport`، `ProjectPmc`، `ProjectImports`، `ProjectOperationalImports`) | مغلق: صارت ترسل `language` بدل `"en"` للأردية | الصفحات الخمس في الفرع |
+
+### 5.4 ما لم يُنجز، وقرارات تحتاج المالك
+
+- **ترويسات تصدير البيانات وترويسات شاشات PMC بالأردية غير موجودة:** `server/domain/dataImport.ts` و`server/domain/pmcScreenExport.ts` تعيد الإنجليزية للأردية (`headersIn` و`pick`). يلزم نص أردي لكل ترويسة: خمس وحدات تصدير غير دفترية في `exportHeaders`، وثمانية استدعاءات `pick` في تصدير شاشات PMC.
+- **قوالب الاستيراد بالأردية: قرار.** القوالب تُقرأ بالاسم (`templateHeaders`)، فتعريب ترويستها يكسر الاستيراد. الإبقاء على الإنجليزية في القالب خيار معلن، ويحتاج تأكيد المالك.
+- **`SAR`:** اعتُمد «ریال» في عمود العملة الأردي (مطابقًا للعربية «ريال»)، وهو قرار قابل للمراجعة.
+- **`PMO`:** بقي بالحروف اللاتينية بقاعدة المسرد 5؛ ليس نصًا مترجمًا.
+- **رسائل `new Error(...)` في الخادم** (نحو 296 موقعًا) لم تُحوَّل: لا تصل إلى الشاشة كنص خام، إذ يحوّلها `errorFormatter` إلى `PROJECT_OS_SERVER_ERROR` أو `PROJECT_OS_REQUEST_FAILED` بالأردية. الثابتان `UNAUTHED_ERR_MSG` و`NOT_ADMIN_ERR_MSG` بقيا كما هما (يطابقهما `getProjectError`).
+- **الشاشات التي ما زالت تمرّر `isArabic` (قيمة منطقية) إلى الدوال المشتركة:** الدوال تقبل الآن `Language | boolean` وتُنتج الأردية حين تُمرَّر لغة. الصفحات التي لم تُعدَّل بعد تمرّر `isArabic`، فتظهر فيها الإنجليزية للأردية. يلزم تعديلها في الجزء الذي يملكها.
+- **الصفحات (`client/src/pages`) ما زالت فيها نصوص إنجليزية مكتوبة في JSX** خارج هذا الجزء، والاختبار الثابت لا يشملها بعد؛ يُوسَّع نطاقه حين تُنجز.
+- **تحديث `TRPCError`:** لم يُضَف إدخال كتالوج جديد؛ الرسائل الحرفية طابقت إدخالات قائمة.
+
+
+### 5.5 النصوص الأردية المكتوبة في هذه الدفعة (867 نصًا)
+
+| # | الملف | السطر | النص الأردي | الحالة |
+|---|---|---|---|---|
+| 1 | client/src/components/DashboardLayout.tsx | 68 | جاری رکھنے کے لیے لاگ ان کریں | «تحتاج مراجعة بشرية» |
+| 2 | client/src/components/DashboardLayout.tsx | 71 | اس ڈیش بورڈ تک رسائی کے لیے لاگ ان ضروری ہے۔ لاگ ان شروع کرنے کے لیے آگے بڑھیں۔ | «تحتاج مراجعة بشرية» |
+| 3 | client/src/components/DashboardLayout.tsx | 79 | لاگ ان | «تحتاج مراجعة بشرية» |
+| 4 | client/src/components/DashboardLayout.tsx | 169 | نیویگیشن تبدیل کریں | «تحتاج مراجعة بشرية» |
+| 5 | client/src/components/DashboardLayout.tsx | 223 | لاگ آؤٹ | «تحتاج مراجعة بشرية» |
+| 6 | client/src/components/DashboardLayout.tsx | 247 | مینو | «تحتاج مراجعة بشرية» |
+| 7 | client/src/components/DirectImportRunner.tsx | 55 | تجزیہ سے پہلے ایک فائل منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 8 | client/src/components/DirectImportRunner.tsx | 55 | قابلِ قبول فارمیٹ XLSX یا CSV ہیں۔ | «تحتاج مراجعة بشرية» |
+| 9 | client/src/components/DirectImportRunner.tsx | 56 | فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ اپنا کنکشن دیکھیں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 10 | client/src/components/DirectImportRunner.tsx | 57 | فائل اپ لوڈ ہو رہی ہے | «تحتاج مراجعة بشرية» |
+| 11 | client/src/components/DirectImportRunner.tsx | 57 | فائل کا تجزیہ ہو رہا ہے | «تحتاج مراجعة بشرية» |
+| 12 | client/src/components/DirectImportRunner.tsx | 57 | ریکارڈ لکھے جا رہے ہیں | «تحتاج مراجعة بشرية» |
+| 13 | client/src/components/DirectImportRunner.tsx | 57 | کارروائی کی پیش رفت | «تحتاج مراجعة بشرية» |
+| 14 | client/src/components/DirectImportRunner.tsx | 59 | کارروائی ناکام ہو گئی | «تحتاج مراجعة بشرية» |
+| 15 | client/src/components/DirectImportRunner.tsx | 59 | توثیق کی غلطیاں | «تحتاج مراجعة بشرية» |
+| 16 | client/src/components/DirectImportRunner.tsx | 59 | صرف پہلی غلطیاں دکھائی گئی ہیں؛ مکمل تعداد اوپر ہے۔ | «تحتاج مراجعة بشرية» |
+| 17 | client/src/components/DirectImportRunner.tsx | 60 | قطاریں | «تحتاج مراجعة بشرية» |
+| 18 | client/src/components/DirectImportRunner.tsx | 60 | بنائے گئے ریکارڈ | «تحتاج مراجعة بشرية» |
+| 19 | client/src/components/DirectImportRunner.tsx | 60 | اپ ڈیٹ ہونے والے ریکارڈ | «تحتاج مراجعة بشرية» |
+| 20 | client/src/components/DirectImportRunner.tsx | 60 | چھوڑے گئے ریکارڈ | «تحتاج مراجعة بشرية» |
+| 21 | client/src/components/DirectImportRunner.tsx | 60 | فائل درست ہے مگر اس سے کچھ تبدیل نہیں ہوتا: پروجیکٹ میں یہ ڈیٹا پہلے سے موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 22 | client/src/components/DirectImportRunner.tsx | 60 | محفوظ ہو گیا | «تحتاج مراجعة بشرية» |
+| 23 | client/src/components/EnterpriseNavigation.tsx | 14 | واپس | «تحتاج مراجعة بشرية» |
+| 24 | client/src/components/EnterpriseNavigation.tsx | 14 | ایک سپورٹ ٹکٹ آپ کی توجہ کا منتظر ہے | «تحتاج مراجعة بشرية» |
+| 25 | client/src/components/EnterpriseNavigation.tsx | 14 | پلیٹ فارم ماڈیولز کی نیویگیشن | «تحتاج مراجعة بشرية» |
+| 26 | client/src/components/EnterpriseNavigation.tsx | 14 | مجاز ماڈیولز کی فہرست | «تحتاج مراجعة بشرية» |
+| 27 | client/src/components/EnterpriseNavigation.tsx | 14 | ہوم پیج اب بھی نیویگیشن کے راستے سے دستیاب ہے۔ | «تحتاج مراجعة بشرية» |
+| 28 | client/src/components/EnterpriseNavigation.tsx | 14 | پروفائل | «تحتاج مراجعة بشرية» |
+| 29 | client/src/components/EnterpriseNavigation.tsx | 14 | آگے | «تحتاج مراجعة بشرية» |
+| 30 | client/src/components/EnterpriseNavigation.tsx | 14 | ورک اسپیس | «تحتاج مراجعة بشرية» |
+| 31 | client/src/components/EnterpriseNavigation.tsx | 14 | صفحے کا راستہ | «تحتاج مراجعة بشرية» |
+| 32 | client/src/components/EnterpriseNavigation.tsx | 14 | مجاز ماڈیولز | «تحتاج مراجعة بشرية» |
+| 33 | client/src/components/EnterpriseNavigation.tsx | 14 | ماڈیول نیویگیشن | «تحتاج مراجعة بشرية» |
+| 34 | client/src/components/EnterpriseNavigation.tsx | 14 | نیویگیشن کھولیں | «تحتاج مراجعة بشرية» |
+| 35 | client/src/components/EnterpriseNavigation.tsx | 14 | نیویگیشن بند کریں | «تحتاج مراجعة بشرية» |
+| 36 | client/src/components/EnterpriseNavigation.tsx | 14 | مجاز ماڈیولز میں تلاش کریں | «تحتاج مراجعة بشرية» |
+| 37 | client/src/components/EnterpriseNavigation.tsx | 14 | تلاش سے کوئی مجاز ماڈیول مطابقت نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 38 | client/src/components/EnterpriseNavigation.tsx | 14 | کوئی غیر پڑھی اطلاع نہیں۔ | «تحتاج مراجعة بشرية» |
+| 39 | client/src/components/EnterpriseNavigation.tsx | 14 | تسلیم کریں | «تحتاج مراجعة بشرية» |
+| 40 | client/src/components/EnterpriseNavigation.tsx | 14 | پروجیکٹ کی صحت کو توجہ درکار ہے | «تحتاج مراجعة بشرية» |
+| 41 | client/src/components/EnterpriseNavigation.tsx | 14 | ایک فیلڈ رپورٹ کا جائزہ لیا گیا | «تحتاج مراجعة بشرية» |
+| 42 | client/src/components/EnterpriseNavigation.tsx | 14 | ڈیش بورڈ کے ایک حصے کو توجہ درکار ہے | «تحتاج مراجعة بشرية» |
+| 43 | client/src/components/EnterpriseNavigation.tsx | 14 | نئی آپریشنل اطلاع | «تحتاج مراجعة بشرية» |
+| 44 | client/src/components/EnterpriseNavigation.tsx | 14 | صارف مینو | «تحتاج مراجعة بشرية» |
+| 45 | client/src/components/EnterpriseNavigation.tsx | 14 | اکاؤنٹ | «تحتاج مراجعة بشرية» |
+| 46 | client/src/components/EnterpriseNavigation.tsx | 14 | لاگ آؤٹ | «تحتاج مراجعة بشرية» |
+| 47 | client/src/components/EnterpriseNavigation.tsx | 14 | سطحیں | «تحتاج مراجعة بشرية» |
+| 48 | client/src/components/EnterpriseNavigation.tsx | 14 | ایگزیکٹو | «تحتاج مراجعة بشرية» |
+| 49 | client/src/components/EnterpriseNavigation.tsx | 14 | پروجیکٹ رجسٹر | «تحتاج مراجعة بشرية» |
+| 50 | client/src/components/EnterpriseNavigation.tsx | 14 | افراد اور افرادی قوت | «تحتاج مراجعة بشرية» |
+| 51 | client/src/components/EnterpriseNavigation.tsx | 14 | تنخواہ اور لیبر لاگت | «تحتاج مراجعة بشرية» |
+| 52 | client/src/components/EnterpriseNavigation.tsx | 14 | پروجیکٹ کنٹرولز | «تحتاج مراجعة بشرية» |
+| 53 | client/src/components/EnterpriseNavigation.tsx | 14 | میرے اشاریے | «تحتاج مراجعة بشرية» |
+| 54 | client/src/components/EnterpriseNavigation.tsx | 14 | کمپنی کا انتظام | «تحتاج مراجعة بشرية» |
+| 55 | client/src/components/ErrorBoundary.tsx | 23 | ایک غیر متوقع خرابی پیش آئی | «تحتاج مراجعة بشرية» |
+| 56 | client/src/components/ErrorBoundary.tsx | 23 | صفحہ دکھایا نہیں جا سکا۔ آپ کا ڈیٹا متاثر نہیں ہوا۔ صفحہ دوبارہ لوڈ کریں، اور خرابی دوبارہ ہو تو سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 57 | client/src/components/ErrorBoundary.tsx | 23 | صفحہ دوبارہ لوڈ کریں | «تحتاج مراجعة بشرية» |
+| 58 | client/src/components/ExportExcelButton.tsx | 28 | Excel میں برآمد کریں | «تحتاج مراجعة بشرية» |
+| 59 | client/src/components/ExportExcelButton.tsx | 29 | برآمد کرنے کے لیے کوئی قطار نہیں | «تحتاج مراجعة بشرية» |
+| 60 | client/src/components/ExportExcelButton.tsx | 30 | Excel فائل نہیں بن سکی۔ دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 61 | client/src/components/GovernedProjectControlLink.tsx | 14 | لنک لوڈ نہیں ہو سکا — دوبارہ کوشش کریں | «تحتاج مراجعة بشرية» |
+| 62 | client/src/components/GovernedProjectControlLink.tsx | 16 | پروجیکٹ کمانڈ سینٹر کھولیں | «تحتاج مراجعة بشرية» |
+| 63 | client/src/components/GovernedProjectControlLink.tsx | 17 | پروجیکٹ کھولیں | «تحتاج مراجعة بشرية» |
+| 64 | client/src/components/ImportDiffPreview.tsx | 27 | ایکسپورٹ کے بعد پلیٹ فارم پر یہ قطار تبدیل ہو گئی ہے۔ | «تحتاج مراجعة بشرية» |
+| 65 | client/src/components/ImportDiffPreview.tsx | 27 | یہ قطار پلیٹ فارم کے کسی ریکارڈ سے نہیں ملتی (اس کی کلید دوبارہ درج ہوئی ہے یا وہ اب موجود نہیں)۔ | «تحتاج مراجعة بشرية» |
+| 66 | client/src/components/ImportDiffPreview.tsx | 28 | درج شدہ لاگت فائل سے تبدیل نہیں کی جاتی۔ | «تحتاج مراجعة بشرية» |
+| 67 | client/src/components/ImportDiffPreview.tsx | 28 | خریداری کا آرڈر مسودے سے آگے جا چکا ہے: یہ اپنے ورک فلو میں تبدیل ہوتا ہے، فائل سے نہیں۔ | «تحتاج مراجعة بشرية» |
+| 68 | client/src/components/ImportDiffPreview.tsx | 28 | خریداری کے آرڈر کی حیثیت فائل سے تبدیل نہیں ہوتی۔ | «تحتاج مراجعة بشرية» |
+| 69 | client/src/components/ImportDiffPreview.tsx | 29 | درج شدہ دن فائل سے تبدیل نہیں ہوتا۔ | «تحتاج مراجعة بشرية» |
+| 70 | client/src/components/ImportDiffPreview.tsx | 29 | ختم شدہ یا محفوظ شدہ ملازم کا ریکارڈ فائل سے تبدیل نہیں ہوتا۔ | «تحتاج مراجعة بشرية» |
+| 71 | client/src/components/ImportDiffPreview.tsx | 29 | ملازمت ختم کرنا HR اسکرین پر ہوتا ہے، فائل سے نہیں۔ | «تحتاج مراجعة بشرية» |
+| 72 | client/src/components/ImportDiffPreview.tsx | 48 | کلید | «تحتاج مراجعة بشرية» |
+| 73 | client/src/components/ImportDiffPreview.tsx | 48 | حیثیت | «تحتاج مراجعة بشرية» |
+| 74 | client/src/components/ImportDiffPreview.tsx | 48 | فیلڈ | «تحتاج مراجعة بشرية» |
+| 75 | client/src/components/LevelDashboard.tsx | 19 | میں سے | «تحتاج مراجعة بشرية» |
+| 76 | client/src/components/LevelDashboard.tsx | 19 | ${name} سطح پر جائیں | «تحتاج مراجعة بشرية» |
+| 77 | client/src/components/LevelDashboard.tsx | 19 | یہ سب سے نچلی سطح ہے۔ | «تحتاج مراجعة بشرية» |
+| 78 | client/src/components/LevelDashboard.tsx | 19 | سطحیں | «تحتاج مراجعة بشرية» |
+| 79 | client/src/components/LevelDashboard.tsx | 19 | پروجیکٹ پر جائیں | «تحتاج مراجعة بشرية» |
+| 80 | client/src/components/LevelDashboard.tsx | 19 | اس سطح کے پروجیکٹ | «تحتاج مراجعة بشرية» |
+| 81 | client/src/components/LevelDashboard.tsx | 82 | دستیاب نہیں | «تحتاج مراجعة بشرية» |
+| 82 | client/src/components/MasterPlanDrawing.tsx | 138 | ماسٹر پلان کی انٹرایکٹو ڈرائنگ | «تحتاج مراجعة بشرية» |
+| 83 | client/src/components/MasterPlanDrawing.tsx | 139 | DXF ڈرائنگ اپ لوڈ کریں۔ شکلیں خودکار طور پر یونٹوں سے ملائی جاتی ہیں، اور ہر جوڑ کو شمار ہونے سے پہلے تصدیق کرنا ہوگا۔ | «تحتاج مراجعة بشرية» |
+| 84 | client/src/components/MasterPlanDrawing.tsx | 140 | ڈرائنگ کی فائل منتخب کریں | «تحتاج مراجعة بشرية» |
+| 85 | client/src/components/MasterPlanDrawing.tsx | 141 | ماسٹر پلان کے تازہ ترین ورژن میں کوئی یونٹ نہیں۔ پہلے یونٹ شامل کریں۔ | «تحتاج مراجعة بشرية» |
+| 86 | client/src/components/MasterPlanDrawing.tsx | 144 | شکلیں | «تحتاج مراجعة بشرية» |
+| 87 | client/src/components/MasterPlanDrawing.tsx | 146 | تجویز شدہ | «تحتاج مراجعة بشرية» |
+| 88 | client/src/components/MasterPlanDrawing.tsx | 146 | تصدیق شدہ | «تحتاج مراجعة بشرية» |
+| 89 | client/src/components/MasterPlanDrawing.tsx | 146 | غیر جڑا ہوا | «تحتاج مراجعة بشرية» |
+| 90 | client/src/components/MasterPlanDrawing.tsx | 147 | شروع نہیں ہوا | «تحتاج مراجعة بشرية» |
+| 91 | client/src/components/MasterPlanDrawing.tsx | 147 | جاری ہے | «تحتاج مراجعة بشرية» |
+| 92 | client/src/components/MasterPlanDrawing.tsx | 147 | مکمل | «تحتاج مراجعة بشرية» |
+| 93 | client/src/components/MasterPlanDrawing.tsx | 147 | رکا ہوا | «تحتاج مراجعة بشرية» |
+| 94 | client/src/components/MasterPlanDrawing.tsx | 149 | شکل کے اندر کوئی متن نہیں | «تحتاج مراجعة بشرية» |
+| 95 | client/src/components/MasterPlanDrawing.tsx | 150 | شکل کے اندر ایک سے زیادہ متن | «تحتاج مراجعة بشرية» |
+| 96 | client/src/components/MasterPlanDrawing.tsx | 151 | ایک کوڈ دو یونٹوں میں مشترک | «تحتاج مراجعة بشرية» |
+| 97 | client/src/components/MasterPlanDrawing.tsx | 152 | کئی شکلیں اس یونٹ پر دعویٰ کرتی ہیں | «تحتاج مراجعة بشرية» |
+| 98 | client/src/components/MasterPlanDrawing.tsx | 153 | جائزہ لینے والے نے مسترد کیا | «تحتاج مراجعة بشرية» |
+| 99 | client/src/components/MasterPlanDrawing.tsx | 155 | تصدیق کریں | «تحتاج مراجعة بشرية» |
+| 100 | client/src/components/MasterPlanDrawing.tsx | 156 | مسترد کریں | «تحتاج مراجعة بشرية» |
+| 101 | client/src/components/MasterPlanDrawing.tsx | 157 | جوڑ ختم کریں | «تحتاج مراجعة بشرية» |
+| 102 | client/src/components/MasterPlanDrawing.tsx | 158 | ایک یونٹ منتخب کریں | «تحتاج مراجعة بشرية» |
+| 103 | client/src/components/MasterPlanDrawing.tsx | 159 | یونٹ سے جوڑیں | «تحتاج مراجعة بشرية» |
+| 104 | client/src/components/MasterPlanDrawing.tsx | 160 | ایک یونٹ منتخب کریں | «تحتاج مراجعة بشرية» |
+| 105 | client/src/components/MasterPlanDrawing.tsx | 161 | منتخب شدہ | «تحتاج مراجعة بشرية» |
+| 106 | client/src/components/MasterPlanDrawing.tsx | 162 | ابھی کوئی شکل منتخب نہیں | «تحتاج مراجعة بشرية» |
+| 107 | client/src/components/MasterPlanDrawing.tsx | 163 | ڈرائنگ کا نقشہ | «تحتاج مراجعة بشرية» |
+| 108 | client/src/components/MasterPlanDrawing.tsx | 164 | زوم بڑھائیں | «تحتاج مراجعة بشرية» |
+| 109 | client/src/components/MasterPlanDrawing.tsx | 165 | زوم کم کریں | «تحتاج مراجعة بشرية» |
+| 110 | client/src/components/MasterPlanDrawing.tsx | 166 | منظر دوبارہ ترتیب دیں | «تحتاج مراجعة بشرية» |
+| 111 | client/src/components/MasterPlanDrawing.tsx | 167 | صفحہ | «تحتاج مراجعة بشرية» |
+| 112 | client/src/components/MasterPlanDrawing.tsx | 169 | رنگ: تصدیق شدہ شکلیں یونٹ کی حیثیت کا رنگ لیتی ہیں؛ نیلا تجویز شدہ ہے؛ خاکستری غیر جڑا ہوا ہے۔ | «تحتاج مراجعة بشرية» |
+| 113 | client/src/components/MasterPlanDrawing.tsx | 170 | تصدیق شدہ جوڑ برآمد کریں (CSV) | «تحتاج مراجعة بشرية» |
+| 114 | client/src/components/MasterPlanDrawing.tsx | 171 | تصدیق شدہ جوڑ برآمد کریں (JSON) | «تحتاج مراجعة بشرية» |
+| 115 | client/src/components/MasterPlanDrawing.tsx | 172 | خاکہ محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 116 | client/src/components/MasterPlanDrawing.tsx | 173 | خاکہ محفوظ ہو گیا۔ | «تحتاج مراجعة بشرية» |
+| 117 | client/src/components/MasterPlanDrawing.tsx | 175 | خاکہ محفوظ نہیں ہو سکا۔ پیغام دیکھیں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 118 | client/src/components/MasterPlanDrawing.tsx | 176 | فائل پڑھی نہیں جا سکی | «تحتاج مراجعة بشرية» |
+| 119 | client/src/components/MasterPlanDrawing.tsx | 177 | یہ فائل کی قسم معاون نہیں ہے۔ DXF، PNG، JPG یا PDF فائل اپ لوڈ کریں۔ | «تحتاج مراجعة بشرية» |
+| 120 | client/src/components/MasterPlanDrawing.tsx | 178 | تصویر پڑھی نہیں جا سکی۔ زیادہ واضح فائل یا DXF آزمائیں۔ | «تحتاج مراجعة بشرية» |
+| 121 | client/src/components/MasterPlanDrawing.tsx | 181 | فائل اجازت شدہ حد سے بڑی ہے | «تحتاج مراجعة بشرية» |
+| 122 | client/src/components/MasterPlanDrawing.tsx | 182 | ابھی تک کوئی ڈرائنگ اپ لوڈ نہیں ہوئی۔ | «تحتاج مراجعة بشرية» |
+| 123 | client/src/components/MasterPlanDrawing.tsx | 183 | اکائیاں نہیں پڑھی گئیں | «تحتاج مراجعة بشرية» |
+| 124 | client/src/components/MasterPlanTools.tsx | 29 | پلان کو گھمائیں اور درست کریں | «تحتاج مراجعة بشرية» |
+| 125 | client/src/components/MasterPlanTools.tsx | 29 | صرف پس منظر گھماتا ہے، اکائیاں نہیں۔ پلان کے رقبے کی اصل چوڑائی اور لمبائی میٹر میں لکھیں تاکہ ہر اکائی کا سائز میٹر میں دکھائی دے۔ | «تحتاج مراجعة بشرية» |
+| 126 | client/src/components/MasterPlanTools.tsx | 29 | گردش (ڈگری) | «تحتاج مراجعة بشرية» |
+| 127 | client/src/components/MasterPlanTools.tsx | 29 | 90° بائیں گھمائیں | «تحتاج مراجعة بشرية» |
+| 128 | client/src/components/MasterPlanTools.tsx | 29 | 90° دائیں گھمائیں | «تحتاج مراجعة بشرية» |
+| 129 | client/src/components/MasterPlanTools.tsx | 29 | پلان کے رقبے کی چوڑائی (میٹر) | «تحتاج مراجعة بشرية» |
+| 130 | client/src/components/MasterPlanTools.tsx | 29 | پلان کے رقبے کی لمبائی (میٹر) | «تحتاج مراجعة بشرية» |
+| 131 | client/src/components/MasterPlanTools.tsx | 29 | گردش اور درستگی محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 132 | client/src/components/MasterPlanTools.tsx | 77 | اکائی کے الرٹ | «تحتاج مراجعة بشرية» |
+| 133 | client/src/components/MasterPlanTools.tsx | 77 | کوئی الرٹ نہیں | «تحتاج مراجعة بشرية» |
+| 134 | client/src/components/MasterPlanTools.tsx | 77 | اکائی رکی ہوئی ہے | «تحتاج مراجعة بشرية» |
+| 135 | client/src/components/MasterPlanTools.tsx | 77 | جڑی ہوئی سرگرمی اپنی منصوبہ بند اختتامی تاریخ سے آگے نکل گئی ہے | «تحتاج مراجعة بشرية» |
+| 136 | client/src/components/MasterPlanTools.tsx | 77 | اصل لاگت منصوبے سے زیادہ ہے، فرق | «تحتاج مراجعة بشرية» |
+| 137 | client/src/components/MasterPlanTools.tsx | 77 | اکائی کسی WBS آئٹم یا سرگرمی سے نہیں جڑی | «تحتاج مراجعة بشرية» |
+| 138 | client/src/components/MasterPlanTools.tsx | 77 | درخت میں اوپر کی اکائی | «تحتاج مراجعة بشرية» |
+| 139 | client/src/components/MasterPlanTools.tsx | 77 | کوئی اوپر کی اکائی نہیں (جڑ) | «تحتاج مراجعة بشرية» |
+| 140 | client/src/components/MasterPlanTools.tsx | 77 | اوپر کی اکائی محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 141 | client/src/components/MasterPlanTools.tsx | 77 | اکائی کی جگہ اور سائز | «تحتاج مراجعة بشرية» |
+| 142 | client/src/components/MasterPlanTools.tsx | 77 | چوڑائی | «تحتاج مراجعة بشرية» |
+| 143 | client/src/components/MasterPlanTools.tsx | 77 | اونچائی | «تحتاج مراجعة بشرية» |
+| 144 | client/src/components/MasterPlanTools.tsx | 77 | جگہ اور سائز محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 145 | client/src/components/MasterPlanTools.tsx | 77 | اس پر جائیں | «تحتاج مراجعة بشرية» |
+| 146 | client/src/components/MasterPlanTools.tsx | 111 | ایک ساتھی کی طرف سے شیئر کیا گیا | «تحتاج مراجعة بشرية» |
+| 147 | client/src/components/MasterPlanTools.tsx | 112 | شیئرنگ بند کریں | «تحتاج مراجعة بشرية» |
+| 148 | client/src/components/MasterPlanTools.tsx | 112 | پروجیکٹ کے ساتھ شیئر کریں | «تحتاج مراجعة بشرية» |
+| 149 | client/src/components/OfflineCopyNotice.tsx | 22 | آپ آف لائن ہیں۔ آپ جو دیکھ رہے ہیں وہ اس فون پر ${when} کی محفوظ نقل ہے اور پرانی ہو سکتی ہے؛ کنکشن واپس آنے تک کوئی تبدیلی محفوظ نہیں ہوگی۔ | «تحتاج مراجعة بشرية» |
+| 150 | client/src/components/OperationalRoleGuide.tsx | 19 | تیار کردار رہنما | «تحتاج مراجعة بشرية» |
+| 151 | client/src/components/OperationalRoleGuide.tsx | 19 | ذمہ داری کے مطابق کردار منتخب کریں، پھر اس کا دائرہ طے کریں۔ حساس صلاحیتیں اور ذمہ داریوں کی علیحدگی فیصلوں کو آپس کے تداخل سے بچاتی ہیں۔ | «تحتاج مراجعة بشرية» |
+| 152 | client/src/components/OperationalRoleGuide.tsx | 19 | توجہ | «تحتاج مراجعة بشرية» |
+| 153 | client/src/components/OperationalRoleGuide.tsx | 19 | صلاحیتیں | «تحتاج مراجعة بشرية» |
+| 154 | client/src/components/PlanningControlCenter.tsx | 20 | منصوبہ بندی · لاگت · مقدار کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 155 | client/src/components/PlanningControlCenter.tsx | 20 | جڑے ہوئے ذرائع سے ایک فیصلہ کن منظر | «تحتاج مراجعة بشرية» |
+| 156 | client/src/components/PlanningControlCenter.tsx | 20 | شیڈول، بجٹ، اصل لاگت، وعدے، BOQ، مواد کی درخواستوں اور گودام کے بقایا کو ایک جگہ جوڑتا ہے۔ غائب ڈیٹا کو گمراہ کن صفر میں تبدیل نہیں کیا جاتا۔ | «تحتاج مراجعة بشرية» |
+| 157 | client/src/components/PlanningControlCenter.tsx | 20 | کنٹرول میں | «تحتاج مراجعة بشرية» |
+| 158 | client/src/components/PlanningControlCenter.tsx | 20 | توجہ درکار ہے | «تحتاج مراجعة بشرية» |
+| 159 | client/src/components/PlanningControlCenter.tsx | 20 | موجودہ بجٹ | «تحتاج مراجعة بشرية» |
+| 160 | client/src/components/PlanningControlCenter.tsx | 20 | مالی تعرض | «تحتاج مراجعة بشرية» |
+| 161 | client/src/components/PlanningControlCenter.tsx | 20 | تعرض کے بعد باقی | «تحتاج مراجعة بشرية» |
+| 162 | client/src/components/PlanningControlCenter.tsx | 20 | فعال BOQ کی قدر | «تحتاج مراجعة بشرية» |
+| 163 | client/src/components/PlanningControlCenter.tsx | 20 | مقدار کی نقل و حرکت | «تحتاج مراجعة بشرية» |
+| 164 | client/src/components/PlanningControlCenter.tsx | 20 | جاری شدہ | «تحتاج مراجعة بشرية» |
+| 165 | client/src/components/PlanningControlCenter.tsx | 20 | درخواست کا بقایا | «تحتاج مراجعة بشرية» |
+| 166 | client/src/components/PlanningControlCenter.tsx | 20 | گودام میں موجود | «تحتاج مراجعة بشرية» |
+| 167 | client/src/components/PlanningControlCenter.tsx | 20 | شیڈول | «تحتاج مراجعة بشرية» |
+| 168 | client/src/components/PlanningControlCenter.tsx | 20 | تاخیر کا شکار سرگرمیاں | «تحتاج مراجعة بشرية» |
+| 169 | client/src/components/PlanningControlCenter.tsx | 20 | رکی ہوئی سرگرمیاں | «تحتاج مراجعة بشرية» |
+| 170 | client/src/components/PlanningControlCenter.tsx | 20 | عمل درآمد کی کوریج | «تحتاج مراجعة بشرية» |
+| 171 | client/src/components/PlanningControlCenter.tsx | 20 | ڈیٹا کی کمیاں جو مکمل فیصلہ روکتی ہیں | «تحتاج مراجعة بشرية» |
+| 172 | client/src/components/PlanningControlCenter.tsx | 20 | اس منظر کے لیے بنیادی ذرائع مکمل ہیں | «تحتاج مراجعة بشرية» |
+| 173 | client/src/components/PlanningControlCenter.tsx | 20 | کنٹرول سینٹر کا حساب ہو رہا ہے… | «تحتاج مراجعة بشرية» |
+| 174 | client/src/components/PlanningControlCenter.tsx | 20 | یہ اخذ شدہ صرف پڑھنے کے اشاریے ہیں؛ کوئی مالی یا مقداری ریکارڈ نہیں بنتا۔ | «تحتاج مراجعة بشرية» |
+| 175 | client/src/components/PlanningControlCenter.tsx | 37 | ${result.unfulfilledRequisitions} ${pickLanguage(language, { ar: "طلبات غير مكتملة", en: "unfulfilled requisitions", ur: "نامکمل درخواستیں" })} | «تحتاج مراجعة بشرية» |
+| 176 | client/src/components/ScreenStates.tsx | 37 | لوڈ ہو رہا ہے… | «تحتاج مراجعة بشرية» |
+| 177 | client/src/components/ScreenStates.tsx | 72 | دوبارہ کوشش کریں | «تحتاج مراجعة بشرية» |
+| 178 | client/src/components/ScreenStates.tsx | 83 | اس حصے کو دیکھنے کے لیے درکار صلاحیت آپ کے پاس نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 179 | client/src/components/ScreenStates.tsx | 84 | اس اسکرین کو دیکھنے کے لیے درکار صلاحیت آپ کے پاس نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 180 | client/src/components/ScreenStates.tsx | 94 | کمپنی کے مالک یا اپنی ٹیم کی صلاحیتیں منظم کرنے والے شخص سے یہ صلاحیت دینے کو کہیں، پھر یہ اسکرین دوبارہ کھولیں۔ | «تحتاج مراجعة بشرية» |
+| 181 | client/src/components/ScreenStates.tsx | 99 | اس اسکرین کو دیکھنے کی اجازت نہیں | «تحتاج مراجعة بشرية» |
+| 182 | client/src/components/SectionResilience.tsx | 47 | یہ حصہ | «تحتاج مراجعة بشرية» |
+| 183 | client/src/components/SectionResilience.tsx | 67 | یہ حصہ لوڈ ہو رہا ہے… | «تحتاج مراجعة بشرية» |
+| 184 | client/src/components/SectionResilience.tsx | 68 | موجودہ رسائی کے دائرے میں اس حصے کا کوئی ڈیٹا دستیاب نہیں۔ | «تحتاج مراجعة بشرية» |
+| 185 | client/src/components/SectionResilience.tsx | 69 | یہ حصہ لوڈ نہیں ہو سکا۔ ڈیش بورڈ کا باقی حصہ دستیاب ہے۔ | «تحتاج مراجعة بشرية» |
+| 186 | client/src/components/SectionResilience.tsx | 70 | صرف جزوی ڈیٹا دستیاب ہے؛ غائب ذرائع نیچے بتائے گئے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 187 | client/src/components/SectionResilience.tsx | 76 | دوبارہ کوشش کریں | «تحتاج مراجعة بشرية» |
+| 188 | client/src/components/SectionResilience.tsx | 93 | لوڈ نہیں ہو سکا: ${title} | «تحتاج مراجعة بشرية» |
+| 189 | client/src/components/SectionResilience.tsx | 95 | دوبارہ کوشش کریں | «تحتاج مراجعة بشرية» |
+| 190 | client/src/components/TenantDataCard.tsx | 49 | کمپنی کا ڈیٹا: مکمل نقل اور مستقل حذف | «تحتاج مراجعة بشرية» |
+| 191 | client/src/components/TenantDataCard.tsx | 49 | صرف کمپنی کے مالک کے لیے۔ ایکسپورٹ ایک فائل ہے جس میں کمپنی کی ہر چیز ہے؛ حذف سب کچھ مستقل طور پر مٹا دیتا ہے اور اسے واپس نہیں کیا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 192 | client/src/components/TenantDataCard.tsx | 50 | آپ کے ڈیٹا کا سائز پڑھا جا رہا ہے… | «تحتاج مراجعة بشرية» |
+| 193 | client/src/components/TenantDataCard.tsx | 51 | کمپنی کے ڈیٹا کی مکمل نقل ڈاؤن لوڈ کریں | «تحتاج مراجعة بشرية» |
+| 194 | client/src/components/TenantDataCard.tsx | 51 | ایک کمپریس شدہ (NDJSON) فائل۔ ڈاؤن لوڈ مکمل ہونے کے بعد ریفریش دبائیں تاکہ وہ شمار ہو۔ | «تحتاج مراجعة بشرية» |
+| 195 | client/src/components/TenantDataCard.tsx | 51 | تازہ کریں | «تحتاج مراجعة بشرية» |
+| 196 | client/src/components/TenantDataCard.tsx | 52 | ابھی تک کوئی مکمل ایکسپورٹ نہیں۔ | «تحتاج مراجعة بشرية» |
+| 197 | client/src/components/TenantDataCard.tsx | 53 | حذف صرف اس وقت دستیاب ہے جب پچھلے 7 دنوں میں مکمل نقل ڈاؤن لوڈ کی گئی ہو۔ | «تحتاج مراجعة بشرية» |
+| 198 | client/src/components/TenantDataCard.tsx | 54 | میں کمپنی کا ڈیٹا مستقل طور پر حذف کرنا چاہتا ہوں | «تحتاج مراجعة بشرية» |
+| 199 | client/src/components/TenantDataCard.tsx | 54 | تیار کیا جا رہا ہے… | «تحتاج مراجعة بشرية» |
+| 200 | client/src/components/TenantDataCard.tsx | 56 | کمپنی کا نام | «تحتاج مراجعة بشرية» |
+| 201 | client/src/components/TenantDataCard.tsx | 56 | میں سمجھتا ہوں کہ حذف مستقل ہے اور اسے واپس نہیں کیا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 202 | client/src/components/TenantDataCard.tsx | 57 | کمپنی کا ڈیٹا مستقل طور پر حذف کریں | «تحتاج مراجعة بشرية» |
+| 203 | client/src/components/TenantDataCard.tsx | 57 | حذف کیا جا رہا ہے… | «تحتاج مراجعة بشرية» |
+| 204 | client/src/components/TenantDataCard.tsx | 57 | یہ تصدیق 15 منٹ میں ختم ہو جائے گی۔ | «تحتاج مراجعة بشرية» |
+| 205 | client/src/components/TenantDataCard.tsx | 58 | حذف مکمل ہو گیا | «تحتاج مراجعة بشرية» |
+| 206 | client/src/components/TenantDataCard.tsx | 58 | تصدیق: کامیاب — کسی جدول میں کوئی ریکارڈ باقی نہیں۔ | «تحتاج مراجعة بشرية» |
+| 207 | client/src/components/TenantDataCard.tsx | 58 | تصدیق: نامکمل — نیچے درج کچھ چیزیں باقی ہیں۔ دوبارہ کوشش کریں یا سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 208 | client/src/components/TenantDataCard.tsx | 60 | وہ فائلیں جو حذف نہیں ہوئیں: | «تحتاج مراجعة بشرية» |
+| 209 | client/src/components/TenantDataCard.tsx | 60 | ہوم پیج پر واپس جائیں | «تحتاج مراجعة بشرية» |
+| 210 | client/src/components/ui/breadcrumb.tsx | 10 | نیویگیشن کا راستہ | «تحتاج مراجعة بشرية» |
+| 211 | client/src/components/ui/breadcrumb.tsx | 99 | مزید | «تحتاج مراجعة بشرية» |
+| 212 | client/src/components/ui/carousel.tsx | 199 | پچھلی سلائیڈ | «تحتاج مراجعة بشرية» |
+| 213 | client/src/components/ui/carousel.tsx | 230 | اگلی سلائیڈ | «تحتاج مراجعة بشرية» |
+| 214 | client/src/components/ui/dialog.tsx | 142 | بند کریں | «تحتاج مراجعة بشرية» |
+| 215 | client/src/components/ui/pagination.tsx | 17 | صفحہ بندی | «تحتاج مراجعة بشرية» |
+| 216 | client/src/components/ui/pagination.tsx | 77 | پچھلے صفحے پر جائیں | «تحتاج مراجعة بشرية» |
+| 217 | client/src/components/ui/pagination.tsx | 83 | پچھلا | «تحتاج مراجعة بشرية» |
+| 218 | client/src/components/ui/pagination.tsx | 95 | اگلے صفحے پر جائیں | «تحتاج مراجعة بشرية» |
+| 219 | client/src/components/ui/pagination.tsx | 100 | اگلا | «تحتاج مراجعة بشرية» |
+| 220 | client/src/components/ui/pagination.tsx | 119 | مزید صفحات | «تحتاج مراجعة بشرية» |
+| 221 | client/src/components/ui/sheet.tsx | 79 | بند کریں | «تحتاج مراجعة بشرية» |
+| 222 | client/src/components/ui/sidebar.tsx | 202 | سائیڈ بار | «تحتاج مراجعة بشرية» |
+| 223 | client/src/components/ui/sidebar.tsx | 203 | موبائل سائیڈ بار دکھاتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 224 | client/src/components/ui/sidebar.tsx | 287 | سائیڈ بار تبدیل کریں | «تحتاج مراجعة بشرية» |
+| 225 | client/src/components/ui/sidebar.tsx | 300 | سائیڈ بار تبدیل کریں | «تحتاج مراجعة بشرية» |
+| 226 | client/src/components/ui/sidebar.tsx | 303 | سائیڈ بار تبدیل کریں | «تحتاج مراجعة بشرية» |
+| 227 | client/src/components/ui/spinner.tsx | 11 | لوڈ ہو رہا ہے | «تحتاج مراجعة بشرية» |
+| 228 | client/src/lib/dxf/dxfReader.ts | 36 | DWG فائلیں معاون نہیں ہیں۔ ڈرائنگ کو اپنے ڈیزائن پروگرام سے DXF کے طور پر محفوظ کریں اور دوبارہ اپ لوڈ کریں۔ | «تحتاج مراجعة بشرية» |
+| 229 | client/src/lib/dxf/dxfReader.ts | 40 | بائنری DXF معاون نہیں ہے۔ ڈرائنگ کو ASCII DXF کے طور پر محفوظ کریں اور دوبارہ اپ لوڈ کریں۔ | «تحتاج مراجعة بشرية» |
+| 230 | client/src/lib/dxf/dxfReader.ts | 42 | فائل خالی ہے۔ | «تحتاج مراجعة بشرية» |
+| 231 | client/src/lib/dxf/dxfReader.ts | 45 | یہ درست DXF ڈرائنگ نہیں ہے، یا اس میں ENTITIES کا حصہ موجود نہیں۔ | «تحتاج مراجعة بشرية» |
+| 232 | client/src/lib/dxf/dxfReview.ts | 34 | یہ شکل ڈرائنگ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 233 | client/src/lib/dxf/dxfReview.ts | 39 | یہ جوڑ تصدیق نہیں ہو سکتا کیونکہ یہ ملان کرنے والے نظام کی تجویز نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 234 | client/src/lib/dxf/dxfReview.ts | 44 | یہ یونٹ کسی اور شکل پر پہلے ہی تصدیق شدہ ہے۔ پہلے وہ جوڑ ختم کریں۔ | «تحتاج مراجعة بشرية» |
+| 235 | client/src/lib/excelExport.ts | 43 | کمپنی | «تحتاج مراجعة بشرية» |
+| 236 | client/src/lib/excelExport.ts | 43 | پروجیکٹ | «تحتاج مراجعة بشرية» |
+| 237 | client/src/lib/excelExport.ts | 43 | برآمد کی تاریخ | «تحتاج مراجعة بشرية» |
+| 238 | client/src/lib/excelExport.ts | 54 | ریال | «تحتاج مراجعة بشرية» |
+| 239 | client/src/lib/healthPresentation.ts | 6 | لاگت کی کارکردگی اہم کنٹرول کی حد سے نیچے ہے۔ | «تحتاج مراجعة بشرية» |
+| 240 | client/src/lib/healthPresentation.ts | 6 | مکمل ہونے تک کی لاگت کی تصدیق کریں اور لاگت کی بحالی کا اقدام شروع کریں۔ | «تحتاج مراجعة بشرية» |
+| 241 | client/src/lib/healthPresentation.ts | 7 | لاگت کی کارکردگی منظور شدہ بنیادی لائن سے نیچے ہے۔ | «تحتاج مراجعة بشرية» |
+| 242 | client/src/lib/healthPresentation.ts | 7 | لاگت کے انحراف کی نگرانی کریں اور متوقع مفروضوں کی تصدیق کریں۔ | «تحتاج مراجعة بشرية» |
+| 243 | client/src/lib/healthPresentation.ts | 8 | شیڈول کی کارکردگی اہم کنٹرول کی حد سے نیچے ہے۔ | «تحتاج مراجعة بشرية» |
+| 244 | client/src/lib/healthPresentation.ts | 8 | اہم سرگرمیوں کا جائزہ لیں اور بحالی کا منصوبہ جاری کریں۔ | «تحتاج مراجعة بشرية» |
+| 245 | client/src/lib/healthPresentation.ts | 9 | شیڈول کی کارکردگی منظور شدہ بنیادی لائن سے نیچے ہے۔ | «تحتاج مراجعة بشرية» |
+| 246 | client/src/lib/healthPresentation.ts | 9 | آگے کی منصوبہ بندی کی رکاوٹوں اور بحالی کے اختیارات کا جائزہ لیں۔ | «تحتاج مراجعة بشرية» |
+| 247 | client/src/lib/healthPresentation.ts | 10 | مکمل ہونے پر متوقع لاگت منظور شدہ بجٹ سے زیادہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 248 | client/src/lib/healthPresentation.ts | 10 | متوقع انحراف کو اوپر بھیجیں اور بحالی یا فنڈنگ کا فیصلہ منظور کریں۔ | «تحتاج مراجعة بشرية» |
+| 249 | client/src/lib/healthPresentation.ts | 11 | زیادہ تعرض والے خطرات کو فعال تخفیف کی ضرورت ہے۔ | «تحتاج مراجعة بشرية» |
+| 250 | client/src/lib/healthPresentation.ts | 11 | ذمہ داروں، محرکات اور باقی تعرض کا جائزہ لیں۔ | «تحتاج مراجعة بشرية» |
+| 251 | client/src/lib/healthPresentation.ts | 12 | کچھ اقدامات اپنی آخری تاریخ گزار چکے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 252 | client/src/lib/healthPresentation.ts | 12 | ذمہ داروں کو اوپر بھیجیں اور ثبوت کے ساتھ نئی آخری تاریخ طے کریں۔ | «تحتاج مراجعة بشرية» |
+| 253 | client/src/lib/healthPresentation.ts | 13 | کم از کم ایک منظوری اپنی سروس کی سطح سے آگے نکل چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 254 | client/src/lib/healthPresentation.ts | 13 | ورک فلو کا کام اس کے نامزد منظور کنندہ کو اوپر بھیجیں۔ | «تحتاج مراجعة بشرية» |
+| 255 | client/src/lib/healthPresentation.ts | 14 | کم از کم ایک RFI کی مدت گزر چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 256 | client/src/lib/healthPresentation.ts | 14 | ذمہ دار جائزہ کار اور شیڈول پر اثر کا جائزہ لیں۔ | «تحتاج مراجعة بشرية» |
+| 257 | client/src/lib/healthPresentation.ts | 15 | کم از کم ایک NCR کی مدت گزر چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 258 | client/src/lib/healthPresentation.ts | 15 | اصلاحی اقدام کی ذمہ داری اور بندش کے ثبوت کی تصدیق کریں۔ | «تحتاج مراجعة بشرية» |
+| 259 | client/src/lib/healthPresentation.ts | 16 | کم از کم ایک HSE مشاہدہ کی مدت گزر چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 260 | client/src/lib/healthPresentation.ts | 16 | اصلاح کی ذمہ داری اور بندش کے ثبوت کی تصدیق کریں۔ | «تحتاج مراجعة بشرية» |
+| 261 | client/src/lib/healthPresentation.ts | 44 | صحت کی ایک استثنائی صورتِ حال کو جائزے کی ضرورت ہے۔ | «تحتاج مراجعة بشرية» |
+| 262 | client/src/lib/healthPresentation.ts | 44 | پروجیکٹ کا رجسٹر دیکھیں اور دستاویزی اصلاحی اقدام طے کریں۔ | «تحتاج مراجعة بشرية» |
+| 263 | client/src/lib/indicatorBasis.ts | 10 | 100 منہا کٹوتیاں: CPI<0.9 (25) یا <1 (10)، SPI<0.9 (25) یا <1 (10)، EAC>BAC (20)، زیادہ خطرات (ہر ایک 5، زیادہ سے زیادہ 20)، تاخیر کے اقدامات (ہر ایک 3، زیادہ سے زیادہ 15)، تاخیر کی منظوری/RFI/NCR/HSE (10/8/8/8)۔ سبز ≥85، پیلا ≥65، ورنہ سرخ۔ | «تحتاج مراجعة بشرية» |
+| 264 | client/src/lib/indicatorBasis.ts | 11 | محفوظ شدہ تازہ ترین صحت کا اسنیپ شاٹ | «تحتاج مراجعة بشرية» |
+| 265 | client/src/lib/indicatorBasis.ts | 14 | CPI = EV ÷ AC، SPI = EV ÷ PV، EAC اس طریقے سے جو اسنیپ شاٹ کے ساتھ محفوظ ہوا (ڈیفالٹ BAC ÷ CPI)۔ | «تحتاج مراجعة بشرية» |
+| 266 | client/src/lib/indicatorBasis.ts | 15 | محفوظ شدہ تازہ ترین EVM اسنیپ شاٹ | «تحتاج مراجعة بشرية» |
+| 267 | client/src/lib/indicatorBasis.ts | 18 | باقی = منصوبہ بند بجٹ − (درج شدہ اصل لاگت + کھلے وعدے)۔ | «تحتاج مراجعة بشرية» |
+| 268 | client/src/lib/indicatorBasis.ts | 19 | دکھاتے وقت بجٹ، لاگت اور وعدوں کے ریکارڈ سے حساب کیا جاتا ہے | «تحتاج مراجعة بشرية» |
+| 269 | client/src/lib/indicatorBasis.ts | 22 | درج شدہ سرگرمیوں کی تعداد؛ رکی ہوئی = وہ سرگرمیاں جن کی حیثیت رکی ہوئی ہے۔ | «تحتاج مراجعة بشرية» |
+| 270 | client/src/lib/indicatorBasis.ts | 23 | دکھاتے وقت سرگرمیوں کے رجسٹر سے حساب کیا جاتا ہے | «تحتاج مراجعة بشرية» |
+| 271 | client/src/lib/indicatorBasis.ts | 26 | WBS آئٹمز کی تعداد؛ پیش رفت = درج شدہ پیش رفت کے اندراجات کی تعداد۔ | «تحتاج مراجعة بشرية» |
+| 272 | client/src/lib/indicatorBasis.ts | 27 | دکھاتے وقت WBS اور پیش رفت کے رجسٹروں سے حساب کیا جاتا ہے | «تحتاج مراجعة بشرية» |
+| 273 | client/src/lib/indicatorBasis.ts | 38 | ${pickLanguage(lang, { ar: "بتاريخ", en: "as of", ur: "بتاریخ" })} ${date} | «تحتاج مراجعة بشرية» |
+| 274 | client/src/lib/indicatorBasis.ts | 40 | ابھی کوئی اسنیپ شاٹ محفوظ نہیں | «تحتاج مراجعة بشرية» |
+| 275 | client/src/lib/indicatorBasis.ts | 41 | دکھاتے وقت کے مطابق | «تحتاج مراجعة بشرية» |
+| 276 | client/src/lib/ledgerMessages.ts | 27 | درست عدد نہیں (صفر سے زیادہ، صرف ہندسے)۔ | «تحتاج مراجعة بشرية» |
+| 277 | client/src/lib/ledgerMessages.ts | 27 | درست تاریخ نہیں؛ اسے 2026-09-15 کی شکل میں لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 278 | client/src/lib/ledgerMessages.ts | 27 | ایک ضروری قدر غائب ہے۔ | «تحتاج مراجعة بشرية» |
+| 279 | client/src/lib/ledgerMessages.ts | 28 | فائل میں ایک ضروری کالم موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 280 | client/src/lib/ledgerMessages.ts | 28 | ایسا کالم جو اس قسم کے ڈیٹا کے لیے منظور نہیں۔ | «تحتاج مراجعة بشرية» |
+| 281 | client/src/lib/ledgerMessages.ts | 28 | یہ قطار فائل کے اندر دہرائی گئی ہے۔ | «تحتاج مراجعة بشرية» |
+| 282 | client/src/lib/ledgerMessages.ts | 29 | ہر لاگت کسی WBS آئٹم یا موجودہ بجٹ کی سطر سے جڑی ہونی چاہیے: ان میں سے ایک لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 283 | client/src/lib/ledgerMessages.ts | 29 | یہ WBS کوڈ اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 284 | client/src/lib/ledgerMessages.ts | 29 | یہ بجٹ لاگت کوڈ اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 285 | client/src/lib/ledgerMessages.ts | 30 | یہ بجٹ کی سطر کسی WBS آئٹم سے نہیں جڑی؛ WBS کوڈ لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 286 | client/src/lib/ledgerMessages.ts | 30 | بجٹ کی سطر لکھے گئے WBS آئٹم کے بجائے کسی اور WBS آئٹم سے جڑی ہے۔ | «تحتاج مراجعة بشرية» |
+| 287 | client/src/lib/ledgerMessages.ts | 30 | یہ زمرہ مواد، لیبر، ذیلی ٹھیکہ، دیگر میں سے نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 288 | client/src/lib/ledgerMessages.ts | 31 | آرڈر کسی موجودہ معاہدے یا موجودہ سپلائر سے جڑا ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 289 | client/src/lib/ledgerMessages.ts | 31 | یہ معاہدے کا کوڈ اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 290 | client/src/lib/ledgerMessages.ts | 31 | یہ سپلائر کوڈ سپلائر رجسٹر میں نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 291 | client/src/lib/ledgerMessages.ts | 32 | یہ سپلائر فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 292 | client/src/lib/ledgerMessages.ts | 32 | سپلائر کا نام لکھیں (یا سپلائر رجسٹر کا کوئی کوڈ)۔ | «تحتاج مراجعة بشرية» |
+| 293 | client/src/lib/ledgerMessages.ts | 32 | آرڈر کی حیثیت فائل سے تبدیل نہیں ہوتی؛ آرڈر مسودے کے طور پر بنتے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 294 | client/src/lib/ledgerMessages.ts | 33 | ملازمت کی یہ حیثیت قبول نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 295 | client/src/lib/ledgerMessages.ts | 33 | ملازمت ختم کرنا HR اسکرین پر ہوتا ہے، فائل سے نہیں۔ | «تحتاج مراجعة بشرية» |
+| 296 | client/src/lib/ledgerMessages.ts | 34 | اس نمبر کا کوئی ملازم نہیں۔ | «تحتاج مراجعة بشرية» |
+| 297 | client/src/lib/ledgerMessages.ts | 34 | ملازم کی اس دن ایک سے زیادہ کھلی تفویضات ہیں؛ گھنٹے گھنٹوں کی اسکرین پر درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 298 | client/src/lib/levels.ts | 17 | کمپنی اور بورڈ | «تحتاج مراجعة بشرية» |
+| 299 | client/src/lib/levels.ts | 18 | پروجیکٹس کا انتظام (پورٹ فولیو) | «تحتاج مراجعة بشرية» |
+| 300 | client/src/lib/levels.ts | 19 | پروجیکٹ | «تحتاج مراجعة بشرية» |
+| 301 | client/src/lib/levels.ts | 20 | گودام | «تحتاج مراجعة بشرية» |
+| 302 | client/src/lib/operationalRolePresentation.ts | 3 | کمپنی کا مالک | «تحتاج مراجعة بشرية» |
+| 303 | client/src/lib/operationalRolePresentation.ts | 4 | گودام کا نگران | «تحتاج مراجعة بشرية» |
+| 304 | client/src/lib/operationalRolePresentation.ts | 5 | خریداری افسر | «تحتاج مراجعة بشرية» |
+| 305 | client/src/lib/operationalRolePresentation.ts | 6 | فنانس مینیجر | «تحتاج مراجعة بشرية» |
+| 306 | client/src/lib/operationalRolePresentation.ts | 7 | اکاؤنٹنٹ | «تحتاج مراجعة بشرية» |
+| 307 | client/src/lib/operationalRolePresentation.ts | 8 | HR مینیجر | «تحتاج مراجعة بشرية» |
+| 308 | client/src/lib/operationalRolePresentation.ts | 9 | منصوبہ بندی انجینئر | «تحتاج مراجعة بشرية» |
+| 309 | client/src/lib/operationalRolePresentation.ts | 10 | سائٹ انجینئر | «تحتاج مراجعة بشرية» |
+| 310 | client/src/lib/operationalRolePresentation.ts | 11 | QA/QC مینیجر | «تحتاج مراجعة بشرية» |
+| 311 | client/src/lib/operationalRolePresentation.ts | 12 | HSE مینیجر | «تحتاج مراجعة بشرية» |
+| 312 | client/src/lib/operationalRolePresentation.ts | 13 | پروجیکٹ مینیجر | «تحتاج مراجعة بشرية» |
+| 313 | client/src/lib/operationalRolePresentation.ts | 14 | ایگزیکٹو | «تحتاج مراجعة بشرية» |
+| 314 | client/src/lib/operationalRolePresentation.ts | 15 | PMO لیڈ | «تحتاج مراجعة بشرية» |
+| 315 | client/src/lib/operationalRolePresentation.ts | 16 | لاگت کنٹرولر | «تحتاج مراجعة بشرية» |
+| 316 | client/src/lib/operationalRolePresentation.ts | 17 | پروجیکٹ کوآرڈینیٹر | «تحتاج مراجعة بشرية» |
+| 317 | client/src/lib/operationalRolePresentation.ts | 18 | ڈیزائن کوآرڈینیٹر (تعمیراتی) | «تحتاج مراجعة بشرية» |
+| 318 | client/src/lib/operationalRolePresentation.ts | 19 | ڈیزائن کوآرڈینیٹر (تکنیکی) | «تحتاج مراجعة بشرية» |
+| 319 | client/src/lib/operationalRolePresentation.ts | 20 | معاہدوں کا مینیجر | «تحتاج مراجعة بشرية» |
+| 320 | client/src/lib/operationalRolePresentation.ts | 26 | پروجیکٹ اور روزمرہ فیصلوں کی قیادت کریں | «تحتاج مراجعة بشرية» |
+| 321 | client/src/lib/operationalRolePresentation.ts | 26 | شیڈول، لاگت، پیش رفت، معیار اور خطرات | «تحتاج مراجعة بشرية» |
+| 322 | client/src/lib/operationalRolePresentation.ts | 26 | خریداری، گودام کی تحویل یا تنخواہ کی منظوری پر عمل نہیں کرتا | «تحتاج مراجعة بشرية» |
+| 323 | client/src/lib/operationalRolePresentation.ts | 30 | منصوبہ بندی اور پیمائش کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 324 | client/src/lib/operationalRolePresentation.ts | 30 | WBS، شیڈول اور EVM | «تحتاج مراجعة بشرية» |
+| 325 | client/src/lib/operationalRolePresentation.ts | 30 | اصل لاگت درج نہیں کرتا اور ادائیگی کی منظوری نہیں دیتا | «تحتاج مراجعة بشرية» |
+| 326 | client/src/lib/operationalRolePresentation.ts | 34 | سائٹ آپریشنز اور رپورٹنگ چلائیں | «تحتاج مراجعة بشرية» |
+| 327 | client/src/lib/operationalRolePresentation.ts | 34 | پیش رفت، فیلڈ رپورٹس، معیار، HSE، RFIs اور NCRs | «تحتاج مراجعة بشرية» |
+| 328 | client/src/lib/operationalRolePresentation.ts | 34 | بنیادی منصوبے یا پروجیکٹ بجٹ میں تبدیلی نہیں کرتا | «تحتاج مراجعة بشرية» |
+| 329 | client/src/lib/operationalRolePresentation.ts | 38 | معیار اور عدم مطابقت کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 330 | client/src/lib/operationalRolePresentation.ts | 38 | معائنے اور NCRs | «تحتاج مراجعة بشرية» |
+| 331 | client/src/lib/operationalRolePresentation.ts | 38 | بجٹ، لاگت یا خریداری کا انتظام نہیں کرتا | «تحتاج مراجعة بشرية» |
+| 332 | client/src/lib/operationalRolePresentation.ts | 42 | صحت، حفاظت اور ماحول کا انتظام کریں | «تحتاج مراجعة بشرية» |
+| 333 | client/src/lib/operationalRolePresentation.ts | 42 | HSE مشاہدات اور فیلڈ رپورٹس | «تحتاج مراجعة بشرية» |
+| 334 | client/src/lib/operationalRolePresentation.ts | 42 | معاہدے کے معیار، بجٹ یا خریداری کا انتظام نہیں کرتا | «تحتاج مراجعة بشرية» |
+| 335 | client/src/lib/operationalRolePresentation.ts | 46 | طے شدہ خریداری پر عمل کریں | «تحتاج مراجعة بشرية» |
+| 336 | client/src/lib/operationalRolePresentation.ts | 46 | خریداری کی درخواستیں اور آرڈرز | «تحتاج مراجعة بشرية» |
+| 337 | client/src/lib/operationalRolePresentation.ts | 46 | اسی دائرے میں گودام کا نگران نہیں ہو سکتا | «تحتاج مراجعة بشرية» |
+| 338 | client/src/lib/operationalRolePresentation.ts | 50 | مادّے رکھیں اور منتقل کریں | «تحتاج مراجعة بشرية» |
+| 339 | client/src/lib/operationalRolePresentation.ts | 50 | وصولی، اجرا اور اخذ شدہ بقایا | «تحتاج مراجعة بشرية» |
+| 340 | client/src/lib/operationalRolePresentation.ts | 50 | اسی دائرے میں خریداری پر عمل نہیں کر سکتا | «تحتاج مراجعة بشرية» |
+| 341 | client/src/lib/operationalRolePresentation.ts | 54 | مالیات اور وعدوں کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 342 | client/src/lib/operationalRolePresentation.ts | 54 | بجٹ، لاگت، نقد بہاؤ اور وعدے | «تحتاج مراجعة بشرية» |
+| 343 | client/src/lib/operationalRolePresentation.ts | 54 | اسی دائرے میں تنخواہ نہیں چلاتا اور اکاؤنٹنٹ کا کردار نہیں رکھتا | «تحتاج مراجعة بشرية» |
+| 344 | client/src/lib/operationalRolePresentation.ts | 58 | اکاؤنٹنگ کے ریکارڈ درج اور ملائیں | «تحتاج مراجعة بشرية» |
+| 345 | client/src/lib/operationalRolePresentation.ts | 58 | اصل لاگت، انوائس کا ملان اور تنخواہ کے رن | «تحتاج مراجعة بشرية» |
+| 346 | client/src/lib/operationalRolePresentation.ts | 58 | اسی دائرے میں تنخواہ کی منظوری نہیں دیتا اور فنانس مینیجر کا کردار نہیں رکھتا | «تحتاج مراجعة بشرية» |
+| 347 | client/src/lib/operationalRolePresentation.ts | 62 | افرادی قوت اور حساس تنخواہ کا انتظام کریں | «تحتاج مراجعة بشرية» |
+| 348 | client/src/lib/operationalRolePresentation.ts | 62 | ملازمین، حاضری، KPIs اور تنخواہ کا ڈھانچہ | «تحتاج مراجعة بشرية» |
+| 349 | client/src/lib/operationalRolePresentation.ts | 62 | اسی دائرے میں اکاؤنٹنٹ نہیں ہو سکتا | «تحتاج مراجعة بشرية» |
+| 350 | client/src/lib/operationalRolePresentation.ts | 66 | پورٹ فولیو دیکھیں اور فیصلہ کریں | «تحتاج مراجعة بشرية» |
+| 351 | client/src/lib/operationalRolePresentation.ts | 66 | ایگزیکٹو ڈیش بورڈ | «تحتاج مراجعة بشرية» |
+| 352 | client/src/lib/operationalRolePresentation.ts | 66 | صرف پڑھنے کے لیے؛ کسی پروجیکٹ میں نہیں لکھتا | «تحتاج مراجعة بشرية» |
+| 353 | client/src/lib/operationalRolePresentation.ts | 70 | پورٹ فولیو اور اس کے استثنیات کا انتظام کریں | «تحتاج مراجعة بشرية» |
+| 354 | client/src/lib/operationalRolePresentation.ts | 70 | پورٹ فولیوز، پروگرامز، خطرات، مسائل، اقدامات اور اضافہ | «تحتاج مراجعة بشرية» |
+| 355 | client/src/lib/operationalRolePresentation.ts | 70 | پروجیکٹ کا آپریٹنگ ڈیٹا (لاگت، منصوبہ بندی، خریداری) تبدیل نہیں کرتا | «تحتاج مراجعة بشرية» |
+| 356 | client/src/lib/operationalRolePresentation.ts | 74 | رقم منتقل کیے بغیر لاگت کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 357 | client/src/lib/operationalRolePresentation.ts | 74 | بجٹ، اصل لاگت، نقد بہاؤ، EVM اور ٹینڈر بولیوں کا موازنہ | «تحتاج مراجعة بشرية» |
+| 358 | client/src/lib/operationalRolePresentation.ts | 74 | نہ وعدے رکھتا ہے، نہ انوائس کا ملان، نہ بولی کا اندراج | «تحتاج مراجعة بشرية» |
+| 359 | client/src/lib/operationalRolePresentation.ts | 78 | ٹیموں اور مشیر کے درمیان رابطہ کاری کریں | «تحتاج مراجعة بشرية» |
+| 360 | client/src/lib/operationalRolePresentation.ts | 78 | سائٹ کے ریکارڈ، مواد کی درخواستیں، RFIs، اور ڈیزائن کی منظوری (تبصرے بند کرنا، مشیر کے جوابات درج کرنا) | «تحتاج مراجعة بشرية» |
+| 361 | client/src/lib/operationalRolePresentation.ts | 78 | ڈرائنگ جاری نہیں کرتا اور ان پر تبصرے نہیں اٹھاتا؛ جو جاری کرے وہ منظوری نہیں دیتا | «تحتاج مراجعة بشرية» |
+| 362 | client/src/lib/operationalRolePresentation.ts | 82 | تعمیراتی ڈرائنگ جاری کریں اور ان کا پیچھا کریں | «تحتاج مراجعة بشرية» |
+| 363 | client/src/lib/operationalRolePresentation.ts | 82 | تعمیراتی شعبوں (آرکیٹیکچر، انٹیریئر، لینڈ سکیپ) میں ڈرائنگز، ریویژنز، ترسیلات اور جمع شدہ دستاویزات | «تحتاج مراجعة بشرية» |
+| 364 | client/src/lib/operationalRolePresentation.ts | 82 | ساختی یا MEP ڈرائنگز کو نہیں چھوتا، اور جو وہ جاری کریں اس کی منظوری نہیں دیتا | «تحتاج مراجعة بشرية» |
+| 365 | client/src/lib/operationalRolePresentation.ts | 86 | تکنیکی ڈرائنگ جاری کریں اور ان کا پیچھا کریں | «تحتاج مراجعة بشرية» |
+| 366 | client/src/lib/operationalRolePresentation.ts | 86 | تکنیکی شعبوں (ساختی، سول، میکینیکل، الیکٹریکل، پلمبنگ، فائر) میں ڈرائنگز، ریویژنز، ترسیلات اور جمع شدہ دستاویزات | «تحتاج مراجعة بشرية» |
+| 367 | client/src/lib/operationalRolePresentation.ts | 86 | تعمیراتی ڈرائنگز کو نہیں چھوتا، اور جو وہ جاری کریں اس کی منظوری نہیں دیتا | «تحتاج مراجعة بشرية» |
+| 368 | client/src/lib/operationalRolePresentation.ts | 90 | ٹینڈر تیار کریں اور وعدوں کا انتظام کریں | «تحتاج مراجعة بشرية» |
+| 369 | client/src/lib/operationalRolePresentation.ts | 90 | ٹینڈر پیکیجز، دعوت نامے، بولیوں کا اندراج، معاہدے اور وعدے | «تحتاج مراجعة بشرية» |
+| 370 | client/src/lib/operationalRolePresentation.ts | 90 | نہ بولیوں کا موازنہ کرتا ہے نہ ٹینڈر کا ٹھیکہ دیتا ہے؛ جو بولیاں درج کرے وہ ٹھیکہ نہیں دیتا | «تحتاج مراجعة بشرية» |
+| 371 | client/src/lib/planningControl.ts | 87 | بجٹ موجود نہیں ہے | «تحتاج مراجعة بشرية» |
+| 372 | client/src/lib/planningControl.ts | 88 | شیڈول موجود نہیں ہے | «تحتاج مراجعة بشرية» |
+| 373 | client/src/lib/planningControl.ts | 89 | سرگرمیوں کو تاریخوں کی ضرورت ہے | «تحتاج مراجعة بشرية» |
+| 374 | client/src/lib/planningControl.ts | 90 | BOQ کی سطریں WBS سے نہیں جڑیں | «تحتاج مراجعة بشرية» |
+| 375 | client/src/lib/planningControl.ts | 91 | اصل لاگتیں WBS سے نہیں جڑیں | «تحتاج مراجعة بشرية» |
+| 376 | client/src/lib/profitabilityView.ts | 16 | ریال | «تحتاج مراجعة بشرية» |
+| 377 | client/src/lib/profitabilityView.ts | 49 | ابھی تک درج نہیں ہوا | «تحتاج مراجعة بشرية» |
+| 378 | client/src/lib/profitabilityView.ts | 52 | ایک دن پہلے | «تحتاج مراجعة بشرية» |
+| 379 | client/src/lib/profitabilityView.ts | 52 | دو دن پہلے | «تحتاج مراجعة بشرية» |
+| 380 | client/src/lib/profitabilityView.ts | 52 | ${ageDays} دن پہلے | «تحتاج مراجعة بشرية» |
+| 381 | client/src/lib/profitabilityView.ts | 74 | سامان کی وصولی | «تحتاج مراجعة بشرية» |
+| 382 | client/src/lib/profitabilityView.ts | 75 | خریداری کا آرڈر | «تحتاج مراجعة بشرية» |
+| 383 | client/src/lib/profitabilityView.ts | 76 | مادّے کا اجرا | «تحتاج مراجعة بشرية» |
+| 384 | client/src/lib/profitabilityView.ts | 77 | کام کے گھنٹوں کا اندراج | «تحتاج مراجعة بشرية» |
+| 385 | client/src/lib/profitabilityView.ts | 78 | تنخواہ کا مختص | «تحتاج مراجعة بشرية» |
+| 386 | client/src/lib/projectErrors.ts | 24 | سرور سے رابطہ نہیں ہو سکا۔ اپنا انٹرنیٹ کنکشن دیکھیں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 387 | client/src/lib/projectErrors.ts | 31 | ہم درخواست مکمل نہیں کر سکے۔ تفصیلات دیکھیں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 388 | client/src/lib/userGuide.ts | 37 | لاگت کا کنٹرول | «تحتاج مراجعة بشرية» |
+| 389 | client/src/lib/userGuide.ts | 38 | آپ بجٹ طے کرتے ہیں، اصل لاگت اور حاصل شدہ قدر درج کرتے ہیں، اور ٹینڈر کی بولیوں کا موازنہ کرتے ہیں، انہیں ٹھیکہ دیے بغیر۔ | «تحتاج مراجعة بشرية» |
+| 390 | client/src/lib/userGuide.ts | 39 | آپ ٹینڈر کا ٹھیکہ نہیں دیتے اور ادائیگی کی منظوری نہیں دیتے: ٹھیکہ مالک یا کسی مخصوص کردار کا کام ہے، منظوری کسی اور کی۔ | «تحتاج مراجعة بشرية» |
+| 391 | client/src/lib/userGuide.ts | 41 | پروجیکٹ کنٹرولز کھولیں اور صحت دیکھیں | «تحتاج مراجعة بشرية» |
+| 392 | client/src/lib/userGuide.ts | 41 | رجسٹر سے پروجیکٹ کھولیں۔ اوپر کے کارڈ صحت اور اشاریے دکھاتے ہیں؛ ہر ایک اپنی بنیاد اور آخری تازہ کاری کی تاریخ بتاتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 393 | client/src/lib/userGuide.ts | 42 | اصل لاگت درج کریں | «تحتاج مراجعة بشرية» |
+| 394 | client/src/lib/userGuide.ts | 42 | “شیڈول اور لاگت کی تازہ کاری” میں آئٹم، رقم اور تاریخ منتخب کریں۔ درج شدہ لاگت حاصل شدہ قدر میں اصل لاگت (AC) کو غذا دیتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 395 | client/src/lib/userGuide.ts | 43 | WBS کے مطابق بجٹ درج کریں | «تحتاج مراجعة بشرية» |
+| 396 | client/src/lib/userGuide.ts | 43 | “شیڈول اور لاگت کی تازہ کاری” میں WBS آئٹم، لاگت کا کوڈ، اصل اور موجودہ رقم منتخب کریں، پھر محفوظ کریں۔ بجٹ کی سطر کبھی حذف نہیں ہوتی: تبدیلی موجودہ رقم میں درج ہوتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 397 | client/src/lib/userGuide.ts | 44 | حاصل شدہ قدر کا اسنیپ شاٹ محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 398 | client/src/lib/userGuide.ts | 44 | مدت منتخب کریں اور اسنیپ شاٹ محفوظ کریں۔ یہ بجٹ، پیش رفت اور درج شدہ لاگت سے حساب ہوتا ہے، اور اپنے ذرائع کے ساتھ کارکردگی کے اشاریوں میں دکھائی دیتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 399 | client/src/lib/userGuide.ts | 45 | پروجیکٹ کی صحت کا اسنیپ شاٹ محفوظ کریں | «تحتاج مراجعة بشرية» |
+| 400 | client/src/lib/userGuide.ts | 45 | حاصل شدہ قدر کے اسنیپ شاٹ کے بعد، صحت کا اسنیپ شاٹ حساب کر کے محفوظ کریں: یہ تازہ ترین EVM، زیادہ تعرض والے خطرات، تاخیر کے اقدامات، تاخیر کی RFIs اور تاخیر کی NCRs کو ملاتا ہے۔ جس کا ابھی کوئی ذریعہ نہیں، وہ واضح صفر کے طور پر درج ہوتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 401 | client/src/lib/userGuide.ts | 46 | منافع اور نقد بہاؤ کا جائزہ لیں | «تحتاج مراجعة بشرية» |
+| 402 | client/src/lib/userGuide.ts | 46 | منافع کی اسکرین آمدنی، لاگت، وعدے اور ماہانہ خالص نقد بہاؤ دکھاتی ہے؛ ہر عدد اپنا ذریعہ کھولتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 403 | client/src/lib/userGuide.ts | 47 | بولیوں کی ایڈجسٹمنٹ درج کریں اور موازنہ کریں | «تحتاج مراجعة بشرية» |
+| 404 | client/src/lib/userGuide.ts | 47 | “ٹھیکہ دینے سے پہلے کے ٹینڈرز” میں پیکیج کھولیں اور بولیوں کو قابلِ موازنہ بنانے کے لیے ایڈجسٹمنٹ شامل کریں، پھر ایڈجسٹمنٹ کے بعد سب سے کم دیکھیں۔ یہ مرحلہ موازنہ کرتا ہے؛ ٹھیکہ نہیں دیتا۔ | «تحتاج مراجعة بشرية» |
+| 405 | client/src/lib/userGuide.ts | 52 | منصوبہ بندی | «تحتاج مراجعة بشرية» |
+| 406 | client/src/lib/userGuide.ts | 53 | آپ کام کا ڈھانچہ اور سرگرمیاں بناتے ہیں، اپنا پروگرام درآمد کرتے ہیں، حاصل شدہ قدر درج کرتے ہیں اور پروجیکٹ کنٹرول (PMC) میں عمل درآمد کی نگرانی کرتے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 407 | client/src/lib/userGuide.ts | 54 | آپ اصل لاگت درج نہیں کرتے اور ادائیگی کی منظوری نہیں دیتے۔ | «تحتاج مراجعة بشرية» |
+| 408 | client/src/lib/userGuide.ts | 56 | کام کا ڈھانچہ (WBS) بنائیں | «تحتاج مراجعة بشرية» |
+| 409 | client/src/lib/userGuide.ts | 56 | “شیڈول اور لاگت کی تازہ کاری” میں کوڈ، نام اور منصوبہ بند قدر کے ساتھ WBS آئٹمز شامل کریں۔ ہر سرگرمی بعد میں ان میں سے ایک سے جوڑی جاتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 410 | client/src/lib/userGuide.ts | 57 | سرگرمیاں ان کی تاریخوں کے ساتھ شامل کریں | «تحتاج مراجعة بشرية» |
+| 411 | client/src/lib/userGuide.ts | 57 | WBS آئٹم منتخب کریں اور سرگرمی کا کوڈ، نام، قدر اور منصوبہ بند آغاز و اختتام درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 412 | client/src/lib/userGuide.ts | 58 | Primavera یا Excel سے اپنا پروگرام درآمد کریں | «تحتاج مراجعة بشرية» |
+| 413 | client/src/lib/userGuide.ts | 58 | “منصوبہ بندی اور کنٹرول شدہ ڈیٹا” میں XER یا XLSX فائل اپ لوڈ کریں۔ کچھ لکھنے سے پہلے فائل کی جانچ ہوتی ہے اور نتیجہ دکھایا جاتا ہے، اور حل نہ ہونے والے WBS حوالے رپورٹ کیے جاتے ہیں، نظرانداز نہیں۔ | «تحتاج مراجعة بشرية» |
+| 414 | client/src/lib/userGuide.ts | 59 | حاصل شدہ قدر کا اسنیپ شاٹ لیں | «تحتاج مراجعة بشرية» |
+| 415 | client/src/lib/userGuide.ts | 59 | مدت منتخب کریں اور محفوظ کریں؛ قدر شیڈول اور پیش رفت سے حساب ہوتی ہے اور اشاریوں میں دکھائی دیتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 416 | client/src/lib/userGuide.ts | 60 | PMC ٹیب میں عمل درآمد کی نگرانی کریں | «تحتاج مراجعة بشرية» |
+| 417 | client/src/lib/userGuide.ts | 60 | “PMC پروجیکٹ کنٹرول” ٹیب تازہ ترین تازہ کاریاں، منظوریاں، سائٹ پلان اور پروگرام اکٹھا کرتا ہے، اور Excel اور PDF برآمد کرتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 418 | client/src/lib/userGuide.ts | 65 | پروجیکٹ کوآرڈینیٹرز | «تحتاج مراجعة بشرية» |
+| 419 | client/src/lib/userGuide.ts | 66 | آپ ٹیموں اور مشیر کے درمیان کام کو رواں رکھتے ہیں: سائٹ کے ریکارڈ، مواد کی درخواستیں، RFIs، اور ڈیزائن کی منظوری کا پہلو۔ | «تحتاج مراجعة بشرية» |
+| 420 | client/src/lib/userGuide.ts | 67 | آپ ڈرائنگز جاری نہیں کرتے، معاہدوں یا بجٹ کا انتظام نہیں کرتے۔ | «تحتاج مراجعة بشرية» |
+| 421 | client/src/lib/userGuide.ts | 69 | فون سے سائٹ رپورٹ درج کریں | «تحتاج مراجعة بشرية» |
+| 422 | client/src/lib/userGuide.ts | 69 | فون کی اسکرین تیز اندراج کے لیے بنائی گئی ہے؛ کنکشن ٹوٹنے پر جو آپ فون پر درج کرتے ہیں وہ محفوظ رہتا ہے اور کنکشن واپس آنے پر بغیر نقل کے بھیجا جاتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 423 | client/src/lib/userGuide.ts | 70 | معلومات کی درخواست (RFI) اٹھائیں | «تحتاج مراجعة بشرية» |
+| 424 | client/src/lib/userGuide.ts | 70 | “سائٹ، معیار اور ترسیل” میں عنوان اور تفصیل کے ساتھ درخواست بنائیں اور جو درکار ہو وہ منسلک کریں؛ یہ منظوری کے بہاؤ پر چلتی ہے، اور جس نے اٹھائی ہو وہ اس کا جواب نہیں دے سکتا۔ | «تحتاج مراجعة بشرية» |
+| 425 | client/src/lib/userGuide.ts | 71 | مادّے کی درخواست کریں | «تحتاج مراجعة بشرية» |
+| 426 | client/src/lib/userGuide.ts | 71 | “سپلائرز اور مواد کی درخواستیں” میں مادّہ، مقدار اور درکار تاریخ کی درخواست کریں؛ درخواست آپ کے خریداری کے اختیار کے بغیر خریداری تک پہنچ جاتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 427 | client/src/lib/userGuide.ts | 72 | ڈیزائن جائزے کے تبصرے بند کریں | «تحتاج مراجعة بشرية» |
+| 428 | client/src/lib/userGuide.ts | 72 | “تکنیکی اور تعمیراتی کوآرڈینیشن” میں جواب دینے کے بعد تبصرہ بند کریں، اور جمع شدہ دستاویز پر مشیر کا جواب (A/B/C/D) درج کریں۔ جس نے تبصرے کا جواب دیا ہو وہ اسے بند نہیں کرتا۔ | «تحتاج مراجعة بشرية» |
+| 429 | client/src/lib/userGuide.ts | 73 | PMC ٹیب میں یونٹ کی حیثیت اپ ڈیٹ کریں | «تحتاج مراجعة بشرية» |
+| 430 | client/src/lib/userGuide.ts | 73 | جن یونٹس اور سرگرمیوں کی آپ نگرانی کرتے ہیں ان کی حیثیت اپ ڈیٹ کریں، اور اسی ٹیب سے تازہ ترین تازہ کاریاں دیکھیں۔ | «تحتاج مراجعة بشرية» |
+| 431 | client/src/lib/userGuide.ts | 74 | تاخیر کا شکار RFIs کا جائزہ لیں | «تحتاج مراجعة بشرية» |
+| 432 | client/src/lib/userGuide.ts | 74 | “پروجیکٹ کی صحت” کارڈ ان RFIs کی گنتی کرتا ہے جن کی آخری تاریخ گزر چکی ہے۔ RFI رجسٹر میں ہر ایک کھولیں اور اس کی اگلی حیثیت طے کریں۔ | «تحتاج مراجعة بشرية» |
+| 433 | client/src/lib/userGuide.ts | 79 | ڈیزائن کوآرڈینیٹرز (تکنیکی اور تعمیراتی) | «تحتاج مراجعة بشرية» |
+| 434 | client/src/lib/userGuide.ts | 80 | آپ اپنے اپنے شعبے میں ڈرائنگز جاری کرتے ہیں اور مشیر سے ان کا پیچھا کرتے ہیں: تعمیراتی کوآرڈینیٹر تعمیراتی کے لیے، تکنیکی کوآرڈینیٹر ساختی، میکانیکی، برقی اور سول کے لیے۔ | «تحتاج مراجعة بشرية» |
+| 435 | client/src/lib/userGuide.ts | 81 | آپ جو جاری کرتے ہیں اس کی منظوری نہیں دیتے، اور اپنے شعبے سے باہر کی ڈرائنگ کو چھو نہیں سکتے۔ | «تحتاج مراجعة بشرية» |
+| 436 | client/src/lib/userGuide.ts | 83 | ڈرائنگ کو اس کے پہلے ریویژن کے ساتھ رجسٹر کریں | «تحتاج مراجعة بشرية» |
+| 437 | client/src/lib/userGuide.ts | 83 | “تکنیکی اور تعمیراتی کوآرڈینیشن” میں ڈرائنگ نمبر، عنوان، شعبہ اور موجودہ ریویژن درج کریں۔ سرور ایسا شعبہ قبول نہیں کرتا جو آپ کا نہ ہو۔ | «تحتاج مراجعة بشرية» |
+| 438 | client/src/lib/userGuide.ts | 84 | نیا ریویژن شامل کریں | «تحتاج مراجعة بشرية» |
+| 439 | client/src/lib/userGuide.ts | 84 | نیا ریویژن موجودہ کی جگہ لیتا ہے اور پچھلے ریکارڈ میں رہتے ہیں۔ کوئی ریویژن کبھی حذف نہیں ہوتا۔ | «تحتاج مراجعة بشرية» |
+| 440 | client/src/lib/userGuide.ts | 85 | ڈرائنگز کی ترسیلہ بھیجیں | «تحتاج مراجعة بشرية» |
+| 441 | client/src/lib/userGuide.ts | 85 | ترسیلہ بنائیں، ڈرائنگز ان کے ریویژنز کے ساتھ شامل کریں، پھر بھیجیں؛ بھیجنے کے بعد اس کی اشیاء تبدیل نہیں ہوتیں۔ | «تحتاج مراجعة بشرية» |
+| 442 | client/src/lib/userGuide.ts | 86 | جائزے کے تبصروں کا جواب دیں | «تحتاج مراجعة بشرية» |
+| 443 | client/src/lib/userGuide.ts | 86 | اپنی ڈرائنگز پر جائزے کے تبصرے پڑھیں اور ہر ایک کا جواب دیں؛ آپ کے جواب کے بعد پروجیکٹ کوآرڈینیٹر اسے بند کرتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 444 | client/src/lib/userGuide.ts | 87 | مشیر کو جمع کریں اور A/B/C/D جواب کا پتا لگائیں | «تحتاج مراجعة بشرية» |
+| 445 | client/src/lib/userGuide.ts | 87 | اسے جمع کریں؛ پھر پروجیکٹ کوآرڈینیٹر مشیر کا جواب درج کرتا ہے: A منظور، B تبصروں کے ساتھ منظور، C نظرِ ثانی کر کے دوبارہ جمع کریں، D مسترد۔ | «تحتاج مراجعة بشرية» |
+| 446 | client/src/lib/userGuide.ts | 88 | جواب کے منتظر اور تاخیر کا شکار جمع شدہ دستاویزات کی نگرانی کریں | «تحتاج مراجعة بشرية» |
+| 447 | client/src/lib/userGuide.ts | 88 | ڈیزائن مرحلے کا بورڈ جواب کے منتظر جمع شدہ دستاویزات، تاخیر کی جمع شدہ دستاویزات، تاخیر کے تبصرے اور جواب کا اوسط وقت دکھاتا ہے۔ جو تاخیر کا شکار ہو اسے ڈھیر ہونے سے پہلے مشیر سے آگے بڑھائیں۔ | «تحتاج مراجعة بشرية» |
+| 448 | client/src/lib/userGuide.ts | 93 | معاہدے | «تحتاج مراجعة بشرية» |
+| 449 | client/src/lib/userGuide.ts | 94 | آپ ٹینڈرز تیار کرتے ہیں، بولیاں درج کرتے ہیں اور ان سے نکلنے والے وعدوں اور معاہدوں کی نگرانی کرتے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 450 | client/src/lib/userGuide.ts | 95 | آپ نہ بولیوں کا موازنہ کرتے ہیں نہ ٹینڈر کا ٹھیکہ دیتے ہیں: جس نے بولیاں درج کی ہوں وہ ٹھیکہ نہیں دیتا، اور ٹھیکہ مالک یا مخصوص کردار کا کام ہے۔ | «تحتاج مراجعة بشرية» |
+| 451 | client/src/lib/userGuide.ts | 97 | ٹینڈر پیکیج بنائیں | «تحتاج مراجعة بشرية» |
+| 452 | client/src/lib/userGuide.ts | 97 | “ٹھیکہ دینے سے پہلے کے ٹینڈرز” میں پیکیج کا کوڈ، عنوان، دائرہ کار اور بندش کی تاریخ درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 453 | client/src/lib/userGuide.ts | 98 | ٹھیکیداروں اور سپلائرز کو دعوت دیں | «تحتاج مراجعة بشرية» |
+| 454 | client/src/lib/userGuide.ts | 98 | سپلائر فہرست سے مدعو افراد شامل کریں؛ ہر مدعو شخص ایک ٹینڈر میں ایک بار۔ | «تحتاج مراجعة بشرية» |
+| 455 | client/src/lib/userGuide.ts | 99 | موصول شدہ بولیاں درج کریں | «تحتاج مراجعة بشرية» |
+| 456 | client/src/lib/userGuide.ts | 99 | ہر بولی کی رقم، کرنسی اور مدت درج کریں۔ جو بولیاں درج کرے وہ ٹینڈر کا ٹھیکہ نہیں دیتا۔ | «تحتاج مراجعة بشرية» |
+| 457 | client/src/lib/userGuide.ts | 100 | موازنہ لاگت کے کنٹرول کو دیں | «تحتاج مراجعة بشرية» |
+| 458 | client/src/lib/userGuide.ts | 100 | بولیوں کی ایڈجسٹمنٹ کے بعد موازنہ ظاہر ہوتا ہے؛ انہیں ایڈجسٹ کرنا لاگت کنٹرول کا کام ہے، اور اس کے بعد ٹھیکہ اس کے پاس ہوتا ہے جو یہ اختیار رکھتا ہو۔ | «تحتاج مراجعة بشرية» |
+| 459 | client/src/lib/userGuide.ts | 101 | وعدوں اور معاہدوں کی نگرانی کریں | «تحتاج مراجعة بشرية» |
+| 460 | client/src/lib/userGuide.ts | 101 | ٹھیکہ خودکار طور پر ایک معاہدہ اور بجٹ کا وعدہ بناتا ہے؛ انہیں “معاہدے، دستاویزات اور دعوے” میں دیکھیں اور مزید وعدوں کا انتظام کریں۔ | «تحتاج مراجعة بشرية» |
+| 461 | client/src/lib/userGuide.ts | 102 | ضرورت پڑنے پر خود معاہدہ یا وعدہ بنائیں | «تحتاج مراجعة بشرية» |
+| 462 | client/src/lib/userGuide.ts | 102 | “معاہدے اور وعدے” میں وہ معاہدے اور وعدے درج کریں جو ٹھیکے سے نہیں آتے۔ ٹھیکہ خود پہلا معاہدہ اور وعدہ بناتا ہے، اس لیے انہیں دہرائیں نہیں۔ | «تحتاج مراجعة بشرية» |
+| 463 | server/consultantSubmittals.ts | 130 | تبصروں کے ساتھ منظور | «تحتاج مراجعة بشرية» |
+| 464 | server/consultantSubmittals.ts | 130 | نظرِ ثانی کر کے دوبارہ جمع کریں | «تحتاج مراجعة بشرية» |
+| 465 | shared/ledgerImportColumns.ts | 28 | WBS کوڈ | «تحتاج مراجعة بشرية» |
+| 466 | shared/ledgerImportColumns.ts | 29 | بجٹ لاگت کوڈ | «تحتاج مراجعة بشرية» |
+| 467 | shared/ledgerImportColumns.ts | 30 | زمرہ | «تحتاج مراجعة بشرية» |
+| 468 | shared/ledgerImportColumns.ts | 31 | لاگت کی تاریخ | «تحتاج مراجعة بشرية» |
+| 469 | shared/ledgerImportColumns.ts | 32 | رقم (ریال) | «تحتاج مراجعة بشرية» |
+| 470 | shared/ledgerImportColumns.ts | 36 | خریداری آرڈر نمبر | «تحتاج مراجعة بشرية» |
+| 471 | shared/ledgerImportColumns.ts | 37 | آرڈر کی تاریخ | «تحتاج مراجعة بشرية» |
+| 472 | shared/ledgerImportColumns.ts | 38 | رقم (ریال) | «تحتاج مراجعة بشرية» |
+| 473 | shared/ledgerImportColumns.ts | 39 | تفصیل | «تحتاج مراجعة بشرية» |
+| 474 | shared/ledgerImportColumns.ts | 40 | معاہدے کا کوڈ | «تحتاج مراجعة بشرية» |
+| 475 | shared/ledgerImportColumns.ts | 41 | سپلائر کوڈ | «تحتاج مراجعة بشرية» |
+| 476 | shared/ledgerImportColumns.ts | 42 | سپلائر کا نام | «تحتاج مراجعة بشرية» |
+| 477 | shared/ledgerImportColumns.ts | 43 | WBS کوڈ | «تحتاج مراجعة بشرية» |
+| 478 | shared/ledgerImportColumns.ts | 44 | حیثیت | «تحتاج مراجعة بشرية» |
+| 479 | shared/ledgerImportColumns.ts | 49 | پورا نام | «تحتاج مراجعة بشرية» |
+| 480 | shared/ledgerImportColumns.ts | 50 | عہدہ | «تحتاج مراجعة بشرية» |
+| 481 | shared/ledgerImportColumns.ts | 51 | شعبہ | «تحتاج مراجعة بشرية» |
+| 482 | shared/ledgerImportColumns.ts | 52 | ملازمت کی تاریخ | «تحتاج مراجعة بشرية» |
+| 483 | shared/ledgerImportColumns.ts | 53 | ملازمت کی حیثیت | «تحتاج مراجعة بشرية» |
+| 484 | shared/ledgerImportColumns.ts | 58 | کام کی تاریخ | «تحتاج مراجعة بشرية» |
+| 485 | shared/ledgerImportColumns.ts | 59 | اصل گھنٹے | «تحتاج مراجعة بشرية» |
+| 486 | shared/ledgerImportColumns.ts | 60 | رپورٹ شدہ پیش رفت % | «تحتاج مراجعة بشرية» |
+| 487 | shared/projectErrors.ts | 12 | اس عمل کو جاری رکھنے کے لیے لاگ ان کرنا ضروری ہے۔ | «تحتاج مراجعة بشرية» |
+| 488 | shared/projectErrors.ts | 17 | آپ کو مطلوبہ ورک اسپیس تک رسائی حاصل نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 489 | shared/projectErrors.ts | 22 | اس ورک اسپیس پیکج میں مطلوبہ آپریشنل سطح شامل نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 490 | shared/projectErrors.ts | 27 | اس عمل کو مکمل کرنے کے لیے درکار صلاحیت آپ کے پاس نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 491 | shared/projectErrors.ts | 32 | سروس عارضی طور پر دستیاب نہیں ہے۔ کچھ دیر بعد دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 492 | shared/projectErrors.ts | 37 | مطلوبہ کمپنی دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 493 | shared/projectErrors.ts | 42 | یہ کام صرف کمپنی کا مالک کر سکتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 494 | shared/projectErrors.ts | 47 | پہلے کمپنی کے ڈیٹا کی ایک نقل ڈاؤن لوڈ کریں۔ مستقل حذف صرف اس صورت میں ممکن ہے جب پچھلے سات دنوں میں ایکسپورٹ کیا گیا ہو۔ | «تحتاج مراجعة بشرية» |
+| 495 | shared/projectErrors.ts | 52 | اس کمپنی یا اس شخص کے لیے حذف کی تصدیق کا کوڈ درست نہیں ہے۔ حذف کی درخواست دوبارہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 496 | shared/projectErrors.ts | 57 | حذف کی تصدیق کے کوڈ کی مدت ختم ہو چکی ہے (15 منٹ)۔ حذف کی درخواست دوبارہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 497 | shared/projectErrors.ts | 62 | اس کمپنی کا حذف کسی دوسرے عمل میں پہلے ہی جاری ہے۔ پانچ منٹ انتظار کریں، اور اگر وہ مکمل نہ ہوا ہو تو دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 498 | shared/projectErrors.ts | 67 | آپ کا لکھا ہوا نام کمپنی کے نام سے بالکل مطابق نہیں۔ کچھ حذف نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 499 | shared/projectErrors.ts | 72 | ایکسپورٹ یا حذف نہیں چل سکتا: ڈیٹا بیس میں ایک جدول ہے جو ابھی کمپنی کے ڈیٹا کے طور پر درجہ بند نہیں ہوا۔ کچھ تبدیل نہیں ہوا؛ سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 500 | shared/projectErrors.ts | 77 | مطلوبہ پروجیکٹ اس ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 501 | shared/projectErrors.ts | 82 | منتخب کردہ WBS آئٹم مطلوبہ پروجیکٹ سے تعلق نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 502 | shared/projectErrors.ts | 87 | کسی سرگرمی کی منصوبہ بند اختتامی تاریخ اس کی منصوبہ بند ابتدائی تاریخ سے پہلے نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 503 | shared/projectErrors.ts | 92 | آپ اس راستے سے اپنی رکنیت یا اپنی صلاحیتیں تبدیل نہیں کر سکتے۔ | «تحتاج مراجعة بشرية» |
+| 504 | shared/projectErrors.ts | 97 | رکنیت کی درخواست کردہ حیثیت کی تبدیلی کی اجازت نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 505 | shared/projectErrors.ts | 102 | آخری فعال کمپنی مالک کو غیر فعال نہیں کیا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 506 | shared/projectErrors.ts | 107 | کردار کی تفویض کے لیے درست دائرہ منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 507 | shared/projectErrors.ts | 112 | منتخب کردہ صارف نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 508 | shared/projectErrors.ts | 117 | منتخب کردہ کردار اس تنظیم میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 509 | shared/projectErrors.ts | 122 | یہ کردار کا کوڈ اس تنظیم میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 510 | shared/projectErrors.ts | 127 | منتخب کردہ ہر صلاحیت کیٹلاگ میں موجود ہونی چاہیے اور منتخب کردہ کردار کی پروڈکٹ سے تعلق رکھتی ہو۔ | «تحتاج مراجعة بشرية» |
+| 511 | shared/projectErrors.ts | 132 | سسٹم کے زیرِ انتظام کردار میں ترمیم نہیں کی جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 512 | shared/projectErrors.ts | 137 | منتخب کردہ رکنیت اس تنظیم میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 513 | shared/projectErrors.ts | 142 | یہ کردار اور دائرہ منتخب کردہ رکنیت کو پہلے ہی تفویض کیا جا چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 514 | shared/projectErrors.ts | 147 | کام کے گھنٹے صفر سے زیادہ اور زیادہ سے زیادہ 24 ہوں، اور پیش رفت 0 اور 100 کے درمیان ہو۔ | «تحتاج مراجعة بشرية» |
+| 515 | shared/projectErrors.ts | 152 | یہ تفویض دستیاب نہیں ہے یا اس دن پر لاگو نہیں ہوتی۔ | «تحتاج مراجعة بشرية» |
+| 516 | shared/projectErrors.ts | 157 | یہ درخواست کا شناختی نمبر کسی دوسرے عمل کا ہے۔ اندراج دوبارہ شروع کریں۔ | «تحتاج مراجعة بشرية» |
+| 517 | shared/projectErrors.ts | 162 | یہ درخواست ابھی جاری ہے، یا اس کا نتیجہ معلوم نہیں۔ دوبارہ بھیجنے سے پہلے ریکارڈ دیکھ لیں۔ | «تحتاج مراجعة بشرية» |
+| 518 | shared/projectErrors.ts | 167 | کم از کم ایک فرد کے گھنٹے درج کریں، اور ایک وقت میں 200 سے زیادہ نہیں۔ | «تحتاج مراجعة بشرية» |
+| 519 | shared/projectErrors.ts | 172 | شیٹ میں ایک ہی تفویض دو بار آئی ہے۔ | «تحتاج مراجعة بشرية» |
+| 520 | shared/projectErrors.ts | 177 | درخواست کردہ انوائس اس پروجیکٹ میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 521 | shared/projectErrors.ts | 182 | انوائس اپنی موجودہ حیثیت سے اس حیثیت میں نہیں جا سکتی۔ مسودہ جاری یا منسوخ ہو سکتا ہے، جاری انوائس ادا شدہ یا منسوخ ہو سکتی ہے، اور ادا شدہ انوائس تبدیل نہیں ہوتی۔ | «تحتاج مراجعة بشرية» |
+| 522 | shared/projectErrors.ts | 187 | ادائیگی کی تاریخ انوائس کی تاریخ سے پہلے یا بہت دور مستقبل میں نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 523 | shared/projectErrors.ts | 192 | لاگت کی ترتیبات درست نہیں: شرحیں مثبت اور معقول ہوں، روزانہ 1 سے 24 گھنٹے، اور کم از کم ایک کام کا دن ہو جس میں دہرائے بغیر اندراج ہو۔ | «تحتاج مراجعة بشرية» |
+| 524 | shared/projectErrors.ts | 197 | ایک ہی صارف آپس میں متصادم یہ کردار ایک ساتھ ایسے دائروں میں نہیں رکھ سکتا جو آپس میں ملتے ہوں۔ | «تحتاج مراجعة بشرية» |
+| 525 | shared/projectErrors.ts | 202 | منتخب کردہ ملازم کا ریکارڈ موجودہ ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 526 | shared/projectErrors.ts | 207 | یہ ملازم نمبر اس ورک اسپیس میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 527 | shared/projectErrors.ts | 212 | ملازم کا ریکارڈ صرف ورک اسپیس کے رکن کے اکاؤنٹ سے جوڑا جا سکتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 528 | shared/projectErrors.ts | 217 | منتخب کردہ اکاؤنٹ اس ورک اسپیس میں کسی ملازم کے ریکارڈ سے پہلے ہی جڑا ہوا ہے۔ | «تحتاج مراجعة بشرية» |
+| 529 | shared/projectErrors.ts | 222 | یہ ملازم کا ریکارڈ پہلے ہی محفوظ شدہ ہے اور دوبارہ ختم نہیں کیا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 530 | shared/projectErrors.ts | 227 | منتخب کردہ ملازمتی معاہدہ اس ورک اسپیس میں اس ملازم کے لیے دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 531 | shared/projectErrors.ts | 232 | معاہدے یا آزمائشی مدت کی اختتامی تاریخ معاہدے کی ابتدائی تاریخ سے پہلے نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 532 | shared/projectErrors.ts | 237 | منتخب کردہ کردار کی تفویض اس تنظیم میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 533 | shared/projectErrors.ts | 242 | منتخب کردہ صارف کی اس تنظیم میں پہلے ہی رکنیت موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 534 | shared/projectErrors.ts | 247 | اس ای میل کے لیے تنظیم میں پہلے ہی ایک زیرِ التوا دعوت موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 535 | shared/projectErrors.ts | 252 | دعوت کا لنک درست نہیں ہے یا اس کی مدت ختم ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 536 | shared/projectErrors.ts | 257 | اس ای میل پتے سے لاگ ان کریں جس پر یہ دعوت آئی تھی۔ | «تحتاج مراجعة بشرية» |
+| 537 | shared/projectErrors.ts | 262 | منتخب کردہ پورٹ فولیو اس تنظیم میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 538 | shared/projectErrors.ts | 267 | منتخب کردہ پروگرام اس تنظیم میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 539 | shared/projectErrors.ts | 272 | منتخب کردہ پورٹ فولیو پروگرام کے پورٹ فولیو سے مطابقت نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 540 | shared/projectErrors.ts | 277 | منتخب کردہ پروجیکٹ کی لائف سائیکل تبدیلی اپنے موجودہ مرحلے سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 541 | shared/projectErrors.ts | 282 | منتخب کردہ معاہدہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 542 | shared/projectErrors.ts | 287 | معاہدے کی اختتامی تاریخ اس کی ابتدائی تاریخ سے پہلے نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 543 | shared/projectErrors.ts | 292 | منتخب کردہ دستاویز موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 544 | shared/projectErrors.ts | 297 | فائل کا مواد درست نہیں ہے یا مقررہ سائز کی حد سے بڑا ہے۔ | «تحتاج مراجعة بشرية» |
+| 545 | shared/projectErrors.ts | 302 | منتخب کردہ دستاویز کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 546 | shared/projectErrors.ts | 307 | ماسٹر پلان کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 547 | shared/projectErrors.ts | 312 | منتخب کردہ ماسٹر پلان موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 548 | shared/projectErrors.ts | 317 | منتخب کردہ ماسٹر پلان کا ورژن موجودہ پروجیکٹ میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 549 | shared/projectErrors.ts | 322 | منتخب کردہ اوپر کی مکانی اکائی ماسٹر پلان کے موجودہ ورژن میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 550 | shared/projectErrors.ts | 327 | مکانی اکائیوں کی فائل میں اوپر کی اکائی کے تعلق میں دائرہ نہیں ہو سکتا۔ | «تحتاج مراجعة بشرية» |
+| 551 | shared/projectErrors.ts | 332 | مکانی اکائی 100×100 کے پلان میں سمانی چاہیے، اور اس کی چوڑائی اور لمبائی مثبت ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 552 | shared/projectErrors.ts | 337 | مکانی اکائی کی پیش رفت کی فیصد 0 اور 100 کے درمیان ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 553 | shared/projectErrors.ts | 342 | ماسٹر پلان کا ماخذ درست نام اور قسم کے ساتھ PNG، JPG، WEBP یا PDF فائل ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 554 | shared/projectErrors.ts | 347 | میپنگ فائل لاگو نہیں ہو سکی کیونکہ اس کے کالم یا قدریں ماسٹر پلان کے ٹیمپلیٹ پر پورا نہیں اترتیں۔ | «تحتاج مراجعة بشرية» |
+| 555 | shared/projectErrors.ts | 352 | مکانی اکائیاں نہیں بن سکیں کیونکہ فائل کے کالم، جیومیٹری یا قدریں مکانی اکائی کے ٹیمپلیٹ پر پورا نہیں اترتیں۔ | «تحتاج مراجعة بشرية» |
+| 556 | shared/projectErrors.ts | 357 | ماسٹر پلان کے منتخب ورژن کے لیے ابھی تک کوئی محفوظ ڈرائنگ موجود نہیں۔ پہلے ڈرائنگ کی فائل اپ لوڈ کریں۔ | «تحتاج مراجعة بشرية» |
+| 557 | shared/projectErrors.ts | 362 | ڈرائنگ کا خاکہ درست نہیں: ہر شکل کا منفرد حوالہ، کم از کم تین عددی نقطے، اور 120 حروف تک کا لیبل ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 558 | shared/projectErrors.ts | 367 | یہ شکل اس ورژن کی محفوظ ڈرائنگ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 559 | shared/projectErrors.ts | 372 | وہ شکل جو ابھی کسی یونٹ سے جڑی ہے، ہٹائی نہیں جا سکتی۔ پہلے اس کا جوڑ ختم کریں۔ | «تحتاج مراجعة بشرية» |
+| 560 | shared/projectErrors.ts | 377 | یہ فائل قابلِ قبول ڈرائنگ نہیں (PDF، PNG، JPEG یا متنی DXF)، یا اس کے صفحات نہیں پڑھے جا سکتے۔ | «تحتاج مراجعة بشرية» |
+| 561 | shared/projectErrors.ts | 382 | یہ شکل پہلے ہی ایک یونٹ سے جڑی ہوئی ہے۔ دوبارہ جوڑنے سے پہلے اس کا جوڑ ختم کریں۔ | «تحتاج مراجعة بشرية» |
+| 562 | shared/projectErrors.ts | 387 | یہ یونٹ اس ڈرائنگ کی ایک اور شکل سے پہلے ہی جڑا ہوا ہے۔ پہلے وہ جوڑ ختم کریں۔ | «تحتاج مراجعة بشرية» |
+| 563 | shared/projectErrors.ts | 392 | منتخب کردہ آئٹم اس ڈرائنگ کے ماسٹر پلان ورژن کا یونٹ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 564 | shared/projectErrors.ts | 397 | اس شکل کا کوئی تصدیق شدہ جوڑ موجود نہیں جسے ہٹایا جائے۔ | «تحتاج مراجعة بشرية» |
+| 565 | shared/projectErrors.ts | 402 | فائل میں مکانی اکائی کا ایک کوڈ منتخب ماسٹر پلان ورژن میں پہلے ہی موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 566 | shared/projectErrors.ts | 407 | مکانی اکائی کی فائل میں موجود سرگرمی اس قطار میں منتخب کردہ WBS آئٹم سے تعلق نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 567 | shared/projectErrors.ts | 412 | فائل میں یونٹ کا ایک کوڈ منتخب ماسٹر پلان ورژن کی کسی مکانی اکائی سے نہیں ملتا۔ | «تحتاج مراجعة بشرية» |
+| 568 | shared/projectErrors.ts | 417 | لائسنس کا انتظام کرنے کے لیے پلیٹ فارم ایڈمنسٹریٹر کی رسائی درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 569 | shared/projectErrors.ts | 422 | منتخب کردہ کمرشل پلان دستیاب نہیں یا غیر فعال ہے۔ | «تحتاج مراجعة بشرية» |
+| 570 | shared/projectErrors.ts | 427 | منتخب کردہ لائسنس اس ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 571 | shared/projectErrors.ts | 432 | منتخب کردہ لائسنس کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 572 | shared/projectErrors.ts | 437 | فعال لائسنس میں درکار خصوصیت شامل نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 573 | shared/projectErrors.ts | 442 | اس خصوصیت کے لیے فعال لائسنس کی حد پوری ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 574 | shared/projectErrors.ts | 447 | فعال لائسنس کی نشستوں کی حد پوری ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 575 | shared/projectErrors.ts | 452 | خود سے ورک اسپیس بنانے کے لیے موجودہ تصدیق شدہ اکاؤنٹ پر ای میل پتا ہونا ضروری ہے۔ | «تحتاج مراجعة بشرية» |
+| 576 | shared/projectErrors.ts | 457 | ورک اسپیس بنانے کی عارضی حد پوری ہو چکی ہے۔ بعد میں دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 577 | shared/projectErrors.ts | 462 | یہ ورک اسپیس کا سلَگ پہلے ہی استعمال ہو رہا ہے۔ کوئی اور ورک اسپیس سلَگ منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 578 | shared/projectErrors.ts | 467 | ابھی ورک اسپیس نہیں بن سکا۔ کوئی ڈیٹا نہیں بنایا گیا۔ بعد میں دوبارہ کوشش کریں، یا خرابی برقرار رہے تو سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 579 | shared/projectErrors.ts | 472 | منتخب کردہ سبسکرپشن موجودہ ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 580 | shared/projectErrors.ts | 477 | منتخب کردہ دستی ادائیگی کا ریکارڈ اپنی موجودہ حیثیت میں تصدیق نہیں ہو سکتا۔ | «تحتاج مراجعة بشرية» |
+| 581 | shared/projectErrors.ts | 482 | منتخب کردہ سپورٹ ٹکٹ موجودہ ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 582 | shared/projectErrors.ts | 487 | یہ دستاویز بطور علمی ماخذ استعمال نہیں ہو سکتی؛ یہ ورک اسپیس کی منظور شدہ دستاویز ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 583 | shared/projectErrors.ts | 492 | منتخب کردہ RFI موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 584 | shared/projectErrors.ts | 497 | منتخب کردہ RFI کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 585 | shared/projectErrors.ts | 502 | منتخب کردہ NCR موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 586 | shared/projectErrors.ts | 507 | منتخب کردہ NCR کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 587 | shared/projectErrors.ts | 512 | منتخب کردہ HSE مشاہدہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 588 | shared/projectErrors.ts | 517 | منتخب کردہ HSE مشاہدے کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 589 | shared/projectErrors.ts | 522 | منتخب کردہ فیلڈ رپورٹ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 590 | shared/projectErrors.ts | 527 | منتخب کردہ فیلڈ رپورٹ کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 591 | shared/projectErrors.ts | 532 | فیلڈ رپورٹ میں افرادی قوت کی تعداد 0 اور 100000 کے درمیان کا پورا عدد ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 592 | shared/projectErrors.ts | 537 | منتخب کردہ معیار کا معائنہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 593 | shared/projectErrors.ts | 542 | منتخب کردہ معیار کے معائنے کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 594 | shared/projectErrors.ts | 547 | منتخب کردہ خریداری کا آرڈر موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 595 | shared/projectErrors.ts | 552 | منتخب کردہ خریداری کے آرڈر کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 596 | shared/projectErrors.ts | 557 | منتخب کردہ معاہدہ یا وعدہ موجودہ کمپنی اور پروجیکٹ سے تعلق نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 597 | shared/projectErrors.ts | 562 | منتخب کردہ ماخذ یا ہدف کا ریکارڈ موجودہ کمپنی اور پروجیکٹ سے تعلق نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 598 | shared/projectErrors.ts | 567 | کوئی ریکارڈ خود اپنے ساتھ نہیں جوڑا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 599 | shared/projectErrors.ts | 572 | منتخب کردہ ریکارڈ کا جوڑ اس پروجیکٹ میں پہلے ہی موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 600 | shared/projectErrors.ts | 577 | منتخب کردہ تبدیلی کی درخواست موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 601 | shared/projectErrors.ts | 582 | منتخب کردہ تبدیلی کی درخواست کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 602 | shared/projectErrors.ts | 587 | منتخب کردہ مسئلہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 603 | shared/projectErrors.ts | 592 | منتخب کردہ اقدام موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 604 | shared/projectErrors.ts | 597 | منتخب کردہ اضافہ (اسکیلیشن) کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 605 | shared/projectErrors.ts | 602 | یہ ریکارڈ اپنی موجودہ حالت میں اضافے کی شرائط پوری نہیں کرتا۔ | «تحتاج مراجعة بشرية» |
+| 606 | shared/projectErrors.ts | 607 | مختص وسائل کی اکائیاں منصوبہ بند وسائل کی اکائیوں سے زیادہ نہیں ہو سکتیں۔ | «تحتاج مراجعة بشرية» |
+| 607 | shared/projectErrors.ts | 612 | منتخب کردہ وسیلہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 608 | shared/projectErrors.ts | 617 | منتخب کردہ تفویض موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 609 | shared/projectErrors.ts | 622 | کام کے گھنٹے درج کرنے سے پہلے اس دن کی منظور شدہ حاضری درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 610 | shared/projectErrors.ts | 627 | منتخب تاریخ پر اس ملازم کا حاضری کا ریکارڈ پہلے ہی موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 611 | shared/projectErrors.ts | 632 | درخواست کردہ حاضری کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 612 | shared/projectErrors.ts | 637 | منتخب تاریخ پر اس تفویض کے لیے کام کے گھنٹوں کا اندراج پہلے ہی موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 613 | shared/projectErrors.ts | 642 | درخواست کردہ کام کے گھنٹوں کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 614 | shared/projectErrors.ts | 647 | انفرادی اشاریے دیکھنے کے لیے آپ کا اکاؤنٹ کسی فعال ملازم کے ریکارڈ سے جڑا ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 615 | shared/projectErrors.ts | 652 | یہاں کسی دوسرے ملازم کے اشاریے نہیں دیکھے جا سکتے۔ صرف آپ کے اپنے انفرادی اشاریے دکھائے جاتے ہیں۔ | «تحتاج مراجعة بشرية» |
+| 616 | shared/projectErrors.ts | 657 | اس ریکارڈ کو اشاریے سے خارج کرنے سے پہلے واضح اور دستاویزی وجہ لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 617 | shared/projectErrors.ts | 662 | خارج کرنے کے لیے منتخب کردہ ریکارڈ اس ملازم کے پروجیکٹ اشاریے میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 618 | shared/projectErrors.ts | 667 | اس ریکارڈ کا دستاویزی اخراج پہلے ہی ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 619 | shared/projectErrors.ts | 672 | جمع کرنے سے پہلے کم از کم 20 حروف پر مشتمل واضح اعتراض لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 620 | shared/projectErrors.ts | 677 | اعتراض صرف وہ ملازم جمع کر سکتا ہے جس کا یہ اشاریہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 621 | shared/projectErrors.ts | 682 | منتخب کردہ اعتراض موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 622 | shared/projectErrors.ts | 687 | درخواست کردہ اعتراض کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 623 | shared/projectErrors.ts | 692 | اعتراض حل کرنے یا مسترد کرنے سے پہلے واضح فیصلے کا نوٹ لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 624 | shared/projectErrors.ts | 697 | یہ مادّے کا کوڈ اس ورک اسپیس میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 625 | shared/projectErrors.ts | 702 | منتخب کردہ مادّہ اس ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 626 | shared/projectErrors.ts | 707 | یہ گودام کا کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 627 | shared/projectErrors.ts | 712 | منتخب کردہ گودام موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 628 | shared/projectErrors.ts | 717 | غیر فعال گودام میں اسٹاک کی نقل و حرکت درج نہیں کی جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 629 | shared/projectErrors.ts | 722 | اسٹاک کی مقدار منتخب وصولی، اجرا یا ایڈجسٹمنٹ کی قسم سے مطابقت نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 630 | shared/projectErrors.ts | 727 | ماخذ اور منزل کا پروجیکٹ ایک ہی ہے؛ پروجیکٹ کے اپنے گوداموں کے درمیان منتقلی استعمال کریں۔ | «تحتاج مراجعة بشرية» |
+| 631 | shared/projectErrors.ts | 732 | جس اجرا سے واپسی ہو رہی ہے وہ اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 632 | shared/projectErrors.ts | 737 | واپس کی گئی مقدار اصل اجرا میں باقی رہنے والی مقدار سے زیادہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 633 | shared/projectErrors.ts | 742 | واپس کرنے کے لیے مثبت مقدار درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 634 | shared/projectErrors.ts | 747 | یہ سرگرمی منتخب یونٹ سے مختلف ماڈل کی ہے۔ | «تحتاج مراجعة بشرية» |
+| 635 | shared/projectErrors.ts | 752 | یہ سرگرمی کسی WBS آئٹم سے نہیں جڑی، اس لیے اس پر لاگت درج نہیں ہو سکتی۔ پہلے اسے جوڑیں۔ | «تحتاج مراجعة بشرية» |
+| 636 | shared/projectErrors.ts | 757 | ایک مادّہ گنتی میں ایک سے زیادہ بار آیا ہے؛ ہر مادّے کو ایک ہی قطار دیں۔ | «تحتاج مراجعة بشرية» |
+| 637 | shared/projectErrors.ts | 762 | گنتی میں کوئی قطار نہیں ہے؛ کم از کم ایک مادّہ شامل کریں۔ | «تحتاج مراجعة بشرية» |
+| 638 | shared/projectErrors.ts | 767 | گنی گئی مقدار صفر یا اس سے زیادہ ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 639 | shared/projectErrors.ts | 772 | اس مادّے کی منظوری کی جمع شدہ دستاویز ابھی منظور نہیں ہوئی، اور کمپنی کی پالیسی اس کے اجرا کو روکتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 640 | shared/projectErrors.ts | 777 | قبولیت کے کوڈ درست نہیں ہیں؛ ایک سے چار حروف یا ہندسوں کے کوڈ استعمال کریں۔ | «تحتاج مراجعة بشرية» |
+| 641 | shared/projectErrors.ts | 782 | کسی سرگرمی کو مکمل کرنے سے پہلے اس یونٹ اور سرگرمی کے معائنے کو معیار کی ٹیم نے قبول کرنا ضروری ہے، اور کمپنی کی پالیسی اس کو روکتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 642 | shared/projectErrors.ts | 787 | روزانہ رپورٹ کی تاریخ مستقبل کی نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 643 | shared/projectErrors.ts | 792 | رپورٹ کی تاریخ درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 644 | shared/projectErrors.ts | 797 | رپورٹ خالی ہے؛ بھیجنے سے پہلے ایک قطار یا خلاصہ شامل کریں۔ | «تحتاج مراجعة بشرية» |
+| 645 | shared/projectErrors.ts | 802 | رپورٹ کی ایک قطار نامکمل ہے: افرادی قوت اور آلات کے لیے نام اور مثبت عدد درکار ہے، اور کام کی قطار کے لیے تفصیل یا حیثیت ضروری ہے۔ | «تحتاج مراجعة بشرية» |
+| 646 | shared/projectErrors.ts | 807 | یہ رپورٹ بھیجی یا منظور کی جا چکی ہے، اس لیے اس میں تبدیلی نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 647 | shared/projectErrors.ts | 812 | یہ روزانہ رپورٹ اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 648 | shared/projectErrors.ts | 817 | یہ رپورٹ جائزے کے انتظار میں نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 649 | shared/projectErrors.ts | 822 | یہ رپورٹ کسی دوسرے انجینئر کی ہے۔ | «تحتاج مراجعة بشرية» |
+| 650 | shared/projectErrors.ts | 827 | یہ فائل تصویر نہیں ہے (PNG، JPEG یا WebP درکار ہیں)۔ | «تحتاج مراجعة بشرية» |
+| 651 | shared/projectErrors.ts | 832 | تصویر 10 MB سے بڑی ہے۔ | «تحتاج مراجعة بشرية» |
+| 652 | shared/projectErrors.ts | 837 | وجہ لکھیں تاکہ انجینئر جان سکے کہ کیا درست کرنا ہے۔ | «تحتاج مراجعة بشرية» |
+| 653 | shared/projectErrors.ts | 842 | آپ وہ رپورٹ منظور نہیں کر سکتے جو آپ نے خود لکھی ہے؛ اسے کوئی دوسرا مینیجر منظور کرے گا۔ | «تحتاج مراجعة بشرية» |
+| 654 | shared/projectErrors.ts | 847 | رپورٹ کی حیثیت کے لیے یونٹ اور سرگرمی دونوں درکار ہیں۔ | «تحتاج مراجعة بشرية» |
+| 655 | shared/projectErrors.ts | 852 | رپورٹ اپنی تصاویر کی حد (30) تک پہنچ چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 656 | shared/projectErrors.ts | 857 | جواب کے کوڈ دہرائے گئے ہیں یا درست نہیں ہیں۔ | «تحتاج مراجعة بشرية» |
+| 657 | shared/projectErrors.ts | 862 | کم از کم ایک فعال منظوری کا کوڈ اور ایک فعال غیر منظوری کا کوڈ درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 658 | shared/projectErrors.ts | 867 | بھیجنے کی تاریخ مستقبل کی ہے۔ | «تحتاج مراجعة بشرية» |
+| 659 | shared/projectErrors.ts | 872 | مادّے کی منظوری کے لیے مادّہ درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 660 | shared/projectErrors.ts | 877 | یہ جمع شدہ دستاویز اس پروجیکٹ میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 661 | shared/projectErrors.ts | 882 | جمع شدہ دستاویز کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے؛ دوبارہ جمع کرنے کے لیے دوبارہ جمع کرنے کا اقدام استعمال کریں۔ | «تحتاج مراجعة بشرية» |
+| 662 | shared/projectErrors.ts | 887 | جواب کی تاریخ بھیجنے کی تاریخ سے پہلے ہے۔ | «تحتاج مراجعة بشرية» |
+| 663 | shared/projectErrors.ts | 892 | جواب کا کوڈ کمپنی کے فعال کوڈوں میں شامل نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 664 | shared/projectErrors.ts | 897 | صرف وہ جمع شدہ دستاویز دوبارہ جمع ہو سکتی ہے جس کا جواب غیر منظوری کے کوڈ سے آیا ہو۔ | «تحتاج مراجعة بشرية» |
+| 665 | shared/projectErrors.ts | 902 | جس نے جمع شدہ دستاویز بھیجی ہو وہ اس کا جواب درج نہیں کرتا۔ | «تحتاج مراجعة بشرية» |
+| 666 | shared/projectErrors.ts | 907 | یہ قدم جمع شدہ دستاویز کی موجودہ حالت میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 667 | shared/projectErrors.ts | 912 | ایکسپورٹ کی قسم معلوم نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 668 | shared/projectErrors.ts | 917 | API کلید درست نہیں، منسوخ شدہ ہے یا اس کی مدت ختم ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 669 | shared/projectErrors.ts | 922 | یہ کلید موجود نہیں ہے یا پہلے ہی منسوخ ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 670 | shared/projectErrors.ts | 927 | میپنگ کی قسم معلوم نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 671 | shared/projectErrors.ts | 932 | درخواست کردہ پروجیکٹ اس کلید کی کمپنی میں موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 672 | shared/projectErrors.ts | 937 | کلید نے فی منٹ کی اجازت سے زیادہ کالیں کی ہیں؛ بتائے گئے وقت کے بعد دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 673 | shared/projectErrors.ts | 942 | کلید کے اختیارات درست نہیں ہیں۔ | «تحتاج مراجعة بشرية» |
+| 674 | shared/projectErrors.ts | 947 | اس کلید کے پاس یہ کال کرنے کا اختیار نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 675 | shared/projectErrors.ts | 952 | درخواست دستاویزی ڈھانچے سے مطابقت نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 676 | shared/projectErrors.ts | 957 | CSV فائل text/csv مواد کی قسم کے ساتھ بھیجی جاتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 677 | shared/projectErrors.ts | 962 | اس قسم کے ریکارڈ کا CSV ٹیمپلیٹ موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 678 | shared/projectErrors.ts | 967 | کنکشن بند ہے؛ پہلے اسے آن کریں۔ | «تحتاج مراجعة بشرية» |
+| 679 | shared/projectErrors.ts | 972 | یہ کنکشن موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 680 | shared/projectErrors.ts | 977 | یہ کنیکٹر صرف پڑھتا ہے اور دوسرے سسٹم میں نہیں لکھتا؛ ایکسپورٹ API استعمال کریں۔ | «تحتاج مراجعة بشرية» |
+| 681 | shared/projectErrors.ts | 982 | اس سسٹم کے لیے کوئی کنیکٹر موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 682 | shared/projectErrors.ts | 987 | سسٹم کا پتا قبول نہیں کیا گیا (یہ https ہونا چاہیے اور اندرونی پتا نہیں ہونا چاہیے)۔ | «تحتاج مراجعة بشرية» |
+| 683 | shared/projectErrors.ts | 997 | واقعات کی قسمیں معلوم نہیں ہیں۔ | «تحتاج مراجعة بشرية» |
+| 684 | shared/projectErrors.ts | 1002 | ویب ہُک اینڈ پوائنٹ موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 685 | shared/projectErrors.ts | 1007 | ویب ہُک کا پتا درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 686 | shared/projectErrors.ts | 1012 | ویب ہُک کا پتا https سے شروع ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 687 | shared/projectErrors.ts | 1017 | ویب ہُک کا پتا نجی نیٹ ورک کے اندر ہے اور قبول نہیں کیا جاتا۔ | «تحتاج مراجعة بشرية» |
+| 688 | shared/projectErrors.ts | 1022 | یہ نقل و حرکت اسٹاک کا بقایا توازن منفی نہیں کر سکتی۔ | «تحتاج مراجعة بشرية» |
+| 689 | shared/projectErrors.ts | 1027 | جاری کی گئی مثبت مقدار درج کریں (اور اگر قیمت درج کریں تو وہ بھی مثبت ہو)۔ | «تحتاج مراجعة بشرية» |
+| 690 | shared/projectErrors.ts | 1032 | منتخب سرگرمی منتخب WBS آئٹم سے تعلق نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 691 | shared/projectErrors.ts | 1037 | یہ سپلائر کوڈ اس ورک اسپیس میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 692 | shared/projectErrors.ts | 1042 | منتخب کردہ سپلائر اس ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 693 | shared/projectErrors.ts | 1047 | غیر فعال سپلائر کے لیے خریداری کی درخواست نہیں بنائی جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 694 | shared/projectErrors.ts | 1052 | خریداری کی درخواست کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 695 | shared/projectErrors.ts | 1057 | منتخب کردہ خریداری کی درخواست موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 696 | shared/projectErrors.ts | 1062 | درخواست کردہ خریداری کی درخواست کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 697 | shared/projectErrors.ts | 1067 | مواد کی درخواست کو صرف منفی اجرا کی نقل و حرکت سے جوڑا جا سکتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 698 | shared/projectErrors.ts | 1072 | جاری کیا گیا مادّہ منتخب مواد کی درخواست کے مادّے سے مطابقت نہیں رکھتا۔ | «تحتاج مراجعة بشرية» |
+| 699 | shared/projectErrors.ts | 1077 | منظوری سے پہلے یا بند ہونے کے بعد یہ درخواست جاری نہیں کی جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 700 | shared/projectErrors.ts | 1082 | جاری کی گئی مقدار درخواست کی گئی مقدار سے زیادہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 701 | shared/projectErrors.ts | 1087 | مواد کی درخواست اس وقت تک بند نہیں ہو سکتی جب تک پوری درخواست کی گئی مقدار جاری نہ ہو جائے۔ | «تحتاج مراجعة بشرية» |
+| 702 | shared/projectErrors.ts | 1092 | درخواست کی پیمائش کی اکائی منظور شدہ مادّے کی اکائی سے مطابقت نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 703 | shared/projectErrors.ts | 1097 | خریداری کا آرڈر صرف منظور شدہ اور ابھی جاری نہ ہونے والی مواد کی درخواست سے جوڑا جا سکتا ہے۔ | «تحتاج مراجعة بشرية» |
+| 704 | shared/projectErrors.ts | 1102 | یہ درخواست پہلے ہی ایک خریداری کے آرڈر سے جڑی ہوئی ہے اور دوبارہ نہیں جوڑی جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 705 | shared/projectErrors.ts | 1107 | منتخب خریداری کا آرڈر ایسی حالت میں نہیں ہے جو مواد کی درخواست سے جوڑنے کی اجازت دے۔ | «تحتاج مراجعة بشرية» |
+| 706 | shared/projectErrors.ts | 1112 | کم از کم ایک قبول یا مسترد شدہ مقدار درج کریں، جو منفی نہ ہو۔ | «تحتاج مراجعة بشرية» |
+| 707 | shared/projectErrors.ts | 1117 | مسترد شدہ مقدار کے لیے اسی پروجیکٹ کا معیار کا معائنہ اور NCR درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 708 | shared/projectErrors.ts | 1122 | جب مسترد شدہ مقدار صفر ہو تو مسترد ہونے کا ثبوت درج نہیں ہو سکتا۔ | «تحتاج مراجعة بشرية» |
+| 709 | shared/projectErrors.ts | 1127 | وصولی کا ریکارڈ درج کرنے سے پہلے خریداری کا آرڈر جاری ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 710 | shared/projectErrors.ts | 1132 | منتخب معیار کا معائنہ مسترد مقدار کے لیے درست ثبوت نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 711 | shared/projectErrors.ts | 1137 | منتخب NCR مسترد مقدار کے لیے کھلا نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 712 | shared/projectErrors.ts | 1142 | منتخب کردہ دعویٰ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 713 | shared/projectErrors.ts | 1147 | منتخب کردہ دعوے کی حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 714 | shared/projectErrors.ts | 1152 | دعوے کی منظوری کے وقت منظور شدہ رقم درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 715 | shared/projectErrors.ts | 1157 | منظور شدہ رقم دعوے کی رقم سے زیادہ نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 716 | shared/projectErrors.ts | 1162 | مشورہ ابھی تیار نہیں ہو سکا۔ پروجیکٹ کا کوئی ڈیٹا تبدیل نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 717 | shared/projectErrors.ts | 1167 | یہ سرگرمی اس پروجیکٹ میں نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 718 | shared/projectErrors.ts | 1172 | یہ سرگرمی منتخب کام کے آئٹم سے تعلق نہیں رکھتی۔ | «تحتاج مراجعة بشرية» |
+| 719 | shared/projectErrors.ts | 1177 | تفویض کا دورانیہ درست نہیں: اختتام ابتدا سے پہلے نہیں ہو سکتا۔ | «تحتاج مراجعة بشرية» |
+| 720 | shared/projectErrors.ts | 1182 | حاضری کا ریکارڈ نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 721 | shared/projectErrors.ts | 1187 | لاگ ان ناکام ہوا۔ دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 722 | shared/projectErrors.ts | 1192 | بہت زیادہ کوششیں۔ کچھ دیر انتظار کریں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 723 | shared/projectErrors.ts | 1197 | BOQ آئٹم کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ | «تحتاج مراجعة بشرية» |
+| 724 | shared/projectErrors.ts | 1202 | سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 725 | shared/projectErrors.ts | 1207 | کمپنی میں اس الرٹ کا کوئی اہل وصول کنندہ نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 726 | shared/projectErrors.ts | 1212 | یہ تفویض اس مدت کے لیے ملازم کی گنجائش سے زیادہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 727 | shared/projectErrors.ts | 1217 | ملازم فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 728 | shared/projectErrors.ts | 1222 | ایکسپورٹ فائل اجازت شدہ حد (10 MB) سے بڑی ہے۔ | «تحتاج مراجعة بشرية» |
+| 729 | shared/projectErrors.ts | 1227 | وصولی کی قیمت وعدے کے کھلے بقایا سے زیادہ ہے۔ | «تحتاج مراجعة بشرية» |
+| 730 | shared/projectErrors.ts | 1232 | خریداری کے آرڈر کا وعدہ منظور شدہ نہیں یا مختلف کرنسی میں ہے۔ | «تحتاج مراجعة بشرية» |
+| 731 | shared/projectErrors.ts | 1237 | خریداری کے آرڈر کا کوئی وعدہ نہیں ہے؛ وصولی درج کرنے سے پہلے ایک وعدہ جوڑیں۔ | «تحتاج مراجعة بشرية» |
+| 732 | shared/projectErrors.ts | 1242 | اکائی کی لاگت صفر سے زیادہ عدد ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 733 | shared/projectErrors.ts | 1247 | یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔ | «تحتاج مراجعة بشرية» |
+| 734 | shared/projectErrors.ts | 1252 | اس اپ لوڈ کے لیے یہ فائل کی قسم قبول نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 735 | shared/projectErrors.ts | 1257 | اپ لوڈ سے پہلے منتخب کریں کہ فائل ماسٹر پلان کے کس ورژن سے متعلق ہے۔ | «تحتاج مراجعة بشرية» |
+| 736 | shared/projectErrors.ts | 1262 | فائل درست ہے مگر اس سے کچھ تبدیل نہیں ہوتا: پروجیکٹ میں یہ ڈیٹا پہلے سے موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 737 | shared/projectErrors.ts | 1267 | فائل کی برآمد کے بعد پلیٹ فارم میں کم از کم ایک قطار تبدیل ہو چکی ہے، یا فائل میں دوبارہ درج کی گئی ہے۔ دوبارہ ایکسپورٹ کریں اور اپنی تبدیلیاں دوبارہ لاگو کریں؛ نئے کام پر کچھ نہیں لکھا جاتا۔ | «تحتاج مراجعة بشرية» |
+| 738 | shared/projectErrors.ts | 1272 | آپ کے جائزے کے بعد فرق بدل چکے ہیں۔ پیش نظارہ دوبارہ دیکھیں، پھر تصدیق کریں۔ | «تحتاج مراجعة بشرية» |
+| 739 | shared/projectErrors.ts | 1277 | فائل کی توثیق کامیاب ہونے تک فرق کا پیش نظارہ دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 740 | shared/projectErrors.ts | 1282 | فائل درست نہیں یا پڑھی نہیں جا سکتی۔ | «تحتاج مراجعة بشرية» |
+| 741 | shared/projectErrors.ts | 1287 | اپ لوڈ کی گئی فائل اسٹوریج سے نہیں پڑھی جا سکی۔ | «تحتاج مراجعة بشرية» |
+| 742 | shared/projectErrors.ts | 1292 | فائل 50 MB کی حد سے بڑی ہے۔ | «تحتاج مراجعة بشرية» |
+| 743 | shared/projectErrors.ts | 1297 | غیر متوقع مسئلے کی وجہ سے کارروائی مکمل نہ ہو سکی۔ کچھ محفوظ نہیں ہوا؛ دوبارہ کوشش کریں، اور مسئلہ بار بار ہو تو سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 744 | shared/projectErrors.ts | 1302 | مکمل ہونے سے پہلے کارروائی رک گئی اور دوبارہ شروع نہیں ہو سکی۔ کچھ محفوظ نہیں ہوا؛ دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 745 | shared/projectErrors.ts | 1307 | اپ لوڈ کی گئی فائل کا حوالہ اس پروجیکٹ کا نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 746 | shared/projectErrors.ts | 1312 | فائل اسٹوریج تک نہیں پہنچی۔ اسے دوبارہ اپ لوڈ کریں۔ | «تحتاج مراجعة بشرية» |
+| 747 | shared/projectErrors.ts | 1317 | فائل کا فارمیٹ معاون نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 748 | shared/projectErrors.ts | 1322 | کالموں کی میپنگ درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 749 | shared/projectErrors.ts | 1327 | درآمد کی قسم پہچانی نہیں گئی۔ | «تحتاج مراجعة بشرية» |
+| 750 | shared/projectErrors.ts | 1332 | یہ درآمد اپنی موجودہ حالت میں تصدیق نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 751 | shared/projectErrors.ts | 1337 | درآمد نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 752 | shared/projectErrors.ts | 1342 | فائل توثیق میں ناکام رہی؛ خرابی کی رپورٹ دیکھیں۔ کچھ محفوظ نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 753 | shared/projectErrors.ts | 1347 | منتقلی کی مقدار صفر سے زیادہ ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 754 | shared/projectErrors.ts | 1352 | ماخذ اور منزل کا گودام ایک ہی ہے۔ | «تحتاج مراجعة بشرية» |
+| 755 | shared/projectErrors.ts | 1357 | انوائس کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 756 | shared/projectErrors.ts | 1362 | منتخب وسیلہ لیبر کا وسیلہ ہونا چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 757 | shared/projectErrors.ts | 1367 | ماسٹر پلان کے قواعد درست نہیں ہیں۔ | «تحتاج مراجعة بشرية» |
+| 758 | shared/projectErrors.ts | 1372 | ماسٹر پلان کا قاعدہ محفوظ نہیں ہو سکا۔ | «تحتاج مراجعة بشرية» |
+| 759 | shared/projectErrors.ts | 1377 | اطلاع نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 760 | shared/projectErrors.ts | 1382 | آپریشنل کرداروں کا کیٹلاگ نامکمل ہے؛ سپورٹ سے رابطہ کریں۔ | «تحتاج مراجعة بشرية» |
+| 761 | shared/projectErrors.ts | 1387 | مختص رقمیں تنخواہ کی لاگت سے زیادہ ہیں۔ | «تحتاج مراجعة بشرية» |
+| 762 | shared/projectErrors.ts | 1392 | تنخواہ کی رقم درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 763 | shared/projectErrors.ts | 1397 | تنخواہ کا رن وہ شخص منظور نہیں کر سکتا جس نے اسے بنایا ہو۔ | «تحتاج مراجعة بشرية» |
+| 764 | shared/projectErrors.ts | 1402 | تنخواہ کا اندراج نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 765 | shared/projectErrors.ts | 1407 | تنخواہ کا رن ابھی منظور نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 766 | shared/projectErrors.ts | 1412 | اس مدت کے لیے تنخواہ کا رن پہلے ہی موجود ہے۔ | «تحتاج مراجعة بشرية» |
+| 767 | shared/projectErrors.ts | 1417 | تنخواہ کی مدت درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 768 | shared/projectErrors.ts | 1422 | تنخواہ کا رن نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 769 | shared/projectErrors.ts | 1427 | تنخواہ کا ڈھانچہ درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 770 | shared/projectErrors.ts | 1432 | تنخواہ کا رن اپنی موجودہ حیثیت سے اس حیثیت میں نہیں جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 771 | shared/projectErrors.ts | 1437 | معائنے کی سرگرمی نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 772 | shared/projectErrors.ts | 1442 | یہ سرگرمی اس یونٹ کے ماڈل کا حصہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 773 | shared/projectErrors.ts | 1447 | پیش نظارہ کے بعد فائل بدل گئی ہے؛ اسے دوبارہ اپ لوڈ کرکے پیش نظارہ دیکھیں۔ | «تحتاج مراجعة بشرية» |
+| 774 | shared/projectErrors.ts | 1452 | معائنے کی درخواست کا جواب پہلے ہی دیا جا چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 775 | shared/projectErrors.ts | 1457 | معائنے کی درخواست کا یہ کوڈ پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 776 | shared/projectErrors.ts | 1462 | معائنے کی درخواست نتیجے کے مرحلے پر نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 777 | shared/projectErrors.ts | 1467 | معائنے کی درخواست نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 778 | shared/projectErrors.ts | 1472 | معائنے کی درخواست کا مرحلہ فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 779 | shared/projectErrors.ts | 1477 | معائنے کی درخواست کے لیے کم از کم ایک یونٹ منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 780 | shared/projectErrors.ts | 1482 | سائٹ پلان کی تصویر کے طول و عرض درست نہیں ہیں۔ | «تحتاج مراجعة بشرية» |
+| 781 | shared/projectErrors.ts | 1487 | سائٹ پلان کی فائل درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 782 | shared/projectErrors.ts | 1492 | سائٹ پلان کا فارمیٹ معاون نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 783 | shared/projectErrors.ts | 1497 | پی ایم سی کی نامعلوم اسکرین۔ | «تحتاج مراجعة بشرية» |
+| 784 | shared/projectErrors.ts | 1502 | حیثیت کا یہ کوڈ پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 785 | shared/projectErrors.ts | 1507 | حیثیت کے عوامل درست نہیں: حیثیت آگے بڑھنے کے ساتھ کم نہیں ہو سکتے اور 0 اور 1 کے درمیان ہونے چاہئیں۔ | «تحتاج مراجعة بشرية» |
+| 786 | shared/projectErrors.ts | 1512 | یونٹ نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 787 | shared/projectErrors.ts | 1517 | تصدیق کی حیثیت فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 788 | shared/projectErrors.ts | 1522 | تصدیق کی حیثیت نہیں ملی۔ | «تحتاج مراجعة بشرية» |
+| 789 | shared/projectErrors.ts | 1527 | دوبارہ آرڈر کی سطح صفر سے زیادہ ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 790 | shared/projectErrors.ts | 1532 | تنخواہ کا ڈھانچہ نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 791 | shared/projectErrors.ts | 1537 | شیڈول فائل کا فارمیٹ معاون نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 792 | shared/projectErrors.ts | 1542 | ذیلی ٹھیکے کا یہ کوڈ پہلے ہی استعمال ہو چکا ہے۔ | «تحتاج مراجعة بشرية» |
+| 793 | shared/projectErrors.ts | 1547 | ذیلی ٹھیکہ نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 794 | shared/projectErrors.ts | 1552 | کام کے گھنٹوں کا اندراج نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 795 | shared/projectErrors.ts | 1557 | یہ کام کا آئٹم اس پروجیکٹ میں نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 796 | shared/projectErrors.ts | 1562 | وہ گودام منتخب کریں جس میں یہ وصولی جائے گی، یا اگر یہ کبھی گودام سے نہیں گزرتی تو اسے براہِ راست سائٹ پر سپلائی کے طور پر درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 797 | shared/projectErrors.ts | 1567 | براہِ راست سائٹ پر سپلائی گودام میں داخل نہیں ہوتی؛ گودام ہٹائیں، یا وصولی کو “گودام میں” میں تبدیل کریں۔ | «تحتاج مراجعة بشرية» |
+| 798 | shared/projectErrors.ts | 1572 | اکائی کی لاگت مثبت ہونی چاہیے، اور اسے ایسی نقل و حرکت کے ساتھ درج نہیں کیا جاتا جو اسٹاک نکالتی ہو (باہر جانے والا اسٹاک اوسط قیمت پر لگایا جاتا ہے)۔ | «تحتاج مراجعة بشرية» |
+| 799 | shared/projectErrors.ts | 1577 | اس اسٹاک کی کوئی قیمت درج نہیں، اس لیے اس کا اوسط نہیں ہے جس پر اسے جاری کیا جائے۔ اس اجرا کے لیے اکائی کی لاگت درج کریں۔ | «تحتاج مراجعة بشرية» |
+| 800 | shared/projectErrors.ts | 1582 | یہ تنخواہ پہلے ہی پروجیکٹوں میں مختص ہو چکی ہے۔ حصہ تبدیل کرنے کے لیے “حصہ ایڈجسٹ کریں” استعمال کریں اور وجہ لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 801 | shared/projectErrors.ts | 1587 | اس ملازم کے تنخواہ کی مدت میں منظور شدہ گھنٹے نہیں ہیں، اس لیے لاگت بانٹنے کی بنیاد نہیں ہے۔ پہلے گھنٹے منظور کریں یا خود مختص کریں۔ | «تحتاج مراجعة بشرية» |
+| 802 | shared/projectErrors.ts | 1592 | حصے کی ایڈجسٹمنٹ کی وجہ لکھیں (کم از کم 5 حروف)۔ یہ پہلے اور بعد کی قدر کے ساتھ محفوظ ہوتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 803 | shared/projectErrors.ts | 1597 | نئی رقم موجودہ رقم کے برابر ہے؛ ایڈجسٹ کرنے کے لیے کچھ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 804 | shared/projectErrors.ts | 1602 | تنخواہ کا یہ مختص اس کمپنی میں نہیں ملا۔ | «تحتاج مراجعة بشرية» |
+| 805 | shared/projectErrors.ts | 1607 | سپلائر کے ساتھ معاہدے کے لیے سپلائر کا انتخاب سپلائر رجسٹر سے کرنا ہوگا۔ | «تحتاج مراجعة بشرية» |
+| 806 | shared/projectErrors.ts | 1612 | رجسٹر سے سپلائر منتخب کیا گیا ہے مگر فریق کی قسم “سپلائر” نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 807 | shared/projectErrors.ts | 1617 | منتقلی یا ایڈجسٹمنٹ کی وجہ لکھیں (کم از کم 3 حروف)۔ | «تحتاج مراجعة بشرية» |
+| 808 | shared/projectErrors.ts | 1622 | اس ملازم کے گھنٹے تنخواہ کی مدت میں منظور شدہ کام کے گھنٹوں کے ذریعے پہلے ہی لاگت میں شامل ہو چکے ہیں؛ اسی تنخواہ کو مختص کرنے سے لاگت دو بار شمار ہو جائے گی۔ | «تحتاج مراجعة بشرية» |
+| 809 | shared/projectErrors.ts | 1627 | اس ملازم کی اس مدت کی تنخواہ پہلے ہی تنخواہ سے پروجیکٹوں میں مختص ہو چکی ہے؛ ان گھنٹوں کی منظوری سے لاگت دو بار شمار ہو جائے گی۔ | «تحتاج مراجعة بشرية» |
+| 810 | shared/projectErrors.ts | 1632 | پہلے ای میل کی تصدیق کریں: اپنے پتے پر بھیجے گئے کوڈ یا Google سے لاگ ان کریں، پھر ورک اسپیس دوبارہ بنائیں۔ | «تحتاج مراجعة بشرية» |
+| 811 | shared/projectErrors.ts | 1637 | سپلائر رجسٹر سے سپلائر منتخب کریں یا سپلائر کا نام لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 812 | shared/projectErrors.ts | 1642 | آپ نے فی منٹ کی اجازت سے زیادہ درخواستیں بھیجی ہیں۔ کچھ دیر انتظار کریں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 813 | shared/projectErrors.ts | 1647 | سرور پر خرابی پیش آئی اور آپریشنز ٹیم کے لیے ریکارڈ کی گئی۔ کچھ دیر بعد دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 814 | shared/projectErrors.ts | 1652 | بھیجا گیا ڈیٹا اجازت شدہ حد سے بڑا ہے۔ | «تحتاج مراجعة بشرية» |
+| 815 | shared/projectErrors.ts | 1657 | درخواست کردہ پتا موجود نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 816 | shared/projectErrors.ts | 1662 | ہم درخواست مکمل نہیں کر سکے۔ تفصیلات دیکھ کر دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 817 | shared/projectErrors.ts | 1667 | یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے (ڈرائنگ، ریویژن، ترسیلہ، تبصرہ یا جمع شدہ دستاویز)۔ | «تحتاج مراجعة بشرية» |
+| 818 | shared/projectErrors.ts | 1672 | منتخب کردہ ڈرائنگ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 819 | shared/projectErrors.ts | 1677 | منتخب کردہ ڈرائنگ ریویژن موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 820 | shared/projectErrors.ts | 1682 | ڈرائنگ منسوخ ہو چکی ہے؛ اس پر کوئی نیا کام نہیں ہو سکتا۔ | «تحتاج مراجعة بشرية» |
+| 821 | shared/projectErrors.ts | 1687 | ڈرائنگ تعمیر کے لیے منظور ہو چکی ہے؛ اس پر تبصرے شامل کرنے سے پہلے نیا ریویژن جاری کریں۔ | «تحتاج مراجعة بشرية» |
+| 822 | shared/projectErrors.ts | 1692 | ڈرائنگ صرف اس وقت منظور ہو سکتی ہے جب وہ زیرِ جائزہ ہو (ترسیلہ میں بھیجے جانے کے بعد)۔ | «تحتاج مراجعة بشرية» |
+| 823 | shared/projectErrors.ts | 1697 | جب تک اس کے موجودہ ریویژن پر جائزے کے تبصرے بند نہ ہوں، ڈرائنگ منظور نہیں ہو سکتی۔ | «تحتاج مراجعة بشرية» |
+| 824 | shared/projectErrors.ts | 1702 | جس نے ریویژن جاری کیا وہ اسے منظور نہیں کر سکتا؛ منظوری کا اختیار رکھنے والا کوئی اور شخص درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 825 | shared/projectErrors.ts | 1707 | منتخب کردہ ترسیلہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 826 | shared/projectErrors.ts | 1712 | ترسیلہ میں شامل کرنے کے لیے کم از کم ایک ڈرائنگ ریویژن منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 827 | shared/projectErrors.ts | 1717 | ترسیلہ کی یہ حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 828 | shared/projectErrors.ts | 1722 | منتخب کردہ جائزے کا تبصرہ موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 829 | shared/projectErrors.ts | 1727 | تبصرے کی یہ حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 830 | shared/projectErrors.ts | 1732 | ریکارڈ کرنے سے پہلے تبصرے کا جواب لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 831 | shared/projectErrors.ts | 1737 | جس نے تبصرے کا جواب دیا ہو وہ اسے بند نہیں کر سکتا؛ منظوری کا اختیار رکھنے والا کوئی اور شخص درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 832 | shared/projectErrors.ts | 1742 | منتخب کردہ جمع شدہ دستاویز موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 833 | shared/projectErrors.ts | 1747 | جمع شدہ دستاویز کی یہ حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 834 | shared/projectErrors.ts | 1752 | مشیر کا جواب کا کوڈ منتخب کریں (A، B، C یا D)۔ | «تحتاج مراجعة بشرية» |
+| 835 | shared/projectErrors.ts | 1757 | جس نے جمع شدہ دستاویز بھیجی ہو وہ مشیر کا جواب درج نہیں کر سکتا؛ منظوری کا اختیار رکھنے والا کوئی اور شخص درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 836 | shared/projectErrors.ts | 1762 | صرف وہ جمع شدہ دستاویز دوبارہ جمع ہو سکتی ہے جس کا مشیر نے C یا D سے جواب دیا ہو۔ | «تحتاج مراجعة بشرية» |
+| 837 | shared/projectErrors.ts | 1767 | یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے (ٹینڈر پیکیج، معاہدہ یا وعدہ)۔ | «تحتاج مراجعة بشرية» |
+| 838 | shared/projectErrors.ts | 1772 | منتخب کردہ ٹینڈر پیکیج موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 839 | shared/projectErrors.ts | 1777 | منتخب کردہ سپلائر سپلائر رجسٹر میں نہیں ہے یا فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 840 | shared/projectErrors.ts | 1782 | بولی بند، ٹھیکہ دیے گئے یا منسوخ ہونے کے بعد دعوت نامے شامل نہیں کیے جا سکتے۔ | «تحتاج مراجعة بشرية» |
+| 841 | shared/projectErrors.ts | 1787 | ٹینڈر کی یہ حیثیت کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 842 | shared/projectErrors.ts | 1792 | ٹینڈر کھولنے سے پہلے کم از کم ایک سپلائر کو دعوت دیں۔ | «تحتاج مراجعة بشرية» |
+| 843 | shared/projectErrors.ts | 1797 | بولی کھلی نہیں ہے؛ بولیاں صرف اس وقت درج، ترمیم یا واپس لی جا سکتی ہیں جب ٹینڈر کھلا ہو۔ | «تحتاج مراجعة بشرية» |
+| 844 | shared/projectErrors.ts | 1802 | یہ کارروائی صرف اس وقت ممکن ہے جب بولی بند ہو چکی ہو اور ٹھیکہ دینے سے پہلے کا وقت ہو۔ | «تحتاج مراجعة بشرية» |
+| 845 | shared/projectErrors.ts | 1807 | اس سپلائر کو اس ٹینڈر کی دعوت نہیں دی گئی تھی۔ | «تحتاج مراجعة بشرية» |
+| 846 | shared/projectErrors.ts | 1812 | اس سپلائر کی اس ٹینڈر میں پہلے ہی ایک بولی ہے؛ دوسری بولی درج کرنے کے بجائے اسے ترمیم کریں۔ | «تحتاج مراجعة بشرية» |
+| 847 | shared/projectErrors.ts | 1817 | منتخب کردہ بولی موجودہ پروجیکٹ اور ورک اسپیس میں دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 848 | shared/projectErrors.ts | 1822 | بولی کی حیثیت اس کارروائی کی اجازت نہیں دیتی (واپس لی گئی یا نااہل قرار دی گئی)۔ | «تحتاج مراجعة بشرية» |
+| 849 | shared/projectErrors.ts | 1827 | نااہلی کی وجہ لکھیں۔ | «تحتاج مراجعة بشرية» |
+| 850 | shared/projectErrors.ts | 1832 | رقم کا نشان ایڈجسٹمنٹ کی قسم سے مطابقت نہیں رکھتا: رعایت منفی ہوتی ہے، جبکہ دائرہ کار کی کمی یا اخراج مثبت ہوتا ہے، اور اصلاح دونوں میں سے کچھ بھی ہو سکتی ہے۔ | «تحتاج مراجعة بشرية» |
+| 851 | shared/projectErrors.ts | 1837 | منتخب کردہ ایڈجسٹمنٹ دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 852 | shared/projectErrors.ts | 1842 | ٹھیکہ واپس لی گئی یا نااہل قرار دی گئی بولی کو نہیں دیا جا سکتا۔ | «تحتاج مراجعة بشرية» |
+| 853 | shared/projectErrors.ts | 1847 | جس نے اس ٹینڈر کی بولیاں درج کی ہوں وہ اسے ٹھیکہ نہیں دے سکتا؛ ٹھیکہ دینے کا اختیار رکھنے والا کوئی اور شخص درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 854 | shared/projectErrors.ts | 1852 | دو سے کم قابلِ موازنہ بولیوں کی صورت میں ٹھیکہ دینے کے لیے تحریری جواز (کم از کم 10 حروف) درکار ہے۔ | «تحتاج مراجعة بشرية» |
+| 855 | shared/projectErrors.ts | 1857 | اس پہلے ورژن میں ہر رقم صرف سعودی ریال (SAR) میں درج ہوتی ہے۔ SAR منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 856 | shared/projectErrors.ts | 1862 | جس شخص نے ادائیگی تیار کی ہو وہ اسے منظور نہیں کر سکتا۔ منظوری کی اجازت رکھنے والا کوئی اور شخص اسے منظور کرے۔ | «تحتاج مراجعة بشرية» |
+| 857 | shared/projectErrors.ts | 1867 | اس پہلے ورژن میں ٹینڈر پیکیج اور بولیاں صرف سعودی ریال (SAR) میں ہیں۔ SAR منتخب کریں۔ | «تحتاج مراجعة بشرية» |
+| 858 | shared/projectErrors.ts | 1872 | اس ماحول میں AI سے ڈرائنگ پڑھنا فعال نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 859 | shared/projectErrors.ts | 1877 | تصویر base64 میں انکوڈ شدہ درست PNG یا JPEG فائل ہونی چاہیے۔ | «تحتاج مراجعة بشرية» |
+| 860 | shared/projectErrors.ts | 1882 | تصویر 3 MB سے بڑی ہے۔ ڈرائنگ کو کاٹیں یا دبائیں اور دوبارہ کوشش کریں۔ | «تحتاج مراجعة بشرية» |
+| 861 | shared/projectErrors.ts | 1887 | تجاویز پڑھی نہیں جا سکیں۔ کچھ محفوظ نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 862 | shared/projectErrors.ts | 1892 | فراہم کنندہ کے پاس ڈرائنگ پڑھنے کی درخواست ناکام رہی۔ کچھ محفوظ نہیں ہوا۔ | «تحتاج مراجعة بشرية» |
+| 863 | shared/projectErrors.ts | 1897 | پلان کے رقبے کی چوڑائی اور لمبائی میٹر میں ایک ساتھ درج کریں؛ دونوں مثبت اور زیادہ سے زیادہ 100000 ہونی چاہئیں۔ | «تحتاج مراجعة بشرية» |
+| 864 | shared/projectErrors.ts | 1902 | گردش کا زاویہ درست نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 865 | shared/projectErrors.ts | 1907 | تبدیل کرنے کے لیے کچھ نہیں دیا گیا۔ | «تحتاج مراجعة بشرية» |
+| 866 | shared/projectErrors.ts | 1912 | منتخب کردہ محفوظ منظر آپ کے لیے دستیاب نہیں ہے۔ | «تحتاج مراجعة بشرية» |
+| 867 | shared/projectErrors.ts | 1917 | صرف وہی شخص فیصلہ کرتا ہے کہ محفوظ منظر کو شیئر کیا جائے جس نے اسے محفوظ کیا ہو۔ | «تحتاج مراجعة بشرية» |

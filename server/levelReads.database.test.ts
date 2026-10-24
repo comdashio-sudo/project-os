@@ -9,8 +9,8 @@ const SLUG_A = "level-reads-a";
 const SLUG_B = "level-reads-b";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@levels.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} }, res: {} } as unknown as TrpcContext);
-const SCOPE_DENIED = "Role scope does not cover the requested resource.";
-const PERM_DENIED = "Required permission is not granted.";
+const SCOPE_DENIED = "PROJECT_OS_PERMISSION_DENIED";
+const PERM_DENIED = "PROJECT_OS_PERMISSION_DENIED.";
 const NOT_A_MEMBER = "PROJECT_OS_TENANT_ACCESS_DENIED";
 
 let connection: fixtureDb.Connection;

@@ -1,3 +1,4 @@
+import { type ExportLocale } from "@shared/exportLocale";
 // Loads one dataset for the project and answers each PMC screen from it.
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
@@ -111,7 +112,7 @@ export async function getPmcScreen<N extends PmcScreenName>(input: Scope & { scr
   return { screen: input.screen, generatedAt: now, filters, freshness: freshnessOf(dataset), data: compute[input.screen](filtered) as ScreenData[N], options: { zones: Array.from(new Set(dataset.units.map(u => u.zoneCode))).sort(), blocks: Array.from(new Set(dataset.units.map(u => u.blockCode))).sort(), groups: Array.from(new Set(dataset.definitions.map(d => d.groupCode))).sort(), stages: Array.from(new Set(dataset.definitions.map(d => d.stageCode))).sort(), activities: Array.from(new Set(dataset.definitions.map(d => d.code))).sort() } };
 }
 
-export async function exportPmcScreen(input: Scope & { screen: PmcScreenName; filters?: PmcFilterInput; locale: "ar" | "en"; now?: Date }) {
+export async function exportPmcScreen(input: Scope & { screen: PmcScreenName; filters?: PmcFilterInput; locale: ExportLocale; now?: Date }) {
   const result = await getPmcScreen(input);
   const table = screenTable(input.screen, result.data as never, input.locale);
   const bytes = await buildSpreadsheet({ sheetName: table.sheetName, headers: table.headers, rows: table.rows, format: "xlsx" });

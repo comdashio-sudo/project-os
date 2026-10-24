@@ -1,3 +1,4 @@
+import { type ExportLocale } from "@shared/exportLocale";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
 import { resolveScopedAccess } from "./scopeAccess";
@@ -233,7 +234,7 @@ export async function assertTenantManager(userId: number, tenantId: string): Pro
 async function assertRoleProductEntitled(input: { userId: number; tenantId: string; productCode: ProductCode }): Promise<void> {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  if (!snapshot.entitledProducts.includes(input.productCode)) throw new TRPCError({ code: "FORBIDDEN", message: `The ${input.productCode} product is not licensed for this tenant.` });
+  if (!snapshot.entitledProducts.includes(input.productCode)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 }
 
 async function assertTenantBillingManager(userId: number, tenantId: string): Promise<void> {
@@ -356,7 +357,7 @@ function utcMonthStart(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: "ar" | "en" }, options: { modelAvailable?: boolean } = {}): Promise<void> {
+async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: ExportLocale }, options: { modelAvailable?: boolean } = {}): Promise<void> {
   const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
   if (!license) return;
   const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "AI_ADVISORY_MONTHLY"), eq(commercialFeatures.active, true))).limit(1);
@@ -1298,7 +1299,7 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
 type AdvisoryKind = "actual" | "calculated" | "forecast" | "assumption" | "recommendation";
 const advisoryKinds: AdvisoryKind[] = ["actual", "calculated", "forecast", "assumption", "recommendation"];
 
-export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: "ar" | "en" }) {
+export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: ExportLocale }) {
   const controls = await getProjectControlsForTenant(input);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -1310,7 +1311,7 @@ export async function generateProjectAdvisoryForTenant(input: { userId: number; 
     calculated: { plannedBudget: controls.cashFlow.plannedBudget, totalExposure: controls.cashFlow.totalExposure, remainingBudget: controls.cashFlow.remainingBudget, committedAmount: controls.cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },
     forecast: { forecastCost: Number(controls.project.forecastCost), eac: controls.latestEvm ? Number(controls.latestEvm.eac) : null, etc: controls.latestEvm ? Number(controls.latestEvm.etc) : null, vac: controls.latestEvm ? Number(controls.latestEvm.vac) : null },
   };
-  const language = input.locale === "ar" ? "Arabic" : "English";
+  const language = ({ ar: "Arabic", en: "English", ur: "Urdu" } as const)[input.locale];
   try {
     const result = await invokeLLM({
       model: "gpt-5-mini",
@@ -3763,7 +3764,7 @@ export async function previewDataImportDiff(input: { userId: number; tenantId: s
   return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff(diff), diffHash: diffHash(diff), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: diff.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: diff.missing.length };
 }
 
-export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode | LedgerModule; locale: "ar" | "en" }) {
+export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode | LedgerModule; locale: ExportLocale }) {
   const file = isLedgerModule(input.moduleCode) ? await buildLedgerTemplateFile({ moduleCode: input.moduleCode, locale: input.locale }) : await buildImportTemplateFile({ moduleCode: input.moduleCode, locale: input.locale });
   return { fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64") };
 }
@@ -3911,7 +3912,7 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
   return { id: record.id, status: "completed" as const, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length };
 }
 
-export async function createDataExport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en" }) {
+export async function createDataExport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: ExportLocale }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -4086,7 +4087,7 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
   const certificateId = crypto.randomUUID();
   const processedLines = input.lines.map(line => {
     const boq = boqMap.get(line.boqItemId);
-    if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: `BOQ item ${line.boqItemId} not found` });
+    if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_REQUEST_FAILED" });
     const prevQty = prevQtyMap.get(line.boqItemId) ?? 0;
     const cumulativeQty = prevQty + line.currentQuantity;
     const amount = line.currentQuantity * Number(boq.unitRate);

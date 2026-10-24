@@ -109,8 +109,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
 
   it("is open only to someone who may manage inventory: not a buyer, not a read-only user", async () => {
     const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "x.csv", sourceFormat: "csv" as const, base64: csv("WH-01,CEM,1,12.5") };
-    await expect(callerFor(users.buyer, "opn-buyer").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
-    await expect(callerFor(users.reader, "opn-reader").dataImports.analyze(file)).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.buyer, "opn-buyer").dataImports.analyze(file)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(callerFor(users.reader, "opn-reader").dataImports.analyze(file)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
   });
 
   it("tells a person who uploads the very same file twice that it is a duplicate, and leaves the first upload alone", async () => {

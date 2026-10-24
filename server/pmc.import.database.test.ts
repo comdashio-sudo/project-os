@@ -196,7 +196,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC import (500 units x 
     const reader = callerFor(users.reader, "pmc-import-reader");
     const manager = callerFor(users.manager, "pmc-import-manager");
     const base64 = await sheet(["Unit", "Activity", "Status"], [[3, "ACT01", "Complete"]]);
-    await expect(reader.pmc.analyzeImport({ ...scope, kind: "status", format: "xlsx", base64 })).rejects.toThrow("Required permission is not granted.");
+    await expect(reader.pmc.analyzeImport({ ...scope, kind: "status", format: "xlsx", base64 })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
     await expect(manager.pmc.analyzeImport({ tenantId: T, projectId: P_OTHER, kind: "status", format: "xlsx", base64 })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   }, 60_000);
 });
