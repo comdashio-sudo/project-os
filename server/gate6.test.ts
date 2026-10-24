@@ -40,6 +40,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
+  setAccountLanguage: "a person's own interface-language preference (user_language_preferences, one row per signed-in person): not tenant data and not a protected business write, so no audit row (G-203)",
 };
 const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeInventory|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
