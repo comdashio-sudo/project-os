@@ -37,7 +37,7 @@ export const NOT_COMPANY_DATA = [
   "commercial_features", "commercial_plans", "plan_feature_entitlements", // the plan catalogue, shared by every company
   "permissions", // the permission catalogue, shared by every company
   "scheduled_jobs", "invoice_counters", "auth_code_attempts", // platform bookkeeping (auth_code_attempts holds a hash of an address and a counter, no company data)
-  "users", "auth_sessions", "self_service_signup_attempts", // people, handled by the scrub step
+  "users", "auth_sessions", "self_service_signup_attempts", "user_language_preferences", // people, handled by the scrub step (the language a person chose is personal: it goes with the identity)
   "companies", // kept as a tombstone
 ] as const;
 
@@ -359,6 +359,7 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
     const ids = sql.join(onlyHere.map(userId => sql`${userId}`), sql`, `);
     await db.execute(sql`DELETE FROM auth_sessions WHERE user_id IN (${ids})`);
     await db.execute(sql`DELETE FROM self_service_signup_attempts WHERE user_id IN (${ids})`);
+    await db.execute(sql`DELETE FROM user_language_preferences WHERE user_id IN (${ids})`);
     await db.execute(sql`UPDATE users SET name = 'Deleted user', email = NULL, open_id = 'deleted:' || gen_random_uuid()::text, login_method = NULL WHERE id IN (${ids})`);
   }
 
