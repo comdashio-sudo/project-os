@@ -8,6 +8,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { matchDrawingToUnits, type ProjectUnit } from "@/lib/dxf/dxfMatch";
 import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
+import { rasterKind, readPdfFirstPage, readRasterImage } from "@/lib/raster/rasterFile";
+import type { OcrWorker } from "@/lib/raster/ocrWorker";
 import {
   assignUnit,
   buildReview,
@@ -27,13 +29,16 @@ const MAX_DXF_BYTES = 50 * 1024 * 1024;
 
 type PlanUnit = ProjectUnit & { name: string; status: string; progressPercent: string };
 
+// OCR and the PDF reader load their files from /ocr, which vite.config.ts copies at build; the CSP allows no other origin.
+const OCR_ASSETS = { workerPath: "/ocr/worker.min.js", corePath: "/ocr/core", langPath: "/ocr/lang" };
+
 type ViewError = { kind: "read" | "file" | "action"; code: string; message: { ar: string; en: string; ur: string } };
 
 const text = {
   ar: {
     title: "الرسم التفاعلي للخطة الرئيسية",
     intro: "ارفع ملف DXF للرسم. تُربط الأشكال بالوحدات تلقائيًا، ويجب أن تؤكد كل ربط قبل أن يُحسب.",
-    upload: "اختيار ملف DXF",
+    upload: "اختيار ملف الرسم",
     noUnits: "لا توجد وحدات في أحدث إصدار من الخطة الرئيسية. أضف الوحدات أولًا.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `مؤكَّد: ${c.confirmed} · مقترح: ${c.proposed} · غير مربوط: ${c.unlinked} · وحدات متبقية: ${c.unitsRemaining} من ${c.unitsTotal}`,
@@ -63,6 +68,10 @@ const text = {
     exportCsv: "تصدير الروابط المؤكدة (CSV)",
     exportJson: "تصدير الروابط المؤكدة (JSON)",
     readFailed: "تعذّرت قراءة الملف",
+    unsupported: "نوع الملف غير مدعوم. ارفع ملف DXF أو PNG أو JPG أو PDF.",
+    rasterFailed: "تعذّرت قراءة الصورة. جرّب ملفًا أوضح أو ملف DXF.",
+    busy: (done: number, total: number) => (total === 0 ? "جارٍ قراءة الرسم…" : `جارٍ قراءة الوحدات: ${done} من ${total}`),
+    rasterNote: (shapes: number, labels: number) => `وُجد ${shapes} شكلًا وقُرئ رمز ${labels} منها. كل ربط مقترح من قراءة الصورة، فأكِّده أو غيّره قبل الحساب.`,
     tooLarge: "الملف أكبر من الحد المسموح به",
     empty: "لم يُرفع رسم بعد.",
     ignored: "كيانات لم تُقرأ",
@@ -70,7 +79,7 @@ const text = {
   en: {
     title: "Interactive master-plan drawing",
     intro: "Upload a DXF drawing. Shapes are matched to units automatically, and each link must be confirmed before it counts.",
-    upload: "Choose a DXF file",
+    upload: "Choose a drawing file",
     noUnits: "The latest master-plan version has no units. Add units first.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `Confirmed: ${c.confirmed} · Proposed: ${c.proposed} · Unlinked: ${c.unlinked} · Units remaining: ${c.unitsRemaining} of ${c.unitsTotal}`,
@@ -100,6 +109,10 @@ const text = {
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
     readFailed: "The file could not be read",
+    unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
+    rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
+    busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
+    rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
     tooLarge: "The file is larger than the allowed limit",
     empty: "No drawing uploaded yet.",
     ignored: "Entities not read",
@@ -107,7 +120,7 @@ const text = {
   ur: {
     title: "Interactive master-plan drawing",
     intro: "Upload a DXF drawing. Shapes are matched to units automatically, and each link must be confirmed before it counts.",
-    upload: "Choose a DXF file",
+    upload: "Choose a drawing file",
     noUnits: "The latest master-plan version has no units. Add units first.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `Confirmed: ${c.confirmed} · Proposed: ${c.proposed} · Unlinked: ${c.unlinked} · Units remaining: ${c.unitsRemaining} of ${c.unitsTotal}`,
@@ -137,6 +150,10 @@ const text = {
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
     readFailed: "The file could not be read",
+    unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
+    rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
+    busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
+    rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
     tooLarge: "The file is larger than the allowed limit",
     empty: "No drawing uploaded yet.",
     ignored: "Entities not read",
@@ -178,6 +195,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<ViewError | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [rasterStats, setRasterStats] = useState<{ shapes: number; labels: number } | null>(null);
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
   const summary = summarizeReview(items, units);
@@ -202,17 +221,57 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setError({ kind: "file", code: "FILE_TOO_LARGE", message: { ar: text.ar.tooLarge, en: text.en.tooLarge, ur: text.ur.tooLarge } });
       return;
     }
+    if (/\.dxf$/i.test(file.name)) {
+      await readDxfFile(file);
+      return;
+    }
+    const kind = rasterKind(file.name);
+    if (!kind) {
+      setError({ kind: "file", code: "UNSUPPORTED_FILE", message: { ar: text.ar.unsupported, en: text.en.unsupported, ur: text.ur.unsupported } });
+      return;
+    }
+    await readRasterDrawing(file, kind);
+  }
+
+  async function readDxfFile(file: File) {
     const parsed = readDxf(new Uint8Array(await file.arrayBuffer()));
     if (!parsed.ok) {
       setDrawing(null);
       setItems([]);
+      setRasterStats(null);
       setError({ kind: "read", code: parsed.error.code, message: parsed.error.message });
       return;
     }
     setDrawing(parsed.drawing);
+    setRasterStats(null);
     setItems(buildReview(parsed.drawing, matchDrawingToUnits(parsed.drawing, units)));
     setSelectedId(null);
     setError(null);
+  }
+
+  // Tesseract and pdf.js load only here, so a plan page that never opens a raster drawing does not download them.
+  async function readRasterDrawing(file: File, kind: "image" | "pdf") {
+    setError(null);
+    setProgress({ done: 0, total: 0 });
+    let ocr: OcrWorker | null = null;
+    try {
+      const image = kind === "pdf" ? await readPdfFirstPage(new Uint8Array(await file.arrayBuffer())) : await readRasterImage(file);
+      const [{ createOcrWorker }, { analyseRaster }] = await Promise.all([import("@/lib/raster/ocrWorker"), import("@/lib/raster/rasterAnalysis")]);
+      ocr = await createOcrWorker(OCR_ASSETS);
+      const analysis = await analyseRaster(image, ocr.recognize, (done, total) => setProgress({ done, total }));
+      setDrawing(analysis.drawing);
+      setItems(buildReview(analysis.drawing, matchDrawingToUnits(analysis.drawing, units)));
+      setRasterStats({ shapes: analysis.shapeCount, labels: analysis.labelCount });
+      setSelectedId(null);
+    } catch {
+      setDrawing(null);
+      setItems([]);
+      setRasterStats(null);
+      setError({ kind: "read", code: "RASTER_FAILED", message: { ar: text.ar.rasterFailed, en: text.en.rasterFailed, ur: text.ur.rasterFailed } });
+    } finally {
+      if (ocr) await ocr.terminate();
+      setProgress(null);
+    }
   }
 
   function download(name: string, content: string, type: string) {
@@ -241,15 +300,18 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium">
           {t.upload}
-          <input type="file" accept=".dxf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
+          <input type="file" accept=".dxf,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
         </label>
       </div>
+
+      {progress ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{t.busy(progress.done, progress.total)}</p> : null}
 
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{pickLanguage(language, error.message)}</p> : null}
 
       {!drawing ? <p className="text-sm text-slate-500">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
+          {rasterStats ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
           {ignoredCount > 0 ? <p className="text-xs text-slate-500">{t.ignored}: {ignoredCount}</p> : null}
 
           {geometry ? (

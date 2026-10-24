@@ -4,7 +4,8 @@ import type { RequestHandler } from "express";
 // client/index.html, and (as images and previews) signed Supabase Storage links. Everything else is refused by the browser.
 const policy = (connectSources: readonly string[]) => [
   "default-src 'self'",
-  "script-src 'self'",
+  // wasm-unsafe-eval lets the browser compile WebAssembly (OpenCV.js and Tesseract.js in the master-plan drawing); it does not allow JavaScript eval.
+  "script-src 'self' 'wasm-unsafe-eval'",
   // Component libraries inject <style> elements and React sets style attributes, so styles need 'unsafe-inline'; scripts do not.
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
