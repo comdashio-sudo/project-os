@@ -49,6 +49,7 @@ import { COMMENT_SEVERITIES, COMMENT_STATUSES, DESIGN_DISCIPLINES, SUBMITTAL_REP
 import { addTenderBidAdjustment, awardTender, createTenderPackage, disqualifyTenderBid, enterTenderBid, getTenderComparison, inviteTenderSupplier, listTenderInvitees, listTenderPackages, listTenderSuppliers, removeTenderBidAdjustment, reviseTenderBid, transitionTenderPackage, withdrawTenderBid } from "./tenderService";
 import { ADJUSTMENT_KINDS } from "./domain/tenders";
 import { setMasterPlanSnapshotSharing, setMasterPlanVersionGeometry, updateMasterPlanEntityLayout } from "./masterPlanTools";
+import { masterPlanVisionRouter } from "./masterPlanVision";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
@@ -215,6 +216,7 @@ export const appRouter = router({
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), sourceDocumentId: z.string().uuid(), title: z.string().trim().min(3).max(255), content: z.string().trim().min(3).max(12000), publish: z.boolean() })).mutation(({ ctx, input }) => createKnowledgeArticleForTenant({ userId: ctx.user.id, ...input })),
     }),
   }),
+  masterPlanVision: masterPlanVisionRouter,
   masterPlans: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlansForTenant({ userId: ctx.user.id, ...input })),
     visualizationRules: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlanVisualizationRulesForTenant({ userId: ctx.user.id, ...input })),
