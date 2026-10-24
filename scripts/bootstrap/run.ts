@@ -7,7 +7,7 @@
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
+import { GuardError, ManualStep, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
 type State = { steps: Step[]; url?: string; health?: string; manual: string[] };
@@ -33,8 +33,13 @@ async function supabasePhase() {
   const { region, organisationCheck, organisationSlug } = await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
   step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}؛ ${organisationCheck === "organisation" ? "المنظمة dashio قُرئت وطابقت" : `المفتاح محصور بالمشروع ولا يقرأ المنظمة، فطُبِّق التحقق بالمعرّف المثبَّت (${organisationSlug})`}`);
 
-  await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
-  step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
+  const auth = await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
+  if (auth.templates === "applied") step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
+  else {
+    step("إعدادات الدخول: البريد مفعّل، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح", "ok");
+    state.manual.unshift(TEMPLATE_TIER_INSTRUCTION); // first in the list: until it is done nobody can sign in with a code
+    step("قالبا بريد الدخول (Confirm signup وMagic Link)", "manual", "رفضتهما Supabase على الخطة المجانية بمزوّد البريد الافتراضي — انظر أول بند أسفل الملخص");
+  }
   await api.closeDataApi();
   step("واجهة Data API: أُزيل المخطط public من المكشوف", "ok");
 
@@ -129,6 +134,6 @@ try {
   else throw new Error("usage: run.ts supabase|database|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
-  else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret
+  else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 400)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret
   save(); process.exitCode = 1;
 }

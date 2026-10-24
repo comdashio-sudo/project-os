@@ -31,7 +31,7 @@ export function normalizeOwnerEmail(raw: string): string {
 }
 
 const parse = (text: string) => { try { return text ? JSON.parse(text) : null; } catch { return null; } };
-const shortCode = (body: unknown) => { const b = body as { message?: unknown; error?: { code?: unknown; message?: unknown } | string; code?: unknown } | null; const raw = b?.error && typeof b.error === "object" ? (b.error.code ?? b.error.message) : (b?.code ?? b?.message ?? b?.error); return typeof raw === "string" ? raw.slice(0, 120) : ""; };
+const shortCode = (body: unknown) => { const b = body as { message?: unknown; error?: { code?: unknown; message?: unknown } | string; code?: unknown } | null; const raw = b?.error && typeof b.error === "object" ? (b.error.code ?? b.error.message) : (b?.code ?? b?.message ?? b?.error); return typeof raw === "string" ? raw.slice(0, 300) : ""; };
 
 function client(fetchImpl: Fetch, base: string, token: string) {
   return async function call<T = any>(method: string, path: string, body?: unknown, allowed: number[] = []): Promise<{ status: number; data: T }> {
@@ -41,6 +41,10 @@ function client(fetchImpl: Fetch, base: string, token: string) {
     return { status: response.status, data };
   };
 }
+
+/** Supabase's answer when the e-mail templates cannot be changed because the project is on the free tier with its default e-mail provider. */
+export const isTemplateTierRefusal = (message: string) => /-> 400\b/.test(message) && /(free tier|default email provider|custom smtp)/i.test(message);
+export const TEMPLATE_TIER_INSTRUCTION = "Supabase لا يسمح بتعديل قالب بريد الدخول ما دام المشروع على الخطة المجانية بمزوّد البريد الافتراضي (ردّ Supabase: 400). باقي إعدادات الدخول طُبِّقت. لكن القالب الافتراضي يرسل رابطًا لا رمز دخول، فلن يستطيع أحد الدخول بالرمز قبل هذه الخطوة، ومزوّد Supabase الافتراضي محدود بعدد قليل جدًا من الرسائل في الساعة. المطلوب مرة واحدة: Supabase ← مشروع dashio ← Authentication ← Emails ← SMTP Settings ← فعّل Custom SMTP وأدخل بيانات مزوّد البريد (تُدخل في Supabase مباشرة، لا في GitHub)، ثم أعد تشغيل الزر ليضع القالب.";
 
 // ---------------------------------------------------------------------------------------------------------------- Supabase
 export function supabaseApi(fetchImpl: Fetch, token: string) {
@@ -77,16 +81,30 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
 
   return {
     assertTarget,
-    async applyAuthSettings(template: string) {
-      const patch = {
-        external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false,
-        mailer_subjects_confirmation: OTP_SUBJECT, mailer_templates_confirmation_content: template,
-        mailer_subjects_magic_link: OTP_SUBJECT, mailer_templates_magic_link_content: template,
+    /**
+     * The sign-in settings, in two requests: the settings themselves, then the two e-mail templates. Supabase refuses to change a template on a free-tier project that still uses its
+     * default e-mail provider (400 "Email template modification is not available for free tier projects using the default email provider", seen in launch run 31). That refusal is
+     * reported back as `templates: "refused"` so the run can go on and tell the owner the one thing to do; every other failure still stops the run.
+     */
+    async applyAuthSettings(template: string): Promise<{ templates: "applied" | "refused"; refusal?: string }> {
+      const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+      const templates = { mailer_subjects_confirmation: OTP_SUBJECT, mailer_templates_confirmation_content: template, mailer_subjects_magic_link: OTP_SUBJECT, mailer_templates_magic_link_content: template };
+      const verify = async (sent: Record<string, unknown>) => {
+        const { data: now } = await call("GET", `/v1/projects/${ref}/config/auth`);
+        const wrong = Object.keys(sent).filter(key => now?.[key] !== sent[key]);
+        if (wrong.length) throw new Error(`auth settings did not take: ${wrong.join(", ")}`);
       };
-      await call("PATCH", `/v1/projects/${ref}/config/auth`, patch);
-      const { data: now } = await call("GET", `/v1/projects/${ref}/config/auth`);
-      const wrong = (Object.keys(patch) as Array<keyof typeof patch>).filter(key => now?.[key] !== patch[key]);
-      if (wrong.length) throw new Error(`auth settings did not take: ${wrong.join(", ")}`);
+      await call("PATCH", `/v1/projects/${ref}/config/auth`, settings);
+      await verify(settings);
+      try {
+        await call("PATCH", `/v1/projects/${ref}/config/auth`, templates);
+      } catch (error) {
+        const message = (error as Error).message;
+        if (isTemplateTierRefusal(message)) return { templates: "refused", refusal: message };
+        throw error;
+      }
+      await verify(templates);
+      return { templates: "applied" };
     },
     /** The Data API serves only graphql_public: `public` (where the application's tables are) is not exposed. */
     async closeDataApi() {

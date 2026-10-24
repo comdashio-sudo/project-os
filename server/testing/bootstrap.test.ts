@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  GITHUB_LINK_INSTRUCTION, GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, normalizeOwnerEmail, productionEnv, supabaseApi, vercelApi, type Fetch,
+  GITHUB_LINK_INSTRUCTION, GuardError, TEMPLATE_TIER_INSTRUCTION, isTemplateTierRefusal, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, normalizeOwnerEmail, productionEnv, supabaseApi, vercelApi, type Fetch,
 } from "../../scripts/bootstrap/lib";
 
 // The launch bootstrap against a SIMULATED Supabase and Vercel: the guards must refuse a wrong project, a wrong organisation and a Vercel project of
@@ -111,6 +111,32 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: patch, [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { ...kept, mailer_otp_length: 8 } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T")).rejects.toThrow(/mailer_otp_length/);
     expect(sim.writes()[0].body).toMatchObject({ external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false });
+  });
+
+  it("launch run 31: a free-tier project refuses the e-mail templates (400); the settings are kept, the refusal is reported, nothing else is hidden", async () => {
+    const refusal = { status: 400, body: { message: "Email template modification is not available for free tier projects using the default email provider. Please upgrade your plan or set up a custom SMTP provider." } };
+    let calls = 0;
+    const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+    const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => (++calls === 1 ? { body: {} } : refusal), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: settings }) });
+    const result = await supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T");
+    expect(result).toMatchObject({ templates: "refused" });
+    expect(result.refusal).toMatch(/-> 400 Email template modification is not available for free tier/); // the status and Supabase's own words, in full
+    expect(sim.writes().map(call => Object.keys(call.body as object).length)).toEqual([5, 4]); // the settings first, the templates second
+  });
+
+  it("any OTHER refusal of the templates still stops the run (a 400 that is not the free-tier one, a 403, a 500)", async () => {
+    for (const status of [400, 403, 500]) {
+      let calls = 0;
+      const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => (++calls === 1 ? { body: {} } : { status, body: { message: status === 400 ? "mailer_otp_exp must be at most 86400" : "boom" } }), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false } }) });
+      await expect(supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T"), String(status)).rejects.toThrow(new RegExp(`-> ${status}`));
+    }
+  });
+
+  it("the owner's instruction names where to click, is in Arabic, and carries no secret", () => {
+    expect(TEMPLATE_TIER_INSTRUCTION).toMatch(/Authentication ← Emails ← SMTP Settings/);
+    expect(TEMPLATE_TIER_INSTRUCTION).toMatch(/Custom SMTP/);
+    expect(isTemplateTierRefusal("PATCH /v1/projects/x/config/auth -> 400 Email template modification is not available for free tier projects using the default email provider.")).toBe(true);
+    expect(isTemplateTierRefusal("PATCH /v1/projects/x/config/auth -> 403 forbidden")).toBe(false);
   });
 
   it("fails if the Data API still exposes public afterwards", async () => {
