@@ -36,6 +36,7 @@ const STATUS_AR: Record<string, string> = {
 
 // Urdu labels. Every key of the Arabic map has an Urdu label too (labels.test.tsx checks it), so Urdu never falls back to an English code.
 const STATUS_UR: Record<string, string> = {
+  "delivered": "فراہم کیا گیا", "running": "جاری", "ok": "ٹھیک", "partial": "جزوی",
   "active": "فعال", "inactive": "غیر فعال", "suspended": "معطل", "archived": "محفوظ شدہ",
   "invited": "مدعو", "revoked": "منسوخ", "ended": "ختم شدہ", "terminated": "ختم کیا گیا",
   "draft": "مسودہ", "submitted": "جمع کرایا گیا", "under_review": "زیرِ جائزہ", "for_review": "جائزے کے لیے",
