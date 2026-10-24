@@ -26,6 +26,11 @@ import ProjectProfitability from "./pages/ProjectProfitability";
 import FieldEntry from "./pages/FieldEntry";
 import QuickIssue from "./pages/QuickIssue";
 import ProjectPmc from "./pages/ProjectPmc";
+import LevelEntry from "./pages/LevelEntry";
+import LevelCompany from "./pages/LevelCompany";
+import LevelPortfolio from "./pages/LevelPortfolio";
+import LevelProject from "./pages/LevelProject";
+import LevelWarehouse from "./pages/LevelWarehouse";
 import UserProfile from "./pages/UserProfile";
 import RequireAuth from "./components/RequireAuth";
 import { PermissionProvider } from "./lib/permissions";
@@ -60,9 +65,14 @@ const ProtectedPmc = withAuth(ProjectPmc);
 const ProtectedProjects = withAuth(ProjectRegistry);
 const ProtectedSetup = withAuth(SetupWizard);
 const ProtectedGuide = withAuth(UserGuide);
+const ProtectedLevelEntry = withAuth(LevelEntry);
+const ProtectedLevelCompany = withAuth(LevelCompany);
+const ProtectedLevelPortfolio = withAuth(LevelPortfolio);
+const ProtectedLevelProject = withAuth(LevelProject);
+const ProtectedLevelWarehouse = withAuth(LevelWarehouse);
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/levels/:tenantId" component={ProtectedLevelEntry} /><Route path="/levels/:tenantId/company" component={ProtectedLevelCompany} /><Route path="/levels/:tenantId/portfolio" component={ProtectedLevelPortfolio} /><Route path="/levels/:tenantId/projects/:projectId" component={ProtectedLevelProject} /><Route path="/levels/:tenantId/projects/:projectId/warehouse" component={ProtectedLevelWarehouse} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {
