@@ -1,6 +1,7 @@
 // One button: sets up everything docs/GO_LIVE.md describes, from the GitHub Actions workflow .github/workflows/bootstrap.yml.
 //   node --import tsx scripts/bootstrap/run.ts supabase   guard, sign-in settings, Data API, keys, connection strings, secrets  -> exports to the next steps
 //   node --import tsx scripts/bootstrap/run.ts vercel     project, variables, production deploy, address, health check
+//   node --import tsx scripts/bootstrap/run.ts database   guard, then ONLY the connection string and certificate for the next steps (changes nothing; the demonstration company's workflow uses it)
 //   node --import tsx scripts/bootstrap/run.ts summary    renders the Arabic job summary from the state file (runs even after a failure)
 // Secrets are masked (::add-mask::) the moment they exist and are never printed. Re-running is safe: generated secrets are kept, the app-role password is derived.
 import { randomBytes } from "node:crypto";
@@ -51,6 +52,20 @@ async function supabasePhase() {
   exportEnv("BOOTSTRAP_APP_DATABASE_URL", urls.appTransaction); exportEnv("BOOTSTRAP_ANON_KEY", anonKey);
   exportEnv("BOOTSTRAP_JWT_SECRET", jwtSecret); exportEnv("BOOTSTRAP_CRON_SECRET", cronSecret); exportEnv("BOOTSTRAP_REGION", region || "ap-southeast-1");
   step("روابط الاتصال وشهادة SSL والأسرار المولَّدة (محجوبة في السجل)", "ok");
+}
+
+/** The one project's connection, nothing else: no sign-in setting, Data API or key is touched (used by workflows that only need to reach the database). */
+async function databasePhase() {
+  const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
+  const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
+  const api = supabaseApi(realFetch, token);
+  await api.assertTarget(); // refuses (nothing written) unless project id AND organisation name match
+  const poolerHost = await api.poolerHost();
+  const ca = await downloadCa(realFetch);
+  const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost, databasePassword, appRolePassword: deriveAppRolePassword(databasePassword) });
+  mask(urls.adminSession);
+  exportEnv("DATABASE_URL", urls.adminSession); exportEnv("DATABASE_SSL_CA", ca);
+  step("اتصال قاعدة البيانات للمشروع المقصود فقط", "ok");
 }
 
 async function vercelPhase() {
@@ -108,9 +123,10 @@ function summary() {
 const phase = process.argv[2];
 try {
   if (phase === "supabase") await supabasePhase();
+  else if (phase === "database") await databasePhase();
   else if (phase === "vercel") await vercelPhase();
   else if (phase === "summary") summary();
-  else throw new Error("usage: run.ts supabase|vercel|summary");
+  else throw new Error("usage: run.ts supabase|database|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
   else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret

@@ -83,7 +83,7 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
     <div className="space-y-3">
       <p className="text-sm font-semibold text-slate-600">{t.pickItem}</p>
       <ul className="space-y-2">
-        {context.wbs.map(item => (
+        {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (
           <li key={item.id}>
             <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-[#0e6b70] bg-teal-50" : "bg-white"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
               <span className="font-semibold">{item.code} · {item.name}</span>

@@ -167,7 +167,7 @@ export default function SiteDailyReport() {
             </div>
             <label className="block text-sm font-medium">{t.forActivity}
               <select className={`${fieldInput} mt-1`} value={line.activityId} disabled={locked} onChange={event => update(line.key, { activityId: event.target.value })}>
-                <option value="">{t.none}</option>{activities.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}
+                <option value="">{t.none}</option>{activities.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}{activities.some(other => other.id !== activity.id && other.code === activity.code) ? ` (${activity.modelCode})` : ""}</option>)}
               </select></label>
           </>
         ) : (
