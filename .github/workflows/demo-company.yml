@@ -1,0 +1,88 @@
+name: Demo company
+
+# One button (Actions ← Demo company ← Run workflow): builds, reports on, or erases the invented demonstration company "شركة العرض" on the platform's database
+# (work order 15, item 1), so that the owner opens the dashboards full and uses them in sales presentations. Nothing else in the database is read or changed:
+# it creates its own company, every row carries that company's id, and the erasure refuses anything that is not that company.
+#   seed    builds it; if it already exists it says so and changes nothing
+#   status  says whether it exists and counts what it holds
+#   delete  the platform's audited erasure of that one company, then a recount (it fails unless nothing of it is left); needs `confirm_name` typed exactly
+# Secrets (Settings ← Secrets and variables ← Actions): SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD — the same two the launch button uses.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "الإجراء: seed (بناء) أو status (حالة) أو delete (حذف مدقَّق)"
+        type: choice
+        options: [seed, status, delete]
+        default: status
+      owner_email:
+        description: "بريدك الذي تدخل به (يصبح مدير شركة العرض). في الحذف يجب أن يكون هو نفسه الذي بُنيت به"
+        type: string
+        required: true
+      confirm_name:
+        description: "للحذف فقط: اكتب اسم الشركة حرفيًا: شركة العرض"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-company
+  cancel-in-progress: false
+
+jobs:
+  demo:
+    name: demo company
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEMO_ACTION: ${{ inputs.action }}
+      DEMO_OWNER_EMAIL: ${{ inputs.owner_email }}
+      CONFIRM_NAME: ${{ inputs.confirm_name }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Refuse an erasure that was not confirmed by name
+        if: ${{ inputs.action == 'delete' }}
+        run: |
+          if [ "$CONFIRM_NAME" != "شركة العرض" ]; then
+            echo "الحذف يتطلب كتابة اسم الشركة حرفيًا في الحقل confirm_name: شركة العرض"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - name: State file path
+        run: echo "BOOTSTRAP_STATE=$RUNNER_TEMP/bootstrap-state.json" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Connection to the one intended project (guarded; changes nothing)
+        run: node --import tsx scripts/bootstrap/run.ts database
+      - name: Throw-away signing value (the script loads the server code, which asks for one; no session is issued)
+        run: |
+          value="$(openssl rand -hex 32)"
+          echo "::add-mask::$value"
+          echo "JWT_SECRET=$value" >> "$GITHUB_ENV"
+      - name: Demo company — ${{ inputs.action }}
+        run: |
+          if [ "$DEMO_ACTION" != "status" ]; then export DEMO_CONFIRM=yes; fi
+          node --import tsx scripts/demo/seed-demo-company.mjs "$DEMO_ACTION" | tee "$RUNNER_TEMP/demo.out"
+          {
+            echo "## شركة العرض — $DEMO_ACTION"
+            echo
+            echo '```json'
+            tail -n 1 "$RUNNER_TEMP/demo.out" | sed -e 's#postgres://[^[:space:]"]*#[redacted-url]#g'
+            echo '```'
+            if [ "$DEMO_ACTION" = "seed" ]; then
+              echo
+              echo "افتح المنصة وادخل ببريدك: $DEMO_OWNER_EMAIL ثم اختر «شركة العرض». لوحات المستويات الأربعة: /levels/<رقم الشركة>."
+              echo "ملف الماستر بلان التجريبي في المستودع: docs/demo/master-plan-demo.dxf (ارفعه في شاشة الماستر بلان)."
+            fi
+            if [ "$DEMO_ACTION" = "delete" ]; then
+              echo
+              echo "حُذفت بيانات الشركة بالحذف المدقَّق وأُعيد عدّها (PASS فقط إن لم يبقَ شيء). صفوف سجل التدقيق تبقى بتصميمها، وسجل الشركة يبقى شاهد قبر."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

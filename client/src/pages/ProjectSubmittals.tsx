@@ -177,7 +177,7 @@ export default function ProjectSubmittals() {
         <div className="overflow-x-auto rounded-xl border bg-white">
           <table className="w-full text-start text-sm" data-distribution>
             <thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.consultant}</th>{replyCodes.map(code => <th scope="col" key={code.code} className="p-2 text-center" title={`${isArabic ? code.labelAr : code.labelEn} — ${code.approved ? t.approvedCode : t.notApprovedCode}`}>{code.code}</th>)}<th scope="col" className="p-2 text-center">{t.pending}</th><th scope="col" className="p-2 text-center">{t.total}</th></tr></thead>
-            <tbody>{distribution.map(line => <tr key={line.name} className="border-t"><th scope="row" className="p-2 text-start font-medium">{line.name === NONE ? t.noConsultant : line.name}</th>{replyCodes.map(code => <td key={code.code} className="p-2 text-center">{line.perCode[code.code]}</td>)}<td className="p-2 text-center">{line.pending}</td><td className="p-2 text-center font-semibold">{line.total}</td></tr>)}</tbody>
+            <tbody>{distribution.map(line => <tr key={line.name} className="border-t"><th scope="row" className="p-2 text-start font-medium">{line.name === NONE ? t.noConsultant : <bdi>{line.name}</bdi>}</th>{replyCodes.map(code => <td key={code.code} className="p-2 text-center">{line.perCode[code.code]}</td>)}<td className="p-2 text-center">{line.pending}</td><td className="p-2 text-center font-semibold">{line.total}</td></tr>)}</tbody>
           </table>
         </div>
       </section>
@@ -189,8 +189,8 @@ export default function ProjectSubmittals() {
             {shown.map(row => (
               <li key={row.id} className={`space-y-2 rounded-xl border bg-white p-3 ${row.overdue ? "border-red-300" : ""}`} data-submittal={row.submittalNumber} data-status={row.status}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><p className="text-base font-semibold">{row.submittalNumber} <span className="text-xs font-normal text-slate-600">{t.revision} {row.revision}</span></p><p className="text-sm">{row.title}</p>
-                    <p className="text-xs text-slate-600">{typeName(row.submittalType)} · {consultantName(row.consultant)}</p></div>
+                  <div><p className="text-base font-semibold">{row.submittalNumber} <span className="text-xs font-normal text-slate-600">{t.revision} {row.revision}</span></p><p className="text-sm"><bdi>{row.title}</bdi></p>
+                    <p className="text-xs text-slate-600">{typeName(row.submittalType)} · <bdi>{consultantName(row.consultant)}</bdi></p></div>
                   <div className="text-end text-sm"><p className="font-semibold">{statusName(row.status)}{row.replyCode ? ` · ${row.replyCode}` : ""}</p>
                     {row.daysAtConsultant !== null && <p className={row.overdue ? "text-red-700" : "text-slate-600"}>{row.daysAtConsultant} {t.days}{row.overdue ? ` · ${t.overdue}` : ""}</p>}</div>
                 </div>

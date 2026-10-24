@@ -179,8 +179,8 @@ export default function ProjectQuality() {
                 <li key={request.id} className="space-y-2 rounded-xl border bg-white p-3" data-request={request.requestCode} data-answer={request.responseCode ?? ""}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div><p className="text-base font-semibold">{request.requestCode}</p>
-                      <p className="text-sm">{t.unit}: {request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ")} · {activityById.get(request.activityDefinitionId)?.code ?? "?"}</p>
-                      <p className="text-xs text-slate-600">{t.consultant}: {request.consultantLabel ?? t.none} · {t.contractor}: {request.contractorLabel ?? t.none} · {showDate(request.requestedAt, language)}</p></div>
+                      <p className="text-sm">{t.unit}: <bdi dir="ltr">{request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ")}</bdi> · <bdi dir="ltr">{activityById.get(request.activityDefinitionId)?.code ?? "?"}</bdi></p>
+                      <p className="text-xs text-slate-600">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
                     <div className="text-end text-sm">
                       {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-emerald-700" : "text-red-700"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-slate-600">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
                       {current && <p className="text-xs text-slate-600">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
