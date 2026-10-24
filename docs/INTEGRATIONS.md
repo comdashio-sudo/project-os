@@ -13,7 +13,7 @@
 | **Microsoft Dynamics 365 Finance** (OData) | موردون، أوامر شراء (المبلغ من السطور)، فواتير، مدفوعات | — (قراءة فقط) | `UNVERIFIED` | كما سبق |
 | **Oracle NetSuite** (SuiteTalk REST) | موردون، أوامر شراء، فواتير مورّدين، مدفوعات | — (قراءة فقط) | `UNVERIFIED` | كما سبق |
 
-> **ملاحظة Odoo:** `PROVEN` تعني أن العملية شُغِّلت على Odoo 17 حقيقي. حتى يُسجَّل في `docs/STATE.md` رقم تشغيل CI الأخضر لـ`odoo.yml` تبقى العبارة «مُثبَت محليًا على Odoo 17 حقيقي، وCI بانتظار التشغيل». لا نقول إن أي إصدار آخر من Odoo (Enterprise، 16، 18) مُثبَت.
+> **ملاحظة Odoo:** `PROVEN` تعني أن العملية شُغِّلت على Odoo 17 حقيقي. وقد سُجِّل تشغيل CI الأخضر (رقم 40043553344، 2026-10-24) في `docs/STATE.md`. لا نقول إن أي إصدار آخر من Odoo (Enterprise، 16، 18) مُثبَت.
 
 ### ما لا يعمل — بوضوح
 - **SAP وDynamics وNetSuite لم يُجرَّب أيٌّ منها على حساب حقيقي.** كُتب كلٌّ منها على الواجهة الرسمية الموثَّقة للمورّد، وأُختبر على *نماذج* من الاستجابات الموثَّقة (تسجيل الدخول، الترقيم، ربط الحقول، رفض الروابط الخارجية). أسماء بعض الحقول عند المورّد تختلف بين الإصدارات والتخصيصات؛ لذلك الحقل الذي يحمل «المشروع» **إعداد في الاتصال** (`projectMap`، `projectField`، `defaultProject`) لا افتراض. أول شركة تملك حساب اختبار تشغّل «اختبار الاتصال» ثم سحبًا، فنرفع الحالة أو نصحّح — لا قبل.
@@ -57,7 +57,7 @@ Statuses use the closed vocabulary of `docs/STATE.md`. **`PROVEN` = a repeatable
 | **Microsoft Dynamics 365 Finance** (OData) | Vendors, purchase orders (amount from lines), vendor invoices, payments | — (read only) | `UNVERIFIED` | same |
 | **Oracle NetSuite** (SuiteTalk REST) | Vendors, purchase orders, vendor bills, payments | — (read only) | `UNVERIFIED` | same |
 
-> **Odoo note:** `PROVEN` means the exchange ran against a real Odoo 17. Until the green CI run of `odoo.yml` is recorded in `docs/STATE.md`, read it as "proven locally on a real Odoo 17; CI run pending". We do not claim any other Odoo version or edition (Enterprise, 16, 18).
+> **Odoo note:** `PROVEN` means the exchange ran against a real Odoo 17. The green CI run (number 40043553344, 2026-10-24) is recorded in `docs/STATE.md`. We do not claim any other Odoo version or edition (Enterprise, 16, 18).
 
 ### What does not work — plainly
 - **SAP, Dynamics and NetSuite have never been run against a real account.** Each is written to the vendor's documented official API and tested against *samples* of the documented responses (sign-in, paging, field mapping, refusing off-host links). Field names differ across versions and customisations at the vendor, so the field that carries "project" is a **setting of the connection** (`projectMap`, `projectField`, `defaultProject`), not an assumption. The first company with a test account runs "Test connection", then a pull; only then do we raise the status or fix what differs.

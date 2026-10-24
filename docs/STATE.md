@@ -679,8 +679,8 @@
 | 2. المستويات الأربعة | `PROVEN` (دُمج `6071f6cc`، CI أخضر) | `scope.levels.database.test.ts` 7 ✓ |
 | 3. المستودع | `PROVEN` (دُمج `34b4b98d`، CI أخضر) | `warehouse.operations.database.test.ts` 8 ✓ + `QuickIssue.test.tsx` 4 ✓ + `e2e:quick-issue` (متصفح حقيقي 390px): أول صرف 5.9 ث، التالي 3.6 ث |
 | 4–7. تقرير يومي / تسليمات / جودة / ربط | `PROVEN` للخادم (دُمج `c940490e`، CI أخضر)؛ واجهات الشاشات `OPEN` | `field.links.database.test.ts` 10 ✓ |
-| 8–9. API وارد، Webhooks، ERP عام | `PROVEN` محليًا — بانتظار CI (الدمج في الصف التالي) | `integrations.api.database.test.ts` 17 ✓ (يشمل CSV) |
-| 10. Odoo | `PROVEN` محليًا على Odoo 17 حقيقي — بانتظار تشغيل CI (`odoo.yml`) | `odoo.connector.database.test.ts` 6 ✓ |
+| 8–9. API وارد، Webhooks، ERP عام | `PROVEN` (CI أخضر في PR #95) | `integrations.api.database.test.ts` 17 ✓ (يشمل CSV) |
+| 10. Odoo | `PROVEN` (Odoo 17 حقيقي في CI: تشغيل `odoo.yml` رقم 40043553344، 2026-10-24، نجح بعد إصلاح دور قاعدة البيانات؛ ومحليًا كذلك) | `odoo.connector.database.test.ts` 6 ✓ |
 | 11. SAP/Dynamics/NetSuite + CSV | الموصلات الثلاثة `UNVERIFIED` (نماذج وثائقية فقط)؛ CSV `PROVEN` | `vendor.connectors.test.ts` 10 ✓ |
 | 12. `docs/INTEGRATIONS.md` | `WRITTEN` | عربي وإنجليزي، بحالات صادقة |
 
