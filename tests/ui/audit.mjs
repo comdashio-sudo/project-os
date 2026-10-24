@@ -8,7 +8,7 @@
 // Each page record also lists the API procedures the server refused with 403 (`refusals`) and whether the page says so in words
 // (`noPermissionText`). tests/ui/runRoleVisits.mjs runs this once per role and summarises the results.
 //
-//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR; optional ROLE, SCREENSHOTS=0, AUDIT_LANGUAGE=ar|en|ur)
+//   . env (BASE_URL, TENANT_ID, PROJECT_ID, SESSION_FILE, OUT_DIR; optional ROLE, SCREENSHOTS=0, FULL_PAGE=1, ADVISORY_ROUTES=/levels/, AUDIT_LANGUAGE=ar|en|ur)
 //   node tests/ui/audit.mjs
 //
 // AUDIT_LANGUAGE chooses the interface language the audit runs in (default ar). It sets the stored language, the browser locale and the
@@ -118,7 +118,7 @@ async function auditPage(browser, route, vp, token) {
     let screenshot = null;
     if (SCREENSHOTS) {
       const shot = path.join(OUT_DIR, `${route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "home"}-${vp.name}.jpg`);
-      await page.screenshot({ path: shot, type: "jpeg", quality: 70, fullPage: false });
+      await page.screenshot({ path: shot, type: "jpeg", quality: 70, fullPage: process.env.FULL_PAGE === "1" });
       screenshot = path.basename(shot);
     }
     pages.push({ route, viewport: vp.name, ms: Date.now() - started, dir: measured.dir, lang: measured.lang, targets: measured.targets, smallTargets: measured.small, latinCount: measured.latin.length, latinSample: measured.latin.slice(0, 40), screenshot, refusals: [...new Set(refusals)].slice(0, 12), badResponses: [...new Set(badResponses)].slice(0, 12), noPermissionText: measured.denied, stillLoading: measured.loading });
@@ -151,6 +151,11 @@ try {
   await browser.close();
 }
 
+// ADVISORY_ROUTES (comma-separated route fragments): a hard finding on such a route is still written to the report, as `advisory-<kind>`, but does not fail the run.
+// Work order 15 uses it for the four level dashboards, which belong to another agent: the demonstration company's data showed them overflowing a phone, and the order
+// forbids touching them, so the finding is recorded and handed over instead of being fixed here (docs/STATE.md). Remove the entry when they are fixed.
+const advisory = String(process.env.ADVISORY_ROUTES ?? "").split(",").map(item => item.trim()).filter(Boolean);
+for (const finding of findings) if (advisory.some(fragment => finding.route.includes(fragment)) && ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(finding.kind)) finding.kind = `advisory-${finding.kind}`;
 const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
 const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };

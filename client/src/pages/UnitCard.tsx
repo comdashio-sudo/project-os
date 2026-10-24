@@ -75,6 +75,8 @@ export default function UnitCard() {
   if (!data) return shell(<p role="status" className="text-sm text-slate-500">{t.loading}</p>);
 
   const name = (key: string) => (t as Record<string, string>)[key] ?? key;
+  // a status change is recorded as codes (FROM → TO); the person reads them in their language
+  const eventTitle = (event: (typeof data.events)[number]) => (event.kind === "status_change" ? event.title.split(" → ").map(code => (t as Record<string, string>)[code] ?? code).join(" → ") : event.title);
   const detail = (event: (typeof data.events)[number]) => {
     const d = event.detail as Record<string, string | number | null>;
     switch (event.kind) {
@@ -116,8 +118,8 @@ export default function UnitCard() {
         {events.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.empty}</p>
           : <ol className="space-y-2">{events.slice(0, shownCount).map(event => (
             <li key={`${event.kind}-${event.ref}-${event.at}`} className="rounded-xl border bg-white p-3" data-kind={event.kind}>
-              <p className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold">{name(event.kind)} · {event.title}</span><span className="text-xs text-slate-600">{showDate(event.at, language)}</span></p>
-              {detail(event) && <p className="text-sm text-slate-700">{detail(event)}</p>}
+              <p className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold">{name(event.kind)} · <bdi>{eventTitle(event)}</bdi></span><span className="text-xs text-slate-600">{showDate(event.at, language)}</span></p>
+              {detail(event) && <p className="text-sm text-slate-700"><bdi>{detail(event)}</bdi></p>}
             </li>))}</ol>}
         {events.length > shownCount && <Button variant="outline" className={`${tap} w-full`} onClick={() => setShownCount(count => count + PAGE)}>{t.showAll}</Button>}
       </section>

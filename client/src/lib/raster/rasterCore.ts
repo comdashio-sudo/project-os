@@ -1,4 +1,4 @@
-// Raster drawings (PNG, JPEG, the first page of a PDF) become the same shape a DXF read produces, so the unit matcher and the review
+// Raster drawings (PNG, JPEG, one page of a PDF) become the same shape a DXF read produces, so the unit matcher and the review
 // editor work on them unchanged. This file is pure: no canvas, no wasm. The browser-only steps live in rasterFile.ts and ocrReader.ts.
 import type { DxfDrawing, DxfPoint, DxfPolygon } from "@/lib/dxf/dxfReader";
 

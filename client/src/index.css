@@ -344,6 +344,16 @@
   }
 }
 
+/* A scrolling table or list must CONTAIN what is positioned inside it. The visually hidden labels (`sr-only`, position: absolute) inside a table that scrolls sideways
+   were positioned against the page instead, because the scroller itself was not positioned: they sat where the table's far edge is and made the whole page scroll
+   sideways on a phone (found on the demonstration company's profitability and level screens: 280 to 300 px of overflow). A relative scroller is the containing block,
+   so they stay inside it. :where() keeps this at zero specificity: an element that sets its own position (absolute, fixed, sticky) wins. */
+@layer utilities {
+  :where(.overflow-x-auto, .overflow-auto, .overflow-y-auto):where(:not(.absolute):not(.fixed):not(.sticky)) {
+    position: relative;
+  }
+}
+
 /* Form control borders (WCAG 1.4.11, 3:1), light theme. A select, textarea or text field keeps the control border token whatever border
    colour its class names (the dark theme keeps its own colours): a hard-coded border-slate-300 or a plain border (which takes the card line) gave 1.2:1 to 1.5:1 on white. The
    select and textarea selectors have specificity 0,2,1, above a single utility class, so they win whatever the order. An invalid field
