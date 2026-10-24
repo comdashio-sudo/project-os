@@ -917,15 +917,15 @@
 
 | البند | الحالة | الدمج |
 |---|---|---|
-| G-189: حفظ التخطيط (الأشكال) والروابط المؤكدة وملف الرسم بنسخه | `WRITTEN` (اختبار قاعدة حقيقي: 414 ناجحًا، 0 فاشلًا، 18 متخطى؛ الكامل `pnpm test`: UNIT_COUNT) | هذا الطلب (PR) |
+| G-189: حفظ التخطيط (الأشكال) والروابط المؤكدة وملف الرسم بنسخه | `WRITTEN` (اختبار قاعدة حقيقي: 414 ناجحًا، 0 فاشلًا، 18 متخطى؛ الكامل `pnpm test`: `pnpm test`: 1995 ناجحًا، 432 متخطى، 0 فاشلًا على الفرع بعد دمج origin/main f3e3a33) | هذا الطلب (PR) |
 
 **ما أُضيف:** الجداول `master_plan_drawings` (رسم واحد لكل نسخة خطة) و`master_plan_drawing_versions` (نسخ الملف، لا يُحذف شيء منها: sha256، عدد الصفحات، من رفع، وقت الرفع، مفتاح التخزين) و`master_plan_drawing_polygons` (المرجع الذي أعطاه القارئ، العنوان، النقاط) و`master_plan_drawing_links` (الربط المؤكد فقط؛ اقتراحات المطابقة لا تُحفظ). الترحيلة `drizzle/0007_wo16_g189_master_plan_drawing.sql`، وأُعيد توليد `drizzle/0000_baseline.sql` بـ`pnpm db:baseline` ونجح `pnpm db:baseline:check`. الإجراءات الستة في `masterPlans` (`drawingLayout`، `drawingVersions`، `saveDrawingLayout`، `linkDrawingUnit`، `unlinkDrawingUnit`، `uploadDrawingVersion`) في `server/masterPlanDrawing.ts`، بالميزة `MASTER_PLAN` والصلاحية المسماة `project.read` للقراءة و`project.write` للكتابة (كما في بقية الخطة الرئيسية). رفع الملف مباشرة إلى Storage بغرض جديد `masterPlanDrawing`.
 
 **الإثبات:**
-- `server/masterPlanDrawing.database.test.ts` (9 حالات) على PostgreSQL 16 محلي: حفظ ثم إعادة تحميل بالأشكال والروابط نفسها؛ إصدار ثانٍ لا يحذف الأول؛ ملف غير صالح لا يُخزَّن؛ شكل له ربط لا يُحذف؛ قواعد الربط (وحدة فقط، ربط واحد لكل شكل، شكل واحد لكل وحدة)؛ كل ربط وفكّ سطر تدقيق واحد؛ مستأجر آخر لا يرى شيئًا؛ مشروع آخر في المستأجر نفسه لا يرى شيئًا؛ دور بصلاحية القراءة فقط يُرفض في الكتابة.
+- `server/masterPlanDrawing.database.test.ts` (10 حالات) على PostgreSQL 16 محلي: حفظ ثم إعادة تحميل بالأشكال والروابط نفسها؛ إصدار ثانٍ لا يحذف الأول؛ ملف غير صالح لا يُخزَّن؛ شكل له ربط لا يُحذف؛ قواعد الربط (وحدة فقط، ربط واحد لكل شكل، شكل واحد لكل وحدة)؛ كل ربط وفكّ سطر تدقيق واحد؛ مستأجر آخر لا يرى شيئًا؛ مشروع آخر في المستأجر نفسه لا يرى شيئًا؛ دور بصلاحية القراءة فقط يُرفض في الكتابة.
 - `server/domain/masterPlanDrawing.test.ts` وعميل `masterPlanDrawingLayout.test.tsx` وحالات `MasterPlanDrawing.test.tsx` (حفظ/تحميل/زر الحفظ مغلق قبل فتح الرسم).
 - أمر التشغيل: `DATABASE_URL=postgres://postgres:…@127.0.0.1:5441/postgres node scripts/run-integration-database-test.mjs` (خادم محلي بمصادقة scram؛ `predeploy.integration.test.ts` يمرّ على كلمة مرور خاطئة حقيقية).
-- `pnpm check`، `pnpm build`، `pnpm coverage:trpc` (الإجراءات الستة مُراجَعة في الاختبار الجديد).
+- `pnpm check`، `pnpm build`، `pnpm db:baseline:check`، `pnpm check:secrets` (0 نتائج) نجحت. `pnpm coverage:trpc` يفشل على الفرع بـ48 إجراءً غير مصنّف و49 على origin/main قبل هذا الطلب؛ الإجراءات الستة الجديدة مُصنّفة ولا واحد منها ضمنها.
 
 **لم يُتحقق منه:** التخزين على Supabase الحي (الاختبارات تستعمل تخزينًا في الذاكرة)؛ تحويل PDF صفحات متعددة بمكتبة pdf.js على ملفات حقيقية؛ الأداء على رسم بآلاف الأشكال؛ العرض في المتصفح لتدفق الحفظ الكامل (التحقق من الواجهة يدويًا لم يُجرَ)؛ CI.
 
