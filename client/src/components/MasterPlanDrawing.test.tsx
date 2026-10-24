@@ -4,12 +4,19 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MasterPlanDrawing } from "./MasterPlanDrawing";
+import { buildRasterDrawing, type GrayImage } from "@/lib/raster/rasterCore";
 
 const state = vi.hoisted(() => ({
   data: undefined as unknown,
   isLoading: false,
   error: null as unknown,
 }));
+
+// The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
+const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn() }));
+vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/raster/rasterFile")>()), readRasterImage: raster.readRasterImage }));
+vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWorker }));
+vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: "en", isArabic: false, isRtl: false }) }));
 vi.mock("@/lib/trpc", () => ({
@@ -48,9 +55,9 @@ const square = (x: number, y: number): string =>
 const label = (x: number, y: number, value: string): string => entity("TEXT", [[8, "UNITS"], [10, x], [20, y], [40, 2.5], [1, value]]);
 const DRAWING = dxf(square(0, 0) + label(5, 5, "B1-U-0001") + square(20, 0) + label(25, 5, "B1-U-0002") + square(40, 0));
 
-async function upload(container: HTMLElement, content: string) {
+async function upload(container: HTMLElement, content: string, name = "plan.dxf") {
   const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-  const file = new File([content], "plan.dxf", { type: "application/dxf" });
+  const file = new File([content], name, { type: "application/octet-stream" });
   fireEvent.change(input, { target: { files: [file] } });
 }
 
@@ -129,5 +136,41 @@ describe("MasterPlanDrawing", () => {
     expect(csv.split("\n")[0]).toBe("polygon_id,unit_code,unit_id");
     expect(csv).toContain("B1-U-0001");
     expect(csv).not.toContain("B1-U-0002");
+  });
+
+  it("reads a PNG through the raster path: shapes become proposals only where a code was read", async () => {
+    state.data = plan();
+    const image: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
+    raster.readRasterImage.mockResolvedValue(image);
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    raster.analyseRaster.mockResolvedValue({
+      drawing: buildRasterDrawing([
+        { id: "shape-1", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }], x: 0, y: 0, width: 10, height: 10 },
+        { id: "shape-2", points: [{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }, { x: 20, y: 10 }], x: 20, y: 0, width: 10, height: 10 },
+      ], [{ polygonId: "shape-1", text: "B1-U-0001" }], 100),
+      shapeCount: 2,
+      labelCount: 1,
+    });
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "png-bytes", "plan.png");
+    await waitFor(() => expect(screen.getByText(/Confirmed: 0 · Proposed: 1 · Unlinked: 1/)).toBeTruthy());
+    expect(screen.getByText(/Found 2 shapes and read the code in 1 of them/)).toBeTruthy();
+  });
+
+  it("shows a raster read error and no drawing when the image cannot be decoded", async () => {
+    state.data = plan();
+    raster.readRasterImage.mockRejectedValue(new Error("corrupt"));
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "not an image", "plan.jpg");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/could not be read/));
+    expect(screen.queryByText(/Confirmed:/)).toBeNull();
+  });
+
+  it("refuses a file type that is neither a DXF nor a raster image", async () => {
+    state.data = plan();
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "bytes", "plan.dwg");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/not supported/));
+    expect(raster.readRasterImage).not.toHaveBeenCalled();
   });
 });

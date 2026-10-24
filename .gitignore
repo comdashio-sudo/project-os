@@ -140,3 +140,6 @@ settings.json
 secrets*
 *.local.json
 .vercel/
+
+# Copied from node_modules at build (OCR worker, wasm and language data); never committed
+client/public/ocr/

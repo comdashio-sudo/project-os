@@ -71,12 +71,13 @@ describe("security headers", () => {
     }
   });
 
-  it("lets no script run but its own: the script directive has neither 'unsafe-inline' nor 'unsafe-eval' nor a remote host", async () => {
+  it("lets no script run but its own, and only compile WebAssembly: no 'unsafe-inline' or 'unsafe-eval' and no remote host", async () => {
     const { base } = await start();
     const csp = (await fetch(base + "/healthz")).headers.get("content-security-policy")!;
     const script = csp.split("; ").find(part => part.startsWith("script-src "))!;
-    expect(script).toBe("script-src 'self'");
-    expect(csp).not.toContain("unsafe-eval");
+    expect(script).toBe("script-src 'self' 'wasm-unsafe-eval'");
+    expect(script.split(" ")).not.toContain("'unsafe-eval'");
+    expect(script.split(" ")).not.toContain("'unsafe-inline'");
     expect(csp.split("; ").find(part => part.startsWith("connect-src "))).toBe("connect-src 'self' https://*.supabase.co");
   });
 
