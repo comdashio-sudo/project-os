@@ -6,7 +6,7 @@ import { cronIsOncePerDay, renderPreflight, runPreflight, type PreflightDeps, ty
 
 // The launch button's pre-flight against SIMULATED Supabase, Vercel, database and S3: read-only, every problem in one list, nothing secret in it.
 const REF = SUPABASE_PROJECT_REF;
-const SECRETS = { SUPABASE_ACCESS_TOKEN: "sbp_SECRET_TOKEN_VALUE_1", SUPABASE_DB_PASSWORD: "DB_PASSWORD_VALUE_2", VERCEL_TOKEN: "VERCEL_SECRET_VALUE_3", STORAGE_S3_ACCESS_KEY_ID: "S3KEYID_VALUE_4", STORAGE_S3_SECRET_ACCESS_KEY: "S3SECRET_VALUE_5", OWNER_EMAIL: "owner@example.test", SUPABASE_ORGANIZATION_SLUG: "org-dashio" };
+const SECRETS = { SUPABASE_ACCESS_TOKEN: "sbp_SECRET_TOKEN_VALUE_1", SUPABASE_DB_PASSWORD: "DB_PASSWORD_VALUE_2", VERCEL_TOKEN: "VERCEL_SECRET_VALUE_3", STORAGE_S3_ACCESS_KEY_ID: "S3KEYID_VALUE_4", STORAGE_S3_SECRET_ACCESS_KEY: "S3SECRET_VALUE_5", OWNER_EMAIL: "owner@example.test", SUPABASE_ORGANIZATION_SLUG: "org-dashio" }; // secret-scan:allow: made-up placeholder values to prove they never reach the output
 type Reply = { status?: number; body?: unknown };
 function simulate(routes: Record<string, Reply | ((url: string) => Reply)>) {
   const calls: Array<{ method: string; url: string }> = [];
