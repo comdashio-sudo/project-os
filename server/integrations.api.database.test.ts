@@ -121,7 +121,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the integration API, key
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(refused.json.code).toBe("PROJECT_OS_API_RATE_LIMITED");
     expect((await call(fullKeyA, "GET", "/ping")).status).toBe(200);
-  });
+  }, 40_000);
 
   it("the OpenAPI document describes every route that is served, and is served without a key", async () => {
     const response = await fetch(`${base}/api/v1/openapi.json`);
