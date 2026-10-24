@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  GITHUB_LINK_INSTRUCTION, GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, productionEnv, supabaseApi, vercelApi, type Fetch,
+  GITHUB_LINK_INSTRUCTION, GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, normalizeOwnerEmail, productionEnv, supabaseApi, vercelApi, type Fetch,
 } from "../../scripts/bootstrap/lib";
 
 // The launch bootstrap against a SIMULATED Supabase and Vercel: the guards must refuse a wrong project, a wrong organisation and a Vercel project of
@@ -42,9 +42,16 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     expect(sim.calls).toHaveLength(1);
   });
 
-  it("REFUSES the right project inside a differently named organisation", async () => {
+  it("REFUSES the right project inside a differently named organisation, in Arabic", async () => {
     const sim = simulate(supabaseOk({ orgName: "another-company" }));
-    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/organisation/);
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/منظمة غير "dashio"/);
+    expect(sim.writes()).toEqual([]);
+  });
+
+  it("REFUSES, in Arabic and before any write, when the token cannot read the organisation (a project-scoped token): the name cannot be checked, so it never assumes", async () => {
+    const sim = simulate({ ...supabaseOk(), [`GET /v1/organizations/org-dashio`]: () => ({ status: 403, body: { message: "forbidden" } }) });
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toBeInstanceOf(GuardError);
+    await expect(supabaseApi(sim.fetchImpl, "t").assertTarget()).rejects.toThrow(/تعذّرت قراءة المنظمة/);
     expect(sim.writes()).toEqual([]);
   });
 
@@ -85,6 +92,22 @@ describe("Supabase guard: one project, inside one organisation, checked before a
   });
 });
 
+describe("owner email from the workflow input", () => {
+  // The run that failed (run 26 on main) received "comdashio@gmail.com " with a trailing space and stopped in the first guard, before any call.
+  it("accepts an address with a trailing space or newline, and returns it trimmed", () => {
+    expect(normalizeOwnerEmail("comdashio@gmail.com ")).toBe("comdashio@gmail.com");
+    expect(normalizeOwnerEmail(" owner@example.test\n")).toBe("owner@example.test");
+  });
+  it("still refuses something that is not an address, in Arabic, and does not echo it", () => {
+    expect(() => normalizeOwnerEmail("owner example.test")).toThrow(GuardError);
+    expect(() => normalizeOwnerEmail("owner example.test")).toThrow(/ليس عنوان بريد صالحًا/);
+    expect(() => normalizeOwnerEmail("owner example.test")).not.toThrow(/owner example/);
+  });
+  it("the workflow step reads OWNER_EMAIL through that check, so a space in the input cannot stop the run", () => {
+    expect(text("scripts/bootstrap/run.ts")).toContain('normalizeOwnerEmail(need("OWNER_EMAIL"))');
+  });
+});
+
 describe("generated secrets and connection strings", () => {
   it("derives the same application-role password for the same database password, a different one for another, and refuses a missing one", () => {
     expect(deriveAppRolePassword("database-password-1")).toBe(deriveAppRolePassword("database-password-1"));
@@ -100,6 +123,7 @@ describe("generated secrets and connection strings", () => {
   });
 });
 
+const text = (file: string) => readFileSync(path.resolve(import.meta.dirname, "../..", file), "utf8");
 const REPO = "comdashio-sudo/project-os";
 describe("Vercel guard: one project named dashio, linked to the one repository", () => {
   it("REFUSES a project named dashio that is linked to another repository, and writes nothing", async () => {
@@ -198,6 +222,12 @@ describe("the workflow", () => {
     expect(workflow).not.toMatch(/run:.*\$\{\{\s*(inputs|secrets)\./);
     expect(workflow).not.toMatch(/echo .*secrets\./);
     expect(workflow).toContain("if: always()");
+  });
+  it("names a failed phase in Arabic in the summary the owner reads on a phone", () => {
+    const run = text("scripts/bootstrap/run.ts");
+    expect(run).toContain('supabase: "مرحلة Supabase"');
+    expect(run).toContain('vercel: "مرحلة Vercel"');
+    expect(run).toContain("PHASE_LABEL[phase] ?? phase");
   });
   it("masks every secret it creates before use", () => {
     const run = text("scripts/bootstrap/run.ts");
