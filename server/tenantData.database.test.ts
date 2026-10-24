@@ -34,8 +34,17 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
   // that same sweep, so it also gets its row-level-security policy; one without (the unclassified probe) is only granted.
   const grantToApplication = async (table: string) => {
     const [columns] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT 1 AS present FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = 'tenant_id'", [table]);
-    if (columns.length) await connection.query("SELECT project_os_apply_conventions()");
-    else await connection.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON "${table}" TO project_os_app`);
+    // The sweep alters EVERY table (triggers, grants, row-level security, policies), so it needs an exclusive lock on each; autovacuum holds a lock on one of
+    // them now and then. CI caught the two meeting: "Process 253: SELECT project_os_apply_conventions() / Process 272: autovacuum: VACUUM ANALYZE public.audit_logs".
+    // PostgreSQL picks one as the deadlock victim and says to retry; the migration runner needs no retry because it is one transaction that rolls back whole.
+    if (columns.length) {
+      for (let attempt = 1; ; attempt++) {
+        try { await connection.query("SELECT project_os_apply_conventions()"); break; } catch (error) {
+          if (attempt >= 4 || !/deadlock detected/.test(String((error as Error)?.message ?? error))) throw error;
+          await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+        }
+      }
+    } else await connection.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON "${table}" TO project_os_app`);
   };
   const rowsPerTable = async (tenantId: string) => {
     const db = (await getDb())!;
