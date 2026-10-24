@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
 import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
@@ -28,19 +29,19 @@ const text = {
     emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
   },
   ur: {
-    title: "Company and board dashboard", loading: "Loading the company dashboard…",
-    totals: "Totals", projects: "Projects", profit: "Expected profit (total)", late: "Late projects", deviating: "Projects with negative variance",
-    multiCurrency: "Several currencies: profit is not summed", notAvailable: "Not available",
-    allProjects: "All projects", project: "Project", deviation: "Deviation (VAC)", cpi: "CPI", spi: "SPI", progress: "Progress", lateActivities: "Late activities", open: "Open project",
-    commitments: "Commitments", commitmentsFailed: "Could not load the commitments.", activeContracts: "Active contracts", approvedOrders: "Approved and issued purchase orders", committedCommitments: "Committed commitments", noAmount: "No amount",
-    emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
+    title: "کمپنی اور بورڈ کا ڈیش بورڈ", loading: "کمپنی کا ڈیش بورڈ لوڈ ہو رہا ہے…",
+    totals: "کل", projects: "پروجیکٹس", profit: "متوقع منافع (کل)", late: "تاخیر کے شکار پروجیکٹس", deviating: "منفی انحراف والے پروجیکٹس",
+    multiCurrency: "کئی کرنسیاں: منافع کی جمع نہیں کی جاتی", notAvailable: "دستیاب نہیں",
+    allProjects: "تمام پروجیکٹس", project: "پروجیکٹ", deviation: "انحراف (VAC)", cpi: "CPI", spi: "SPI", progress: "پیش رفت", lateActivities: "تاخیر کا شکار سرگرمیاں", open: "پروجیکٹ کھولیں",
+    commitments: "ذمہ داریاں", commitmentsFailed: "ذمہ داریاں لوڈ نہیں ہو سکیں۔", activeContracts: "فعال معاہدے", approvedOrders: "منظور شدہ اور جاری کردہ خریداری کے آرڈرز", committedCommitments: "طے شدہ ذمہ داریاں", noAmount: "کوئی رقم نہیں",
+    emptyTitle: "ابھی تک کوئی پروجیکٹ نہیں", emptyBody: "پہلا پروجیکٹ شامل کریں، پھر وہ اس ڈیش بورڈ پر ظاہر ہوگا۔", emptyAction: "پروجیکٹ رجسٹر پر جائیں",
   },
 };
 
 export default function LevelCompany() {
   const { tenantId = "" } = useParams<{ tenantId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const query = trpc.scopes.company.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   const commitments = trpc.levelReads.companyCommitments.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   const dashboard = (body: React.ReactNode) => <LevelDashboard level="company" tenantId={tenantId} title={t.title}>{body}</LevelDashboard>;

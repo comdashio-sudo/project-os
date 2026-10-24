@@ -1,6 +1,7 @@
 import React from "react";
 import { Redirect, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { ErrorState, LoadingState, NoPermission } from "@/components/ScreenStates";
 import { levelHref } from "@/lib/levels";
@@ -12,13 +13,13 @@ import { levelHref } from "@/lib/levels";
 const text = {
   ar: { loading: "جارٍ تحديد مستواك…", noLevelTitle: "لا مستوى مخصص لك في هذه الشركة" },
   en: { loading: "Finding your level…", noLevelTitle: "No level is assigned to you in this company" },
-  ur: { loading: "Finding your level…", noLevelTitle: "No level is assigned to you in this company" },
+  ur: { loading: "آپ کی سطح تلاش کی جا رہی ہے…", noLevelTitle: "اس کمپنی میں آپ کو کوئی سطح تفویض نہیں کی گئی" },
 };
 
 export default function LevelEntry() {
   const { tenantId = "" } = useParams<{ tenantId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const entry = trpc.levelReads.entry.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   if (entry.isLoading) return <LoadingState isArabic={isArabic} label={t.loading} />;
   if (entry.error) return <ErrorState isArabic={isArabic} error={entry.error} onRetry={() => entry.refetch()} retrying={entry.isFetching} />;

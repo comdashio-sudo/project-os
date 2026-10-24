@@ -14,7 +14,7 @@ vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "11111111-1111-4111-8111-111111111111" }),
   Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>,
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: state.isArabic ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/lib/trpc", () => ({ trpc: { scopes: { portfolio: { useQuery: () => state.query } } } }));

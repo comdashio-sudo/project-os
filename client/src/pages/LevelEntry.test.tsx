@@ -13,7 +13,7 @@ vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "11111111-1111-4111-8111-111111111111" }),
   Redirect: ({ to }: { to: string }) => <div data-redirect={to} />,
 }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: state.isArabic ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { levelReads: { entry: { useQuery: () => state.entry } } } }));
 
 const ok = (data: unknown) => ({ isLoading: false, isFetching: false, error: null, data, refetch });

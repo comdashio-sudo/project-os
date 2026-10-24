@@ -28,7 +28,7 @@ const text = {
     runs: "تشغيلات المزامنة", when: "الوقت", entity: "النوع", trigger: "المشغّل", items: "سجلات التشغيل", outcome: "النتيجة", reason: "السبب", record: "السجل", noRuns: "لا تشغيلات بعد.", all: "الكل",
     created_: "أُنشئ", updated: "حُدّث", unchanged: "بلا تغيير", stored: "حُفظ كما وصل", rejected_: "مرفوض",
     ok: "ناجح", partial: "جزئي", failed_: "فاشل", running_: "جارٍ",
-  },
+   okLabel: "حسنًا", perMinute: "/دقيقة" },
   en: {
     title: "Integration settings", back: "Back to company administration", loading: "Loading…", retry: "Retry", managersOnly: "Integration settings belong to the company manager.",
     tabConnections: "Connections", tabKeys: "API keys", tabWebhooks: "Webhooks", tabMappings: "Mappings", tabLog: "Sync log",
@@ -44,7 +44,7 @@ const text = {
     runs: "Sync runs", when: "When", entity: "Kind", trigger: "Started by", items: "Records of the run", outcome: "Outcome", reason: "Reason", record: "Record", noRuns: "No runs yet.", all: "All",
     created_: "Created", updated: "Updated", unchanged: "Unchanged", stored: "Kept as received", rejected_: "Refused",
     ok: "OK", partial: "Partial", failed_: "Failed", running_: "Running",
-  },
+   okLabel: "OK", perMinute: "/min" },
   ur: {
     title: "انضمام کی ترتیبات", back: "کمپنی کے انتظام پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش", managersOnly: "انضمام کی ترتیبات کمپنی کے مینیجر کی ہیں۔",
     tabConnections: "کنکشنز", tabKeys: "API کیز", tabWebhooks: "ویب ہُکس", tabMappings: "میپنگ", tabLog: "ہم آہنگی کا لاگ",
@@ -60,7 +60,7 @@ const text = {
     runs: "ہم آہنگی کے عمل", when: "وقت", entity: "قسم", trigger: "شروع کرنے والا", items: "عمل کے ریکارڈ", outcome: "نتیجہ", reason: "وجہ", record: "ریکارڈ", noRuns: "ابھی کوئی عمل نہیں۔", all: "سب",
     created_: "بنایا گیا", updated: "اپ ڈیٹ ہوا", unchanged: "کوئی تبدیلی نہیں", stored: "جیسا آیا محفوظ", rejected_: "مسترد",
     ok: "کامیاب", partial: "جزوی", failed_: "ناکام", running_: "جاری",
-  },
+   okLabel: "ٹھیک ہے", perMinute: "/منٹ" },
 };
 
 const proven = (connector: { status: string }) => connector.status === "PROVEN_IN_CI";
@@ -189,7 +189,7 @@ function Keys({ tenantId, t, tt, isArabic, language, scopes, utils }: Common & {
   return (
     <section aria-label={t.tabKeys} className="space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {shown && <div role="alert" data-new-key className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.copyNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{shown}</code><Button variant="outline" className={tap} onClick={() => setShown(null)}>OK</Button></div>}
+      {shown && <div role="alert" data-new-key className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.copyNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{shown}</code><Button variant="outline" className={tap} onClick={() => setShown(null)}>{t.okLabel}</Button></div>}
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.newKey}</summary>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -204,7 +204,7 @@ function Keys({ tenantId, t, tt, isArabic, language, scopes, utils }: Common & {
         <ul className="space-y-2">{rows.map(row => (
           <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white p-3" data-key={row.name}>
             <div><p className="text-base font-semibold">{row.name} {row.revokedAt && <span className="text-sm font-normal text-red-700">· {t.revoked}</span>}</p>
-              <p className="text-xs text-slate-600" dir="ltr">{row.keyPrefix}… · {row.scopes} · {row.rateLimitPerMinute}/min</p>
+              <p className="text-xs text-slate-600" dir="ltr">{row.keyPrefix}… · {row.scopes} · {row.rateLimitPerMinute}{t.perMinute}</p>
               <p className="text-xs text-slate-600">{t.lastUsed}: {row.lastUsedAt ? showDate(row.lastUsedAt, language) : t.never}</p></div>
             {!row.revokedAt && <Button variant="outline" className={tap} disabled={revoke.isPending} onClick={() => revoke.mutate({ tenantId, keyId: row.id })}>{t.revoke}</Button>}
           </li>))}</ul>
@@ -229,7 +229,7 @@ function Webhooks({ tenantId, t, isArabic, language, events, utils }: Common & {
   return (
     <section aria-label={t.tabWebhooks} className="space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {secret && <div role="alert" data-new-secret className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.secretNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{secret}</code><Button variant="outline" className={tap} onClick={() => setSecret(null)}>OK</Button></div>}
+      {secret && <div role="alert" data-new-secret className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.secretNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{secret}</code><Button variant="outline" className={tap} onClick={() => setSecret(null)}>{t.okLabel}</Button></div>}
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.newHook}</summary>
         <div className="mt-2 grid gap-2">

@@ -1012,3 +1012,658 @@
 - الخانات المفتوحة أعلاه: تحتاج ترجمة في الملفات المشتركة (`shared/operationalRoles`، `shared/ledgerImportColumns`، `shared/importTemplateHeaders`، وأسماء أكواد الرد)، أو تغييرًا في الخادم ليقبل `ur`، وهي خارج نطاق هذه الدفعة.
 - المصطلحات التقنية والأسماء التجارية تبقى بالحروف اللاتينية (WBS، PMC، RFI، NCR، HSE، Excel، PDF، Dashio، PROJECT OS).
 
+
+## الجزء 1 من البند 5 (الأمر 16): الشاشات A إلى L
+
+**النطاق:** الملفات في `client/src/pages/` التي تبدأ بالحروف A إلى L (20 ملفًا، بلا ملفات الاختبار)، وهي من `AcceptInvitation` إلى `LicensingConsole` بالإضافة إلى `Login`.
+
+**ما فُعل:** كل نص ظاهر في هذه الملفات صار له نص إنجليزي وعربي وأردي في قاموس `pickLanguage(language, {ar, en, ur})`، أو في كائن `ur` مكتمل المفاتيح. صارت النصوص الأردية التي كانت نسخة من الإنجليزية ترجمات أردية، وحُوّل كل شرط `isArabic ? … : …` لنص إلى `pickLanguage` بالخيارات الثلاثة، ونُقل النص الإنجليزي المكتوب في JSX إلى قواميس. صارت لغة التواريخ والأرقام في الأردية `ur-PK`، وبقيت العربية والإنجليزية كما كانتا.
+
+**ما بقي عمدًا أو خارج هذا الجزء:**
+- 25 اسمًا لمكونات واجهة تقنية في `ComponentShowcase.tsx` (مثل Accordion وBreadcrumb وPopover) بقيت بالحروف اللاتينية في الأردية، وفق قاعدة المشروع في ترك المصطلحات التقنية الشائعة بالإنجليزية. الترجمة إلى الأردية ممكنة إن قرر المالك ذلك.
+- `alt="Dashio"` في `Home.tsx` (سطرا 28 و75): اسم المنتج.
+- أسماء أنظمة خارجية في `IntegrationSettings.tsx`: SAP Business One وMicrosoft Dynamics 365 وOracle NetSuite.
+- صيغة التاريخ `yyyy/MM/dd HH:mm` في `ComponentShowcase.tsx`، وهي ليست نصًا ظاهرًا.
+- الدوال التي تأخذ `isArabic` ثم تعرض نصًا تقع خارج هذا الجزء ولم تُمس: `riyalLabel` و`formatMoney` و`formatPercent` في `client/src/lib/profitabilityView.ts`، و`getLocalizedProjectError` في `lib/projectErrors.ts`، والمكونات `LoadingState` و`ErrorState` و`EmptyState` و`NoPermission` و`SourceNotice` و`LevelDashboard` في `client/src/components/`. هذه النصوص في الأردية تظهر بالإنجليزية كما كانت، وتُعالج في أجزاء المكونات والمكتبات.
+- ملفات الاختبار `LevelCompany.test.tsx` و`LevelEntry.test.tsx` و`LevelPortfolio.test.tsx` و`LevelProject.test.tsx` و`LevelWarehouse.test.tsx`: أُضيف إلى قناع `useLanguage` فيها الحقل `language` (ليطابق السياق الحقيقي)، ولم تُغيَّر أي توقعة.
+
+**القياس:** سكربت محلي يعدّ لكل ملف: إنجليزية في خانة أردية، وشرط `isArabic` بلا فرع أردي، ونص JSX خارج القاموس. الإجمالي قبل الجزء **618** وبعده **28**، والبقية هي البنود المذكورة أعلاه. الجدول لكل ملف:
+
+| الملف | إنجليزية في خانة أردية (قبل → بعد) | شرط `isArabic` بلا أردية (قبل → بعد) | نص JSX خارج القاموس (قبل → بعد) | المجموع (قبل → بعد) |
+|---|---|---|---|---|
+| AcceptInvitation.tsx | 7 → 0 | 0 → 0 | 0 → 0 | 7 → 0 |
+| BillingRegister.tsx | 17 → 0 | 5 → 0 | 5 → 0 | 27 → 0 |
+| CashFlowMonthly.tsx | 9 → 0 | 1 → 0 | 1 → 0 | 11 → 0 |
+| CommercialChain.tsx | 4 → 0 | 4 → 0 | 3 → 0 | 11 → 0 |
+| ComponentShowcase.tsx | 0 → 25 | 0 → 0 | 226 → 1 | 226 → 26 |
+| EmployeeRegistry.tsx | 0 → 0 | 2 → 0 | 0 → 0 | 2 → 0 |
+| EosLiabilityCard.tsx | 12 → 0 | 2 → 0 | 1 → 0 | 15 → 0 |
+| EvmCalculator.tsx | 14 → 0 | 3 → 0 | 6 → 0 | 23 → 0 |
+| ExecutiveDashboard.tsx | 34 → 0 | 2 → 0 | 3 → 0 | 39 → 0 |
+| FieldEntry.tsx | 0 → 0 | 2 → 0 | 2 → 0 | 4 → 0 |
+| Home.tsx | 48 → 0 | 6 → 0 | 11 → 2 | 65 → 2 |
+| IntegrationSettings.tsx | 0 → 0 | 0 → 0 | 3 → 0 | 3 → 0 |
+| LabourLoadingCard.tsx | 23 → 0 | 1 → 0 | 0 → 0 | 24 → 0 |
+| LevelCompany.tsx | 24 → 0 | 1 → 0 | 0 → 0 | 25 → 0 |
+| LevelEntry.tsx | 2 → 0 | 1 → 0 | 0 → 0 | 3 → 0 |
+| LevelPortfolio.tsx | 24 → 0 | 1 → 0 | 0 → 0 | 25 → 0 |
+| LevelProject.tsx | 28 → 0 | 2 → 0 | 0 → 0 | 30 → 0 |
+| LevelWarehouse.tsx | 32 → 0 | 2 → 0 | 0 → 0 | 34 → 0 |
+| LicensingConsole.tsx | 29 → 0 | 8 → 0 | 7 → 0 | 44 → 0 |
+| Login.tsx | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
+| **المجموع** | 307 → 25 | 43 → 0 | 268 → 3 | 618 → 28 |
+
+**حالة الأردية:** كل نص أردي كتبته هذه الدفعة مدرج في الجدول أدناه بحالة **تحتاج مراجعة بشرية**. لم يراجعه متحدث أصلي، فلا يُعتمد قبل المراجعة. الأسطر تذكر الملف والسطر والمفتاح والنص؛ سطر `ur` في كائن مختلط أو قاموس مفاتيحه تُعرف بالمفتاح، وسطر `ComponentShowcase.tsx` مفاتيحه `s<رقم>` تُعرف بالسطر.
+
+| # | الملف | السطر | المفتاح | النص الأردي | الحالة |
+|---|---|---|---|---|---|
+| 1 | AcceptInvitation.tsx | 18 | title | کمپنی کا دعوت نامہ قبول کریں | تحتاج مراجعة بشرية |
+| 2 | AcceptInvitation.tsx | 18 | sub | جس ای میل پر دعوت نامہ موصول ہوا ہے اسی سے سائن ان کریں، پھر قبولیت مکمل کریں تاکہ آپ کی رکنیت اور کردار شامل ہو جائیں۔ | تحتاج مراجعة بشرية |
+| 3 | AcceptInvitation.tsx | 18 | token | قبولیت کا ٹوکن | تحتاج مراجعة بشرية |
+| 4 | AcceptInvitation.tsx | 18 | submit | دعوت نامہ قبول کریں | تحتاج مراجعة بشرية |
+| 5 | AcceptInvitation.tsx | 18 | submitting | دعوت نامہ قبول کیا جا رہا ہے… | تحتاج مراجعة بشرية |
+| 6 | AcceptInvitation.tsx | 18 | success | دعوت نامہ قبول ہو گیا اور آپ کی رکنیت فعال ہو گئی ہے۔ | تحتاج مراجعة بشرية |
+| 7 | AcceptInvitation.tsx | 18 | back | ورک اسپیس پر واپس جائیں | تحتاج مراجعة بشرية |
+| 8 | BillingRegister.tsx | 21 | title | بلنگ رجسٹر | تحتاج مراجعة بشرية |
+| 9 | BillingRegister.tsx | 21 | subtitle | کمپنی کے دائرے میں منظم انوائسز اور دستی ادائیگیاں۔ VAT صرف حساب کے طور پر دکھایا جاتا ہے؛ یہ رجسٹر ZATCA کی تعمیل یا PDF-A3 کے اجرا کا دعویٰ نہیں کرتا۔ | تحتاج مراجعة بشرية |
+| 10 | BillingRegister.tsx | 21 | back | لائسنسنگ | تحتاج مراجعة بشرية |
+| 11 | BillingRegister.tsx | 21 | invoice | منظم انوائس جاری کریں | تحتاج مراجعة بشرية |
+| 12 | BillingRegister.tsx | 21 | seller | فروخت کنندہ کا نام | تحتاج مراجعة بشرية |
+| 13 | BillingRegister.tsx | 21 | sellerTax | فروخت کنندہ کا ٹیکس نمبر | تحتاج مراجعة بشرية |
+| 14 | BillingRegister.tsx | 21 | buyer | خریدار کا نام | تحتاج مراجعة بشرية |
+| 15 | BillingRegister.tsx | 21 | buyerTax | خریدار کا ٹیکس نمبر | تحتاج مراجعة بشرية |
+| 16 | BillingRegister.tsx | 21 | subtotal | VAT سے پہلے کی رقم | تحتاج مراجعة بشرية |
+| 17 | BillingRegister.tsx | 21 | issue | انوائس جاری کریں | تحتاج مراجعة بشرية |
+| 18 | BillingRegister.tsx | 21 | invoices | انوائسز | تحتاج مراجعة بشرية |
+| 19 | BillingRegister.tsx | 21 | payments | ادائیگیاں | تحتاج مراجعة بشرية |
+| 20 | BillingRegister.tsx | 21 | manual | دستی ادائیگی کی درخواست بنائیں | تحتاج مراجعة بشرية |
+| 21 | BillingRegister.tsx | 21 | mock | جانچ کے لیے Mock ادائیگی درج کریں | تحتاج مراجعة بشرية |
+| 22 | BillingRegister.tsx | 21 | noLicense | انوائس جاری کرنے کے لیے کوئی لائسنس دستیاب نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 23 | BillingRegister.tsx | 21 | noData | ابھی تک کوئی ریکارڈ نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 24 | BillingRegister.tsx | 21 | compliance | ZATCA کی مکمل تعمیل ابھی نافذ نہیں کی گئی، اور اس کے لیے مالک کے ٹیکس رجسٹریشن اور انوائسنگ فراہم کنندہ کے فیصلے درکار ہیں۔ | تحتاج مراجعة بشرية |
+| 25 | BillingRegister.tsx | 21 | invoicesBody | پہلی انوائس 'منظم انوائس جاری کریں' کارڈ سے جاری ہونے کے بعد انوائسز یہاں ظاہر ہوں گی۔ | تحتاج مراجعة بشرية |
+| 26 | BillingRegister.tsx | 21 | goIssue | انوائس جاری کرنے پر جائیں | تحتاج مراجعة بشرية |
+| 27 | BillingRegister.tsx | 21 | brand | DASHIO · بلنگ | تحتاج مراجعة بشرية |
+| 28 | BillingRegister.tsx | 21 | currency | SAR | تحتاج مراجعة بشرية |
+| 29 | BillingRegister.tsx | 21 | noLicenseBody | کمپنی کے لیے انوائسنگ کو فعال لائسنس درکار ہے۔ اسے لائسنسنگ کی اسکرین سے منظم کریں۔ | تحتاج مراجعة بشرية |
+| 30 | BillingRegister.tsx | 21 | goLicensing | لائسنسنگ پر جائیں | تحتاج مراجعة بشرية |
+| 31 | CashFlowMonthly.tsx | 22 | title | ماہانہ خالص نقد بہاؤ | تحتاج مراجعة بشرية |
+| 32 | CashFlowMonthly.tsx | 22 | month | مہینہ | تحتاج مراجعة بشرية |
+| 33 | CashFlowMonthly.tsx | 22 | receipts | وصول شدہ | تحتاج مراجعة بشرية |
+| 34 | CashFlowMonthly.tsx | 22 | outflows | ادا کی گئی رقم | تحتاج مراجعة بشرية |
+| 35 | CashFlowMonthly.tsx | 22 | cumulative | جمع شدہ | تحتاج مراجعة بشرية |
+| 36 | CashFlowMonthly.tsx | 22 | empty | ابھی تک رقم کی کوئی حرکت درج نہیں ہوئی: وصولیاں اس وقت ظاہر ہوں گی جب انوائسز ادا ہوں گی۔ | تحتاج مراجعة بشرية |
+| 37 | CashFlowMonthly.tsx | 22 | loading | لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 38 | CashFlowMonthly.tsx | 22 | retry | دوبارہ کوشش کریں | تحتاج مراجعة بشرية |
+| 39 | CashFlowMonthly.tsx | 24 | basis | وصول شدہ = ادا شدہ انوائسز (VAT سمیت) اس دن جس دن ادا ہوئیں۔ ادا کی گئی رقم = درج شدہ اصل لاگت اس دن جس دن وہ ہوئی، کیونکہ سپلائرز کو ہونے والی ادائیگیاں درج نہیں ہوتیں اور یہ پلیٹ فارم کے پاس قریب ترین معلومات ہے۔ | تحتاج مراجعة بشرية |
+| 40 | CashFlowMonthly.tsx | 25 | monthlyTable | ماہانہ نقد بہاؤ کا جدول | تحتاج مراجعة بشرية |
+| 41 | CommercialChain.tsx | 22 | eyebrow | کمرشل کنٹرول چین | تحتاج مراجعة بشرية |
+| 42 | CommercialChain.tsx | 22 | title | BOQ سے انوائس تک، ایک منظم ورک اسپیس | تحتاج مراجعة بشرية |
+| 43 | CommercialChain.tsx | 22 | subtitle | مقداریں، ذیلی ٹھیکے کی ذمہ داریاں، سرٹیفکیٹ اور کلائنٹ انوائسز ایک ہی پروجیکٹ کی حد سے جڑی رکھیں۔ | تحتاج مراجعة بشرية |
+| 44 | CommercialChain.tsx | 22 | governed | کمپنی اور پروجیکٹ کے دائرے میں منظم | تحتاج مراجعة بشرية |
+| 45 | CommercialChain.tsx | 22 | back | پروجیکٹ پر واپس جائیں | تحتاج مراجعة بشرية |
+| 46 | CommercialChain.tsx | 22 | boq | BOQ لائنز | تحتاج مراجعة بشرية |
+| 47 | CommercialChain.tsx | 22 | boqHint | ذمہ داریاں بنانے سے پہلے منظور شدہ مقدار اور نرخ طے کریں۔ | تحتاج مراجعة بشرية |
+| 48 | CommercialChain.tsx | 22 | contracts | ذیلی ٹھیکے کے معاہدے | تحتاج مراجعة بشرية |
+| 49 | CommercialChain.tsx | 22 | contractHint | کاروباری تعلق اور اس کے روکی گئی رقم کے قواعد درج کریں۔ | تحتاج مراجعة بشرية |
+| 50 | CommercialChain.tsx | 22 | certificates | ذیلی ٹھیکے کے سرٹیفکیٹ | تحتاج مراجعة بشرية |
+| 51 | CommercialChain.tsx | 22 | certificateHint | منتخب معاہدے اور BOQ لائن کے مقابل موجودہ مقداریں جمع کریں۔ | تحتاج مراجعة بشرية |
+| 52 | CommercialChain.tsx | 22 | invoices | پروجیکٹ انوائسز | تحتاج مراجعة بشرية |
+| 53 | CommercialChain.tsx | 22 | invoiceHint | کنٹرولڈ کاروباری قدروں سے پروجیکٹ انوائس جاری کریں؛ اس میں کوئی ادائیگی گیٹ وے شامل نہیں۔ | تحتاج مراجعة بشرية |
+| 54 | CommercialChain.tsx | 22 | boqValue | BOQ کی قدر | تحتاج مراجعة بشرية |
+| 55 | CommercialChain.tsx | 22 | contractValue | ذیلی ٹھیکے کی قدر | تحتاج مراجعة بشرية |
+| 56 | CommercialChain.tsx | 22 | invoiced | انوائس شدہ | تحتاج مراجعة بشرية |
+| 57 | CommercialChain.tsx | 22 | code | کوڈ | تحتاج مراجعة بشرية |
+| 58 | CommercialChain.tsx | 22 | description | تفصیل | تحتاج مراجعة بشرية |
+| 59 | CommercialChain.tsx | 22 | unit | اکائی | تحتاج مراجعة بشرية |
+| 60 | CommercialChain.tsx | 22 | quantity | مقدار | تحتاج مراجعة بشرية |
+| 61 | CommercialChain.tsx | 22 | rate | فی اکائی نرخ | تحتاج مراجعة بشرية |
+| 62 | CommercialChain.tsx | 22 | currency | کرنسی | تحتاج مراجعة بشرية |
+| 63 | CommercialChain.tsx | 22 | addBoq | BOQ لائن شامل کریں | تحتاج مراجعة بشرية |
+| 64 | CommercialChain.tsx | 22 | contractTitle | معاہدے کا عنوان | تحتاج مراجعة بشرية |
+| 65 | CommercialChain.tsx | 22 | subcontractor | ذیلی ٹھیکیدار | تحتاج مراجعة بشرية |
+| 66 | CommercialChain.tsx | 22 | registeredSupplier | رجسٹر سے سپلائر (اختیاری) | تحتاج مراجعة بشرية |
+| 67 | CommercialChain.tsx | 22 | notRegistered | رجسٹر میں نہیں — نام ٹائپ کریں | تحتاج مراجعة بشرية |
+| 68 | CommercialChain.tsx | 22 | retention | روکی گئی رقم % | تحتاج مراجعة بشرية |
+| 69 | CommercialChain.tsx | 22 | advance | پیشگی ادائیگی % | تحتاج مراجعة بشرية |
+| 70 | CommercialChain.tsx | 22 | addContract | معاہدہ شامل کریں | تحتاج مراجعة بشرية |
+| 71 | CommercialChain.tsx | 22 | contract | معاہدہ | تحتاج مراجعة بشرية |
+| 72 | CommercialChain.tsx | 22 | chooseContract | ایک معاہدہ منتخب کریں | تحتاج مراجعة بشرية |
+| 73 | CommercialChain.tsx | 22 | boqLine | BOQ لائن | تحتاج مراجعة بشرية |
+| 74 | CommercialChain.tsx | 22 | chooseBoq | ایک BOQ لائن منتخب کریں | تحتاج مراجعة بشرية |
+| 75 | CommercialChain.tsx | 22 | certificateNumber | سرٹیفکیٹ نمبر | تحتاج مراجعة بشرية |
+| 76 | CommercialChain.tsx | 22 | periodStart | مدت کا آغاز | تحتاج مراجعة بشرية |
+| 77 | CommercialChain.tsx | 22 | periodEnd | مدت کا اختتام | تحتاج مراجعة بشرية |
+| 78 | CommercialChain.tsx | 22 | currentQuantity | موجودہ مقدار | تحتاج مراجعة بشرية |
+| 79 | CommercialChain.tsx | 22 | addCertificate | سرٹیفکیٹ شامل کریں | تحتاج مراجعة بشرية |
+| 80 | CommercialChain.tsx | 22 | invoiceNumber | انوائس نمبر | تحتاج مراجعة بشرية |
+| 81 | CommercialChain.tsx | 22 | date | تاریخ | تحتاج مراجعة بشرية |
+| 82 | CommercialChain.tsx | 22 | client | کلائنٹ | تحتاج مراجعة بشرية |
+| 83 | CommercialChain.tsx | 22 | netAmount | خالص رقم | تحتاج مراجعة بشرية |
+| 84 | CommercialChain.tsx | 22 | vat | VAT کی رقم | تحتاج مراجعة بشرية |
+| 85 | CommercialChain.tsx | 22 | addInvoice | انوائس شامل کریں | تحتاج مراجعة بشرية |
+| 86 | CommercialChain.tsx | 22 | noBoq | ابھی تک کوئی BOQ لائن نہیں۔ | تحتاج مراجعة بشرية |
+| 87 | CommercialChain.tsx | 22 | noContracts | ابھی تک ذیلی ٹھیکے کا کوئی معاہدہ نہیں۔ | تحتاج مراجعة بشرية |
+| 88 | CommercialChain.tsx | 22 | noCertificates | اس معاہدے کے لیے ابھی تک کوئی سرٹیفکیٹ نہیں۔ | تحتاج مراجعة بشرية |
+| 89 | CommercialChain.tsx | 22 | noInvoices | ابھی تک کوئی پروجیکٹ انوائس نہیں۔ | تحتاج مراجعة بشرية |
+| 90 | CommercialChain.tsx | 22 | saved | محفوظ ہو گیا اور آڈٹ کا واقعہ درج کر لیا گیا۔ | تحتاج مراجعة بشرية |
+| 91 | CommercialChain.tsx | 22 | supplierList | سپلائرز کی فہرست | تحتاج مراجعة بشرية |
+| 92 | CommercialChain.tsx | 22 | supplierHelp | اس کے باوجود آپ ذیلی ٹھیکیدار کا نام نیچے ٹائپ کر سکتے ہیں۔ | تحتاج مراجعة بشرية |
+| 93 | CommercialChain.tsx | 49 | ur | آپ کے پاس BOQ آئٹمز شامل کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 94 | CommercialChain.tsx | 50 | ur | آپ کے پاس ذیلی ٹھیکے بنانے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 95 | CommercialChain.tsx | 51 | ur | آپ کے پاس ذیلی ٹھیکے کے سرٹیفکیٹ جاری کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 96 | CommercialChain.tsx | 52 | ur | آپ کے پاس پروجیکٹ انوائسز درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 97 | CommercialChain.tsx | 60 | ur | لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 98 | ComponentShowcase.tsx | 603 | inputLabel | ان پٹ | تحتاج مراجعة بشرية |
+| 99 | ComponentShowcase.tsx | 604 | s1 | کامیابی سے جمع ہو گیا | تحتاج مراجعة بشرية |
+| 100 | ComponentShowcase.tsx | 605 | s2 | Shadcn/ui کمپوننٹ لائبریری | تحتاج مراجعة بشرية |
+| 101 | ComponentShowcase.tsx | 606 | s3 | متن کے رنگ | تحتاج مراجعة بشرية |
+| 102 | ComponentShowcase.tsx | 607 | s4 | فورگراؤنڈ (ڈیفالٹ) | تحتاج مراجعة بشرية |
+| 103 | ComponentShowcase.tsx | 608 | s5 | مرکزی مواد کے لیے ڈیفالٹ متن کا رنگ | تحتاج مراجعة بشرية |
+| 104 | ComponentShowcase.tsx | 609 | s6 | مدھم فورگراؤنڈ | تحتاج مراجعة بشرية |
+| 105 | ComponentShowcase.tsx | 610 | s7 | ثانوی معلومات کے لیے مدھم متن | تحتاج مراجعة بشرية |
+| 106 | ComponentShowcase.tsx | 611 | s8 | بنیادی | تحتاج مراجعة بشرية |
+| 107 | ComponentShowcase.tsx | 612 | s9 | بنیادی برانڈ رنگ کا متن | تحتاج مراجعة بشرية |
+| 108 | ComponentShowcase.tsx | 613 | s10 | ثانوی فورگراؤنڈ | تحتاج مراجعة بشرية |
+| 109 | ComponentShowcase.tsx | 614 | s11 | ثانوی عمل کے متن کا رنگ | تحتاج مراجعة بشرية |
+| 110 | ComponentShowcase.tsx | 615 | s12 | لہجہ فورگراؤنڈ | تحتاج مراجعة بشرية |
+| 111 | ComponentShowcase.tsx | 616 | s13 | زور دینے کے لیے لہجے کا متن | تحتاج مراجعة بشرية |
+| 112 | ComponentShowcase.tsx | 617 | s14 | خطرناک | تحتاج مراجعة بشرية |
+| 113 | ComponentShowcase.tsx | 618 | s15 | خرابی یا خطرناک عمل کا متن | تحتاج مراجعة بشرية |
+| 114 | ComponentShowcase.tsx | 619 | s16 | کارڈ فورگراؤنڈ | تحتاج مراجعة بشرية |
+| 115 | ComponentShowcase.tsx | 620 | s17 | کارڈ کے پس منظر پر متن کا رنگ | تحتاج مراجعة بشرية |
+| 116 | ComponentShowcase.tsx | 621 | s18 | پاپ اوور فورگراؤنڈ | تحتاج مراجعة بشرية |
+| 117 | ComponentShowcase.tsx | 622 | s19 | پاپ اوور میں متن کا رنگ | تحتاج مراجعة بشرية |
+| 118 | ComponentShowcase.tsx | 623 | s20 | رنگوں کے امتزاج | تحتاج مراجعة بشرية |
+| 119 | ComponentShowcase.tsx | 624 | s21 | بنیادی پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 120 | ComponentShowcase.tsx | 625 | s22 | ثانوی | تحتاج مراجعة بشرية |
+| 121 | ComponentShowcase.tsx | 626 | s23 | ثانوی پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 122 | ComponentShowcase.tsx | 627 | s24 | مدھم | تحتاج مراجعة بشرية |
+| 123 | ComponentShowcase.tsx | 628 | s25 | مدھم پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 124 | ComponentShowcase.tsx | 629 | s26 | لہجہ | تحتاج مراجعة بشرية |
+| 125 | ComponentShowcase.tsx | 630 | s27 | لہجے کے پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 126 | ComponentShowcase.tsx | 631 | s28 | خطرناک پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 127 | ComponentShowcase.tsx | 632 | s29 | کارڈ | تحتاج مراجعة بشرية |
+| 128 | ComponentShowcase.tsx | 633 | s30 | کارڈ کے پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 129 | ComponentShowcase.tsx | 634 | s31 | Popover | تحتاج مراجعة بشرية |
+| 130 | ComponentShowcase.tsx | 635 | s32 | پاپ اوور کے پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 131 | ComponentShowcase.tsx | 636 | s33 | پس منظر | تحتاج مراجعة بشرية |
+| 132 | ComponentShowcase.tsx | 637 | s34 | ڈیفالٹ پس منظر کے ساتھ اگلا متن | تحتاج مراجعة بشرية |
+| 133 | ComponentShowcase.tsx | 638 | s35 | بٹنز | تحتاج مراجعة بشرية |
+| 134 | ComponentShowcase.tsx | 639 | s36 | ڈیفالٹ | تحتاج مراجعة بشرية |
+| 135 | ComponentShowcase.tsx | 640 | s37 | صرف خاکہ | تحتاج مراجعة بشرية |
+| 136 | ComponentShowcase.tsx | 641 | s38 | Ghost | تحتاج مراجعة بشرية |
+| 137 | ComponentShowcase.tsx | 642 | s39 | لنک | تحتاج مراجعة بشرية |
+| 138 | ComponentShowcase.tsx | 643 | s40 | چھوٹا | تحتاج مراجعة بشرية |
+| 139 | ComponentShowcase.tsx | 644 | s41 | بڑا | تحتاج مراجعة بشرية |
+| 140 | ComponentShowcase.tsx | 645 | s42 | فارم ان پٹس | تحتاج مراجعة بشرية |
+| 141 | ComponentShowcase.tsx | 646 | s43 | ای میل | تحتاج مراجعة بشرية |
+| 142 | ComponentShowcase.tsx | 647 | s44 | پیغام | تحتاج مراجعة بشرية |
+| 143 | ComponentShowcase.tsx | 648 | s45 | اپنا پیغام یہاں لکھیں۔ | تحتاج مراجعة بشرية |
+| 144 | ComponentShowcase.tsx | 649 | s46 | منتخب کریں | تحتاج مراجعة بشرية |
+| 145 | ComponentShowcase.tsx | 650 | s47 | ایک پھل منتخب کریں | تحتاج مراجعة بشرية |
+| 146 | ComponentShowcase.tsx | 651 | s48 | سیب | تحتاج مراجعة بشرية |
+| 147 | ComponentShowcase.tsx | 652 | s49 | کیلا | تحتاج مراجعة بشرية |
+| 148 | ComponentShowcase.tsx | 653 | s50 | نارنجی | تحتاج مراجعة بشرية |
+| 149 | ComponentShowcase.tsx | 654 | s51 | شرائط و ضوابط سے اتفاق کریں | تحتاج مراجعة بشرية |
+| 150 | ComponentShowcase.tsx | 655 | s52 | ایئرپلین موڈ | تحتاج مراجعة بشرية |
+| 151 | ComponentShowcase.tsx | 656 | s53 | Radio Group | تحتاج مراجعة بشرية |
+| 152 | ComponentShowcase.tsx | 657 | s54 | آپشن ایک | تحتاج مراجعة بشرية |
+| 153 | ComponentShowcase.tsx | 658 | s55 | آپشن دو | تحتاج مراجعة بشرية |
+| 154 | ComponentShowcase.tsx | 659 | s56 | سلائیڈر | تحتاج مراجعة بشرية |
+| 155 | ComponentShowcase.tsx | 660 | s57 | Input OTP | تحتاج مراجعة بشرية |
+| 156 | ComponentShowcase.tsx | 661 | s58 | تاریخ اور وقت کا انتخاب | تحتاج مراجعة بشرية |
+| 157 | ComponentShowcase.tsx | 662 | s59 | تاریخ اور وقت منتخب کریں | تحتاج مراجعة بشرية |
+| 158 | ComponentShowcase.tsx | 663 | s60 | وقت | تحتاج مراجعة بشرية |
+| 159 | ComponentShowcase.tsx | 664 | s61 | منتخب: | تحتاج مراجعة بشرية |
+| 160 | ComponentShowcase.tsx | 665 | s62 | قابلِ تلاش ڈراپ ڈاؤن | تحتاج مراجعة بشرية |
+| 161 | ComponentShowcase.tsx | 666 | s63 | فریم ورک منتخب کریں... | تحتاج مراجعة بشرية |
+| 162 | ComponentShowcase.tsx | 667 | s64 | فریم ورکس تلاش کریں... | تحتاج مراجعة بشرية |
+| 163 | ComponentShowcase.tsx | 668 | s65 | کوئی فریم ورک نہیں ملا | تحتاج مراجعة بشرية |
+| 164 | ComponentShowcase.tsx | 669 | s66 | مہینہ | تحتاج مراجعة بشرية |
+| 165 | ComponentShowcase.tsx | 670 | s67 | MM | تحتاج مراجعة بشرية |
+| 166 | ComponentShowcase.tsx | 671 | s68 | سال | تحتاج مراجعة بشرية |
+| 167 | ComponentShowcase.tsx | 672 | s69 | YYYY | تحتاج مراجعة بشرية |
+| 168 | ComponentShowcase.tsx | 673 | s70 | ڈیٹا ڈسپلے | تحتاج مراجعة بشرية |
+| 169 | ComponentShowcase.tsx | 674 | s71 | بیجز | تحتاج مراجعة بشرية |
+| 170 | ComponentShowcase.tsx | 675 | s72 | Avatar | تحتاج مراجعة بشرية |
+| 171 | ComponentShowcase.tsx | 676 | s73 | CN | تحتاج مراجعة بشرية |
+| 172 | ComponentShowcase.tsx | 677 | s74 | AB | تحتاج مراجعة بشرية |
+| 173 | ComponentShowcase.tsx | 678 | s75 | پیش رفت | تحتاج مراجعة بشرية |
+| 174 | ComponentShowcase.tsx | 679 | s76 | Skeleton | تحتاج مراجعة بشرية |
+| 175 | ComponentShowcase.tsx | 680 | s77 | Pagination | تحتاج مراجعة بشرية |
+| 176 | ComponentShowcase.tsx | 681 | s78 | موجودہ صفحہ: | تحتاج مراجعة بشرية |
+| 177 | ComponentShowcase.tsx | 682 | s79 | ٹیبل | تحتاج مراجعة بشرية |
+| 178 | ComponentShowcase.tsx | 683 | s80 | آپ کی حالیہ انوائسز کی فہرست۔ | تحتاج مراجعة بشرية |
+| 179 | ComponentShowcase.tsx | 684 | s81 | انوائس | تحتاج مراجعة بشرية |
+| 180 | ComponentShowcase.tsx | 685 | s82 | حیثیت | تحتاج مراجعة بشرية |
+| 181 | ComponentShowcase.tsx | 686 | s83 | طریقہ | تحتاج مراجعة بشرية |
+| 182 | ComponentShowcase.tsx | 687 | s84 | رقم | تحتاج مراجعة بشرية |
+| 183 | ComponentShowcase.tsx | 688 | s85 | INV001 | تحتاج مراجعة بشرية |
+| 184 | ComponentShowcase.tsx | 689 | s86 | ادا شدہ | تحتاج مراجعة بشرية |
+| 185 | ComponentShowcase.tsx | 690 | s87 | کریڈٹ کارڈ | تحتاج مراجعة بشرية |
+| 186 | ComponentShowcase.tsx | 691 | s88 | INV002 | تحتاج مراجعة بشرية |
+| 187 | ComponentShowcase.tsx | 692 | s89 | زیرِ التوا | تحتاج مراجعة بشرية |
+| 188 | ComponentShowcase.tsx | 693 | s90 | PayPal | تحتاج مراجعة بشرية |
+| 189 | ComponentShowcase.tsx | 694 | s91 | INV003 | تحتاج مراجعة بشرية |
+| 190 | ComponentShowcase.tsx | 695 | s92 | غیر ادا شدہ | تحتاج مراجعة بشرية |
+| 191 | ComponentShowcase.tsx | 696 | s93 | بینک ٹرانسفر | تحتاج مراجعة بشرية |
+| 192 | ComponentShowcase.tsx | 697 | s94 | Menubar | تحتاج مراجعة بشرية |
+| 193 | ComponentShowcase.tsx | 698 | s95 | فائل | تحتاج مراجعة بشرية |
+| 194 | ComponentShowcase.tsx | 699 | s96 | نیا ٹیب | تحتاج مراجعة بشرية |
+| 195 | ComponentShowcase.tsx | 700 | s97 | نئی ونڈو | تحتاج مراجعة بشرية |
+| 196 | ComponentShowcase.tsx | 701 | s98 | شیئر کریں | تحتاج مراجعة بشرية |
+| 197 | ComponentShowcase.tsx | 702 | s99 | پرنٹ | تحتاج مراجعة بشرية |
+| 198 | ComponentShowcase.tsx | 703 | s100 | ترمیم | تحتاج مراجعة بشرية |
+| 199 | ComponentShowcase.tsx | 704 | s101 | واپس کریں | تحتاج مراجعة بشرية |
+| 200 | ComponentShowcase.tsx | 705 | s102 | دوبارہ کریں | تحتاج مراجعة بشرية |
+| 201 | ComponentShowcase.tsx | 706 | s103 | دیکھیں | تحتاج مراجعة بشرية |
+| 202 | ComponentShowcase.tsx | 707 | s104 | دوبارہ لوڈ کریں | تحتاج مراجعة بشرية |
+| 203 | ComponentShowcase.tsx | 708 | s105 | زبردستی دوبارہ لوڈ کریں | تحتاج مراجعة بشرية |
+| 204 | ComponentShowcase.tsx | 709 | s106 | Breadcrumb | تحتاج مراجعة بشرية |
+| 205 | ComponentShowcase.tsx | 710 | s107 | ہوم | تحتاج مراجعة بشرية |
+| 206 | ComponentShowcase.tsx | 711 | s108 | کمپوننٹس | تحتاج مراجعة بشرية |
+| 207 | ComponentShowcase.tsx | 712 | s109 | الرٹس | تحتاج مراجعة بشرية |
+| 208 | ComponentShowcase.tsx | 713 | s110 | توجہ دیں! | تحتاج مراجعة بشرية |
+| 209 | ComponentShowcase.tsx | 714 | s111 | آپ CLI کے ذریعے اپنی ایپ میں کمپوننٹس شامل کر سکتے ہیں۔ | تحتاج مراجعة بشرية |
+| 210 | ComponentShowcase.tsx | 715 | s112 | خرابی | تحتاج مراجعة بشرية |
+| 211 | ComponentShowcase.tsx | 716 | s113 | آپ کا سیشن ختم ہو گیا ہے۔ براہ کرم دوبارہ سائن ان کریں۔ | تحتاج مراجعة بشرية |
+| 212 | ComponentShowcase.tsx | 717 | s114 | ٹیبز | تحتاج مراجعة بشرية |
+| 213 | ComponentShowcase.tsx | 718 | s115 | اکاؤنٹ | تحتاج مراجعة بشرية |
+| 214 | ComponentShowcase.tsx | 719 | s116 | پاس ورڈ | تحتاج مراجعة بشرية |
+| 215 | ComponentShowcase.tsx | 720 | s117 | ترتیبات | تحتاج مراجعة بشرية |
+| 216 | ComponentShowcase.tsx | 721 | s118 | یہاں اپنے اکاؤنٹ میں تبدیلیاں کریں۔ | تحتاج مراجعة بشرية |
+| 217 | ComponentShowcase.tsx | 722 | s119 | نام | تحتاج مراجعة بشرية |
+| 218 | ComponentShowcase.tsx | 723 | s120 | تبدیلیاں محفوظ کریں | تحتاج مراجعة بشرية |
+| 219 | ComponentShowcase.tsx | 724 | s121 | یہاں اپنا پاس ورڈ تبدیل کریں۔ | تحتاج مراجعة بشرية |
+| 220 | ComponentShowcase.tsx | 725 | s122 | موجودہ پاس ورڈ | تحتاج مراجعة بشرية |
+| 221 | ComponentShowcase.tsx | 726 | s123 | نیا پاس ورڈ | تحتاج مراجعة بشرية |
+| 222 | ComponentShowcase.tsx | 727 | s124 | پاس ورڈ محفوظ کریں | تحتاج مراجعة بشرية |
+| 223 | ComponentShowcase.tsx | 728 | s125 | اپنی ترتیبات یہاں منظم کریں۔ | تحتاج مراجعة بشرية |
+| 224 | ComponentShowcase.tsx | 729 | s126 | ترتیبات کا مواد یہاں ہوگا۔ | تحتاج مراجعة بشرية |
+| 225 | ComponentShowcase.tsx | 730 | s127 | Accordion | تحتاج مراجعة بشرية |
+| 226 | ComponentShowcase.tsx | 731 | s128 | کیا یہ قابلِ رسائی ہے؟ | تحتاج مراجعة بشرية |
+| 227 | ComponentShowcase.tsx | 732 | s129 | جی ہاں۔ یہ WAI-ARIA ڈیزائن پیٹرن پر پورا اترتا ہے۔ | تحتاج مراجعة بشرية |
+| 228 | ComponentShowcase.tsx | 733 | s130 | کیا یہ اسٹائل شدہ ہے؟ | تحتاج مراجعة بشرية |
+| 229 | ComponentShowcase.tsx | 734 | s131 | جی ہاں۔ اس کے ساتھ ڈیفالٹ اسٹائلز آتے ہیں جو دوسرے کمپوننٹس کے انداز سے ہم آہنگ ہیں۔ | تحتاج مراجعة بشرية |
+| 230 | ComponentShowcase.tsx | 735 | s132 | کیا یہ متحرک ہے؟ | تحتاج مراجعة بشرية |
+| 231 | ComponentShowcase.tsx | 736 | s133 | جی ہاں۔ یہ ڈیفالٹ طور پر متحرک ہے، لیکن اگر آپ چاہیں تو اسے بند کر سکتے ہیں۔ | تحتاج مراجعة بشرية |
+| 232 | ComponentShowcase.tsx | 737 | s134 | Collapsible | تحتاج مراجعة بشرية |
+| 233 | ComponentShowcase.tsx | 738 | s135 | @peduarte نے 3 ریپوزٹریز کو ستارہ دیا | تحتاج مراجعة بشرية |
+| 234 | ComponentShowcase.tsx | 739 | s136 | @radix-ui/primitives | تحتاج مراجعة بشرية |
+| 235 | ComponentShowcase.tsx | 740 | s137 | @radix-ui/colors | تحتاج مراجعة بشرية |
+| 236 | ComponentShowcase.tsx | 741 | s138 | @stitches/react | تحتاج مراجعة بشرية |
+| 237 | ComponentShowcase.tsx | 742 | s139 | اوورلیز | تحتاج مراجعة بشرية |
+| 238 | ComponentShowcase.tsx | 743 | s140 | ڈائیلاگ کھولیں | تحتاج مراجعة بشرية |
+| 239 | ComponentShowcase.tsx | 744 | s141 | ٹیسٹ ان پٹ | تحتاج مراجعة بشرية |
+| 240 | ComponentShowcase.tsx | 745 | s142 | نیچے کچھ متن درج کریں۔ جمع کرنے کے لیے Enter دبائیں (IME کمپوزیشن سپورٹڈ ہے)۔ | تحتاج مراجعة بشرية |
+| 241 | ComponentShowcase.tsx | 746 | s143 | ان پٹ | تحتاج مراجعة بشرية |
+| 242 | ComponentShowcase.tsx | 747 | s144 | کچھ لکھیں... | تحتاج مراجعة بشرية |
+| 243 | ComponentShowcase.tsx | 748 | s145 | منسوخ کریں | تحتاج مراجعة بشرية |
+| 244 | ComponentShowcase.tsx | 749 | s146 | جمع کریں | تحتاج مراجعة بشرية |
+| 245 | ComponentShowcase.tsx | 750 | s147 | شیٹ کھولیں | تحتاج مراجعة بشرية |
+| 246 | ComponentShowcase.tsx | 751 | s148 | پروفائل میں ترمیم کریں | تحتاج مراجعة بشرية |
+| 247 | ComponentShowcase.tsx | 752 | s149 | یہاں اپنے پروفائل میں تبدیلیاں کریں۔ مکمل ہونے پر محفوظ کریں پر کلک کریں۔ | تحتاج مراجعة بشرية |
+| 248 | ComponentShowcase.tsx | 753 | s150 | ڈراور کھولیں | تحتاج مراجعة بشرية |
+| 249 | ComponentShowcase.tsx | 754 | s151 | کیا آپ کو یقین ہے؟ | تحتاج مراجعة بشرية |
+| 250 | ComponentShowcase.tsx | 755 | s152 | اس عمل کو واپس نہیں کیا جا سکتا۔ | تحتاج مراجعة بشرية |
+| 251 | ComponentShowcase.tsx | 756 | s153 | پاپ اوور کھولیں | تحتاج مراجعة بشرية |
+| 252 | ComponentShowcase.tsx | 757 | s154 | طول و عرض | تحتاج مراجعة بشرية |
+| 253 | ComponentShowcase.tsx | 758 | s155 | اس پرت کے طول و عرض مقرر کریں۔ | تحتاج مراجعة بشرية |
+| 254 | ComponentShowcase.tsx | 759 | s156 | مجھ پر ہوور کریں | تحتاج مراجعة بشرية |
+| 255 | ComponentShowcase.tsx | 760 | s157 | لائبریری میں شامل کریں | تحتاج مراجعة بشرية |
+| 256 | ComponentShowcase.tsx | 761 | s158 | مینیوز | تحتاج مراجعة بشرية |
+| 257 | ComponentShowcase.tsx | 762 | s159 | Dropdown Menu | تحتاج مراجعة بشرية |
+| 258 | ComponentShowcase.tsx | 763 | s160 | میرا اکاؤنٹ | تحتاج مراجعة بشرية |
+| 259 | ComponentShowcase.tsx | 764 | s161 | پروفائل | تحتاج مراجعة بشرية |
+| 260 | ComponentShowcase.tsx | 765 | s162 | بلنگ | تحتاج مراجعة بشرية |
+| 261 | ComponentShowcase.tsx | 766 | s163 | ٹیم | تحتاج مراجعة بشرية |
+| 262 | ComponentShowcase.tsx | 767 | s164 | سبسکرپشن | تحتاج مراجعة بشرية |
+| 263 | ComponentShowcase.tsx | 768 | s165 | مجھ پر دائیں کلک کریں | تحتاج مراجعة بشرية |
+| 264 | ComponentShowcase.tsx | 769 | s166 | Hover Card | تحتاج مراجعة بشرية |
+| 265 | ComponentShowcase.tsx | 770 | s167 | @nextjs | تحتاج مراجعة بشرية |
+| 266 | ComponentShowcase.tsx | 771 | s168 | React فریم ورک – جسے @vercel نے بنایا اور اس کی دیکھ بھال کرتا ہے۔ | تحتاج مراجعة بشرية |
+| 267 | ComponentShowcase.tsx | 772 | s169 | کیلنڈر | تحتاج مراجعة بشرية |
+| 268 | ComponentShowcase.tsx | 773 | s170 | Carousel | تحتاج مراجعة بشرية |
+| 269 | ComponentShowcase.tsx | 774 | s171 | ٹوگل | تحتاج مراجعة بشرية |
+| 270 | ComponentShowcase.tsx | 775 | s172 | ترچھا ٹوگل کریں | تحتاج مراجعة بشرية |
+| 271 | ComponentShowcase.tsx | 776 | s173 | انڈر لائن ٹوگل کریں | تحتاج مراجعة بشرية |
+| 272 | ComponentShowcase.tsx | 777 | s174 | ٹوگل گروپ | تحتاج مراجعة بشرية |
+| 273 | ComponentShowcase.tsx | 778 | s175 | بولڈ ٹوگل کریں | تحتاج مراجعة بشرية |
+| 274 | ComponentShowcase.tsx | 779 | s176 | لے آؤٹ کمپوننٹس | تحتاج مراجعة بشرية |
+| 275 | ComponentShowcase.tsx | 780 | s177 | Aspect Ratio (16/9) | تحتاج مراجعة بشرية |
+| 276 | ComponentShowcase.tsx | 781 | s178 | 16:9 Aspect Ratio | تحتاج مراجعة بشرية |
+| 277 | ComponentShowcase.tsx | 782 | s179 | Scroll Area | تحتاج مراجعة بشرية |
+| 278 | ComponentShowcase.tsx | 783 | s180 | آئٹم | تحتاج مراجعة بشرية |
+| 279 | ComponentShowcase.tsx | 784 | s181 | : یہ قابلِ اسکرول مواد کا علاقہ ہے۔ | تحتاج مراجعة بشرية |
+| 280 | ComponentShowcase.tsx | 785 | s182 | قابلِ تبدیلیِ حجم پینلز | تحتاج مراجعة بشرية |
+| 281 | ComponentShowcase.tsx | 786 | s183 | پینل ایک | تحتاج مراجعة بشرية |
+| 282 | ComponentShowcase.tsx | 787 | s184 | پینل دو | تحتاج مراجعة بشرية |
+| 283 | ComponentShowcase.tsx | 788 | s185 | Toast | تحتاج مراجعة بشرية |
+| 284 | ComponentShowcase.tsx | 789 | s186 | Sonner Toast | تحتاج مراجعة بشرية |
+| 285 | ComponentShowcase.tsx | 790 | s187 | کارروائی کامیاب رہی | تحتاج مراجعة بشرية |
+| 286 | ComponentShowcase.tsx | 791 | s188 | آپ کی تبدیلیاں محفوظ ہو گئی ہیں | تحتاج مراجعة بشرية |
+| 287 | ComponentShowcase.tsx | 792 | s189 | کامیابی | تحتاج مراجعة بشرية |
+| 288 | ComponentShowcase.tsx | 793 | s190 | کارروائی ناکام ہو گئی | تحتاج مراجعة بشرية |
+| 289 | ComponentShowcase.tsx | 794 | s191 | کارروائی مکمل نہیں ہو سکی، براہ کرم دوبارہ کوشش کریں | تحتاج مراجعة بشرية |
+| 290 | ComponentShowcase.tsx | 795 | s192 | یہ ایک معلوماتی پیغام ہے | تحتاج مراجعة بشرية |
+| 291 | ComponentShowcase.tsx | 796 | s193 | معلومات | تحتاج مراجعة بشرية |
+| 292 | ComponentShowcase.tsx | 797 | s194 | براہ کرم اس کارروائی کے اثرات نوٹ کریں | تحتاج مراجعة بشرية |
+| 293 | ComponentShowcase.tsx | 798 | s195 | انتباہ | تحتاج مراجعة بشرية |
+| 294 | ComponentShowcase.tsx | 799 | s196 | براہ کرم انتظار کریں | تحتاج مراجعة بشرية |
+| 295 | ComponentShowcase.tsx | 800 | s197 | لوڈ ہو رہا ہے | تحتاج مراجعة بشرية |
+| 296 | ComponentShowcase.tsx | 801 | s198 | پروسیسنگ مکمل ہو گئی! | تحتاج مراجعة بشرية |
+| 297 | ComponentShowcase.tsx | 802 | s199 | پروسیسنگ ناکام ہو گئی | تحتاج مراجعة بشرية |
+| 298 | ComponentShowcase.tsx | 803 | s200 | Promise | تحتاج مراجعة بشرية |
+| 299 | ComponentShowcase.tsx | 804 | s201 | AI ChatBox | تحتاج مراجعة بشرية |
+| 300 | ComponentShowcase.tsx | 805 | s202 | کمپوننٹ جو فوری استعمال کے لیے تیار چیٹ انٹرفیس ہے اور LLM سسٹم سے جڑتا ہے۔ اس میں markdown رینڈرنگ، خودکار اسکرولنگ اور لوڈنگ کی حالتیں ہیں۔ | تحتاج مراجعة بشرية |
+| 301 | ComponentShowcase.tsx | 806 | s203 | یہ ایک ڈیمو ہے جس میں مصنوعی جوابات ہیں۔ حقیقی ایپ میں آپ اسے tRPC mutation سے جوڑیں گے۔ | تحتاج مراجعة بشرية |
+| 302 | ComponentShowcase.tsx | 807 | s204 | کوئی پیغام بھیج کر دیکھیں... | تحتاج مراجعة بشرية |
+| 303 | ComponentShowcase.tsx | 808 | s205 | React کیا ہے؟ | تحتاج مراجعة بشرية |
+| 304 | ComponentShowcase.tsx | 809 | s206 | TypeScript کی وضاحت کریں | تحتاج مراجعة بشرية |
+| 305 | ComponentShowcase.tsx | 810 | s207 | tRPC کیسے استعمال کریں؟ | تحتاج مراجعة بشرية |
+| 306 | ComponentShowcase.tsx | 811 | s208 | ویب ڈیولپمنٹ کے بہترین طریقے | تحتاج مراجعة بشرية |
+| 307 | ComponentShowcase.tsx | 812 | s209 | Shadcn/ui کمپوننٹس کا نمونہ | تحتاج مراجعة بشرية |
+| 308 | EmployeeRegistry.tsx | 14 | title | ملازمین اور افرادی قوت | تحتاج مراجعة بشرية |
+| 309 | EmployeeRegistry.tsx | 14 | subtitle | محفوظ ملازمین کا ریکارڈ اور ملازمت کے معاہدے، جن میں شناخت کا تحفظ اور ریکارڈ رکھنے کے منظم کنٹرولز شامل ہیں۔ | تحتاج مراجعة بشرية |
+| 310 | EosLiabilityCard.tsx | 14 | title | جمع شدہ اختتامِ ملازمت کی ذمہ داری | تحتاج مراجعة بشرية |
+| 311 | EosLiabilityCard.tsx | 14 | basis | یہ صرف منظور شدہ یا ادا شدہ پے رولز میں درج ماہانہ جمع رقموں کا مجموعہ ہے۔ پہلے سے طے شدہ طریقے کے مطابق ہر ماہ سروس کی مدت کے حساب سے رقم جمع ہوتی ہے (پہلے پانچ سال ہر سال آدھا مہینہ، اس کے بعد ہر سال ایک مہینہ؛ کمپنی اسے تبدیل کر سکتی ہے)۔ یہ لاگت کا تخمینہ ہے، قانونی حساب نہیں۔ | تحتاج مراجعة بشرية |
+| 312 | EosLiabilityCard.tsx | 14 | month | مہینہ | تحتاج مراجعة بشرية |
+| 313 | EosLiabilityCard.tsx | 14 | accrued | اس ماہ جمع شدہ | تحتاج مراجعة بشرية |
+| 314 | EosLiabilityCard.tsx | 14 | cumulative | جمع شدہ بقایا | تحتاج مراجعة بشرية |
+| 315 | EosLiabilityCard.tsx | 14 | employees | ملازمین | تحتاج مراجعة بشرية |
+| 316 | EosLiabilityCard.tsx | 14 | byEmployee | ملازم کے لحاظ سے بقایا | تحتاج مراجعة بشرية |
+| 317 | EosLiabilityCard.tsx | 14 | total | کل | تحتاج مراجعة بشرية |
+| 318 | EosLiabilityCard.tsx | 14 | sheet | اختتامِ ملازمت | تحتاج مراجعة بشرية |
+| 319 | EosLiabilityCard.tsx | 14 | empty | ابھی تک جمع شدہ رقموں والے کوئی منظور شدہ پے رول نہیں ہیں۔ | تحتاج مراجعة بشرية |
+| 320 | EosLiabilityCard.tsx | 14 | loading | لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 321 | EosLiabilityCard.tsx | 14 | mixed | نوٹ: پے رول مختلف کرنسیوں میں ہیں؛ کل رقم انہیں الگ نہیں کرتی۔ | تحتاج مراجعة بشرية |
+| 322 | EosLiabilityCard.tsx | 14 | eosLiability | اختتامِ ملازمت کی ذمہ داری | تحتاج مراجعة بشرية |
+| 323 | EvmCalculator.tsx | 69 | workspace | ورک اسپیس | تحتاج مراجعة بشرية |
+| 324 | EvmCalculator.tsx | 70 | engine | اکتسابی قدر کا انجن (Earned Value Engine) | تحتاج مراجعة بشرية |
+| 325 | EvmCalculator.tsx | 71 | engineSub | لاگت اور شیڈول کے کنٹرول کے لیے مرکزی اور جانچا ہوا حساب۔ | تحتاج مراجعة بشرية |
+| 326 | EvmCalculator.tsx | 72 | inputTitle | حساب کے ان پٹ | تحتاج مراجعة بشرية |
+| 327 | EvmCalculator.tsx | 74 | method | EAC کا طریقہ | تحتاج مراجعة بشرية |
+| 328 | EvmCalculator.tsx | 75 | manual | منظور شدہ دستی EAC | تحتاج مراجعة بشرية |
+| 329 | EvmCalculator.tsx | 76 | calc | EVM کے پیمانوں کا حساب لگائیں | تحتاج مراجعة بشرية |
+| 330 | EvmCalculator.tsx | 78 | title | لاگت اور شیڈول کی کارکردگی | تحتاج مراجعة بشرية |
+| 331 | EvmCalculator.tsx | 79 | empty | فیصلے کے لیے تیار EVM منظرنامہ حاصل کرنے کے لیے پروجیکٹ کنٹرول کی اصل قدریں درج کریں۔ | تحتاج مراجعة بشرية |
+| 332 | EvmCalculator.tsx | 80 | loading | مرکزی EVM پیمانوں کا حساب لگایا جا رہا ہے… | تحتاج مراجعة بشرية |
+| 333 | EvmCalculator.tsx | 81 | guidance | انتظامی رہنمائی | تحتاج مراجعة بشرية |
+| 334 | EvmCalculator.tsx | 82 | action | تجویز کردہ اقدام: | تحتاج مراجعة بشرية |
+| 335 | EvmCalculator.tsx | 83 | secure | مرکزی اور منظم حساب | تحتاج مراجعة بشرية |
+| 336 | EvmCalculator.tsx | 84 | controlLabel | EVM کنٹرولز | تحتاج مراجعة بشرية |
+| 337 | EvmCalculator.tsx | 85 | returnWorkspace | Dashio ورک اسپیس پر واپس جائیں | تحتاج مراجعة بشرية |
+| 338 | EvmCalculator.tsx | 85 | evm | EVM | تحتاج مراجعة بشرية |
+| 339 | EvmCalculator.tsx | 85 | bacCpi | BAC / CPI | تحتاج مراجعة بشرية |
+| 340 | EvmCalculator.tsx | 85 | acFormula | AC + (BAC − EV) | تحتاج مراجعة بشرية |
+| 341 | EvmCalculator.tsx | 85 | acFormulaFull | AC + (BAC − EV) / (CPI × SPI) | تحتاج مراجعة بشرية |
+| 342 | ExecutiveDashboard.tsx | 98 | notAssessed | جانچا نہیں گیا | تحتاج مراجعة بشرية |
+| 343 | ExecutiveDashboard.tsx | 99 | back | ورک اسپیس | تحتاج مراجعة بشرية |
+| 344 | ExecutiveDashboard.tsx | 100 | level | سطح 1 · انتظامی قیادت | تحتاج مراجعة بشرية |
+| 345 | ExecutiveDashboard.tsx | 101 | title | قیادت کا منظر | تحتاج مراجعة بشرية |
+| 346 | ExecutiveDashboard.tsx | 102 | sub | پورٹ فولیو کے اشاریے اور وہ فیصلے جن پر انتظامیہ کی توجہ درکار ہے۔ | تحتاج مراجعة بشرية |
+| 347 | ExecutiveDashboard.tsx | 103 | budget | موجودہ بجٹ | تحتاج مراجعة بشرية |
+| 348 | ExecutiveDashboard.tsx | 104 | actual | اصل لاگت | تحتاج مراجعة بشرية |
+| 349 | ExecutiveDashboard.tsx | 105 | forecast | پیش گوئی | تحتاج مراجعة بشرية |
+| 350 | ExecutiveDashboard.tsx | 106 | projects | پروجیکٹس | تحتاج مراجعة بشرية |
+| 351 | ExecutiveDashboard.tsx | 107 | decisions | کھلے فیصلے | تحتاج مراجعة بشرية |
+| 352 | ExecutiveDashboard.tsx | 108 | attention | توجہ طلب پورٹ فولیو | تحتاج مراجعة بشرية |
+| 353 | ExecutiveDashboard.tsx | 109 | empty | موجودہ رسائی کے دائرے میں پورٹ فولیو کا کوئی ڈیٹا دستیاب نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 354 | ExecutiveDashboard.tsx | 110 | loading | قیادت کا ڈیش بورڈ لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 355 | ExecutiveDashboard.tsx | 111 | saving | فیصلے کا مسودہ محفوظ کیا جا رہا ہے… | تحتاج مراجعة بشرية |
+| 356 | ExecutiveDashboard.tsx | 112 | create | فیصلہ درج کریں | تحتاج مراجعة بشرية |
+| 357 | ExecutiveDashboard.tsx | 113 | project | پروجیکٹ | تحتاج مراجعة بشرية |
+| 358 | ExecutiveDashboard.tsx | 114 | problem | مسئلہ یا درکار فیصلہ | تحتاج مراجعة بشرية |
+| 359 | ExecutiveDashboard.tsx | 115 | options | اختیارات | تحتاج مراجعة بشرية |
+| 360 | ExecutiveDashboard.tsx | 116 | recommendation | سفارش | تحتاج مراجعة بشرية |
+| 361 | ExecutiveDashboard.tsx | 117 | select | ایک پروجیکٹ منتخب کریں | تحتاج مراجعة بشرية |
+| 362 | ExecutiveDashboard.tsx | 118 | save | فیصلے کا مسودہ محفوظ کریں | تحتاج مراجعة بشرية |
+| 363 | ExecutiveDashboard.tsx | 119 | success | فیصلے کا مسودہ محفوظ ہو گیا۔ | تحتاج مراجعة بشرية |
+| 364 | ExecutiveDashboard.tsx | 120 | noProjects | پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔ | تحتاج مراجعة بشرية |
+| 365 | ExecutiveDashboard.tsx | 122 | projectOs | PROJECT OS | تحتاج مراجعة بشرية |
+| 366 | ExecutiveDashboard.tsx | 122 | projectProfitability | پروجیکٹ منافع بخشی | تحتاج مراجعة بشرية |
+| 367 | ExecutiveDashboard.tsx | 162 | title | انتظامی نقد بہاؤ کا خلاصہ | تحتاج مراجعة بشرية |
+| 368 | ExecutiveDashboard.tsx | 163 | budget | منصوبہ بند بجٹ | تحتاج مراجعة بشرية |
+| 369 | ExecutiveDashboard.tsx | 164 | actual | اصل لاگت | تحتاج مراجعة بشرية |
+| 370 | ExecutiveDashboard.tsx | 165 | committed | ذمہ داریاں | تحتاج مراجعة بشرية |
+| 371 | ExecutiveDashboard.tsx | 166 | exposure | کل مالی تعرض | تحتاج مراجعة بشرية |
+| 372 | ExecutiveDashboard.tsx | 167 | remaining | باقی بجٹ | تحتاج مراجعة بشرية |
+| 373 | ExecutiveDashboard.tsx | 168 | byProject | پروجیکٹ کے لحاظ سے تعرض | تحتاج مراجعة بشرية |
+| 374 | ExecutiveDashboard.tsx | 169 | byPortfolio | پورٹ فولیو کے لحاظ سے نقد بہاؤ | تحتاج مراجعة بشرية |
+| 375 | ExecutiveDashboard.tsx | 170 | chart | پورٹ فولیو کے لحاظ سے تعرض اور باقی بجٹ | تحتاج مراجعة بشرية |
+| 376 | ExecutiveDashboard.tsx | 171 | unassigned | بغیر پورٹ فولیو کے پروجیکٹس | تحتاج مراجعة بشرية |
+| 377 | ExecutiveDashboard.tsx | 172 | projects | پروجیکٹس | تحتاج مراجعة بشرية |
+| 378 | ExecutiveDashboard.tsx | 374 | ur | آپ کے پاس انتظامی فیصلے درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 379 | FieldEntry.tsx | 46 | checkingIdentity | آپ کی شناخت کی جانچ ہو رہی ہے | تحتاج مراجعة بشرية |
+| 380 | FieldEntry.tsx | 46 | offlineOff | آف لائن محفوظ کرنا اس وقت تک بند ہے جب تک یہ بحال نہ ہو؛ کوئی اندراج محفوظ کرنے سے پہلے دوبارہ کوشش کریں۔ | تحتاج مراجعة بشرية |
+| 381 | Home.tsx | 21 | signIn | سائن ان | تحتاج مراجعة بشرية |
+| 382 | Home.tsx | 21 | title | پروجیکٹس کو بکھری ہوئی اسپریڈ شیٹس کے بجائے عملی حقائق سے چلائیں۔ | تحتاج مراجعة بشرية |
+| 383 | Home.tsx | 21 | intro | ایک منظم پلیٹ فارم جو شیڈول، لاگت، BOQ، خریداری، گودام اور افرادی قوت کو جوڑتا ہے، اور ہر انتظامی سطح پر ذمہ داری واضح رکھتا ہے۔ | تحتاج مراجعة بشرية |
+| 384 | Home.tsx | 21 | enter | محفوظ ورک اسپیس میں داخل ہوں | تحتاج مراجعة بشرية |
+| 385 | Home.tsx | 21 | explore | آپریٹنگ ماڈل دیکھیں | تحتاج مراجعة بشرية |
+| 386 | Home.tsx | 21 | proof | ہر فیصلے کے لیے ایک ہی ماخذ | تحتاج مراجعة بشرية |
+| 387 | Home.tsx | 21 | proofText | سیاق و سباق کھوئے بغیر اشارے سے اصل ریکارڈ تک جائیں۔ | تحتاج مراجعة بشرية |
+| 388 | Home.tsx | 21 | tenant | کمپنی کی علیحدگی | تحتاج مراجعة بشرية |
+| 389 | Home.tsx | 21 | tenantText | ہر محفوظ رسائی سے پہلے رکنیت، حق اور دائرے کی جانچ کی جاتی ہے۔ | تحتاج مراجعة بشرية |
+| 390 | Home.tsx | 21 | evm | EVM اور لاگت کنٹرول | تحتاج مراجعة بشرية |
+| 391 | Home.tsx | 21 | evmText | PV، EV، AC، CPI، SPI، EAC اور VAC جانچ کے قابل ریکارڈز سے منسلک رہتے ہیں۔ | تحتاج مراجعة بشرية |
+| 392 | Home.tsx | 21 | planning | منصوبہ بندی اور شیڈول | تحتاج مراجعة بشرية |
+| 393 | Home.tsx | 21 | planningText | WBS، سرگرمیاں، پیش رفت اور منظم Excel/XER درآمدات۔ | تحتاج مراجعة بشرية |
+| 394 | Home.tsx | 21 | commercial | کمرشل چین | تحتاج مراجعة بشرية |
+| 395 | Home.tsx | 21 | commercialText | BOQ، درخواستیں، خریداری کے آرڈرز، ذیلی ٹھیکے کے سرٹیفکیٹ اور انوائسز۔ | تحتاج مراجعة بشرية |
+| 396 | Home.tsx | 21 | people | کردار اور وسائل | تحتاج مراجعة بشرية |
+| 397 | Home.tsx | 21 | peopleText | پروجیکٹ کے دائرے میں ملازمین کی تفویض، حاضری، وقت اور کارکردگی کے اشارے۔ | تحتاج مراجعة بشرية |
+| 398 | Home.tsx | 21 | materials | مواد اور گودام | تحتاج مراجعة بشرية |
+| 399 | Home.tsx | 21 | materialsText | منفی بقایا سے تحفظ کے ساتھ درخواست شدہ، جاری شدہ اور موجودہ مقدار کا حساب۔ | تحتاج مراجعة بشرية |
+| 400 | Home.tsx | 21 | rolesTitle | ہر سطح اپنے فیصلے دیکھتی ہے | تحتاج مراجعة بشرية |
+| 401 | Home.tsx | 21 | rolesText | EXECUTIVE پورٹ فولیو دیکھتا ہے، PMO استثناء دیکھتا ہے، اور پروجیکٹ مینیجر روزانہ کی ترسیل کی قیادت کرتا ہے۔ | تحتاج مراجعة بشرية |
+| 402 | Home.tsx | 21 | executiveText | پورٹ فولیو کے اشارے، فیصلے اور ادارہ جاتی تعرض۔ | تحتاج مراجعة بشرية |
+| 403 | Home.tsx | 21 | pmoText | تمام پروجیکٹس میں منصوبہ بندی، خطرات، صحت اور استثناء۔ | تحتاج مراجعة بشرية |
+| 404 | Home.tsx | 21 | projectText | WBS، EVM، لاگت، مواد اور کنٹرولڈ دستاویزات۔ | تحتاج مراجعة بشرية |
+| 405 | Home.tsx | 21 | trust | دعووں سے پہلے گورننس | تحتاج مراجعة بشرية |
+| 406 | Home.tsx | 21 | trustText | غائب ڈیٹا کو کبھی صفر بنا کر نہیں چھپایا جاتا، اور کوئی اجازت دائرے اور آڈٹ کے بغیر موجود نہیں ہوتی۔ | تحتاج مراجعة بشرية |
+| 407 | Home.tsx | 21 | ctaTitle | اپنے پروجیکٹ کی حقیقت سے شروع کریں | تحتاج مراجعة بشرية |
+| 408 | Home.tsx | 21 | ctaText | جب آپ تیار ہوں تو محفوظ ورک اسپیس میں داخل ہوں یا منظم آزمائشی ورک اسپیس بنائیں۔ | تحتاج مراجعة بشرية |
+| 409 | Home.tsx | 21 | footer | PROJECT OS · آزاد Dashio پلیٹ فارم | تحتاج مراجعة بشرية |
+| 410 | Home.tsx | 21 | controlRoom | DASHIO کنٹرول روم | تحتاج مراجعة بشرية |
+| 411 | Home.tsx | 21 | operatingLayers | آپریٹنگ پرتیں | تحتاج مراجعة بشرية |
+| 412 | Home.tsx | 21 | governedByRole | کردار کے مطابق منظم | تحتاج مراجعة بشرية |
+| 413 | Home.tsx | 21 | readyWhenYouAre | جب آپ تیار ہوں تو ہم تیار ہیں | تحتاج مراجعة بشرية |
+| 414 | Home.tsx | 21 | languagesLine | اردو · English · RTL · LTR | تحتاج مراجعة بشرية |
+| 415 | Home.tsx | 64 | signOut | سائن آؤٹ | تحتاج مراجعة بشرية |
+| 416 | Home.tsx | 64 | hero | ادارہ جاتی پروجیکٹس، ڈیزائن ہی سے منظم۔ | تحتاج مراجعة بشرية |
+| 417 | Home.tsx | 64 | sub | ہر کمپنی کے لیے ایک الگ آپریٹنگ حد، جس میں EVM کے اشارے اور رسائی کے کنٹرولز ایک متحد آپریٹنگ تہہ میں ہوں۔ | تحتاج مراجعة بشرية |
+| 418 | Home.tsx | 64 | loading | ادارے کی رسائی لوڈ ہو رہی ہے… | تحتاج مراجعة بشرية |
+| 419 | Home.tsx | 64 | registry | پروجیکٹ رجسٹر کھولیں | تحتاج مراجعة بشرية |
+| 420 | Home.tsx | 64 | start | اپنی کمپنی کی حد سے شروع کریں | تحتاج مراجعة بشرية |
+| 421 | Home.tsx | 64 | startText | سرور کے منظم پلان کیٹلاگ سے آزمائشی ورک اسپیس بنائیں۔ یہ خودکار طور پر کمپنی کا مالک مقرر کرتا ہے اور ادائیگی کارڈ کا ڈیٹا کبھی محفوظ نہیں کرتا۔ | تحتاج مراجعة بشرية |
+| 422 | Home.tsx | 64 | warning | اس عمل کے لیے آپ کے اکاؤنٹ پر ای میل ضروری ہے اور اس پر بنانے کی عارضی حد لاگو ہوتی ہے۔ شائع شدہ قیمتیں اور ٹیکس کی تعمیل مالک کے فیصلے ہیں۔ | تحتاج مراجعة بشرية |
+| 423 | Home.tsx | 64 | create | آزمائشی ورک اسپیس شروع کریں | تحتاج مراجعة بشرية |
+| 424 | Home.tsx | 64 | legal | قانونی نام | تحتاج مراجعة بشرية |
+| 425 | Home.tsx | 64 | slug | ورک اسپیس کا شناختی نام (slug) | تحتاج مراجعة بشرية |
+| 426 | Home.tsx | 64 | plan | پلان | تحتاج مراجعة بشرية |
+| 427 | Home.tsx | 64 | seats | نشستیں | تحتاج مراجعة بشرية |
+| 428 | Home.tsx | 64 | loadingPlans | پلانز لوڈ ہو رہے ہیں… | تحتاج مراجعة بشرية |
+| 429 | Home.tsx | 64 | creating | محفوظ ورک اسپیس بنایا جا رہا ہے… | تحتاج مراجعة بشرية |
+| 430 | Home.tsx | 64 | submit | ورک اسپیس بنائیں | تحتاج مراجعة بشرية |
+| 431 | Home.tsx | 64 | workspacesLoadFailure | آپ کے موجودہ ورک اسپیسز لوڈ نہیں ہو سکے۔ ڈپلیکیٹ ورک اسپیس سے بچنے کے لیے بنانے کا فارم چھپا دیا گیا ہے۔ | تحتاج مراجعة بشرية |
+| 432 | Home.tsx | 64 | reloadWorkspaces | ورک اسپیسز دوبارہ لوڈ کریں | تحتاج مراجعة بشرية |
+| 433 | Home.tsx | 64 | created | آزمائشی ورک اسپیس بن گیا ہے۔ اب آپ اس کا پروجیکٹ رجسٹر کھول سکتے ہیں۔ | تحتاج مراجعة بشرية |
+| 434 | Home.tsx | 64 | tenantLabel | کمپنی | تحتاج مراجعة بشرية |
+| 435 | Home.tsx | 64 | evm | EVM | تحتاج مراجعة بشرية |
+| 436 | Home.tsx | 64 | auditLabel | آڈٹ | تحتاج مراجعة بشرية |
+| 437 | Home.tsx | 64 | setupWizardLine | سیٹ اپ وزرڈ: پروجیکٹ، درآمد، دعوتیں | تحتاج مراجعة بشرية |
+| 438 | Home.tsx | 64 | continueSetup | سیٹ اپ وزرڈ کے ساتھ جاری رکھیں | تحتاج مراجعة بشرية |
+| 439 | Home.tsx | 64 | planList | پلانز کی فہرست | تحتاج مراجعة بشرية |
+| 440 | IntegrationSettings.tsx | 63 | okLabel | ٹھیک ہے | تحتاج مراجعة بشرية |
+| 441 | IntegrationSettings.tsx | 63 | perMinute | /منٹ | تحتاج مراجعة بشرية |
+| 442 | LabourLoadingCard.tsx | 25 | title | لوڈ شدہ مزدوری کی لاگت | تحتاج مراجعة بشرية |
+| 443 | LabourLoadingCard.tsx | 25 | factor | مؤثر لوڈنگ فیکٹر | تحتاج مراجعة بشرية |
+| 444 | LabourLoadingCard.tsx | 25 | none | پے رول سے ابھی تک کسی گھنٹے کی قیمت نہیں لگائی گئی | تحتاج مراجعة بشرية |
+| 445 | LabourLoadingCard.tsx | 25 | loading | لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 446 | LabourLoadingCard.tsx | 25 | retry | دوبارہ کوشش کریں | تحتاج مراجعة بشرية |
+| 447 | LabourLoadingCard.tsx | 27 | settings | کمپنی کی ترتیبات | تحتاج مراجعة بشرية |
+| 448 | LabourLoadingCard.tsx | 27 | gosi | آجر کا بیمہ — سعودی (%) | تحتاج مراجعة بشرية |
+| 449 | LabourLoadingCard.tsx | 27 | gosiNon | آجر کا بیمہ — غیر سعودی (%) | تحتاج مراجعة بشرية |
+| 450 | LabourLoadingCard.tsx | 27 | eosYears | پہلی شرح پر سال | تحتاج مراجعة بشرية |
+| 451 | LabourLoadingCard.tsx | 27 | eosFirst | اس مدت میں ہر سال کے مہینے | تحتاج مراجعة بشرية |
+| 452 | LabourLoadingCard.tsx | 27 | eosLater | اس کے بعد ہر سال کے مہینے | تحتاج مراجعة بشرية |
+| 453 | LabourLoadingCard.tsx | 27 | estimateNote | یہ لاگت کا تخمینہ ہے، قانونی حساب نہیں۔ بیمہ بنیادی تنخواہ اور ہاؤسنگ پر لاگو ہے؛ اختتامِ ملازمت تنخواہ اور مقررہ الاؤنسز پر سروس کی مدت کے حساب سے لاگو ہے۔ | تحتاج مراجعة بشرية |
+| 454 | LabourLoadingCard.tsx | 27 | indirect | بالواسطہ لوڈنگ (%) | تحتاج مراجعة بشرية |
+| 455 | LabourLoadingCard.tsx | 27 | hours | یومیہ گھنٹے | تحتاج مراجعة بشرية |
+| 456 | LabourLoadingCard.tsx | 27 | days | کام کے دن | تحتاج مراجعة بشرية |
+| 457 | LabourLoadingCard.tsx | 27 | edit | ترمیم کریں | تحتاج مراجعة بشرية |
+| 458 | LabourLoadingCard.tsx | 27 | save | محفوظ کریں | تحتاج مراجعة بشرية |
+| 459 | LabourLoadingCard.tsx | 27 | cancel | منسوخ کریں | تحتاج مراجعة بشرية |
+| 460 | LabourLoadingCard.tsx | 27 | saved | ترتیبات محفوظ ہو گئیں | تحتاج مراجعة بشرية |
+| 461 | LabourLoadingCard.tsx | 28 | defaults | ڈیفالٹ ترتیبات: سعودی کے لیے بیمہ 11.75% اور دوسروں کے لیے 2%، اختتامِ ملازمت پہلے پانچ سال ہر سال آدھا مہینہ اور اس کے بعد ایک مہینہ، اتوار سے جمعرات، آٹھ گھنٹے۔ | تحتاج مراجعة بشرية |
+| 462 | LabourLoadingCard.tsx | 28 | loadedCost | منظور شدہ لوڈڈ لاگت | تحتاج مراجعة بشرية |
+| 463 | LabourLoadingCard.tsx | 28 | note | یہ فیکٹر اسی مدت کے لیے لوڈڈ لاگت کو صرف تنخواہ اور الاؤنسز سے تقسیم کرنے کا نتیجہ ہے۔ کسی فرد کی تنخواہ نہیں دکھائی جاتی۔ | تحتاج مراجعة بشرية |
+| 464 | LabourLoadingCard.tsx | 47 | ur | ،  | تحتاج مراجعة بشرية |
+| 465 | LabourLoadingCard.tsx | 66 | ur | آپ کے پاس مزدوری کی لاگت کی لوڈنگ ترتیب دینے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔ | تحتاج مراجعة بشرية |
+| 466 | LevelCompany.tsx | 32 | title | کمپنی اور بورڈ کا ڈیش بورڈ | تحتاج مراجعة بشرية |
+| 467 | LevelCompany.tsx | 32 | loading | کمپنی کا ڈیش بورڈ لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 468 | LevelCompany.tsx | 33 | totals | کل | تحتاج مراجعة بشرية |
+| 469 | LevelCompany.tsx | 33 | projects | پروجیکٹس | تحتاج مراجعة بشرية |
+| 470 | LevelCompany.tsx | 33 | profit | متوقع منافع (کل) | تحتاج مراجعة بشرية |
+| 471 | LevelCompany.tsx | 33 | late | تاخیر کے شکار پروجیکٹس | تحتاج مراجعة بشرية |
+| 472 | LevelCompany.tsx | 33 | deviating | منفی انحراف والے پروجیکٹس | تحتاج مراجعة بشرية |
+| 473 | LevelCompany.tsx | 34 | multiCurrency | کئی کرنسیاں: منافع کی جمع نہیں کی جاتی | تحتاج مراجعة بشرية |
+| 474 | LevelCompany.tsx | 34 | notAvailable | دستیاب نہیں | تحتاج مراجعة بشرية |
+| 475 | LevelCompany.tsx | 35 | allProjects | تمام پروجیکٹس | تحتاج مراجعة بشرية |
+| 476 | LevelCompany.tsx | 35 | project | پروجیکٹ | تحتاج مراجعة بشرية |
+| 477 | LevelCompany.tsx | 35 | deviation | انحراف (VAC) | تحتاج مراجعة بشرية |
+| 478 | LevelCompany.tsx | 35 | progress | پیش رفت | تحتاج مراجعة بشرية |
+| 479 | LevelCompany.tsx | 35 | lateActivities | تاخیر کا شکار سرگرمیاں | تحتاج مراجعة بشرية |
+| 480 | LevelCompany.tsx | 35 | open | پروجیکٹ کھولیں | تحتاج مراجعة بشرية |
+| 481 | LevelCompany.tsx | 36 | commitments | ذمہ داریاں | تحتاج مراجعة بشرية |
+| 482 | LevelCompany.tsx | 36 | commitmentsFailed | ذمہ داریاں لوڈ نہیں ہو سکیں۔ | تحتاج مراجعة بشرية |
+| 483 | LevelCompany.tsx | 36 | activeContracts | فعال معاہدے | تحتاج مراجعة بشرية |
+| 484 | LevelCompany.tsx | 36 | approvedOrders | منظور شدہ اور جاری کردہ خریداری کے آرڈرز | تحتاج مراجعة بشرية |
+| 485 | LevelCompany.tsx | 36 | committedCommitments | طے شدہ ذمہ داریاں | تحتاج مراجعة بشرية |
+| 486 | LevelCompany.tsx | 36 | noAmount | کوئی رقم نہیں | تحتاج مراجعة بشرية |
+| 487 | LevelCompany.tsx | 37 | emptyTitle | ابھی تک کوئی پروجیکٹ نہیں | تحتاج مراجعة بشرية |
+| 488 | LevelCompany.tsx | 37 | emptyBody | پہلا پروجیکٹ شامل کریں، پھر وہ اس ڈیش بورڈ پر ظاہر ہوگا۔ | تحتاج مراجعة بشرية |
+| 489 | LevelCompany.tsx | 37 | emptyAction | پروجیکٹ رجسٹر پر جائیں | تحتاج مراجعة بشرية |
+| 490 | LevelEntry.tsx | 16 | loading | آپ کی سطح تلاش کی جا رہی ہے… | تحتاج مراجعة بشرية |
+| 491 | LevelEntry.tsx | 16 | noLevelTitle | اس کمپنی میں آپ کو کوئی سطح تفویض نہیں کی گئی | تحتاج مراجعة بشرية |
+| 492 | LevelPortfolio.tsx | 36 | title | پروجیکٹ مینجمنٹ (پورٹ فولیو) کا ڈیش بورڈ | تحتاج مراجعة بشرية |
+| 493 | LevelPortfolio.tsx | 36 | loading | پورٹ فولیو کا ڈیش بورڈ لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 494 | LevelPortfolio.tsx | 37 | totals | کل | تحتاج مراجعة بشرية |
+| 495 | LevelPortfolio.tsx | 37 | projects | پروجیکٹس | تحتاج مراجعة بشرية |
+| 496 | LevelPortfolio.tsx | 37 | avgProgress | اوسط پیش رفت | تحتاج مراجعة بشرية |
+| 497 | LevelPortfolio.tsx | 37 | late | تاخیر کی سرگرمیوں والے پروجیکٹس | تحتاج مراجعة بشرية |
+| 498 | LevelPortfolio.tsx | 38 | waitingConsultant | مشیر کے جواب کا منتظر | تحتاج مراجعة بشرية |
+| 499 | LevelPortfolio.tsx | 38 | waitingQuality | معیار کی جانچ کا منتظر | تحتاج مراجعة بشرية |
+| 500 | LevelPortfolio.tsx | 39 | comparison | پروجیکٹس کا موازنہ | تحتاج مراجعة بشرية |
+| 501 | LevelPortfolio.tsx | 39 | project | پروجیکٹ | تحتاج مراجعة بشرية |
+| 502 | LevelPortfolio.tsx | 39 | progress | پیش رفت | تحتاج مراجعة بشرية |
+| 503 | LevelPortfolio.tsx | 39 | profit | متوقع منافع | تحتاج مراجعة بشرية |
+| 504 | LevelPortfolio.tsx | 39 | lateActivities | تاخیر کا شکار سرگرمیاں | تحتاج مراجعة بشرية |
+| 505 | LevelPortfolio.tsx | 40 | stockBelow | دوبارہ آرڈر کی سطح سے نیچے مواد | تحتاج مراجعة بشرية |
+| 506 | LevelPortfolio.tsx | 40 | open | پروجیکٹ کھولیں | تحتاج مراجعة بشرية |
+| 507 | LevelPortfolio.tsx | 41 | consultantTitle | مشیر کے جواب کا منتظر | تحتاج مراجعة بشرية |
+| 508 | LevelPortfolio.tsx | 41 | consultantRequests | بغیر جواب کی معائنہ درخواستیں | تحتاج مراجعة بشرية |
+| 509 | LevelPortfolio.tsx | 41 | consultantSubmittals | جواب کے منتظر جمع شدہ دستاویزات | تحتاج مراجعة بشرية |
+| 510 | LevelPortfolio.tsx | 42 | qualityTitle | معیار کی جانچ کا منتظر | تحتاج مراجعة بشرية |
+| 511 | LevelPortfolio.tsx | 42 | qualityInspections | نتیجے کے منتظر معائنے | تحتاج مراجعة بشرية |
+| 512 | LevelPortfolio.tsx | 42 | qualityNcrs | کھلی عدم مطابقتیں | تحتاج مراجعة بشرية |
+| 513 | LevelPortfolio.tsx | 43 | nothingWaiting | اس حصے میں کچھ بھی انتظار میں نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 514 | LevelPortfolio.tsx | 43 | emptyTitle | آپ کے پورٹ فولیو میں کوئی پروجیکٹ نہیں | تحتاج مراجعة بشرية |
+| 515 | LevelPortfolio.tsx | 43 | emptyBody | آپ کی پروجیکٹ مینجمنٹ تفویض ابھی کسی پروجیکٹ کا احاطہ نہیں کرتی۔ | تحتاج مراجعة بشرية |
+| 516 | LevelProject.tsx | 42 | title | پروجیکٹ کا ڈیش بورڈ | تحتاج مراجعة بشرية |
+| 517 | LevelProject.tsx | 42 | loading | پروجیکٹ کا ڈیش بورڈ لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 518 | LevelProject.tsx | 43 | profit | منافع بخشی | تحتاج مراجعة بشرية |
+| 519 | LevelProject.tsx | 43 | evm | کمائی گئی قدر (EVM) | تحتاج مراجعة بشرية |
+| 520 | LevelProject.tsx | 43 | progress | پیش رفت | تحتاج مراجعة بشرية |
+| 521 | LevelProject.tsx | 44 | evmUnavailable | اس پروجیکٹ کی کمائی گئی قدر ابھی حساب نہیں کی جا سکتی۔ | تحتاج مراجعة بشرية |
+| 522 | LevelProject.tsx | 44 | progressUnavailable | اس پروجیکٹ کی پیش رفت ابھی حساب نہیں کی گئی۔ | تحتاج مراجعة بشرية |
+| 523 | LevelProject.tsx | 45 | daily | روزانہ کی رپورٹ | تحتاج مراجعة بشرية |
+| 524 | LevelProject.tsx | 45 | dailyFailed | روزانہ کی رپورٹیں لوڈ نہیں ہو سکیں۔ | تحتاج مراجعة بشرية |
+| 525 | LevelProject.tsx | 45 | noDaily | اس پروجیکٹ کے لیے کوئی روزانہ رپورٹ درج نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 526 | LevelProject.tsx | 46 | report | رپورٹ نمبر | تحتاج مراجعة بشرية |
+| 527 | LevelProject.tsx | 46 | date | تاریخ | تحتاج مراجعة بشرية |
+| 528 | LevelProject.tsx | 46 | workforce | افرادی قوت | تحتاج مراجعة بشرية |
+| 529 | LevelProject.tsx | 46 | status | حیثیت | تحتاج مراجعة بشرية |
+| 530 | LevelProject.tsx | 47 | handovers | ہینڈ اوورز | تحتاج مراجعة بشرية |
+| 531 | LevelProject.tsx | 47 | handoversFailed | ہینڈ اوورز لوڈ نہیں ہو سکے۔ | تحتاج مراجعة بشرية |
+| 532 | LevelProject.tsx | 47 | deliveriesTotal | کل ہینڈ اوورز | تحتاج مراجعة بشرية |
+| 533 | LevelProject.tsx | 47 | deliveriesAwaiting | مشیر کے منتظر | تحتاج مراجعة بشرية |
+| 534 | LevelProject.tsx | 47 | deliveriesReplied | جواب دیا گیا | تحتاج مراجعة بشرية |
+| 535 | LevelProject.tsx | 48 | inspections | معائنے | تحتاج مراجعة بشرية |
+| 536 | LevelProject.tsx | 48 | inspectionsFailed | معائنے لوڈ نہیں ہو سکے۔ | تحتاج مراجعة بشرية |
+| 537 | LevelProject.tsx | 48 | noInspections | اس پروجیکٹ کے لیے کوئی معائنہ درج نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 538 | LevelProject.tsx | 49 | inspection | معائنے کا نمبر | تحتاج مراجعة بشرية |
+| 539 | LevelProject.tsx | 49 | inspectedAt | معائنے کی تاریخ | تحتاج مراجعة بشرية |
+| 540 | LevelProject.tsx | 49 | outcome | نتیجہ | تحتاج مراجعة بشرية |
+| 541 | LevelProject.tsx | 49 | awaiting | نتیجے کے منتظر | تحتاج مراجعة بشرية |
+| 542 | LevelProject.tsx | 49 | openNcrs | کھلی عدم مطابقتیں | تحتاج مراجعة بشرية |
+| 543 | LevelProject.tsx | 50 | notAvailable | دستیاب نہیں | تحتاج مراجعة بشرية |
+| 544 | LevelWarehouse.tsx | 39 | loading | گودام لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 545 | LevelWarehouse.tsx | 39 | noWarehouse | اس پروجیکٹ کا ابھی کوئی گودام نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 546 | LevelWarehouse.tsx | 39 | noWarehouseBody | پروجیکٹ کی گودام کی اسکرین پر گودام بنائیں، پھر وہ یہاں ظاہر ہوگا۔ | تحتاج مراجعة بشرية |
+| 547 | LevelWarehouse.tsx | 40 | balance | بقایا | تحتاج مراجعة بشرية |
+| 548 | LevelWarehouse.tsx | 40 | materials | مواد | تحتاج مراجعة بشرية |
+| 549 | LevelWarehouse.tsx | 40 | stockValue | اسٹاک کی قیمت (پروجیکٹ کی کرنسی) | تحتاج مراجعة بشرية |
+| 550 | LevelWarehouse.tsx | 40 | belowReorder | دوبارہ آرڈر کی سطح سے نیچے | تحتاج مراجعة بشرية |
+| 551 | LevelWarehouse.tsx | 41 | code | کوڈ | تحتاج مراجعة بشرية |
+| 552 | LevelWarehouse.tsx | 41 | description | تفصیل | تحتاج مراجعة بشرية |
+| 553 | LevelWarehouse.tsx | 41 | quantity | مقدار | تحتاج مراجعة بشرية |
+| 554 | LevelWarehouse.tsx | 41 | unit | اکائی | تحتاج مراجعة بشرية |
+| 555 | LevelWarehouse.tsx | 41 | value | قدر | تحتاج مراجعة بشرية |
+| 556 | LevelWarehouse.tsx | 41 | reorder | دوبارہ آرڈر کی سطح | تحتاج مراجعة بشرية |
+| 557 | LevelWarehouse.tsx | 42 | movements | حرکات | تحتاج مراجعة بشرية |
+| 558 | LevelWarehouse.tsx | 42 | date | تاریخ | تحتاج مراجعة بشرية |
+| 559 | LevelWarehouse.tsx | 42 | type | قسم | تحتاج مراجعة بشرية |
+| 560 | LevelWarehouse.tsx | 42 | reference | حوالہ | تحتاج مراجعة بشرية |
+| 561 | LevelWarehouse.tsx | 42 | noMovements | اس گودام میں ابھی تک کوئی حرکت نہیں ہوئی۔ | تحتاج مراجعة بشرية |
+| 562 | LevelWarehouse.tsx | 43 | shortages | کمی | تحتاج مراجعة بشرية |
+| 563 | LevelWarehouse.tsx | 43 | noShortage | کوئی کمی نہیں: ہر مواد دوبارہ آرڈر کی سطح سے اوپر ہے۔ | تحتاج مراجعة بشرية |
+| 564 | LevelWarehouse.tsx | 43 | belowLine | دوبارہ آرڈر کی سطح سے نیچے | تحتاج مراجعة بشرية |
+| 565 | LevelWarehouse.tsx | 44 | unapproved | غیر منظور شدہ مواد | تحتاج مراجعة بشرية |
+| 566 | LevelWarehouse.tsx | 44 | unapprovedFailed | غیر منظور شدہ مواد لوڈ نہیں ہو سکا۔ | تحتاج مراجعة بشرية |
+| 567 | LevelWarehouse.tsx | 44 | held | موجود مواد | تحتاج مراجعة بشرية |
+| 568 | LevelWarehouse.tsx | 44 | unapprovedCount | غیر منظور شدہ | تحتاج مراجعة بشرية |
+| 569 | LevelWarehouse.tsx | 44 | allApproved | اس گودام میں موجود ہر مواد منظور شدہ ہے۔ | تحتاج مراجعة بشرية |
+| 570 | LevelWarehouse.tsx | 44 | noSubmittal | کوئی منظوری جمع نہیں کرائی گئی | تحتاج مراجعة بشرية |
+| 571 | LevelWarehouse.tsx | 44 | notApproved | منظور نہیں | تحتاج مراجعة بشرية |
+| 572 | LevelWarehouse.tsx | 45 | chooser | گودام | تحتاج مراجعة بشرية |
+| 573 | LevelWarehouse.tsx | 45 | current | ابھی دکھایا جا رہا ہے | تحتاج مراجعة بشرية |
+| 574 | LevelWarehouse.tsx | 45 | lowest | یہ سب سے نچلی سطح ہے۔ | تحتاج مراجعة بشرية |
+| 575 | LevelWarehouse.tsx | 46 | title | گودام کا ڈیش بورڈ | تحتاج مراجعة بشرية |
+| 576 | LicensingConsole.tsx | 28 | title | لائسنسنگ اور فروخت | تحتاج مراجعة بشرية |
+| 577 | LicensingConsole.tsx | 28 | note | پلانز، خصوصیات اور حدود کے لیے منظم دستی فعال کاری۔ اس ورژن میں کوئی چیک آؤٹ عمل یا کارڈ ڈیٹا کا ذخیرہ نہیں ہے۔ | تحتاج مراجعة بشرية |
+| 578 | LicensingConsole.tsx | 28 | current | موجودہ لائسنس | تحتاج مراجعة بشرية |
+| 579 | LicensingConsole.tsx | 28 | none | اس ورک اسپیس کے لیے کوئی لائسنس فراہم نہیں کیا گیا۔ | تحتاج مراجعة بشرية |
+| 580 | LicensingConsole.tsx | 28 | plan | پلان | تحتاج مراجعة بشرية |
+| 581 | LicensingConsole.tsx | 28 | status | حیثیت | تحتاج مراجعة بشرية |
+| 582 | LicensingConsole.tsx | 28 | seats | نشستیں | تحتاج مراجعة بشرية |
+| 583 | LicensingConsole.tsx | 28 | starts | شروع | تحتاج مراجعة بشرية |
+| 584 | LicensingConsole.tsx | 28 | ends | ختم | تحتاج مراجعة بشرية |
+| 585 | LicensingConsole.tsx | 28 | manual | دستی فعال کاری | تحتاج مراجعة بشرية |
+| 586 | LicensingConsole.tsx | 28 | provision | لائسنس فراہم کریں یا اپ گریڈ کریں | تحتاج مراجعة بشرية |
+| 587 | LicensingConsole.tsx | 28 | activate | فعال کریں | تحتاج مراجعة بشرية |
+| 588 | LicensingConsole.tsx | 28 | suspend | معطل کریں | تحتاج مراجعة بشرية |
+| 589 | LicensingConsole.tsx | 28 | grace | مہلت کی مدت | تحتاج مراجعة بشرية |
+| 590 | LicensingConsole.tsx | 28 | cancel | منسوخ کریں | تحتاج مراجعة بشرية |
+| 591 | LicensingConsole.tsx | 28 | limits | خصوصیات کی حدود | تحتاج مراجعة بشرية |
+| 592 | LicensingConsole.tsx | 28 | masterPlanLimit | ماسٹر پلان کی حد | تحتاج مراجعة بشرية |
+| 593 | LicensingConsole.tsx | 28 | saveLimit | حد محفوظ کریں | تحتاج مراجعة بشرية |
+| 594 | LicensingConsole.tsx | 28 | catalog | پلان کیٹلاگ | تحتاج مراجعة بشرية |
+| 595 | LicensingConsole.tsx | 28 | catalogDenied | پلانز بدلنے اور دستی فعال کاری کے لیے پلیٹ فارم ایڈمنسٹریٹر کی رسائی درکار ہے۔ کمپنی کے منتظمین صرف موجودہ لائسنس دیکھ سکتے ہیں۔ | تحتاج مراجعة بشرية |
+| 596 | LicensingConsole.tsx | 28 | back | پروجیکٹ رجسٹر پر واپس جائیں | تحتاج مراجعة بشرية |
+| 597 | LicensingConsole.tsx | 28 | trialing | آزمائشی | تحتاج مراجعة بشرية |
+| 598 | LicensingConsole.tsx | 28 | active | فعال | تحتاج مراجعة بشرية |
+| 599 | LicensingConsole.tsx | 28 | past_due | ادائیگی میں تاخیر | تحتاج مراجعة بشرية |
+| 600 | LicensingConsole.tsx | 28 | suspended | معطل | تحتاج مراجعة بشرية |
+| 601 | LicensingConsole.tsx | 28 | cancelled | منسوخ | تحتاج مراجعة بشرية |
+| 602 | LicensingConsole.tsx | 28 | expired | مدت ختم | تحتاج مراجعة بشرية |
+| 603 | LicensingConsole.tsx | 28 | grace_period | مہلت کی مدت | تحتاج مراجعة بشرية |
+| 604 | LicensingConsole.tsx | 28 | loading | لائسنس کا ڈیٹا لوڈ ہو رہا ہے… | تحتاج مراجعة بشرية |
+| 605 | LicensingConsole.tsx | 28 | projectOs | PROJECT OS | تحتاج مراجعة بشرية |
+| 606 | LicensingConsole.tsx | 28 | licenseLoadFailed | موجودہ لائسنس لوڈ نہیں ہو سکا | تحتاج مراجعة بشرية |
+| 607 | LicensingConsole.tsx | 28 | activateFromCard | نیچے 'لائسنس فراہم کریں یا اپ گریڈ کریں' کارڈ سے ایک پلان فعال کریں۔ | تحتاج مراجعة بشرية |
+| 608 | LicensingConsole.tsx | 28 | askAdministrator | پلیٹ فارم ایڈمنسٹریٹر سے کہیں کہ اس کمپنی کے لیے لائسنس فعال کرے۔ | تحتاج مراجعة بشرية |
+| 609 | LicensingConsole.tsx | 28 | goLicenseActivation | لائسنس فعال کرنے پر جائیں | تحتاج مراجعة بشرية |
+| 610 | LicensingConsole.tsx | 28 | planCatalog | پلان کیٹلاگ | تحتاج مراجعة بشرية |

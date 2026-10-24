@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
 import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
@@ -32,21 +33,21 @@ const text = {
     nothingWaiting: "Nothing is waiting in this section.", emptyTitle: "No projects in your portfolio", emptyBody: "Your projects-management assignment does not cover any project yet.",
   },
   ur: {
-    title: "Projects management (portfolio) dashboard", loading: "Loading the portfolio dashboard…",
-    totals: "Totals", projects: "Projects", avgProgress: "Average progress", late: "Projects with late activities",
-    waitingConsultant: "Waiting for the consultant", waitingQuality: "Waiting for quality",
-    comparison: "Project comparison", project: "Project", progress: "Progress", cpi: "CPI", spi: "SPI", profit: "Expected profit", lateActivities: "Late activities",
-    stockBelow: "Materials below reorder", open: "Open project",
-    consultantTitle: "Waiting for the consultant", consultantRequests: "Inspection requests without a reply", consultantSubmittals: "Submittals awaiting a reply",
-    qualityTitle: "Waiting for quality", qualityInspections: "Inspections awaiting a result", qualityNcrs: "Open non-conformances",
-    nothingWaiting: "Nothing is waiting in this section.", emptyTitle: "No projects in your portfolio", emptyBody: "Your projects-management assignment does not cover any project yet.",
+    title: "پروجیکٹ مینجمنٹ (پورٹ فولیو) کا ڈیش بورڈ", loading: "پورٹ فولیو کا ڈیش بورڈ لوڈ ہو رہا ہے…",
+    totals: "کل", projects: "پروجیکٹس", avgProgress: "اوسط پیش رفت", late: "تاخیر کی سرگرمیوں والے پروجیکٹس",
+    waitingConsultant: "مشیر کے جواب کا منتظر", waitingQuality: "معیار کی جانچ کا منتظر",
+    comparison: "پروجیکٹس کا موازنہ", project: "پروجیکٹ", progress: "پیش رفت", cpi: "CPI", spi: "SPI", profit: "متوقع منافع", lateActivities: "تاخیر کا شکار سرگرمیاں",
+    stockBelow: "دوبارہ آرڈر کی سطح سے نیچے مواد", open: "پروجیکٹ کھولیں",
+    consultantTitle: "مشیر کے جواب کا منتظر", consultantRequests: "بغیر جواب کی معائنہ درخواستیں", consultantSubmittals: "جواب کے منتظر جمع شدہ دستاویزات",
+    qualityTitle: "معیار کی جانچ کا منتظر", qualityInspections: "نتیجے کے منتظر معائنے", qualityNcrs: "کھلی عدم مطابقتیں",
+    nothingWaiting: "اس حصے میں کچھ بھی انتظار میں نہیں ہے۔", emptyTitle: "آپ کے پورٹ فولیو میں کوئی پروجیکٹ نہیں", emptyBody: "آپ کی پروجیکٹ مینجمنٹ تفویض ابھی کسی پروجیکٹ کا احاطہ نہیں کرتی۔",
   },
 };
 
 export default function LevelPortfolio() {
   const { tenantId = "" } = useParams<{ tenantId: string }>();
-  const { isArabic } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const { isArabic, language } = useLanguage();
+  const t = pickLanguage(language, text);
   const query = trpc.scopes.portfolio.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   const rows: ProjectKpi[] = query.data?.projects ?? [];
   // The level below is a project, and the person chooses which one: a link per project of the comparison, each to that row's project (G-196).
