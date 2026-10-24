@@ -13,11 +13,11 @@ import { trpc } from "@/lib/trpc";
 import { SourceNotice } from "@/components/SectionResilience";
 import { WriteGate } from "@/lib/permissions";
 import { DESIGN_DISCIPLINES } from "@shared/designDisciplines";
-import { pickLanguage } from "@/lib/language";
+import { pickLanguage, type Language } from "@/lib/language";
 
 const field = "mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm";
-const when = (value: Date | string | null | undefined, isArabic: boolean) => value ? new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(value)) : "—";
-const noWrite = (ar: string, en: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `You do not have permission to ${en}; this section is read-only for you.` });
+const when = (value: Date | string | null | undefined, language: Language) => value ? new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value)) : "—";
+const noWrite = (ar: string, en: string, ur: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `آپ کو ${ur} کی اجازت نہیں ہے؛ یہ حصہ آپ کے لیے صرف دیکھنے کے لیے ہے۔` });
 
 export function ProjectDesign({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
@@ -93,7 +93,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       </section> : null}
 
       {sheet(t.drawingsTitle, <>
-        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل المخططات", "register drawings")}>
+        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل المخططات", "register drawings", "ڈرائنگز درج کرنے")}>
           <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => register.mutate({ ...scope, ...drawing, discipline: drawing.discipline as never }, { onSuccess: () => setDrawing({ drawingNumber: "", title: "", discipline: drawing.discipline, revision: "A" }) }))}>
             <div><Label htmlFor="dg-number">{t.number}</Label><Input id="dg-number" value={drawing.drawingNumber} onChange={event => setDrawing({ ...drawing, drawingNumber: event.target.value })} required /></div>
             <div className="md:col-span-2"><Label htmlFor="dg-title">{t.name}</Label><Input id="dg-title" value={drawing.title} onChange={event => setDrawing({ ...drawing, title: event.target.value })} required /></div>
@@ -117,7 +117,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       </>)}
 
       {sheet(t.transmittalsTitle, <>
-        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("إنشاء الإحالات", "create transmittals")}>
+        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("إنشاء الإحالات", "create transmittals", "ٹرانسمٹلز بنانے")}>
           <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => createTransmittal.mutate({ ...scope, ...transmittal, direction: transmittal.direction as never, revisionIds: picked }, { onSuccess: () => { setPicked([]); setTransmittal({ transmittalNumber: "", direction: "outgoing", counterparty: "", subject: "" }); } }))}>
             <div><Label htmlFor="tr-number">{t.number}</Label><Input id="tr-number" value={transmittal.transmittalNumber} onChange={event => setTransmittal({ ...transmittal, transmittalNumber: event.target.value })} required /></div>
             <div><Label htmlFor="tr-direction">{t.direction}</Label><select id="tr-direction" className={field} value={transmittal.direction} onChange={event => setTransmittal({ ...transmittal, direction: event.target.value })}><option value="outgoing">{label("outgoing")}</option><option value="incoming">{label("incoming")}</option></select></div>
@@ -135,7 +135,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       </>)}
 
       {sheet(t.commentsTitle, <>
-        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل ملاحظات المراجعة", "raise review comments")}>
+        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل ملاحظات المراجعة", "raise review comments", "جائزے کے تبصرے درج کرنے")}>
           <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => raiseComment.mutate({ ...scope, drawingId: comment.drawingId, commentNumber: comment.commentNumber, raisedBy: comment.raisedBy, severity: comment.severity as never, commentText: comment.commentText, ...(comment.dueAt ? { dueAt: new Date(`${comment.dueAt}T00:00:00.000Z`) } : {}) }, { onSuccess: () => setComment({ drawingId: comment.drawingId, commentNumber: "", raisedBy: comment.raisedBy, severity: "minor", commentText: "", dueAt: "" }) }))}>
             <div><Label htmlFor="cm-drawing">{t.drawing}</Label><select id="cm-drawing" className={field} value={comment.drawingId} onChange={event => setComment({ ...comment, drawingId: event.target.value })} required><option value="">{t.choose}</option>{live.filter(item => item.status !== "approved").map(item => <option key={item.id} value={item.id}>{item.drawingNumber} / {item.currentRevision}</option>)}</select></div>
             <div><Label htmlFor="cm-number">{t.number}</Label><Input id="cm-number" value={comment.commentNumber} onChange={event => setComment({ ...comment, commentNumber: event.target.value })} required /></div>
@@ -147,7 +147,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </form>
         </WriteGate>
         {(comments.data ?? []).length ? <div className="divide-y rounded-xl border">{(comments.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.commentNumber} · {item.drawingNumber} / {item.revision}</b><span className="text-xs text-slate-500">{label(item.severity)} · {label(item.status)} · {item.raisedBy}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, isArabic)}` : ""}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.commentNumber} · {item.drawingNumber} / {item.revision}</b><span className="text-xs text-slate-500">{label(item.severity)} · {label(item.status)} · {item.raisedBy}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
           <p className="mt-1">{item.commentText}</p>
           {item.responseText ? <p className="mt-1 text-xs text-slate-600">{t.response}: {item.responseText}</p> : null}
           {item.status === "open" ? <WriteGate permission="project.design.manage" projectId={projectId}><div className="mt-2 flex flex-wrap items-end gap-2"><Input aria-label={`${t.response} ${item.commentNumber}`} placeholder={t.response} className="h-9 min-w-48 flex-1" value={answers[item.id] ?? ""} onChange={event => setAnswers({ ...answers, [item.id]: event.target.value })} /><Button size="sm" disabled={!answers[item.id]?.trim() || moveComment.isPending} onClick={() => moveComment.mutate({ ...scope, commentId: item.id, nextStatus: "responded", responseText: answers[item.id]!.trim() })}>{t.respond}</Button></div></WriteGate> : null}
@@ -156,7 +156,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       </>)}
 
       {sheet(t.submittalsTitle, <>
-        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل التقديمات", "register submittals")}>
+        <WriteGate permission="project.design.manage" projectId={projectId} reason={noWrite("تسجيل التقديمات", "register submittals", "سبمٹلز درج کرنے")}>
           <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => createSubmittal.mutate({ ...scope, submittalNumber: submittal.submittalNumber, title: submittal.title, discipline: submittal.discipline as never, ...(submittal.drawingId ? { drawingId: submittal.drawingId } : {}), ...(submittal.dueAt ? { dueAt: new Date(`${submittal.dueAt}T00:00:00.000Z`) } : {}) }, { onSuccess: () => setSubmittal({ submittalNumber: "", title: "", discipline: submittal.discipline, drawingId: "", dueAt: "" }) }))}>
             <div><Label htmlFor="sb-number">{t.number}</Label><Input id="sb-number" value={submittal.submittalNumber} onChange={event => setSubmittal({ ...submittal, submittalNumber: event.target.value })} required /></div>
             <div className="md:col-span-2"><Label htmlFor="sb-title">{t.submittalTitle}</Label><Input id="sb-title" value={submittal.title} onChange={event => setSubmittal({ ...submittal, title: event.target.value })} required /></div>
@@ -167,7 +167,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </form>
         </WriteGate>
         {(submittals.data ?? []).length ? <div className="divide-y rounded-xl border">{(submittals.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${(t.replyNames as Record<string, string>)[item.replyCode] ?? item.replyCode}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, isArabic)}` : ""}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${(t.replyNames as Record<string, string>)[item.replyCode] ?? item.replyCode}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
           {item.replyNote ? <p className="mt-1 text-xs text-slate-600">{item.replyNote}</p> : null}
           <div className="mt-2 flex flex-wrap items-end gap-2">
             {item.status === "draft" ? <WriteGate permission="project.design.manage" projectId={projectId}><Button size="sm" disabled={moveSubmittal.isPending} onClick={() => moveSubmittal.mutate({ ...scope, submittalId: item.id, nextStatus: "submitted" })}>{t.submit}</Button></WriteGate> : null}

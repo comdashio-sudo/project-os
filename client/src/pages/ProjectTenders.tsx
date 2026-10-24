@@ -19,7 +19,7 @@ import { pickLanguage } from "@/lib/language";
 
 const field = "mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm";
 const KINDS = ["scope_gap", "exclusion", "correction", "discount"] as const;
-const noWrite = (ar: string, en: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `You do not have permission to ${en}; this section is read-only for you.` });
+const noWrite = (ar: string, en: string, ur: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `آپ کو ${ur} کی اجازت نہیں ہے؛ یہ حصہ آپ کے لیے صرف دیکھنے کے لیے ہے۔` });
 
 export function ProjectTenders({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
@@ -54,7 +54,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         invite: "Invite supplier", pickSupplier: "Pick a supplier…", inviteesTitle: "Invitee list", bidEntry: "Enter a bid", amount: "Price", duration: "Duration (days)", validity: "Bid validity (days)", notes: "Notes", enter: "Record bid", withdraw: "Withdraw", comparisonTitle: "Bid comparison and levelling", rank: "Rank", supplier: "Supplier", adjustments: "Adjustments", levelled: "Levelled total", abovePct: "Above lowest", vsEstimate: "Vs estimate", durationShort: "Duration", flags: "Flags", lowestFlag: "Lowest", belowFlag: "30% below median", aboveFlag: "30% above median", medianLine: "Median", comparable: "comparable bids",
         addAdj: "Add adjustment", pickBid: "Pick a bid…", kind: "Kind", description: "Description", adjAmount: "Amount (positive adds, negative deducts)", disqualify: "Disqualify", reason: "Reason", remove: "Remove", awardTitle: "Award", contractCode: "Contract code", justification: "Award justification (required with fewer than two comparable bids)", awardButton: "Award and create contract and commitment", awarded: "Awarded", contract: "Contract", commitment: "Commitment", created: "created" } });
   const label = (code: string) => enumLabel(code, language);
-  const money = (value: number | null | undefined) => value === null || value === undefined ? "—" : new Intl.NumberFormat(isArabic ? "ar-SA" : "en-US", { maximumFractionDigits: 2 }).format(value);
+  const money = (value: number | null | undefined) => value === null || value === undefined ? "—" : new Intl.NumberFormat(pickLanguage(language, { ar: "ar-SA", en: "en-US", ur: "ur-PK" }), { maximumFractionDigits: 2 }).format(value);
   const pct = (value: number | null) => value === null ? "—" : `${value > 0 ? "+" : ""}${value}%`;
   const submit = (action: () => void) => (event: React.FormEvent) => { event.preventDefault(); action(); };
   const list = packages.data?.packages ?? [];
@@ -90,7 +90,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p> : null}
 
       {sheet(t.packagesTitle, <>
-        <WriteGate permission="project.tender.manage" projectId={projectId} reason={noWrite("إنشاء حزم المناقصة", "create tender packages")}>
+        <WriteGate permission="project.tender.manage" projectId={projectId} reason={noWrite("إنشاء حزم المناقصة", "create tender packages", "ٹینڈر پیکیجز بنانے")}>
           <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => createPackage.mutate({ ...scope, packageCode: form.packageCode, title: form.title, currency: form.currency, ...(form.estimateAmount ? { estimateAmount: Number(form.estimateAmount) } : {}), ...(form.scopeSummary ? { scopeSummary: form.scopeSummary } : {}) }, { onSuccess: () => setForm({ ...form, packageCode: "", title: "", estimateAmount: "", scopeSummary: "" }) }))}>
             <div><Label htmlFor="tp-code">{t.code}</Label><Input id="tp-code" value={form.packageCode} onChange={event => setForm({ ...form, packageCode: event.target.value })} required /></div>
             <div className="md:col-span-2"><Label htmlFor="tp-title">{t.name}</Label><Input id="tp-title" value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} required minLength={2} /></div>
@@ -123,7 +123,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
           </div></WriteGate> : null}
         </>)}
 
-        {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId} reason={noWrite("إدخال العروض", "enter bids")}>{sheet(t.bidEntry,
+        {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId} reason={noWrite("إدخال العروض", "enter bids", "بولیاں درج کرنے")}>{sheet(t.bidEntry,
           <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => enterBid.mutate({ ...scope, packageId: selected, supplierId: bid.supplierId, amount: Number(bid.amount), ...(bid.durationDays ? { durationDays: Number(bid.durationDays) } : {}), ...(bid.validityDays ? { validityDays: Number(bid.validityDays) } : {}), ...(bid.notes ? { notes: bid.notes } : {}) }, { onSuccess: () => setBid({ supplierId: "", amount: "", durationDays: "", validityDays: "", notes: "" }) }))}>
             <div><Label htmlFor="tb-supplier">{t.supplier}</Label><select id="tb-supplier" className={field} value={bid.supplierId} onChange={event => setBid({ ...bid, supplierId: event.target.value })} required><option value="">{t.pickSupplier}</option>{biddable.map(item => <option key={item.supplierId} value={item.supplierId}>{item.supplierName}</option>)}</select></div>
             <div><Label htmlFor="tb-amount">{t.amount}</Label><Input id="tb-amount" type="number" min="0.01" step="0.01" value={bid.amount} onChange={event => setBid({ ...bid, amount: event.target.value })} required /></div>
@@ -147,7 +147,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
               <td className="p-2">{money(item.amount)} {riyalLabel(isArabic)}</td><td className="p-2">{money(item.adjustments)}</td><td className="p-2 font-semibold">{money(item.levelledTotal)}</td>
               <td className="p-2">{item.aboveLowestPercent === null ? "—" : `${item.aboveLowestPercent}%`}</td><td className="p-2">{pct(item.versusEstimatePercent)}</td><td className="p-2">{item.durationDays ?? "—"}</td>
               <td className="p-2 text-xs">{item.flags.map(flag => flagText(flag)).join("، ") || "—"}</td></tr>)}</tbody></table></div>
-          {status === "closed" && live.length ? <WriteGate permission="project.tender.level" projectId={projectId} reason={noWrite("تسوية العروض", "level bids")}>
+          {status === "closed" && live.length ? <WriteGate permission="project.tender.level" projectId={projectId} reason={noWrite("تسوية العروض", "level bids", "بولیوں کا موازنہ ہم وار کرنے")}>
             <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => addAdjustment.mutate({ ...scope, bidId: adjustment.bidId, kind: adjustment.kind as never, description: adjustment.description, amount: Number(adjustment.amount) }, { onSuccess: () => setAdjustment({ bidId: adjustment.bidId, kind: "scope_gap", description: "", amount: "" }) }))}>
               <div><Label htmlFor="ta-bid">{t.supplier}</Label><select id="ta-bid" className={field} value={adjustment.bidId} onChange={event => setAdjustment({ ...adjustment, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.supplierName}</option>)}</select></div>
               <div><Label htmlFor="ta-kind">{t.kind}</Label><select id="ta-kind" className={field} value={adjustment.kind} onChange={event => setAdjustment({ ...adjustment, kind: event.target.value })}>{KINDS.map(code => <option key={code} value={code}>{label(code)}</option>)}</select></div>
@@ -158,7 +158,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         </>, <ExportExcelButton fileName="tenders-bid-comparison" sheetName={t.comparisonTitle} title={`${t.title} · ${t.comparisonTitle}`} rows={current.bids} columns={bidColumns} />)}
 
         {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-emerald-800">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
-        {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders")}>{sheet(t.awardTitle,
+        {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders", "ٹینڈرز کا ایوارڈ دینے")}>{sheet(t.awardTitle,
           <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => award.mutate({ ...scope, packageId: selected, bidId: winning.bidId, contractCode: winning.contractCode, ...(winning.justification ? { justification: winning.justification } : {}) }))}>
             <div className="md:col-span-2"><Label htmlFor="aw-bid">{t.supplier}</Label><select id="aw-bid" className={field} value={winning.bidId} onChange={event => setWinning({ ...winning, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.rank}. {item.supplierName} — {money(item.levelledTotal)}</option>)}</select></div>
             <div><Label htmlFor="aw-code">{t.contractCode}</Label><Input id="aw-code" value={winning.contractCode} onChange={event => setWinning({ ...winning, contractCode: event.target.value })} required /></div>
