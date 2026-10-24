@@ -64,10 +64,10 @@ export default function SetupWizard() {
         <nav aria-label={t.title} className="mt-6"><ol className="grid gap-2 sm:grid-cols-4">
           {STEPS.map((key, i) => (
             <li key={key}><button type="button" aria-current={step === key ? "step" : undefined} disabled={i > 0 && !tenantId} onClick={() => goto(key)} className={`flex min-h-[44px] w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${step === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "border-slate-300 bg-white text-slate-700 disabled:opacity-50"}`}>
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-white/20 text-xs">{complete[key] ? <Check className="h-4 w-4" aria-label={t.done} /> : i + 1}</span>{t.steps[key]}</button></li>
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{complete[key] ? <Check className="h-4 w-4" aria-label={t.done} /> : i + 1}</span>{t.steps[key]}</button></li>
           ))}
         </ol></nav>
-        <p className="mt-3 text-xs text-slate-500">{t.stepOf(index + 1)}</p>
+        <p className="mt-3 text-xs text-slate-600">{t.stepOf(index + 1)}</p>
         <SourceNotice query={tenants} isArabic={isArabic} title={isArabic ? "قائمة شركاتك" : "Your company list"} className="mt-4" />
         <SourceNotice query={projects} isArabic={isArabic} title={isArabic ? "قائمة مشاريع الشركة" : "The company's project list"} className="mt-4" />
         <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
