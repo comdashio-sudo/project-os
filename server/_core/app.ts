@@ -1,3 +1,4 @@
+import { integrationApiRouter } from "../integrations/api";
 import { ENV } from "./env";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { randomUUID } from "node:crypto";
@@ -79,6 +80,8 @@ export function createApp(options: AppOptions) {
     app.get(path, asSystem(reason), handler);
     app.post(path, asSystem(reason), handler);
   }
+  // The documented integration API (company API keys): its own authentication and limits, not the signed-in user's session.
+  app.use("/api/v1", integrationApiRouter());
   options.extraRoutes?.(app);
   // tRPC API
   app.use(

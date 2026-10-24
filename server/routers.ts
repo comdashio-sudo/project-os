@@ -1,3 +1,14 @@
+import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
+import { EXPORT_ENTITIES } from "./integrations/erpOutbound";
+import { createConnectionForManager, listConnectionsForManager, runConnectionForManager, setConnectionActiveForManager, testConnectionForManager } from "./integrations/connections";
+import { listMappingsForManager, listSyncItemsForManager, listSyncRunsForManager, saveMappingsForManager } from "./integrations/manage";
+import { MAPPING_TYPES } from "./integrations/mappings";
+import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
+import { integrationSystems } from "../drizzle/schema";
+import { getCellCardForTenant } from "./cellCard";
+import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
+import { getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
+import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { z } from "zod";
@@ -336,6 +347,52 @@ export const appRouter = router({
     }),
     reportSectionIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), product: z.enum(["EXECUTIVE", "PMO", "PROJECT"]), sectionKey: z.string().trim().min(2).max(80).regex(/^[a-z0-9:_-]+$/), state: z.enum(["error", "partial"]), projectId: z.string().uuid().optional() }).superRefine((value, context) => { if (value.product === "PROJECT" && !value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); if (value.product !== "PROJECT" && value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); })).mutation(({ ctx, input }) => reportDashboardSectionIssueForTenant({ userId: ctx.user.id, ...input })),
   }),
+  // Work order 12, items 4 to 7: the site's daily report, the consultant's submittals, the company's quality policy, and the card of a unit or an activity.
+  siteReports: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).query(({ ctx, input }) => getSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
+    save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weather: z.string().trim().max(24).optional(), temperatureC: z.number().min(-50).max(70).optional(), summary: z.string().trim().max(5000).optional(), obstacles: z.string().trim().max(5000).optional(), lines: z.array(z.object({ lineType: z.enum(["labour", "equipment", "work"]), label: z.string().trim().max(160).optional(), quantity: z.number().finite().min(0).max(100000).optional(), hours: z.number().finite().min(0).max(24).optional(), description: z.string().trim().max(2000).optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), reportedStatus: z.enum(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).optional() })).max(300) })).mutation(({ ctx, input }) => saveSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
+    submit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).mutation(({ ctx, input }) => submitSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
+    review: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["approve", "reject"]), note: z.string().trim().max(500).optional(), dryRun: z.boolean().optional() })).mutation(({ ctx, input }) => reviewSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
+    attachPhoto: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), uploadKey: z.string().min(10).max(600), fileName: z.string().trim().min(1).max(255), caption: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => attachSiteReportPhotoForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  submittals: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "sent", "replied", "closed"]).optional(), submittalType: z.enum(SUBMITTAL_TYPES).optional() })).query(({ ctx, input }) => listConsultantSubmittalsForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), submittalType: z.enum(SUBMITTAL_TYPES), submittalNumber: z.string().trim().min(1).max(120), title: z.string().trim().min(2).max(255), materialId: z.string().uuid().optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), dueAt: z.date().optional(), resubmissionOfId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createConsultantSubmittalForTenant({ userId: ctx.user.id, ...input })),
+    send: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), submittalId: z.string().uuid(), sentAt: z.date().optional() })).mutation(({ ctx, input }) => sendConsultantSubmittalForTenant({ userId: ctx.user.id, ...input })),
+    reply: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), submittalId: z.string().uuid(), replyCode: z.string().trim().min(1).max(8), replyNote: z.string().trim().max(500).optional(), repliedAt: z.date().optional() })).mutation(({ ctx, input }) => replyConsultantSubmittalForTenant({ userId: ctx.user.id, ...input })),
+    close: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), submittalId: z.string().uuid() })).mutation(({ ctx, input }) => closeConsultantSubmittalForTenant({ userId: ctx.user.id, ...input })),
+    replyCodes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listSubmittalReplyCodesForTenant({ userId: ctx.user.id, ...input })),
+    saveReplyCodes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), codes: z.array(z.object({ code: z.string().trim().min(1).max(4), labelAr: z.string().trim().min(1).max(120), labelEn: z.string().trim().min(1).max(120), approved: z.boolean(), active: z.boolean() })).min(2).max(12) })).mutation(({ ctx, input }) => saveSubmittalReplyCodesForManager({ userId: ctx.user.id, ...input })),
+  }),
+  policy: router({
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantPolicyForManager({ userId: ctx.user.id, ...input })),
+    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]) })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
+  }),
+  cells: router({
+    card: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid().optional() })).query(({ ctx, input }) => getCellCardForTenant({ userId: ctx.user.id, ...input })),
+  }),
+  // Work order 12, items 8 and 9: the company manager's side of the integration layer (keys, webhooks, the exchange log, the mappings).
+  integrations: router({
+    scopes: protectedProcedure.query(() => ({ scopes: API_SCOPES, events: WEBHOOK_EVENTS, systems: integrationSystems, mappingTypes: MAPPING_TYPES, exportEntities: EXPORT_ENTITIES })),
+    listKeys: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listApiKeysForManager({ userId: ctx.user.id, ...input })),
+    createKey: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), name: z.string().trim().min(2).max(120), scopes: z.array(z.enum(API_SCOPES)).min(1), rateLimitPerMinute: z.number().int().min(10).max(6000).optional(), expiresInDays: z.number().int().min(1).max(3650).optional() })).mutation(({ ctx, input }) => createApiKeyForManager({ userId: ctx.user.id, ...input })),
+    revokeKey: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), keyId: z.string().uuid() })).mutation(({ ctx, input }) => revokeApiKeyForManager({ userId: ctx.user.id, ...input })),
+    listWebhooks: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listWebhookEndpointsForManager({ userId: ctx.user.id, ...input })),
+    createWebhook: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), url: z.string().trim().url().max(500), events: z.array(z.string().max(40)).min(1).max(12) })).mutation(({ ctx, input }) => createWebhookEndpointForManager({ userId: ctx.user.id, ...input })),
+    setWebhookActive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), endpointId: z.string().uuid(), active: z.boolean() })).mutation(({ ctx, input }) => setWebhookEndpointActiveForManager({ userId: ctx.user.id, ...input })),
+    webhookDeliveries: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), endpointId: z.string().uuid().optional() })).query(({ ctx, input }) => listWebhookDeliveriesForManager({ userId: ctx.user.id, ...input })),
+    testWebhook: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), endpointId: z.string().uuid() })).mutation(({ ctx, input }) => sendTestWebhookForManager({ userId: ctx.user.id, ...input })),
+    syncRuns: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listSyncRunsForManager({ userId: ctx.user.id, ...input })),
+    syncItems: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), runId: z.string().uuid(), outcome: z.enum(["created", "updated", "unchanged", "stored", "rejected"]).optional() })).query(({ ctx, input }) => listSyncItemsForManager({ userId: ctx.user.id, ...input })),
+    mappings: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().max(24).optional(), type: z.enum(MAPPING_TYPES).optional() })).query(({ ctx, input }) => listMappingsForManager({ userId: ctx.user.id, ...input })),
+    saveMappings: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().trim().min(1).max(24), type: z.enum(MAPPING_TYPES), records: z.array(z.object({ externalId: z.string().trim().min(1).max(120), ref: z.string().trim().min(1).max(120), project: z.string().trim().max(80).optional() })).min(1).max(1000) })).mutation(({ ctx, input }) => saveMappingsForManager({ userId: ctx.user.id, ...input })),
+    listConnections: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listConnectionsForManager({ userId: ctx.user.id, ...input })),
+    createConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), system: z.string().trim().min(1).max(24), name: z.string().trim().min(2).max(120), baseUrl: z.string().trim().url().max(500), database: z.string().trim().max(120).optional(), username: z.string().trim().max(255).optional(), secret: z.string().min(1).max(500), settings: z.record(z.string(), z.unknown()).optional(), scheduledDaily: z.boolean().optional() })).mutation(({ ctx, input }) => createConnectionForManager({ userId: ctx.user.id, ...input })),
+    setConnectionActive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), active: z.boolean(), scheduledDaily: z.boolean().optional() })).mutation(({ ctx, input }) => setConnectionActiveForManager({ userId: ctx.user.id, ...input })),
+    testConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid() })).mutation(({ ctx, input }) => testConnectionForManager({ userId: ctx.user.id, ...input })),
+    runConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), direction: z.enum(["in", "out", "both"]) })).mutation(({ ctx, input }) => runConnectionForManager({ userId: ctx.user.id, ...input })),
+  }),
   // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
   scopes: router({
     company: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyLevel({ userId: ctx.user.id, ...input })),
@@ -436,7 +493,7 @@ export const appRouter = router({
   }),
   ncrs: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getNcrsForTenant({ userId: ctx.user.id, ...input })),
-    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), ncrNumber: z.string().trim().min(1).max(120), title: z.string().trim().min(2).max(255), description: z.string().trim().min(5).max(10_000), dueAt: z.date().optional() })).mutation(({ ctx, input }) => createNcrForTenant({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), ncrNumber: z.string().trim().min(1).max(120), title: z.string().trim().min(2).max(255), description: z.string().trim().min(5).max(10_000), dueAt: z.date().optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createNcrForTenant({ userId: ctx.user.id, ...input })),
     transitionStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), ncrId: z.string().uuid(), nextStatus: z.enum(["open", "under_investigation", "corrective_action", "verification", "closed", "cancelled"]) })).mutation(({ ctx, input }) => transitionNcrStatus({ userId: ctx.user.id, ...input })),
   }),
   hse: router({

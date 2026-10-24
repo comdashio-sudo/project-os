@@ -50,6 +50,8 @@
 | `STORAGE_BUCKET` | القيمة الثابتة `project-os-files` (ينشئها زر `storage`) | Vercel |
 | `JWT_SECRET` | تُولِّده (48 حرفًا) | Vercel |
 | `CRON_SECRET` | تُولِّده (32 حرفًا فأكثر)؛ Vercel يرسله بنفسه مع المهمة المجدولة | Vercel |
+| `INTEGRATION_SECRET_KEY` | تُولِّده (48 حرفًا) | Vercel — يختم أسرار Webhooks وكلمات مرور الربط بأنظمة الشركة؛ إن تغيّر أُدخلت كلمات الربط من جديد (لا شيء آخر يتأثر). بدونه يُستعمل `JWT_SECRET` |
+| `INTEGRATION_ALLOW_PRIVATE_WEBHOOKS` | **اتركه غير موجود** | يسمح بعناوين محلية/خاصة لـWebhooks (للاختبار المحلي فقط) |
 | `OWNER_EMAIL` | بريدك؛ أول دخول به يجعلك مدير المنصة | Vercel |
 | `APP_BASE_URL` | رابط المشروع بعد أول نشر: Vercel ← `dashio` ← **Domains** ← انسخ `https://….vercel.app` | Vercel |
 | `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `EMAIL_FROM` | لوحة مزود البريد الذي تملك نطاقه (إشعارات المنصة؛ اختياري حتى تفعّلها) | Vercel |
