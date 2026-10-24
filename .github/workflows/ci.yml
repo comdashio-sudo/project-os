@@ -65,9 +65,19 @@ jobs:
           PROJECT_OS_APP_DB_PASSWORD: project-os-local-test-only # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
 
   ui-screenshots:
-    name: ui screenshots (390px and 1280px, Arabic)
+    name: ui screenshots (390px and 1280px, ${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: ar
+            label: Arabic
+          - language: en
+            label: English
+          - language: ur
+            label: Urdu
     services:
       postgres:
         image: postgres:16
@@ -137,9 +147,10 @@ jobs:
           test -x "$chromium"
           echo "PLAYWRIGHT_MODULE_DIR=$RUNNER_TEMP/playwright/node_modules/" >> "$GITHUB_ENV"
           echo "PLAYWRIGHT_CHROMIUM=$chromium" >> "$GITHUB_ENV"
-      - name: UI audit (1280px and 390px, Arabic, synthetic demo tenant)
+      - name: UI audit (1280px and 390px, ${{ matrix.label }}, synthetic demo tenant)
         run: node tests/ui/audit.mjs
         env:
+          AUDIT_LANGUAGE: ${{ matrix.language }}
           BASE_URL: http://127.0.0.1:3200
           SESSION_FILE: ${{ runner.temp }}/ui-session
           OUT_DIR: ${{ runner.temp }}/ui-screenshots
@@ -153,7 +164,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-screenshots-390-1280-ar
+          name: ui-screenshots-390-1280-${{ matrix.language }}
           path: ${{ runner.temp }}/ui-screenshots
           if-no-files-found: warn
           retention-days: 14
