@@ -3,6 +3,7 @@
 // re-reads the same bytes (checked against the hash the person approved),
 // re-checks them against the project as it is now, and applies the plan in one
 // transaction. Re-importing a file the project already holds changes nothing.
+import { cellsWithoutAcceptedInspection, loadTenantPolicy } from "./qualityGate";
 import { createHash } from "node:crypto";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { TRPCError } from "@trpc/server";
@@ -179,6 +180,14 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
       engineers: new Map(members.flatMap(member => (member.email ? [[member.email.toLowerCase(), member.userId] as const] : []))),
       cells: new Map(cells.map(cell => [`${cell.unitId}:${cell.activityDefinitionId}`, { id: cell.id, status: cell.status as PmcStatus, verificationStatusId: cell.verificationStatusId }])),
     });
+    // The company's quality policy (work order 12, item 7): under "block" a file cannot complete a cell that has no accepted inspection. The database holds the same rule;
+    // asking here gives the reason, with the unit, before anything is written.
+    if (!plan.errors.length && (await loadTenantPolicy(db, input.tenantId)).qcCompletionMode === "block") {
+      const completing = plan.operations.filter(operation => operation.status === "COMPLETE" && operation.existing?.status !== "COMPLETE");
+      const missing = await cellsWithoutAcceptedInspection(db, completing.map(operation => ({ unitId: operation.unitId, activityDefinitionId: operation.activityDefinitionId })));
+      const missingKeys = new Set(missing.map(cell => `${cell.unitId}:${cell.activityDefinitionId}`));
+      for (const operation of completing) if (missingKeys.has(`${operation.unitId}:${operation.activityDefinitionId}`)) plan.errors.push({ rowNumber: 0, code: "QC_NOT_ACCEPTED", field: "status", detail: `unit ${operation.unitNumber}` });
+    }
     if (plan.errors.length) return { report: report("status", fileHash, total, plan.errors, plan.counts), apply: null };
     return {
       report: report("status", fileHash, total, [], plan.counts),
