@@ -54,6 +54,7 @@ export const FILE_TABLES = [
   { table: "master_plan_versions", column: "storage_key" },
   { table: "data_imports", column: "file_key" },
   { table: "pmc_site_plans", column: "file_key" },
+  { table: "site_daily_report_photos", column: "storage_key" },
 ] as const;
 
 /** Memberships and roles go last, so a half-finished erasure can still be resumed by the owner who started it. */

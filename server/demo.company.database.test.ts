@@ -52,6 +52,19 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(await count("project_commercial_invoices")).toBe(3);
     const [[snapshots]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM evm_snapshots WHERE tenantId = ? AND projectId = ?", [tenantId, projectId]);
     expect(Number(snapshots.n)).toBe(3);
+    // work order 17, item 4: human resources, "my indicators", photos (only with a storage service), knowledge
+    expect(await count("employees")).toBe(16);
+    expect(await count("employee_attendance")).toBeGreaterThanOrEqual(150);
+    expect(await count("knowledge_articles", "AND status = 'published'")).toBe(5);
+    const photos = await count("site_daily_report_photos");
+    if (!process.env.STORAGE_S3_ENDPOINT) expect(photos, "no storage service here: no photo row may exist without its file").toBe(0);
+    const [[linked]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM employees WHERE tenantId = ? AND linkedUserId IS NOT NULL", [tenantId]);
+    expect(Number(linked.n)).toBe(10);
+    for (const email of ["site.engineer.1@show.example.test", "site.engineer.2@show.example.test", "quality.manager@show.example.test"]) {
+      const mine = await (await asPerson(email)).performance.get({ tenantId, projectId });
+      expect(mine.employee.isOwn, email).toBe(true);
+      expect(mine.metrics.sources.length, `${email} has records behind "my indicators"`).toBeGreaterThan(0);
+    }
     const [after] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM companies WHERE slug <> 'demo-show-company'");
     expect(after[0].n).toBe(before[0].n); // no other company was created, changed or removed
   }, 180_000);
