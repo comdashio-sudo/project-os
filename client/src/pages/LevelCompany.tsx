@@ -73,7 +73,7 @@ export function Figure({ label, value }: { label: string; value: string }) {
 
 function ProjectTable({ rows, currency, isArabic, t, tenantId }: { rows: ProjectKpi[]; currency: string | null; isArabic: boolean; t: typeof text.ar; tenantId: string }) {
   return <div className="overflow-x-auto">
-    <table className="w-full min-w-[720px] text-sm">
+    <table className="w-full text-sm">
       <thead className="text-start text-xs text-slate-600">
         <tr>
           <th scope="col" className="py-2 text-start">{t.project}</th>

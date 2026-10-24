@@ -64,7 +64,7 @@ export default function LevelPortfolio() {
     </LevelSection>
     <LevelSection id="portfolio-comparison" title={t.comparison}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full text-sm">
           <thead className="text-xs text-slate-600">
             <tr>
               <th scope="col" className="py-2 text-start">{t.project}</th>
