@@ -3,10 +3,11 @@ import { logError } from "./_core/logger";
 import { captureScheduledProfitabilitySnapshots, evaluateTenantLicenseLifecycle, getDb } from "./db";
 import { runEmailNotificationCycle } from "./emailNotifications";
 import { sweepImportJobs } from "./importJobs";
+import { runIntegrationDailyWork } from "./integrations/daily";
 import { isAuthorizedScheduledRequest } from "./scheduledLicenseExpiry";
 
 // The ONE cron of the free Vercel plan (Hobby: a cron may run once a day). It runs, in order, what the paid plan schedules separately: the licence
-// check, the profit snapshots, the e-mail cycle and the import-job sweep. A step that fails does not stop the others; the response names each outcome
+// check, the profit snapshots, the e-mail cycle, the import-job sweep and the integration work (due webhooks, daily pulls). A step that fails does not stop the others; the response names each outcome
 // and is 500 when any failed, so the cron log shows it. Its daily database call also keeps a free Supabase project from being paused for inactivity.
 type Step = [name: string, run: () => Promise<unknown>];
 type Dependencies = { cronSecret: () => string | undefined; steps: () => Step[] };
@@ -30,5 +31,6 @@ export const scheduledDailyHandler = createScheduledDailyHandler({
     ["profitabilitySnapshots", () => captureScheduledProfitabilitySnapshots()],
     ["emailNotifications", async () => { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); return runEmailNotificationCycle({ db }); }],
     ["importJobs", () => sweepImportJobs()],
+    ["integrations", () => runIntegrationDailyWork()],
   ],
 });
