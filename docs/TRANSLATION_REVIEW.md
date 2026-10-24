@@ -575,6 +575,13 @@
 |---|---|---|---|
 | components/DirectImportRunner.tsx | 17 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | lib/dxf/dxfReader.ts (رسائل قراءة DXF) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| lib/levels.ts (أسماء المستويات الأربعة) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| components/LevelDashboard.tsx (شريط المستويات) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/LevelCompany.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
+| pages/LevelEntry.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
+| pages/LevelPortfolio.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
+| pages/LevelProject.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
+| pages/LevelWarehouse.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
 | components/EnterpriseNavigation.tsx | 28 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | components/ImportDiffPreview.tsx | 8 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | components/MasterPlanTools.tsx | 28 | 2 | مفتوح (النص المفتوح نسخة من الإنجليزية) |

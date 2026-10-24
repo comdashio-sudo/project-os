@@ -26,6 +26,14 @@ const text = {
     commitments: "Commitments", commitmentsWhat: "No read route on main yet gathers commitments (contracts and purchase orders) across projects.",
     emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
   },
+  ur: {
+    title: "Company and board dashboard", loading: "Loading the company dashboard…",
+    totals: "Totals", projects: "Projects", profit: "Expected profit (total)", late: "Late projects", deviating: "Projects with negative variance",
+    multiCurrency: "Several currencies: profit is not summed", notAvailable: "Not available",
+    allProjects: "All projects", project: "Project", deviation: "Deviation (VAC)", cpi: "CPI", spi: "SPI", progress: "Progress", lateActivities: "Late activities", open: "Open project",
+    commitments: "Commitments", commitmentsWhat: "No read route on main yet gathers commitments (contracts and purchase orders) across projects.",
+    emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
+  },
 };
 
 export default function LevelCompany() {

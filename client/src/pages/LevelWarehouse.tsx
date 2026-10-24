@@ -33,12 +33,22 @@ const text = {
     chooser: "Warehouses", current: "Shown now", lowest: "This is the lowest level.",
     title: "Warehouse dashboard",
   },
+  ur: {
+    loading: "Loading the warehouse…", noWarehouse: "This project has no warehouse yet.", noWarehouseBody: "Create a warehouse on the project's warehouse screen and it appears here.",
+    balance: "Balance", materials: "Materials", stockValue: "Stock value (project currency)", belowReorder: "Below reorder level",
+    code: "Code", description: "Description", quantity: "Quantity", unit: "Unit", value: "Value", reorder: "Reorder level",
+    movements: "Movements", date: "Date", type: "Type", reference: "Reference", noMovements: "No movements yet in this warehouse.",
+    shortages: "Shortages", noShortage: "No shortages: every material is above its reorder level.", belowLine: "Below reorder level",
+    unapproved: "Unapproved materials", unapprovedWhat: "No read route on main yet counts the unapproved materials in this warehouse.",
+    chooser: "Warehouses", current: "Shown now", lowest: "This is the lowest level.",
+    title: "Warehouse dashboard",
+  },
 };
 
 export default function LevelWarehouse() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const search = useSearch();
-  const { isArabic } = useLanguage();
+  const { isArabic, language } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const enabled = Boolean(tenantId && projectId);
   const list = trpc.warehouses.list.useQuery({ tenantId, projectId }, { enabled });
@@ -77,7 +87,7 @@ export default function LevelWarehouse() {
       {data.recentMovements.length === 0 ? <p className="text-sm text-slate-600">{t.noMovements}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
         <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.type}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.reference}</th></tr></thead>
         <tbody className="divide-y divide-slate-100">{data.recentMovements.map(item => <tr key={item.id}>
-          <td className="py-3">{new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(item.occurredAt))}</td><td className="py-3">{enumLabel(item.transactionType, isArabic)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
+          <td className="py-3">{new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(item.occurredAt))}</td><td className="py-3">{enumLabel(item.transactionType, language)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
         </tr>)}</tbody>
       </table></div>}
     </LevelSection>

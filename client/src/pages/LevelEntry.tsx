@@ -12,6 +12,7 @@ import { levelHref, pickEntryLevel } from "@/lib/levels";
 const text = {
   ar: { loading: "جارٍ تحديد مستواك…", noLevelTitle: "لا مستوى مخصص لك في هذه الشركة" },
   en: { loading: "Finding your level…", noLevelTitle: "No level is assigned to you in this company" },
+  ur: { loading: "Finding your level…", noLevelTitle: "No level is assigned to you in this company" },
 };
 
 export default function LevelEntry() {
