@@ -27,6 +27,7 @@
     "e2e:setup-wizard": "node --import tsx scripts/e2e-setup-wizard.mjs",
     "e2e:quick-issue": "node --import tsx scripts/e2e-quick-issue.mjs",
     "e2e:quick-issue:camera": "MODE=camera PACE=ordinary node --import tsx scripts/e2e-quick-issue.mjs",
+    "e2e:demo-journey": "node --import tsx scripts/e2e-demo-journey.mjs",
     "capture:guide": "node --import tsx scripts/capture-guide.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed-demo": "node --import tsx scripts/seed-demo-tenant.mjs"

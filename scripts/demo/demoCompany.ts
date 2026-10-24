@@ -9,7 +9,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { appRouter } from "../../server/routers";
-import { createTenantForUser, getDb, upsertUser } from "../../server/db";
+import { createTenantForUser, ensureDefaultCommercialCatalog, getDb, upsertUser } from "../../server/db";
 import { deleteTenantData } from "../../server/tenantData";
 import { calculateEvm } from "../../server/domain/evm";
 import { fpac } from "../../server/domain/profitability";
@@ -87,6 +87,7 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
   const { tenantId } = await createTenantForUser({ userId: owner.id, legalName: DEMO.legalName, slug: DEMO.slug, packageCode: "ALL-IN-ONE" });
   log(`company ${tenantId}`);
   const ownerCaller = callerFor(owner);
+  const ensureCommercialCatalog = async () => { const handle = await getDb(); await ensureDefaultCommercialCatalog(handle!); };
   const people0 = { pm: people.get("pm")!.id };
 
   try {
@@ -174,6 +175,10 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
       const cells2: unknown[][] = [];
       completed2.forEach((done, index) => { for (let u = 0; u < Math.min(24, done + 3); u++) cells2.push([randomUUID(), tenantId, project2Id, units2[u], defs2[index], u < done ? "COMPLETE" : "IN_PROGRESS", people0.pm, people0.pm, day(30 + u * 2)]); });
       await bulk(client, "pmc_unit_activity_progress", ["id", "tenant_id", "project_id", "unit_id", "activity_definition_id", "status", "assigned_user_id", "last_changed_by_user_id", "last_changed_at"], cells2);
+    }
+    {
+      const ev2 = wbs2.reduce((sum, item, index) => sum + item[2] * progress2[index], 0);
+      await client.query("UPDATE projects SET actual_cost = $1, committed_cost = $2, forecast_cost = $3 WHERE id = $4", [round2(ac2), 19_000_000, round2(ac2 + 24_000_000 - ev2), project2Id]);
     }
     await bulk(client, "contracts", ["id", "tenant_id", "project_id", "code", "title", "counterparty", "counterparty_kind", "contract_value", "currency", "status", "start_at", "end_at"], [[randomUUID(), tenantId, project2Id, "CT2-CLIENT", "عقد الخدمات المشتركة (عرض)", "العميل — شركة التطوير التجريبية", "client", 28_000_000, "SAR", "active", addDays(T0, 20), addDays(T0, 330)]]);
 
@@ -301,9 +306,10 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     const reportRows: unknown[][] = []; const lineRows: unknown[][] = [];
     const weather = ["صافٍ", "غائم جزئيًا", "حار", "مغبر", "صافٍ"]; let reports = 0;
     for (let back = PROJECT_DAYS - 3; back >= 0; back--) {
+      if (back === 0) continue; // today's report is left for the site engineer to write (the walk-through in scripts/e2e-demo-journey.mjs does exactly that)
       const date = addDays(now, -back); const dow = date.getUTCDay(); if (dow === 5 || dow === 6) continue;
       const id = randomUUID(); reports++;
-      const status = back === 0 ? "draft" : back <= 2 ? "submitted" : reports % 29 === 0 ? "rejected" : "approved";
+      const status = back <= 2 ? "submitted" : reports % 29 === 0 ? "rejected" : "approved";
       const author = staff[reports % 2];
       reportRows.push([id, tenantId, projectId, ymd(date), weather[reports % weather.length], 28 + (reports % 14), `تقرير يومي (عرض): سير الأعمال وفق الخطة، العمالة ${60 + (reports % 40)} فردًا.`, reports % 6 === 0 ? "تأخر توريد الحديد لساعتين" : null, status, author.id, status === "draft" ? null : addDays(date, 0.3), status === "approved" || status === "rejected" ? staff[2].id : null, status === "approved" || status === "rejected" ? addDays(date, 1) : null, status === "rejected" ? "أعد التقرير بتفاصيل الكميات" : null]);
       const active = cells.filter(cell => stateAt(cell, PROJECT_DAYS - back) === "IN_PROGRESS");
@@ -333,6 +339,62 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
       return [randomUUID(), tenantId, projectId, versionId, blockEntityIds[Math.floor(index / UNITS_PER_BLOCK)], `V${pad(index + 1)}`, `الفيلا ${index + 1}`, "unit", JSON.stringify({ x: round2(ring[0][0] * 100), y: round2(ring[0][1] * 100), width: round2((ring[1][0] - ring[0][0]) * 100), height: round2((ring[2][1] - ring[0][1]) * 100) }), percent >= 100 ? "completed" : percent > 0 ? "in_progress" : "not_started", percent];
     });
     await bulk(client, "master_plan_spatial_entities", ["id", "tenant_id", "project_id", "master_plan_version_id", "parent_entity_id", "code", "name", "entity_type", "geometry", "status", "progress_percent"], unitEntities);
+    // ---------------------------------------------------------------------------------------------------------- 4b. the rest of the project's registers (so every page has something on it)
+    const programId = randomUUID();
+    await bulk(client, "programs", ["id", "tenant_id", "portfolio_id", "code", "name", "status"], [[programId, tenantId, portfolioId, "PG-DEMO", "برنامج العرض السكني", "active"]]);
+    await client.query("UPDATE projects SET program_id = $1 WHERE tenant_id = $2", [programId, tenantId]);
+    const risks = [["RK-001", "تأخر توريد الحديد", "ارتفاع عالمي في الطلب", "تأخر الأساسات", 4, 4, "open"], ["RK-002", "ارتفاع أسعار الأسمنت", "تقلب السوق", "زيادة التكلفة 2%", 3, 4, "mitigating"], ["RK-003", "نقص العمالة الماهرة", "موسم الذروة", "بطء اللياسة", 3, 3, "open"], ["RK-004", "أمطار موسمية", "الطقس", "توقف أسبوع", 2, 3, "accepted"], ["RK-005", "تغيير مواصفات من المالك", "طلب تغيير", "إعادة عمل بلاط", 4, 3, "mitigating"], ["RK-006", "تأخر اعتماد المخططات", "بطء الاستشاري", "تأخر بدء التشطيب", 3, 5, "open"]];
+    await bulk(client, "risks", ["id", "tenant_id", "project_id", "code", "title", "cause", "impact", "probability", "severity", "status", "due_at"], risks.map((r, i) => [randomUUID(), tenantId, projectId, r[0], r[1], r[2], r[3], r[4], r[5], r[6], addDays(now, 10 + i * 6)]));
+    const issuesRows = [["IS-001", "تعارض بين مخطط الكهرباء والإنشائي", "تضارب مخططات", "تأخر التمديدات", "high", "in_progress"], ["IS-002", "تأخر وصول البلاط المعتمد", "المورد", "تأخر الأرضيات", "medium", "open"], ["IS-003", "ملاحظات الاستشاري على الصب", "جودة", "إعادة عمل محدودة", "high", "open"], ["IS-004", "تصريح عمل الحفر", "جهة حكومية", "توقف يومين", "low", "resolved"]];
+    await bulk(client, "issues", ["id", "tenant_id", "project_id", "code", "title", "cause", "impact", "priority", "status", "due_at", "escalation_status"], issuesRows.map((r, i) => [randomUUID(), tenantId, projectId, r[0], r[1], r[2], r[3], r[4], r[5], addDays(now, 5 + i * 4), i === 0 ? "pending" : "none"]));
+    const actionRows = [["اعتماد مواصفات البلاط مع الاستشاري", "high", "open"], ["تسليم مخططات ورشة الواجهات", "medium", "in_progress"], ["مراجعة جدول التوريد الشهري", "medium", "open"], ["إغلاق ملاحظات الجودة المفتوحة", "high", "in_progress"], ["تحديث البرنامج الزمني", "low", "completed"]];
+    await bulk(client, "actions", ["id", "tenant_id", "project_id", "title", "priority", "status", "due_at", "escalation_status"], actionRows.map((r, i) => [randomUUID(), tenantId, projectId, r[0], r[1], r[2], addDays(now, i === 0 ? -4 : 3 + i * 3), "none"]));
+    await bulk(client, "decisions", ["id", "tenant_id", "project_id", "problem", "options", "recommendation", "cost_impact", "schedule_impact_days", "status"], [
+      [randomUUID(), tenantId, projectId, "تأخر الأساسات في المجموعات الأخيرة", "زيادة الورديات أو تأجيل التشطيب", "زيادة وردية ثانية للأساسات", 1_200_000, -10, "submitted"],
+      [randomUUID(), tenantId, projectId, "اعتماد بديل لمورد البلوك", "مورد حالي أو مورد بديل أقرب", "اعتماد المورد البديل", -350_000, -3, "draft"]]);
+    await bulk(client, "rfis", ["id", "tenant_id", "project_id", "rfi_number", "subject", "question", "status", "due_at", "submitted_at", "created_by_user_id"], Array.from({ length: 8 }, (_, i) => [randomUUID(), tenantId, projectId, `RFI-${pad(i + 1)}`, ["تفاصيل ربط الأسقف بالأعمدة", "مستوى التأسيس للمجموعة 12", "نوع العزل في الحمامات", "مسار تمديدات المكيفات", "قطاعات السلالم", "ارتفاع الأسوار", "لون واجهة النموذج ب", "موقع لوحات الكهرباء"][i], "نرجو التوضيح وفق المخططات المرفقة (بيانات عرض)", ["answered", "answered", "answered", "under_review", "submitted", "answered", "closed", "submitted"][i], addDays(now, 7 - i * 5), day(10 + i * 9), people.get("site1")!.id]));
+    await bulk(client, "hse_observations", ["id", "tenant_id", "project_id", "observation_number", "title", "description", "category", "severity", "status", "due_at", "created_by_user_id"], [["حواجز مفتوحة حول الحفر", "safety", "high", "open"], ["غياب أحذية السلامة", "safety", "medium", "remediation"], ["غبار عالٍ عند القص", "health", "medium", "verification"], ["تسرب زيوت", "environment", "low", "closed"], ["سقالة بلا ربط", "safety", "critical", "assigned"]].map((r, i) => [randomUUID(), tenantId, projectId, `HSE-${pad(i + 1)}`, r[0], `${r[0]} — ملاحظة ميدانية (بيانات عرض)`, r[1], r[2], r[3], addDays(now, 4 - i * 3), people.get("site2")!.id]));
+    const disciplines = ["architectural", "structural", "electrical", "plumbing", "mechanical", "civil"] as const;
+    const drawingIds = Array.from({ length: 14 }, () => randomUUID());
+    await bulk(client, "design_drawings", ["id", "tenant_id", "project_id", "drawing_number", "title", "discipline", "status", "current_revision", "created_by_user_id"], drawingIds.map((id, i) => [id, tenantId, projectId, `DWG-${pad(i + 1)}`, `مخطط ${["الأساسات", "الأسقف", "الواجهة الأمامية", "المسقط الأرضي", "الكهرباء", "السباكة", "التكييف", "الموقع العام"][i % 8]} — النموذج ${i % 2 ? "ب" : "أ"}`, disciplines[i % 6], i % 5 === 4 ? "under_review" : "approved", i % 3 === 0 ? "B" : "A", people.get("coord")!.id]));
+    await bulk(client, "design_drawing_revisions", ["id", "tenant_id", "project_id", "drawing_id", "revision", "description", "is_current", "issued_at", "issued_by_user_id"], drawingIds.flatMap((id, i) => (i % 3 === 0 ? [["A", false], ["B", true]] : [["A", true]]).map(([rev, current], k) => [randomUUID(), tenantId, projectId, id, rev, k === 0 ? "الإصدار الأول للاعتماد" : "تعديل بعد ملاحظات الاستشاري", current, day(8 + i * 4 + k * 12), people.get("coord")!.id])));
+    await bulk(client, "project_health_snapshots", ["id", "tenant_id", "project_id", "period_at", "overall_score", "status", "confidence", "drivers", "exceptions"], [
+      [randomUUID(), tenantId, projectId, day(62), 78, "green", "medium", JSON.stringify(["الأداء المالي مقبول", "الجدول ضمن الحدود"]), JSON.stringify([])],
+      [randomUUID(), tenantId, projectId, day(90), 71, "amber", "high", JSON.stringify(["مؤشر أداء الجدول 0.88", "عدم مطابقة مفتوحة: 7", "تسليمات متأخرة عند الاستشاري: 9"]), JSON.stringify(["SPI < 0.9", "متأخرات الاستشاري"])]]);
+    const subIds = [randomUUID(), randomUUID(), randomUUID()];
+    await bulk(client, "subcontract_contracts", ["id", "tenant_id", "project_id", "code", "title", "subcontractor_name", "supplier_id", "contract_value", "retention_percent", "advance_percent", "status", "created_by_user_id"], [
+      [subIds[0], tenantId, projectId, "SC-001", "أعمال الكهرباء والتمديدات", "مقاول الأعمال الكهروميكانيكية (عرض)", supplierIds[1], 71_000_000, 5, 10, "active", owner.id],
+      [subIds[1], tenantId, projectId, "SC-002", "أعمال البلاط والدهان", "مقاول التشطيبات (عرض)", supplierIds[2], 96_000_000, 5, 10, "active", owner.id],
+      [subIds[2], tenantId, projectId, "SC-003", "الحفر والردم", "مقاول الحفر (عرض)", null, 18_000_000, 5, 0, "active", owner.id]]);
+    await bulk(client, "subcontract_certificates", ["id", "tenant_id", "project_id", "subcontract_id", "certificate_number", "period_start", "period_end", "gross_amount", "retention_amount", "advance_recovery_amount", "net_amount", "status", "approved_by_user_id", "approved_at", "created_by_user_id"], [
+      [randomUUID(), tenantId, projectId, subIds[2], "IPC-001", day(10), day(40), 7_200_000, 360_000, 0, 6_840_000, "paid", owner.id, day(48), people.get("cost")!.id],
+      [randomUUID(), tenantId, projectId, subIds[2], "IPC-002", day(41), day(70), 6_100_000, 305_000, 0, 5_795_000, "approved", owner.id, day(78), people.get("cost")!.id],
+      [randomUUID(), tenantId, projectId, subIds[0], "IPC-003", day(60), day(90), 4_800_000, 240_000, 480_000, 4_080_000, "submitted", null, null, people.get("cost")!.id]]);
+    // the planned programme: for each activity, the share of the villas that should have finished by the end of each fortnight (a plan a little faster than the real pace)
+    const planned = buildTimeline(startRate * 0.82, 77);
+    const baselineRows: unknown[][] = [];
+    for (const definition of definitions) for (let fortnight = 1; fortnight <= 36; fortnight++) {
+      const dayNumber = fortnight * 14;
+      const mine = planned.filter(cell => cell.activity === definition.code && modelOf(cell.unit) === definition.modelCode);
+      const share = mine.filter(cell => cell.finish <= dayNumber).length / Math.max(1, mine.length);
+      baselineRows.push([randomUUID(), tenantId, projectId, definition.id, day(dayNumber), round2(share * 100)]);
+    }
+    await bulk(client, "pmc_baselines", ["id", "tenant_id", "project_id", "activity_definition_id", "period_at", "planned_percent"], baselineRows);
+    await ensureCommercialCatalog();
+    const plan = (await client.query("SELECT id FROM commercial_plans WHERE package_code = 'ALL-IN-ONE' AND active = true ORDER BY code LIMIT 1")).rows[0];
+    const subscription = (await client.query("SELECT id FROM subscriptions WHERE tenant_id = $1", [tenantId])).rows[0];
+    if (plan && subscription) await bulk(client, "tenant_licenses", ["id", "tenant_id", "subscription_id", "plan_id", "status", "seats", "price_amount", "discount_amount", "manual_activation", "starts_at", "ends_at", "created_by_user_id"], [[randomUUID(), tenantId, subscription.id, plan.id, "active", 25, 36_000, 0, true, T0, addDays(now, 270), owner.id]]);
+    const ticketIds = [randomUUID(), randomUUID(), randomUUID()];
+    await bulk(client, "support_tickets", ["id", "tenant_id", "created_by_user_id", "subject", "category", "priority", "status", "escalation_status", "created_at"], [
+      [ticketIds[0], tenantId, people.get("pm")!.id, "كيف أُضيف مهندس موقع جديد؟", "account", "normal", "resolved", "none", day(25)],
+      [ticketIds[1], tenantId, people.get("coord")!.id, "تصدير سجل التسليمات إلى Excel", "technical", "normal", "in_progress", "none", day(80)],
+      [ticketIds[2], tenantId, people.get("cost")!.id, "استفسار عن حساب الربح المتوقع", "general", "high", "waiting_customer", "none", day(86)]]);
+    await bulk(client, "support_messages", ["id", "tenant_id", "ticket_id", "author_user_id", "sender_type", "body", "created_at"], [
+      [randomUUID(), tenantId, ticketIds[0], people.get("pm")!.id, "customer", "أريد إضافة مهندس موقع جديد إلى المشروع.", day(25)],
+      [randomUUID(), tenantId, ticketIds[0], null, "agent", "من إدارة الشركة اختر «دعوة عضو» ثم دور «مهندس موقع» ونطاق المشروع.", addDays(day(25), 0.2)],
+      [randomUUID(), tenantId, ticketIds[1], people.get("coord")!.id, "customer", "أين زر تصدير سجل التسليمات؟", day(80)],
+      [randomUUID(), tenantId, ticketIds[2], people.get("cost")!.id, "customer", "كيف يُحسب الربح المتوقع عند الإتمام؟", day(86)],
+      [randomUUID(), tenantId, ticketIds[2], null, "agent", "الربح = قيمة العقد المعدَّلة − التقدير عند الإتمام. هل تريد مثالًا من مشروعك؟", addDays(day(86), 0.1)]]);
     await client.query("COMMIT");
     log("structure committed");
 
@@ -413,7 +475,8 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     await client.query("BEGIN");
     const bac = MONEY.bac;
     const snapshots: unknown[][] = [];
-    for (const checkpoint of checkpoints) {
+    // the monthly snapshots (the last one 22 days ago, so "movement since the last snapshot" has something to say)
+    for (const checkpoint of [20, 45, 70]) {
       const at = day(checkpoint);
       const progress = progressByWbs(cells, checkpoint, definitions, unitIds, modelOf, factors);
       const ev = WBS_ITEMS.reduce((s, i) => s + wbsValue(i.code) * ((progress.get(wbsIds.get(i.code)!) ?? 0) / 100), 0);

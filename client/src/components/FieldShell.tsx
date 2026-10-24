@@ -35,9 +35,10 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
 
 /** The frame the field screens share: the language switch, a way back, the title, the ways between the field screens. Right to left for Arabic and Urdu, left to right for English. */
 export function FieldShell({ title, backHref, backLabel, wide, tenantId, projectId, current, children }: { title: string; backHref: string; backLabel: string; wide?: boolean; tenantId?: string; projectId?: string; current?: string; children: React.ReactNode }) {
-  const { isRtl } = useLanguage();
+  const { isRtl, language } = useLanguage();
+  // the Urdu face (Nastaliq) needs far more room between lines than the tight default: without it the label of one field sits on the value of the one above
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+    <main className={`min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900 ${language === "ur" ? "[&_*]:!leading-[2.1]" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className={`mx-auto space-y-4 ${wide ? "max-w-5xl" : "max-w-md"}`}>
         <Link href={backHref} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{backLabel}</Link>
