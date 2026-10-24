@@ -18,6 +18,7 @@ import {
   pmcVerificationStatuses,
 } from "../drizzle/schema";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
+import { qcCompletionGate } from "./qualityGate";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { calculateActivityCompletion, calculateProjectProgress, calculateUnitProgress, DEFAULT_STATUS_FACTORS, effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 
@@ -112,21 +113,39 @@ export async function setPmcUnitActivityStatus(input: Scope & { unitId: string; 
     if (!status) throw refuse("NOT_FOUND", "PROJECT_OS_PMC_VERIFICATION_STATUS_NOT_FOUND");
     if (!status.active) throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_VERIFICATION_STATUS_INACTIVE");
   }
-  return db.transaction(async tx => {
-    const [existing] = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.unitId, input.unitId), eq(pmcUnitActivityProgress.activityDefinitionId, input.activityDefinitionId), eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))).for("update").limit(1);
-    const verificationStatusId = input.verificationStatusId === undefined ? (existing?.verificationStatusId ?? null) : input.verificationStatusId;
-    if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const, evm: null };
-    const progressId = existing?.id ?? crypto.randomUUID();
-    const now = new Date();
-    if (existing) await tx.update(pmcUnitActivityProgress).set({ status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now }).where(eq(pmcUnitActivityProgress.id, existing.id));
-    else await tx.insert(pmcUnitActivityProgress).values({ id: progressId, tenantId: input.tenantId, projectId: input.projectId, unitId: input.unitId, activityDefinitionId: input.activityDefinitionId, status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now });
-    const from = existing?.status ?? null;
-    if (from !== input.status) await tx.insert(pmcUnitActivityHistory).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: input.unitId, activityDefinitionId: input.activityDefinitionId, from, to: input.status, verificationStatusId }) });
-    // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction.
-    const evm = await syncPmcProgressToEvm(tx, input, now);
-    return { progressId, from, to: input.status, changed: true as const, evm };
-  });
+  return db.transaction(tx => applyCellStatus(tx, input, new Date()));
+}
+
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type CellWarning = { code: "QC_NOT_ACCEPTED" };
+
+/**
+ * The write behind setPmcUnitActivityStatus, inside the caller's transaction, so the daily report's approval moves its cells in the same transaction that approves it.
+ * The cell's unit and activity are already checked by the caller. Moving a cell to COMPLETE asks the company's quality policy (qualityGate.ts): "block" refuses, "warn"
+ * lets it through and says so in `warnings`; the database holds the same rule for "block" on the table itself.
+ */
+export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; activityDefinitionId: string; status: PmcUnitActivityStatus; verificationStatusId?: string | null; note?: string }, now: Date) {
+  const [existing] = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.unitId, input.unitId), eq(pmcUnitActivityProgress.activityDefinitionId, input.activityDefinitionId), eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))).for("update").limit(1);
+  const verificationStatusId = input.verificationStatusId === undefined ? (existing?.verificationStatusId ?? null) : input.verificationStatusId;
+  if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const, evm: null, warnings: [] as CellWarning[] };
+  const warnings: CellWarning[] = [];
+  if (input.status === "COMPLETE" && existing?.status !== "COMPLETE") {
+    const gate = await qcCompletionGate(tx, input.tenantId, [{ unitId: input.unitId, activityDefinitionId: input.activityDefinitionId }]);
+    if (gate.notAccepted.length) {
+      if (gate.mode === "block") throw refuse("CONFLICT", "PROJECT_OS_QC_NOT_ACCEPTED");
+      warnings.push({ code: "QC_NOT_ACCEPTED" });
+    }
+  }
+  const progressId = existing?.id ?? crypto.randomUUID();
+  if (existing) await tx.update(pmcUnitActivityProgress).set({ status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now }).where(eq(pmcUnitActivityProgress.id, existing.id));
+  else await tx.insert(pmcUnitActivityProgress).values({ id: progressId, tenantId: input.tenantId, projectId: input.projectId, unitId: input.unitId, activityDefinitionId: input.activityDefinitionId, status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now });
+  const from = existing?.status ?? null;
+  if (from !== input.status) await tx.insert(pmcUnitActivityHistory).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
+  await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: input.unitId, activityDefinitionId: input.activityDefinitionId, from, to: input.status, verificationStatusId, ...(warnings.length ? { warnings: warnings.map(item => item.code) } : {}) }) });
+  // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction.
+  const evm = await syncPmcProgressToEvm(tx, input, now);
+  return { progressId, from, to: input.status, changed: true as const, evm, warnings };
 }
 
 // ------------------------------------------------------------ progress (rules 1-4)

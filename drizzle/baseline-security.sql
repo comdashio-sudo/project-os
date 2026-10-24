@@ -182,6 +182,37 @@ BEGIN
   RETURN done;
 END $$;
 --> statement-breakpoint
+-- Quality gate on progress (work order 12, item 7). A cell (unit x activity) is "accepted" when the latest ANSWERED inspection request that covers it carries one of the
+-- response codes the company counts as an acceptance (tenant_policies.qc_accepted_codes, default A,B). When the company's policy is "block" no path (screen, daily-report
+-- approval, bulk import, a script) can move a cell to COMPLETE without that acceptance: the rule sits on the table every path writes to.
+CREATE FUNCTION project_os_cell_qc_accepted(p_unit varchar, p_activity varchar) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT COALESCE((
+    SELECT r.response_code::text = ANY (string_to_array(COALESCE((SELECT p.qc_accepted_codes FROM tenant_policies p WHERE p.tenant_id = r.tenant_id), 'A,B'), ','))
+      FROM pmc_inspection_requests r
+      JOIN pmc_inspection_request_units u ON u.inspection_request_id = r.id
+     WHERE u.unit_id = p_unit AND r.activity_definition_id = p_activity AND r.response_code IS NOT NULL
+     ORDER BY r.requested_at DESC, r.created_at DESC
+     LIMIT 1), false)
+$$;
+--> statement-breakpoint
+CREATE FUNCTION project_os_qc_completion_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE completion_mode text;
+BEGIN
+  IF NEW.status = 'COMPLETE' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'COMPLETE') THEN
+    SELECT qc_completion_mode::text INTO completion_mode FROM tenant_policies WHERE tenant_id = NEW.tenant_id;
+    IF completion_mode = 'block' AND NOT project_os_cell_qc_accepted(NEW.unit_id, NEW.activity_definition_id) THEN
+      RAISE EXCEPTION 'QC_NOT_ACCEPTED: unit % activity % has no accepted inspection', NEW.unit_id, NEW.activity_definition_id USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER pmc_cell_qc_guard BEFORE INSERT OR UPDATE OF status ON pmc_unit_activity_progress FOR EACH ROW EXECUTE FUNCTION project_os_qc_completion_guard();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_cell_qc_accepted(varchar, varchar), project_os_qc_completion_guard() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
+--> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_apply_conventions(), project_os_analyze(text[]), project_os_set_updated_at(), project_os_audit_logs_refuse() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_analyze(text[]) TO project_os_app;

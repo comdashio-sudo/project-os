@@ -13,6 +13,7 @@ const routers = sources["routers.ts"];
 const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled", "resolveScopedAccess", "authorizeInventory"];
 
 const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
+  getTenantNavigationForUser: "returns only the menu entries the caller's own access snapshot allows and reads no company data; a non-member is refused",
   acknowledgeInternalNotification: "own notification rows only (recipient = caller); active membership required; no product licence needed to read what was sent to you",
   getInternalNotificationsForTenant: "own notification rows only (recipient = caller); active membership required",
   getPayrollCapabilitiesForTenant: "returns flags only; each flag already requires the PROJECT licence and the permission in the same expression",

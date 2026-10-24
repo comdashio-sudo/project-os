@@ -1,0 +1,86 @@
+name: Odoo connector
+
+# Work order 12, item 10: a REAL Odoo Community 17 runs in a container next to a throw-away PostgreSQL, and the connector is exercised against it in both
+# directions (server/odoo.connector.database.test.ts). Everything below belongs to this run alone; the Odoo administrator password is the image's own default
+# for a database initialised without demo data.
+on:
+  pull_request:
+    paths:
+      - "server/integrations/**"
+      - "server/odoo.connector.database.test.ts"
+      - ".github/workflows/odoo.yml"
+      - "drizzle/**"
+  push:
+    branches: [main]
+    paths:
+      - "server/integrations/**"
+      - "server/odoo.connector.database.test.ts"
+      - ".github/workflows/odoo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: odoo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  odoo:
+    name: Odoo 17 two-way sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: A database role for Odoo (it refuses to run as the postgres superuser)
+        run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE odoo LOGIN CREATEDB PASSWORD 'odoo-ci-throwaway'"
+        env:
+          PGPASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
+      - name: Initialise the Odoo database (base, purchase, accounting, project; no demo data)
+        run: |
+          docker run --rm --network host \
+            -e HOST=127.0.0.1 -e PORT=5432 -e USER=odoo -e PASSWORD=odoo-ci-throwaway \
+            odoo:17.0 odoo -d odoo_ci -i base,purchase,account,project --without-demo=all --stop-after-init --log-level=warn
+      - name: Start Odoo on 127.0.0.1:8069
+        run: |
+          docker run -d --name odoo_srv --network host \
+            -e HOST=127.0.0.1 -e PORT=5432 -e USER=odoo -e PASSWORD=odoo-ci-throwaway \
+            odoo:17.0 odoo -d odoo_ci --db-filter='^odoo_ci$' --log-level=warn
+          for _ in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8069/web/health; then echo "odoo answered"; exit 0; fi
+            sleep 3
+          done
+          docker logs odoo_srv | tail -n 40
+          echo "odoo did not answer within three minutes"
+          exit 1
+      - name: Schema from the migrations, restricted application role
+        run: node scripts/setup-integration-test-db.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/postgres # secret-scan:allow container-local throw-away value
+      - name: The connector against Odoo, both directions
+        run: pnpm vitest run --no-file-parallelism server/odoo.connector.database.test.ts
+        env:
+          DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
+          TEST_DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
+          TEST_APP_DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
+          ODOO_URL: http://127.0.0.1:8069
+          ODOO_DB: odoo_ci
+          ODOO_LOGIN: admin
+          ODOO_PASSWORD: admin # secret-scan:allow the default administrator password of a throw-away Odoo database
+      - name: Odoo log (only after a failed step)
+        if: failure()
+        run: docker logs odoo_srv 2>&1 | tail -n 60
