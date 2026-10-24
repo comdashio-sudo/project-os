@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { LanguageProvider, useLanguage } from "./LanguageContext";
+import { AccountLanguageProvider } from "./accountLanguage";
 
 const Probe = () => { const { language, isArabic, isRtl } = useLanguage(); return <p>{language}:{String(isArabic)}:{String(isRtl)}</p>; };
 const visit = (search = "") => { window.history.replaceState({}, "", `/${search}`); render(<LanguageProvider><Probe /></LanguageProvider>); };
@@ -68,8 +69,27 @@ describe("the interface language (three languages: Arabic, English, Urdu)", () =
     expect(localStorage.getItem("project-os-language")).toBe("en");
   });
 
-  it("the switch states that the choice is kept on this device, not on the account, when asked to", () => {
+  it("signed out, the switch says the choice is kept on this device, and that signing in keeps it on the account", () => {
     render(<LanguageProvider><LanguageToggle showNote /></LanguageProvider>);
-    expect(screen.getByText("تُحفظ اللغة على هذا الجهاز فقط، ولا تُحفظ في حسابك.")).toBeTruthy();
+    expect(screen.getByText("تُحفظ اللغة على هذا الجهاز. سجّل الدخول لتتبعك في أي جهاز.")).toBeTruthy();
+  });
+
+  it("signed in, the switch says the choice is kept on the account, and saves it there", () => {
+    const save = vi.fn();
+    render(<LanguageProvider><Probe /><AccountLanguageProvider value={{ signedIn: true, save }}><LanguageToggle showNote /></AccountLanguageProvider></LanguageProvider>);
+    expect(screen.getByText("تُحفظ اللغة في حسابك، فتتبعك إلى أي جهاز.")).toBeTruthy();
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "English" })); });
+    expect(screen.getByText("en:false:false")).toBeTruthy();
+    expect(localStorage.getItem("project-os-language")).toBe("en");
+    expect(save).toHaveBeenCalledWith("en");
+  });
+
+  it("nothing is written to this device when the page opens; only a choice is written", () => {
+    visit();
+    expect(localStorage.getItem("project-os-language")).toBeNull();
+    cleanup();
+    localStorage.setItem("project-os-language", "en");
+    visit("?lang=ur");
+    expect(localStorage.getItem("project-os-language")).toBe("en");
   });
 });

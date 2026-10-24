@@ -1,5 +1,5 @@
 {
-  "id": "1a46ec7b-8e5b-4d8b-a335-596e7b5c0eb4",
+  "id": "9201c55b-eff8-42ab-ba90-d97297cff4f5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -22840,6 +22840,64 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_language_preferences": {
+      "name": "user_language_preferences",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_language_preferences_user_fk": {
+          "name": "user_language_preferences_user_fk",
+          "tableFrom": "user_language_preferences",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_language_preferences_language_check": {
+          "name": "user_language_preferences_language_check",
+          "value": "\"user_language_preferences\".\"language\" IN ('ar', 'en', 'ur')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.users": {
