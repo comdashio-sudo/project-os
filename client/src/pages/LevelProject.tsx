@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { ErrorState, LoadingState } from "@/components/ScreenStates";
 import { SourceNotice } from "@/components/SectionResilience";
@@ -38,22 +39,22 @@ const text = {
     notAvailable: "Not available",
   },
   ur: {
-    title: "Project dashboard", loading: "Loading the project dashboard…",
-    profit: "Profitability", evm: "Earned value (EVM)", progress: "Progress", pv: "PV", ev: "EV", ac: "AC", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC",
-    evmUnavailable: "Earned value cannot be computed for this project yet.", progressUnavailable: "No progress is computed for this project yet.",
-    daily: "Daily report", dailyFailed: "Could not load the daily reports.", noDaily: "No daily report is registered for this project.",
-    report: "Report number", date: "Date", workforce: "Workforce", status: "Status",
-    handovers: "Handovers", handoversFailed: "Could not load the handovers.", deliveriesTotal: "Total handovers", deliveriesAwaiting: "Awaiting the consultant", deliveriesReplied: "Replied",
-    inspections: "Inspections", inspectionsFailed: "Could not load the inspections.", noInspections: "No inspection is registered for this project.",
-    inspection: "Inspection number", inspectedAt: "Inspection date", outcome: "Outcome", awaiting: "Awaiting a result", openNcrs: "Open non-conformances",
-    notAvailable: "Not available",
+    title: "پروجیکٹ کا ڈیش بورڈ", loading: "پروجیکٹ کا ڈیش بورڈ لوڈ ہو رہا ہے…",
+    profit: "منافع بخشی", evm: "کمائی گئی قدر (EVM)", progress: "پیش رفت", pv: "PV", ev: "EV", ac: "AC", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC",
+    evmUnavailable: "اس پروجیکٹ کی کمائی گئی قدر ابھی حساب نہیں کی جا سکتی۔", progressUnavailable: "اس پروجیکٹ کی پیش رفت ابھی حساب نہیں کی گئی۔",
+    daily: "روزانہ کی رپورٹ", dailyFailed: "روزانہ کی رپورٹیں لوڈ نہیں ہو سکیں۔", noDaily: "اس پروجیکٹ کے لیے کوئی روزانہ رپورٹ درج نہیں ہے۔",
+    report: "رپورٹ نمبر", date: "تاریخ", workforce: "افرادی قوت", status: "حیثیت",
+    handovers: "ہینڈ اوورز", handoversFailed: "ہینڈ اوورز لوڈ نہیں ہو سکے۔", deliveriesTotal: "کل ہینڈ اوورز", deliveriesAwaiting: "مشیر کے منتظر", deliveriesReplied: "جواب دیا گیا",
+    inspections: "معائنے", inspectionsFailed: "معائنے لوڈ نہیں ہو سکے۔", noInspections: "اس پروجیکٹ کے لیے کوئی معائنہ درج نہیں ہے۔",
+    inspection: "معائنے کا نمبر", inspectedAt: "معائنے کی تاریخ", outcome: "نتیجہ", awaiting: "نتیجے کے منتظر", openNcrs: "کھلی عدم مطابقتیں",
+    notAvailable: "دستیاب نہیں",
   },
 };
 
 export default function LevelProject() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, language } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const t = pickLanguage(language, text);
   const enabled = Boolean(tenantId && projectId);
   const query = trpc.scopes.project.useQuery({ tenantId, projectId }, { enabled });
   const reports = trpc.fieldReports.list.useQuery({ tenantId, projectId }, { enabled });
@@ -71,7 +72,7 @@ export default function LevelProject() {
     .sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime())
     .slice(0, 5);
   const latestInspections = (inspections.data ?? []).slice().sort((a, b) => new Date(b.inspectedAt).getTime() - new Date(a.inspectedAt).getTime()).slice(0, 5);
-  const day = (value: Date | string) => new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(value));
+  const day = (value: Date | string) => new Intl.DateTimeFormat(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { dateStyle: "medium" }).format(new Date(value));
   const currency = data.project.currency;
   return dashboard(<>
     <LevelSection id="project-progress" title={t.progress}>

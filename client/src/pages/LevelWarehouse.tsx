@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useParams, useSearch } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
 import { LevelDashboard, LevelSection, formatMoney } from "@/components/LevelDashboard";
@@ -35,14 +36,14 @@ const text = {
     title: "Warehouse dashboard",
   },
   ur: {
-    loading: "Loading the warehouse…", noWarehouse: "This project has no warehouse yet.", noWarehouseBody: "Create a warehouse on the project's warehouse screen and it appears here.",
-    balance: "Balance", materials: "Materials", stockValue: "Stock value (project currency)", belowReorder: "Below reorder level",
-    code: "Code", description: "Description", quantity: "Quantity", unit: "Unit", value: "Value", reorder: "Reorder level",
-    movements: "Movements", date: "Date", type: "Type", reference: "Reference", noMovements: "No movements yet in this warehouse.",
-    shortages: "Shortages", noShortage: "No shortages: every material is above its reorder level.", belowLine: "Below reorder level",
-    unapproved: "Unapproved materials", unapprovedFailed: "Could not load the unapproved materials.", held: "Materials on hand", unapprovedCount: "Unapproved", allApproved: "Every material on hand in this warehouse is approved.", noSubmittal: "No approval submitted", notApproved: "Not approved",
-    chooser: "Warehouses", current: "Shown now", lowest: "This is the lowest level.",
-    title: "Warehouse dashboard",
+    loading: "گودام لوڈ ہو رہا ہے…", noWarehouse: "اس پروجیکٹ کا ابھی کوئی گودام نہیں ہے۔", noWarehouseBody: "پروجیکٹ کی گودام کی اسکرین پر گودام بنائیں، پھر وہ یہاں ظاہر ہوگا۔",
+    balance: "بقایا", materials: "مواد", stockValue: "اسٹاک کی قیمت (پروجیکٹ کی کرنسی)", belowReorder: "دوبارہ آرڈر کی سطح سے نیچے",
+    code: "کوڈ", description: "تفصیل", quantity: "مقدار", unit: "اکائی", value: "قدر", reorder: "دوبارہ آرڈر کی سطح",
+    movements: "حرکات", date: "تاریخ", type: "قسم", reference: "حوالہ", noMovements: "اس گودام میں ابھی تک کوئی حرکت نہیں ہوئی۔",
+    shortages: "کمی", noShortage: "کوئی کمی نہیں: ہر مواد دوبارہ آرڈر کی سطح سے اوپر ہے۔", belowLine: "دوبارہ آرڈر کی سطح سے نیچے",
+    unapproved: "غیر منظور شدہ مواد", unapprovedFailed: "غیر منظور شدہ مواد لوڈ نہیں ہو سکا۔", held: "موجود مواد", unapprovedCount: "غیر منظور شدہ", allApproved: "اس گودام میں موجود ہر مواد منظور شدہ ہے۔", noSubmittal: "کوئی منظوری جمع نہیں کرائی گئی", notApproved: "منظور نہیں",
+    chooser: "گودام", current: "ابھی دکھایا جا رہا ہے", lowest: "یہ سب سے نچلی سطح ہے۔",
+    title: "گودام کا ڈیش بورڈ",
   },
 };
 
@@ -50,7 +51,7 @@ export default function LevelWarehouse() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const search = useSearch();
   const { isArabic, language } = useLanguage();
-  const t = isArabic ? text.ar : text.en;
+  const t = pickLanguage(language, text);
   const enabled = Boolean(tenantId && projectId);
   // The level's own list (levelReads.projectWarehouses): `warehouses.list` needs project.read, which a warehouse keeper does not hold.
   const list = trpc.levelReads.projectWarehouses.useQuery({ tenantId, projectId }, { enabled });
@@ -90,7 +91,7 @@ export default function LevelWarehouse() {
       {data.recentMovements.length === 0 ? <p className="text-sm text-slate-600">{t.noMovements}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
         <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.type}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.reference}</th></tr></thead>
         <tbody className="divide-y divide-slate-100">{data.recentMovements.map(item => <tr key={item.id}>
-          <td className="py-3">{new Intl.DateTimeFormat(isArabic ? "ar" : "en", { dateStyle: "medium" }).format(new Date(item.occurredAt))}</td><td className="py-3">{enumLabel(item.transactionType, language)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
+          <td className="py-3">{new Intl.DateTimeFormat(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { dateStyle: "medium" }).format(new Date(item.occurredAt))}</td><td className="py-3">{enumLabel(item.transactionType, language)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
         </tr>)}</tbody>
       </table></div>}
     </LevelSection>
