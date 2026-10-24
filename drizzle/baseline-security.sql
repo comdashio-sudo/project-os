@@ -63,6 +63,17 @@ CREATE TRIGGER audit_logs_refuse_delete BEFORE DELETE ON audit_logs FOR EACH ROW
 --> statement-breakpoint
 CREATE TRIGGER audit_logs_refuse_truncate BEFORE TRUNCATE ON audit_logs FOR EACH STATEMENT EXECUTE FUNCTION project_os_audit_logs_refuse();
 --> statement-breakpoint
+-- 3b. a platform administrator's identity (the OWNER_EMAIL account) is never blanked or replaced by an erasure or a clean-up (work order 17, item 1) --
+CREATE FUNCTION project_os_users_protect_admin() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.role = 'admin' AND ((OLD.email IS NOT NULL AND NEW.email IS NULL) OR (NEW.open_id LIKE 'deleted:%' AND OLD.open_id NOT LIKE 'deleted:%')) THEN
+    RAISE EXCEPTION 'the identity of a platform administrator is never erased' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER users_protect_admin BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION project_os_users_protect_admin();
+--> statement-breakpoint
 -- ALWAYS: a session that sets session_replication_role = replica (the usual way to switch triggers off) still hits them.
 ALTER TABLE audit_logs ENABLE ALWAYS TRIGGER audit_logs_refuse_update;
 --> statement-breakpoint

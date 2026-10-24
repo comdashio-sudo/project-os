@@ -18,6 +18,7 @@ async function start(options: { production?: boolean; perMinute?: number } = {})
   vi.resetModules();
   vi.stubEnv("JWT_SECRET", SECRET);
   vi.stubEnv("CRON_SECRET", "cron-secret-for-tests-0123456789");
+  vi.stubEnv("DATABASE_URL", ""); // these are HTTP-layer tests with no database behind them (one test below relies on a lookup failing), whatever the shell has set
   const { createApp } = await import("./app");
   const { captureLogs } = await import("./logger");
   const logs: string[] = [];

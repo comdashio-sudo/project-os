@@ -14,8 +14,8 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: t
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "رسالة خطأ" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { tenantData: { preview: { useQuery: () => state.preview }, requestDeletion: { useMutation: () => state.request }, confirmDeletion: { useMutation: () => state.confirm } } } }));
 
-const preview = (over: Record<string, unknown> = {}) => ({ companyName: "شركة الاختبار", tables: [{ table: "projects", rows: 3 }, { table: "wbs_items", rows: 9 }, { table: "empty", rows: 0 }], totalRows: 12, auditRows: 4, files: 2, usersToScrub: 5, lastExportAt: null, exportFresh: false, exportFreshDays: 7, ...over });
-const asked = { confirmationToken: "t".repeat(40), expiresAt: new Date(), companyName: "شركة الاختبار", totalRows: 12, files: 2, usersToScrub: 5 };
+const preview = (over: Record<string, unknown> = {}) => ({ companyName: "شركة الاختبار", tables: [{ table: "projects", rows: 3 }, { table: "wbs_items", rows: 9 }, { table: "empty", rows: 0 }], totalRows: 12, auditRows: 4, files: 2, peopleKept: 5, lastExportAt: null, exportFresh: false, exportFreshDays: 7, ...over });
+const asked = { confirmationToken: "t".repeat(40), expiresAt: new Date(), companyName: "شركة الاختبار", totalRows: 12, files: 2, peopleKept: 5 };
 
 afterEach(cleanup);
 beforeEach(() => {

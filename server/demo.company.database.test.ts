@@ -1,7 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.hoisted(() => { process.env.JWT_SECRET ||= "demo-company-test-only-secret-0123456789"; }); // the sign-in check below signs a session; the suite must not depend on the shell having set one
 import fixtureDb, { type Connection } from "./testing/pgCompat";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 import { wbsProgressFromPmc } from "./domain/pmcEvmBridge";
+import { sdk } from "./_core/sdk";
 
 // Work order 15, item 1: the demonstration company "شركة العرض" is built on a real database, is built once, touches no other company, is complete enough to sell with,
 // and is erased by the platform's audited erasure with a verification that nothing of it is left. The seed runs as the OWNER role (it is a setup script, like a migration);
@@ -51,6 +53,19 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(await count("project_commercial_invoices")).toBe(3);
     const [[snapshots]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM evm_snapshots WHERE tenantId = ? AND projectId = ?", [tenantId, projectId]);
     expect(Number(snapshots.n)).toBe(3);
+    // work order 17, item 4: human resources, "my indicators", photos (only with a storage service), knowledge
+    expect(await count("employees")).toBe(16);
+    expect(await count("employee_attendance")).toBeGreaterThanOrEqual(150);
+    expect(await count("knowledge_articles", "AND status = 'published'")).toBe(5);
+    const photos = await count("site_daily_report_photos");
+    if (!process.env.STORAGE_S3_ENDPOINT) expect(photos, "no storage service here: no photo row may exist without its file").toBe(0);
+    const [[linked]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM employees WHERE tenantId = ? AND linkedUserId IS NOT NULL", [tenantId]);
+    expect(Number(linked.n)).toBe(10);
+    for (const email of ["site.engineer.1@show.example.test", "site.engineer.2@show.example.test", "quality.manager@show.example.test"]) {
+      const mine = await (await asPerson(email)).performance.get({ tenantId, projectId });
+      expect(mine.employee.isOwn, email).toBe(true);
+      expect(mine.metrics.sources.length, `${email} has records behind "my indicators"`).toBeGreaterThan(0);
+    }
     const [after] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM companies WHERE slug <> 'demo-show-company'");
     expect(after[0].n).toBe(before[0].n); // no other company was created, changed or removed
   }, 180_000);
@@ -113,6 +128,35 @@ describe.skipIf(!run)("the demonstration company", () => {
     await connection.query("DELETE FROM memberships WHERE tenantId = ? AND userId = ?", [tenantId, stranger.id]);
     await connection.query("DELETE FROM users WHERE id = ?", [stranger.id]);
   }, 60_000);
+
+  it("work order 17: the owner is a member of this company alone; erasing it removes the membership, never the person, and they can still sign in", async () => {
+    const [[ownerBefore]] = await connection.query<{ id: number; openId: string; name: string; email: string; role: string }[]>("SELECT id, openId, name, email, role FROM users WHERE email = ?", [OWNER]);
+    const [[others]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM memberships WHERE userId = ? AND tenantId <> ?", [ownerBefore.id, tenantId]);
+    expect(others.n, "the owner belongs to the demonstration company only").toBe(0);
+    const token = await sdk.issueSession(ownerBefore.openId, { name: ownerBefore.name });
+    const result = await seed.deleteDemoCompany({ ownerEmail: OWNER });
+    expect(result).toMatchObject({ deleted: true, verification: "PASS" });
+    // the person: the very same row, untouched
+    const [[ownerAfter]] = await connection.query<{ id: number; openId: string; name: string; email: string; role: string }[]>("SELECT id, openId, name, email, role FROM users WHERE id = ?", [ownerBefore.id]);
+    expect(ownerAfter).toEqual(ownerBefore);
+    const [[memberships]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM memberships WHERE userId = ?", [ownerBefore.id]);
+    expect(memberships.n, "the membership went with the company").toBe(0);
+    // and the sign-in still resolves to that person (a session minted before the erasure, and a fresh one)
+    const fresh = await sdk.issueSession(ownerAfter.openId, { name: ownerAfter.name });
+    for (const cookie of [token, fresh]) expect((await sdk.authenticateRequest({ headers: { cookie: `app_session_id=${cookie}` } } as never)).id).toBe(ownerBefore.id);
+    // everyone else the demonstration created keeps their account too
+    const [[people]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM users WHERE email LIKE '%@show.example.test'");
+    expect(people.n).toBeGreaterThanOrEqual(10);
+    // the database itself refuses to blank or replace an administrator's identity
+    await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('wo17-admin', 'Admin', 'wo17.admin@example.test', 'admin') ON CONFLICT DO NOTHING");
+    await expect(connection.query("UPDATE users SET email = NULL WHERE openId = 'wo17-admin'")).rejects.toThrow(/never erased/);
+    await expect(connection.query("UPDATE users SET openId = 'deleted:' || gen_random_uuid()::text WHERE openId = 'wo17-admin'")).rejects.toThrow(/never erased/);
+    await connection.query("UPDATE users SET name = 'Renamed' WHERE openId = 'wo17-admin'"); // an ordinary change is still allowed
+    await connection.query("DELETE FROM users WHERE openId = 'wo17-admin'");
+    // build it again for the next test
+    await seed.seedDemoCompany({ ownerEmail: OWNER });
+    tenantId = (await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = 'demo-show-company' AND status = 'active'"))[0][0].id;
+  }, 240_000);
 
   it("is erased by the audited erasure, with a verification that nothing is left, and can then be built again", async () => {
     const result = await seed.deleteDemoCompany({ ownerEmail: OWNER });

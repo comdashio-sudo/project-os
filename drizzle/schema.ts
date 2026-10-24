@@ -784,6 +784,24 @@ export const rolePermissions = pgTable(
   table => [primaryKey({ columns: [table.roleId, table.permissionId], name: "role_permissions_pk" })],
 );
 
+// Work order 17, item 2: a ready-made role template stops carrying a permission. Adding one reaches existing companies by itself (with an audit row); taking one
+// away is only PROPOSED here and applied when the company's administrator approves it after seeing the preview.
+export const roleTemplateRemovalStatus = pgEnum("role_template_removal_status", ["pending", "approved", "declined"]);
+export const roleTemplateRemovals = pgTable(
+  "role_template_removals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id),
+    permissionId: varchar("permission_id", { length: 36 }).notNull().references(() => permissions.id),
+    status: roleTemplateRemovalStatus("status").default("pending").notNull(),
+    proposedAt: timestamp("proposed_at", { withTimezone: true }).defaultNow().notNull(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  table => [uniqueIndex("role_template_removals_role_permission_uq").on(table.roleId, table.permissionId), index("role_template_removals_tenant_status_idx").on(table.tenantId, table.status)],
+);
+
 export const membershipRolesScopeTypeEnum = pgEnum("membership_roles_scope_type", ["company", "portfolio", "program", "project"]);
 export const membershipRoles = pgTable(
   "membership_roles",

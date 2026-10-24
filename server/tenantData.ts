@@ -10,8 +10,9 @@
 //   - audit_logs: the audit trail is append-only by design (the application account holds SELECT and INSERT on it, never DELETE), so
 //     the rows stay, and the report ends with one more row recording the erasure itself;
 //   - the `companies` row, as a tombstone (status archived, name and slug replaced): audit rows point at it by foreign key;
-//   - the `users` rows that audit rows point at, scrubbed of every personal identifier (name, e-mail, sign-in identity) when the
-//     person belongs to no other company. A person who is a member of another company is left exactly as they are.
+//   - the `users` rows, UNTOUCHED (work order 17, item 1): erasing a company removes the people's MEMBERSHIPS in it, never their identity or
+//     their sign-in account. A person who was a member of this company alone can still sign in afterwards (to no company, or to the next one
+//     they are invited to); the owner account named by OWNER_EMAIL in particular must never be lost to a company's erasure.
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -37,7 +38,7 @@ export const NOT_COMPANY_DATA = [
   "commercial_features", "commercial_plans", "plan_feature_entitlements", // the plan catalogue, shared by every company
   "permissions", // the permission catalogue, shared by every company
   "scheduled_jobs", "invoice_counters", "auth_code_attempts", // platform bookkeeping (auth_code_attempts holds a hash of an address and a counter, no company data)
-  "users", "auth_sessions", "self_service_signup_attempts", // people, handled by the scrub step
+  "users", "auth_sessions", "self_service_signup_attempts", // people: never deleted or altered by an erasure
   "companies", // kept as a tombstone
 ] as const;
 
@@ -53,6 +54,7 @@ export const FILE_TABLES = [
   { table: "master_plan_versions", column: "storage_key" },
   { table: "data_imports", column: "file_key" },
   { table: "pmc_site_plans", column: "file_key" },
+  { table: "site_daily_report_photos", column: "storage_key" },
 ] as const;
 
 /** Memberships and roles go last, so a half-finished erasure can still be resumed by the owner who started it. */
@@ -134,7 +136,7 @@ async function countRows(db: Db, tenantId: string, table: string): Promise<numbe
   return Number(rows[0]?.n ?? 0);
 }
 
-export type TenantCounts = { tables: Array<{ table: string; rows: number }>; totalRows: number; auditRows: number; files: number; usersToScrub: number };
+export type TenantCounts = { tables: Array<{ table: string; rows: number }>; totalRows: number; auditRows: number; files: number; peopleKept: number };
 
 export async function countTenantData(db: Db, tenantId: string, map?: SchemaMap): Promise<TenantCounts> {
   const schema = map ?? await readSchemaMap(db);
@@ -145,13 +147,13 @@ export async function countTenantData(db: Db, tenantId: string, map?: SchemaMap)
   const auditRows = await countRows(db, tenantId, "audit_logs");
   let files = 0;
   for (const file of FILE_TABLES) files += Number((await q<{ n: number }>(db, sql`SELECT COUNT(*) AS n FROM ${id(file.table)} WHERE tenant_id = ${tenantId} AND ${id(file.column)} IS NOT NULL`))[0]?.n ?? 0);
-  const usersToScrub = (await personIdsOnlyIn(db, tenantId)).length;
-  return { tables, totalRows: tables.reduce((sum, item) => sum + item.rows, 0), auditRows, files, usersToScrub };
+  const peopleKept = (await personIdsIn(db, tenantId)).length;
+  return { tables, totalRows: tables.reduce((sum, item) => sum + item.rows, 0), auditRows, files, peopleKept };
 }
 
-/** People who belong to this company and to no other: their identity is scrubbed when the company is erased. */
-async function personIdsOnlyIn(db: Db, tenantId: string): Promise<number[]> {
-  const rows = await q<{ userId: number }>(db, sql`SELECT m.user_id AS "userId" FROM memberships m WHERE m.tenant_id = ${tenantId} AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.user_id = m.user_id AND o.tenant_id <> ${tenantId})`);
+/** People who are members of this company. Their memberships go with it; their identity and sign-in account stay. */
+async function personIdsIn(db: Db, tenantId: string): Promise<number[]> {
+  const rows = await q<{ userId: number }>(db, sql`SELECT DISTINCT m.user_id AS "userId" FROM memberships m WHERE m.tenant_id = ${tenantId}`);
   return rows.map(row => Number(row.userId));
 }
 
@@ -256,7 +258,8 @@ export type DeletionReport = {
   remaining: Array<{ table: string; rows: number }>;
   perTable: Array<{ table: string; before: number; deleted: number; after: number }>;
   retained: { auditRows: number; companyRow: "tombstone" };
-  people: { scrubbed: number; keptBecauseInAnotherCompany: number };
+  /** memberships removed with the company; every person's identity and sign-in account is kept */
+  people: { membershipsRemoved: number; identitiesKept: number };
   files: { found: number; deleted: number; failed: number; failedKeys: string[] };
 };
 
@@ -321,7 +324,7 @@ async function erasePass(db: Db, tenantId: string, map: SchemaMap, deleted: Map<
 /**
  * Erases everything the company owns. The caller has already checked the owner, the fresh export, the token and the typed name.
  * Order: freeze the company (its products are switched off, so no request can write any more) → read what exists → delete in
- * foreign-key order in batches → scrub people → tombstone the company → delete stored files → count again → record it.
+ * foreign-key order in batches → tombstone the company → delete stored files → count again → record it.
  * It can be run again until it reports PASS: every step is a delete or an update that tolerates having been done.
  */
 export async function deleteTenantData(input: { db: Db; tenantId: string; actorUserId: number; storageDelete?: (key: string) => Promise<void>; now?: () => Date; /** test seams: called right after the freeze commits and after each erasure pass */ observe?: { afterFreeze?: () => Promise<void>; afterErase?: (pass: number) => Promise<void> } }): Promise<DeletionReport> {
@@ -338,8 +341,7 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
   // 2. read what exists
   const before = await countTenantData(db, tenantId, map);
   const objectKeys = new Set<string>(await collectObjectKeys(db, tenantId));
-  const onlyHere = await personIdsOnlyIn(db, tenantId);
-  const everyone = (await q<{ userId: number }>(db, sql`SELECT user_id AS "userId" FROM memberships WHERE tenant_id = ${tenantId}`)).map(row => Number(row.userId));
+  const everyone = await personIdsIn(db, tenantId);
 
   // 3. erase, children first; and repeat until a count taken afterwards is zero. The freeze stops every request that starts after it, but one that
   //    passed its access check a moment BEFORE it may still be writing; it is caught here by the next pass (and, failing that, by the final count).
@@ -354,13 +356,8 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
     await new Promise(resolve => setTimeout(resolve, DRAIN_MS));
   }
 
-  // 4. people: identity removed for those who belong to no other company; their sessions end
-  if (onlyHere.length) {
-    const ids = sql.join(onlyHere.map(userId => sql`${userId}`), sql`, `);
-    await db.execute(sql`DELETE FROM auth_sessions WHERE user_id IN (${ids})`);
-    await db.execute(sql`DELETE FROM self_service_signup_attempts WHERE user_id IN (${ids})`);
-    await db.execute(sql`UPDATE users SET name = 'Deleted user', email = NULL, open_id = 'deleted:' || gen_random_uuid()::text, login_method = NULL WHERE id IN (${ids})`);
-  }
+  // 4. people: NOTHING is done to the users table or to sign-in sessions. The memberships went with the company's rows above (IDENTITY_TABLES);
+  //    the person, their sign-in account and the owner account named by OWNER_EMAIL stay exactly as they were.
 
   // 5. the company row stays as a tombstone (audit rows point at it)
   await db.execute(sql`UPDATE companies SET status = 'archived', legal_name = ${`Deleted company ${tenantId.slice(0, 8)}`}, slug = ${`deleted-${tenantId}`} WHERE id = ${tenantId}`);
@@ -391,7 +388,7 @@ export async function deleteTenantData(input: { db: Db; tenantId: string; actorU
     remaining,
     perTable,
     retained: { auditRows: after.auditRows, companyRow: "tombstone" },
-    people: { scrubbed: onlyHere.length, keptBecauseInAnotherCompany: everyone.length - onlyHere.length },
+    people: { membershipsRemoved: everyone.length, identitiesKept: everyone.length },
     files,
   };
   // 8. the record of the erasure itself — appended to the audit trail, which is never deleted
