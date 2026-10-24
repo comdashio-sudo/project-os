@@ -49,10 +49,10 @@ export default function LevelPortfolio() {
   const t = isArabic ? text.ar : text.en;
   const query = trpc.scopes.portfolio.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   const rows: ProjectKpi[] = query.data?.projects ?? [];
-  const firstProject = rows[0];
-  // The level below is one project; each row of the comparison links to its own project. Without a project there is no level below.
-  const belowHref = firstProject ? levelHref(tenantId, "project", firstProject.projectId) : null;
-  const dashboard = (body: React.ReactNode) => <LevelDashboard level="portfolio" tenantId={tenantId} title={t.title} belowHref={belowHref}>{body}</LevelDashboard>;
+  // The level below is a project, and the person chooses which one: a link per project of the comparison, each to that row's project (G-196).
+  // Without a project there is nothing to choose, so no link is shown.
+  const belowLinks = rows.map(row => ({ id: row.projectId, label: `${row.code} · ${row.name}`, href: levelHref(tenantId, "project", row.projectId) }));
+  const dashboard = (body: React.ReactNode) => <LevelDashboard level="portfolio" tenantId={tenantId} title={t.title} belowHref={null} belowLinks={belowLinks}>{body}</LevelDashboard>;
   if (query.isLoading) return dashboard(<LoadingState isArabic={isArabic} label={t.loading} />);
   if (query.error || !query.data) return dashboard(<ErrorState isArabic={isArabic} error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />);
   const data: ScopeLevels["portfolio"] = query.data;

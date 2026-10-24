@@ -70,3 +70,18 @@ export const FIELD_REPORTS = [
 export const INSPECTIONS = [
   { id: "q-1", inspectionNumber: "QI-0001", inspectionType: "hold_point", inspectedAt: new Date("2026-10-19T06:00:00Z"), outcome: "pass", summary: "Synthetic check", status: "accepted" },
 ];
+
+/** Work order 16 (G-190 to G-192): the reads the level screens take from `levelReads.*` (server/levelReads.ts). Synthetic counts only. */
+export const DELIVERIES = { level: "project" as const, projectId: PROJECT_A.projectId, submittals: { total: 6, draft: 1, awaitingReply: 2, replied: 2, closed: 1 } };
+
+export const UNAPPROVED = {
+  level: "warehouse" as const, warehouseId: WAREHOUSE_ID, stockedMaterials: 2, unapprovedCount: 1,
+  unapproved: [{ materialId: "m-1", code: "MAT-1", description: "Synthetic cement", state: "no_submittal" as const }],
+};
+
+export const COMMITMENTS = {
+  level: "company" as const, projectCount: 2,
+  contracts: { count: 2, byCurrency: [{ currency: "SAR", amount: 1250 }, { currency: "USD", amount: 40 }] },
+  purchaseOrders: { count: 1, byCurrency: [{ currency: "SAR", amount: 500 }] },
+  commitments: { count: 0, byCurrency: [] as { currency: string; amount: number }[] },
+};
