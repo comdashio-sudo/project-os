@@ -154,7 +154,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the ready-made role temp
   it("the executive and the PMO lead see their own level only: no project action is open to them", async () => {
     for (const key of ["EXECUTIVE", "PMO_LEAD"] as const) {
       const navigation = await callers[key].navigation.get({ tenantId, projectId });
-      expect(navigation.map(item => item.id), key).toEqual(key === "EXECUTIVE" ? ["executive-dashboard"] : ["pmo-dashboard"]);
+      // The levels entry (work order 16) leads to the person's own level; no other module is open to them.
+      expect(navigation.map(item => item.id), key).toEqual(key === "EXECUTIVE" ? ["levels", "executive-dashboard"] : ["levels", "pmo-dashboard"]);
       for (const probe of PROBES) expect(await outcome(() => probe.run(callers[key])), `${key} x ${probe.name}`).toBe("denied");
     }
   });

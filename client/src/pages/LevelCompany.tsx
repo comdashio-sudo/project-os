@@ -3,7 +3,8 @@ import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
-import { AwaitingServer, LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
+import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
+import { SourceNotice } from "@/components/SectionResilience";
 import { kpiValues, levelHref, type ProjectKpi, type ScopeLevels } from "@/lib/levels";
 
 // Level 1, the company and the board (view only): every project on one page, read from `scopes.company`. It composes the server's figures;
@@ -15,7 +16,7 @@ const text = {
     totals: "الإجماليات", projects: "المشاريع", profit: "الربح المتوقع (الإجمالي)", late: "مشاريع متأخرة", deviating: "مشاريع بانحراف سلبي",
     multiCurrency: "عملات مختلفة: لا يُجمع الربح", notAvailable: "غير متاح",
     allProjects: "كل المشاريع", project: "المشروع", deviation: "الانحراف (VAC)", cpi: "CPI", spi: "SPI", progress: "التقدم", lateActivities: "أنشطة متأخرة", open: "افتح المشروع",
-    commitments: "الالتزامات", commitmentsWhat: "لا يوجد على main بعد مسار قراءة يجمع الالتزامات (العقود وأوامر الشراء) عبر المشاريع.",
+    commitments: "الالتزامات", commitmentsFailed: "تعذّر تحميل الالتزامات.", activeContracts: "العقود النشطة", approvedOrders: "أوامر الشراء المعتمدة والصادرة", committedCommitments: "الالتزامات المعتمدة", noAmount: "بلا مبالغ",
     emptyTitle: "لا مشاريع بعد", emptyBody: "أضف أول مشروع لتظهر هنا لوحة الشركة.", emptyAction: "إلى سجل المشاريع",
   },
   en: {
@@ -23,7 +24,7 @@ const text = {
     totals: "Totals", projects: "Projects", profit: "Expected profit (total)", late: "Late projects", deviating: "Projects with negative variance",
     multiCurrency: "Several currencies: profit is not summed", notAvailable: "Not available",
     allProjects: "All projects", project: "Project", deviation: "Deviation (VAC)", cpi: "CPI", spi: "SPI", progress: "Progress", lateActivities: "Late activities", open: "Open project",
-    commitments: "Commitments", commitmentsWhat: "No read route on main yet gathers commitments (contracts and purchase orders) across projects.",
+    commitments: "Commitments", commitmentsFailed: "Could not load the commitments.", activeContracts: "Active contracts", approvedOrders: "Approved and issued purchase orders", committedCommitments: "Committed commitments", noAmount: "No amount",
     emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
   },
   ur: {
@@ -31,7 +32,7 @@ const text = {
     totals: "Totals", projects: "Projects", profit: "Expected profit (total)", late: "Late projects", deviating: "Projects with negative variance",
     multiCurrency: "Several currencies: profit is not summed", notAvailable: "Not available",
     allProjects: "All projects", project: "Project", deviation: "Deviation (VAC)", cpi: "CPI", spi: "SPI", progress: "Progress", lateActivities: "Late activities", open: "Open project",
-    commitments: "Commitments", commitmentsWhat: "No read route on main yet gathers commitments (contracts and purchase orders) across projects.",
+    commitments: "Commitments", commitmentsFailed: "Could not load the commitments.", activeContracts: "Active contracts", approvedOrders: "Approved and issued purchase orders", committedCommitments: "Committed commitments", noAmount: "No amount",
     emptyTitle: "No projects yet", emptyBody: "Add the first project and it appears on this dashboard.", emptyAction: "To the project register",
   },
 };
@@ -41,6 +42,7 @@ export default function LevelCompany() {
   const { isArabic } = useLanguage();
   const t = isArabic ? text.ar : text.en;
   const query = trpc.scopes.company.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
+  const commitments = trpc.levelReads.companyCommitments.useQuery({ tenantId }, { enabled: Boolean(tenantId) });
   const dashboard = (body: React.ReactNode) => <LevelDashboard level="company" tenantId={tenantId} title={t.title}>{body}</LevelDashboard>;
   if (query.isLoading) return dashboard(<LoadingState isArabic={isArabic} label={t.loading} />);
   if (query.error || !query.data) return dashboard(<ErrorState isArabic={isArabic} error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />);
@@ -64,9 +66,22 @@ export default function LevelCompany() {
       <ProjectTable rows={rows} currency={data.totals.currency} isArabic={isArabic} t={t} tenantId={tenantId} />
     </LevelSection>
     <LevelSection id="company-commitments" title={t.commitments}>
-      <AwaitingServer isArabic={isArabic} what={t.commitmentsWhat} />
+      <SourceNotice query={commitments} isArabic={isArabic} title={t.commitments} fallback={t.commitmentsFailed} />
+      {commitments.isLoading ? <LoadingState isArabic={isArabic} label={t.loading} />
+        : commitments.data ? <dl className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Figure label={t.activeContracts} value={commitmentValue(commitments.data.contracts, t)} />
+            <Figure label={t.approvedOrders} value={commitmentValue(commitments.data.purchaseOrders, t)} />
+            <Figure label={t.committedCommitments} value={commitmentValue(commitments.data.commitments, t)} />
+          </dl>
+        : null}
     </LevelSection>
   </>);
+}
+
+/** The count, then the amount in each currency it is in. Several currencies are listed side by side; they are never added together. */
+function commitmentValue(figure: { count: number; byCurrency: readonly { currency: string; amount: number }[] }, t: typeof text.ar): string {
+  if (figure.byCurrency.length === 0) return figure.count === 0 ? "0" : t.noAmount;
+  return `${figure.count} — ${figure.byCurrency.map(item => formatMoney(item.amount, item.currency)).join(" · ")}`;
 }
 
 /** Three cases the server distinguishes: a sum (one currency), projects in several currencies (no sum), or no figure computed. */

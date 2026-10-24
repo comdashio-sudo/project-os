@@ -3,7 +3,8 @@ import { Link, useParams, useSearch } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
-import { AwaitingServer, LevelDashboard, LevelSection, formatMoney } from "@/components/LevelDashboard";
+import { LevelDashboard, LevelSection, formatMoney } from "@/components/LevelDashboard";
+import { SourceNotice } from "@/components/SectionResilience";
 import { Figure } from "@/pages/LevelCompany";
 import { type ScopeLevels, levelHref } from "@/lib/levels";
 import { enumLabel } from "@/lib/labels";
@@ -19,7 +20,7 @@ const text = {
     code: "الرمز", description: "الوصف", quantity: "الكمية", unit: "الوحدة", value: "القيمة", reorder: "حد الطلب",
     movements: "الحركات", date: "التاريخ", type: "النوع", reference: "المرجع", noMovements: "لا حركات بعد في هذا المستودع.",
     shortages: "النواقص", noShortage: "لا نواقص: كل مادة فوق حد طلبها.", belowLine: "أقل من حد الطلب",
-    unapproved: "مواد غير معتمدة", unapprovedWhat: "لا يوجد على main بعد مسار يعدّ المواد غير المعتمدة في هذا المستودع.",
+    unapproved: "مواد غير معتمدة", unapprovedFailed: "تعذّر تحميل المواد غير المعتمدة.", held: "مواد بها رصيد", unapprovedCount: "غير معتمدة", allApproved: "كل المواد المحجوزة في هذا المستودع معتمدة.", noSubmittal: "لم يُقدَّم اعتماد", notApproved: "لم تُعتمد",
     chooser: "المستودعات", current: "المعروض الآن", lowest: "أدنى مستوى: لا مستوى تحته.",
     title: "لوحة المستودع",
   },
@@ -29,7 +30,7 @@ const text = {
     code: "Code", description: "Description", quantity: "Quantity", unit: "Unit", value: "Value", reorder: "Reorder level",
     movements: "Movements", date: "Date", type: "Type", reference: "Reference", noMovements: "No movements yet in this warehouse.",
     shortages: "Shortages", noShortage: "No shortages: every material is above its reorder level.", belowLine: "Below reorder level",
-    unapproved: "Unapproved materials", unapprovedWhat: "No read route on main yet counts the unapproved materials in this warehouse.",
+    unapproved: "Unapproved materials", unapprovedFailed: "Could not load the unapproved materials.", held: "Materials on hand", unapprovedCount: "Unapproved", allApproved: "Every material on hand in this warehouse is approved.", noSubmittal: "No approval submitted", notApproved: "Not approved",
     chooser: "Warehouses", current: "Shown now", lowest: "This is the lowest level.",
     title: "Warehouse dashboard",
   },
@@ -39,7 +40,7 @@ const text = {
     code: "Code", description: "Description", quantity: "Quantity", unit: "Unit", value: "Value", reorder: "Reorder level",
     movements: "Movements", date: "Date", type: "Type", reference: "Reference", noMovements: "No movements yet in this warehouse.",
     shortages: "Shortages", noShortage: "No shortages: every material is above its reorder level.", belowLine: "Below reorder level",
-    unapproved: "Unapproved materials", unapprovedWhat: "No read route on main yet counts the unapproved materials in this warehouse.",
+    unapproved: "Unapproved materials", unapprovedFailed: "Could not load the unapproved materials.", held: "Materials on hand", unapprovedCount: "Unapproved", allApproved: "Every material on hand in this warehouse is approved.", noSubmittal: "No approval submitted", notApproved: "Not approved",
     chooser: "Warehouses", current: "Shown now", lowest: "This is the lowest level.",
     title: "Warehouse dashboard",
   },
@@ -56,6 +57,7 @@ export default function LevelWarehouse() {
   const requested = new URLSearchParams(search).get("warehouse");
   const chosen = warehouses.find(item => item.id === requested) ?? warehouses.find(item => item.active) ?? warehouses[0];
   const stock = trpc.scopes.warehouse.useQuery({ tenantId, projectId, warehouseId: chosen?.id ?? "" }, { enabled: enabled && Boolean(chosen) });
+  const unapproved = trpc.levelReads.warehouseUnapprovedMaterials.useQuery({ tenantId, projectId, warehouseId: chosen?.id ?? "" }, { enabled: enabled && Boolean(chosen) });
   const title = stock.data ? `${stock.data.warehouse.code} · ${stock.data.warehouse.name}` : t.title;
   const dashboard = (body: React.ReactNode) => <LevelDashboard level="warehouse" tenantId={tenantId} projectId={projectId} title={title}>{body}</LevelDashboard>;
   if (list.isLoading || (chosen && stock.isLoading)) return dashboard(<LoadingState isArabic={isArabic} label={t.loading} />);
@@ -100,7 +102,21 @@ export default function LevelWarehouse() {
       </ul>}
     </LevelSection>
     <LevelSection id="warehouse-unapproved" title={t.unapproved}>
-      <AwaitingServer isArabic={isArabic} what={t.unapprovedWhat} />
+      <SourceNotice query={unapproved} isArabic={isArabic} title={t.unapproved} fallback={t.unapprovedFailed} />
+      {unapproved.isLoading ? <LoadingState isArabic={isArabic} label={t.loading} />
+        : unapproved.data ? <>
+            <dl className="mb-4 grid grid-cols-2 gap-3">
+              <Figure label={t.held} value={String(unapproved.data.stockedMaterials)} />
+              <Figure label={t.unapprovedCount} value={String(unapproved.data.unapprovedCount)} />
+            </dl>
+            {unapproved.data.unapproved.length === 0 ? <p className="text-sm text-slate-600">{t.allApproved}</p> : <ul className="space-y-2 text-sm">
+              {unapproved.data.unapproved.map(item => <li key={item.materialId} data-unapproved-material={item.materialId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-amber-50 p-3">
+                <span className="font-medium">{item.code} · {item.description}</span>
+                <span>{item.state === "no_submittal" ? t.noSubmittal : t.notApproved}</span>
+              </li>)}
+            </ul>}
+          </>
+        : null}
     </LevelSection>
   </>);
 }

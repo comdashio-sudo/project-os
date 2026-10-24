@@ -2,10 +2,10 @@
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FIELD_REPORTS, INSPECTIONS, PROJECT_A, PROJECT_B, PROJECT_LEVEL, TENANT } from "@/test/levelFixtures";
+import { DELIVERIES, FIELD_REPORTS, INSPECTIONS, PROJECT_A, PROJECT_B, PROJECT_LEVEL, TENANT } from "@/test/levelFixtures";
 import LevelProject from "./LevelProject";
 
-const state = vi.hoisted(() => ({ project: {} as Record<string, unknown>, reports: {} as Record<string, unknown>, inspections: {} as Record<string, unknown>, isArabic: true }));
+const state = vi.hoisted(() => ({ project: {} as Record<string, unknown>, reports: {} as Record<string, unknown>, inspections: {} as Record<string, unknown>, deliveries: {} as Record<string, unknown>, isArabic: true }));
 const refetch = vi.hoisted(() => vi.fn());
 const ok = (data: unknown) => ({ isLoading: false, isFetching: false, error: null, data, refetch });
 const failed = (error: unknown) => ({ isLoading: false, isFetching: false, error, data: undefined, refetch });
@@ -23,6 +23,7 @@ vi.mock("@/lib/trpc", () => ({
     scopes: { project: { useQuery: () => state.project } },
     fieldReports: { list: { useQuery: () => state.reports } },
     qualityInspections: { list: { useQuery: () => state.inspections } },
+    levelReads: { projectDeliveries: { useQuery: () => state.deliveries } },
   },
 }));
 
@@ -32,6 +33,7 @@ describe("LevelProject (level 3, one project)", () => {
     state.project = ok(PROJECT_LEVEL);
     state.reports = ok(FIELD_REPORTS);
     state.inspections = ok(INSPECTIONS);
+    state.deliveries = ok(DELIVERIES);
   });
   afterEach(() => { cleanup(); refetch.mockReset(); });
 
@@ -52,9 +54,19 @@ describe("LevelProject (level 3, one project)", () => {
     expect(daily.textContent).not.toContain("IR-0001");
   });
 
-  it("says handovers are waiting for the server instead of showing a count", () => {
+  it("counts the handovers of the project from the server's read: total, awaiting the consultant, replied", () => {
     const { container } = render(<LevelProject />);
-    expect(container.querySelector("[data-section='project-handovers'] [data-state='awaiting-server']")?.textContent).toContain("بانتظار الخادم");
+    const section = container.querySelector("[data-section='project-handovers']")!;
+    expect(section.querySelector("[data-state='awaiting-server']")).toBeNull();
+    expect(Array.from(section.querySelectorAll("dd")).map(item => item.textContent)).toEqual(["6", "2", "2"]);
+  });
+
+  it("says the handovers could not be read, and shows no figure in their place", () => {
+    state.deliveries = failed({ data: { code: "INTERNAL_SERVER_ERROR" }, message: "Synthetic failure" });
+    const { container } = render(<LevelProject />);
+    const section = container.querySelector("[data-section='project-handovers']")!;
+    expect(section.querySelector("[role='alert']")?.textContent).toContain("التسليمات");
+    expect(section.querySelectorAll("dd")).toHaveLength(0);
   });
 
   it("lists the inspections and the quality figures the server gives for the project", () => {

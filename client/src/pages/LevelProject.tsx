@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { ErrorState, LoadingState } from "@/components/ScreenStates";
 import { SourceNotice } from "@/components/SectionResilience";
-import { AwaitingServer, LevelDashboard, LevelSection, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
+import { LevelDashboard, LevelSection, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
 import { kpiValues, type ScopeLevels } from "@/lib/levels";
 import { Figure } from "@/pages/LevelCompany";
 import { enumLabel } from "@/lib/labels";
@@ -21,7 +21,7 @@ const text = {
     evmUnavailable: "لا يمكن حساب القيمة المكتسبة لهذا المشروع بعد.", progressUnavailable: "لا يوجد تقدم محسوب لهذا المشروع بعد.",
     daily: "التقرير اليومي", dailyFailed: "تعذّر تحميل التقارير اليومية.", noDaily: "لا تقرير يومي مسجل لهذا المشروع.",
     report: "رقم التقرير", date: "التاريخ", workforce: "عدد العمالة", status: "الحالة",
-    handovers: "التسليمات", handoversWhat: "لا يوجد على main بعد مسار قراءة لتسليمات المشروع.",
+    handovers: "التسليمات", handoversFailed: "تعذّر تحميل التسليمات.", deliveriesTotal: "إجمالي التسليمات", deliveriesAwaiting: "بانتظار رد الاستشاري", deliveriesReplied: "تم الرد عليها",
     inspections: "الفحوصات", inspectionsFailed: "تعذّر تحميل الفحوصات.", noInspections: "لا فحص مسجل لهذا المشروع.",
     inspection: "رقم الفحص", inspectedAt: "تاريخ الفحص", outcome: "النتيجة", awaiting: "بانتظار النتيجة", openNcrs: "عدم مطابقة مفتوحة",
     notAvailable: "غير متاح",
@@ -32,7 +32,7 @@ const text = {
     evmUnavailable: "Earned value cannot be computed for this project yet.", progressUnavailable: "No progress is computed for this project yet.",
     daily: "Daily report", dailyFailed: "Could not load the daily reports.", noDaily: "No daily report is registered for this project.",
     report: "Report number", date: "Date", workforce: "Workforce", status: "Status",
-    handovers: "Handovers", handoversWhat: "No read route on main yet gives this project's handovers.",
+    handovers: "Handovers", handoversFailed: "Could not load the handovers.", deliveriesTotal: "Total handovers", deliveriesAwaiting: "Awaiting the consultant", deliveriesReplied: "Replied",
     inspections: "Inspections", inspectionsFailed: "Could not load the inspections.", noInspections: "No inspection is registered for this project.",
     inspection: "Inspection number", inspectedAt: "Inspection date", outcome: "Outcome", awaiting: "Awaiting a result", openNcrs: "Open non-conformances",
     notAvailable: "Not available",
@@ -43,7 +43,7 @@ const text = {
     evmUnavailable: "Earned value cannot be computed for this project yet.", progressUnavailable: "No progress is computed for this project yet.",
     daily: "Daily report", dailyFailed: "Could not load the daily reports.", noDaily: "No daily report is registered for this project.",
     report: "Report number", date: "Date", workforce: "Workforce", status: "Status",
-    handovers: "Handovers", handoversWhat: "No read route on main yet gives this project's handovers.",
+    handovers: "Handovers", handoversFailed: "Could not load the handovers.", deliveriesTotal: "Total handovers", deliveriesAwaiting: "Awaiting the consultant", deliveriesReplied: "Replied",
     inspections: "Inspections", inspectionsFailed: "Could not load the inspections.", noInspections: "No inspection is registered for this project.",
     inspection: "Inspection number", inspectedAt: "Inspection date", outcome: "Outcome", awaiting: "Awaiting a result", openNcrs: "Open non-conformances",
     notAvailable: "Not available",
@@ -58,6 +58,7 @@ export default function LevelProject() {
   const query = trpc.scopes.project.useQuery({ tenantId, projectId }, { enabled });
   const reports = trpc.fieldReports.list.useQuery({ tenantId, projectId }, { enabled });
   const inspections = trpc.qualityInspections.list.useQuery({ tenantId, projectId }, { enabled });
+  const deliveries = trpc.levelReads.projectDeliveries.useQuery({ tenantId, projectId }, { enabled });
   const title = query.data ? `${query.data.project.code} · ${query.data.project.name}` : t.title;
   const dashboard = (body: React.ReactNode) => <LevelDashboard level="project" tenantId={tenantId} projectId={projectId} title={title}>{body}</LevelDashboard>;
   if (query.isLoading) return dashboard(<LoadingState isArabic={isArabic} label={t.loading} />);
@@ -104,7 +105,14 @@ export default function LevelProject() {
           </table></div> : null}
     </LevelSection>
     <LevelSection id="project-handovers" title={t.handovers}>
-      <AwaitingServer isArabic={isArabic} what={t.handoversWhat} />
+      <SourceNotice query={deliveries} isArabic={isArabic} title={t.handovers} fallback={t.handoversFailed} />
+      {deliveries.isLoading ? <LoadingState isArabic={isArabic} label={t.loading} />
+        : deliveries.data ? <dl className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Figure label={t.deliveriesTotal} value={String(deliveries.data.submittals.total)} />
+            <Figure label={t.deliveriesAwaiting} value={String(deliveries.data.submittals.awaitingReply)} />
+            <Figure label={t.deliveriesReplied} value={String(deliveries.data.submittals.replied)} />
+          </dl>
+        : null}
     </LevelSection>
     <LevelSection id="project-inspections" title={t.inspections}>
       <dl className="mb-4 grid grid-cols-2 gap-3">
