@@ -1,5 +1,5 @@
 {
-  "id": "05a6b3ee-0dfe-4cc7-afe0-f94e8312077c",
+  "id": "7d00b86b-1342-41fb-b6c1-c0ad90d71a2e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -18248,6 +18248,166 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.role_template_removals": {
+      "name": "role_template_removals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_id": {
+          "name": "permission_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "role_template_removal_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "proposed_at": {
+          "name": "proposed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_by_user_id": {
+          "name": "decided_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "role_template_removals_role_permission_uq": {
+          "name": "role_template_removals_role_permission_uq",
+          "columns": [
+            {
+              "expression": "role_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "role_template_removals_tenant_status_idx": {
+          "name": "role_template_removals_tenant_status_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "role_template_removals_tenant_id_companies_id_fk": {
+          "name": "role_template_removals_tenant_id_companies_id_fk",
+          "tableFrom": "role_template_removals",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "role_template_removals_role_id_roles_id_fk": {
+          "name": "role_template_removals_role_id_roles_id_fk",
+          "tableFrom": "role_template_removals",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "role_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "role_template_removals_permission_id_permissions_id_fk": {
+          "name": "role_template_removals_permission_id_permissions_id_fk",
+          "tableFrom": "role_template_removals",
+          "tableTo": "permissions",
+          "columnsFrom": [
+            "permission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "role_template_removals_decided_by_user_id_users_id_fk": {
+          "name": "role_template_removals_decided_by_user_id_users_id_fk",
+          "tableFrom": "role_template_removals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "decided_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.roles": {
       "name": "roles",
       "schema": "",
@@ -24582,6 +24742,15 @@
         "mitigating",
         "accepted",
         "closed"
+      ]
+    },
+    "public.role_template_removal_status": {
+      "name": "role_template_removal_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "approved",
+        "declined"
       ]
     },
     "public.roles_product_code": {

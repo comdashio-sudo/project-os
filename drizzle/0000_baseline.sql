@@ -103,6 +103,7 @@ CREATE TYPE "public"."quality_inspections_outcome" AS ENUM('pass', 'fail', 'cond
 CREATE TYPE "public"."quality_inspections_status" AS ENUM('draft', 'submitted', 'accepted', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."rfis_status" AS ENUM('draft', 'submitted', 'under_review', 'answered', 'closed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."risks_status" AS ENUM('open', 'mitigating', 'accepted', 'closed');--> statement-breakpoint
+CREATE TYPE "public"."role_template_removal_status" AS ENUM('pending', 'approved', 'declined');--> statement-breakpoint
 CREATE TYPE "public"."roles_product_code" AS ENUM('EXECUTIVE', 'PMO', 'PROJECT');--> statement-breakpoint
 CREATE TYPE "public"."salary_structures_eos_accrual_mode" AS ENUM('computed', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."scheduled_jobs_purpose" AS ENUM('license_lifecycle');--> statement-breakpoint
@@ -1648,6 +1649,17 @@ CREATE TABLE "role_permissions" (
 	CONSTRAINT "role_permissions_pk" PRIMARY KEY("role_id","permission_id")
 );
 --> statement-breakpoint
+CREATE TABLE "role_template_removals" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"role_id" varchar(36) NOT NULL,
+	"permission_id" varchar(36) NOT NULL,
+	"status" "role_template_removal_status" DEFAULT 'pending' NOT NULL,
+	"proposed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"decided_by_user_id" integer,
+	"decided_at" timestamp with time zone
+);
+--> statement-breakpoint
 CREATE TABLE "roles" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -2444,6 +2456,10 @@ ALTER TABLE "risks" ADD CONSTRAINT "risks_project_id_projects_id_fk" FOREIGN KEY
 ALTER TABLE "risks" ADD CONSTRAINT "risks_owner_membership_id_memberships_id_fk" FOREIGN KEY ("owner_membership_id") REFERENCES "public"."memberships"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_decided_by_user_id_users_id_fk" FOREIGN KEY ("decided_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2744,6 +2760,8 @@ CREATE UNIQUE INDEX "rfis_project_number_unique" ON "rfis" USING btree ("project
 CREATE INDEX "rfis_tenant_project_status_due_idx" ON "rfis" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "risks_project_code_unique" ON "risks" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "risks_tenant_project_status_idx" ON "risks" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "role_template_removals_role_permission_uq" ON "role_template_removals" USING btree ("role_id","permission_id");--> statement-breakpoint
+CREATE INDEX "role_template_removals_tenant_status_idx" ON "role_template_removals" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint

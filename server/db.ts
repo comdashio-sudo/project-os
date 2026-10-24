@@ -154,6 +154,7 @@ import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply }
 import { createInFlight } from "./inFlight";
 import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
+import { decideTemplateRemovals, listTemplateRemovals, proposeRetiredTemplateRemovals } from "./roleTemplateSync";
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
 export { getDb } from "./_core/database";
@@ -845,14 +846,43 @@ type OperationalTx = Parameters<Parameters<OperationalDb["transaction"]>[0]>[0];
  * company-creation transactions (new companies only) and from the administration read (ensureTenantOperationalRoles), as it always was.
  * Idempotent: role rows are upserted and permission links use ON CONFLICT DO NOTHING, so a call adds nothing beyond the template.
  */
-async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string) {
+async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string, options: { audit?: boolean } = {}) {
   for (const definition of operationalRoleDefinitions) {
     await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onConflictDoUpdate({ target: [roles.tenantId, roles.code], set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
     const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
-    const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
+    const permissionRows = await tx.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
     if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
-    for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
+    for (const permission of permissionRows) {
+      const added = await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing().returning({ roleId: rolePermissions.roleId });
+      // An addition that reaches an EXISTING company is written to its audit trail (a new company's first install is not news).
+      if (options.audit && added.length) await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: null, action: "role_template.permission_added", entityType: "role", entityId: role.id, metadata: JSON.stringify({ role: definition.code, permission: permission.code, source: "template sync" }) });
+    }
   }
+  if (options.audit) await proposeRetiredTemplateRemovals(tx, tenantId);
+}
+
+export async function getRoleTemplateRemovals(input: { userId: number; tenantId: string; status?: "pending" | "approved" | "declined" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  return listTemplateRemovals(db, input.tenantId, input.status ?? "pending");
+}
+export async function decideRoleTemplateRemovals(input: { userId: number; tenantId: string; ids: string[]; decision: "approve" | "decline" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  return decideTemplateRemovals(db, { tenantId: input.tenantId, actorUserId: input.userId, ids: input.ids, decision: input.decision });
+}
+
+/** Brings every existing company up to the current templates (additions applied and audited, retired powers proposed for approval). Safe to run again. */
+export async function syncRoleTemplatesForAllTenants(): Promise<{ companies: number }> {
+  return withSystemContext("sync the ready-made role templates into every existing company", async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    const rows = await db.select({ id: companies.id }).from(companies).where(eq(companies.status, "active"));
+    for (const row of rows) await ensureTenantOperationalRoles(db, row.id);
+    return { companies: rows.length };
+  });
 }
 
 /**
@@ -870,7 +900,7 @@ async function ensureTenantOperationalRoles(db: OperationalDb, tenantId: string)
       const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
       for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onConflictDoNothing();
     }
-    await installOperationalRoleTemplates(tx, tenantId);
+    await installOperationalRoleTemplates(tx, tenantId, { audit: true });
   });
 }
 
