@@ -42,7 +42,9 @@ jobs:
       - uses: actions/checkout@v4
       # `runner` is not an available context in a job-level `env:` (actionlint: "context runner is not allowed here"), which made GitHub reject the whole file and show a failed run on every push; a step may use it.
       - name: State file path
-        run: echo "BOOTSTRAP_STATE=$RUNNER_TEMP/bootstrap-state.json" >> "$GITHUB_ENV"
+        run: |
+          echo "BOOTSTRAP_STATE=$RUNNER_TEMP/bootstrap-state.json" >> "$GITHUB_ENV"
+          echo "BOOTSTRAP_NOTE_FILE=$RUNNER_TEMP/bootstrap-note.txt" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

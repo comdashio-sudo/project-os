@@ -117,7 +117,9 @@ function summary() {
   const lines: string[] = ["# إعداد الإطلاق بزر واحد", ""];
   const icon = { ok: "✅", manual: "🟡", failed: "❌" } as const;
   for (const s of state.steps) lines.push(`- ${icon[s.status]} ${s.name}${s.note ? ` — ${s.note}` : ""}`);
-  if (process.env.JOB_STATUS && process.env.JOB_STATUS !== "success" && !state.steps.some(item => item.status === "failed")) lines.push(`- ❌ توقف التشغيل في خطوة قاعدة البيانات أو التخزين أو الأمان (حالة المهمة: ${process.env.JOB_STATUS}) — افتح سجل تلك الخطوة؛ لا يحمل أسرارًا.`);
+  const noteFile = process.env.BOOTSTRAP_NOTE_FILE; const note = noteFile && existsSync(noteFile) ? readFileSync(noteFile, "utf8").trim() : "";
+  if (note) lines.push(`- ❌ ${note}`);
+  else if (process.env.JOB_STATUS && process.env.JOB_STATUS !== "success" && !state.steps.some(item => item.status === "failed")) lines.push(`- ❌ توقف التشغيل في خطوة قاعدة البيانات أو التخزين أو الأمان (حالة المهمة: ${process.env.JOB_STATUS}) — افتح سجل تلك الخطوة؛ لا يحمل أسرارًا.`);
   lines.push("", `**الرابط:** ${state.url ?? "لم يُنشر بعد"}`, `**نتيجة /healthz:** ${state.health ?? "لم تُفحص"}`, "");
   if (state.manual.length) { lines.push("## ما بقي بيدك", ...state.manual.map((m, i) => `${i + 1}. ${m}`)); } else lines.push("لا شيء متبقٍّ يدويًا.");
   lines.push("", "_لا أسرار في هذا الملخص. الزر آمن لإعادة التشغيل._");

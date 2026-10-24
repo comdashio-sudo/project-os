@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
+import { explainProvisioningFailure, setAppRoleLogin } from "../scripts/lib/appRole.mjs";
 
 // The deploy path (scripts/predeploy.mjs) against a real PostgreSQL, on the one test database: migrations, then the restricted role, then proof.
 // TEST_DATABASE_URL is the OWNER of the test database; TEST_APP_DATABASE_URL is the same database as project_os_app (its password is what the deploy
@@ -77,4 +78,53 @@ describe.skipIf(!enabled)("predeploy: migrations, then the restricted role, then
     expect(`${run.stdout}${run.stderr}`).not.toContain('"auditProtection":"provisioned"');
     expect(`${run.stdout}${run.stderr}`).not.toContain(appPassword);
   }, 60_000);
+
+  // Launch run 33: on Supabase the owner (`postgres`) is not a superuser, and PostgreSQL then refuses an ALTER ROLE that even names SUPERUSER / BYPASSRLS (42501), so
+  // "set login" failed. Reproduced here with a CREATEROLE account that is not a superuser, and the fix proved with the same account.
+  describe("the owner is not a superuser (Supabase)", () => {
+    const provisioner = "zz_provisioner";
+    const provisionerPassword = "zz-provisioner-password-16";
+    let account: pg.Client;
+    beforeAll(async () => {
+      await owner.query(`DROP ROLE IF EXISTS ${provisioner}`).catch(() => undefined);
+      await owner.query(`CREATE ROLE ${provisioner} LOGIN CREATEROLE NOSUPERUSER PASSWORD '${provisionerPassword}'`);
+      await owner.query(`GRANT project_os_app TO ${provisioner} WITH ADMIN OPTION`);
+      const url = new URL(ownerUrl!); url.username = provisioner; url.password = provisionerPassword;
+      account = new pg.Client({ connectionString: url.toString() }); await account.connect();
+    }, 30_000);
+    afterAll(async () => {
+      await account?.end().catch(() => undefined);
+      await owner.query("ALTER ROLE project_os_app NOCREATEDB").catch(() => undefined);
+      await owner.query(`REVOKE project_os_app FROM ${provisioner}`).catch(() => undefined);
+      await owner.query(`DROP ROLE IF EXISTS ${provisioner}`).catch(() => undefined);
+    });
+
+    it("the statement that failed on Supabase fails here the same way (42501), so this is the real cause", async () => {
+      const error = await account.query(`ALTER ROLE project_os_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD ${account.escapeLiteral(appPassword)}`).then(() => null, e => e);
+      expect(error?.code).toBe("42501");
+    });
+
+    it("sets login and password with only the attributes this account may name, then READS BACK that the role is exactly as restricted as before", async () => {
+      expect(await setAppRoleLogin(account, appPassword)).toEqual({ ownerIsSuperuser: false });
+      const { rows: [role] } = await owner.query("SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolbypassrls, rolreplication FROM pg_roles WHERE rolname = 'project_os_app'");
+      expect(role).toEqual({ rolcanlogin: true, rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolbypassrls: false, rolreplication: false });
+    });
+
+    it("NEGATIVE: a role that holds a power it must not have is REFUSED, by name, and the guard is not the statement but the read-back", async () => {
+      await owner.query("ALTER ROLE project_os_app CREATEDB");
+      const error = await setAppRoleLogin(account, appPassword).then(() => null, e => e);
+      expect(error?.code).toBe("ROLE_ATTRIBUTES");
+      expect(error?.excess).toEqual(["createdb"]);
+      const note = explainProvisioningFailure("set login", error.code, error);
+      expect(note).toContain("createdb");
+      expect(note).toContain("للإلحاق فقط");
+      expect(note).not.toContain(appPassword);
+      await owner.query("ALTER ROLE project_os_app NOCREATEDB");
+    });
+
+    it("the owner's note names the stage and the code in Arabic for the codes a launch meets", () => {
+      expect(explainProvisioningFailure("set login", "42501")).toMatch(/خطوة «set login» برمز 42501.*لا يملك صلاحية/);
+      expect(explainProvisioningFailure("connect", "28P01")).toContain("SUPABASE_DB_PASSWORD");
+    });
+  });
 });

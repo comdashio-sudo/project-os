@@ -7,6 +7,7 @@
 // The password is sent as a query literal built by the driver and never printed. The application connects as this role, so it has no DDL,
 // no TRUNCATE and no UPDATE/DELETE on audit_logs, and row-level security applies to everything it does.
 import pg from "pg";
+import { explainProvisioningFailure, setAppRoleLogin } from "./lib/appRole.mjs";
 
 const rootUrl = process.env.DATABASE_URL;
 const appPassword = process.env.PROJECT_OS_APP_DB_PASSWORD;
@@ -27,14 +28,16 @@ try {
   stage = "create role";
   await client.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'project_os_app') THEN CREATE ROLE project_os_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS; END IF; END $$");
   stage = "set login";
-  await client.query(`ALTER ROLE project_os_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD ${client.escapeLiteral(appPassword)}`);
+  await setAppRoleLogin(client, appPassword); // reads the role's attributes back and refuses a role that holds a power it must not
   stage = "grant";
   await client.query("GRANT USAGE ON SCHEMA public TO project_os_app");
   const { rows } = await client.query("SELECT current_database() AS database, project_os_apply_conventions() AS tables");
   console.log(JSON.stringify({ role: "project_os_app", database: rows[0].database, tablesConfigured: rows[0].tables, auditedTablePrivileges: ["SELECT", "INSERT"] }, null, 2));
 } catch (error) {
   // Names the stage and the SQLSTATE, never the statement: it carries the password.
-  console.error(`App role provisioning failed during ${stage} with ${error?.code ?? error?.name ?? "UNKNOWN"}.`);
+  const code = error?.code ?? error?.name ?? "UNKNOWN";
+  console.error(`App role provisioning failed during ${stage} with ${code}.`);
+  if (process.env.BOOTSTRAP_NOTE_FILE) { try { (await import("node:fs")).appendFileSync(process.env.BOOTSTRAP_NOTE_FILE, explainProvisioningFailure(stage, code, error) + "\n"); } catch { /* the note is a convenience */ } }
   process.exitCode = 1;
 } finally {
   await client.end().catch(() => undefined);
