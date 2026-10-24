@@ -574,6 +574,7 @@
 | الملف | نصوص مفتوحة | نصوص مكتوبة | الحالة |
 |---|---|---|---|
 | components/DirectImportRunner.tsx | 17 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| lib/dxf/dxfReader.ts (رسائل قراءة DXF) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | components/EnterpriseNavigation.tsx | 28 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | components/ImportDiffPreview.tsx | 8 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | components/MasterPlanTools.tsx | 28 | 2 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
