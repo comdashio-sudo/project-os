@@ -1,8 +1,10 @@
 // Interactive master-plan drawing: read a DXF in the browser, match its shapes to the plan's units,
 // let a person confirm each link, colour the map by unit status, and export the confirmed links.
 // The file never leaves the browser, and nothing is saved on the server (G-189).
-import React, { useMemo, useState, type ChangeEvent } from "react";
+import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { trpc } from "@/lib/trpc";
+import { latestVersionId } from "@/lib/masterPlanDrawingLayout";
+import { useMasterPlanDrawingLayout } from "@/lib/useMasterPlanDrawingLayout";
 import { SectionMessage } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -71,6 +73,10 @@ const text = {
     legend: "الألوان: حسب حالة الوحدة للمؤكَّد، أزرق للمقترح، رمادي لغير المربوط.",
     exportCsv: "تصدير الروابط المؤكدة (CSV)",
     exportJson: "تصدير الروابط المؤكدة (JSON)",
+    save: "حفظ التخطيط",
+    saved: "تم حفظ التخطيط.",
+    savedVersion: (version: number, name: string) => `الرسم المحفوظ: النسخة ${version}، ${name}`,
+    saveFailed: "تعذر حفظ التخطيط. راجع الرسالة وحاول مجددًا.",
     readFailed: "تعذّرت قراءة الملف",
     unsupported: "نوع الملف غير مدعوم. ارفع ملف DXF أو PNG أو JPG أو PDF.",
     rasterFailed: "تعذّرت قراءة الصورة. جرّب ملفًا أوضح أو ملف DXF.",
@@ -115,6 +121,10 @@ const text = {
     legend: "Colours: confirmed shapes use the unit status; blue is proposed; grey is unlinked.",
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
+    save: "Save layout",
+    saved: "Layout saved.",
+    savedVersion: (version: number, name: string) => `Saved drawing: version ${version}, ${name}`,
+    saveFailed: "The layout could not be saved. Check the message and try again.",
     readFailed: "The file could not be read",
     unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
     rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
@@ -159,6 +169,10 @@ const text = {
     legend: "Colours: confirmed shapes use the unit status; blue is proposed; grey is unlinked.",
     exportCsv: "Export confirmed links (CSV)",
     exportJson: "Export confirmed links (JSON)",
+    save: "Save layout",
+    saved: "Layout saved.",
+    savedVersion: (version: number, name: string) => `Saved drawing: version ${version}, ${name}`,
+    saveFailed: "The layout could not be saved. Check the message and try again.",
     readFailed: "The file could not be read",
     unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
     rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
@@ -198,6 +212,10 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const t = text[language];
   const plansQuery = trpc.masterPlans.list.useQuery({ tenantId, projectId });
   const units = useMemo(() => latestUnits(plansQuery.data), [plansQuery.data]);
+  // The saved layout of the newest version's drawing (G-189): it fills the screen when a drawing is not open yet, and saves what the person confirms.
+  const saved = useMasterPlanDrawingLayout({ tenantId, projectId, masterPlanVersionId: latestVersionId(plansQuery.data), units });
+  const [file, setFile] = useState<File | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
 
   const [drawing, setDrawing] = useState<DxfDrawing | null>(null);
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -207,6 +225,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [error, setError] = useState<ViewError | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [rasterStats, setRasterStats] = useState<{ shapes: number; labels: number } | null>(null);
+
+  useEffect(() => {
+    if (!drawing && saved.savedReview) {
+      setDrawing(saved.savedReview.drawing);
+      setItems(saved.savedReview.items);
+    }
+  }, [drawing, saved.savedReview]);
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
   const summary = summarizeReview(items, units);
@@ -232,6 +257,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setError({ kind: "file", code: "FILE_TOO_LARGE", message: { ar: text.ar.tooLarge, en: text.en.tooLarge, ur: text.ur.tooLarge } });
       return;
     }
+    setFile(file);
+    setSavedNotice(false);
     setPdfSource(null);
     if (/\.dxf$/i.test(file.name)) {
       await readDxfFile(file);
@@ -297,6 +324,19 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     URL.revokeObjectURL(url);
   }
 
+  async function onSave() {
+    if (!drawing) return;
+    setError(null);
+    setSavedNotice(false);
+    const outcome = await saved.save({ file, drawing, items });
+    if (outcome.ok) {
+      setFile(null);
+      setSavedNotice(true);
+    } else {
+      setError({ kind: "action", code: outcome.code, message: { ar: text.ar.saveFailed, en: text.en.saveFailed, ur: text.ur.saveFailed } });
+    }
+  }
+
   const unitStatusText = (status: string) => (t.unitStatus as Record<string, string>)[status] ?? status;
   const reasonText = (reason: string | null) => (reason && (t.reason as Record<string, string>)[reason]) || null;
 
@@ -328,6 +368,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
         ) : null}
       </div>
 
+      {saved.layout?.latestVersion ? <p className="text-sm text-slate-700">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
+      {savedNotice ? <p role="status" className="text-sm text-emerald-800">{t.saved}</p> : null}
       {progress ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{t.busy(progress.done, progress.total)}</p> : null}
 
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{pickLanguage(language, error.message)}</p> : null}
@@ -430,6 +472,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white disabled:opacity-50" disabled={!drawing || saved.busy || (!file && !saved.layout?.latestVersion)} onClick={onSave}>{t.save}</button>
             <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
             <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
           </div>

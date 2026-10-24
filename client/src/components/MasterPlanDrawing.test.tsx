@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   data: undefined as unknown,
   isLoading: false,
   error: null as unknown,
+  layout: undefined as unknown,
 }));
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
@@ -19,13 +20,24 @@ vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWork
 vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: "en", isArabic: false, isRtl: false }) }));
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    masterPlans: {
-      list: { useQuery: () => ({ data: state.data, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }) },
+// The saved layout (G-189) is a separate hook; its queries and mutations are stubbed here, the hook itself is exercised by its own tests.
+vi.mock("@/lib/trpc", () => {
+  const mutation = () => ({ useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) });
+  return {
+    trpc: {
+      useUtils: () => ({ masterPlans: { drawingLayout: { fetch: vi.fn(), invalidate: vi.fn() } } }),
+      directUploads: { create: mutation() },
+      masterPlans: {
+        list: { useQuery: () => ({ data: state.data, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }) },
+        drawingLayout: { useQuery: () => ({ data: state.layout, isLoading: false, error: null, refetch: vi.fn() }) },
+        uploadDrawingVersion: mutation(),
+        saveDrawingLayout: mutation(),
+        linkDrawingUnit: mutation(),
+        unlinkDrawingUnit: mutation(),
+      },
     },
-  },
-}));
+  };
+});
 
 const PLAN = { id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date("2026-10-01") };
 const VERSION = { id: "version-2", masterPlanId: "plan-1", versionNumber: 2 };
@@ -66,6 +78,7 @@ afterEach(() => {
   state.data = undefined;
   state.isLoading = false;
   state.error = null;
+  state.layout = undefined;
   vi.restoreAllMocks();
 });
 
@@ -109,6 +122,32 @@ describe("MasterPlanDrawing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Shape 2 · Proposed · B1-U-0002/ }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(screen.getByText("Completed")).toBeTruthy());
+  });
+
+  it("loads the saved layout when the drawing opens: its shapes, the confirmed link, and the saved version", async () => {
+    state.data = plan();
+    state.layout = {
+      drawingId: "drawing-1",
+      latestVersion: { id: "dv-2", versionNumber: 2, fileName: "saved-plan.dxf", mimeType: "application/dxf", sizeBytes: 10, pageCount: 1, checksumSha256: "a".repeat(64), uploadedByUserId: 1, createdAt: new Date("2026-10-20") },
+      versions: [],
+      polygons: [
+        { id: "srv-1", ref: "P1", label: "B1", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] },
+        { id: "srv-2", ref: "P2", label: "", points: [{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }] },
+      ],
+      links: [{ polygonId: "srv-1", entityId: "unit-1", confirmedByUserId: 1, confirmedAt: new Date("2026-10-20") }],
+    };
+    render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await waitFor(() => screen.getByText("Saved drawing: version 2, saved-plan.dxf"));
+    expect(screen.getByRole("button", { name: /Shape 1 · Confirmed · B1-U-0001/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Shape 2 · Unlinked/ })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save layout" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("offers no save until a drawing is open, even when the plan has units", async () => {
+    state.data = plan();
+    render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await waitFor(() => screen.getByText("No drawing uploaded yet."));
+    expect(screen.queryByRole("button", { name: "Save layout" })).toBeNull();
   });
 
   it("shows a read error for a file that is not a DXF drawing", async () => {

@@ -351,6 +351,51 @@ export const projectErrorMessages = {
     en: "Spatial entities could not be created because the file columns, geometry, or values do not satisfy the spatial-entity template.",
     ur: "Spatial entities could not be created because the file columns, geometry, or values do not satisfy the spatial-entity template.",
   },
+  PROJECT_OS_MASTER_PLAN_DRAWING_NOT_FOUND: {
+    ar: "لا يوجد رسم محفوظ لنسخة الخطة الرئيسية المحددة بعد. ارفع ملف الرسم أولًا.",
+    en: "No saved drawing exists for the selected Master Plan version yet. Upload the drawing file first.",
+    ur: "No saved drawing exists for the selected Master Plan version yet. Upload the drawing file first.",
+  },
+  PROJECT_OS_MASTER_PLAN_DRAWING_LAYOUT_INVALID: {
+    ar: "تخطيط الرسم غير صالح: يجب أن يكون لكل شكل مرجع فريد، وثلاث نقاط على الأقل بإحداثيات رقمية، وعنوان لا يتجاوز 120 حرفًا.",
+    en: "The drawing layout is invalid: every shape needs a unique reference, at least three numeric points, and a label of at most 120 characters.",
+    ur: "The drawing layout is invalid: every shape needs a unique reference, at least three numeric points, and a label of at most 120 characters.",
+  },
+  PROJECT_OS_MASTER_PLAN_DRAWING_POLYGON_NOT_FOUND: {
+    ar: "هذا الشكل غير موجود في الرسم المحفوظ لهذه النسخة.",
+    en: "This shape is not in the saved drawing of this version.",
+    ur: "This shape is not in the saved drawing of this version.",
+  },
+  PROJECT_OS_MASTER_PLAN_DRAWING_POLYGON_LINKED: {
+    ar: "لا يمكن حذف شكل ما زال مرتبطًا بوحدة. ألغِ الربط أولًا.",
+    en: "A shape that is still linked to a unit cannot be removed. Unlink it first.",
+    ur: "A shape that is still linked to a unit cannot be removed. Unlink it first.",
+  },
+  PROJECT_OS_MASTER_PLAN_DRAWING_FILE_INVALID: {
+    ar: "الملف ليس رسمًا مقبولًا (PDF أو PNG أو JPEG أو DXF نصي)، أو لا يمكن قراءة صفحاته.",
+    en: "The file is not an accepted drawing (PDF, PNG, JPEG or text DXF), or its pages cannot be read.",
+    ur: "The file is not an accepted drawing (PDF, PNG, JPEG or text DXF), or its pages cannot be read.",
+  },
+  PROJECT_OS_MASTER_PLAN_LINK_EXISTS: {
+    ar: "هذا الشكل مرتبط بوحدة بالفعل. ألغِ الربط الحالي قبل ربطه من جديد.",
+    en: "This shape is already linked to a unit. Unlink it before linking it again.",
+    ur: "This shape is already linked to a unit. Unlink it before linking it again.",
+  },
+  PROJECT_OS_MASTER_PLAN_UNIT_ALREADY_LINKED: {
+    ar: "هذه الوحدة مرتبطة بشكل آخر في هذا الرسم. ألغِ ذلك الربط أولًا.",
+    en: "This unit is already linked to another shape in this drawing. Unlink that first.",
+    ur: "This unit is already linked to another shape in this drawing. Unlink that first.",
+  },
+  PROJECT_OS_MASTER_PLAN_UNIT_NOT_FOUND: {
+    ar: "الوحدة المحددة ليست وحدة في نسخة الخطة الرئيسية لهذا الرسم.",
+    en: "The selected item is not a unit of this drawing's Master Plan version.",
+    ur: "The selected item is not a unit of this drawing's Master Plan version.",
+  },
+  PROJECT_OS_MASTER_PLAN_LINK_NOT_FOUND: {
+    ar: "لا يوجد ربط مؤكَّد لهذا الشكل لإلغائه.",
+    en: "This shape has no confirmed link to remove.",
+    ur: "This shape has no confirmed link to remove.",
+  },
   PROJECT_OS_MASTER_PLAN_ENTITY_CODE_EXISTS: {
     ar: "يوجد رمز كيان مكاني مستخدم بالفعل ضمن إصدار الخطة الرئيسية المحدد.",
     en: "A spatial-entity code in the file already exists in the selected Master Plan version.",
