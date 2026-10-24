@@ -1093,6 +1093,105 @@ export const masterPlanSpatialEntities = pgTable(
   table => [foreignKey({ columns: [table.masterPlanVersionId], foreignColumns: [masterPlanVersions.id], name: "mp_spatial_entities_version_fk" }), uniqueIndex("master_plan_spatial_entities_version_code_unique").on(table.masterPlanVersionId, table.code), index("master_plan_spatial_entities_tenant_project_version_idx").on(table.tenantId, table.projectId, table.masterPlanVersionId), index("master_plan_spatial_entities_version_status_idx").on(table.masterPlanVersionId, table.status)],
 );
 
+// Master Plan drawing (G-189): the drawing of one master plan version, its uploaded file versions (never deleted), the polygons the reader found,
+// and the links a person confirmed from a polygon to a unit. Foreign keys are named here because the generated names would run past 63 characters.
+export const masterPlanDrawings = pgTable(
+  "master_plan_drawings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    masterPlanVersionId: varchar("master_plan_version_id", { length: 36 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpd_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpd_project_fk" }),
+    foreignKey({ columns: [table.masterPlanVersionId], foreignColumns: [masterPlanVersions.id], name: "mpd_version_fk" }),
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "mpd_creator_fk" }),
+    uniqueIndex("master_plan_drawings_version_unique").on(table.masterPlanVersionId),
+    index("master_plan_drawings_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+export const masterPlanDrawingVersions = pgTable(
+  "master_plan_drawing_versions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    drawingId: varchar("drawing_id", { length: 36 }).notNull(),
+    versionNumber: integer("version_number").notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 120 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    pageCount: integer("page_count").notNull(),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }).notNull(),
+    storageKey: varchar("storage_key", { length: 512 }).notNull(),
+    uploadedByUserId: integer("uploaded_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpdv_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpdv_project_fk" }),
+    foreignKey({ columns: [table.drawingId], foreignColumns: [masterPlanDrawings.id], name: "mpdv_drawing_fk" }),
+    foreignKey({ columns: [table.uploadedByUserId], foreignColumns: [users.id], name: "mpdv_uploader_fk" }),
+    uniqueIndex("master_plan_drawing_versions_drawing_version_unique").on(table.drawingId, table.versionNumber),
+    index("master_plan_drawing_versions_tenant_project_drawing_idx").on(table.tenantId, table.projectId, table.drawingId),
+  ],
+);
+
+export const masterPlanDrawingPolygons = pgTable(
+  "master_plan_drawing_polygons",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    drawingId: varchar("drawing_id", { length: 36 }).notNull(),
+    // the polygon's own id in the drawing as the reader gave it (for a DXF, "P1", "P2", ...); the browser keeps using it
+    ref: varchar("ref", { length: 80 }).notNull(),
+    label: varchar("label", { length: 120 }).default("").notNull(),
+    points: text("points").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpdp_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpdp_project_fk" }),
+    foreignKey({ columns: [table.drawingId], foreignColumns: [masterPlanDrawings.id], name: "mpdp_drawing_fk" }),
+    uniqueIndex("master_plan_drawing_polygons_drawing_ref_unique").on(table.drawingId, table.ref),
+    index("master_plan_drawing_polygons_tenant_project_drawing_idx").on(table.tenantId, table.projectId, table.drawingId),
+  ],
+);
+
+export const masterPlanDrawingLinks = pgTable(
+  "master_plan_drawing_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    projectId: varchar("project_id", { length: 36 }).notNull(),
+    drawingId: varchar("drawing_id", { length: 36 }).notNull(),
+    polygonId: varchar("polygon_id", { length: 36 }).notNull(),
+    entityId: varchar("entity_id", { length: 36 }).notNull(),
+    confirmedByUserId: integer("confirmed_by_user_id").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpdl_tenant_fk" }),
+    foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpdl_project_fk" }),
+    foreignKey({ columns: [table.drawingId], foreignColumns: [masterPlanDrawings.id], name: "mpdl_drawing_fk" }),
+    foreignKey({ columns: [table.polygonId], foreignColumns: [masterPlanDrawingPolygons.id], name: "mpdl_polygon_fk" }),
+    foreignKey({ columns: [table.entityId], foreignColumns: [masterPlanSpatialEntities.id], name: "mpdl_entity_fk" }),
+    foreignKey({ columns: [table.confirmedByUserId], foreignColumns: [users.id], name: "mpdl_confirmer_fk" }),
+    uniqueIndex("master_plan_drawing_links_polygon_unique").on(table.polygonId),
+    uniqueIndex("master_plan_drawing_links_drawing_entity_unique").on(table.drawingId, table.entityId),
+    index("master_plan_drawing_links_tenant_project_drawing_idx").on(table.tenantId, table.projectId, table.drawingId),
+  ],
+);
+
+
 export const rfisStatusEnum = pgEnum("rfis_status", ["draft", "submitted", "under_review", "answered", "closed", "cancelled"]);
 export const rfis = pgTable(
   "rfis",
