@@ -21,7 +21,7 @@ import {
 } from "../drizzle/schema";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
-import { cellsWithoutAcceptedInspection, loadTenantPolicy } from "./qualityGate";
+import { cellsWithoutAcceptedInspection, loadTenantPolicy, openNcrNumbers } from "./qualityGate";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 export type TimelineEvent = { kind: "daily_report" | "submittal" | "inspection" | "ncr" | "material_issue" | "status_change"; at: string; ref: string; title: string; detail: Record<string, string | number | null> };
@@ -74,7 +74,14 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300);
 
   const policy = await loadTenantPolicy(db, input.tenantId);
-  const qc = activity ? { policy: policy.qcCompletionMode, accepted: (await cellsWithoutAcceptedInspection(db, [{ unitId: unit.id, activityDefinitionId: activity.id }])).length === 0 } : null;
+  let qc: { policy: string; accepted: boolean; ncrMode: string; heldByNcr: boolean } | null = null;
+  if (activity) {
+    const accepted = (await cellsWithoutAcceptedInspection(db, [{ unitId: unit.id, activityDefinitionId: activity.id }])).length === 0;
+    // work order 14: "held by an NCR" = the latest answer is an accepted code, yet the cell is not accepted because an NCR is open on it and the company's rule is block
+    const latest = requests.filter(request => request.activityDefinitionId === activity!.id && request.responseCode).sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())[0];
+    const heldByNcr = !accepted && policy.ncrAcceptanceMode === "block" && Boolean(latest && policy.qcAcceptedCodes.includes(latest.responseCode!)) && (await openNcrNumbers(db, input.tenantId, [unit.id], activity.id)).length > 0;
+    qc = { policy: policy.qcCompletionMode, accepted, ncrMode: policy.ncrAcceptanceMode, heldByNcr };
+  }
   return {
     unit, activity, status: activity ? (cells[0]?.status ?? "NOT_STARTED") : null, qc,
     openNcrs: ncrRows.filter(row => !["closed", "cancelled"].includes(row.status)).length,

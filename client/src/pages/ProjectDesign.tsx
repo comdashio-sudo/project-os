@@ -167,7 +167,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </form>
         </WriteGate>
         {(submittals.data ?? []).length ? <div className="divide-y rounded-xl border">{(submittals.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${t.replyNames[item.replyCode]}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, isArabic)}` : ""}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${(t.replyNames as Record<string, string>)[item.replyCode] ?? item.replyCode}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, isArabic)}` : ""}</span></div>
           {item.replyNote ? <p className="mt-1 text-xs text-slate-600">{item.replyNote}</p> : null}
           <div className="mt-2 flex flex-wrap items-end gap-2">
             {item.status === "draft" ? <WriteGate permission="project.design.manage" projectId={projectId}><Button size="sm" disabled={moveSubmittal.isPending} onClick={() => moveSubmittal.mutate({ ...scope, submittalId: item.id, nextStatus: "submitted" })}>{t.submit}</Button></WriteGate> : null}

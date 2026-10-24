@@ -2381,34 +2381,6 @@ export const designComments = pgTable(
   table => [uniqueIndex("design_comments_project_number_unique").on(table.projectId, table.commentNumber), index("design_comments_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt), index("design_comments_drawing_idx").on(table.drawingId, table.status)],
 );
 
-export const designSubmittalsDisciplineEnum = pgEnum("design_submittals_discipline", ["architectural", "interior", "landscape", "structural", "civil", "mechanical", "electrical", "plumbing", "fire_fighting", "other"]);
-export const designSubmittalsStatusEnum = pgEnum("design_submittals_status", ["draft", "submitted", "replied", "closed"]);
-export const designSubmittalsReplyCodeEnum = pgEnum("design_submittals_reply_code", ["A", "B", "C", "D"]);
-export const designSubmittals = pgTable(
-  "design_submittals",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
-    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
-    submittalNumber: varchar("submittal_number", { length: 120 }).notNull(),
-    title: varchar("title", { length: 255 }).notNull(),
-    discipline: designSubmittalsDisciplineEnum("discipline").notNull(),
-    drawingId: varchar("drawing_id", { length: 36 }).references(() => designDrawings.id),
-    resubmissionOfId: varchar("resubmission_of_id", { length: 36 }),
-    status: designSubmittalsStatusEnum("status").default("draft").notNull(),
-    submittedAt: timestamp("submitted_at", { withTimezone: true }),
-    submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
-    dueAt: timestamp("due_at", { withTimezone: true }),
-    replyCode: designSubmittalsReplyCodeEnum("reply_code"),
-    replyNote: text("reply_note"),
-    repliedAt: timestamp("replied_at", { withTimezone: true }),
-    repliedByUserId: integer("replied_by_user_id").references(() => users.id),
-    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  table => [uniqueIndex("design_submittals_project_number_unique").on(table.projectId, table.submittalNumber), index("design_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
-);
-
 // ---------------------------------------------------------------- Tenders before award (work order 5, item 8)
 // A package is invited, bid on, levelled and awarded; the award creates the contract and the commitment in the same transaction.
 export const tenderPackagesStatusEnum = pgEnum("tender_packages_status", ["draft", "open", "closed", "awarded", "cancelled"]);
@@ -2585,11 +2557,18 @@ export const consultantSubmittals = pgTable(
     repliedAt: timestamp("replied_at", { withTimezone: true }),
     // one of the company's own reply codes (submittal_reply_codes)
     replyCode: varchar("reply_code", { length: 8 }),
-    replyNote: varchar("reply_note", { length: 500 }),
+    replyNote: text("reply_note"),
     pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }),
     pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     // a material approval names the material it approves
     materialId: varchar("material_id", { length: 36 }),
+    // who it was sent to (the consultant's name or office): the register shows the answers per consultant
+    consultant: varchar("consultant", { length: 160 }),
+    // work order 14: the design-coordination submittals live in this table too (design_submittals was merged into it). A design discipline, the drawing it
+    // covers, and — when a C/D answer is followed by a fresh submittal under a new number — the one it replaces.
+    discipline: varchar("discipline", { length: 24 }),
+    drawingId: varchar("drawing_id", { length: 36 }).references(() => designDrawings.id),
+    resubmissionOfId: varchar("resubmission_of_id", { length: 36 }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     sentByUserId: integer("sent_by_user_id").references(() => users.id),
     repliedByUserId: integer("replied_by_user_id").references(() => users.id),
@@ -2630,6 +2609,8 @@ export const tenantPolicies = pgTable(
     qcAcceptedCodes: varchar("qc_accepted_codes", { length: 40 }).default("A,B").notNull(),
     // issuing a material whose approval submittal has not been approved
     materialApprovalMode: tenantPoliciesModeEnum("material_approval_mode").default("warn").notNull(),
+    // work order 14: an open NCR on a unit and activity keeps an inspection from counting as accepted (block, the default), only warns, or is ignored
+    ncrAcceptanceMode: tenantPoliciesModeEnum("ncr_acceptance_mode").default("block").notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -2,15 +2,19 @@
 // the consultant submittals with replies A/B/C/D. Every function checks the tenant, the project, the named permission (and, where it matters, the
 // discipline authority) BEFORE it reads or writes, every query filters on tenant AND project, and every write leaves an audit row in the same
 // transaction. The rules that need no database are domain/designCoordination.ts.
+// The consultant submittals of this module are rows of consultant_submittals (work order 14: design_submittals was merged into it) that carry a design discipline;
+// the register of the whole project (all four types) is server/consultantSubmittals.ts, and both read and write the same table.
 //
 // Separation of duties here is a rule about PEOPLE, not only about powers: whoever issued a revision cannot approve it, whoever answered a
 // review comment cannot close it, whoever sent a submittal cannot record the consultant's reply. It holds for the company owner too.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { auditLogs, designComments, designDrawingRevisions, designDrawings, designSubmittals, designTransmittalItems, designTransmittals } from "../drizzle/schema";
+import { auditLogs, consultantSubmittals, designComments, designDrawingRevisions, designDrawings, designTransmittalItems, designTransmittals } from "../drizzle/schema";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { isUniqueViolation } from "./_core/database";
+import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
+import { ensureReplyCodes } from "./qualityGate";
 import { commentTransitions, disciplineAuthority, replyRequiresResubmission, summariseDrawings, transmittalTransitions, type CommentStatus, type DesignDiscipline, type SubmittalReplyCode, type TransmittalStatus } from "./domain/designCoordination";
 
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
@@ -69,10 +73,15 @@ export async function listDesignComments(input: { userId: number; tenantId: stri
     .where(mine(designComments, input)).orderBy(desc(designComments.createdAt));
 }
 
+/** The design submittals of the unified register (those with a design discipline). The screen keeps the vocabulary it always had: `submitted` is `sent` in the register. */
+const designOnly = (input: { tenantId: string; projectId: string }) => and(mine(consultantSubmittals, input), sql`${consultantSubmittals.discipline} IS NOT NULL`);
+const designStatus = (status: string) => (status === "sent" ? "submitted" : status);
+
 export async function listDesignSubmittals(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await assertDesignAccess(input, "project.read");
-  return db.select({ id: designSubmittals.id, submittalNumber: designSubmittals.submittalNumber, title: designSubmittals.title, discipline: designSubmittals.discipline, status: designSubmittals.status, submittedAt: designSubmittals.submittedAt, dueAt: designSubmittals.dueAt, replyCode: designSubmittals.replyCode, replyNote: designSubmittals.replyNote, repliedAt: designSubmittals.repliedAt, resubmissionOfId: designSubmittals.resubmissionOfId })
-    .from(designSubmittals).where(mine(designSubmittals, input)).orderBy(desc(designSubmittals.createdAt));
+  const rows = await db.select({ id: consultantSubmittals.id, submittalNumber: consultantSubmittals.submittalNumber, title: consultantSubmittals.title, discipline: consultantSubmittals.discipline, status: consultantSubmittals.status, submittedAt: consultantSubmittals.sentAt, dueAt: consultantSubmittals.dueAt, replyCode: consultantSubmittals.replyCode, replyNote: consultantSubmittals.replyNote, repliedAt: consultantSubmittals.repliedAt, drawingId: consultantSubmittals.drawingId, resubmissionOfId: consultantSubmittals.resubmissionOfId, consultant: consultantSubmittals.consultant, createdAt: consultantSubmittals.createdAt })
+    .from(consultantSubmittals).where(designOnly(input)).orderBy(desc(consultantSubmittals.createdAt));
+  return rows.map(row => ({ ...row, discipline: row.discipline as DesignDiscipline, status: designStatus(row.status) as "draft" | "submitted" | "replied" | "closed" }));
 }
 
 /** The design-phase board: counts the database computes (no row is loaded to be counted), reduced by the pure summary. */
@@ -83,17 +92,17 @@ export async function getDesignDashboard(input: { userId: number; tenantId: stri
     db.select({ discipline: designDrawings.discipline, status: designDrawings.status, total: sql<number>`count(*)` }).from(designDrawings).where(mine(designDrawings, input)).groupBy(designDrawings.discipline, designDrawings.status),
     db.select({ status: designComments.status, total: sql<number>`count(*)` }).from(designComments).where(mine(designComments, input)).groupBy(designComments.status),
     db.select({ total: sql<number>`count(*)` }).from(designComments).where(and(mine(designComments, input), inArray(designComments.status, ["open", "responded"]), sql`${designComments.dueAt} < ${now}`)),
-    db.select({ status: designSubmittals.status, total: sql<number>`count(*)` }).from(designSubmittals).where(mine(designSubmittals, input)).groupBy(designSubmittals.status),
-    db.select({ code: designSubmittals.replyCode, total: sql<number>`count(*)` }).from(designSubmittals).where(and(mine(designSubmittals, input), sql`${designSubmittals.replyCode} is not null`)).groupBy(designSubmittals.replyCode),
-    db.select({ total: sql<number>`count(*)` }).from(designSubmittals).where(and(mine(designSubmittals, input), eq(designSubmittals.status, "submitted"), sql`${designSubmittals.dueAt} < ${now}`)),
+    db.select({ status: consultantSubmittals.status, total: sql<number>`count(*)` }).from(consultantSubmittals).where(designOnly(input)).groupBy(consultantSubmittals.status),
+    db.select({ code: consultantSubmittals.replyCode, total: sql<number>`count(*)` }).from(consultantSubmittals).where(and(designOnly(input), sql`${consultantSubmittals.replyCode} is not null`)).groupBy(consultantSubmittals.replyCode),
+    db.select({ total: sql<number>`count(*)` }).from(consultantSubmittals).where(and(designOnly(input), eq(consultantSubmittals.status, "sent"), sql`${consultantSubmittals.dueAt} < ${now}`)),
     db.select({ status: designTransmittals.status, total: sql<number>`count(*)` }).from(designTransmittals).where(mine(designTransmittals, input)).groupBy(designTransmittals.status),
-    db.select({ days: sql<string | null>`avg(extract(epoch from (${designSubmittals.repliedAt} - ${designSubmittals.submittedAt}))) / 86400` }).from(designSubmittals).where(and(mine(designSubmittals, input), sql`${designSubmittals.repliedAt} is not null`)),
+    db.select({ days: sql<string | null>`avg(extract(epoch from (${consultantSubmittals.repliedAt} - ${consultantSubmittals.sentAt}))) / 86400` }).from(consultantSubmittals).where(and(designOnly(input), sql`${consultantSubmittals.repliedAt} is not null`)),
   ]);
   const count = (rows: ReadonlyArray<{ status: string; total: number }>, status: string) => Number(rows.find(row => row.status === status)?.total ?? 0);
   return {
     drawings: summariseDrawings(drawingRows.map(row => ({ discipline: row.discipline, status: row.status, total: Number(row.total) }))),
     comments: { open: count(commentRows, "open"), responded: count(commentRows, "responded"), closed: count(commentRows, "closed"), overdue: Number(overdueComments[0]?.total ?? 0) },
-    submittals: { draft: count(submittalRows, "draft"), awaitingReply: count(submittalRows, "submitted"), replied: count(submittalRows, "replied"), closed: count(submittalRows, "closed"), overdue: Number(overdueSubmittals[0]?.total ?? 0), averageReplyDays: replyTime[0]?.days == null ? null : Math.round(Number(replyTime[0].days) * 10) / 10, replies: { A: Number(replyRows.find(row => row.code === "A")?.total ?? 0), B: Number(replyRows.find(row => row.code === "B")?.total ?? 0), C: Number(replyRows.find(row => row.code === "C")?.total ?? 0), D: Number(replyRows.find(row => row.code === "D")?.total ?? 0) } },
+    submittals: { draft: count(submittalRows, "draft"), awaitingReply: count(submittalRows, "sent"), replied: count(submittalRows, "replied"), closed: count(submittalRows, "closed"), overdue: Number(overdueSubmittals[0]?.total ?? 0), averageReplyDays: replyTime[0]?.days == null ? null : Math.round(Number(replyTime[0].days) * 10) / 10, replies: { A: Number(replyRows.find(row => row.code === "A")?.total ?? 0), B: Number(replyRows.find(row => row.code === "B")?.total ?? 0), C: Number(replyRows.find(row => row.code === "C")?.total ?? 0), D: Number(replyRows.find(row => row.code === "D")?.total ?? 0) } },
     transmittals: { draft: count(transmittalRows, "draft"), sent: count(transmittalRows, "sent"), acknowledged: count(transmittalRows, "acknowledged") },
   };
 }
@@ -244,18 +253,18 @@ export async function transitionDesignComment(input: { userId: number; tenantId:
 
 // ------------------------------------------------------------------ submittals to the consultant
 
-export async function createDesignSubmittal(input: { userId: number; tenantId: string; projectId: string; submittalNumber: string; title: string; discipline: DesignDiscipline; drawingId?: string; resubmissionOfId?: string; dueAt?: Date }) {
+export async function createDesignSubmittal(input: { userId: number; tenantId: string; projectId: string; submittalNumber: string; title: string; discipline: DesignDiscipline; drawingId?: string; resubmissionOfId?: string; dueAt?: Date; consultant?: string }) {
   const db = await assertDesignAccess(input, "project.design.manage", input.discipline);
   if (input.drawingId) { const drawing = await loadDrawing(db, input, input.drawingId); if (drawing.status === "cancelled") throw refuse("CONFLICT", "PROJECT_OS_DESIGN_DRAWING_CANCELLED"); }
   if (input.resubmissionOfId) {
-    const [original] = await db.select({ status: designSubmittals.status, replyCode: designSubmittals.replyCode }).from(designSubmittals).where(and(mine(designSubmittals, input), eq(designSubmittals.id, input.resubmissionOfId))).limit(1);
+    const [original] = await db.select({ status: consultantSubmittals.status, replyCode: consultantSubmittals.replyCode }).from(consultantSubmittals).where(and(designOnly(input), eq(consultantSubmittals.id, input.resubmissionOfId))).limit(1);
     if (!original) throw refuse("NOT_FOUND", "PROJECT_OS_DESIGN_SUBMITTAL_NOT_FOUND");
     // only a submittal the consultant sent back (C or D) is resubmitted; A and B were accepted
-    if (original.status === "draft" || original.status === "submitted" || !original.replyCode || !replyRequiresResubmission(original.replyCode as SubmittalReplyCode)) throw refuse("CONFLICT", "PROJECT_OS_DESIGN_RESUBMISSION_INVALID");
+    if (original.status === "draft" || original.status === "sent" || !original.replyCode || !replyRequiresResubmission(original.replyCode as SubmittalReplyCode)) throw refuse("CONFLICT", "PROJECT_OS_DESIGN_RESUBMISSION_INVALID");
   }
   const id = crypto.randomUUID();
   await duplicateAs(() => db.transaction(async tx => {
-    await tx.insert(designSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalNumber: input.submittalNumber, title: input.title, discipline: input.discipline, drawingId: input.drawingId, resubmissionOfId: input.resubmissionOfId, dueAt: input.dueAt, createdByUserId: input.userId });
+    await tx.insert(consultantSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalType: "shop_drawing", submittalNumber: input.submittalNumber, title: input.title, discipline: input.discipline, drawingId: input.drawingId, resubmissionOfId: input.resubmissionOfId, dueAt: input.dueAt, consultant: input.consultant?.trim() || null, createdByUserId: input.userId });
     await audit(tx, input, "design.submittal_created", "design_submittal", id, { submittalNumber: input.submittalNumber, discipline: input.discipline, resubmissionOfId: input.resubmissionOfId ?? null });
   }));
   return { id, status: "draft" as const };
@@ -265,25 +274,33 @@ export async function createDesignSubmittal(input: { userId: number; tenantId: s
 export async function transitionDesignSubmittal(input: { userId: number; tenantId: string; projectId: string; submittalId: string; nextStatus: "submitted" | "replied" | "closed"; replyCode?: SubmittalReplyCode; replyNote?: string }) {
   const replying = input.nextStatus === "replied";
   const db = await assertDesignAccess(input, replying ? "project.design.approve" : "project.design.manage");
-  const [submittal] = await db.select().from(designSubmittals).where(and(mine(designSubmittals, input), eq(designSubmittals.id, input.submittalId))).limit(1);
+  const [submittal] = await db.select().from(consultantSubmittals).where(and(designOnly(input), eq(consultantSubmittals.id, input.submittalId))).limit(1);
   if (!submittal) throw refuse("NOT_FOUND", "PROJECT_OS_DESIGN_SUBMITTAL_NOT_FOUND");
+  const discipline = submittal.discipline as DesignDiscipline;
+  const current = designStatus(submittal.status);
   const allowed: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["replied"], replied: ["closed"], closed: [] };
-  if (!allowed[submittal.status].includes(input.nextStatus)) throw refuse("BAD_REQUEST", "PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID");
+  if (!allowed[current].includes(input.nextStatus)) throw refuse("BAD_REQUEST", "PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID");
   if (input.nextStatus === "submitted") {
     const snapshot = (await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }))!;
-    assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: disciplineAuthority(submittal.discipline), scope: { type: "project", id: input.projectId } });
+    assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: disciplineAuthority(discipline), scope: { type: "project", id: input.projectId } });
   }
   if (replying) {
     if (!input.replyCode) throw refuse("BAD_REQUEST", "PROJECT_OS_DESIGN_REPLY_CODE_REQUIRED");
-    if (submittal.submittedByUserId === input.userId) throw refuse("CONFLICT", "PROJECT_OS_DESIGN_SELF_REPLY");
+    if (submittal.sentByUserId === input.userId) throw refuse("CONFLICT", "PROJECT_OS_DESIGN_SELF_REPLY");
   }
   const now = new Date();
-  const change = input.nextStatus === "submitted" ? { status: "submitted" as const, submittedAt: now, submittedByUserId: input.userId }
+  const change = input.nextStatus === "submitted" ? { status: "sent" as const, sentAt: now, sentByUserId: input.userId }
     : replying ? { status: "replied" as const, replyCode: input.replyCode!, replyNote: input.replyNote?.trim() || null, repliedAt: now, repliedByUserId: input.userId }
     : { status: "closed" as const };
+  const codes = replying ? await ensureReplyCodes(db, input.tenantId) : [];
   await db.transaction(async tx => {
-    await tx.update(designSubmittals).set(change).where(and(mine(designSubmittals, input), eq(designSubmittals.id, input.submittalId)));
-    await audit(tx, input, "design.submittal_status_transitioned", "design_submittal", input.submittalId, { submittalNumber: submittal.submittalNumber, previousStatus: submittal.status, nextStatus: input.nextStatus, replyCode: input.replyCode ?? null });
+    // the guard on the old status makes two people answering at once a conflict, not two answers
+    const changed = await tx.update(consultantSubmittals).set(change).where(and(designOnly(input), eq(consultantSubmittals.id, input.submittalId), eq(consultantSubmittals.status, submittal.status))).returning({ id: consultantSubmittals.id });
+    if (!changed.length) throw refuse("BAD_REQUEST", "PROJECT_OS_DESIGN_SUBMITTAL_TRANSITION_INVALID");
+    await audit(tx, input, "design.submittal_status_transitioned", "design_submittal", input.submittalId, { submittalNumber: submittal.submittalNumber, previousStatus: current, nextStatus: input.nextStatus, replyCode: input.replyCode ?? null });
+    // one register, one event: an answer to a design submittal is announced exactly as an answer to any other submittal is
+    if (replying) await emitWebhookEvent(tx, input.tenantId, "submittal.replied", { submittalId: input.submittalId, projectId: input.projectId, submittalNumber: submittal.submittalNumber, revision: submittal.revision, replyCode: input.replyCode, approved: codes.find(code => code.code === input.replyCode)?.approved ?? null });
   });
-  return { id: input.submittalId, previousStatus: submittal.status, status: input.nextStatus, replyCode: input.replyCode ?? null };
+  if (replying) kickWebhookDelivery();
+  return { id: input.submittalId, previousStatus: current, status: input.nextStatus, replyCode: input.replyCode ?? null };
 }

@@ -1808,7 +1808,7 @@ export async function getNcrsForTenant(input: { userId: number; tenantId: string
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select({ id: ncrs.id, ncrNumber: ncrs.ncrNumber, title: ncrs.title, description: ncrs.description, status: ncrs.status, dueAt: ncrs.dueAt, createdAt: ncrs.createdAt }).from(ncrs).where(and(eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId))).orderBy(desc(ncrs.createdAt));
+  return db.select({ id: ncrs.id, ncrNumber: ncrs.ncrNumber, title: ncrs.title, description: ncrs.description, status: ncrs.status, dueAt: ncrs.dueAt, createdAt: ncrs.createdAt, pmcUnitId: ncrs.pmcUnitId, pmcActivityDefinitionId: ncrs.pmcActivityDefinitionId }).from(ncrs).where(and(eq(ncrs.tenantId, input.tenantId), eq(ncrs.projectId, input.projectId))).orderBy(desc(ncrs.createdAt));
 }
 
 export async function createNcrForTenant(input: { userId: number; tenantId: string; projectId: string; ncrNumber: string; title: string; description: string; dueAt?: Date; pmcUnitId?: string; pmcActivityDefinitionId?: string }) {

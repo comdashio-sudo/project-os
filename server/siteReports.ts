@@ -5,7 +5,7 @@
 // obeys the company's quality policy like any other path to COMPLETE.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcUnitActivityProgress, pmcUnits, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import type { PmcUnitActivityStatus } from "./domain/pmc";
@@ -224,4 +224,15 @@ export async function getSiteDailyReportForTenant(input: Scope & { reportId: str
     lines: lines.map(line => ({ ...line, quantity: line.quantity === null ? null : Number(line.quantity), hours: line.hours === null ? null : Number(line.hours) })),
     photos: await Promise.all(photos.map(async ({ storageKey, ...photo }) => ({ ...photo, url: await storageGetSignedUrl(storageKey).catch(() => null) }))),
   };
+}
+
+/** The units and the activities a person on site picks from (the daily report, the inspection request, the NCR, the unit card). No money, no WBS; readable by whoever may read the project. */
+export async function listFieldOptionsForTenant(input: Scope) {
+  const db = await authorize(input, ["project.read", "project.field.manage", "project.manage"]);
+  const [units, activities] = await Promise.all([
+    db.select({ id: pmcUnits.id, number: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, block: pmcBlocks.code, zone: pmcZones.code }).from(pmcUnits)
+      .innerJoin(pmcBlocks, eq(pmcBlocks.id, pmcUnits.blockId)).innerJoin(pmcZones, eq(pmcZones.id, pmcBlocks.zoneId)).where(mine(pmcUnits, input)).orderBy(asc(pmcUnits.unitNumber)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.code)),
+  ]);
+  return { units, activities };
 }
