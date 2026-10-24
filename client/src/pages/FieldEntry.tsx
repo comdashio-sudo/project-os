@@ -26,7 +26,7 @@ const text = {
     queuedSaved: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال", queueNotSaved: "تعذّر الحفظ على الهاتف (مساحة التخزين ممتلئة أو محظورة). أعد الإرسال حين يعود الاتصال.", offline: "لا اتصال", online: "متصل", pending: "بانتظار الإرسال", sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", failedItems: "طلبات رفضها الخادم", discard: "حذف", retryItem: "إعادة", cachedNotice: "لا اتصال: هذه آخر بيانات محفوظة على الهاتف.",
     averageCost: "متوسط التكلفة", usesAverage: "يُصرف بمتوسط تكلفة المخزون", directToSite: "توريد مباشر للموقع (لا يدخل المستودع، وتُحمَّل التكلفة الآن)", intoWarehouse: "يدخل المستودع، وتُحمَّل التكلفة عند الصرف", noWarehouseToReceive: "لا مستودع نشط لاستلام المادة فيه. سجّله توريدًا مباشرًا للموقع أو أضف مستودعًا.",
     receive: "استلام مواد", pickOrder: "اختر أمر الشراء", receivedQty: "الكمية المستلمة", noOrders: "لا أوامر شراء صادرة لهذا المشروع.", received: "استُلمت", from: "من", grn: "إذن الاستلام", rejectedHint: "الكمية المرفوضة تُسجَّل من شاشة الاستلام المكتبية بدليلها.",
-  },
+   checkingIdentity: "التحقق من هويتك", offlineOff: "الحفظ دون اتصال معطّل إلى أن يعود؛ أعد المحاولة قبل أن تحفظ إدخالًا." },
   en: {
     title: "Quick site entry", back: "Back to project controls", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
     pickItem: "Pick the work item", nowAt: "Now at", never: "not recorded", save: "Save", saving: "Saving…", saved: "Saved", another: "Record another", noWbs: "This project has no work items yet.", plus5: "+5", minus5: "−5",
@@ -35,7 +35,7 @@ const text = {
     queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
     averageCost: "Average cost", usesAverage: "Issued at the stock's average cost", directToSite: "Direct delivery to site (no warehouse, cost charged now)", intoWarehouse: "Goes into the warehouse; cost is charged when it is issued", noWarehouseToReceive: "There is no active warehouse to receive into. Record it as a direct delivery to site or add a warehouse.",
     receive: "Receive material", pickOrder: "Pick the purchase order", receivedQty: "Quantity received", noOrders: "This project has no issued purchase orders.", received: "Received", from: "from", grn: "Receipt note", rejectedHint: "Rejected quantity, with its evidence, is recorded from the desk receipt screen.",
-  }, ur: {
+   checkingIdentity: "Checking who you are", offlineOff: "Saving offline is off until it is back; try again before you save an entry." }, ur: {
     title: "سائٹ سے فوری اندراج", back: "پروجیکٹ کنٹرولز پر واپس", notAllowed: "آپ کا کردار اس اسکرین سے پیش رفت درج کرنے یا مادّہ اجرا کرنے کی اجازت نہیں دیتا۔", progress: "پیش رفت درج کریں", issue: "مادّہ اجرا کریں", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
     pickItem: "کام کی آئٹم منتخب کریں", nowAt: "اب تک", never: "درج نہیں ہوئی", save: "محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "محفوظ ہو گیا", another: "ایک اور درج کریں", noWbs: "اس پروجیکٹ میں ابھی کوئی کام کی آئٹم نہیں ہے۔", plus5: "+5", minus5: "−5",
     issueToUnit: "یونٹ کی سرگرمی پر اجرا (تلاش یا QR)", pickMaterial: "مادّہ منتخب کریں", quantity: "مقدار", unitCost: "فی یونٹ لاگت", warehouse: "گودام", workItem: "کام کی آئٹم", change: "تبدیل کریں", onHand: "دستیاب", total: "کل", noMaterials: "کیٹلاگ میں ابھی کوئی مادّہ نہیں ہے۔", noWarehouses: "اس پروجیکٹ میں کوئی فعال گودام نہیں ہے۔", issued: "اجرا ہوا", to: "کو",
@@ -43,7 +43,7 @@ const text = {
     queuedSaved: "اس فون پر محفوظ ہو گیا، کنکشن واپس آنے پر بھیجا جائے گا", queueNotSaved: "اسے فون پر محفوظ نہیں رکھا جا سکا (اسٹوریج بھری ہے یا بند ہے)۔ آن لائن ہونے پر دوبارہ بھیجیں۔", offline: "آف لائن", online: "آن لائن", pending: "بھیجے جانے کا منتظر", sendNow: "ابھی بھیجیں", sending: "بھیجا جا رہا ہے…", failedItems: "سرور کی طرف سے مسترد درخواستیں", discard: "حذف کریں", retryItem: "دوبارہ", cachedNotice: "آف لائن: یہ فون پر محفوظ آخری ڈیٹا ہے۔",
     averageCost: "اوسط لاگت", usesAverage: "مادّہ اسٹاک کی اوسط لاگت پر اجرا ہوتا ہے", directToSite: "براہِ راست سائٹ پر سپلائی (گودام میں نہیں جاتا، لاگت ابھی منتقل ہوتی ہے)", intoWarehouse: "گودام میں جاتا ہے؛ اجرا کے وقت لاگت منتقل ہوتی ہے", noWarehouseToReceive: "وصولی کے لیے کوئی فعال گودام نہیں ہے۔ اسے براہِ راست سائٹ پر سپلائی کے طور پر درج کریں یا گودام شامل کریں۔",
     receive: "مادّہ وصول کریں", pickOrder: "خریداری کا آرڈر منتخب کریں", receivedQty: "وصول شدہ مقدار", noOrders: "اس پروجیکٹ کے لیے جاری شدہ خریداری کے آرڈر نہیں ہیں۔", received: "وصول ہوا", from: "سے", grn: "وصولی نوٹ (GRN)", rejectedHint: "مسترد شدہ مقدار اپنے ثبوت کے ساتھ دفتری وصولی کی اسکرین سے درج ہوتی ہے۔",
-},
+ checkingIdentity: "آپ کی شناخت کی جانچ ہو رہی ہے", offlineOff: "آف لائن محفوظ کرنا اس وقت تک بند ہے جب تک یہ بحال نہ ہو؛ کوئی اندراج محفوظ کرنے سے پہلے دوبارہ کوشش کریں۔" },
 };
 type T = typeof text.en;
 const PRESETS = [0, 25, 50, 75, 100];
@@ -378,7 +378,7 @@ export default function FieldEntry() {
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
-        <SourceNotice query={me} isArabic={isArabic} title={isArabic ? "التحقق من هويتك" : "Checking who you are"} fallback={isArabic ? "الحفظ دون اتصال معطّل إلى أن يعود؛ أعد المحاولة قبل أن تحفظ إدخالًا." : "Saving offline is off until it is back; try again before you save an entry."} />
+        <SourceNotice query={me} isArabic={isArabic} title={t.checkingIdentity} fallback={t.offlineOff} />
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} language={language} />
         <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
           {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}

@@ -176,7 +176,7 @@ export default function ProjectSubmittals() {
         <p className="text-sm text-slate-600">{t.distributionHint}</p>
         <div className="overflow-x-auto rounded-xl border bg-white">
           <table className="w-full text-start text-sm" data-distribution>
-            <thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.consultant}</th>{replyCodes.map(code => <th scope="col" key={code.code} className="p-2 text-center" title={`${isArabic ? code.labelAr : code.labelEn} — ${code.approved ? t.approvedCode : t.notApprovedCode}`}>{code.code}</th>)}<th scope="col" className="p-2 text-center">{t.pending}</th><th scope="col" className="p-2 text-center">{t.total}</th></tr></thead>
+            <thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.consultant}</th>{replyCodes.map(code => <th scope="col" key={code.code} className="p-2 text-center" title={`${pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelEn })} — ${code.approved ? t.approvedCode : t.notApprovedCode}`}>{code.code}</th>)}<th scope="col" className="p-2 text-center">{t.pending}</th><th scope="col" className="p-2 text-center">{t.total}</th></tr></thead>
             <tbody>{distribution.map(line => <tr key={line.name} className="border-t"><th scope="row" className="p-2 text-start font-medium">{line.name === NONE ? t.noConsultant : <bdi>{line.name}</bdi>}</th>{replyCodes.map(code => <td key={code.code} className="p-2 text-center">{line.perCode[code.code]}</td>)}<td className="p-2 text-center">{line.pending}</td><td className="p-2 text-center font-semibold">{line.total}</td></tr>)}</tbody>
           </table>
         </div>
@@ -203,7 +203,7 @@ export default function ProjectSubmittals() {
                 </div>
                 {replying?.id === row.id && (
                   <div className="space-y-2 rounded-lg bg-slate-50 p-2" data-reply-form>
-                    <label className="block text-sm font-medium">{t.replyCode}<select className={`${fieldInput} mt-1`} value={replying.code} onChange={event => setReplying({ ...replying, code: event.target.value })}>{replyCodes.map(code => <option key={code.code} value={code.code}>{code.code} — {isArabic ? code.labelAr : code.labelEn} ({code.approved ? t.approvedCode : t.notApprovedCode})</option>)}</select></label>
+                    <label className="block text-sm font-medium">{t.replyCode}<select className={`${fieldInput} mt-1`} value={replying.code} onChange={event => setReplying({ ...replying, code: event.target.value })}>{replyCodes.map(code => <option key={code.code} value={code.code}>{code.code} — {pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelEn })} ({code.approved ? t.approvedCode : t.notApprovedCode})</option>)}</select></label>
                     <label className="block text-sm font-medium">{t.replyNote}<input className={`${fieldInput} mt-1`} value={replying.note} onChange={event => setReplying({ ...replying, note: event.target.value })} /></label>
                     <div className="grid grid-cols-2 gap-2"><Button className={tap} disabled={!replying.code || reply.isPending} onClick={() => reply.mutate({ ...scope, submittalId: row.id, replyCode: replying.code, replyNote: replying.note.trim() || undefined })}>{t.confirmReply}</Button><Button variant="outline" className={tap} onClick={() => setReplying(null)}>{t.cancel}</Button></div>
                   </div>

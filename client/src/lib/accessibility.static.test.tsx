@@ -93,8 +93,8 @@ describe("static check: every field on the controls and HSE screens has a name, 
 
   it("names the HSE title field and the description field", () => {
     const hse = page("ProjectHse.tsx");
-    expect(hse).toContain(`aria-label={isArabic ? "العنوان" : "Title"} placeholder={isArabic ? "العنوان" : "Title"}`);
-    expect(hse).toContain(`<Textarea aria-label={isArabic ? "الوصف" : "Description"} placeholder={isArabic ? "الوصف" : "Description"}`);
+    expect(hse).toContain(`aria-label={pickLanguage(language, { ar: "العنوان", en: "Title", ur: "عنوان" })} placeholder={pickLanguage(language, { ar: "العنوان", en: "Title", ur: "عنوان" })}`);
+    expect(hse).toContain(`<Textarea aria-label={pickLanguage(language, { ar: "الوصف", en: "Description", ur: "تفصیل" })} placeholder={pickLanguage(language, { ar: "الوصف", en: "Description", ur: "تفصیل" })}`);
   });
 });
 

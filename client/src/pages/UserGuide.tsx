@@ -20,7 +20,7 @@ export default function UserGuide() {
   const [active, setActive] = useState<GuideSectionId>(sectionFromHash);
   const section = userGuide.find(item => item.id === active)!;
   const pick = (id: GuideSectionId) => { setActive(id); try { window.history.replaceState(null, "", `#${id}`); } catch { /* the address bar is a convenience */ } };
-  const lang = isArabic ? "ar" : "en";
+  const lang = language;
   const t = pickLanguage(language, { ar: { back: "العودة إلى ضوابط المشروع", title: "دليل الاستخدام", sub: "اختر دورك لترى خطواته اليومية والأسبوعية على الشاشات الفعلية. الصور من بيانات تجريبية.", roles: "أدوار الدليل", cannot: "ما لا يخصّك", needs: "الصلاحية المطلوبة", open: "افتح الشاشة", step: "الخطوة", of: "من", daily: "كل يوم", weekly: "كل أسبوع" }, en: { back: "Back to project controls", title: "User guide", sub: "Pick your role to see its daily and weekly steps on the real screens. Pictures use synthetic data.", roles: "Guide roles", cannot: "What is not yours", needs: "Permission needed", open: "Open the screen", step: "Step", of: "of", daily: "Every day", weekly: "Every week" }, ur: { back: "Back to project controls", title: "User guide", sub: "Pick your role to see its daily and weekly steps on the real screens. Pictures use synthetic data.", roles: "Guide roles", cannot: "What is not yours", needs: "Permission needed", open: "Open the screen", step: "Step", of: "of", daily: "Every day", weekly: "Every week" } });
   // Steps are shown by cadence (daily first), numbered in the order the reader meets them.
   const ordered = GUIDE_CADENCES.flatMap((cadence: GuideCadence) => section.steps.flatMap((step, index) => (step.cadence === cadence ? [{ step, index }] : [])));

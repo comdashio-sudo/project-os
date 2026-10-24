@@ -56,7 +56,8 @@ const text = {
 export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const locale = isArabic ? "ar" : "en";
+  // the server takes ar or en only: Urdu requests use the English server labels
+  const locale = language === "ur" ? "en" : language;
   const [moduleCode, setModuleCode] = useState<LedgerModule>("costs");
   const template = trpc.dataImports.template.useMutation({ onSuccess: download });
   const exporter = trpc.dataImports.export.useMutation({ onSuccess: download });
