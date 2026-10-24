@@ -29,8 +29,8 @@ async function supabasePhase() {
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
 
-  const { region } = await api.assertTarget(); // refuses (nothing written) unless project id AND organisation name match
-  step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}`);
+  const { region, organisationCheck, organisationSlug } = await api.assertTarget(); // refuses (nothing written) unless project id AND organisation name match
+  step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}؛ ${organisationCheck === "organisation" ? "المنظمة dashio قُرئت وطابقت" : `المفتاح محصور بالمشروع ولا يقرأ المنظمة، فطُبِّق التحقق على بيانات المشروع نفسه (اسمه dashio، معرّف منظمته ${organisationSlug})`}`);
 
   await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
   step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
@@ -113,6 +113,6 @@ try {
   else throw new Error("usage: run.ts supabase|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
-  else { step(PHASE_LABEL[phase] ?? phase, "failed", error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`); }
+  else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret
   save(); process.exitCode = 1;
 }
