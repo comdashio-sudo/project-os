@@ -3,9 +3,28 @@
 // (routers.ts passes ctx.user.id; the procedure's input has no user field, so one sent by a client is stripped by zod). The table is a per-person
 // preference, not tenant data, so there is no tenant or project filter and no permission check beyond being signed in.
 import { eq, sql } from "drizzle-orm";
-import { userLanguagePreferences } from "../drizzle/schema";
+import { check, foreignKey, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { INTERFACE_LANGUAGES, type InterfaceLanguage } from "@shared/interfaceLanguages";
+
+// The table is defined here, not in drizzle/schema.ts, and it is created only by migration drizzle/0008_wo16_user_language.sql. Reason: the baseline
+// (0000) is followed by 0006, which re-creates project_os_apply_conventions() with the list as it was then and runs the sweep. A table created in the
+// baseline would be refused there ("not classified"). Migration 0008 creates the table and re-creates the function with the table in its list, before
+// its own sweep runs. Keep this definition and that migration in step (the same columns and the same check).
+export const userLanguagePreferences = pgTable(
+  "user_language_preferences",
+  {
+    userId: integer("user_id").primaryKey(),
+    language: varchar("language", { length: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "user_language_preferences_user_fk" }).onDelete("cascade"),
+    check("user_language_preferences_language_check", sql`${table.language} IN ('ar', 'en', 'ur')`),
+  ],
+);
 
 export type AccountLanguage = InterfaceLanguage;
 

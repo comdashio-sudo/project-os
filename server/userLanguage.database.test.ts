@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { userLanguagePreferences, users } from "../drizzle/schema";
+import { users } from "../drizzle/schema";
+import { userLanguagePreferences } from "./userLanguage";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
 import { appRouter } from "./routers";

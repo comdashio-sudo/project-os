@@ -2,6 +2,10 @@
 -- (user_id is the key; a second choice replaces the first). A per-person preference, not tenant data: it is listed as a global table in
 -- project_os_apply_conventions() (like users and auth_sessions), and the server reads and writes it only for the signed-in user (server/userLanguage.ts).
 -- The check admits the three interface languages only (shared/interfaceLanguages.ts).
+-- The table is NOT in drizzle/schema.ts or in the baseline, on purpose: the migrations after the baseline (0006) re-create the convention function with an
+-- older global list and run the sweep, so a table created in the baseline would be refused there. This migration is the one that creates it, and it
+-- re-creates the function with the table listed BEFORE the sweep of this migration runs (the runner calls the sweep after each file). The table's
+-- definition is in server/userLanguage.ts; keep the two in step.
 -- Re-runnable. Rollback: drop the table user_language_preferences (nothing else refers to it), and re-create the previous body of
 -- project_os_apply_conventions() from drizzle/0006_wo15_convention_sweep_skips_matching.sql (the only change is the one name added to global_tables).
 CREATE TABLE IF NOT EXISTS "user_language_preferences" (

@@ -1,6 +1,5 @@
 import {
   boolean,
-  check,
   date,
   foreignKey,
   index,
@@ -2358,24 +2357,6 @@ export const authCodeAttempts = pgTable("auth_code_attempts", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
-
-// Work order 16, item 4 (G-203): the interface language a person chose, kept on their account so it follows them to any device. One row per user (the user
-// id is the key; a second choice replaces the first). A per-person preference, not tenant data: no tenant_id, listed as a global table in
-// project_os_apply_conventions() (like users and auth_sessions), and read or written by the server only for the signed-in user (server/userLanguage.ts).
-// The check admits the three interface languages and nothing else (shared/interfaceLanguages.ts).
-export const userLanguagePreferences = pgTable(
-  "user_language_preferences",
-  {
-    userId: integer("user_id").primaryKey(),
-    language: varchar("language", { length: 2 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  table => [
-    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "user_language_preferences_user_fk" }).onDelete("cascade"),
-    check("user_language_preferences_language_check", sql`${table.language} IN ('ar', 'en', 'ur')`),
-  ],
-);
 
 // Per-WBS EAC captured with each profitability snapshot: the history that lets
 // the screen say which work items moved the profit since the last snapshot.
