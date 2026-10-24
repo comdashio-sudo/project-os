@@ -11,6 +11,7 @@ import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolic
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
+import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
@@ -49,6 +50,8 @@ import { addTenderBidAdjustment, awardTender, createTenderPackage, disqualifyTen
 import { ADJUSTMENT_KINDS } from "./domain/tenders";
 import { setMasterPlanSnapshotSharing, setMasterPlanVersionGeometry, updateMasterPlanEntityLayout } from "./masterPlanTools";
 import { getMasterPlanDrawingLayout, linkMasterPlanDrawingUnit, listMasterPlanDrawingVersions, saveMasterPlanDrawingLayout, unlinkMasterPlanDrawingUnit, uploadMasterPlanDrawingVersion } from "./masterPlanDrawing";
+
+import { masterPlanVisionRouter } from "./masterPlanVision";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
@@ -215,6 +218,7 @@ export const appRouter = router({
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), sourceDocumentId: z.string().uuid(), title: z.string().trim().min(3).max(255), content: z.string().trim().min(3).max(12000), publish: z.boolean() })).mutation(({ ctx, input }) => createKnowledgeArticleForTenant({ userId: ctx.user.id, ...input })),
     }),
   }),
+  masterPlanVision: masterPlanVisionRouter,
   masterPlans: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlansForTenant({ userId: ctx.user.id, ...input })),
     visualizationRules: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlanVisualizationRulesForTenant({ userId: ctx.user.id, ...input })),
@@ -410,6 +414,8 @@ export const appRouter = router({
     project: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectLevel({ userId: ctx.user.id, ...input })),
     warehouse: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid() })).query(({ ctx, input }) => getWarehouseLevel({ userId: ctx.user.id, ...input })),
   }),
+  // Work order 16: the level reads beyond `scopes.*` (entry, deliveries, unapproved materials, company commitments), each scoped like its level.
+  levelReads: levelReadsRouter,
   pmo: router({
     createPortfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(80), name: z.string().trim().min(2).max(255) })).mutation(({ ctx, input }) => createPortfolioForTenant({ userId: ctx.user.id, ...input })),
     createProgram: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), portfolioId: z.string().uuid().optional(), code: z.string().trim().min(2).max(80), name: z.string().trim().min(2).max(255) })).mutation(({ ctx, input }) => createProgramForTenant({ userId: ctx.user.id, ...input })),

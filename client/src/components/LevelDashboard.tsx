@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, Clock } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { Link } from "wouter";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -12,18 +12,23 @@ import { LEVEL_IDS, LEVEL_NAMES, levelBelow, levelHref, type LevelId } from "@/l
 const navContext: Record<LevelId, "executive" | "pmo" | "project"> = { company: "executive", portfolio: "pmo", project: "project", warehouse: "project" };
 
 const copy = {
-  ar: { level: "المستوى", of: "من", down: (name: string) => `انتقل إلى مستوى: ${name}`, lowest: "أدنى مستوى: لا مستوى تحته.", label: "المستويات" },
-  en: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels" },
-  ur: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels" },
+  ar: { level: "المستوى", of: "من", down: (name: string) => `انتقل إلى مستوى: ${name}`, lowest: "أدنى مستوى: لا مستوى تحته.", label: "المستويات", chooseProject: "انتقل إلى مشروع", chooseLabel: "المشاريع في هذا المستوى" },
+  en: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels", chooseProject: "Go to a project", chooseLabel: "Projects in this level" },
+  ur: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels", chooseProject: "Go to a project", chooseLabel: "Projects in this level" },
 };
 
-export function LevelDashboard({ level, tenantId, projectId, title, belowHref, children }: {
+/** One link below this level, for a level that descends to several places (the portfolio: one link per project of the comparison). */
+export type BelowLink = { id: string; label: string; href: string };
+
+export function LevelDashboard({ level, tenantId, projectId, title, belowHref, belowLinks, children }: {
   level: LevelId;
   tenantId: string;
   projectId?: string;
   title: string;
-  /** Overrides the default link down (the portfolio's link goes to one project); `null` removes the link. */
+  /** Overrides the default link down; `null` removes the link. */
   belowHref?: string | null;
+  /** When given, the screen chooses where to go down: one link per place (the portfolio's projects), and no single link. */
+  belowLinks?: readonly BelowLink[];
   children: React.ReactNode;
 }) {
   const { isArabic } = useLanguage();
@@ -38,7 +43,14 @@ export function LevelDashboard({ level, tenantId, projectId, title, belowHref, c
       <header className="space-y-3">
         <p className="text-xs font-semibold tracking-wide text-[#0e6b70]" data-level-position>{`${t.level} ${LEVEL_IDS.indexOf(level) + 1} ${t.of} ${LEVEL_IDS.length} · ${isArabic ? names.ar : names.en}`}</p>
         <h1 className="text-2xl font-semibold">{title}</h1>
-        {below && href
+        {belowLinks && belowLinks.length > 0 && below
+          ? <nav aria-label={t.chooseLabel} data-level-down="" className="flex flex-wrap gap-2">
+              {belowLinks.map(link => <Link key={link.id} href={link.href} data-level-down-item={link.id} className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#0e6b70] px-4 text-sm font-semibold text-white">
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                <span>{`${t.chooseProject}: ${link.label}`}</span>
+              </Link>)}
+            </nav>
+          : below && href
           ? <Link href={href} data-level-down="" className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#0e6b70] px-4 text-sm font-semibold text-white">
               <ArrowDown className="h-4 w-4" aria-hidden="true" />
               <span>{t.down(isArabic ? LEVEL_NAMES[below].ar : LEVEL_NAMES[below].en)}</span>
@@ -58,14 +70,6 @@ export function LevelSection({ id, title, children, action }: { id: string; titl
     </div>
     <div className="mt-4">{children}</div>
   </section>;
-}
-
-/** A figure the server does not provide on main yet. It says so in the place of the number, and never shows a zero. */
-export function AwaitingServer({ isArabic, what }: { isArabic: boolean; what: string }) {
-  return <p role="note" data-state="awaiting-server" className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
-    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
-    <span><span className="font-semibold">{isArabic ? "بانتظار الخادم" : "Waiting for the server"}</span>{" — "}{what}</span>
-  </p>;
 }
 
 /** A figure the server computed as unavailable for this project (not a missing route): said plainly, not as a zero. */

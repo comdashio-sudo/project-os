@@ -48,10 +48,13 @@ describe("LevelPortfolio (level 2, projects management)", () => {
     expect(quality.textContent).toContain("LV-01 · Synthetic project A");
   });
 
-  it("links to the project level of the first project, and each row to its own project", () => {
+  it("chooses the project to go down to: a link per project of the comparison, and no single link to the first one", () => {
     const { container } = render(<LevelPortfolio />);
-    const down = container.querySelector("[data-level-down]") as HTMLAnchorElement;
-    expect(down.getAttribute("href")).toBe(`/levels/${TENANT}/projects/${PROJECT_A.projectId}`);
+    const choose = container.querySelector("[data-level-down]") as HTMLElement;
+    expect(choose.tagName).toBe("NAV");
+    const links = Array.from(choose.querySelectorAll("a"));
+    expect(links.map(link => link.getAttribute("href"))).toEqual([`/levels/${TENANT}/projects/${PROJECT_A.projectId}`, `/levels/${TENANT}/projects/${PROJECT_B.projectId}`]);
+    expect(container.querySelector(`[data-level-down-item='${PROJECT_B.projectId}']`)?.getAttribute("href")).toBe(`/levels/${TENANT}/projects/${PROJECT_B.projectId}`);
     const rowLink = container.querySelector(`[data-project-row='${PROJECT_B.projectId}'] a`) as HTMLAnchorElement;
     expect(rowLink.getAttribute("href")).toBe(`/levels/${TENANT}/projects/${PROJECT_B.projectId}`);
   });

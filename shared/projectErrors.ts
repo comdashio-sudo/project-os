@@ -1866,6 +1866,31 @@ export const projectErrorMessages = {
     en: "Tender packages and bids are in the Saudi riyal (SAR) only in this first version. Choose SAR.",
     ur: "Tender packages and bids are in the Saudi riyal (SAR) only in this first version. Choose SAR.",
   },
+  PROJECT_OS_VISION_NOT_AVAILABLE: {
+    ar: "قراءة المخطط بالذكاء الاصطناعي غير مفعّلة في هذه البيئة.",
+    en: "Drawing reading with AI is not enabled in this environment.",
+    ur: "Drawing reading with AI is not enabled in this environment.",
+  },
+  PROJECT_OS_VISION_IMAGE_INVALID: {
+    ar: "الصورة يجب أن تكون ملف PNG أو JPEG صالحًا بترميز base64.",
+    en: "The image must be a valid PNG or JPEG file encoded as base64.",
+    ur: "The image must be a valid PNG or JPEG file encoded as base64.",
+  },
+  PROJECT_OS_VISION_IMAGE_TOO_LARGE: {
+    ar: "حجم الصورة يتجاوز 3 ميجابايت. اقتطع المخطط أو اضغطه ثم أعد المحاولة.",
+    en: "The image is larger than 3 MB. Crop or compress the drawing and try again.",
+    ur: "The image is larger than 3 MB. Crop or compress the drawing and try again.",
+  },
+  PROJECT_OS_VISION_OUTPUT_INVALID: {
+    ar: "تعذّر قراءة اقتراحات النموذج، ولم يُحفظ شيء.",
+    en: "The suggestions could not be read. Nothing was saved.",
+    ur: "The suggestions could not be read. Nothing was saved.",
+  },
+  PROJECT_OS_VISION_PROVIDER_FAILED: {
+    ar: "فشل طلب قراءة المخطط لدى مزود الخدمة، ولم يُحفظ شيء.",
+    en: "The drawing reading request failed at the provider. Nothing was saved.",
+    ur: "The drawing reading request failed at the provider. Nothing was saved.",
+  },
   PROJECT_OS_MASTER_PLAN_CALIBRATION_INVALID: {
     ar: "أدخل عرض منطقة الخطة وطولها بالأمتار معًا، وكلاهما رقم موجب لا يتجاوز 100000.",
     en: "Enter the plan area's width and length in metres together; both must be positive and at most 100000.",

@@ -2,10 +2,10 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { COMPANY, PROJECT_A, TENANT } from "@/test/levelFixtures";
+import { COMMITMENTS, COMPANY, PROJECT_A, TENANT } from "@/test/levelFixtures";
 import LevelCompany from "./LevelCompany";
 
-const state = vi.hoisted(() => ({ query: {} as Record<string, unknown>, isArabic: true }));
+const state = vi.hoisted(() => ({ query: {} as Record<string, unknown>, commitments: {} as Record<string, unknown>, isArabic: true }));
 const refetch = vi.hoisted(() => vi.fn());
 const ok = (data: unknown) => ({ isLoading: false, isFetching: false, error: null, data, refetch });
 const failed = (error: unknown) => ({ isLoading: false, isFetching: false, error, data: undefined, refetch });
@@ -17,12 +17,12 @@ vi.mock("wouter", () => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
-vi.mock("@/lib/trpc", () => ({ trpc: { scopes: { company: { useQuery: () => state.query } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { scopes: { company: { useQuery: () => state.query } }, levelReads: { companyCommitments: { useQuery: () => state.commitments } } } }));
 
 const money = (value: number) => `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} SAR`;
 
 describe("LevelCompany (level 1, company and board)", () => {
-  beforeEach(() => { state.isArabic = true; state.query = ok(COMPANY); });
+  beforeEach(() => { state.isArabic = true; state.query = ok(COMPANY); state.commitments = ok(COMMITMENTS); });
   afterEach(() => { cleanup(); refetch.mockReset(); });
 
   it("shows every project on one page with the server's figures, in Arabic first", () => {
@@ -64,10 +64,24 @@ describe("LevelCompany (level 1, company and board)", () => {
     expect(link.getAttribute("href")).toBe(`/levels/${TENANT}/projects/${PROJECT_A.projectId}`);
   });
 
-  it("says commitments are waiting for the server instead of showing a figure", () => {
+  it("shows the company's commitments per kind, each currency side by side and never added together", () => {
     const { container } = render(<LevelCompany />);
-    const note = container.querySelector("[data-section='company-commitments'] [data-state='awaiting-server']");
-    expect(note?.textContent).toContain("بانتظار الخادم");
+    const section = container.querySelector("[data-section='company-commitments']")!;
+    expect(section.querySelector("[data-state='awaiting-server']")).toBeNull();
+    const values = Array.from(section.querySelectorAll("dd")).map(item => item.textContent ?? "");
+    expect(values[0]).toContain("2 — ");
+    expect(values[0]).toContain(money(1250));
+    expect(values[0]).toContain("40 USD");
+    expect(values[1]).toBe(`1 — ${money(500)}`);
+    expect(values[2]).toBe("0");
+  });
+
+  it("says the commitments could not be read, and shows no figure in their place", () => {
+    state.commitments = failed({ data: { code: "INTERNAL_SERVER_ERROR" }, message: "Synthetic failure" });
+    const { container } = render(<LevelCompany />);
+    const section = container.querySelector("[data-section='company-commitments']")!;
+    expect(section.querySelector("[role='alert']")?.textContent).toContain("الالتزامات");
+    expect(section.querySelectorAll("dd")).toHaveLength(0);
   });
 
   it("shows the no-permission sentence, not a 403, to a person without company scope", () => {

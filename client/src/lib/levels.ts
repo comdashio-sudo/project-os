@@ -1,6 +1,6 @@
 // The four management levels (owner decision, work order 13, items 6–7). A person enters at the dashboard of the highest level they
-// hold and goes one level down with one click. The data for each level is the server's own (`scopes.*`, scopeDashboards.ts); this file
-// only names the levels, builds their links and applies the entry rule. It holds no money, no permission and no server rule of its own.
+// hold and goes one level down with one click. The data for each level is the server's own (`scopes.*`, scopeDashboards.ts; `levelReads.*`, levelReads.ts); this file
+// only names the levels and builds their links. It holds no money, no permission and no entry rule of its own: the entry is `levelReads.entry` (server/levelReads.ts).
 
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
@@ -20,10 +20,6 @@ export const LEVEL_NAMES: Record<LevelId, { ar: string; en: string; ur: string }
   warehouse: { ar: "المستودع", en: "Warehouse", ur: "Warehouse" },
 };
 
-/** The navigation ids the server already returns for the two company-wide levels (server/domain/navigation.ts). */
-export const NAV_EXECUTIVE = "executive-dashboard";
-export const NAV_PMO = "pmo-dashboard";
-
 /** The level one step down; the warehouse is the lowest level and has none. */
 export function levelBelow(level: LevelId): LevelId | null {
   const index = LEVEL_IDS.indexOf(level);
@@ -37,24 +33,6 @@ export function levelHref(tenantId: string, level: LevelId, projectId?: string):
     case "project": return `/levels/${tenantId}/projects/${projectId ?? ""}`;
     case "warehouse": return `/levels/${tenantId}/projects/${projectId ?? ""}/warehouse`;
   }
-}
-
-export type EntryTarget = { level: "company" } | { level: "portfolio" } | { level: "project"; projectId: string };
-
-/**
- * The entry rule: the highest level the person holds, read from the navigation the server computed for them.
- *  - company: the server offers the executive dashboard (EXECUTIVE + executive.read on the whole company);
- *  - portfolio: the server offers the PMO dashboard (PMO + pmo.read on the whole company);
- *  - project: otherwise, the first project the person's own project.read assignment covers (sorted by code, so the answer is stable);
- *  - none: null. The warehouse is not an entry level: it is reached from a project, never offered on its own.
- * A person holding two scopes gets the higher one: company over portfolio over project.
- */
-export function pickEntryLevel(input: { navigationIds: readonly string[]; projects: readonly { id: string; code: string }[] }): EntryTarget | null {
-  const offered = new Set(input.navigationIds);
-  if (offered.has(NAV_EXECUTIVE)) return { level: "company" };
-  if (offered.has(NAV_PMO)) return { level: "portfolio" };
-  const first = input.projects.slice().sort((a, b) => a.code.localeCompare(b.code))[0];
-  return first ? { level: "project", projectId: first.id } : null;
 }
 
 /**
