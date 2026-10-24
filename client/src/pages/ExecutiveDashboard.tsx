@@ -47,7 +47,7 @@ export default function ExecutiveDashboard() {
       utils.dashboards.invalidate();
     },
   });
-  const t = pickLanguage(language, { ar: {
+  const t = pickLanguage(language, { ar: { notAssessed: "غير مقيَّم",
         back: "مساحة العمل",
         level: "المستوى 1 · القيادة التنفيذية",
         title: "نظرة القيادة",
@@ -71,7 +71,7 @@ export default function ExecutiveDashboard() {
         success: "تم حفظ مسودة القرار.",
         noProjects:
           "أنشئ مشروعًا ضمن نطاقك أولًا حتى يمكن ربط القرار بسجل مشروع محدد.",
-      }, en: {
+       projectOs: "PROJECT OS", projectProfitability: "ربحية المشاريع" }, en: { notAssessed: "Not assessed",
         back: "Workspace",
         level: "Level 1 · Executive Leadership",
         title: "Leadership view",
@@ -95,31 +95,31 @@ export default function ExecutiveDashboard() {
         success: "Decision draft saved.",
         noProjects:
           "Create a project in your scope first so the decision can be linked to a specific project record.",
-      }, ur: {
-        back: "Workspace",
-        level: "Level 1 · Executive Leadership",
-        title: "Leadership view",
-        sub: "Portfolio indicators and decisions requiring management attention.",
-        budget: "Current budget",
-        actual: "Actual cost",
-        forecast: "Forecast",
-        projects: "Projects",
-        decisions: "Open decisions",
-        attention: "Attention portfolio",
-        empty: "No portfolio data is available in the current access scope.",
-        loading: "Loading leadership dashboard…",
-        saving: "Saving decision draft…",
-        create: "Register decision",
-        project: "Project",
-        problem: "Problem or decision required",
-        options: "Options",
-        recommendation: "Recommendation",
-        select: "Select a project",
-        save: "Save decision draft",
-        success: "Decision draft saved.",
+       projectOs: "PROJECT OS", projectProfitability: "Project profitability" }, ur: { notAssessed: "جانچا نہیں گیا",
+        back: "ورک اسپیس",
+        level: "سطح 1 · انتظامی قیادت",
+        title: "قیادت کا منظر",
+        sub: "پورٹ فولیو کے اشاریے اور وہ فیصلے جن پر انتظامیہ کی توجہ درکار ہے۔",
+        budget: "موجودہ بجٹ",
+        actual: "اصل لاگت",
+        forecast: "پیش گوئی",
+        projects: "پروجیکٹس",
+        decisions: "کھلے فیصلے",
+        attention: "توجہ طلب پورٹ فولیو",
+        empty: "موجودہ رسائی کے دائرے میں پورٹ فولیو کا کوئی ڈیٹا دستیاب نہیں ہے۔",
+        loading: "قیادت کا ڈیش بورڈ لوڈ ہو رہا ہے…",
+        saving: "فیصلے کا مسودہ محفوظ کیا جا رہا ہے…",
+        create: "فیصلہ درج کریں",
+        project: "پروجیکٹ",
+        problem: "مسئلہ یا درکار فیصلہ",
+        options: "اختیارات",
+        recommendation: "سفارش",
+        select: "ایک پروجیکٹ منتخب کریں",
+        save: "فیصلے کا مسودہ محفوظ کریں",
+        success: "فیصلے کا مسودہ محفوظ ہو گیا۔",
         noProjects:
-          "Create a project in your scope first so the decision can be linked to a specific project record.",
-      } });
+          "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
+       projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
     return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
   }
@@ -129,7 +129,7 @@ export default function ExecutiveDashboard() {
     decisions: decisionsQuery.data?.decisions ?? [],
   };
   const money = (value: number) =>
-    value.toLocaleString(isArabic ? "ar" : "en", { maximumFractionDigits: 0 });
+    value.toLocaleString(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { maximumFractionDigits: 0 });
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({ tenantId, ...form });
@@ -159,17 +159,17 @@ export default function ExecutiveDashboard() {
         unassigned: "Projects without a portfolio",
         projects: "Projects",
       }, ur: {
-        title: "Executive cash-flow summary",
-        budget: "Planned budget",
-        actual: "Actual cost",
-        committed: "Commitments",
-        exposure: "Total exposure",
-        remaining: "Remaining budget",
-        byProject: "Exposure by project",
-        byPortfolio: "Cash flow by portfolio",
-        chart: "Exposure and remaining budget by portfolio",
-        unassigned: "Projects without a portfolio",
-        projects: "Projects",
+        title: "انتظامی نقد بہاؤ کا خلاصہ",
+        budget: "منصوبہ بند بجٹ",
+        actual: "اصل لاگت",
+        committed: "ذمہ داریاں",
+        exposure: "کل مالی تعرض",
+        remaining: "باقی بجٹ",
+        byProject: "پروجیکٹ کے لحاظ سے تعرض",
+        byPortfolio: "پورٹ فولیو کے لحاظ سے نقد بہاؤ",
+        chart: "پورٹ فولیو کے لحاظ سے تعرض اور باقی بجٹ",
+        unassigned: "بغیر پورٹ فولیو کے پروجیکٹس",
+        projects: "پروجیکٹس",
       } });
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
@@ -196,7 +196,7 @@ export default function ExecutiveDashboard() {
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_cash_flow" state={cashFlowQuery.error ? "error" : null} />
         <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">
-            PROJECT OS
+            {t.projectOs}
           </p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
           <p className="mt-2 text-slate-300">{t.sub}</p>
@@ -220,7 +220,7 @@ export default function ExecutiveDashboard() {
           />
         </div>}
         </SectionErrorBoundary>
-        {metricsQuery.data && <SectionErrorBoundary title={isArabic ? "ربحية المشاريع" : "Project profitability"} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
+        {metricsQuery.data && <SectionErrorBoundary title={t.projectProfitability} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
         {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" error={cashFlowQuery.error} onRetry={() => void cashFlowQuery.refetch()} /></div> : cashFlowQuery.data.cashFlow ? (
           <Card className="mt-6 border-amber-200 bg-amber-50">
@@ -329,7 +329,7 @@ export default function ExecutiveDashboard() {
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         {enumLabel(project.status, language)} ·{" "}
-                        {enumLabel(project.health?.status ?? "not assessed", language)}
+                        {project.health?.status ? enumLabel(project.health.status, language) : t.notAssessed}
                       </p>
                     </div>
                     <div className="text-end"><p className="text-sm font-semibold">{money(Number(project.forecastCost))}</p><div className="mt-2"><GovernedProjectControlLink tenantId={tenantId} projectId={project.id} compact /></div></div>
@@ -371,7 +371,7 @@ export default function ExecutiveDashboard() {
             {!data.projects.length && (
               <p className="mb-4 text-sm text-amber-700">{t.noProjects}</p>
             )}
-            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "You do not have permission to record executive decisions; this view is read-only for you." }}><form className="grid gap-4" onSubmit={submit}>
+            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "آپ کے پاس انتظامی فیصلے درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔" }}><form className="grid gap-4" onSubmit={submit}>
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}
