@@ -46,7 +46,7 @@ export default function EvmCalculator() {
         action: "الإجراء الموصى به:",
         secure: "الحساب مركزي ومحكوم",
         controlLabel: "ضوابط EVM",
-      }, en: {
+       returnWorkspace: "العودة إلى مساحة عمل Dashio", evm: "EVM", bacCpi: "BAC / CPI", acFormula: "AC + (BAC − EV)", acFormulaFull: "AC + (BAC − EV) / (CPI × SPI)" }, en: {
         level: "CENTRAL CONTROL ENGINE",
         workspace: "Workspace",
         engine: "Earned Value Engine",
@@ -64,25 +64,25 @@ export default function EvmCalculator() {
         action: "Recommended action:",
         secure: "Centralized and governed calculation",
         controlLabel: "EVM controls",
-      }, ur: {
+       returnWorkspace: "Return to Dashio workspace", evm: "EVM", bacCpi: "BAC / CPI", acFormula: "AC + (BAC − EV)", acFormulaFull: "AC + (BAC − EV) / (CPI × SPI)" }, ur: {
         level: "CENTRAL CONTROL ENGINE",
-        workspace: "Workspace",
-        engine: "Earned Value Engine",
-        engineSub: "A centralized, tested calculation for cost and schedule control.",
-        inputTitle: "Calculation inputs",
+        workspace: "ورک اسپیس",
+        engine: "اکتسابی قدر کا انجن (Earned Value Engine)",
+        engineSub: "لاگت اور شیڈول کے کنٹرول کے لیے مرکزی اور جانچا ہوا حساب۔",
+        inputTitle: "حساب کے ان پٹ",
         labels: ["PV — Planned Value", "EV — Earned Value", "AC — Actual Cost", "BAC — Budget at Completion"],
-        method: "EAC method",
-        manual: "Approved manual EAC",
-        calc: "Calculate EVM metrics",
+        method: "EAC کا طریقہ",
+        manual: "منظور شدہ دستی EAC",
+        calc: "EVM کے پیمانوں کا حساب لگائیں",
         outcome: "CONTROL OUTCOME",
-        title: "Cost and schedule performance",
-        empty: "Enter actual project-control values to calculate a decision-ready EVM view.",
-        loading: "Calculating central EVM metrics…",
-        guidance: "Management guidance",
-        action: "Recommended action:",
-        secure: "Centralized and governed calculation",
-        controlLabel: "EVM controls",
-      } });
+        title: "لاگت اور شیڈول کی کارکردگی",
+        empty: "فیصلے کے لیے تیار EVM منظرنامہ حاصل کرنے کے لیے پروجیکٹ کنٹرول کی اصل قدریں درج کریں۔",
+        loading: "مرکزی EVM پیمانوں کا حساب لگایا جا رہا ہے…",
+        guidance: "انتظامی رہنمائی",
+        action: "تجویز کردہ اقدام:",
+        secure: "مرکزی اور منظم حساب",
+        controlLabel: "EVM کنٹرولز",
+       returnWorkspace: "Dashio ورک اسپیس پر واپس جائیں", evm: "EVM", bacCpi: "BAC / CPI", acFormula: "AC + (BAC − EV)", acFormulaFull: "AC + (BAC − EV) / (CPI × SPI)" } });
 
   const input = {
     pv: Number(values.pv),
@@ -98,17 +98,17 @@ export default function EvmCalculator() {
   const update = (key: keyof Values, value: string) => setValues(current => ({ ...current, [key]: value }));
   const metric = (key: typeof metrics[number]) => {
     const value = query.data?.[key.toLowerCase() as keyof typeof query.data];
-    return typeof value === "number" ? value.toLocaleString(isArabic ? "ar" : "en", { maximumFractionDigits: 2 }) : "—";
+    return typeof value === "number" ? value.toLocaleString(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { maximumFractionDigits: 2 }) : "—";
   };
   const varianceAlert = (query.data?.cpi !== null && query.data?.cpi !== undefined && query.data.cpi < 0.9)
     || (query.data?.spi !== null && query.data?.spi !== undefined && query.data.spi < 0.9);
-  const BackChevron = isArabic ? ChevronLeft : ChevronRight;
+  const BackChevron = pickLanguage(language, { ar: ChevronLeft, en: ChevronRight, ur: ChevronLeft });
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4">
-          <Link href="/" aria-label={isArabic ? "العودة إلى مساحة عمل Dashio" : "Return to Dashio workspace"}>
+          <Link href="/" aria-label={t.returnWorkspace}>
             <BrandMark className="h-8 w-auto max-w-36" />
           </Link>
           <div className="flex items-center gap-3">
@@ -123,7 +123,7 @@ export default function EvmCalculator() {
           <BackChevron className="h-4 w-4" />
           {t.workspace}
           <span className="text-muted-foreground">/</span>
-          EVM
+          {t.evm}
         </Link>
 
         <section className="relative mt-6 overflow-hidden rounded-[24px] bg-[var(--dashio-bg-dark)] px-6 py-7 text-white shadow-xl shadow-[var(--dashio-indigo)]/10 sm:px-8">
@@ -147,7 +147,7 @@ export default function EvmCalculator() {
             </div>
             <div className="space-y-4">
               {(["pv", "ev", "ac", "bac"] as const).map((key, index) => <div key={key}><Label htmlFor={key}>{t.labels[index]}</Label><Input id={key} className="mt-1.5" type="number" min="0" step="0.01" value={values[key]} onChange={event => update(key, event.target.value)} /></div>)}
-              <div><Label>{t.method}</Label><Select value={values.eacMethod} onValueChange={value => update("eacMethod", value)}><SelectTrigger className="mt-1.5" aria-label={t.method}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bac_over_cpi">BAC / CPI</SelectItem><SelectItem value="ac_plus_remaining">AC + (BAC − EV)</SelectItem><SelectItem value="ac_plus_remaining_over_cpi_spi">AC + (BAC − EV) / (CPI × SPI)</SelectItem><SelectItem value="manual">{t.manual}</SelectItem></SelectContent></Select></div>
+              <div><Label>{t.method}</Label><Select value={values.eacMethod} onValueChange={value => update("eacMethod", value)}><SelectTrigger className="mt-1.5" aria-label={t.method}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bac_over_cpi">{t.bacCpi}</SelectItem><SelectItem value="ac_plus_remaining">{t.acFormula}</SelectItem><SelectItem value="ac_plus_remaining_over_cpi_spi">{t.acFormulaFull}</SelectItem><SelectItem value="manual">{t.manual}</SelectItem></SelectContent></Select></div>
               {values.eacMethod === "manual" ? <div><Label htmlFor="manualEac">{t.manual}</Label><Input id="manualEac" className="mt-1.5" type="number" min="0" step="0.01" value={values.manualEac} onChange={event => update("manualEac", event.target.value)} /></div> : null}
               <Button className="mt-2 w-full bg-[var(--dashio-indigo)] text-white hover:bg-[var(--dashio-indigo-deep)]" onClick={() => setSubmitted(true)}>{t.calc}</Button>
             </div>

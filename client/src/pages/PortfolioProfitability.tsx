@@ -38,7 +38,7 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
           </div>
           {query.data.projects.length === 0 && query.data.unavailable.length === 0 ? <p className="text-sm text-slate-500">{t.empty}</p> : (
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.project}</th><th className="text-start">{t.fpac}</th><th className="text-start">{t.movement}</th><th><span className="sr-only">{isArabic ? "فتح" : "Open"}</span></th></tr></thead>
+              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.project}</th><th className="text-start">{t.fpac}</th><th className="text-start">{t.movement}</th><th><span className="sr-only">{pickLanguage(language, { ar: "فتح", en: "Open", ur: "کھولیں" })}</span></th></tr></thead>
               <tbody>
                 {query.data.projects.map(project => {
                   const tr = project.movement === null ? null : trend(project.movement);

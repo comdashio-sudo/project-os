@@ -138,10 +138,11 @@ type ScreenResult<D> = { data: D; freshness: Array<{ source: string; ageDays: nu
 type Query<D> = { isLoading: boolean; error: unknown; data?: ScreenResult<D>; refetch: () => unknown };
 
 function Frame<D>({ query, t, isArabic, isEmpty, children, onOptions }: { query: Query<D>; t: T; isArabic: boolean; isEmpty: (data: D) => boolean; children: (data: D) => React.ReactNode; onOptions?: (options: Options) => void }) {
+  const { language } = useLanguage();
   const options = query.data?.options;
   useEffect(() => { if (options) onOptions?.(options); }, [options]); // eslint-disable-line react-hooks/exhaustive-deps
   if (query.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
-  if (!query.data) return <ErrorState isArabic={isArabic} error={query.error} title={isArabic ? "تعذّر تحميل ضبط المشروع PMC" : "The PMC workspace could not be loaded"} onRetry={() => query.refetch()} retryLabel={t.retry} />;
+  if (!query.data) return <ErrorState isArabic={isArabic} error={query.error} title={pickLanguage(language, { ar: "تعذّر تحميل ضبط المشروع PMC", en: "The PMC workspace could not be loaded", ur: "PMC ورک اسپیس لوڈ نہیں ہو سکا" })} onRetry={() => query.refetch()} retryLabel={t.retry} />;
   return (
     <div className="space-y-4">
       <p className="flex flex-wrap gap-2 text-xs text-slate-600" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-slate-100 px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? f.source}: {ageText(t, f.ageDays)}</span>)}</p>
@@ -337,7 +338,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         </header>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
-          <section aria-label={isArabic ? "عوامل التصفية" : "Filters"} className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
+          <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
             <label className="text-xs">{t.filters.unitFrom}<input aria-label={t.filters.unitFrom} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitFrom ?? ""} onChange={event => setFilters({ ...filters, unitFrom: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
             <label className="text-xs">{t.filters.unitTo}<input aria-label={t.filters.unitTo} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitTo ?? ""} onChange={event => setFilters({ ...filters, unitTo: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
@@ -347,7 +348,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         {pdfError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 print:hidden">{t.pdfFailed}</p>}
         <section ref={bodyRef} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
-          <SectionErrorBoundary key={tab} title={isArabic ? "هذه الشاشة" : "This screen"} isArabic={isArabic}>
+          <SectionErrorBoundary key={tab} title={pickLanguage(language, { ar: "هذه الشاشة", en: "This screen", ur: "یہ اسکرین" })} isArabic={isArabic}>
             {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
           </SectionErrorBoundary>
         </section>

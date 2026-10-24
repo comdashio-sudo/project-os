@@ -78,8 +78,8 @@ export default function SetupWizard() {
           ))}
         </ol></nav>
         <p className="mt-3 text-xs text-slate-600">{t.stepOf(index + 1)}</p>
-        <SourceNotice query={tenants} isArabic={isArabic} title={isArabic ? "قائمة شركاتك" : "Your company list"} className="mt-4" />
-        <SourceNotice query={projects} isArabic={isArabic} title={isArabic ? "قائمة مشاريع الشركة" : "The company's project list"} className="mt-4" />
+        <SourceNotice query={tenants} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة شركاتك", en: "Your company list", ur: "آپ کی کمپنیوں کی فہرست" })} className="mt-4" />
+        <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة مشاريع الشركة", en: "The company's project list", ur: "کمپنی کے پروجیکٹس کی فہرست" })} className="mt-4" />
         <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <SectionErrorBoundary key={step} title={t.steps[step]} isArabic={isArabic}>
             {step === "company" && <CompanyStep t={t.company} isArabic={isArabic} tenantId={tenantId} tenants={tenants.data ?? []} onDone={id => { navigate(`/setup/${id}#project`); setStep("project"); }} />}
@@ -101,6 +101,7 @@ export default function SetupWizard() {
 }
 
 function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof text)["ar"]["company"]; isArabic: boolean; tenantId: string; tenants: Array<{ tenantId: string; legalName?: string | null; name?: string | null }>; onDone: (tenantId: string) => void }) {
+  const { language } = useLanguage();
   const plans = trpc.selfService.plans.useQuery();
   const utils = trpc.useUtils();
   const [legalName, setLegalName] = useState(""); const [slug, setSlug] = useState(""); const [planCode, setPlanCode] = useState(""); const [seats, setSeats] = useState("5");
@@ -109,7 +110,7 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
   return (
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
-      <SourceNotice query={plans} isArabic={isArabic} title={isArabic ? "قائمة الخطط" : "The plan list"} className="mt-3" />
+      <SourceNotice query={plans} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة الخطط", en: "The plan list", ur: "پلانز کی فہرست" })} className="mt-3" />
       {tenants.length > 0 && <div className="mt-4"><Label htmlFor="setup-company">{current ? t.have : t.choose}</Label>
         <select id="setup-company" className={`${field} mt-1`} value={tenantId} onChange={event => { if (event.target.value) onDone(event.target.value); }}><option value="">—</option>{tenants.map(item => <option key={item.tenantId} value={item.tenantId}>{item.legalName ?? item.name ?? item.tenantId}</option>)}</select></div>}
       {tenantId && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{t.created}</p>}
@@ -134,7 +135,7 @@ function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetc
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
       {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3"><span><span dir="ltr" className="font-mono text-xs text-slate-500">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-emerald-700">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-slate-600">{t.none}</p>}
-      <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects.", ur: "You do not have permission to create projects." }}>
+      <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects.", ur: "آپ کو پروجیکٹ بنانے کی اجازت نہیں ہے۔" }}>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...form }); }}>
           <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /></div>
           <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /></div>
@@ -165,7 +166,7 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
       <p className="mt-2 leading-7 text-slate-600">{t.lead}</p>
       {admin.error ? <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(admin.error, isArabic)}</p> : null}
       {!roles.length && !admin.isLoading && !admin.error ? <p className="mt-3 text-sm text-slate-600">{t.noRoles}</p> : null}
-      <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite.", ur: "You do not have permission to manage the company, so you cannot invite." }}>
+      <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite.", ur: "آپ کو کمپنی کا انتظام کرنے کی اجازت نہیں ہے، اس لیے آپ دعوت نہیں دے سکتے۔" }}>
         <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!roleId) return; invite.mutate({ tenantId, email, roleId, scopeType: scope, scopeId: scope === "project" ? projectId : undefined }); }}>
           <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /></div>
           <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select></div>

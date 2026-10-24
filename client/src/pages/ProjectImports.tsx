@@ -214,7 +214,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       await registerUpload.mutateAsync({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, uploadKey: target.uploadKey, duplicateMode });
     } catch (error) {
       setUploadPercent(null);
-      setUploadError(error instanceof UploadFailure ? (isArabic ? "تعذّر رفع الملف إلى التخزين. تحقق من الاتصال وأعد المحاولة." : "The file could not be uploaded to storage. Check your connection and try again.") : getLocalizedProjectError(error, isArabic));
+      setUploadError(error instanceof UploadFailure ? (pickLanguage(language, { ar: "تعذّر رفع الملف إلى التخزين. تحقق من الاتصال وأعد المحاولة.", en: "The file could not be uploaded to storage. Check your connection and try again.", ur: "فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ اپنا کنکشن جانچیں اور دوبارہ کوشش کریں۔" })) : getLocalizedProjectError(error, isArabic));
     }
   };
   const requiredFields = moduleCode === "openingBalances" ? ["warehouseCode", "materialCode", "quantity", "unitCost"] : moduleCode === "wbs" ? ["code", "name"] : moduleCode === "budget" ? ["costCode", "originalAmount", "currentAmount"] : moduleCode === "contracts" ? ["code", "title", "counterparty", "contractValue", "currency"] : moduleCode === "materials" ? ["code", "description", "unitOfMeasure", "category"] : ["recordType", "wbsCode"];
@@ -230,20 +230,20 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   const diffReady = diff.data?.supported ? diff.data : undefined;
   const selected = detail.data;
   const importErrorLabel = (code: string) => ({
-    IMPORT_REFERENCE_NOT_FOUND: isArabic ? "المستودع أو المادة غير موجود في هذا المشروع أو غير فعّال." : "The warehouse or material does not exist in this project or is not active.",
-    IMPORT_SINGLE_SHEET_REQUIRED: isArabic ? "يجب أن يحتوي الملف على ورقة عمل واحدة فقط." : "The file must contain exactly one worksheet.",
-    IMPORT_UNSUPPORTED_COLUMN: isArabic ? "يوجد عمود غير معتمد لنوع البيانات المحدد." : "The file includes a column not approved for the selected data type.",
-    IMPORT_DUPLICATE_FILE_KEY: isArabic ? "يوجد رمز مكرر داخل الملف. صحح التكرار قبل التحليل." : "A business key is repeated inside the file. Correct the duplicate before analysis.",
-      IMPORT_MAPPING_INVALID: isArabic ? "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد." : "A file column cannot be assigned to more than one approved field.",
-      IMPORT_INVALID_CURRENCY: isArabic ? "العملة يجب أن تكون الريال السعودي SAR؛ في الإصدار الأول لا تُقبل عملة أخرى." : "The currency must be the Saudi riyal, SAR; no other currency is accepted in this first version.",
-      SCHEDULE_RECORD_TYPE_INVALID: isArabic ? "نوع السجل يجب أن يكون WBS أو Activity." : "Record type must be WBS or Activity.",
-      SCHEDULE_WBS_REFERENCE_UNRESOLVED: isArabic ? "يشير النشاط إلى رمز WBS غير موجود في الملف." : "The activity references a WBS code that is absent from the file.",
-      SCHEDULE_DATE_INVALID: isArabic ? "تاريخ النشاط غير صالح أو أن النهاية تسبق البداية." : "An activity date is invalid or the finish precedes the start.",
-      SCHEDULE_STATUS_INVALID: isArabic ? "حالة النشاط غير معتمدة في قالب الجدول الزمني." : "The activity status is not supported by the schedule template.",
-      SCHEDULE_FORMAT_INVALID: isArabic ? "الجدول الزمني يقبل XLSX أو XER فقط." : "Schedule import accepts XLSX or XER only.",
-      IMPORT_FORMAT_INVALID: isArabic ? "صيغة الملف لا تتوافق مع القالب المحدد." : "The file format does not match the selected template.",
-      XER_REQUIRED_TABLE_MISSING: isArabic ? "ملف XER يجب أن يحتوي على جدولي PROJWBS وTASK." : "The XER file must include PROJWBS and TASK tables.",
-      XER_UNSUPPORTED_TABLE: isArabic ? "يحتوي ملف XER على جدول غير مدعوم في قالب الجدول الزمني المحكوم." : "The XER file includes a table that the controlled schedule template does not support.",
+    IMPORT_REFERENCE_NOT_FOUND: pickLanguage(language, { ar: "المستودع أو المادة غير موجود في هذا المشروع أو غير فعّال.", en: "The warehouse or material does not exist in this project or is not active.", ur: "یہ گودام یا مادّہ اس پروجیکٹ میں موجود نہیں یا فعال نہیں ہے۔" }),
+    IMPORT_SINGLE_SHEET_REQUIRED: pickLanguage(language, { ar: "يجب أن يحتوي الملف على ورقة عمل واحدة فقط.", en: "The file must contain exactly one worksheet.", ur: "فائل میں صرف ایک ورک شیٹ ہونی چاہیے۔" }),
+    IMPORT_UNSUPPORTED_COLUMN: pickLanguage(language, { ar: "يوجد عمود غير معتمد لنوع البيانات المحدد.", en: "The file includes a column not approved for the selected data type.", ur: "فائل میں ایسا کالم ہے جو منتخب ڈیٹا کی قسم کے لیے منظور شدہ نہیں۔" }),
+    IMPORT_DUPLICATE_FILE_KEY: pickLanguage(language, { ar: "يوجد رمز مكرر داخل الملف. صحح التكرار قبل التحليل.", en: "A business key is repeated inside the file. Correct the duplicate before analysis.", ur: "فائل کے اندر ایک کاروباری کلید دہرائی گئی ہے۔ تجزیے سے پہلے نقل درست کریں۔" }),
+      IMPORT_MAPPING_INVALID: pickLanguage(language, { ar: "لا يجوز ربط عمود ملف واحد بأكثر من حقل معتمد.", en: "A file column cannot be assigned to more than one approved field.", ur: "فائل کا ایک کالم ایک سے زیادہ منظور شدہ خانوں سے منسلک نہیں ہو سکتا۔" }),
+      IMPORT_INVALID_CURRENCY: pickLanguage(language, { ar: "العملة يجب أن تكون الريال السعودي SAR؛ في الإصدار الأول لا تُقبل عملة أخرى.", en: "The currency must be the Saudi riyal, SAR; no other currency is accepted in this first version.", ur: "کرنسی سعودی ریال SAR ہونی چاہیے؛ اس پہلے ورژن میں کوئی اور کرنسی قبول نہیں۔" }),
+      SCHEDULE_RECORD_TYPE_INVALID: pickLanguage(language, { ar: "نوع السجل يجب أن يكون WBS أو Activity.", en: "Record type must be WBS or Activity.", ur: "ریکارڈ کی قسم WBS یا Activity ہونی چاہیے۔" }),
+      SCHEDULE_WBS_REFERENCE_UNRESOLVED: pickLanguage(language, { ar: "يشير النشاط إلى رمز WBS غير موجود في الملف.", en: "The activity references a WBS code that is absent from the file.", ur: "سرگرمی ایک ایسے WBS کوڈ کا حوالہ دیتی ہے جو فائل میں موجود نہیں۔" }),
+      SCHEDULE_DATE_INVALID: pickLanguage(language, { ar: "تاريخ النشاط غير صالح أو أن النهاية تسبق البداية.", en: "An activity date is invalid or the finish precedes the start.", ur: "سرگرمی کی تاریخ غلط ہے یا اختتام آغاز سے پہلے ہے۔" }),
+      SCHEDULE_STATUS_INVALID: pickLanguage(language, { ar: "حالة النشاط غير معتمدة في قالب الجدول الزمني.", en: "The activity status is not supported by the schedule template.", ur: "سرگرمی کی حیثیت شیڈول ٹیمپلیٹ میں معاون نہیں۔" }),
+      SCHEDULE_FORMAT_INVALID: pickLanguage(language, { ar: "الجدول الزمني يقبل XLSX أو XER فقط.", en: "Schedule import accepts XLSX or XER only.", ur: "شیڈول امپورٹ صرف XLSX یا XER قبول کرتا ہے۔" }),
+      IMPORT_FORMAT_INVALID: pickLanguage(language, { ar: "صيغة الملف لا تتوافق مع القالب المحدد.", en: "The file format does not match the selected template.", ur: "فائل کا فارمیٹ منتخب ٹیمپلیٹ سے میل نہیں کھاتا۔" }),
+      XER_REQUIRED_TABLE_MISSING: pickLanguage(language, { ar: "ملف XER يجب أن يحتوي على جدولي PROJWBS وTASK.", en: "The XER file must include PROJWBS and TASK tables.", ur: "XER فائل میں PROJWBS اور TASK ٹیبلز ہونے چاہئیں۔" }),
+      XER_UNSUPPORTED_TABLE: pickLanguage(language, { ar: "يحتوي ملف XER على جدول غير مدعوم في قالب الجدول الزمني المحكوم.", en: "The XER file includes a table that the controlled schedule template does not support.", ur: "XER فائل میں ایک ایسا ٹیبل ہے جسے مقررہ شیڈول ٹیمپلیٹ معاون نہیں۔" }),
   }[code] ?? code);
 
   return (
@@ -278,7 +278,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       </div>}
       {progress.error && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(progress.error, isArabic)}</p>}
       {confirm.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
-      <SourceNotice query={imports} isArabic={isArabic} title={isArabic ? "سجل الاستيرادات السابقة" : "Previous imports"} />
+      <SourceNotice query={imports} isArabic={isArabic} title={pickLanguage(language, { ar: "سجل الاستيرادات السابقة", en: "Previous imports", ur: "پچھلے امپورٹس" })} />
       {imports.data?.length ? <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.history}</h3><div className="mt-2 space-y-2">{imports.data.slice(0, 5).map(record => <div className="rounded-lg bg-slate-50 p-2 text-xs" key={record.id}><div className="flex items-center justify-between gap-3"><span className="min-w-0 truncate">{record.fileName}</span><span className="text-slate-500">{t.status[record.status] ?? record.status}</span></div><p className="mt-1 text-slate-500">{t.duplicate[record.duplicateMode as DuplicateMode] ?? record.duplicateMode}</p>{record.status === "completed" && <p className="mt-1 text-slate-600">{t.created}: {record.createdRows} · {t.updated}: {record.updatedRows} · {t.skipped}: {record.skippedRows}</p>}<div className="mt-2 flex flex-wrap gap-2">{record.status === "validated" && <Button type="button" size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: record.id })}>{t.confirm}</Button>}<Button type="button" size="sm" variant="outline" onClick={() => setSelectedImportId(record.id)}>{t.viewDetails}</Button></div></div>)}</div></div> : null}
       {selectedImportId && <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.details}</h3>{detail.error && <p className="mt-2 text-xs text-red-700">{getLocalizedProjectError(detail.error, isArabic)}</p>}{selected && <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-medium">{selected.fileName}</p><p className="mt-1 text-slate-500">{t.duplicate[selected.duplicateMode as DuplicateMode] ?? selected.duplicateMode}</p>{selected.rowResults.length ? <div className="mt-3"><p className="font-medium">{t.results}</p><ul className="mt-1 space-y-1">{selected.rowResults.slice(0, 20).map(result => <li key={`${result.rowNumber}-${result.action}`} className="flex justify-between gap-3"><span>#{result.rowNumber} · {result.rowKey}</span><span>{t.action[result.action]}</span></li>)}</ul></div> : <p className="mt-3 text-slate-500">{t.noRowResults}</p>}{selected.errors.length ? <div className="mt-3"><p className="font-medium">{t.validationErrors}</p><ul className="mt-1 space-y-1">{selected.errors.slice(0, 20).map(error => <li key={`${error.rowNumber}-${error.code}`}>#{error.rowNumber} · {error.code}</li>)}</ul></div> : null}</div>}</div>}
     </section>

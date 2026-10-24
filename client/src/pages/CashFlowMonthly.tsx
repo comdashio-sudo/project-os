@@ -13,16 +13,16 @@ const text = {
     title: "صافي التدفق النقدي شهريًا", month: "الشهر", receipts: "المقبوض", outflows: "المصروف", net: "الصافي", cumulative: "التراكمي", empty: "لا حركة نقدية مسجلة بعد: تظهر المقبوضات عند سداد الفواتير.", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     lowest: (month: string, amount: string) => `أدنى رصيد تراكمي: ${amount} في ${month}.`,
     basis: "المقبوض = الفواتير المسدَّدة (شاملة الضريبة) بتاريخ السداد. المصروف = التكلفة الفعلية المرحّلة بتاريخ استحقاقها، وهي أقرب ما تسجله المنصة للمدفوعات لأن دفعات الموردين غير مسجلة.",
-  },
+   monthlyTable: "جدول التدفق النقدي الشهري" },
   en: {
     title: "Net cash flow by month", month: "Month", receipts: "Received", outflows: "Paid out", net: "Net", cumulative: "Cumulative", empty: "No money movement recorded yet: receipts appear when invoices are paid.", loading: "Loading…", retry: "Retry",
     lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
     basis: "Received = paid invoices (with VAT) on the day paid. Paid out = posted actual cost on the day it was incurred, the nearest the platform has to payments because payments to suppliers are not recorded.",
-  }, ur: {
-    title: "Net cash flow by month", month: "Month", receipts: "Received", outflows: "Paid out", net: "Net", cumulative: "Cumulative", empty: "No money movement recorded yet: receipts appear when invoices are paid.", loading: "Loading…", retry: "Retry",
+   monthlyTable: "Monthly cash-flow table" }, ur: {
+    title: "ماہانہ خالص نقد بہاؤ", month: "مہینہ", receipts: "وصول شدہ", outflows: "ادا کی گئی رقم", net: "Net", cumulative: "جمع شدہ", empty: "ابھی تک رقم کی کوئی حرکت درج نہیں ہوئی: وصولیاں اس وقت ظاہر ہوں گی جب انوائسز ادا ہوں گی۔", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
     lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
-    basis: "Received = paid invoices (with VAT) on the day paid. Paid out = posted actual cost on the day it was incurred, the nearest the platform has to payments because payments to suppliers are not recorded.",
-  },
+    basis: "وصول شدہ = ادا شدہ انوائسز (VAT سمیت) اس دن جس دن ادا ہوئیں۔ ادا کی گئی رقم = درج شدہ اصل لاگت اس دن جس دن وہ ہوئی، کیونکہ سپلائرز کو ہونے والی ادائیگیاں درج نہیں ہوتیں اور یہ پلیٹ فارم کے پاس قریب ترین معلومات ہے۔",
+   monthlyTable: "ماہانہ نقد بہاؤ کا جدول" },
 };
 
 export default function CashFlowMonthly({ tenantId, projectId, currency }: { tenantId: string; projectId: string; currency: string }) {
@@ -49,7 +49,7 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
       </div>
       {months.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
         <>
-          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={isArabic ? "جدول التدفق النقدي الشهري" : "Monthly cash-flow table"}>
+          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={t.monthlyTable}>
             <table className="w-full min-w-[34rem] text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.month}</th><th className="text-start">{t.receipts}</th><th className="text-start">{t.outflows}</th><th className="text-start">{t.net}</th><th className="text-start">{t.cumulative}</th></tr></thead>
               <tbody>{months.map(row => (
