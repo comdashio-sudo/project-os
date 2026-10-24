@@ -98,7 +98,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     expect(saved.status).toBe("draft");
     // an engineer cannot approve; the person who wrote it cannot either (here a PM who prepared their own report)
     await expect(callers.engineer.siteReports.submit({ ...scope(), reportId: saved.id })).resolves.toMatchObject({ status: "submitted" });
-    await expect(callers.engineer.siteReports.review({ ...scope(), reportId: saved.id, decision: "approve" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(callers.engineer.siteReports.review({ ...scope(), reportId: saved.id, decision: "approve" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(callers.engineer.siteReports.save({ ...scope(), reportDate: daysAgo(1), lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_LOCKED");
     const own = await callers.pm.siteReports.save({ ...scope(), reportDate: daysAgo(1), summary: "PM's own", lines: [] });
     await callers.pm.siteReports.submit({ ...scope(), reportId: own.id });
@@ -166,7 +166,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     const open = (await callers.engineer.submittals.list(scope())).find(row => row.id === created.id)!;
     expect(open.status).toBe("sent"); expect(open.daysAtConsultant).toBe(6);
     // the one who sent does not record the answer; the codes are the company's
-    await expect(callers.engineer.submittals.reply({ ...scope(), submittalId: created.id, replyCode: "A" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(callers.engineer.submittals.reply({ ...scope(), submittalId: created.id, replyCode: "A" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(callers.coord.submittals.reply({ ...scope(), submittalId: created.id, replyCode: "Z" })).rejects.toThrow("PROJECT_OS_SUBMITTAL_REPLY_CODE_UNKNOWN");
     const sentByCoord = await callers.coord.submittals.create({ ...scope(), submittalType: "shop_drawing", submittalNumber: "SD-001", title: "Slab drawing" });
     await callers.coord.submittals.send({ ...scope(), submittalId: sentByCoord.id });

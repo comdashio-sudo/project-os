@@ -677,7 +677,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.rfis.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await expect(caller.dashboards.pmo({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await expect(caller.tenant.administration({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
-    await expect(caller.dashboards.pmo({ tenantId: tenantA })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(caller.dashboards.pmo({ tenantId: tenantA })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     const [claims, contracts, imports, ncrs, resources, rfis, administration, assignable] = await Promise.all([
       caller.claims.list({ tenantId: tenantA, projectId: projectA }),
       caller.contracts.getProjectRegister({ tenantId: tenantA, projectId: projectA }),
@@ -1945,7 +1945,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const caller = appRouter.createCaller(context);
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectB, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE id = 'int-ent-a'");
-    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("The PROJECT PROJECT_OS_PRODUCT_NOT_ENTITLED");
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     await connection.query("UPDATE tenant_entitlements SET active = true WHERE id = 'int-ent-a'");
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: true, recipientCount: 1 });
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: false, recipientCount: 0 });

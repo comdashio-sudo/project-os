@@ -119,9 +119,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC rules, history, insp
     await expect(manager.pmc.setUnitActivityStatus({ ...scope, unitId: id(999), activityDefinitionId: ACT_A_WALLS, status: "COMPLETE" })).rejects.toThrow("PROJECT_OS_PMC_UNIT_NOT_FOUND");
     await expect(manager.pmc.progress({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await expect(reader.pmc.progress(scope)).resolves.toBeDefined();
-    await expect(reader.pmc.setUnitActivityStatus({ ...scope, unitId: UNIT_A2, activityDefinitionId: ACT_A_WALLS, status: "COMPLETE" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
-    await expect(reader.pmc.setStatusFactors({ ...scope, factors: { IN_PROGRESS: 0.1 } })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
-    await expect(none.pmc.progress(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(reader.pmc.setUnitActivityStatus({ ...scope, unitId: UNIT_A2, activityDefinitionId: ACT_A_WALLS, status: "COMPLETE" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(reader.pmc.setStatusFactors({ ...scope, factors: { IN_PROGRESS: 0.1 } })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(none.pmc.progress(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     const [rows] = await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM pmc_unit_activity_progress WHERE unitId = ?", [UNIT_A2]);
     expect(Number(rows[0].n)).toBe(0);
   }, 60_000);

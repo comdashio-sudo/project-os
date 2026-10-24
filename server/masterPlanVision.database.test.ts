@@ -23,7 +23,7 @@ const answer = (content: unknown) => ({
   id: "vision-double", created: 1, model: "test-model",
   choices: [{ index: 0, message: { role: "assistant", content: typeof content === "string" ? content : JSON.stringify(content) }, finish_reason: "stop" }],
 });
-const DENIED = "PROJECT_OS_PERMISSION_DENIED.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED";
 const LIMIT = 3 * 1024 * 1024;
 
 const KEYS = ["owner", "reader", "projectWriter", "stranger", "otherOwner", "platformAdmin"] as const;

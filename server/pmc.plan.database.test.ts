@@ -123,10 +123,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC site plan on a real 
   it("lets a reader look but not change the plan, and closes everything to a role without the permission and to another tenant's project", async () => {
     const reader = callerFor(users.reader, "pmcp-reader");
     const none = callerFor(users.none, "pmcp-none");
-    await expect(reader.pmc.uploadSitePlan({ ...scope, fileName: "p.png", base64: png(200, 200).toString("base64") })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
-    await expect(reader.pmc.saveUnitGeometries({ ...scope, geojson: collection({ unit: 1, coordinates: square(0.1, 0.1) }) })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
-    await expect(none.pmc.siteMap(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
-    await expect(none.pmc.unitCard({ ...scope, unitNumber: 1 })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(reader.pmc.uploadSitePlan({ ...scope, fileName: "p.png", base64: png(200, 200).toString("base64") })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(reader.pmc.saveUnitGeometries({ ...scope, geojson: collection({ unit: 1, coordinates: square(0.1, 0.1) }) })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(none.pmc.siteMap(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(none.pmc.unitCard({ ...scope, unitNumber: 1 })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(reader.pmc.siteMap({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   }, 60_000);
 });

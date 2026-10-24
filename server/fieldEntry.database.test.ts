@@ -89,7 +89,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Phone entry context and 
     const engineer = callerFor(ids.engineer, "field-engineer");
     const low = callerFor(ids.low, "field-low");
     await expect(engineer.fieldEntry.context({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
-    await expect(low.fieldEntry.context({ tenantId: T, projectId: P })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED.");
+    await expect(low.fieldEntry.context({ tenantId: T, projectId: P })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
   }, 60_000);
 
   it("keeps the existing write guards: an issue beyond the stock on hand is refused and changes nothing", async () => {
