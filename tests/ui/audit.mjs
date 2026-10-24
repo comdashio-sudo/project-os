@@ -54,7 +54,7 @@ const VIEWPORTS = [
 // The routes of the app (client/src/App.tsx), with the synthetic tenant and project in place of the parameters.
 const APP_SOURCE = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
 const ROUTES = [...new Set([...APP_SOURCE.matchAll(/path="([^"]+)"/g)].map(match => match[1]))]
-  .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID));
+  .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID).replace(":unitNumber", "101"));
 
 // Words that are allowed to stay in English: product codes, units and standard acronyms the Arabic glossary keeps.
 const ALLOWED_ENGLISH = new Set(["WBS", "EVM", "PV", "EV", "AC", "SPI", "CPI", "EAC", "ETC", "VAC", "TCPI", "FPAC", "PMC", "PMO", "XER", "XLSX", "CSV", "PDF", "Excel", "Dashio", "SAR", "USD", "API", "ID", "OK", "RFI", "NCR", "HSE", "BOQ", "GRN", "PO", "MRN", "EOS", "AI", "ZATCA", "Power", "BI", "Primavera", "Microsoft", "Google", "Gmail", "Supabase", "Vercel", "Resend", "Chrome", "Edge", "Safari", "Firefox",

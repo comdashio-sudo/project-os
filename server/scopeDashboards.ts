@@ -5,7 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, inArray, isNotNull, isNull, lt, ne, notInArray, sql } from "drizzle-orm";
 import {
   activities,
-  designSubmittals,
+  consultantSubmittals,
   ncrs,
   pmcInspectionRequests,
   projectMaterialOverrides,
@@ -72,8 +72,8 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
     .where(and(eq(activities.tenantId, tenantId), inArray(activities.projectId, ids), ne(activities.status, "completed"), isNotNull(activities.plannedFinishAt), lt(activities.plannedFinishAt, now))).groupBy(activities.projectId));
   const waitingRequests = await countBy(db, projectIds, ids => db.select({ projectId: pmcInspectionRequests.projectId, n: sql<number>`count(*)::int` }).from(pmcInspectionRequests)
     .where(and(eq(pmcInspectionRequests.tenantId, tenantId), inArray(pmcInspectionRequests.projectId, ids), isNull(pmcInspectionRequests.responseCode))).groupBy(pmcInspectionRequests.projectId));
-  const waitingSubmittals = await countBy(db, projectIds, ids => db.select({ projectId: designSubmittals.projectId, n: sql<number>`count(*)::int` }).from(designSubmittals)
-    .where(and(eq(designSubmittals.tenantId, tenantId), inArray(designSubmittals.projectId, ids), eq(designSubmittals.status, "submitted"))).groupBy(designSubmittals.projectId));
+  const waitingSubmittals = await countBy(db, projectIds, ids => db.select({ projectId: consultantSubmittals.projectId, n: sql<number>`count(*)::int` }).from(consultantSubmittals)
+    .where(and(eq(consultantSubmittals.tenantId, tenantId), inArray(consultantSubmittals.projectId, ids), eq(consultantSubmittals.status, "sent"))).groupBy(consultantSubmittals.projectId));
   const waitingInspections = await countBy(db, projectIds, ids => db.select({ projectId: qualityInspections.projectId, n: sql<number>`count(*)::int` }).from(qualityInspections)
     .where(and(eq(qualityInspections.tenantId, tenantId), inArray(qualityInspections.projectId, ids), eq(qualityInspections.status, "submitted"))).groupBy(qualityInspections.projectId));
   const openNcrs = await countBy(db, projectIds, ids => db.select({ projectId: ncrs.projectId, n: sql<number>`count(*)::int` }).from(ncrs)

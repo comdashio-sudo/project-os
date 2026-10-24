@@ -36,7 +36,7 @@ async function load(db: Db, input: Scope & { submittalId: string }) {
   return row;
 }
 
-export async function createConsultantSubmittalForTenant(input: Scope & { submittalType: SubmittalType; submittalNumber: string; title: string; materialId?: string; pmcUnitId?: string; pmcActivityDefinitionId?: string; dueAt?: Date; resubmissionOfId?: string }) {
+export async function createConsultantSubmittalForTenant(input: Scope & { submittalType: SubmittalType; submittalNumber: string; title: string; materialId?: string; pmcUnitId?: string; pmcActivityDefinitionId?: string; dueAt?: Date; resubmissionOfId?: string; consultant?: string }) {
   const db = await authorize(input, WRITE);
   if (input.submittalType === "material_approval" && !input.materialId && !input.resubmissionOfId) throw refuse("BAD_REQUEST", "PROJECT_OS_SUBMITTAL_MATERIAL_REQUIRED");
   if (input.materialId) {
@@ -57,11 +57,11 @@ export async function createConsultantSubmittalForTenant(input: Scope & { submit
       const [{ latest }] = await tx.select({ latest: sql<number>`max(${consultantSubmittals.revision})::int` }).from(consultantSubmittals).where(and(mine(consultantSubmittals, input), eq(consultantSubmittals.submittalNumber, original.submittalNumber)));
       revision = (latest ?? original.revision) + 1; number = original.submittalNumber;
       await tx.update(consultantSubmittals).set({ status: "closed" }).where(eq(consultantSubmittals.id, original.id));
-      await tx.insert(consultantSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalType: original.submittalType, submittalNumber: number, revision, title: input.title, materialId: original.materialId, pmcUnitId: input.pmcUnitId ?? original.pmcUnitId, pmcActivityDefinitionId: input.pmcActivityDefinitionId ?? original.pmcActivityDefinitionId, dueAt: input.dueAt, createdByUserId: input.userId });
+      await tx.insert(consultantSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalType: original.submittalType, submittalNumber: number, revision, title: input.title, materialId: original.materialId, pmcUnitId: input.pmcUnitId ?? original.pmcUnitId, pmcActivityDefinitionId: input.pmcActivityDefinitionId ?? original.pmcActivityDefinitionId, consultant: input.consultant?.trim() || original.consultant, discipline: original.discipline, drawingId: original.drawingId, dueAt: input.dueAt, createdByUserId: input.userId });
     } else {
       const [clash] = await tx.select({ id: consultantSubmittals.id }).from(consultantSubmittals).where(and(mine(consultantSubmittals, input), eq(consultantSubmittals.submittalNumber, number))).limit(1);
       if (clash) throw refuse("CONFLICT", "PROJECT_OS_SUBMITTAL_NUMBER_EXISTS");
-      await tx.insert(consultantSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalType: input.submittalType, submittalNumber: number, revision, title: input.title, materialId: input.materialId, pmcUnitId: input.pmcUnitId, pmcActivityDefinitionId: input.pmcActivityDefinitionId, dueAt: input.dueAt, createdByUserId: input.userId });
+      await tx.insert(consultantSubmittals).values({ id, tenantId: input.tenantId, projectId: input.projectId, submittalType: input.submittalType, submittalNumber: number, revision, title: input.title, materialId: input.materialId, pmcUnitId: input.pmcUnitId, pmcActivityDefinitionId: input.pmcActivityDefinitionId, dueAt: input.dueAt, consultant: input.consultant?.trim() || null, createdByUserId: input.userId });
     }
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: input.resubmissionOfId ? "submittal.resubmitted" : "submittal.created", entityType: "consultant_submittal", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, submittalNumber: number, revision, submittalType: input.resubmissionOfId ? undefined : input.submittalType }) });
   });

@@ -1,0 +1,67 @@
+{
+  "what": "1000 requests to /api/v1 from one company key (reads and idempotent writes), one Node process, one local PostgreSQL, application role restricted by row-level security",
+  "when": "2026-10-24T06:37:59.909Z",
+  "requests": 1000,
+  "concurrency": 25,
+  "seconds": 3.7,
+  "requestsPerSecond": 269.9,
+  "overallMs": {
+    "p50": 84,
+    "p95": 192.2,
+    "p99": 254.8,
+    "max": 371.6
+  },
+  "statuses": {
+    "200": 1000
+  },
+  "networkErrors": 0,
+  "errors": [],
+  "byEndpoint": {
+    "GET /ping": {
+      "requests": 400,
+      "p50": 36,
+      "p95": 76.2,
+      "p99": 151.6,
+      "max": 183.3,
+      "statuses": {
+        "200": 400
+      }
+    },
+    "GET /sync/runs": {
+      "requests": 100,
+      "p50": 59,
+      "p95": 106.1,
+      "p99": 183.6,
+      "max": 183.6,
+      "statuses": {
+        "200": 100
+      }
+    },
+    "GET /export/budgets": {
+      "requests": 250,
+      "p50": 97.1,
+      "p95": 149,
+      "p99": 198.6,
+      "max": 216.2,
+      "statuses": {
+        "200": 250
+      }
+    },
+    "POST /erp/suppliers": {
+      "requests": 250,
+      "p50": 156.6,
+      "p95": 249.4,
+      "p99": 350.7,
+      "max": 371.6,
+      "statuses": {
+        "200": 250
+      }
+    }
+  },
+  "suppliersWritten": 250,
+  "machine": {
+    "cpus": 4,
+    "node": "v22.22.0"
+  },
+  "fingerprint": "eef4143fe8b7"
+}

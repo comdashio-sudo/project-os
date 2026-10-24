@@ -107,6 +107,9 @@ describe("ProjectTenders Excel export", () => {
     const table = screen.getByRole("table");
     fireEvent.click(within(table.closest("section") as HTMLElement).getByRole("button", { name: "تصدير إلى Excel" }));
     await waitFor(() => expect(buildTableWorkbook).toHaveBeenCalledTimes(1));
+    // The writer (exceljs, then jszip) keeps working after it has been CALLED. A test that returns here lets jsdom be torn down under it, and the late
+    // `Cannot read properties of undefined (reading 'nodebuffer')` is reported as an unhandled rejection that fails the whole run. Wait for the download.
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
     return { table, input: vi.mocked(buildTableWorkbook).mock.calls[0]![0] };
   };
 

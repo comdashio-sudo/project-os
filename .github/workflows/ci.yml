@@ -170,6 +170,21 @@ jobs:
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
           ./actionlint -color .github/workflows/*.yml
 
+  schema-migration:
+    name: structure change comes with a migration
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A baseline (drizzle/0000_baseline.sql, drizzle/baseline-security.sql) that changed without a numbered migration is a change no existing database would ever receive.
+      - run: node scripts/check-schema-migration.mjs "origin/${{ github.base_ref }}"
+
   secrets:
     name: secret scan
     runs-on: ubuntu-latest

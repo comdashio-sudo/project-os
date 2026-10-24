@@ -4,7 +4,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { apiKeys, auditLogs, consultantSubmittals, integrationMappings, materialMasters, pmcActivityDefinitions, pmcInspectionRequestUnits, pmcInspectionRequests, pmcUnits, projects } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { ensureReplyCodes } from "../qualityGate";
+import { ensureReplyCodes, ncrAcceptanceVerdict } from "../qualityGate";
 import { SUBMITTAL_TYPES } from "../consultantSubmittals";
 import { emitWebhookEvent, kickWebhookDelivery } from "./webhooks";
 import { finishSyncRun, recordSyncItems, stableHash, startSyncRun, type SyncItem } from "./sync";
@@ -13,7 +13,7 @@ type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Applied = Omit<SyncItem, "entityType" | "externalId">;
 const reject = (reason: string, detail?: string): Applied => ({ outcome: "rejected", reason, detail });
 export type ExternalActor = { tenantId: string; apiKeyId?: string; userId?: number };
-export type ExternalSubmittal = { externalId: string; project: string; type: string; number: string; revision?: number; title: string; sentAt?: string; dueAt?: string; repliedAt?: string; replyCode?: string; replyNote?: string; material?: string; unit?: number; activity?: string };
+export type ExternalSubmittal = { externalId: string; project: string; type: string; number: string; revision?: number; title: string; sentAt?: string; dueAt?: string; repliedAt?: string; replyCode?: string; replyNote?: string; material?: string; unit?: number; activity?: string; consultant?: string };
 export type ExternalInspection = { externalId: string; project: string; requestCode: string; units: number[]; activity: string; requestedAt: string; responseCode?: "A" | "B" | "C" | "UR" | null; contractor?: string; consultant?: string };
 
 async function mappingOf(db: Db, tenantId: string, system: string, entityType: string, externalId: string) {
@@ -60,7 +60,7 @@ async function applySubmittal(db: Db, actor: ExternalActor, system: string, reco
   const revision = record.revision ?? 0;
   const hash = stableHash(record);
   const mapped = await mappingOf(db, actor.tenantId, system, "submittal", record.externalId);
-  const values = { submittalType: record.type as (typeof SUBMITTAL_TYPES)[number], submittalNumber: record.number, revision, title: record.title, status: status as "draft" | "sent" | "replied", sentAt, dueAt, repliedAt, replyCode, replyNote: record.replyNote ?? null, materialId, pmcUnitId: unit?.id ?? null, pmcActivityDefinitionId: activityId };
+  const values = { submittalType: record.type as (typeof SUBMITTAL_TYPES)[number], submittalNumber: record.number, revision, title: record.title, status: status as "draft" | "sent" | "replied", sentAt, dueAt, repliedAt, replyCode, replyNote: record.replyNote ?? null, consultant: record.consultant?.trim() || null, materialId, pmcUnitId: unit?.id ?? null, pmcActivityDefinitionId: activityId };
   if (mapped?.internalId) {
     if (mapped.payloadHash === hash) return { outcome: "unchanged" };
     await db.update(consultantSubmittals).set({ ...values, updatedAt: new Date() }).where(and(eq(consultantSubmittals.id, mapped.internalId), eq(consultantSubmittals.tenantId, actor.tenantId)));
@@ -92,14 +92,21 @@ async function applyInspection(db: Db, actor: ExternalActor, system: string, rec
   const hash = stableHash(record);
   const mapped = await mappingOf(db, actor.tenantId, system, "inspection", record.externalId);
   const response = record.responseCode ?? null;
+  const blockedByNcr = async () => {
+    // work order 14: an accepted answer is not recorded while the company's NCR rule (default block) sees an open NCR on these units and this activity
+    const ncr = await ncrAcceptanceVerdict(db as never, actor.tenantId, unitRows.map(row => row.id), activity.id, response);
+    return ncr.openNcrs.length && ncr.mode === "block" ? reject("NCR_OPEN_BLOCKS_ACCEPTANCE", ncr.openNcrs.slice(0, 5).join(",")) : null;
+  };
   if (mapped?.internalId) {
     if (mapped.payloadHash === hash) return { outcome: "unchanged" };
+    const held = await blockedByNcr(); if (held) return held;
     await db.update(pmcInspectionRequests).set({ responseCode: response, contractorLabel: record.contractor ?? null, consultantLabel: record.consultant ?? null, requestedAt, updatedAt: new Date() }).where(and(eq(pmcInspectionRequests.id, mapped.internalId), eq(pmcInspectionRequests.tenantId, actor.tenantId)));
     await remember(db, actor.tenantId, system, "inspection", record.externalId, mapped.internalId, hash, record.requestCode);
     return { outcome: "updated" };
   }
   const [clash] = await db.select({ id: pmcInspectionRequests.id }).from(pmcInspectionRequests).where(and(eq(pmcInspectionRequests.projectId, project.id), eq(pmcInspectionRequests.requestCode, record.requestCode))).limit(1);
   if (clash) return reject("REQUEST_CODE_TAKEN", record.requestCode);
+  const held = await blockedByNcr(); if (held) return held;
   const id = crypto.randomUUID();
   await db.insert(pmcInspectionRequests).values({ id, tenantId: actor.tenantId, projectId: project.id, requestCode: record.requestCode, activityDefinitionId: activity.id, contractorLabel: record.contractor ?? null, consultantLabel: record.consultant ?? null, responseCode: response, requestedAt });
   await db.insert(pmcInspectionRequestUnits).values(unitRows.map(row => ({ id: crypto.randomUUID(), tenantId: actor.tenantId, projectId: project.id, inspectionRequestId: id, unitId: row.id })));

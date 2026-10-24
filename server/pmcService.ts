@@ -18,7 +18,7 @@ import {
   pmcVerificationStatuses,
 } from "../drizzle/schema";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
-import { qcCompletionGate } from "./qualityGate";
+import { ncrAcceptanceVerdict, qcCompletionGate } from "./qualityGate";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { calculateActivityCompletion, calculateProjectProgress, calculateUnitProgress, DEFAULT_STATUS_FACTORS, effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 
@@ -243,10 +243,15 @@ export async function respondPmcInspection(input: Scope & { inspectionRequestId:
     if (request.responseCode) throw refuse("CONFLICT", "PROJECT_OS_PMC_INSPECTION_ALREADY_ANSWERED");
     const [last] = await tx.select().from(pmcInspectionSteps).where(and(mine(pmcInspectionSteps, input), eq(pmcInspectionSteps.inspectionRequestId, input.inspectionRequestId), eq(pmcInspectionSteps.stepCode, "RESULT_RECEIVING"))).limit(1);
     if (!last || last.status !== "in_progress") throw refuse("BAD_REQUEST", "PROJECT_OS_PMC_INSPECTION_NOT_AT_RESULT_STEP");
+    // work order 14: an open NCR on these units and this activity keeps an answer from being recorded as an acceptance (the company's rule; default block)
+    const [{ activityDefinitionId }] = await tx.select({ activityDefinitionId: pmcInspectionRequests.activityDefinitionId }).from(pmcInspectionRequests).where(eq(pmcInspectionRequests.id, request.id));
+    const unitRows = await tx.select({ unitId: pmcInspectionRequestUnits.unitId }).from(pmcInspectionRequestUnits).where(eq(pmcInspectionRequestUnits.inspectionRequestId, request.id));
+    const ncr = await ncrAcceptanceVerdict(tx as never, input.tenantId, unitRows.map(row => row.unitId), activityDefinitionId, input.responseCode);
+    if (ncr.openNcrs.length && ncr.mode === "block") throw refuse("CONFLICT", "PROJECT_OS_NCR_OPEN_BLOCKS_ACCEPTANCE");
     await tx.update(pmcInspectionRequests).set({ responseCode: input.responseCode }).where(eq(pmcInspectionRequests.id, request.id));
     await tx.update(pmcInspectionSteps).set({ status: "complete", completedAt: new Date() }).where(eq(pmcInspectionSteps.id, last.id));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.inspection_answered", entityType: "pmc_inspection_request", entityId: request.id, metadata: JSON.stringify({ projectId: input.projectId, responseCode: input.responseCode }) });
-    return { responseCode: input.responseCode };
+    return { responseCode: input.responseCode, ...(ncr.openNcrs.length ? { warning: "NCR_OPEN", openNcrs: ncr.openNcrs } : {}) };
   });
 }
 
