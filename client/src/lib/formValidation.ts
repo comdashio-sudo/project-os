@@ -72,6 +72,9 @@ function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAr
     const missing = requiredFieldError(value, language);
     if (missing) return missing;
   }
+  // A value the person typed but that is shorter than the field's minimum (an empty optional field is not checked).
+  const minLength = element instanceof HTMLSelectElement ? 0 : element.minLength;
+  if (minLength > 0 && value.length > 0 && value.length < minLength) return fieldMessage("PROJECT_OS_FIELD_TOO_SHORT", language);
   if (!(element instanceof HTMLInputElement)) return null;
   if (element.type === "number") {
     const invalid = numberFieldError(value, language);

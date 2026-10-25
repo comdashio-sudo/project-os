@@ -29,6 +29,12 @@ describe("formFieldErrors: what the browser would have refused, in the screen's 
       .toEqual({ mail: "Enter a valid email address." });
   });
 
+  it("names a value shorter than the field's minimum, and lets an empty optional field through", () => {
+    expect(formFieldErrors(formOf('<input id="code" minlength="2" value="A">'), "en")).toEqual({ code: "The value is shorter than the minimum." });
+    expect(formFieldErrors(formOf('<input id="code" minlength="2" value="">'), "en")).toEqual({});
+    expect(formFieldErrors(formOf('<select id="plan"><option value="x" selected>x</option></select>'), "en")).toEqual({});
+  });
+
   it("checks nothing a person cannot be blamed for: disabled, id-less and button-like fields are skipped", () => {
     const form = formOf('<input id="off" required disabled><input required><input id="go" type="submit" required><input id="ok" value="x">');
     expect(formFieldErrors(form, "en")).toEqual({});
