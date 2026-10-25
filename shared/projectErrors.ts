@@ -501,6 +501,11 @@ export const projectErrorMessages = {
     en: "Enter a valid number.",
     ur: "درست عدد درج کریں۔",
   },
+  PROJECT_OS_FIELD_OUT_OF_RANGE: {
+    ar: "القيمة خارج الحدود المسموحة.",
+    en: "The value is outside the allowed range.",
+    ur: "قدر اجازت شدہ حد سے باہر ہے۔",
+  },
   PROJECT_OS_FIELD_DATE_INVALID: {
     ar: "أدخل تاريخًا صحيحًا.",
     en: "Enter a valid date.",
