@@ -147,7 +147,7 @@ import { diffHash, diffImportRows, summariseDiff, DIFF_PAGE_SIZE, CYCLE_MODULES,
 import { isLedgerModule, type LedgerModule } from "@shared/ledgerImportColumns";
 import { analyzeImportFile, buildImportTemplateFile, buildLedgerTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
-import { openIdForEmail } from "./_core/auth/emailCode";
+import { defaultRoleFor } from "./_core/userRole";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
@@ -173,7 +173,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet[field] = user[field] ?? null;
     }
   }
-  values.role = user.role ?? (ENV.ownerEmail && user.openId === openIdForEmail(ENV.ownerEmail) ? "admin" : "user");
+  values.role = user.role ?? defaultRoleFor(user.openId);
   updateSet.role = values.role;
   await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }

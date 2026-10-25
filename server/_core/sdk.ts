@@ -6,6 +6,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { accountIsCurrent } from "./userRole";
 import { sessionStore } from "./sessionStore";
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
@@ -72,15 +73,15 @@ class SDKServer {
     const session = await this.verifySession(sessionToken);
     if (!session) throw ForbiddenError("Invalid session cookie");
 
-    // A valid signature is not enough: the session must still be live in the database (not logged out, not expired).
-    const sessionUserId = await sessionStore.findLive(session.sid);
+    // A valid signature is not enough: the session must still be live in the database (not logged out, not expired). The two reads do not depend on each
+    // one another, so they go out together (one round trip instead of two).
+    const [sessionUserId, user] = await Promise.all([sessionStore.findLive(session.sid), db.getUserByOpenId(session.openId)]);
     if (sessionUserId === null) throw ForbiddenError("Session ended");
-
-    const user = await db.getUserByOpenId(session.openId);
     if (!user) throw ForbiddenError("User not found");
     if (user.id !== sessionUserId) throw ForbiddenError("Session does not belong to this user");
 
-    await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+    // The account is written only when the write would change something (its role as assigned, or a last-seen older than a minute): not on every request.
+    if (!accountIsCurrent(user)) await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
     return { user, sessionId: session.sid };
   }
 
