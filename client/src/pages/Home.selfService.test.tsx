@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   refetch: vi.fn(),
   tenantQuery: { data: [] as Array<unknown>, isLoading: false, isSuccess: true, isError: false, refetch: vi.fn() },
   signupError: null as unknown,
-  role: "user" as string,
+  role: "admin" as string,
   plansQuery: { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }] as Array<unknown> | undefined, isLoading: false, error: null as unknown, refetch: vi.fn(), isFetching: false },
   signupOptions: null as { onSuccess?: (result: { tenantId: string }) => void } | null,
 }));
@@ -41,7 +41,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "user"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
+afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "admin"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
 
 describe("Home self-service", () => {
   it("submits the server-catalog plan with company and seat boundaries", async () => {
@@ -88,6 +88,13 @@ describe("Home self-service", () => {
     expect(screen.queryByRole("link", { name: /Platform administration/ })).toBeNull();
   });
 
+  it("registration is by invitation: a person without a company who is not the platform owner is told how to get in, and is offered no creation form", () => {
+    state.role = "user";
+    render(<Home />);
+    expect(screen.getByText("Access is by invitation")).toBeTruthy();
+    expect(screen.queryByLabelText("Legal name")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
+  });
   it("hides self-service creation when the current workspace query failed", () => {
     state.tenantQuery = { data: [], isLoading: false, isSuccess: false, isError: true, refetch: state.refetch };
     render(<Home />);
