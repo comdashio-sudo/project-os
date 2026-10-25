@@ -70,6 +70,15 @@ describe("launch pre-flight", () => {
     expect((await runPreflight(deps(projectIn("iad1")))).some(item => item.area === "Vercel" && item.status === "warn" && /iad1/.test(item.text))).toBe(true);
   });
 
+  it("function EXECUTE: ok when nothing is open to PUBLIC and the default is closed, a warning (not a block) while the migration that closes it is still to be applied", async () => {
+    const withRows = (row: Record<string, unknown>) => deps(good(), { openDatabase: database({ "current_user AS name": [{ name: "postgres", superuser: false, createrole: true, version: "15.8" }], "FROM pg_roles WHERE rolname = 'project_os_app'": [], "storage.buckets": [{ present: true, can_insert: true, can_update: true }], "anon','authenticated','service_role'": [{ n: 0 }], "__project_os_migrations": [{ n: 9 }], "pg_default_acl": [row] }) });
+    const closed = await runPreflight(withRows({ open_now: 0, closed_by_default: true }));
+    expect(closed.some(item => item.area === "قاعدة البيانات" && item.status === "ok" && /لا دالة في public تمنح EXECUTE/.test(item.text))).toBe(true);
+    const open = await runPreflight(withRows({ open_now: 1, closed_by_default: false }));
+    expect(open.some(item => item.area === "قاعدة البيانات" && item.status === "warn" && /0009/.test(item.text))).toBe(true);
+    expect(blocks(open)).toEqual([]);
+  });
+
   it("READ-ONLY: every request it makes is a GET, nothing is written anywhere", async () => {
     const sim = simulate(good());
     await runPreflight({ ...deps(good()), fetch: sim.fetchImpl });

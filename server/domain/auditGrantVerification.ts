@@ -17,6 +17,11 @@ export type DbSecurityEvidence = {
   /** Table privileges held by the Data API roles that exist (anon, authenticated, service_role). */
   dataApiRoleTablePrivileges: number;
   role: { superuser: boolean; bypassRls: boolean; canCreateInPublic: boolean; canReadPgAuthid: boolean };
+  /**
+   * Work order 18 (docs/TASLEEM_LESSONS.md section 4): sequences the role cannot use (has_sequence_privilege), functions in public that grant EXECUTE to PUBLIC (aclexplode over
+   * proacl, or over acldefault when proacl is NULL: NULL means "everyone may execute"), and whether the default for functions the owner creates NEXT excludes PUBLIC (pg_default_acl).
+   */
+  objects: { sequencesUnusable: string[]; functionsOpenToPublic: string[]; newFunctionsClosedByDefault: boolean };
 };
 
 export function evaluateAuditGrantVerification(evidence: DbSecurityEvidence) {
@@ -33,10 +38,13 @@ export function evaluateAuditGrantVerification(evidence: DbSecurityEvidence) {
     noContextSeesNoTenantRows: evidence.noContextTenantRows === 0,
     strangerTenantSeesNoRows: evidence.strangerTenantRows === 0,
     dataApiRolesHoldNothing: evidence.dataApiRoleTablePrivileges === 0,
+    everySequenceUsable: evidence.objects.sequencesUnusable.length === 0,
+    noFunctionOpenToPublic: evidence.objects.functionsOpenToPublic.length === 0,
+    newFunctionsClosedByDefault: evidence.objects.newFunctionsClosedByDefault === true,
     roleIsRestricted: !evidence.role.superuser && !evidence.role.bypassRls && !evidence.role.canCreateInPublic && !evidence.role.canReadPgAuthid,
   };
   const approved = checks.hasAuditReadAndWritePath && !checks.hasForbiddenAuditGrant && checks.updateDenied && checks.deleteDenied && checks.truncateDenied
     && checks.everyTableHasRowLevelSecurity && checks.everyTableReadable && checks.noContextSeesNoTenantRows && checks.strangerTenantSeesNoRows
-    && checks.dataApiRolesHoldNothing && checks.roleIsRestricted;
+    && checks.dataApiRolesHoldNothing && checks.roleIsRestricted && checks.everySequenceUsable && checks.noFunctionOpenToPublic && checks.newFunctionsClosedByDefault;
   return { approved, checks };
 }
