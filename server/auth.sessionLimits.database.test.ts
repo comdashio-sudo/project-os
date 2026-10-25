@@ -127,6 +127,17 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("session limi
       }
       await owner.query("DELETE FROM companies WHERE id = ?", [created.tenantId]);
     });
+    it("NEGATIVE: in production a sign-in code is not sent to a reserved domain, even with REGISTRATION=open; outside production it still is", async () => {
+      (ENV as { registrationOpen: boolean }).registrationOpen = true;
+      const prev = process.env.EMAIL_BLOCK_RESERVED_DOMAINS;
+      try {
+        process.env.EMAIL_BLOCK_RESERVED_DOMAINS = "true";
+        expect(await serverDb.isEligibleToSignIn("someone@mailbox.example.test")).toBe(false);
+        expect(await serverDb.isEligibleToSignIn("someone@real-company.com")).toBe(true);
+        process.env.EMAIL_BLOCK_RESERVED_DOMAINS = "false";
+        expect(await serverDb.isEligibleToSignIn("someone@mailbox.example.test")).toBe(true);
+      } finally { if (prev === undefined) delete process.env.EMAIL_BLOCK_RESERVED_DOMAINS; else process.env.EMAIL_BLOCK_RESERVED_DOMAINS = prev; }
+    });
     it("with REGISTRATION=open the old behaviour returns: anyone may sign in and create a company (the owner's switch)", async () => {
       (ENV as { registrationOpen: boolean }).registrationOpen = true;
       expect(await serverDb.isEligibleToSignIn("anyone.lim@limits.example.test")).toBe(true);
