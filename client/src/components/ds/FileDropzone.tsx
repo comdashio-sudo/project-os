@@ -39,7 +39,7 @@ export function FileDropzone({ accept, maxBytes, items, onFiles, onRemove, disab
         <p className="text-sm font-medium text-foreground">{over ? text.dropActive : text.dropTitle}</p>
         <p className="text-xs text-muted-foreground">{text.dropOr}</p>
         <Button variant="secondary" size="md" disabled={disabled} onClick={() => input.current?.click()}>{items.length && !multiple ? text.dropReplace : text.dropChoose}</Button>
-        <p className="text-xs text-muted-foreground">{hint ?? `${text.dropTypes}: ${accept.map(item => item.replace(".", "").toUpperCase()).join(" · ")} — ${text.dropLimit}: ${formatBytes(maxBytes)}`}</p>
+        <p className="text-xs text-muted-foreground">{hint ?? <>{text.dropTypes}: <bdi dir="ltr">{accept.map(item => item.replace(".", "").toUpperCase()).join(" · ")}</bdi> — {text.dropLimit}: <bdi dir="ltr">{formatBytes(maxBytes)}</bdi></>}</p>
         <input ref={input} type="file" className="sr-only" tabIndex={-1} aria-hidden="true" multiple={multiple} accept={accept.join(",")} disabled={disabled}
           onChange={event => { if (event.target.files) take(event.target.files); event.target.value = ""; }} />
       </div>
@@ -48,7 +48,7 @@ export function FileDropzone({ accept, maxBytes, items, onFiles, onRemove, disab
         <li key={item.id} className="rounded-[var(--radius)] border border-border bg-card p-3">
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium" dir="auto">{item.name}</p><p className="text-xs text-muted-foreground">{formatBytes(item.size)}{item.status === "uploading" && item.progress !== undefined ? ` · ${formatPercent(item.progress, 0)}` : ""}</p></div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium" dir="auto">{item.name}</p><p className="text-xs text-muted-foreground"><bdi dir="ltr">{formatBytes(item.size)}</bdi>{item.status === "uploading" && item.progress !== undefined ? <> · <bdi dir="ltr">{formatPercent(item.progress, 0)}</bdi></> : null}</p></div>
             {item.status === "done" ? <span className="flex items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{text.dropDone}</span> : null}
             {item.status === "failed" ? <span className="flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="h-4 w-4" aria-hidden="true" />{text.dropFailed}</span> : null}
             {onRemove ? <button type="button" onClick={() => onRemove(item.id)} aria-label={`${text.dropRemove}: ${item.name}`} className="grid h-9 w-9 place-items-center rounded-[var(--radius)] text-muted-foreground hover:bg-muted"><X className="h-4 w-4" aria-hidden="true" /></button> : null}

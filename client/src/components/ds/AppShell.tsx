@@ -26,8 +26,8 @@ function Switchers({ companies, company, onCompany, projects, project, onProject
   const text = useDsText();
   return (
     <div className={cn("flex gap-2", vertical ? "flex-col" : "items-center")}>
-      <Select aria-label={text.company} options={companies} value={company} onValueChange={onCompany} className={vertical ? "" : "min-h-9 w-44 md:min-h-9"} />
-      <Select aria-label={text.project} options={projects} value={project} onValueChange={onProject} className={vertical ? "" : "min-h-9 w-44 md:min-h-9"} />
+      <Select aria-label={text.company} options={companies} value={company} onValueChange={onCompany} className={vertical ? "" : "min-h-9 w-52 md:min-h-9"} />
+      <Select aria-label={text.project} options={projects} value={project} onValueChange={onProject} className={vertical ? "" : "min-h-9 w-52 md:min-h-9"} />
     </div>
   );
 }
@@ -91,11 +91,13 @@ export function AppShell(props: Props) {
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside className={cn("sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col justify-between border-e border-sidebar-border bg-sidebar p-3 text-sidebar-foreground transition-[width] md:flex", collapsed ? "w-[4.5rem]" : "w-60")}>
-          <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
-          <button type="button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? text.expand : text.collapse} aria-expanded={!collapsed} className="flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius)] text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60">
-            {collapsed ? <ChevronsRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}{collapsed ? null : <span>{text.collapse}</span>}
-          </button>
+        <aside className={cn("hidden shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] md:block", collapsed ? "w-[4.5rem]" : "w-60")}>
+          <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] flex-col justify-between p-3">
+            <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
+            <button type="button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? text.expand : text.collapse} aria-expanded={!collapsed} className="flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius)] text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60">
+              {collapsed ? <ChevronsRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}{collapsed ? null : <span>{text.collapse}</span>}
+            </button>
+          </div>
         </aside>
         <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7"><div className="mx-auto flex max-w-5xl flex-col gap-5"><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.children}</div></main>
       </div>

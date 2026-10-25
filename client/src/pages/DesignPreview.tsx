@@ -151,7 +151,7 @@ function Frame({ direction, mode, screen, width, height, scale, language, label 
     <figure className="flex min-w-0 flex-col gap-2">
       <figcaption className="flex items-center justify-between text-xs text-muted-foreground"><span>{label}</span><a href={src} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{t.openFull}<ArrowUpRight className="h-3 w-3 rtl:-scale-x-100" aria-hidden="true" /></a></figcaption>
       <div className="overflow-auto rounded-[var(--radius)] border border-border bg-muted" style={{ maxWidth: "100%" }}>
-        <div style={{ width: width * scale, height: height * scale }}><iframe title={`${label}`} src={src} width={width} height={height} loading="lazy" className="origin-top-left border-0 bg-background" style={{ transform: `scale(${scale})` }} /></div>
+        <div style={{ width: width * scale, height: height * scale }}><iframe title={`${label}`} src={src} width={width} height={height} className="origin-top-left border-0 bg-background" style={{ transform: `scale(${scale})` }} /></div>
       </div>
     </figure>
   );

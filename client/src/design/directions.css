@@ -279,3 +279,8 @@
 [data-direction][data-lang="ur"], [data-direction] [lang="ur"] { font-family: var(--font-ur); line-height: 1.95; }
 [data-direction] * { border-color: var(--border); }
 [data-direction] :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* the app's base layer sets the body's face from the page language; inside a direction the direction's own face wins, for the page and for the menus and dialogs drawn into <body> */
+html[data-direction][data-lang] body { font-family: var(--font-lat); background: var(--background); color: var(--foreground); }
+html[data-direction][data-lang][dir="rtl"] body { font-family: var(--font-ar); }
+html[data-direction][data-lang="ur"] body { font-family: var(--font-ur); line-height: 1.95; }

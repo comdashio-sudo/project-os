@@ -20,7 +20,8 @@ export function formatBytes(bytes: number): string {
   const units = ["KB", "MB", "GB"];
   let value = bytes / 1024; let unit = 0;
   while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
-  return `${formatNumber(value, value >= 100 ? 0 : 1)} ${units[unit]}`;
+  const decimals = value >= 100 || Number.isInteger(Math.round(value * 10) / 10) ? 0 : 1;
+  return `${formatNumber(value, decimals)} ${units[unit]}`;
 }
 
 /** 2026-10-25 -> "25 Oct 2026" in the month names of the language, digits Western. */

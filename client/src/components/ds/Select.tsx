@@ -15,7 +15,7 @@ export function Select({ options, value, onValueChange, placeholder, id, invalid
   return (
     <RadixSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <RadixSelect.Trigger id={id} aria-label={ariaLabel} aria-describedby={describedBy} aria-invalid={invalid || undefined}
-        className={cn(controlClass(invalid), "flex min-h-11 items-center justify-between gap-2 text-start data-[placeholder]:text-muted-foreground md:min-h-10", className)}>
+        className={cn(controlClass(invalid), "flex min-h-11 items-center justify-between gap-2 text-start data-[placeholder]:text-muted-foreground md:min-h-10 [&>span:first-child]:min-w-0 [&>span:first-child]:truncate", className)}>
         <RadixSelect.Value placeholder={placeholder ?? text.selectPlaceholder} />
         <RadixSelect.Icon><ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /></RadixSelect.Icon>
       </RadixSelect.Trigger>
