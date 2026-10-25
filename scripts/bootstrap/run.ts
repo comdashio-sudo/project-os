@@ -65,12 +65,14 @@ async function databasePhase() {
   const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
-  await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
+  const target = await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
   const poolerHost = await api.poolerHost();
   const ca = await downloadCa(realFetch);
   const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost, databasePassword, appRolePassword: deriveAppRolePassword(databasePassword) });
   mask(urls.adminSession);
   exportEnv("DATABASE_URL", urls.adminSession); exportEnv("DATABASE_SSL_CA", ca);
+  // for the daily backup, which also reads the storage buckets through the project's S3 endpoint (public information; the access keys are the repository's secrets)
+  exportEnv("STORAGE_S3_ENDPOINT", storageEndpoint(SUPABASE_PROJECT_REF)); exportEnv("STORAGE_S3_REGION", target.region || "ap-southeast-1");
   step("اتصال قاعدة البيانات للمشروع المقصود فقط", "ok");
 }
 
