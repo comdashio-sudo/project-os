@@ -99,6 +99,19 @@ describe("e-mail code routes", () => {
     expect(h.upserts).toHaveLength(1); // asking for a code never creates or touches an account
   });
 
+  it("a provider send limit tells the screen how many seconds remain; the app's own source-address limit does not", async () => {
+    const h = await harness();
+    expect((await h.post("/api/auth/email/request", { email: "a@example.test" })).status).toBe(200);
+    h.clock.value += 11_000;
+    const limited = await h.post("/api/auth/email/request", { email: "a@example.test" });
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({ code: "PROJECT_OS_AUTH_RATE_LIMITED", retryAfterSeconds: 19 });
+    for (let i = 0; i < 20; i++) await h.post("/api/auth/email/request", { email: `user${i}@example.test` });
+    const own = await h.post("/api/auth/email/request", { email: "late@example.test" });
+    expect(own.status).toBe(429);
+    expect(await own.json()).toEqual({ code: "PROJECT_OS_AUTH_RATE_LIMITED" });
+  });
+
   it("limits one source address on verification too, whatever the e-mail addresses", async () => {
     const h = await harness();
     const statuses: number[] = [];

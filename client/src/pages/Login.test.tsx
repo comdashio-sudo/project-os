@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -105,5 +105,87 @@ describe("login page", () => {
     render(<Login />);
     expect(screen.queryByRole("link", { name: "Continue with Google" })).toBeNull();
     expect((await screen.findByRole("alert")).textContent).toBe("That Google account's e-mail is not verified.");
+  });
+
+  it("takes a code of 6, 7 or 8 digits (the length is a server setting) and no more", async () => {
+    stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true } });
+    const user = userEvent.setup();
+    render(<Login />);
+    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    const input = (await screen.findByLabelText("Sign-in code")) as HTMLInputElement;
+    const submit = screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement;
+    await user.type(input, "12345");
+    expect(submit.disabled).toBe(true);
+    await user.type(input, "6");
+    expect(submit.disabled).toBe(false);
+    await user.type(input, "78");
+    expect(input.value).toBe("12345678");
+    expect(submit.disabled).toBe(false);
+    await user.type(input, "9");
+    expect(input.value).toBe("12345678");
+  });
+
+  it("counts 60 seconds before a new code can be asked for, and says that only the newest code works", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const calls = stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true } });
+      const user = userEvent.setup({ advanceTimers: ms => vi.advanceTimersByTime(ms) });
+      render(<Login />);
+      await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+      await user.click(screen.getByRole("button", { name: "Send code" }));
+      await screen.findByLabelText("Sign-in code");
+      expect(screen.getByText("Only the newest code works: every new request cancels the previous one.")).toBeTruthy();
+      const waiting = screen.getByRole("button", { name: "Send a new code in 60 s" }) as HTMLButtonElement;
+      expect(waiting.disabled).toBe(true);
+      for (let second = 0; second < 60; second++) await act(async () => { vi.advanceTimersByTime(1000); });
+      const again = (await screen.findByRole("button", { name: "Send a new code" })) as HTMLButtonElement;
+      expect(again.disabled).toBe(false);
+      await user.click(again);
+      expect(calls.filter(call => call.url === "/api/auth/email/request")).toHaveLength(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("a provider send limit (429 with seconds) is not a wrong code: it moves to the code step, says to use the code already sent, and counts the seconds", async () => {
+    stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: false, status: 429, body: { code: "PROJECT_OS_AUTH_RATE_LIMITED", retryAfterSeconds: 49 } } });
+    const user = userEvent.setup();
+    render(<Login />);
+    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("A code was sent to you a moment ago. Enter the code you received; asking for a new one cancels the previous one.");
+    expect(screen.getByLabelText("Sign-in code")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send a new code in 49 s" })).toBeTruthy();
+  });
+
+  it("a server fault is not shown as a problem with the address; a dropped connection says so", async () => {
+    stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: false, status: 500, body: { code: "PROJECT_OS_AUTH_FAILED" } } });
+    const user = userEvent.setup();
+    render(<Login />);
+    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("We could not complete the request because of a problem on our side, not with your e-mail. Try again shortly.");
+  });
+
+  it("the button in the mailed message opens the code step without the address in the link; the address comes from this tab's session storage", async () => {
+    window.sessionStorage.setItem("login.email", "engineer@example.test");
+    const calls = stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/verify": { ok: true } });
+    withSearch("?step=code");
+    const user = userEvent.setup();
+    const { container } = render(<Login />);
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(calls.some(call => call.url === "/api/auth/email/verify")).toBe(true));
+    expect(calls.find(call => call.url === "/api/auth/email/verify")?.body).toEqual({ email: "engineer@example.test", code: "123456" });
+    expect(window.location.search).not.toMatch(/@|email/);
+    expect(container.querySelector("form")?.getAttribute("method")).toBe("post");
+    window.sessionStorage.clear();
+  });
+
+  it("without a remembered address, ?step=code falls back to asking for the address", async () => {
+    window.sessionStorage.clear();
+    stubFetch({ "/api/auth/config": { ok: true, body: {} } });
+    withSearch("?step=code");
+    render(<Login />);
+    expect(await screen.findByLabelText("E-mail address")).toBeTruthy();
   });
 });

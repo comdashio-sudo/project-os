@@ -12,7 +12,8 @@ export const DEFAULT_CODE_TTL_SECONDS = 60 * 60;
 export type EmailCodeErrorCode = "EMAIL_INVALID" | "RATE_LIMITED" | "MAIL_UNAVAILABLE" | "CODE_INVALID";
 
 export class EmailCodeError extends Error {
-  constructor(readonly code: EmailCodeErrorCode) {
+  /** `retryAfterSeconds` is set only when the provider said how long to wait ("after 49 seconds"): the screen turns it into a countdown and tells the person to use the code already sent. */
+  constructor(readonly code: EmailCodeErrorCode, readonly retryAfterSeconds?: number) {
     super(code);
     this.name = "EmailCodeError";
   }
