@@ -103,7 +103,7 @@ GRANT EXECUTE ON FUNCTION app_system(), app_user_id(), app_tenant_ids() TO proje
 CREATE FUNCTION project_os_apply_conventions() RETURNS integer LANGUAGE plpgsql AS $fn$
 DECLARE
   t record;
-  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts'];
+  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts', 'user_mfa'];
   child_tables constant jsonb := '{
     "data_import_errors":            ["import_id",         "data_imports"],
     "data_import_row_results":       ["import_id",         "data_imports"],

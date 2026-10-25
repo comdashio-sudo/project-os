@@ -20,6 +20,10 @@ export type SessionStore = {
   create(input: { userId: number; expiresAt: Date; now?: Date }): Promise<string>;
   /** The user id of a live session, or null. Live = not revoked, not past its expiry, younger than 14 days, and seen within the last 24 hours. A live session is marked seen (at most every five minutes). */
   findLive(sessionId: string, now?: Date): Promise<number | null>;
+  /** The same lookup, with the session's second-step state: `mfaVerified` is true once the session passed two-step verification. */
+  findLiveSession(sessionId: string, now?: Date): Promise<{ userId: number; mfaVerified: boolean } | null>;
+  /** Marks a live session as having passed the second step. true only when a live session was updated. */
+  markMfaVerified(sessionId: string, now?: Date): Promise<boolean>;
   /** true only when this call ended a live session. */
   revoke(sessionId: string, now?: Date): Promise<boolean>;
   /** Ends every live session of one user and returns how many. */
@@ -39,16 +43,25 @@ export const sessionStore: SessionStore = {
   },
 
   async findLive(sessionId, now = new Date()) {
+    return (await this.findLiveSession(sessionId, now))?.userId ?? null;
+  },
+
+  async findLiveSession(sessionId, now = new Date()) {
     const db = await database();
     const oldestAllowed = new Date(now.getTime() - SESSION_MAX_AGE_MS);
     const idleSince = new Date(now.getTime() - SESSION_IDLE_MS);
-    const [row] = await db.select({ userId: authSessions.userId, lastSeenAt: authSessions.lastSeenAt }).from(authSessions)
+    const [row] = await db.select({ userId: authSessions.userId, lastSeenAt: authSessions.lastSeenAt, mfaVerifiedAt: authSessions.mfaVerifiedAt }).from(authSessions)
       .where(and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, now), gt(authSessions.createdAt, oldestAllowed), gt(sql`coalesce(${authSessions.lastSeenAt}, ${authSessions.createdAt})`, idleSince))).limit(1);
     if (!row) return null;
     if (!row.lastSeenAt || now.getTime() - row.lastSeenAt.getTime() > LAST_SEEN_REFRESH_MS) {
       await db.update(authSessions).set({ lastSeenAt: now }).where(and(eq(authSessions.id, sessionId), or(isNull(authSessions.lastSeenAt), lt(authSessions.lastSeenAt, new Date(now.getTime() - LAST_SEEN_REFRESH_MS))))).catch(() => undefined);
     }
-    return row.userId;
+    return { userId: row.userId, mfaVerified: row.mfaVerifiedAt !== null };
+  },
+
+  async markMfaVerified(sessionId, now = new Date()) {
+    const db = await database();
+    return affected(await db.update(authSessions).set({ mfaVerifiedAt: now }).where(and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, now)))) === 1;
   },
 
   async revoke(sessionId, now = new Date()) {

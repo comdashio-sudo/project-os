@@ -31,6 +31,7 @@ vi.mock("@/components/ui/select", () => ({
   SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => <option value={value}>{children}</option>,
 }));
+vi.mock("@/components/MfaGate", () => ({ MfaGate: ({ children }: { children: React.ReactNode }) => <>{children}</> })); // the second-step gate has its own test (MfaGate.test.tsx)
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     tenant: { mine: { useQuery: () => ({ ...state.tenantQuery, refetch: state.refetch }) } },

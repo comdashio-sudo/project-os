@@ -57,7 +57,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { beginEnrolment, confirmEnrolment, mfaStatus, verifySecondStep } from "./mfa";
 
 const scopeSchema = z.object({
   type: z.enum(["company", "portfolio", "program", "project"]),
@@ -102,6 +103,13 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       return { success: true, ended } as const;
     }),
+  }),
+  // Two-step verification (TOTP). These procedures are outside the second-step gate on purpose: they are how a session gets through it.
+  mfa: router({
+    status: mfaProcedure.query(({ ctx }) => mfaStatus(ctx.user, ctx.mfaVerified)),
+    beginEnrolment: mfaProcedure.mutation(({ ctx }) => beginEnrolment(ctx.user)),
+    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12) })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code)),
+    verify: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(16) })).mutation(({ ctx, input }) => verifySecondStep(ctx.user, ctx.sessionId ?? "", input.code)),
   }),
   access: router({
     check: protectedProcedure
