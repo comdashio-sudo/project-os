@@ -5,6 +5,7 @@ import { safeNext } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import React from "react";
 import { pickLanguage } from "@/lib/language";
+import { emailFieldError } from "@/lib/formValidation";
 import { LanguageToggle } from "@/components/LanguageToggle";
 
 type Step = "email" | "code";
@@ -138,6 +139,7 @@ export default function Login() {
   const [busy, setBusy] = React.useState(false);
   const [errorKey, setErrorKey] = React.useState<string | null>(params.get("error"));
   const [googleEnabled, setGoogleEnabled] = React.useState(false);
+  const [emailProblem, setEmailProblem] = React.useState<string | null>(null);
 
   // The button stays disabled until the page is interactive, so a press can never go to a form nothing is listening to.
   React.useEffect(() => { setReady(true); }, []);
@@ -158,6 +160,10 @@ export default function Login() {
 
   const requestCode = async (event?: React.FormEvent) => {
     event?.preventDefault();
+    // The address is checked here, in the page's language, and the message is shown beside the field (the browser's own check is English).
+    const problem = emailFieldError(email, language);
+    setEmailProblem(problem);
+    if (problem) return;
     setBusy(true);
     setErrorKey(null);
     const result = await post("/api/auth/email/request", { email });
@@ -199,7 +205,8 @@ export default function Login() {
           <form onSubmit={requestCode} method="post" className="mt-5 space-y-4" noValidate>
             <p className="text-sm text-slate-600">{t.emailHelp}</p>
             <label className="block text-sm font-medium" htmlFor="login-email">{t.email}</label>
-            <Input id="login-email" type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="h-12 text-base" required />
+            <Input id="login-email" type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="h-12 text-base" required aria-invalid={!!emailProblem} aria-describedby={emailProblem ? "login-email-error" : undefined} />
+            {emailProblem ? <p id="login-email-error" role="alert" className="text-sm text-red-700">{emailProblem}</p> : null}
             <Button type="submit" className="h-12 w-full text-base" disabled={!ready || busy || !email.trim()}>{!ready ? t.loading : busy ? t.sending : t.send}</Button>
           </form>
         ) : (

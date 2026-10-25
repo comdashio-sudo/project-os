@@ -55,6 +55,16 @@ describe("SetupWizard", () => {
     expect(state.calls.createProject).toHaveBeenCalledWith({ tenantId: "t1", code: "P-2", name: "مشروع جديد", projectType: "إنشاءات", currency: "SAR" });
   });
 
+  it("step 2 names a missing project code beside its field in the screen's language, and creates nothing", async () => {
+    state.tenantId = "t1"; state.tenants = [{ tenantId: "t1", legalName: "شركة" }]; state.projects = [];
+    window.history.replaceState(null, "", "/#project");
+    const user = userEvent.setup(); render(<SetupWizard />);
+    await user.type(screen.getByLabelText("اسم المشروع"), "مشروع جديد");
+    await user.click(screen.getByRole("button", { name: "إنشاء المشروع" }));
+    expect(screen.getByText("هذا الحقل مطلوب.")).toBeTruthy();
+    expect(state.calls.createProject).toBeUndefined();
+  });
+
   it("step 3 asks for a project first, then shows the importer for it (Excel and XER live inside it)", async () => {
     state.tenantId = "t1"; state.tenants = [{ tenantId: "t1", legalName: "شركة" }];
     window.history.replaceState(null, "", "/#import");
