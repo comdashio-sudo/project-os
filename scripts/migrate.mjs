@@ -59,6 +59,16 @@ try {
            count(*) FILTER (WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'project_os_app') AND NOT has_table_privilege('project_os_app', c.oid, 'SELECT'))::int AS unreadable
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r'`);
   if (guard.without_rls > 0 || guard.unreadable > 0) throw new Error(`After the migrations ${guard.without_rls} table(s) have no row-level security and ${guard.unreadable} are unreadable by project_os_app.`);
+  // Work order 18 (docs/TASLEEM_LESSONS.md section 4; Supabase stops granting new objects automatically on 2026-10-30): the same guard for sequences and functions.
+  // A sequence the application role cannot use fails the first insert that needs it (42501, which reads like a policy fault); a function open to PUBLIC is open to anon.
+  const { rows: [objects] } = await client.query(`
+    SELECT (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = 'public' AND c.relkind = 'S' AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'project_os_app') AND CASE WHEN c.relkind = 'S' THEN NOT has_sequence_privilege('project_os_app', c.oid, 'USAGE') END) AS unusable_sequences,
+           (SELECT string_agg(DISTINCT p.proname, ', ') FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+             WHERE p.pronamespace = 'public'::regnamespace AND a.grantee = 0 AND a.privilege_type = 'EXECUTE'
+               AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')) AS functions_open_to_public`);
+  if (objects.unusable_sequences > 0) throw new Error(`After the migrations ${objects.unusable_sequences} sequence(s) cannot be used by project_os_app. Grant USAGE, SELECT on them in the migration that creates them.`);
+  if (objects.functions_open_to_public) throw new Error(`After the migrations these functions grant EXECUTE to PUBLIC: ${objects.functions_open_to_public}. Revoke it in the migration that creates the function, and grant EXECUTE to project_os_app only if the application calls it.`);
   console.log(JSON.stringify({ database: name, migrations: files.length, newlyApplied, tables: guard.tables, tablesWithoutRowLevelSecurity: guard.without_rls }));
 } catch (error) {
   console.error(`Migration failed: ${String(error?.message ?? error).slice(0, 600)}`);
