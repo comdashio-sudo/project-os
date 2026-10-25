@@ -38,7 +38,7 @@ export const NOT_COMPANY_DATA = [
   "commercial_features", "commercial_plans", "plan_feature_entitlements", // the plan catalogue, shared by every company
   "permissions", // the permission catalogue, shared by every company
   "scheduled_jobs", "invoice_counters", "auth_code_attempts", // platform bookkeeping (auth_code_attempts holds a hash of an address and a counter, no company data)
-  "users", "auth_sessions", "self_service_signup_attempts", // people: never deleted or altered by an erasure
+  "users", "auth_sessions", "user_mfa", "self_service_signup_attempts", // people: never deleted or altered by an erasure
   "companies", // kept as a tombstone
 ] as const;
 

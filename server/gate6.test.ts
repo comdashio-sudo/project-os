@@ -39,6 +39,9 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
+  beginEnrolment: "two-step verification belongs to a person, not a company: audit_logs requires a company and the platform owner has none (docs/STATE.md, work order 20, C); a failed code is logged by the server",
+  confirmEnrolment: "as beginEnrolment: a person-level security step with no company to attach an audit row to",
+  verifySecondStep: "as beginEnrolment: a person-level security step with no company to attach an audit row to",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
 };
 const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeInventory|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;

@@ -14,6 +14,7 @@ const sessions = vi.hoisted(() => {
     rows,
     create: vi.fn(async ({ userId, expiresAt }: { userId: number; expiresAt: Date }) => { const id = `sid-${++counter}`; rows.set(id, { userId, expiresAt, revokedAt: null }); return id; }),
     findLive: vi.fn(async (id: string, now = new Date()) => { const row = rows.get(id); return row && !row.revokedAt && row.expiresAt > now ? row.userId : null; }),
+    findLiveSession: vi.fn(async (id: string, now = new Date()) => { const row = rows.get(id); return row && !row.revokedAt && row.expiresAt > now ? { userId: row.userId, mfaVerified: false } : null; }),
     revoke: vi.fn(async (id: string) => { const row = rows.get(id); if (!row || row.revokedAt) return false; row.revokedAt = new Date(); return true; }),
     revokeAllForUser: vi.fn(),
   };
@@ -116,7 +117,7 @@ describe("authenticateRequest", () => {
     const sdk = await load();
     const token = await sdk.issueSession("email:abc", { name: "Eng" });
     let order = "";
-    sessions.findLive.mockImplementationOnce(async () => { order += "s"; await Promise.resolve(); order += "S"; return user.id; });
+    sessions.findLiveSession.mockImplementationOnce(async () => { order += "s"; await Promise.resolve(); order += "S"; return { userId: user.id, mfaVerified: false }; });
     database.getUserByOpenId.mockImplementationOnce(async () => { order += "u"; await Promise.resolve(); order += "U"; return user; });
     await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
     expect(order.slice(0, 2)).toBe("su"); // both started before either finished

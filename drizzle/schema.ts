@@ -2361,12 +2361,30 @@ export const authSessions = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     /** The last request this session made (refreshed at most every five minutes). A session idle for 24 hours is over; null (a session from before the column) counts as created_at. */
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /** When this session passed the second step (an authenticator code or a recovery code). Null = not yet; a session for a user who must use two-step verification is refused everything but the verification itself until it is set. */
+    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
   },
   table => [
     foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "auth_sessions_user_fk" }).onDelete("cascade"),
     index("auth_sessions_user_idx").on(table.userId, table.revokedAt),
   ],
 );
+
+// Two-step verification (TOTP, RFC 6238) for the platform owner and company administrators. One row per person. The secret is stored sealed (AES-256-GCM),
+// never readable from a database copy alone; recovery codes are stored as hashes and each works once. `confirmed_at` null = enrolment started, not finished.
+export const userMfa = pgTable("user_mfa", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  secretSealed: text("secret_sealed").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  /** JSON array of sha256 hashes of the recovery codes not yet used. */
+  recoveryHashes: text("recovery_hashes").default("[]").notNull(),
+  /** The newest time-step already accepted: a code is good once (no replay inside its window). */
+  lastUsedStep: integer("last_used_step"),
+  failures: integer("failures").default(0).notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // Wrong sign-in codes per address (a hash, never the address). Supabase Auth owns the code itself; this is the guess limit it does not give:
 // five wrong codes lock the address for fifteen minutes, whatever IP they come from, and a new code request does not clear the count.

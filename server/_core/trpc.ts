@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { getProjectError, projectErrorMessages, type ProjectErrorCode } from "@shared/projectErrors";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { mfaGateRefusal } from "../mfa";
 import { ZodError } from "zod";
 import type { TrpcContext } from "./context";
 import { runWithDbContext, type DbContext } from "./database";
@@ -54,6 +55,9 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
   const user = ctx.user;
+  // Two-step verification: a platform owner or company administrator whose session has not passed the second step may do nothing but verify (the mfa router).
+  const refusal = await mfaGateRefusal(user, ctx.mfaVerified);
+  if (refusal) throw refusal;
   const context = await dbContextOf(ctx, user);
 
   return runWithDbContext(context, () => next({
@@ -66,6 +70,13 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+/** Signed in, but NOT held back by the second-step gate: the mfa router's own procedures (status, enrol, verify) — they are how a session gets through it. */
+export const mfaProcedure = t.procedure.use(t.middleware(async opts => {
+  if (!opts.ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  const user = opts.ctx.user;
+  return opts.next({ ctx: { ...opts.ctx, user } });
+}));
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
@@ -75,6 +86,8 @@ export const adminProcedure = t.procedure.use(
     }
 
     const user = ctx.user;
+    const refusal = await mfaGateRefusal(user, ctx.mfaVerified);
+    if (refusal) throw refusal;
     const context = await dbContextOf(ctx, user);
     return runWithDbContext(context, () => next({
       ctx: {

@@ -30,6 +30,11 @@ try {
   const applied = new Map((await client.query("SELECT name, checksum FROM drizzle.__project_os_migrations")).rows.map(row => [row.name, row.checksum]));
   const files = (await readdir(migrationsDir)).filter(file => /^\d{4}_.*\.sql$/.test(file)).sort();
   let newlyApplied = 0;
+  // A database built from nothing gets the CURRENT schema and the CURRENT convention function from the baseline; the numbered migrations are then replayed idempotently. Replaying an
+  // older migration that re-creates the convention function would put an OLDER function in charge in the middle of the run, and its sweep would refuse a table the baseline already
+  // carries (user_mfa was the first). So in a run that applied the baseline, the sweep waits until the last file: one sweep, by the newest function.
+  const startedFresh = !applied.has("0000_baseline.sql");
+  let baselineAppliedNow = false;
   for (const file of files) {
     const sql = await readFile(path.join(migrationsDir, file), "utf8");
     const checksum = createHash("sha256").update(sql).digest("hex");
@@ -44,7 +49,8 @@ try {
       await client.query("SET LOCAL lock_timeout = '5s'");
       await client.query(sql);
       const hasSweep = (await client.query("SELECT to_regprocedure('project_os_apply_conventions()') IS NOT NULL AS present")).rows[0].present;
-      if (hasSweep) await client.query("SELECT project_os_apply_conventions()");
+      if (hasSweep && !(startedFresh && baselineAppliedNow && file !== files[files.length - 1])) await client.query("SELECT project_os_apply_conventions()");
+      if (file === "0000_baseline.sql") baselineAppliedNow = true;
       await client.query("INSERT INTO drizzle.__project_os_migrations (name, checksum) VALUES ($1, $2)", [file, checksum]);
       await client.query("COMMIT");
       newlyApplied += 1;

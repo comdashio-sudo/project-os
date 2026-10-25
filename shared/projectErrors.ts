@@ -421,6 +421,31 @@ export const projectErrorMessages = {
     en: "Licensing management requires platform-administrator access.",
     ur: "Licensing management requires platform-administrator access.",
   },
+  PROJECT_OS_MFA_REQUIRED: {
+    ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
+    en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
+    ur: "آپ کے اکاؤنٹ کو دو مرحلوں کی تصدیق درکار ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+  },
+  PROJECT_OS_MFA_CODE_INVALID: {
+    ar: "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل.",
+    en: "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used.",
+    ur: "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔",
+  },
+  PROJECT_OS_MFA_LOCKED: {
+    ar: "محاولات خاطئة كثيرة. انتظر 15 دقيقة ثم حاول من جديد.",
+    en: "Too many wrong attempts. Wait 15 minutes and try again.",
+    ur: "بہت زیادہ غلط کوششیں۔ 15 منٹ انتظار کریں اور دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_NOT_ENROLLED: {
+    ar: "لم يُفعَّل التحقق بخطوتين لحسابك بعد. ابدأ التفعيل أولًا.",
+    en: "Two-step verification is not set up for your account yet. Start the setup first.",
+    ur: "آپ کے اکاؤنٹ کے لیے دو مرحلوں کی تصدیق ابھی فعال نہیں۔ پہلے سیٹ اپ شروع کریں۔",
+  },
+  PROJECT_OS_MFA_ALREADY_ENROLLED: {
+    ar: "التحقق بخطوتين مُفعَّل لحسابك. أدخل رمزك للمتابعة.",
+    en: "Two-step verification is already set up for your account. Enter your code to continue.",
+    ur: "آپ کے اکاؤنٹ کے لیے دو مرحلوں کی تصدیق پہلے سے فعال ہے۔ جاری رکھنے کے لیے کوڈ درج کریں۔",
+  },
   PROJECT_OS_COMPANY_CREATION_OWNER_ONLY: {
     ar: "إنشاء الشركات لمالك المنصة وحده. اطلب من مالك المنصة إنشاء شركتك أو دعوتك إلى شركة قائمة.",
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
