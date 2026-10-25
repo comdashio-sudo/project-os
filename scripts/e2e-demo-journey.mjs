@@ -222,12 +222,17 @@ try {
   const inspection = await one("SELECT id FROM pmc_inspection_requests WHERE tenant_id = $1 AND request_code = 'IR-E2E-1'", [tenantId]);
   // the steps of the request, one by one, then the consultant's answer
   const requestCard = qcScreen.page.locator(`[data-request="IR-E2E-1"]`);
+  // Walk the steps until the consultant's answer buttons appear. The loop is driven by WHAT IS ON THE SCREEN, not by a count of clicks and fixed pauses: a click that lands on the
+  // button of a step already done is refused by the server and costs nothing, the next pass clicks the current one. (CI, 2026-10-25: 8 clicks with 600 ms pauses ran out on a slow runner.)
   const advanceButton = requestCard.getByRole("button", { name: "Complete this step" });
-  for (let guard = 0; guard < 8 && (await advanceButton.count()) > 0; guard += 1) {
-    await advanceButton.click();
-    await qcScreen.page.waitForTimeout(600);
+  const answerButton = requestCard.getByRole("button", { name: /^A\b|A — |Approved/ }).first();
+  const walkUntil = Date.now() + 40000;
+  while (Date.now() < walkUntil && (await answerButton.count()) === 0) {
+    if ((await advanceButton.count()) > 0) await advanceButton.first().click({ timeout: 5000 }).catch(() => undefined);
+    await qcScreen.page.waitForTimeout(400);
   }
-  await requestCard.getByRole("button", { name: /^A\b|A — |Approved/ }).first().click();
+  if ((await answerButton.count()) === 0) throw new Error(`the answer buttons never appeared on the request card; the card says: ${JSON.stringify((await requestCard.innerText().catch(() => "")).slice(0, 500))}`);
+  await answerButton.click();
   await qcScreen.page.waitForTimeout(800);
   await shot(qcScreen.page, "2b-quality-answered-desktop");
   check("the consultant's answer A is recorded on the request", (await one("SELECT response_code FROM pmc_inspection_requests WHERE id = $1", [inspection.id])).response_code === "A");
