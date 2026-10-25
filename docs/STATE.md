@@ -1113,4 +1113,20 @@
 | عدّاد إعادة الإرسال 60 ثانية + نص «الرمز الأحدث وحده يعمل» | `PROVEN` (اختبار بمؤقتات وهمية) | `Login.test.tsx` «counts 60 seconds…». |
 | زر الدخول معطّل حتى تتفاعل الصفحة؛ النموذج `method="post"`؛ البريد لا يمر في الرابط (الزر في الرسالة يفتح `/login?step=code` والبريد من `sessionStorage` التبويب نفسه) | `PROVEN` (اختبار) / **لا ينطبق جزئيًا:** الواجهة SPA لا يُرسم نموذجها قبل JS أصلًا، فالعيب الأصلي (إرسال GET قبل التحميل) لا يقع عندنا؛ أُضيف الحارس احتياطًا بطلب الأمر | `Login.test.tsx` «the button in the mailed message…». |
 | الزر يضع القالب بعد تفعيل SMTP | `PROVEN` (قائم) | `applyAuthSettings` يحاول القالب، ويعود «يدوي» برسالة خطوات Resend المحدّثة (`TEMPLATE_TIER_INSTRUCTION`)؛ الإعادة بعد SMTP تضعه. وضع القالب فعلًا على Supabase `UNVERIFIED` حتى تشغيل حقيقي. |
+### أمر العمل 18 — بند 0-3: التحقق من الجلسة
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| لا طلب شبكة إلى Supabase Auth في كل طلب | `PROVEN` (قراءة المصدر + اختبار) | الكوكي جلسة موقّعة من الخادم نفسه (HS256 بسرّ الخادم عبر `jose`، `server/_core/sdk.ts` `verifySession`) فلا JWKS ولا نداء Auth؛ GoTrue يُسأل مرة عند إرسال الرمز ومرة عند التحقق منه ثم تُغلَق جلسته (`supabaseAuth.ts`). لا middleware على الحافة أصلًا (Express في منطقة القاعدة `sin1`). |
+| تكلفة التحقق في قاعدة البيانات: كانت 3 جمل متتابعة لكل طلب (قراءة الجلسة، قراءة المستخدم، **كتابة** `lastSignedIn`) | `PROVEN` (قياس + اختبار) | الأمر: `DATABASE_URL=<project_os_app على project_os_integration_test> JWT_SECRET=<16+> node --import tsx scripts/measure-session.ts 300 [زمن الرحلة المحاكى بالملّي ثانية]`، PostgreSQL 16 محلي، 2026-10-25. **قبل:** 3 جمل/طلب، p50 = 2.88 ms محليًا و13.04 ms بمحاكاة رحلة 3 ms. **بعد:** جملتان/طلب (قراءتان متوازيتان) وصفر كتابة، p50 = 1.03 ms محليًا و4.67 ms بمحاكاة 3 ms (المحاكاة تأخير مُضاف أمام كل جملة وليست قياسًا على شبكة حقيقية). |
+| ما لم يتغير: الحساب يُكتب فورًا إن اختلف دوره عن المعيَّن (مالك ← admin، غيره ← user) أو مرّ أكثر من دقيقة على آخر ظهور | `PROVEN` (اختبارات) | `server/_core/userRole.ts` `accountIsCurrent`؛ `sdk.test.ts` (3 اختبارات جديدة)؛ `auth.session.database.test.ts` الجديد يعدّ الجمل على القاعدة ويفشل بالكود القديم (جُرّب: الكود القديم ← فشل بسطر insert). |
+| قياس زمن طلب حقيقي على `dashio-lovat.vercel.app` ومنطقة الدالة الحيّة | `BLOCKED_BY_PLATFORM` من هذه الجلسة | سياسة الشبكة في بيئة الجلسة ترفض المضيف (`CONNECT tunnel failed, response 403`). أُضيف `scripts/measure-live.mjs` وworkflow يدوي `live-probe.yml` بلا أسرار يقرأ `x-vercel-id` ويقيس الزمن من مشغّل GitHub (انظر صف المنطقة). |
+
+### أمر العمل 18 — بند 0-2: المنطقة
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| منطقة الدوال `sin1` مطبّقة في الإعداد وفي ملف الدالة | `PROVEN` (اختبار) | `vercel.json` `"regions": ["sin1"]`؛ `scripts/build-vercel.mjs` `const REGION = "sin1"` ويكتبها في `.vc-config.json`؛ `server/testing/liveProbe.test.ts` يثبّت الاثنين. |
+| الفحص المسبق يقرأ منطقة قاعدة Supabase ويقارنها بالأقرب في Vercel، ويقرأ `serverlessFunctionRegion` من مشروع Vercel الحيّ | `PROVEN` (محاكاة) / القراءة الحيّة `UNVERIFIED` حتى تشغيل الفحص المسبق | `preflight.ts`؛ `bootstrap.preflight.test.ts` «regions…». جدول المطابقة `NEAREST_VERCEL_REGION` في `scripts/bootstrap/lib.ts`. |
+| منطقة الدالة الحيّة وزمن طلب حقيقي على `dashio-lovat.vercel.app` | `HANDOFF_REQUIRED` (خطوة واحدة للمالك) | هذه الجلسة لا تصل إلى المضيف (سياسة الشبكة: `CONNECT tunnel failed, 403`) فلم أقِس. جُهِّز `scripts/measure-live.mjs` وworkflow يدوي بلا أسرار `Live probe` (Actions ← Live probe ← Run workflow): يطبع منطقة الدالة من `x-vercel-id` ويفشل إن لم تكن `sin1`، ويقيس p50/p95 لـ`/api/auth/config` و`/`. زمن من الرياض يحتاج متصفحًا هناك ولا يغني عنه مشغّل GitHub. |
 
