@@ -1,7 +1,8 @@
+import { isReservedMailDomain, mailGateConfigFromEnv } from "./emailGate";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
 import { resolveScopedAccess } from "./scopeAccess";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -135,6 +136,7 @@ import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
+import { openIdForEmail } from "./_core/auth/emailCode";
 import { invokeLLM, isLlmEnabled } from "./_core/llm";
 import { MAX_DIRECT_UPLOAD_BYTES, storageGetSignedUrl, storagePut } from "./storage";
 import { takeDirectUpload } from "./directUploadKeys";
@@ -177,6 +179,25 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   values.role = user.role ?? defaultRoleFor(user.openId);
   updateSet.role = values.role;
   await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
+}
+
+/**
+ * Sign-in is by invitation only (owner's decision 2026-10-25, docs/TASLEEM_AUDIT.md 1.11). An address may sign in when it is the platform owner's (OWNER_EMAIL), already has an account, or
+ * has a pending, unexpired invitation from a company. Everyone else gets no code and no session. The check spans companies (an invitation belongs to one), so it reads in the system view.
+ */
+export async function isEligibleToSignIn(rawEmail: string): Promise<boolean> {
+  const email = rawEmail.trim().toLowerCase();
+  if (ENV.ownerEmail && email === ENV.ownerEmail) return true;
+  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all.
+  if (mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
+  if (ENV.registrationOpen) return true;
+  return withSystemContext("invite-only sign-in: does this address have an account or a pending invitation", async () => {
+    const db = await getDb(); if (!db) return false;
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.openId, openIdForEmail(email))).limit(1);
+    if (user) return true;
+    const [invitation] = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.email, email), eq(membershipInvitations.status, "pending"), gt(membershipInvitations.expiresAt, new Date()))).limit(1);
+    return Boolean(invitation);
+  });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -971,6 +992,14 @@ const selfSignupLimitPerDay = 3;
 
 function normalizedEmailHash(email: string) {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+}
+
+/** Creating a company is the platform owner's act while registration is closed (REGISTRATION unset). The stored role decides, never the role the request claims. */
+export async function assertMayCreateCompany(userId: number): Promise<void> {
+  if (ENV.registrationOpen) return;
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_COMPANY_CREATION_OWNER_ONLY" });
 }
 
 export async function getPublicCommercialPlans() {
