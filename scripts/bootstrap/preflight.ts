@@ -7,6 +7,8 @@
 // No secret is ever put in a finding: only names, statuses, short codes and the platform's own words.
 import { NEAREST_VERCEL_REGION, GITHUB_LINK_INSTRUCTION, GITHUB_OWNER, GITHUB_REPO, SUPABASE_ORGANIZATION_NAME, SUPABASE_PROJECT_REF, TEMPLATE_TIER_INSTRUCTION, VERCEL_PROJECT_NAME, VERCEL_REGION, GuardError, supabaseApi, type Fetch } from "./lib.ts";
 
+import { openIdForEmail } from "../../server/_core/auth/emailCode.ts";
+
 export type Status = "ok" | "warn" | "block" | "unknown";
 export type Finding = { area: "الأسرار" | "Supabase" | "قاعدة البيانات" | "التخزين" | "Vercel" | "حدود الخطة"; status: Status; text: string };
 
@@ -141,6 +143,18 @@ export async function runPreflight(deps: PreflightDeps): Promise<Finding[]> {
         if (!row) { add("قاعدة البيانات", "unknown", "تعذّرت قراءة صلاحيات EXECUTE على الدوال."); return; }
         if (row.open_now || !row.closed_by_default) add("قاعدة البيانات", "warn", `${row.open_now ? `${row.open_now} دالة في public تمنح EXECUTE للجميع (PUBLIC) ` : ""}${row.closed_by_default ? "" : "والدوال الجديدة ستُمنح EXECUTE للجميع افتراضيًا "}— تعالجه الترحيلة 0009 التي يطبّقها الزر، ويتحقق منها verify-db-security بعد التطبيق.`);
         else add("قاعدة البيانات", "ok", "لا دالة في public تمنح EXECUTE للجميع، والدوال الجديدة مغلقة افتراضيًا.");
+      });
+      await guard("قاعدة البيانات", "كتالوج الخطط ومالك المنصة", async () => {
+        // Read only. The sign-up screen lists the plans from this table; a platform owner is the account whose users.role is 'admin'. Before the first migration neither table exists, which is fine.
+        const [tables] = await probe.query("SELECT to_regclass('public.commercial_plans') IS NOT NULL AS has_plans, to_regclass('public.users') IS NOT NULL AS has_users");
+        if (!tables?.has_plans) { add("قاعدة البيانات", "ok", "كتالوج الخطط: الجدول غير موجود بعد (قبل أول ترحيل)؛ الزر يزرعه بعد الترحيلات."); return; }
+        const [plans] = await probe.query("SELECT (SELECT count(*) FROM commercial_plans WHERE active)::int AS active_plans, (SELECT count(*) FROM commercial_plans)::int AS all_plans");
+        add("قاعدة البيانات", plans?.active_plans ? "ok" : "warn", plans?.active_plans ? `كتالوج الخطط: ${plans.active_plans} خطة فعّالة (من ${plans.all_plans}).` : "كتالوج الخطط فارغ: شاشة «بدء مساحة عمل تجريبية» لن تعرض أي خطة. مرحلة الزر «كتالوج الخطط» تزرعه.");
+        const ownerEmail = trim(env.OWNER_EMAIL).toLowerCase();
+        if (tables.has_users && ownerEmail) {
+          const [owner] = await probe.query("SELECT role FROM users WHERE open_id = $1", [openIdForEmail(ownerEmail)]);
+          add("قاعدة البيانات", owner?.role === "admin" ? "ok" : "warn", owner ? (owner.role === "admin" ? "حساب OWNER_EMAIL يحمل دور مالك المنصة." : `حساب OWNER_EMAIL دوره «${owner.role}» لا مالك المنصة؛ مرحلة الزر «كتالوج الخطط» تصحّحه.`) : "لا حساب بعد لـOWNER_EMAIL (لم يدخل به أحد)؛ أول دخول به يمنحه دور مالك المنصة.");
+        }
       });
       await guard("قاعدة البيانات", "الترحيلات", async () => {
         const [row] = await probe.query("SELECT CASE WHEN to_regclass('drizzle.__project_os_migrations') IS NULL THEN 0 ELSE (SELECT count(*) FROM drizzle.__project_os_migrations) END::int AS n");

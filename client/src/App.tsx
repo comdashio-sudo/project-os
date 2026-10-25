@@ -17,6 +17,7 @@ import PmoDashboard from "./pages/PmoDashboard";
 import TenantAdministration from "./pages/TenantAdministration";
 import AcceptInvitation from "./pages/AcceptInvitation";
 import LicensingConsole from "./pages/LicensingConsole";
+import PlatformAdmin from "./pages/PlatformAdmin";
 import BillingRegister from "./pages/BillingRegister";
 import SupportCenter from "./pages/SupportCenter";
 import EmployeeRegistry from "./pages/EmployeeRegistry";
@@ -40,8 +41,13 @@ import IntegrationSettings from "./pages/IntegrationSettings";
 import RequireAuth from "./components/RequireAuth";
 import { PermissionProvider } from "./lib/permissions";
 import { RouteBoundary } from "./components/RouteBoundary";
-import type { ComponentType } from "react";
+import { Suspense, lazy, type ComponentType } from "react";
 import { Route, Switch } from "wouter";
+
+// The design preview (work order 19) is its own chunk: the fonts and the component library it loads are not part of the main bundle.
+const DesignPreview = lazy(() => import("./pages/DesignPreview"));
+const DesignPreviewFrame = lazy(() => import("./pages/DesignPreviewFrame"));
+const lazyPage = (Page: ComponentType) => function LazyRoute() { return <Suspense fallback={<p role="status" className="p-6">…</p>}><Page /></Suspense>; };
 
 function withAuth(Component: ComponentType<any>) {
   return function AuthenticatedRoute(props: any) {
@@ -50,11 +56,14 @@ function withAuth(Component: ComponentType<any>) {
   };
 }
 
+const ProtectedDesignPreview = withAuth(lazyPage(DesignPreview));
+const ProtectedDesignFrame = withAuth(lazyPage(DesignPreviewFrame));
 const ProtectedProfile = withAuth(UserProfile);
 const ProtectedEvm = withAuth(EvmCalculator);
 const ProtectedExecutive = withAuth(ExecutiveDashboard);
 const ProtectedPmo = withAuth(PmoDashboard);
 const ProtectedLicensing = withAuth(LicensingConsole);
+const ProtectedPlatform = withAuth(PlatformAdmin);
 const ProtectedBilling = withAuth(BillingRegister);
 const ProtectedSupport = withAuth(SupportCenter);
 const ProtectedPeople = withAuth(EmployeeRegistry);
@@ -82,7 +91,7 @@ const ProtectedUnitCard = withAuth(UnitCard);
 const ProtectedIntegrations = withAuth(IntegrationSettings);
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/levels/:tenantId" component={ProtectedLevelEntry} /><Route path="/levels/:tenantId/company" component={ProtectedLevelCompany} /><Route path="/levels/:tenantId/portfolio" component={ProtectedLevelPortfolio} /><Route path="/levels/:tenantId/projects/:projectId" component={ProtectedLevelProject} /><Route path="/levels/:tenantId/projects/:projectId/warehouse" component={ProtectedLevelWarehouse} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId/report" component={ProtectedSiteReport} /><Route path="/m/:tenantId/:projectId/unit/:unitNumber" component={ProtectedUnitCard} /><Route path="/projects/:tenantId/:projectId/submittals" component={ProtectedSubmittals} /><Route path="/projects/:tenantId/:projectId/quality" component={ProtectedQuality} /><Route path="/integrations/:tenantId" component={ProtectedIntegrations} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/design-preview/frame/:direction/:screen" component={ProtectedDesignFrame} /><Route path="/design-preview" component={ProtectedDesignPreview} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/levels/:tenantId" component={ProtectedLevelEntry} /><Route path="/levels/:tenantId/company" component={ProtectedLevelCompany} /><Route path="/levels/:tenantId/portfolio" component={ProtectedLevelPortfolio} /><Route path="/levels/:tenantId/projects/:projectId" component={ProtectedLevelProject} /><Route path="/levels/:tenantId/projects/:projectId/warehouse" component={ProtectedLevelWarehouse} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/platform" component={ProtectedPlatform} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId/report" component={ProtectedSiteReport} /><Route path="/m/:tenantId/:projectId/unit/:unitNumber" component={ProtectedUnitCard} /><Route path="/projects/:tenantId/:projectId/submittals" component={ProtectedSubmittals} /><Route path="/projects/:tenantId/:projectId/quality" component={ProtectedQuality} /><Route path="/integrations/:tenantId" component={ProtectedIntegrations} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {

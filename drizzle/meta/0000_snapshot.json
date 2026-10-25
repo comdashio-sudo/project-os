@@ -1,5 +1,5 @@
 {
-  "id": "05cc07fc-5085-494e-9274-c224a6ff0f32",
+  "id": "e3417151-cc72-4d10-9521-46655ec1557c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -781,6 +781,12 @@
         },
         "revoked_at": {
           "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

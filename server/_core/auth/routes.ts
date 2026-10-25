@@ -5,7 +5,7 @@ import type { Express, Request, Response } from "express";
 import { createRemoteJWKSet, jwtVerify, SignJWT, type JWTVerifyGetKey } from "jose";
 import { getSessionCookieOptions } from "../cookies";
 import { ENV } from "../env";
-import { EmailCodeError, normalizeEmail, openIdForEmail, type EmailCodeService } from "./emailCode";
+import { DEFAULT_CODE_TTL_SECONDS, EmailCodeError, normalizeEmail, openIdForEmail, type EmailCodeService } from "./emailCode";
 import { buildAuthorizationUrl, completeGoogleSignIn, GoogleSignInError, newRandom, type GoogleConfig } from "./google";
 import { createRateLimiter } from "./rateLimiter";
 import { logError } from "../logger";
@@ -28,6 +28,8 @@ export type AuthRoutesDependencies = {
   emailCodes: EmailCodeService;
   google: { config: GoogleConfig; keys: JWTVerifyGetKey; fetchImpl?: typeof fetch } | null;
   secret: string;
+  /** Sign-in is by invitation only: an address that is not the owner's, has no account and no pending invitation gets no code and no session (db.ts isEligibleToSignIn). */
+  isEligible: (email: string) => Promise<boolean>;
   upsertUser: (user: { openId: string; email: string; name?: string | null; loginMethod: string; lastSignedIn: Date }) => Promise<void>;
   createSessionToken: (openId: string, options: { name: string; expiresInMs: number }) => Promise<string>;
   now?: () => number;
@@ -58,6 +60,8 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
     res.set("Cache-Control", "no-store");
     if (!requestLimiter.hit(req.ip ?? "unknown")) return res.status(429).json({ code: "PROJECT_OS_AUTH_RATE_LIMITED" });
     try {
+      // An address nobody invited is answered exactly like one that was (same status, same body, no mail): the answer must not tell a stranger which addresses have accounts.
+      if (!(await dependencies.isEligible(normalizeEmail(req.body?.email)))) return res.status(200).json({ ok: true, expiresInSeconds: DEFAULT_CODE_TTL_SECONDS });
       const { expiresInSeconds } = await dependencies.emailCodes.requestCode(req.body?.email);
       return res.status(200).json({ ok: true, expiresInSeconds });
     } catch (error) {
@@ -72,6 +76,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
     if (!verifyLimiter.hit(req.ip ?? "unknown")) return res.status(429).json({ code: "PROJECT_OS_AUTH_RATE_LIMITED" });
     try {
       const { email } = await dependencies.emailCodes.verifyCode(req.body?.email, req.body?.code);
+      if (!(await dependencies.isEligible(email))) throw new EmailCodeError("CODE_INVALID"); // a code obtained straight from the identity provider opens nothing here
       await startSession(req, res, email, "email");
       return res.status(200).json({ ok: true });
     } catch (error) {
@@ -118,6 +123,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
     try {
       const identity = await completeGoogleSignIn(google.config, { code, verifier: saved.verifier, nonce: saved.nonce }, { keys: google.keys, fetchImpl: google.fetchImpl });
       const email = normalizeEmail(identity.email);
+      if (!(await dependencies.isEligible(email))) return fail("not_invited");
       await startSession(req, res, email, "google", identity.name);
       return res.redirect(302, safeNextPath(saved.next));
     } catch (error) {
