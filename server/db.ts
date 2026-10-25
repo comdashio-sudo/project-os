@@ -1,3 +1,4 @@
+import { isReservedMailDomain, mailGateConfigFromEnv } from "./emailGate";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
 import { resolveScopedAccess } from "./scopeAccess";
@@ -186,7 +187,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
  */
 export async function isEligibleToSignIn(rawEmail: string): Promise<boolean> {
   const email = rawEmail.trim().toLowerCase();
-  if (ENV.registrationOpen || (ENV.ownerEmail && email === ENV.ownerEmail)) return true;
+  if (ENV.ownerEmail && email === ENV.ownerEmail) return true;
+  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all.
+  if (mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
+  if (ENV.registrationOpen) return true;
   return withSystemContext("invite-only sign-in: does this address have an account or a pending invitation", async () => {
     const db = await getDb(); if (!db) return false;
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.openId, openIdForEmail(email))).limit(1);

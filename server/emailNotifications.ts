@@ -27,6 +27,7 @@ import {
 import { createSmtpMailer, smtpSettingsFromEnv, type Mailer, type SmtpSettings } from "./_core/auth/mailer";
 import { approvalsWaitingEmail, dailyDigestEmail, dailyMailWindow, EMAIL_KINDS, preferenceAllows, supportEscalationEmail, type ApprovalQueue, type BuiltEmail, type DigestProject, type EmailKind } from "./domain/emailNotifications";
 import { logError } from "./_core/logger";
+import { isReservedMailDomain, mailGateConfigFromEnv, notificationAllowance, pauseEnd, startOfUtcDay, type MailGateConfig } from "./emailGate";
 
 // Work order 3, decision 6. Everything here is behind one switch: EMAIL_NOTIFICATIONS_ENABLED=true AND a configured sender (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD and EMAIL_FROM).
 // While either is missing nothing is written to the outbox and nothing is sent, so switching it on later never delivers a backlog.
@@ -201,20 +202,36 @@ export async function enqueueSupportEscalationEmails(executor: Executor, input: 
 
 const MAX_ATTEMPTS = 3;
 
-/** Sends what is queued. A person who left the company, or has no address, is skipped; a failed send is retried on the next cycle up to three times. */
-export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?: number } = {}) {
-  const pending = await db.select({ id: emailOutbox.id, tenantId: emailOutbox.tenantId, recipientUserId: emailOutbox.recipientUserId, subject: emailOutbox.subject, text: emailOutbox.bodyText, html: emailOutbox.bodyHtml, attempts: emailOutbox.attempts }).from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "failed"]), lt(emailOutbox.attempts, MAX_ATTEMPTS))).orderBy(emailOutbox.createdAt).limit(options.limit ?? 50);
-  const summary = { sent: 0, failed: 0, skipped: 0 };
+/**
+ * Sends what is queued, through the gate (server/emailGate.ts): urgent kinds first; at most the day's notification budget (the rest of the SMTP quota is kept for sign-in codes) and what
+ * is over WAITS in the outbox for tomorrow; a runaway minute stops the sending for fifteen minutes; a reserved domain is never mailed in production. A person who left the company, or
+ * has no address, is skipped; a failed send is retried on the next cycle up to three times.
+ */
+export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?: number; gate?: MailGateConfig; now?: Date } = {}) {
+  const gate = options.gate ?? mailGateConfigFromEnv();
+  const now = options.now ?? new Date();
+  const summary = { sent: 0, failed: 0, skipped: 0, deferred: 0, pausedUntil: null as Date | null };
+  const [{ n: sentToday }] = await db.select({ n: sql<number>`count(*)::int` }).from(emailOutbox).where(and(eq(emailOutbox.status, "sent"), gte(emailOutbox.sentAt, startOfUtcDay(now))));
+  const recent = await db.select({ at: emailOutbox.sentAt }).from(emailOutbox).where(and(eq(emailOutbox.status, "sent"), gte(emailOutbox.sentAt, new Date(now.getTime() - gate.pauseMs - 60_000))));
+  const pausedUntil = pauseEnd(recent.map(row => row.at!).filter(Boolean), now, gate);
+  const pending = await db.select({ id: emailOutbox.id, tenantId: emailOutbox.tenantId, recipientUserId: emailOutbox.recipientUserId, kind: emailOutbox.kind, subject: emailOutbox.subject, text: emailOutbox.bodyText, html: emailOutbox.bodyHtml, attempts: emailOutbox.attempts }).from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "failed"]), lt(emailOutbox.attempts, MAX_ATTEMPTS)))
+    .orderBy(sql`CASE ${emailOutbox.kind} WHEN 'support_escalation' THEN 0 WHEN 'approvals_waiting' THEN 1 ELSE 2 END`, emailOutbox.createdAt).limit(options.limit ?? 50);
+  if (pausedUntil) { summary.pausedUntil = pausedUntil; summary.deferred = pending.length; return summary; }
+  let allowance = notificationAllowance(gate, sentToday);
+  const sendTimes: number[] = [];
   for (const item of pending) {
+    if (allowance <= 0) { summary.deferred += 1; continue; } // over today's budget: it stays pending and goes tomorrow, before anything newer of a lower priority
+    if (sendTimes.length >= gate.perMinute && Date.now() - sendTimes[sendTimes.length - gate.perMinute] < 60_000) { summary.deferred += 1; continue; } // the runaway stop: the next cycle sees the burst and pauses
     // Claim the row before sending: another flush (the cron and a request can overlap) that loses this race skips it, so one mail is never sent twice.
     const claim = await db.update(emailOutbox).set({ attempts: sql`${emailOutbox.attempts} + 1` }).where(and(eq(emailOutbox.id, item.id), eq(emailOutbox.attempts, item.attempts), inArray(emailOutbox.status, ["pending", "failed"])));
     if (rowsAffected(claim) !== 1) continue;
     const [recipient] = await db.select({ email: users.email }).from(users).innerJoin(memberships, and(eq(memberships.userId, users.id), eq(memberships.tenantId, item.tenantId), eq(memberships.status, "active"))).where(eq(users.id, item.recipientUserId)).limit(1);
     if (!recipient?.email) { await db.update(emailOutbox).set({ status: "skipped", lastError: "no deliverable address or no longer a member" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }
+    if (gate.blockReservedDomains && isReservedMailDomain(recipient.email)) { await db.update(emailOutbox).set({ status: "skipped", lastError: "reserved domain: mail to it can never be delivered" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }
     try {
       await mailer.send({ to: recipient.email, subject: item.subject, text: item.text, html: item.html });
       await db.update(emailOutbox).set({ status: "sent", sentAt: new Date(), lastError: null }).where(eq(emailOutbox.id, item.id));
-      summary.sent += 1;
+      summary.sent += 1; allowance -= 1; sendTimes.push(Date.now());
     } catch (error) {
       await db.update(emailOutbox).set({ status: "failed", lastError: (error instanceof Error ? error.message : "send failed").slice(0, 200) }).where(eq(emailOutbox.id, item.id));
       summary.failed += 1;
