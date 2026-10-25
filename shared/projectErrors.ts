@@ -421,6 +421,11 @@ export const projectErrorMessages = {
     en: "Licensing management requires platform-administrator access.",
     ur: "Licensing management requires platform-administrator access.",
   },
+  PROJECT_OS_SYNC_RUN_NOT_FOUND: {
+    ar: "تعذّر إغلاق تشغيل المزامنة لأن سجله غير موجود. لم يُسجَّل لها حالة؛ أعد المحاولة.",
+    en: "The sync run could not be closed because its record is missing. No status was recorded for it; try again.",
+    ur: "مطابقت کا رن بند نہ ہو سکا کیونکہ اس کا ریکارڈ موجود نہیں۔ اس کی کوئی حالت درج نہیں ہوئی؛ دوبارہ کوشش کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
