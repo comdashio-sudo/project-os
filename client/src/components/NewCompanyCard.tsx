@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "wouter";
+import { SourceNotice } from "@/components/SectionResilience";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput, notify } from "@/components/ds";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -29,6 +30,7 @@ export function NewCompanyCard({ onCreated }: { onCreated?: () => void }) {
         <Field label={t.slug} required error={slugOk ? undefined : t.slugError}>{props => <TextInput {...props} dir="ltr" invalid={!slugOk} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} />}</Field>
         <Field label={t.plan} required>{props => <Select {...props} placeholder={t.choose} value={planCode || undefined} onValueChange={setPlanCode} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: `${plan.name} · ${plan.packageCode}` }))} />}</Field>
         <Field label={t.seats} required>{props => <TextInput {...props} type="number" min={1} max={100000} value={seats} onChange={event => setSeats(event.target.value)} />}</Field>
+        <div className="sm:col-span-2"><SourceNotice query={plans} isArabic={isArabic} title={t.plan} /></div>
         <div className="flex flex-col gap-3 sm:col-span-2">
           {signup.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(signup.error, isArabic)}</p> : null}
           <div><Button loading={signup.isPending} disabled={!ready} onClick={() => signup.mutate({ legalName: legalName.trim(), slug, planCode, seats: Number(seats) })}>{t.create}</Button></div>

@@ -20,6 +20,8 @@ describe("every route that starts a session proves the email address", () => {
   });
   it("accepts a Google identity only when Google says the email is verified, and an email session only after the code check", () => {
     expect(google).toContain('claims.email_verified !== true && claims.email_verified !== "true"');
-    expect(routes).toMatch(/await dependencies\.emailCodes\.verifyCode\([^)]*\);\s*await startSession\(req, res, email, "email"\)/);
+    // the code check, then the invitation check, then the session (registration is by invitation only: an address nobody invited opens nothing)
+    expect(routes).toMatch(/await dependencies\.emailCodes\.verifyCode\([^)]*\);\s*if \(!\(await dependencies\.isEligible\(email\)\)\) throw new EmailCodeError\("CODE_INVALID"\);[^\n]*\n\s*await startSession\(req, res, email, "email"\)/);
+    expect(routes).toMatch(/if \(!\(await dependencies\.isEligible\(email\)\)\) return fail\("not_invited"\);\s*await startSession\(req, res, email, "google"/);
   });
 });
