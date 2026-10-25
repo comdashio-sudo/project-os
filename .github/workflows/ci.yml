@@ -5,19 +5,56 @@ name: CI
 # application role (so row-level security is exercised), and the passwords below belong to that container alone.
 # The `ui-screenshots` job builds the app on its own throw-away PostgreSQL, seeds the synthetic demo tenant, runs tests/ui/audit.mjs
 # (1280px and 390px, Arabic) and uploads the screenshots as the `ui-screenshots-390-1280-ar` artifact. It fails on a hard audit failure.
+# Actions are a rationed resource (owner's decision, work order 20 item 11: billing stopped once on too many runs). So:
+#  - a pull request runs the cheap gate always, and the heavy jobs (database suite, screenshots, journeys) only when something other than documentation changed;
+#    the English and Urdu screenshot runs only when the interface (client/, shared/, tests/ui/, the workflows) changed;
+#  - a push to main (the squash that just passed on its pull request) runs the gate and the light checks only;
+#  - ONE full run a day on main (schedule) and on demand (workflow_dispatch) is the net that catches drift between pull requests.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'schedule' && 'daily' || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: what changed (decides which heavy jobs run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.scope.outputs.heavy }}
+      ui_matrix: ${{ steps.scope.outputs.ui_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        run: |
+          all='{"include":[{"language":"ar","label":"Arabic"},{"language":"en","label":"English"},{"language":"ur","label":"Urdu"}]}'
+          arabic='{"include":[{"language":"ar","label":"Arabic"}]}'
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch) heavy=true; matrix="$all" ;;
+            pull_request)
+              files="$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")"
+              echo "changed files:"; echo "$files"
+              # documentation only = every changed file is under docs/ or is a Markdown file
+              if [ -n "$files" ] && ! echo "$files" | grep -vE '^docs/|\.md$' | grep -q .; then heavy=false; else heavy=true; fi
+              if echo "$files" | grep -qE '^(client/|shared/|tests/ui/|\.github/workflows/|package\.json|pnpm-lock\.yaml)'; then matrix="$all"; else matrix="$arabic"; fi ;;
+            *) heavy=false; matrix="$arabic" ;;
+          esac
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+          echo "ui_matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "heavy=$heavy matrix=$matrix"
+
   gate:
     name: check, build, test
     runs-on: ubuntu-latest
@@ -36,6 +73,8 @@ jobs:
 
   database:
     name: database suite (PostgreSQL)
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -66,18 +105,13 @@ jobs:
 
   ui-screenshots:
     name: ui screenshots (390px and 1280px, ${{ matrix.label }})
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - language: ar
-            label: Arabic
-          - language: en
-            label: English
-          - language: ur
-            label: Urdu
+      matrix: ${{ fromJSON(needs.changes.outputs.ui_matrix) }}
     services:
       postgres:
         image: postgres:16
@@ -156,6 +190,18 @@ jobs:
           BASE_URL: http://127.0.0.1:3200
           SESSION_FILE: ${{ runner.temp }}/ui-session
           OUT_DIR: ${{ runner.temp }}/ui-screenshots
+      # Work order 20, item 14 (audit 6.7): an automatic accessibility check (axe-core, WCAG 2.x A/AA and best practice) over every screen at desktop and phone width, in Arabic.
+      # axe-core is MPL-2.0 (file-level copyleft, no restriction on commercial use) and is used here unmodified as a test tool installed outside the repository; it never ships.
+      # A CRITICAL violation fails the run; serious ones are listed. An automatic check finds roughly a third of real problems: a pass is "none axe can detect", not "accessible".
+      - name: Accessibility check (axe-core, Arabic, every screen)
+        if: matrix.language == 'ar'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/axe" --no-save --no-audit --no-fund axe-core@4.10.2
+          node --import tsx scripts/check-accessibility.mjs
+        env:
+          AXE_MODULE_DIR: ${{ runner.temp }}/axe/node_modules/
+          BASE_URL: http://127.0.0.1:3200
+          DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
       - name: Server log (only after a failed step; the server logger prints a closed set of fields)
         if: failure()
         run: |
@@ -176,6 +222,8 @@ jobs:
     # actual cost -> EVM -> expected profit on the board's dashboard. The script builds the demonstration company itself, starts the production build as the restricted role,
     # and removes the company at the end.
     name: demo journeys (3 end-to-end journeys)
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
