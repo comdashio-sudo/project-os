@@ -1130,3 +1130,9 @@
 | الفحص المسبق يقرأ منطقة قاعدة Supabase ويقارنها بالأقرب في Vercel، ويقرأ `serverlessFunctionRegion` من مشروع Vercel الحيّ | `PROVEN` (محاكاة) / القراءة الحيّة `UNVERIFIED` حتى تشغيل الفحص المسبق | `preflight.ts`؛ `bootstrap.preflight.test.ts` «regions…». جدول المطابقة `NEAREST_VERCEL_REGION` في `scripts/bootstrap/lib.ts`. |
 | منطقة الدالة الحيّة وزمن طلب حقيقي على `dashio-lovat.vercel.app` | `HANDOFF_REQUIRED` (خطوة واحدة للمالك) | هذه الجلسة لا تصل إلى المضيف (سياسة الشبكة: `CONNECT tunnel failed, 403`) فلم أقِس. جُهِّز `scripts/measure-live.mjs` وworkflow يدوي بلا أسرار `Live probe` (Actions ← Live probe ← Run workflow): يطبع منطقة الدالة من `x-vercel-id` ويفشل إن لم تكن `sin1`، ويقيس p50/p95 لـ`/api/auth/config` و`/`. زمن من الرياض يحتاج متصفحًا هناك ولا يغني عنه مشغّل GitHub. |
 
+### أمر العمل 18 — بند 0-7: `ignoreCommand`
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `vercel.json` ← `"ignoreCommand": "bash scripts/ci/vercel-ignore.sh"`: يتخطى النشر حين يقتصر التغيير منذ آخر نشر ناجح على `docs/` أو `qa/` أو `.github/` أو أي `*.md`، وعند أي شك يُنشر (لا نشر سابق، أو شيفرته ليست في النسخة المستنسخة، أو الفرق غير محسوب أو فارغ، أو الإيداع الحالي غير مقروء) | `PROVEN` (اختبارات على مستودعات git حقيقية) / أثره على Vercel الحيّ `UNVERIFIED` حتى أول دفع | `server/testing/vercelIgnore.test.ts` (15): 5 حالات تخطٍّ (docs، workflow، qa، md في أي مكان، خليطها) و7 حالات بناء (شيفرة، سكربت، ترحيلة، `vercel.json`، القفل، توثيق مع شيفرة، `src/docs.ts`) وحالات الشك. معنى الخروج (0 تخطٍّ، 1 بناء) و`VERCEL_GIT_PREVIOUS_SHA` (آخر نشر ناجح، فارغ في أول نشر) مطابقان لوثائق Vercel الرسمية (بحث الوثائق، 2026-10-25). لا شيء في التطبيق أو البناء يقرأ `docs/` أو `.md` وقت التشغيل (بحث في client وserver وshared وscripts/build-vercel.mjs). |
+
