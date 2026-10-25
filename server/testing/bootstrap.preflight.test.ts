@@ -79,6 +79,19 @@ describe("launch pre-flight", () => {
     expect(blocks(open)).toEqual([]);
   });
 
+  it("plan catalogue and platform owner: read only; an empty catalogue and an owner without the role are warnings the button's catalogue phase answers", async () => {
+    const base = { "current_user AS name": [{ name: "postgres", superuser: false, createrole: true, version: "15.8" }], "FROM pg_roles WHERE rolname = 'project_os_app'": [], "storage.buckets": [{ present: true, can_insert: true, can_update: true }], "anon','authenticated','service_role'": [{ n: 0 }], "__project_os_migrations": [{ n: 9 }], "pg_default_acl": [{ open_now: 0, closed_by_default: true }] };
+    const run = (rows: Record<string, Array<Record<string, any>>>) => runPreflight(deps(good(), { openDatabase: database({ ...base, ...rows }) }));
+    const text = (findings: Awaited<ReturnType<typeof run>>) => findings.filter(item => item.area === "قاعدة البيانات").map(item => `${item.status}:${item.text}`).join("\n");
+    const empty = text(await run({ "to_regclass('public.commercial_plans')": [{ has_plans: true, has_users: true }], "FROM commercial_plans WHERE active": [{ active_plans: 0, all_plans: 0 }], "FROM users WHERE open_id": [{ role: "user" }] }));
+    expect(empty).toMatch(/warn:كتالوج الخطط فارغ/);
+    expect(empty).toMatch(/warn:حساب OWNER_EMAIL دوره «user»/);
+    const whole = text(await run({ "to_regclass('public.commercial_plans')": [{ has_plans: true, has_users: true }], "FROM commercial_plans WHERE active": [{ active_plans: 7, all_plans: 7 }], "FROM users WHERE open_id": [{ role: "admin" }] }));
+    expect(whole).toMatch(/ok:كتالوج الخطط: 7 خطة فعّالة/);
+    expect(whole).toMatch(/ok:حساب OWNER_EMAIL يحمل دور مالك المنصة/);
+    expect(text(await run({ "to_regclass('public.commercial_plans')": [{ has_plans: false, has_users: false }] }))).toMatch(/ok:كتالوج الخطط: الجدول غير موجود بعد/);
+  });
+
   it("READ-ONLY: every request it makes is a GET, nothing is written anywhere", async () => {
     const sim = simulate(good());
     await runPreflight({ ...deps(good()), fetch: sim.fetchImpl });

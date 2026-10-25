@@ -72,6 +72,9 @@ jobs:
       - name: Database — verify security (read-only)
         if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/verify-db-security.mjs
+      - name: Database — plan catalogue and platform owner (plants the catalogue, reads back the plan count and the owner's role)
+        if: ${{ !inputs.preflight_only }}
+        run: node --import tsx scripts/bootstrap/run.ts catalog
       - name: Vercel — project, variables, production deploy, health check
         if: ${{ !inputs.preflight_only }}
         run: node --import tsx scripts/bootstrap/run.ts vercel

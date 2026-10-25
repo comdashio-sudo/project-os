@@ -36,7 +36,7 @@ import { createImportUpload, getImportProgress, previewImportDiff, registerImpor
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
-import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
+import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPlatformOverview, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { getEmailNotificationPreferences, setEmailNotificationPreference, adjustPayrollAllocationForTenant, allocatePayrollEntryByHoursForTenant, allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
@@ -194,6 +194,9 @@ export const appRouter = router({
     provision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), planCode: z.string().trim().min(3).max(80), status: z.enum(["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]), seats: z.number().int().min(1).max(100000), priceAmount: z.number().min(0).optional(), discountAmount: z.number().min(0).optional(), startsAt: z.date().optional(), endsAt: z.date().optional(), trialEndsAt: z.date().optional(), graceEndsAt: z.date().optional(), manualActivation: z.boolean() })).mutation(({ ctx, input }) => provisionTenantLicense({ actorUserId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), nextStatus: z.enum(["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]) })).mutation(({ ctx, input }) => transitionTenantLicenseStatus({ actorUserId: ctx.user.id, ...input })),
     setFeatureOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), featureCode: z.string().trim().min(3).max(120), active: z.boolean(), limitValue: z.number().int().min(0).optional() })).mutation(({ ctx, input }) => setTenantLicenseFeatureOverride({ actorUserId: ctx.user.id, ...input })),
+  }),
+  platform: router({
+    overview: protectedProcedure.query(({ ctx }) => getPlatformOverview({ userId: ctx.user.id })),
   }),
   selfService: router({
     plans: protectedProcedure.query(() => getPublicCommercialPlans()),
