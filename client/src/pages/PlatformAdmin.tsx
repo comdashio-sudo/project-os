@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { SourceNotice } from "@/components/SectionResilience";
 import { EmptyState } from "@/components/ScreenStates";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { enumLabel } from "@/lib/labels";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { Building2, KeyRound, Layers3, ShieldCheck } from "lucide-react";
@@ -32,7 +33,7 @@ export default function PlatformAdmin() {
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="h-5 w-5 text-[#0e6b70]" />{t.companies} <span className="text-sm font-normal text-slate-500">({t.total}: {data.totalCompanies})</span></h2>
         {data.truncated ? <p role="status" className="mt-2 text-sm text-amber-800">{t.truncated} {data.shownCompanies} {t.of} {data.totalCompanies}</p> : null}
         {data.companies.length === 0 ? <p className="mt-3 text-slate-600">{t.none}</p> : <div className="mt-3 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-start text-slate-500"><th className="p-2 text-start">{t.companies}</th><th className="p-2 text-start">{t.plan}</th><th className="p-2 text-start">{t.status}</th><th className="p-2 text-start">{t.seats}</th><th className="p-2" /></tr></thead><tbody>
-          {data.companies.map(company => <tr key={company.id} className="border-t"><td className="p-2"><p className="font-semibold">{company.legalName}</p><p dir="ltr" className="text-xs text-slate-500">{company.slug}</p></td><td className="p-2">{company.license ? company.license.planName : t.noLicense}</td><td className="p-2">{company.license ? company.license.status : company.status}</td><td className="p-2">{company.license?.seats ?? "—"}</td>
+          {data.companies.map(company => <tr key={company.id} className="border-t"><td className="p-2"><p className="font-semibold">{company.legalName}</p><p dir="ltr" className="text-xs text-slate-500">{company.slug}</p></td><td className="p-2">{company.license ? company.license.planName : t.noLicense}</td><td className="p-2">{enumLabel(company.license ? company.license.status : company.status, language)}</td><td className="p-2">{company.license?.seats ?? "—"}</td>
             <td className="p-2"><div className="flex flex-wrap gap-2"><Link href={`/licensing/${company.id}`} className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border px-3 font-semibold text-[#0e6b70]"><KeyRound className="h-4 w-4" />{t.openLicense}</Link><Link href={`/projects/${company.id}`} className="inline-flex min-h-[44px] items-center rounded-lg border px-3 font-semibold">{t.openCompany}</Link></div></td></tr>)}
         </tbody></table></div>}
       </section>
