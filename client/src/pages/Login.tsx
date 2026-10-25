@@ -125,7 +125,7 @@ export default function Login() {
   const t = pickLanguage(language, messages);
   const params = React.useMemo(() => new URLSearchParams(window.location.search), []);
   const next = safeNext(params.get("next"));
-  // The mailed button opens /login?step=code. The address never travels in a link: it is kept in this browser tab's session storage when the code is requested.
+  // /login?step=code opens the code step (the mailed button did, until the owner removed it on 2026-10-25 because the sender's domain differs from the platform's; it returns with a domain of its own). The address never travels in a link: it is kept in this browser tab's session storage when the code is requested.
   const resume = React.useMemo(() => (params.get("step") === "code" ? remembered() : ""), [params]);
   const [step, setStep] = React.useState<Step>(resume ? "code" : "email");
   const [email, setEmail] = React.useState(resume);
