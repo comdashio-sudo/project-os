@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { slugFieldError } from "@/lib/formValidation";
+import { formFieldErrors, slugFieldError } from "@/lib/formValidation";
+import { FieldError } from "@/components/FieldError";
 import { WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { getOperationalRoleName, operationalRoleProfiles } from "@/lib/operationalRolePresentation";
@@ -105,6 +106,7 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
   const plans = trpc.selfService.plans.useQuery();
   const utils = trpc.useUtils();
   const [legalName, setLegalName] = useState(""); const [slug, setSlug] = useState(""); const [planCode, setPlanCode] = useState(""); const [seats, setSeats] = useState("5");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const signup = trpc.selfService.signup.useMutation({ onSuccess: async result => { await utils.tenant.mine.invalidate(); onDone(result.tenantId); } });
   const current = tenants.find(item => item.tenantId === tenantId);
   return (
@@ -115,11 +117,11 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
         <select id="setup-company" className={`${field} mt-1`} value={tenantId} onChange={event => { if (event.target.value) onDone(event.target.value); }}><option value="">—</option>{tenants.map(item => <option key={item.tenantId} value={item.tenantId}>{item.legalName ?? item.name ?? item.tenantId}</option>)}</select></div>}
       {tenantId && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{t.created}</p>}
       {!tenants.length && (
-        <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (planCode) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
-          <div><Label htmlFor="setup-legal">{t.legal}</Label><Input id="setup-legal" className="mt-1" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} /></div>
-          <div><Label htmlFor="setup-slug">{t.slug}</Label><Input id="setup-slug" dir="ltr" className="mt-1" aria-describedby="setup-slug-error" aria-invalid={slug !== "" && !!slugFieldError(slug, language)} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required />{slug !== "" && slugFieldError(slug, language) ? <p id="setup-slug-error" role="alert" className="mt-1 text-sm text-red-700">{slugFieldError(slug, language)}</p> : null}</div>
-          <div><Label htmlFor="setup-plan">{t.plan}</Label><select id="setup-plan" className={`${field} mt-1`} value={planCode} onChange={event => setPlanCode(event.target.value)} disabled={plans.isLoading} required><option value="">{plans.isLoading ? t.loading : t.pick}</option>{plans.data?.map(plan => <option key={plan.code} value={plan.code}>{plan.name} · {plan.packageCode}</option>)}</select></div>
-          <div><Label htmlFor="setup-seats">{t.seats}</Label><Input id="setup-seats" type="number" min={1} max={100000} className="mt-1" value={seats} onChange={event => setSeats(event.target.value)} required /></div>
+        <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); const slugProblem = slugFieldError(slug, language); if (slugProblem) errors["setup-slug"] = slugProblem; setFieldErrors(errors); if (Object.keys(errors).length === 0) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
+          <div><Label htmlFor="setup-legal">{t.legal}</Label><Input id="setup-legal" className="mt-1" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} /><FieldError id="setup-legal-error" message={fieldErrors["setup-legal"]} /></div>
+          <div><Label htmlFor="setup-slug">{t.slug}</Label><Input id="setup-slug" dir="ltr" className="mt-1" aria-describedby="setup-slug-error" aria-invalid={slug !== "" && !!slugFieldError(slug, language)} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required /><FieldError id="setup-slug-error" message={fieldErrors["setup-slug"] ?? (slug !== "" ? slugFieldError(slug, language) : null)} /></div>
+          <div><Label htmlFor="setup-plan">{t.plan}</Label><select id="setup-plan" className={`${field} mt-1`} value={planCode} onChange={event => setPlanCode(event.target.value)} disabled={plans.isLoading} required><option value="">{plans.isLoading ? t.loading : t.pick}</option>{plans.data?.map(plan => <option key={plan.code} value={plan.code}>{plan.name} · {plan.packageCode}</option>)}</select><FieldError id="setup-plan-error" message={fieldErrors["setup-plan"]} /></div>
+          <div><Label htmlFor="setup-seats">{t.seats}</Label><Input id="setup-seats" type="number" min={1} max={100000} className="mt-1" value={seats} onChange={event => setSeats(event.target.value)} required /><FieldError id="setup-seats-error" message={fieldErrors["setup-seats"]} /></div>
           {signup.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={signup.isPending || !planCode}>{signup.isPending ? t.creating : t.create}</Button></div>
         </form>
@@ -129,18 +131,20 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
 }
 
 function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetch }: { t: (typeof text)["ar"]["project"]; isArabic: boolean; tenantId: string; projects: Array<{ id: string; code: string; name: string }>; chosen: string; onChoose: (id: string) => void; refetch: () => void }) {
+  const { language } = useLanguage();
   const [form, setForm] = useState({ code: "", name: "", projectType: t.defaultType, currency: "SAR" });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const create = trpc.projects.create.useMutation({ onSuccess: async result => { await refetch(); const id = (result as { id?: string; projectId?: string } | undefined)?.id ?? (result as { projectId?: string } | undefined)?.projectId; if (id) onChoose(id); setForm({ ...form, code: "", name: "" }); } });
   return (
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
       {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3"><span><span dir="ltr" className="font-mono text-xs text-slate-500">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-emerald-700">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-slate-600">{t.none}</p>}
       <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects.", ur: "آپ کو پروجیکٹ بنانے کی اجازت نہیں ہے۔" }}>
-        <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); create.mutate({ tenantId, ...form }); }}>
-          <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /></div>
-          <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /></div>
-          <div><Label htmlFor="setup-type">{t.type}</Label><Input id="setup-type" className="mt-1" value={form.projectType} onChange={event => setForm({ ...form, projectType: event.target.value })} required minLength={2} /></div>
-          <div><Label htmlFor="setup-currency">{t.currency}</Label><Input id="setup-currency" dir="ltr" className="mt-1" maxLength={3} minLength={3} value={form.currency} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} required /></div>
+        <form noValidate className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) create.mutate({ tenantId, ...form }); }}>
+          <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /><FieldError id="setup-code-error" message={fieldErrors["setup-code"]} /></div>
+          <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /><FieldError id="setup-name-error" message={fieldErrors["setup-name"]} /></div>
+          <div><Label htmlFor="setup-type">{t.type}</Label><Input id="setup-type" className="mt-1" value={form.projectType} onChange={event => setForm({ ...form, projectType: event.target.value })} required minLength={2} /><FieldError id="setup-type-error" message={fieldErrors["setup-type"]} /></div>
+          <div><Label htmlFor="setup-currency">{t.currency}</Label><Input id="setup-currency" dir="ltr" className="mt-1" maxLength={3} minLength={3} value={form.currency} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} required /><FieldError id="setup-currency-error" message={fieldErrors["setup-currency"]} /></div>
           {create.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(create.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={create.isPending}>{create.isPending ? t.creating : t.create}</Button></div>
         </form>
@@ -153,6 +157,7 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
   const { language } = useLanguage();
   const admin = trpc.tenant.administration.useQuery({ tenantId }, { enabled: Boolean(tenantId) }); // opening it installs the ready-made system roles for the company
   const [email, setEmail] = useState(""); const [roleId, setRoleId] = useState(""); const [scopeChoice, setScopeChoice] = useState<"project" | "company" | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const scope = scopeChoice ?? (projectId ? "project" : "company"); // follows the chosen project until the person picks a scope on purpose
   const [sent, setSent] = useState<Array<{ email: string; role: string; token: string }>>([]);
   const roles = useMemo(() => (admin.data?.roles ?? []).filter(role => role.code !== "TENANT_OWNER"), [admin.data]);
@@ -167,9 +172,9 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
       {admin.error ? <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(admin.error, isArabic)}</p> : null}
       {!roles.length && !admin.isLoading && !admin.error ? <p className="mt-3 text-sm text-slate-600">{t.noRoles}</p> : null}
       <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite.", ur: "آپ کو کمپنی کا انتظام کرنے کی اجازت نہیں ہے، اس لیے آپ دعوت نہیں دے سکتے۔" }}>
-        <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!roleId) return; invite.mutate({ tenantId, email, roleId, scopeType: scope, scopeId: scope === "project" ? projectId : undefined }); }}>
-          <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /></div>
-          <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select></div>
+        <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) invite.mutate({ tenantId, email, roleId, scopeType: scope, scopeId: scope === "project" ? projectId : undefined }); }}>
+          <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /><FieldError id="setup-email-error" message={fieldErrors["setup-email"]} /></div>
+          <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select><FieldError id="setup-role-error" message={fieldErrors["setup-role"]} /></div>
           <div><Label htmlFor="setup-scope">{t.scope}</Label><select id="setup-scope" className={`${field} mt-1`} value={scope} onChange={event => setScopeChoice(event.target.value as "project" | "company")}><option value="project" disabled={!projectId}>{t.scopeProject}{project ? ` — ${project.name}` : ""}</option><option value="company">{t.scopeCompany}</option></select></div>
           {profile && <dl className="rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><dt className="font-semibold">{t.purpose}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).purpose}</dd><dt className="mt-2 font-semibold">{t.focus}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).focus}</dd><dt className="mt-2 font-semibold">{t.boundary}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).boundary}</dd></dl>}
           {invite.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(invite.error, isArabic)}</p>}
