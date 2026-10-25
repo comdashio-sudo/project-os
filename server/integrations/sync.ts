@@ -28,7 +28,9 @@ export async function finishSyncRun(db: Db, runId: string, items: readonly SyncI
   const rejected = items.filter(item => item.outcome === "rejected").length;
   const accepted = items.length - rejected;
   const status = failure ? "failed" : rejected === 0 ? "ok" : accepted === 0 ? "failed" : "partial";
-  await db.update(integrationSyncRuns).set({ status, received: items.length, accepted, rejected, finishedAt: new Date(), errorSummary: failure?.slice(0, 300) }).where(eq(integrationSyncRuns.id, runId));
+  // rows=0 is ambiguous (work order 20, item 13): the run row was written a moment ago in this request, so "no row updated" means the run is gone or invisible, and reporting a status for it would be a lie.
+  const finished = await db.update(integrationSyncRuns).set({ status, received: items.length, accepted, rejected, finishedAt: new Date(), errorSummary: failure?.slice(0, 300) }).where(eq(integrationSyncRuns.id, runId)).returning({ id: integrationSyncRuns.id });
+  if (finished.length !== 1) throw new Error("PROJECT_OS_SYNC_RUN_NOT_FOUND");
   return { runId, status, received: items.length, accepted, rejected };
 }
 
