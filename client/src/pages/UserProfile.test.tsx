@@ -33,6 +33,15 @@ describe("UserProfile", () => {
     expect(JSON.parse(localStorage.getItem("project-os-profile-activity") ?? "[]")).toHaveLength(2);
   });
 
+  it("names a task with no name beside its field and adds nothing", async () => {
+    const user = userEvent.setup();
+    render(<UserProfile />);
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    await user.click((document.getElementById("task-title")?.closest("form") as HTMLFormElement).querySelector("button[type=submit]") as HTMLButtonElement);
+    expect(screen.getByText("This field is required.")).toBeTruthy();
+    expect(localStorage.getItem("project-os-profile-tasks")).toBeNull();
+  });
+
   it("renders the complete profile experience in Arabic", () => {
     state.isArabic = true;
     render(<UserProfile />);

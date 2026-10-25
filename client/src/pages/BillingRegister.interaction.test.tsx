@@ -37,6 +37,18 @@ describe("BillingRegister", () => {
     expect(state.issue).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", subscriptionId: "sub-1", subtotalAmount: 100, currency: "SAR" }));
   });
 
+  it("names a missing buyer name beside its field and issues nothing", async () => {
+    const user = userEvent.setup();
+    render(<BillingRegister />);
+    await user.type(screen.getByLabelText("Seller name"), "Seller Co");
+    await user.type(screen.getByLabelText("Seller tax number"), "100");
+    await user.type(screen.getByLabelText("Buyer tax number"), "200");
+    await user.type(screen.getByLabelText("Subtotal before VAT"), "100");
+    await user.click(screen.getByRole("button", { name: "Issue invoice" }));
+    expect(screen.getByText("This field is required.")).toBeTruthy();
+    expect(state.issue).not.toHaveBeenCalled();
+  });
+
   it("records manual and mock payment requests against the displayed invoice", async () => {
     const user = userEvent.setup();
     render(<BillingRegister />);
