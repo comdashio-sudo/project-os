@@ -71,7 +71,18 @@ try {
            has_table_privilege(current_user, 'pg_catalog.pg_authid', 'SELECT') AS can_read_authid
       FROM pg_roles r WHERE r.rolname = current_user`)).rows[0];
 
-  const evidence = { auditPrivileges, probes, tables, noContextTenantRows, strangerTenantRows, dataApiRoleTablePrivileges: dataApi, role: { superuser: role.superuser, bypassRls: role.bypass_rls, canCreateInPublic: role.can_create, canReadPgAuthid: role.can_read_authid } };
+  // Work order 18: sequences, function EXECUTE, and the default for functions created next. Read from the catalogue with the ACL functions (aclexplode, has_sequence_privilege), never a text pattern.
+  const sequencesUnusable = (await client.query(`SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'S' AND CASE WHEN c.relkind = 'S' THEN NOT has_sequence_privilege(current_user, c.oid, 'USAGE') END ORDER BY 1`)).rows.map(row => row.name);
+  const functionsOpenToPublic = (await client.query(`
+    SELECT DISTINCT p.proname AS name FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+     WHERE p.pronamespace = 'public'::regnamespace AND a.grantee = 0 AND a.privilege_type = 'EXECUTE'
+       AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e') ORDER BY 1`)).rows.map(row => row.name);
+  const newFunctionsClosedByDefault = (await client.query(`
+    SELECT EXISTS (SELECT 1 FROM pg_default_acl d WHERE d.defaclobjtype = 'f' AND d.defaclnamespace = 0
+                    AND d.defaclrole = (SELECT proowner FROM pg_proc WHERE proname = 'app_system' AND pronamespace = 'public'::regnamespace)
+                    AND NOT EXISTS (SELECT 1 FROM aclexplode(d.defaclacl) a WHERE a.grantee = 0)) AS closed`)).rows[0].closed;
+
+  const evidence = { objects: { sequencesUnusable, functionsOpenToPublic, newFunctionsClosedByDefault }, auditPrivileges, probes, tables, noContextTenantRows, strangerTenantRows, dataApiRoleTablePrivileges: dataApi, role: { superuser: role.superuser, bypassRls: role.bypass_rls, canCreateInPublic: role.can_create, canReadPgAuthid: role.can_read_authid } };
   const result = evaluateAuditGrantVerification(evidence);
   console.log(JSON.stringify({ approved: result.approved, role: who.name, database: who.database, checks: result.checks, tables: tables.total, withoutRowLevelSecurity: tables.withoutRowLevelSecurity, unreadable: tables.unreadable, probeCodes: probes.map(({ operation, errorCode }) => ({ operation, errorCode })), noContextTenantRows, strangerTenantRows }, null, 2));
   if (!result.approved) process.exitCode = 1;

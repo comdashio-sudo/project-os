@@ -3390,10 +3390,14 @@ export async function getProfitabilityCostBreakdownForTenant(input: { userId: nu
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cashflow.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const where = and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId), eq(costEntries.status, "posted"), eq(costEntries.entryType, "actual"), input.wbsItemId ? eq(costEntries.wbsItemId, input.wbsItemId) : undefined);
-  const lines = await db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt)).limit(500);
-  const byCategory = new Map<string, number>();
-  for (const line of lines) byCategory.set(line.category, round2((byCategory.get(line.category) ?? 0) + Number(line.amount)));
-  return { truncated: lines.length === 500, byCategory: Array.from(byCategory, ([category, amount]) => ({ category, amount })), lines: lines.slice(0, 100).map(line => ({ ...line, amount: Number(line.amount) })) };
+  // The totals by category are summed by the database over EVERY posted line; only the list of lines is cut (the newest 100, for display). It used to read the newest 500 lines
+  // and add them up in memory, so a project with more than 500 cost lines showed category totals that left the older lines out, with nothing on screen to say so.
+  const [totals, lines] = await Promise.all([
+    db.select({ category: costEntries.category, amount: sql<string>`COALESCE(SUM(${costEntries.amount}), 0)`, count: sql<number>`count(*)` }).from(costEntries).where(where).groupBy(costEntries.category).orderBy(costEntries.category),
+    db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt), desc(costEntries.id)).limit(100),
+  ]);
+  const totalLines = totals.reduce((sum, row) => sum + Number(row.count), 0);
+  return { truncated: totalLines > lines.length, totalLines, byCategory: totals.map(row => ({ category: row.category, amount: round2(Number(row.amount)) })), lines: lines.map(line => ({ ...line, amount: Number(line.amount) })) };
 }
 
 /** FPAC over the stored snapshots (oldest first), for the trend line. */

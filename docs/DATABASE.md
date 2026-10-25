@@ -31,3 +31,13 @@ PostgreSQL 16 (Supabase في الإنتاج، PostgreSQL محلي في الاخ�
 ## سياسة العزل
 
 الطبقة الأولى: الخادم. الطبقة الثانية: RLS (`app.user_id` / `app.tenant_ids` / `app.system` تُضبط لكل جملة). جدول بلا تصنيف يُسقط الترحيلة. الجداول العامة (بلا شركة): users، auth_sessions، permissions، commercial_*، plan_feature_entitlements، scheduled_jobs، self_service_signup_attempts، invoice_counters، auth_code_attempts — RLS مفعّلة عليها وسياستها لحساب التطبيق وحده، فأدوار Data API في Supabase لا ترى شيئًا.
+
+## Object privileges after 2026-10-30 (work order 18)
+
+Supabase stops granting new tables, sequences and functions in `public` to its API roles automatically from 2026-10-30, and PostgreSQL itself gives every new function EXECUTE to PUBLIC. Nothing here relies on a default:
+
+- **Tables and sequences:** `project_os_apply_conventions()` (run by `scripts/migrate.mjs` after every migration) grants the application role `project_os_app` exactly what it should and fails the migration on a table it cannot classify. After the sweep `migrate.mjs` also fails when a sequence is not usable by `project_os_app`.
+- **Functions:** migration `0009_wo18_function_execute_defaults.sql` runs `ALTER DEFAULT PRIVILEGES FOR ROLE postgres REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` (no `IN SCHEMA`: that form cannot remove the global default). A function the application calls says so in its own migration: `GRANT EXECUTE ON FUNCTION ... TO project_os_app`. `migrate.mjs` fails when any function in `public` grants EXECUTE to PUBLIC.
+- **Proof, read-only:** `scripts/verify-db-security.mjs` (run by predeploy and by Actions > Supabase setup > verify) reports `everySequenceUsable`, `noFunctionOpenToPublic`, `newFunctionsClosedByDefault` from the catalogue (`aclexplode`, `has_sequence_privilege`, `pg_default_acl`); `server/grants.objects.database.test.ts` proves it on the test database, including a function and a table created in a rolled-back transaction.
+- Never read an ACL with a text pattern: a PUBLIC entry sits first in the list (`{=X/postgres,...}`) and a pattern written for the other entries misses it. A NULL `proacl` means "everyone may execute".
+

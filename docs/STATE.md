@@ -1130,6 +1130,21 @@
 | الفحص المسبق يقرأ منطقة قاعدة Supabase ويقارنها بالأقرب في Vercel، ويقرأ `serverlessFunctionRegion` من مشروع Vercel الحيّ | `PROVEN` (محاكاة) / القراءة الحيّة `UNVERIFIED` حتى تشغيل الفحص المسبق | `preflight.ts`؛ `bootstrap.preflight.test.ts` «regions…». جدول المطابقة `NEAREST_VERCEL_REGION` في `scripts/bootstrap/lib.ts`. |
 | منطقة الدالة الحيّة وزمن طلب حقيقي على `dashio-lovat.vercel.app` | `HANDOFF_REQUIRED` (خطوة واحدة للمالك) | هذه الجلسة لا تصل إلى المضيف (سياسة الشبكة: `CONNECT tunnel failed, 403`) فلم أقِس. جُهِّز `scripts/measure-live.mjs` وworkflow يدوي بلا أسرار `Live probe` (Actions ← Live probe ← Run workflow): يطبع منطقة الدالة من `x-vercel-id` ويفشل إن لم تكن `sin1`، ويقيس p50/p95 لـ`/api/auth/config` و`/`. زمن من الرياض يحتاج متصفحًا هناك ولا يغني عنه مشغّل GitHub. |
 
+### أمر العمل 18 — بند 0-4: صلاحيات EXECUTE والمنح الصريحة
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| الدوال الجديدة لا تُمنح EXECUTE للجميع: `ALTER DEFAULT PRIVILEGES FOR ROLE postgres REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` بلا `IN SCHEMA`، ومنح صريحة لـ`project_os_app` للدوال الخمس التي يستدعيها | `PROVEN` (قاعدة محلية PostgreSQL 16، 2026-10-25) | `drizzle/0009_wo18_function_execute_defaults.sql` وفيها كتلة `DO` ترفع استثناءً إن بقيت دالة في `public` تمنح EXECUTE لـPUBLIC، أو إن منحت دالةٌ تُنشأ الآن (في معاملة فرعية تُلغى) EXECUTE لـPUBLIC. **قبل الترحيلة:** `project_os_users_protect_admin` كانت بـ`proacl` فارغ أي EXECUTE للجميع، وكل دالة جديدة تُمنح للجميع. **بعدها:** `pg_default_acl` فيه صف `postgres` عام للدوال بلا PUBLIC؛ ودالة جديدة داخل معاملة مُلغاة: `PUBLIC` = false و`project_os_app` = false حتى يُمنح. **سلبي:** إعادة الافتراضي داخل معاملة مُلغاة ← الدالة الجديدة تمنح PUBLIC (true). |
+| القراءة بالدوال لا بالتعابير النمطية | `PROVEN` | `aclexplode(coalesce(proacl, acldefault('f', proowner)))` (NULL يعني مفتوحًا) و`has_function_privilege` و`has_sequence_privilege` و`pg_default_acl`. |
+| التحقق على القاعدة الحية بقراءة فقط | `HANDOFF_REQUIRED` (خطوة المالك) | `scripts/verify-db-security.mjs` صار يطبع `everySequenceUsable` و`noFunctionOpenToPublic` و`newFunctionsClosedByDefault` ويفشل إن لم تكن true (جُرِّب سلبيًا محليًا: منح PUBLIC على دالة ← `approved:false`، ثم أُعيد الإغلاق ← `approved:true`). لا وصول لهذه الجلسة إلى القاعدة الحيّة. التشغيل: Actions ← Supabase setup ← verify (يقرأ ولا يغيّر)، وبعد ترحيلة 0009 على الإنتاج. والفحص المسبق للزر يقرأ الحالة نفسها ويحذّر قبل تطبيق 0009. |
+| منح الجداول والتسلسلات بعد 2026-10-30 | `PROVEN` | المنح صريحة أصلًا: `project_os_apply_conventions()` تمنح كل جدول وتسلسل لـ`project_os_app` بعد كل ترحيلة، وتُسقط الترحيلة عند جدول لا تصنّفه. أُضيف في `scripts/migrate.mjs` حارس يُسقط الترحيلة (وبالتالي وظيفة قاعدة البيانات في CI) عند تسلسل لا يستعمله `project_os_app` أو دالة تمنح PUBLIC (جُرِّب سلبيًا: دالة بمنحة PUBLIC ← `Migration failed: ... zz_open`). `server/grants.objects.database.test.ts` (5 اختبارات) يثبّتها، ومنها جدول وتسلسل يُنشآن في معاملة مُلغاة فتمنحهما الكنسة؛ وسلبي: دالة مفتوحة ← يفشل. القاعدة موثّقة في `docs/DATABASE.md`. |
+
+### أمر العمل 18 — بند 0-5: حدّ الصفوف
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| لا حدّ صامت في الحسابات | `PROVEN` (اختبار) + عيب واحد أُصلح | جُردت كل `.limit(` و`LIMIT` في `server/` (غير الاختبارات): كلها عرض أو تصفح مقصود (`erpOutbound` بمؤشر، القوائم 20–500، `tenantData` صفحات مؤشرية) **عدا** `getProfitabilityCostBreakdownForTenant` في `server/db.ts` التي كانت تقرأ **أحدث 500 سطر تكلفة فقط** وتجمعها في الذاكرة حسب الفئة فتخرج مجاميع ناقصة بلا تنبيه لمشروع فيه أكثر من 500 سطر (المؤشر `truncated` لا يستهلكه أي مكوّن). صار الجمع في قاعدة البيانات على كل الأسطر والقائمة المعروضة أحدث 100، ويعود `totalLines`. |
+| مشروع من 1,200 وحدة: الأرقام على الكل | `PROVEN` (قاعدة محلية، `server/rowLimits.database.test.ts`، 5 اختبارات) | 1,200 وحدة × نشاطان = 2,400 خلية و1,200 سطر تكلفة مُرحَّل: تقدم PMC = **55** تمامًا (900 جدارًا مكتملًا و300 دهانًا)، شاشة المناطق تعدّ 2,400 خلية منها 1,200 مكتملة، والربحية: التكلفة الفعلية 12,000 ومعها EAC = 22,000 وFPAC = 8,000 (لو قُطعت عند 500 سطر لخرجت AC=5,000)، وتفصيل التكلفة 7,000 + 5,000 على 1,200 سطر. **سلبي:** الكود القديم يفشل اختبار التفصيل وحده (باقي الأرقام كانت سليمة أصلًا، وهذا هو الإثبات أن مساراتها لا تقطع). |
 ### أمر العمل 18 — بند 0-7: `ignoreCommand`
 
 | البند | الحالة | الدليل |

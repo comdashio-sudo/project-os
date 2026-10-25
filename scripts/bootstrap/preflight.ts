@@ -135,6 +135,13 @@ export async function runPreflight(deps: PreflightDeps): Promise<Finding[]> {
         const [row] = await probe.query(`SELECT count(*)::int AS n FROM pg_roles r CROSS JOIN pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace WHERE r.rolname IN ('anon','authenticated','service_role') AND ns.nspname = 'public' AND c.relkind = 'r' AND (has_table_privilege(r.oid, c.oid, 'SELECT') OR has_table_privilege(r.oid, c.oid, 'INSERT') OR has_table_privilege(r.oid, c.oid, 'UPDATE') OR has_table_privilege(r.oid, c.oid, 'DELETE'))`);
         add("قاعدة البيانات", row?.n ? "warn" : "ok", row?.n ? `أدوار Data API (anon/authenticated/service_role) تملك ${row.n} صلاحية على جداول التطبيق؛ تُسحب في الترحيلات، وإن بقيت فسيرفض verify-db-security.` : "أدوار Data API لا تملك أي صلاحية على جداول التطبيق.");
       });
+      await guard("قاعدة البيانات", "EXECUTE على الدوال", async () => {
+        // Read only, with the ACL functions (never a text pattern): functions in public that grant EXECUTE to PUBLIC (a NULL ACL means everyone), and whether the default for new ones excludes PUBLIC.
+        const [row] = await probe.query(`SELECT (SELECT count(DISTINCT p.proname)::int FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE p.pronamespace = 'public'::regnamespace AND a.grantee = 0 AND a.privilege_type = 'EXECUTE' AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')) AS open_now, EXISTS (SELECT 1 FROM pg_default_acl d WHERE d.defaclobjtype = 'f' AND d.defaclnamespace = 0 AND d.defaclrole = 'postgres'::regrole AND NOT EXISTS (SELECT 1 FROM aclexplode(d.defaclacl) a WHERE a.grantee = 0)) AS closed_by_default`);
+        if (!row) { add("قاعدة البيانات", "unknown", "تعذّرت قراءة صلاحيات EXECUTE على الدوال."); return; }
+        if (row.open_now || !row.closed_by_default) add("قاعدة البيانات", "warn", `${row.open_now ? `${row.open_now} دالة في public تمنح EXECUTE للجميع (PUBLIC) ` : ""}${row.closed_by_default ? "" : "والدوال الجديدة ستُمنح EXECUTE للجميع افتراضيًا "}— تعالجه الترحيلة 0009 التي يطبّقها الزر، ويتحقق منها verify-db-security بعد التطبيق.`);
+        else add("قاعدة البيانات", "ok", "لا دالة في public تمنح EXECUTE للجميع، والدوال الجديدة مغلقة افتراضيًا.");
+      });
       await guard("قاعدة البيانات", "الترحيلات", async () => {
         const [row] = await probe.query("SELECT CASE WHEN to_regclass('drizzle.__project_os_migrations') IS NULL THEN 0 ELSE (SELECT count(*) FROM drizzle.__project_os_migrations) END::int AS n");
         add("قاعدة البيانات", "ok", `الترحيلات المطبَّقة ${row?.n ?? 0}${deps.migrationFilesCount ? ` من ${deps.migrationFilesCount} في المستودع` : ""}؛ إعادة التشغيل تتخطى المطبَّق.`);
