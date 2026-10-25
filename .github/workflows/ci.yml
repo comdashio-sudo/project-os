@@ -201,7 +201,8 @@ jobs:
         env:
           AXE_MODULE_DIR: ${{ runner.temp }}/axe/node_modules/
           BASE_URL: http://127.0.0.1:3200
-          DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role
+          # the script finds the demo company and its owner by reading across companies, which the restricted application role may not do: it connects as the container's owner
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
       - name: Server log (only after a failed step; the server logger prints a closed set of fields)
         if: failure()
         run: |
