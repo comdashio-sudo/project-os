@@ -494,7 +494,52 @@ export const projectErrorMessages = {
   PROJECT_OS_WORKSPACE_SLUG_EXISTS: {
     ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
     en: "This workspace slug is already in use. Choose a different workspace slug.",
-    ur: "This workspace slug is already in use. Choose a different workspace slug.",
+    ur: "یہ مختصر نام پہلے سے استعمال ہو رہا ہے۔ کوئی اور مختصر نام منتخب کریں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_REQUIRED: {
+    ar: "أدخل الاسم المختصر لمساحة العمل.",
+    en: "Enter the workspace short name.",
+    ur: "ورک اسپیس کا مختصر نام درج کریں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_TOO_SHORT: {
+    ar: "الاسم المختصر يجب أن يكون ٣ أحرف على الأقل.",
+    en: "The short name must be at least 3 characters.",
+    ur: "مختصر نام کم از کم 3 حروف کا ہونا چاہیے۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_TOO_LONG: {
+    ar: "الاسم المختصر طويل جدًا، وحده الأقصى ١٢٠ حرفًا.",
+    en: "The short name is too long. It can be 120 characters at most.",
+    ur: "مختصر نام بہت لمبا ہے۔ زیادہ سے زیادہ 120 حروف ہو سکتے ہیں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_FORMAT: {
+    ar: "استعمل أحرفًا إنجليزية صغيرة وأرقامًا وشرطة فقط، مثل: fanaa.",
+    en: "Use only lowercase English letters, digits and dashes, for example: fanaa.",
+    ur: "صرف چھوٹے انگریزی حروف، ہندسے اور ڈیش استعمال کریں، مثلاً: fanaa۔",
+  },
+  PROJECT_OS_FIELD_REQUIRED: {
+    ar: "هذا الحقل مطلوب.",
+    en: "This field is required.",
+    ur: "یہ فیلڈ ضروری ہے۔",
+  },
+  PROJECT_OS_FIELD_NUMBER_INVALID: {
+    ar: "أدخل رقمًا صحيحًا.",
+    en: "Enter a valid number.",
+    ur: "درست عدد درج کریں۔",
+  },
+  PROJECT_OS_FIELD_DATE_INVALID: {
+    ar: "أدخل تاريخًا صحيحًا.",
+    en: "Enter a valid date.",
+    ur: "درست تاریخ درج کریں۔",
+  },
+  PROJECT_OS_FIELD_EMAIL_INVALID: {
+    ar: "أدخل عنوان بريد إلكتروني صحيحًا.",
+    en: "Enter a valid email address.",
+    ur: "درست ای میل پتہ درج کریں۔",
+  },
+  PROJECT_OS_INPUT_INVALID: {
+    ar: "تحقق من الحقل المحدد ثم أعد المحاولة.",
+    en: "Check the field that is marked and try again.",
+    ur: "نشان زدہ فیلڈ چیک کریں اور دوبارہ کوشش کریں۔",
   },
   PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE: {
     ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { slugFieldError } from "@/lib/formValidation";
 import { WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { getOperationalRoleName, operationalRoleProfiles } from "@/lib/operationalRolePresentation";
@@ -114,9 +115,9 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
         <select id="setup-company" className={`${field} mt-1`} value={tenantId} onChange={event => { if (event.target.value) onDone(event.target.value); }}><option value="">—</option>{tenants.map(item => <option key={item.tenantId} value={item.tenantId}>{item.legalName ?? item.name ?? item.tenantId}</option>)}</select></div>}
       {tenantId && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{t.created}</p>}
       {!tenants.length && (
-        <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (planCode) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
+        <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (planCode) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
           <div><Label htmlFor="setup-legal">{t.legal}</Label><Input id="setup-legal" className="mt-1" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} /></div>
-          <div><Label htmlFor="setup-slug">{t.slug}</Label><Input id="setup-slug" dir="ltr" className="mt-1" pattern="[a-z0-9]+(-[a-z0-9]+)*" minLength={3} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required /></div>
+          <div><Label htmlFor="setup-slug">{t.slug}</Label><Input id="setup-slug" dir="ltr" className="mt-1" aria-describedby="setup-slug-error" aria-invalid={slug !== "" && !!slugFieldError(slug, language)} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required />{slug !== "" && slugFieldError(slug, language) ? <p id="setup-slug-error" role="alert" className="mt-1 text-sm text-red-700">{slugFieldError(slug, language)}</p> : null}</div>
           <div><Label htmlFor="setup-plan">{t.plan}</Label><select id="setup-plan" className={`${field} mt-1`} value={planCode} onChange={event => setPlanCode(event.target.value)} disabled={plans.isLoading} required><option value="">{plans.isLoading ? t.loading : t.pick}</option>{plans.data?.map(plan => <option key={plan.code} value={plan.code}>{plan.name} · {plan.packageCode}</option>)}</select></div>
           <div><Label htmlFor="setup-seats">{t.seats}</Label><Input id="setup-seats" type="number" min={1} max={100000} className="mt-1" value={seats} onChange={event => setSeats(event.target.value)} required /></div>
           {signup.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
