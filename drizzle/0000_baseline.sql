@@ -3026,6 +3026,18 @@ DECLARE
     "membership_roles":              ["membership_id",     "memberships"],
     "role_permissions":              ["role_id",           "roles"]
   }'::jsonb;
+  -- Work order 20, item 3 (audit 4.3): the application role may UPDATE a column only when the column is not immutable. A statement that moves a row to another company (tenant_id),
+  -- rewrites its identity (id) or its history (created_at), or re-points a person's identity (users.open_id and the like) is refused by the database with 42501 before row-level security is
+  -- even consulted, whatever the application code or an injected statement says. A column added later is writable by default: this function runs after every migration and grants it.
+  immutable_cols constant text[] := ARRAY['id', 'tenant_id', 'created_at'];
+  immutable_extra constant jsonb := '{
+    "users":         ["open_id"],
+    "auth_sessions": ["user_id"],
+    "memberships":   ["user_id"],
+    "user_mfa":      ["user_id"]
+  }'::jsonb;
+  imm text[];            -- the immutable columns of the table in hand
+  writable text;         -- its writable columns, as a quoted list for GRANT UPDATE (...)
   pred text;
   swept integer := 0;
   reapplied integer := 0;
@@ -3054,10 +3066,12 @@ BEGIN
     swept := swept + 1;
 
     -- 1. what this table must look like (an unclassified table is refused here, before anything is touched)
+    imm := immutable_cols || ARRAY(SELECT jsonb_array_elements_text(coalesce(immutable_extra -> t.name, '[]'::jsonb)));
     IF t.name = 'audit_logs' THEN
       want_privs := ARRAY['INSERT', 'SELECT'];
     ELSE
-      want_privs := ARRAY['DELETE', 'INSERT', 'SELECT', 'UPDATE'];
+      -- UPDATE is not a table-level privilege any more: it is granted per column below (a column-level REVOKE would subtract nothing from a table-level grant)
+      want_privs := ARRAY['DELETE', 'INSERT', 'SELECT'];
     END IF;
     IF t.name = 'audit_logs' THEN
       pred := format('((SELECT app_system()) OR %I = ANY ((SELECT app_tenant_ids())::text[]))', 'tenant_id');
@@ -3092,13 +3106,15 @@ BEGIN
     ELSE
       RAISE EXCEPTION 'table % has no tenant_id and is not classified in project_os_apply_conventions(): add it to global_tables or child_tables', t.name;
     END IF;
-    sig := md5(array_to_string(policy_sql, E'\n') || '|' || array_to_string(want_privs, ','));
+    sig := md5(array_to_string(policy_sql, E'\n') || '|' || array_to_string(want_privs, ',') || '|' || array_to_string(imm, ','));
 
     -- 2. does it already look like that? (catalog reads only)
     SELECT array_agg(a.privilege_type::text ORDER BY a.privilege_type::text) INTO have_privs
       FROM aclexplode(t.acl) a JOIN pg_roles r ON r.oid = a.grantee WHERE r.rolname = 'project_os_app';
     conforming := t.rls_on
       AND have_privs IS NOT DISTINCT FROM want_privs
+      AND NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = t.oid AND a.attnum > 0 AND NOT a.attisdropped
+                         AND has_column_privilege('project_os_app', t.oid, a.attnum, 'UPDATE') IS DISTINCT FROM (t.name <> 'audit_logs' AND NOT (a.attname::text = ANY (imm))))
       AND (NOT t.has_updated OR EXISTS (SELECT 1 FROM pg_trigger tg WHERE tg.tgrelid = t.oid AND tg.tgname = 'set_updated_at' AND NOT tg.tgisinternal
                                          AND tg.tgfoid = 'project_os_set_updated_at'::regproc AND tg.tgtype = 19))
       AND (SELECT coalesce(array_agg(p.polname::text ORDER BY p.polname::text), ARRAY[]::text[]) FROM pg_policy p
@@ -3122,7 +3138,10 @@ BEGIN
       EXECUTE format('GRANT SELECT, INSERT ON %I TO project_os_app', t.name);
     ELSE
       EXECUTE format('REVOKE ALL ON %I FROM project_os_app', t.name);
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO project_os_app', t.name);
+      EXECUTE format('GRANT SELECT, INSERT, DELETE ON %I TO project_os_app', t.name);
+      SELECT string_agg(quote_ident(a.attname::text), ', ' ORDER BY a.attnum) INTO writable
+        FROM pg_attribute a WHERE a.attrelid = t.oid AND a.attnum > 0 AND NOT a.attisdropped AND NOT (a.attname::text = ANY (imm));
+      IF writable IS NOT NULL THEN EXECUTE format('GRANT UPDATE (%s) ON %I TO project_os_app', writable, t.name); END IF;
     END IF;
 
     -- row-level security

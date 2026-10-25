@@ -59,10 +59,11 @@ describe.skipIf(!isTestDatabaseUrl(ownerUrl))("object privileges: functions, seq
     expect(unusable.map(row => row.name)).toEqual([]);
     await owner.query("BEGIN");
     try {
-      await owner.query("CREATE TABLE public.zz_grant_probe (id serial PRIMARY KEY, tenant_id varchar(36) NOT NULL)");
+      await owner.query("CREATE TABLE public.zz_grant_probe (id serial PRIMARY KEY, tenant_id varchar(36) NOT NULL, note text)");
       await owner.query("SELECT project_os_apply_conventions()");
       const [[state]] = await owner.query<{ table_ok: boolean; seq_ok: boolean }[]>(
-        "SELECT has_table_privilege('project_os_app', 'public.zz_grant_probe', 'SELECT,INSERT,UPDATE,DELETE') AS table_ok, has_sequence_privilege('project_os_app', 'public.zz_grant_probe_id_seq', 'USAGE') AS seq_ok");
+        // UPDATE is a column-level grant (work order 20, item 3): the new table's ordinary column is writable, its tenant_id is not
+        "SELECT has_table_privilege('project_os_app', 'public.zz_grant_probe', 'SELECT,INSERT,DELETE') AND has_column_privilege('project_os_app', 'public.zz_grant_probe', 'note', 'UPDATE') AND NOT has_column_privilege('project_os_app', 'public.zz_grant_probe', 'tenant_id', 'UPDATE') AS table_ok, has_sequence_privilege('project_os_app', 'public.zz_grant_probe_id_seq', 'USAGE') AS seq_ok");
       expect([Boolean(state.table_ok), Boolean(state.seq_ok)]).toEqual([true, true]);
     } finally { await owner.query("ROLLBACK"); }
   });
