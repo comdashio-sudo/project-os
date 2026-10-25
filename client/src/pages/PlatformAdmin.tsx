@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { SourceNotice } from "@/components/SectionResilience";
 import { EmptyState } from "@/components/ScreenStates";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { NewCompanyCard } from "@/components/NewCompanyCard";
 import { enumLabel } from "@/lib/labels";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
@@ -29,6 +30,7 @@ export default function PlatformAdmin() {
     <SourceNotice query={overview} isArabic={isArabic} title={t.planList} />
     {overview.isLoading ? <p role="status" className="text-slate-600">{t.loading}</p> : null}
     {data ? <>
+      <NewCompanyCard onCreated={() => void overview.refetch()} />
       <section aria-label={t.companies} className="rounded-2xl border bg-white p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="h-5 w-5 text-[#0e6b70]" />{t.companies} <span className="text-sm font-normal text-slate-500">({t.total}: {data.totalCompanies})</span></h2>
         {data.truncated ? <p role="status" className="mt-2 text-sm text-amber-800">{t.truncated} {data.shownCompanies} {t.of} {data.totalCompanies}</p> : null}

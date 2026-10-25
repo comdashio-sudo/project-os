@@ -9,7 +9,7 @@ vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { name: "Owner
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
-vi.mock("@/lib/trpc", () => ({ trpc: { platform: { overview: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.requested = state.requested || options?.enabled !== false; return state.overview; } } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { selfService: { plans: { useQuery: () => ({ data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }] }) }, signup: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } }, platform: { overview: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.requested = state.requested || options?.enabled !== false; return state.overview; } } } } }));
 
 afterEach(() => { cleanup(); state.role = "admin"; state.requested = false; state.overview = { data: undefined, isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; });
 
@@ -29,6 +29,7 @@ describe("platform administration page", () => {
     expect(licenceLinks).toEqual(["/licensing/11111111-1111-4111-8111-111111111111", "/licensing/22222222-2222-4222-8222-222222222222"]);
     expect(screen.getByText("Project Standard")).toBeTruthy();
     expect(screen.getByText("Switched off")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create the company" })).toBeTruthy(); // the platform owner creates companies
   });
 
   it("says plainly when the list is cut, with the true total", () => {

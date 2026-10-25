@@ -2359,6 +2359,8 @@ export const authSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** The last request this session made (refreshed at most every five minutes). A session idle for 24 hours is over; null (a session from before the column) counts as created_at. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   },
   table => [
     foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "auth_sessions_user_fk" }).onDelete("cascade"),

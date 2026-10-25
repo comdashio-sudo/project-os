@@ -74,6 +74,7 @@ describe.skipIf(!live)("sign-in by e-mail code against a real Supabase Auth", ()
       emailCodes: createEmailCodeService({ provider: createSupabaseCodeProvider({ url: authUrl!, authUrl, anonKey: "local-key-not-checked-by-a-local-gotrue" }), attempts: createDbAttemptLimiter() }),
       google: null,
       secret: ENV.cookieSecret,
+      isEligible: async () => true,
       upsertUser: user => upsertUser(user),
       createSessionToken: (openId, options) => sdk.issueSession(openId, options),
     });
@@ -209,7 +210,8 @@ describe.skipIf(!live)("sign-in by e-mail code against a real Supabase Auth", ()
     registerAuthRoutes(down, {
       emailCodes: createEmailCodeService({ provider: createSupabaseCodeProvider({ url: "http://127.0.0.1:1", authUrl: "http://127.0.0.1:1", anonKey: "k", timeoutMs: 1500 }), attempts: createDbAttemptLimiter() }),
       google: null, secret: ENV.cookieSecret,
-      upsertUser: user => upsertUser(user), createSessionToken: (openId, options) => sdk.issueSession(openId, options),
+      isEligible: async () => true,
+      isEligible: async () => true, upsertUser: user => upsertUser(user), createSessionToken: (openId, options) => sdk.issueSession(openId, options),
     });
     const unreachable = await new Promise<Server>(resolve => { const s = down.listen(0, "127.0.0.1", () => resolve(s)); });
     try {

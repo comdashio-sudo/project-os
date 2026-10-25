@@ -15,7 +15,7 @@ const GOOGLE = { clientId: "client-id.example.test", clientSecret: "client-secre
 const servers: Server[] = [];
 afterEach(async () => { await Promise.all(servers.splice(0).map(s => new Promise(resolve => s.close(resolve)))); });
 
-async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch; clock?: { value: number } } = {}) {
+async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch; clock?: { value: number }; eligible?: (email: string) => boolean } = {}) {
   const clock = options.clock ?? { value: Date.now() };
   const upserts: Array<Parameters<AuthRoutesDependencies["upsertUser"]>[0]> = [];
   const { publicKey, privateKey } = await generateKeyPair("RS256");
@@ -32,6 +32,7 @@ async function harness(options: { withGoogle?: boolean; fetchImpl?: typeof fetch
     emailCodes,
     secret: SECRET,
     google: options.withGoogle ? { config: GOOGLE, keys: createLocalJWKSet({ keys: [jwk] }), fetchImpl: options.fetchImpl } : null,
+    isEligible: async email => (options.eligible ? options.eligible(email) : true),
     upsertUser: async user => { upserts.push(user); },
     createSessionToken: async (openId, o) => `session:${openId}:${o.name}`,
     now: () => clock.value,
@@ -153,6 +154,31 @@ describe("e-mail code routes", () => {
   it("reports whether Google is offered", async () => {
     expect(await (await fetch((await harness()).base + "/api/auth/config")).json()).toEqual({ emailCode: true, google: false });
     expect(await (await fetch((await harness({ withGoogle: true })).base + "/api/auth/config")).json()).toEqual({ emailCode: true, google: true });
+  });
+});
+
+describe("sign-in by invitation only (owner's decision 2026-10-25)", () => {
+  const invited = (email: string) => email === "invited@example.test";
+  it("an uninvited address is answered like an invited one -- same status, same body -- and no code is sent", async () => {
+    const h = await harness({ eligible: invited });
+    const stranger = await h.post("/api/auth/email/request", { email: "stranger@example.test" });
+    const guest = await h.post("/api/auth/email/request", { email: "invited@example.test" });
+    expect(stranger.status).toBe(200); expect(guest.status).toBe(200);
+    expect(await stranger.json()).toEqual(await guest.json());
+    expect(h.sent.map(mail => mail.to)).toEqual(["invited@example.test"]);
+  });
+  it("NEGATIVE: a code obtained from the identity provider for an uninvited address opens no session (the same answer as a wrong code, and no cookie)", async () => {
+    const h = await harness({ eligible: invited });
+    await h.fake.provider.sendCode("stranger@example.test"); // straight to the provider, around this app
+    const response = await h.post("/api/auth/email/verify", { email: "stranger@example.test", code: "424242" });
+    expect(response.status).toBe(401); expect(await response.json()).toEqual({ code: "PROJECT_OS_AUTH_CODE_INVALID" });
+    expect(response.headers.get("set-cookie")).toBeNull(); expect(h.upserts).toEqual([]);
+  });
+  it("an invited address signs in as before", async () => {
+    const h = await harness({ eligible: invited });
+    await h.post("/api/auth/email/request", { email: "invited@example.test" });
+    const response = await h.post("/api/auth/email/verify", { email: "invited@example.test", code: "424242" });
+    expect(response.status).toBe(200); expect(decodeURIComponent(response.headers.get("set-cookie") ?? "")).toMatch(/session:/); expect(h.upserts).toHaveLength(1);
   });
 });
 

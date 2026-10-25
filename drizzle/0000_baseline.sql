@@ -210,7 +210,8 @@ CREATE TABLE "auth_sessions" (
 	"user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	"revoked_at" timestamp with time zone
+	"revoked_at" timestamp with time zone,
+	"last_seen_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "boq_items" (

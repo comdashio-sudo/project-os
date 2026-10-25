@@ -44,6 +44,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
       emailCodes: createEmailCodeService({ provider: fake.provider, attempts: createDbAttemptLimiter(), now: () => new Date(clock.value) }),
       google: null,
       secret: ENV.cookieSecret,
+      isEligible: async () => true,
       upsertUser: user => upsertUser(user),
       createSessionToken: (openId, options) => sdk.issueSession(openId, options),
     });
