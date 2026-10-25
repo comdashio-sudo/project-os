@@ -1101,3 +1101,16 @@
 | الاختبار `server/domain/roleMatrix.test.ts` (72 اختبارًا) يفشل إن اختلف الكود عن الجدول | `PROVEN` (إيجابي وسلبي) | `pnpm exec vitest run server/domain/roleMatrix.test.ts` ← 72/72. **سلبي:** (أ) حذف `project.payroll.run` من قالب المحاسب ← يفشل «الجدول يساوي المولَّد»؛ (ب) تغيير فحص `getSalaryStructureForTenant` من `payroll.sensitive.read` إلى `payroll.run` ← يفشل «يطلب بالضبط الرموز المعلنة»؛ ثم أُعيد كلاهما وعاد الأخضر. التجديد: `pnpm exec tsx scripts/write-role-matrix.ts`. |
 | ما كشفه الكود (للمالك، لم يُغيَّر) | `OPEN` (قرار مالك) | (1) من يفتح المشروع (`project.read`) يرى الميزانية والتكاليف والتدفق النقدي (`getProjectControlsForTenant`) وقيم العقود والبنود والمقاولين من الباطن وكل عروض المناقصة؛ `project.cashflow.read` تحرس الربحية والتدفق المفصّل فقط. (2) أربع صلاحيات تُمنح ولا يفحصها شيء: `payment.prepare` و`payment.approve` و`project.create` و`schedule.write`. (3) أحد عشر قالبًا من 17 لا تحمل `project.read`. (4) `project.manage` تكفي لردّ الاستشاري. (5) لا بيانات مستفيدين في المخطط. التفصيل في القسم 3 من الوثيقة. |
 
+## أمر العمل 18 — دروس تسليم (`docs/TASLEEM_LESSONS.md`) — 25 أكتوبر 2026
+
+### البند 0-1: الدخول والبريد
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| قالب رسالة الرمز: رمز كبير، «صالح 60 دقيقة» (يطابق `mailer_otp_exp: 3600` في الزر ويفحصه اختبار)، زر واحد على `{{ .SiteURL }}` وهو نطاق المنصة، نص قصير، لا عنوان بريد في أي رابط | `PROVEN` (اختبار) / وصول الرسالة فعلًا `UNVERIFIED` (يتطلب SMTP المالك) | `docs/auth-email-templates/otp.html`؛ `server/testing/authEmailTemplate.test.ts` (5 اختبارات). |
+| حقل الرمز يقبل 6 إلى 8 أرقام والزر يُفعَّل من 6 (كان `maxLength=6` و`length !== 6`) | `PROVEN` (اختبار) | `client/src/pages/Login.tsx` `CODE_MIN_LENGTH/CODE_MAX_LENGTH`؛ `Login.test.tsx` «takes a code of 6, 7 or 8 digits». |
+| 429: `retryAfterSeconds` من عبارة GoTrue «after N seconds»؛ الشاشة تنتقل لخطوة الرمز وتقول «أدخل الرمز الذي وصلك؛ طلب جديد يلغي السابق» وتعدّ الثواني؛ 5xx لا يُعرض مشكلة في البريد؛ انقطاع الشبكة له رسالة | `PROVEN` (اختبارات) | `supabaseAuth.ts` `retryAfterSecondsFrom`؛ `supabaseAuth.test.ts`؛ `routes.test.ts` «a provider send limit tells the screen…»؛ `Login.test.tsx` (3 اختبارات). |
+| عدّاد إعادة الإرسال 60 ثانية + نص «الرمز الأحدث وحده يعمل» | `PROVEN` (اختبار بمؤقتات وهمية) | `Login.test.tsx` «counts 60 seconds…». |
+| زر الدخول معطّل حتى تتفاعل الصفحة؛ النموذج `method="post"`؛ البريد لا يمر في الرابط (الزر في الرسالة يفتح `/login?step=code` والبريد من `sessionStorage` التبويب نفسه) | `PROVEN` (اختبار) / **لا ينطبق جزئيًا:** الواجهة SPA لا يُرسم نموذجها قبل JS أصلًا، فالعيب الأصلي (إرسال GET قبل التحميل) لا يقع عندنا؛ أُضيف الحارس احتياطًا بطلب الأمر | `Login.test.tsx` «the button in the mailed message…». |
+| الزر يضع القالب بعد تفعيل SMTP | `PROVEN` (قائم) | `applyAuthSettings` يحاول القالب، ويعود «يدوي» برسالة خطوات Resend المحدّثة (`TEMPLATE_TIER_INSTRUCTION`)؛ الإعادة بعد SMTP تضعه. وضع القالب فعلًا على Supabase `UNVERIFIED` حتى تشغيل حقيقي. |
+

@@ -61,7 +61,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
       const { expiresInSeconds } = await dependencies.emailCodes.requestCode(req.body?.email);
       return res.status(200).json({ ok: true, expiresInSeconds });
     } catch (error) {
-      if (error instanceof EmailCodeError) return res.status(statusFor[error.code] ?? 400).json({ code: `PROJECT_OS_AUTH_${error.code}` });
+      if (error instanceof EmailCodeError) return res.status(statusFor[error.code] ?? 400).json({ code: `PROJECT_OS_AUTH_${error.code}`, ...(error.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}) });
       logError("auth.code_request_failed", error);
       return res.status(500).json({ code: "PROJECT_OS_AUTH_FAILED" });
     }
