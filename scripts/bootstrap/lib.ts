@@ -11,6 +11,13 @@ export const VERCEL_PROJECT_NAME = "dashio";
 export const GITHUB_OWNER = "comdashio-sudo";
 export const GITHUB_REPO = "project-os";
 export const VERCEL_REGION = "sin1";
+
+/** The Vercel region next to each Supabase region (the pairs Vercel's own region list makes obvious). A database far from its function costs a long round trip on every statement. */
+export const NEAREST_VERCEL_REGION: Readonly<Record<string, string>> = {
+  "ap-southeast-1": "sin1", "ap-southeast-2": "syd1", "ap-south-1": "bom1", "ap-northeast-1": "hnd1", "ap-northeast-2": "icn1",
+  "eu-central-1": "fra1", "eu-central-2": "fra1", "eu-west-1": "dub1", "eu-west-2": "lhr1", "eu-west-3": "cdg1", "eu-north-1": "arn1",
+  "us-east-1": "iad1", "us-east-2": "cle1", "us-west-1": "sfo1", "us-west-2": "pdx1", "ca-central-1": "yul1", "sa-east-1": "gru1", "me-central-1": "dxb1",
+};
 export const OTP_SUBJECT = "PROJECT OS sign-in code";
 export const STORAGE_BUCKET = "project-os-files";
 /** Supabase's published root certificate for database connections (pooler included). */

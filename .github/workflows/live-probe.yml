@@ -1,0 +1,40 @@
+name: Live probe
+
+# Manual only (Actions <- Live probe <- Run workflow). Reads the public site with plain GETs: no secret, no write, nothing but the web address you give it.
+# Tells which Vercel region ran the function (it must be the one in vercel.json) and how long a real request takes from GitHub's data centre.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Site address"
+        type: string
+        required: false
+        default: "https://dashio-lovat.vercel.app"
+      requests:
+        description: "Requests per address (3 or more)"
+        type: string
+        required: false
+        default: "15"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure
+        env:
+          PROBE_URL: ${{ inputs.url }}
+          PROBE_REQUESTS: ${{ inputs.requests }}
+        run: node scripts/measure-live.mjs "$PROBE_URL" "$PROBE_REQUESTS"
