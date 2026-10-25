@@ -53,6 +53,16 @@ describe("login page", () => {
     ]);
   });
 
+  it("checks the address before anything is sent: a malformed one is named beside the field and no request goes out", async () => {
+    const calls = stubFetch({ "/api/auth/config": { ok: true, body: { google: false } } });
+    const user = userEvent.setup();
+    render(<Login />);
+    await user.type(screen.getByLabelText("E-mail address"), "engineer example");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect(screen.getByRole("alert").textContent).toBe("Enter a valid email address.");
+    expect(calls.filter(c => c.url.includes("/email/"))).toEqual([]);
+  });
+
   it("will not follow a next target that leaves the site", async () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true }, "/api/auth/email/verify": { ok: true } });
     withSearch("?next=%2F%2Fevil.example");
