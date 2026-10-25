@@ -117,6 +117,7 @@ import {
   pmcBaselines,
 } from "../drizzle/schema";
 import { hasScopeAccess, productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
+import { defaultCommercialFeatures, defaultCommercialPlans } from "./domain/commercialCatalog";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
@@ -252,27 +253,6 @@ async function assertPlatformAdministrator(userId: number): Promise<void> {
   if (user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSING_ADMIN_REQUIRED" });
 }
 
-const defaultCommercialPlans = [
-  { code: "EXECUTIVE_STANDARD", name: "Executive Standard", packageCode: "EXECUTIVE" as SubscriptionPackageCode },
-  { code: "PMO_STANDARD", name: "PMO Standard", packageCode: "PMO" as SubscriptionPackageCode },
-  { code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" as SubscriptionPackageCode },
-  { code: "EXECUTIVE_PMO_STANDARD", name: "Executive + PMO Standard", packageCode: "EXECUTIVE + PMO" as SubscriptionPackageCode },
-  { code: "PMO_PROJECT_STANDARD", name: "PMO + Project Standard", packageCode: "PMO + PROJECT" as SubscriptionPackageCode },
-  { code: "EXECUTIVE_PROJECT_STANDARD", name: "Executive + Project Standard", packageCode: "EXECUTIVE + PROJECT" as SubscriptionPackageCode },
-  { code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", packageCode: "ALL-IN-ONE" as SubscriptionPackageCode },
-];
-
-const defaultCommercialFeatures = [
-  { code: "MASTER_PLAN", name: "Master Plan", productCode: "PROJECT" as ProductCode },
-  { code: "MASTER_PLAN_ENTITIES", name: "Master Plan spatial entities", productCode: "PROJECT" as ProductCode },
-  { code: "DATA_IMPORT", name: "Data import", productCode: "PROJECT" as ProductCode },
-  { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
-  { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
-  { code: "STORAGE_BYTES", name: "Document storage bytes", productCode: "PROJECT" as ProductCode },
-  { code: "PMC", name: "Project control (PMC)", productCode: "PROJECT" as ProductCode },
-  { code: "AI_ADVISORY_MONTHLY", name: "Monthly AI advisory requests", productCode: "PROJECT" as ProductCode },
-];
-
 export async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onConflictDoUpdate({ target: commercialPlans.code, set: { active: true } });
   await db.insert(commercialFeatures).values(defaultCommercialFeatures.map(feature => ({ id: crypto.randomUUID(), ...feature, active: true }))).onConflictDoUpdate({ target: commercialFeatures.code, set: { active: true } });
@@ -383,6 +363,31 @@ export async function getCommercialCatalogForAdministrator(input: { userId: numb
     db.select({ planId: planFeatureEntitlements.planId, featureId: planFeatureEntitlements.featureId, active: planFeatureEntitlements.active, limitValue: planFeatureEntitlements.limitValue }).from(planFeatureEntitlements),
   ]);
   return { plans, features, planFeatures };
+}
+
+/**
+ * The platform administrator's overview: every company with its licence, and the plan catalogue. Only the administrator (users.role = 'admin') may ask; it reads across companies,
+ * which only the system view can do. The company list is capped at 500 rows with the TRUE total beside it, so a long list is never mistaken for the whole.
+ */
+export async function getPlatformOverview(input: { userId: number }) {
+  await assertPlatformAdministrator(input.userId);
+  return withSystemContext("the platform administrator reads every company, plan and licence", async () => {
+    const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+    const cap = 500;
+    const [totals, companyRows, licenseRows, plans] = await Promise.all([
+      db.select({ companies: sql<number>`count(*)::int` }).from(companies),
+      db.select({ id: companies.id, legalName: companies.legalName, slug: companies.slug, status: companies.status, createdAt: companies.createdAt }).from(companies).orderBy(desc(companies.createdAt)).limit(cap),
+      db.select({ tenantId: tenantLicenses.tenantId, status: tenantLicenses.status, seats: tenantLicenses.seats, createdAt: tenantLicenses.createdAt, planCode: commercialPlans.code, planName: commercialPlans.name }).from(tenantLicenses).innerJoin(commercialPlans, eq(commercialPlans.id, tenantLicenses.planId)).orderBy(desc(tenantLicenses.createdAt)),
+      db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode, active: commercialPlans.active }).from(commercialPlans).orderBy(commercialPlans.code),
+    ]);
+    const latest = new Map<string, (typeof licenseRows)[number]>();
+    for (const row of licenseRows) if (!latest.has(row.tenantId)) latest.set(row.tenantId, row); // newest first, so the first seen is the current licence
+    return {
+      totalCompanies: totals[0]?.companies ?? 0, shownCompanies: companyRows.length, truncated: (totals[0]?.companies ?? 0) > companyRows.length,
+      companies: companyRows.map(company => { const license = latest.get(company.id); return { ...company, license: license ? { status: license.status, seats: license.seats, planCode: license.planCode, planName: license.planName } : null }; }),
+      plans,
+    };
+  });
 }
 
 export async function getTenantLicenseForManager(input: { userId: number; tenantId: string }) {
@@ -970,8 +975,13 @@ function normalizedEmailHash(email: string) {
 
 export async function getPublicCommercialPlans() {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
-  await ensureDefaultCommercialCatalog(db);
-  return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
+  const readPlans = () => db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
+  // A READ comes first and never writes. The catalogue is planted by the launch button (scripts/bootstrap/run.ts `catalog`); only an EMPTY one is planted here as a fallback. Before this,
+  // every call began with seven upserts, so a refusal of any of them (a missing grant, a lock) took the whole list down with "Loading plans…" and no word on screen about why.
+  const plans = await readPlans();
+  if (plans.length) return plans;
+  try { await ensureDefaultCommercialCatalog(db); } catch (error) { logError("plans.default_catalog_failed", error, { databaseCode: safeDatabaseErrorCode(error) }); throw error; }
+  return readPlans();
 }
 
 // The query layer wraps the driver's error ("Failed query: ..."); isUniqueViolation reads the SQLSTATE (23505) off its cause.
