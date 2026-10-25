@@ -2,12 +2,14 @@
 //   node --import tsx scripts/bootstrap/run.ts supabase   guard, sign-in settings, Data API, keys, connection strings, secrets  -> exports to the next steps
 //   node --import tsx scripts/bootstrap/run.ts vercel     project, variables, production deploy, address, health check
 //   node --import tsx scripts/bootstrap/run.ts database   guard, then ONLY the connection string and certificate for the next steps (changes nothing; the demonstration company's workflow uses it)
+//   node --import tsx scripts/bootstrap/run.ts catalog    after the migrations: plant the plan catalogue (no company data) and read back the plan count and the platform owner's role
 //   node --import tsx scripts/bootstrap/run.ts summary    renders the Arabic job summary from the state file (runs even after a failure)
 // Secrets are masked (::add-mask::) the moment they exist and are never printed. Re-running is safe: generated secrets are kept, the app-role password is derived.
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runPreflight, renderPreflight, type Finding } from "./preflight.ts";
+import { EXPECTED_PLANS, checkPlatformOwner, plantCatalog } from "./catalog.ts";
 import { GuardError, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
@@ -21,7 +23,7 @@ const mask = (value: string) => { if (value) console.log(`::add-mask::${value}`)
 // Values pasted into GitHub often carry a trailing space or newline; trimming them is not a loosening of any guard, the checks still run on the value.
 const optional = (name: string) => (process.env[name] ?? "").trim();
 const need = (name: string) => { const value = optional(name); if (!value) throw new GuardError(`المتغير ${name} غير مضبوط في GitHub (Settings ← Secrets and variables ← Actions).`); return value; };
-const PHASE_LABEL: Record<string, string> = { preflight: "الفحص المسبق", supabase: "مرحلة Supabase", vercel: "مرحلة Vercel" };
+const PHASE_LABEL: Record<string, string> = { preflight: "الفحص المسبق", supabase: "مرحلة Supabase", catalog: "مرحلة كتالوج الخطط ومالك المنصة", vercel: "مرحلة Vercel" };
 const exportEnv = (name: string, value: string) => { const file = process.env.GITHUB_ENV; if (!file) throw new Error("GITHUB_ENV is not available"); const tag = `EOF_${randomBytes(6).toString("hex")}`; appendFileSync(file, `${name}<<${tag}\n${value}\n${tag}\n`); };
 const realFetch: Fetch = (url, init) => fetch(url, init as RequestInit);
 
@@ -74,6 +76,30 @@ async function databasePhase() {
   // for the daily backup, which also reads the storage buckets through the project's S3 endpoint (public information; the access keys are the repository's secrets)
   exportEnv("STORAGE_S3_ENDPOINT", storageEndpoint(SUPABASE_PROJECT_REF)); exportEnv("STORAGE_S3_REGION", target.region || "ap-southeast-1");
   step("اتصال قاعدة البيانات للمشروع المقصود فقط", "ok");
+}
+
+/**
+ * After the migrations: plant the plan catalogue and prove, by reading, the two facts the first sign-in needs -- how many plans exist, and whether OWNER_EMAIL holds the
+ * platform-administrator role. The summary line is the proof; nothing about a company is created (see scripts/bootstrap/catalog.ts).
+ */
+async function catalogPhase() {
+  const ownerEmail = normalizeOwnerEmail(need("OWNER_EMAIL"));
+  const { default: pg } = await import("pg");
+  const ca = optional("DATABASE_SSL_CA");
+  const client = new pg.Client({ connectionString: need("DATABASE_URL"), ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) }, connectionTimeoutMillis: 15_000 });
+  await client.connect();
+  try {
+    const report = await plantCatalog(client);
+    const planted = report.plansPlanted + report.featuresPlanted + report.linksPlanted;
+    const detail = `خطط فعّالة: ${report.activePlans} من ${EXPECTED_PLANS}؛ ميزات: ${report.features}؛ ربط الخطط بالميزات: ${report.links}؛ ${planted ? `زُرع الآن: ${report.plansPlanted} خطة و${report.featuresPlanted} ميزة و${report.linksPlanted} ربطًا` : "لم يُضَف شيء (الكتالوج مكتمل)"}`;
+    step("كتالوج الخطط في الإنتاج (قراءة فعلية بعد الزرع)", report.activePlans >= EXPECTED_PLANS ? "ok" : "failed", detail);
+    if (report.activePlans < EXPECTED_PLANS) process.exitCode = 1;
+    const owner = await checkPlatformOwner(client, ownerEmail);
+    if (owner.state === "admin") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ نعم", "ok");
+    else if (owner.state === "corrected") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ نعم (كان دوره «" + owner.roleBefore + "» وصُحِّح الآن)", "ok");
+    else if (owner.state === "not_signed_in_yet") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ لا يوجد حساب بعد", "manual", "لم يدخل بهذا البريد حتى الآن؛ أول دخول به يمنحه الدور");
+    else { step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ لا", "failed", `الدور بقي «${owner.roleBefore}» رغم محاولة التصحيح`); process.exitCode = 1; }
+  } finally { await client.end(); }
 }
 
 async function preflightPhase() {
@@ -171,9 +197,10 @@ try {
   if (phase === "preflight") await preflightPhase();
   else if (phase === "supabase") await supabasePhase();
   else if (phase === "database") await databasePhase();
+  else if (phase === "catalog") await catalogPhase();
   else if (phase === "vercel") await vercelPhase();
   else if (phase === "summary") summary();
-  else throw new Error("usage: run.ts supabase|database|vercel|summary");
+  else throw new Error("usage: run.ts supabase|database|catalog|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
   else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 400)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret

@@ -70,7 +70,7 @@
 
 **الدخول برمز البريد (كلها نقر في لوحة Supabase):**
 ١. **Authentication ← Providers ← Email** ← مفعّل ← **Confirm email** مفعّل ← **Email OTP Length = 6** ← **Email OTP Expiration = 3600**. (الشاشة تقبل 6 أرقام؛ لا تغيّر الطول.)
-٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `PROJECT OS sign-in code`.
+٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `رمز الدخول إلى Dashio | Dashio sign-in code`. القالب بلا أي رابط عمدًا: نطاق المرسل غير نطاق المنصة، والزر الذي يشير إلى نطاق آخر يرفع احتمال وصول الرسالة إلى المزعجة؛ يعود الزر حين يصبح للمنصة نطاقها الخاص.
 ٣. **(مؤجَّل إلى ما قبل دعوة مستخدمين آخرين)** **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. **هذا إلزامي حتى على المجانية:** بريد Supabase المدمج لا يرسل إلا عددًا ضئيلًا جدًا في الساعة ولا يصلح لأي مستخدم حقيقي.
 ٤. **Authentication ← Rate Limits** ← ارفع **Rate limit for sending emails** و**Rate limit for token verifications** إن سمحت لوحتك بذلك بعد تفعيل SMTP المخصص (حد التحقق يُحسب لكل IP، وكل مستخدمي Vercel يصلون من عدد قليل من العناوين).
 ٥. **Authentication ← Sign In / Providers** ← **Allow new users to sign up** مفعّل. لا تفعّل مزودًا آخر.

@@ -10,11 +10,13 @@ const state = vi.hoisted(() => ({
   refetch: vi.fn(),
   tenantQuery: { data: [] as Array<unknown>, isLoading: false, isSuccess: true, isError: false, refetch: vi.fn() },
   signupError: null as unknown,
+  role: "user" as string,
+  plansQuery: { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }] as Array<unknown> | undefined, isLoading: false, error: null as unknown, refetch: vi.fn(), isFetching: false },
   signupOptions: null as { onSuccess?: (result: { tenantId: string }) => void } | null,
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
-  useAuth: () => ({ user: { name: "Pilot Owner", email: "owner@example.test" }, loading: false, isAuthenticated: true, logout: vi.fn() }),
+  useAuth: () => ({ user: { name: "Pilot Owner", email: "owner@example.test", role: state.role }, loading: false, isAuthenticated: true, logout: vi.fn() }),
 }));
 vi.mock("@/components/BrandMark", () => ({ BrandIcon: () => <span>Dashio icon</span>, BrandMark: () => <span>Dashio</span> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
@@ -33,13 +35,13 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     tenant: { mine: { useQuery: () => ({ ...state.tenantQuery, refetch: state.refetch }) } },
     selfService: {
-      plans: { useQuery: () => ({ data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false }) },
+      plans: { useQuery: () => state.plansQuery },
       signup: { useMutation: (options: { onSuccess?: (result: { tenantId: string }) => void }) => { state.signupOptions = options; return { mutate: state.signup, isPending: false, error: state.signupError }; } },
     },
   },
 }));
 
-afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.signupOptions = null; });
+afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "user"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
 
 describe("Home self-service", () => {
   it("submits the server-catalog plan with company and seat boundaries", async () => {
@@ -52,6 +54,38 @@ describe("Home self-service", () => {
     await user.type(screen.getByLabelText("Seats"), "5");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
     expect(state.signup).toHaveBeenCalledWith({ legalName: "Pilot Company", slug: "pilot-company", planCode: "PROJECT_STANDARD", seats: 5 });
+  });
+
+  // The sign-up screen once said "Loading plans…" for ever whatever had happened. Loading, failing and being empty are three different sentences now.
+  it("says 'Loading plans…' only while the plans are really loading", () => {
+    state.plansQuery = { ...state.plansQuery, data: undefined, isLoading: true };
+    render(<Home />);
+    expect(screen.getByText("Loading plans…")).toBeTruthy();
+    expect(screen.queryByText("Plans could not be loaded")).toBeNull();
+  });
+  it("a failed plan request is a visible error with a retry, never the loading sentence", () => {
+    state.plansQuery = { ...state.plansQuery, data: undefined, isLoading: false, error: new Error("boom") };
+    render(<Home />);
+    expect(screen.queryByText("Loading plans…")).toBeNull();
+    expect(screen.getByText("Plans could not be loaded")).toBeTruthy();
+    expect(screen.getByRole("alert", { name: "The plan list" })).toBeTruthy();
+  });
+  it("an empty catalogue says so, and tells whom to ask, instead of loading for ever", () => {
+    state.plansQuery = { ...state.plansQuery, data: [], isLoading: false, error: null };
+    render(<Home />);
+    expect(screen.queryByText("Loading plans…")).toBeNull();
+    expect(screen.getAllByText(/No plan is available yet/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("alert").textContent).toMatch(/plant the plan catalogue/);
+  });
+
+  it("the platform owner sees a visible entry to the platform administration; nobody else does", () => {
+    state.role = "admin";
+    const { unmount } = render(<Home />);
+    expect(screen.getByRole("link", { name: /Platform administration/ }).getAttribute("href")).toBe("/platform");
+    unmount();
+    state.role = "user";
+    render(<Home />);
+    expect(screen.queryByRole("link", { name: /Platform administration/ })).toBeNull();
   });
 
   it("hides self-service creation when the current workspace query failed", () => {

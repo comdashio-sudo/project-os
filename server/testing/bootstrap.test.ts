@@ -91,7 +91,7 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     const sim = simulate({
       ...supabaseOk(),
       [`PATCH /v1/projects/${REF}/config/auth`]: () => ({ body: {} }),
-      [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "PROJECT OS sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "PROJECT OS sign-in code", mailer_templates_magic_link_content: "T" } }),
+      [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_magic_link_content: "T" } }),
       [`PATCH /v1/projects/${REF}/postgrest`]: () => ({ body: {} }),
       [`GET /v1/projects/${REF}/postgrest`]: () => ({ body: { db_schema: "graphql_public" } }),
       [`GET /v1/projects/${REF}/api-keys`]: () => ({ body: [{ name: "service_role", api_key: "SERVICE-ROLE-MUST-NOT-LEAK" }, { name: "anon", api_key: "anon-key-value" }] }),
@@ -107,10 +107,19 @@ describe("Supabase guard: one project, inside one organisation, checked before a
 
   it("sends exactly the sign-in settings the guide asks for, and fails loudly if the project did not keep them", async () => {
     const patch = vi.fn(() => ({ body: {} }));
-    const kept = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "PROJECT OS sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "PROJECT OS sign-in code", mailer_templates_magic_link_content: "T" };
+    const kept = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_magic_link_content: "T" };
     const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: patch, [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { ...kept, mailer_otp_length: 8 } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T")).rejects.toThrow(/mailer_otp_length/);
     expect(sim.writes()[0].body).toMatchObject({ external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false });
+  });
+
+  it("reads the templates back after writing them: the subject and the content of BOTH Confirm signup and Magic Link must be what was sent, else the run fails (WO18 follow-up)", async () => {
+    const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+    const subject = "رمز الدخول إلى Dashio | Dashio sign-in code";
+    const stored = { mailer_subjects_confirmation: subject, mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: subject, mailer_templates_magic_link_content: "T" };
+    const run = (read: Record<string, unknown>) => supabaseApi(simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => ({ body: {} }), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { ...settings, ...read } }) }).fetchImpl, "t").applyAuthSettings("T");
+    await expect(run(stored)).resolves.toEqual({ templates: "applied" });
+    for (const key of Object.keys(stored)) await expect(run({ ...stored, [key]: "something else" }), key).rejects.toThrow(new RegExp(key));
   });
 
   it("launch run 31: a free-tier project refuses the e-mail templates (400); the settings are kept, the refusal is reported, nothing else is hidden", async () => {
