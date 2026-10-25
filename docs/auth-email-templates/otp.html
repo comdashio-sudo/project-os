@@ -1,9 +1,9 @@
-<div dir="rtl" style="font-family:system-ui,Segoe UI,Tahoma,sans-serif;font-size:16px;line-height:1.6">
-  <p>رمز الدخول إلى PROJECT OS:</p>
-  <p style="font-size:28px;letter-spacing:6px;font-weight:700;margin:12px 0">{{ .Token }}</p>
-  <p>الرمز صالح لمرة واحدة ولمدة محدودة. إن لم تطلبه فتجاهل هذه الرسالة.</p>
-</div>
-<hr style="border:none;border-top:1px solid #ddd;margin:16px 0" />
-<div dir="ltr" style="font-family:system-ui,Segoe UI,Tahoma,sans-serif;font-size:14px;line-height:1.6;color:#444">
-  <p>Your PROJECT OS sign-in code is above. It works once and expires soon. If you did not ask for it, ignore this message.</p>
+<div dir="rtl" style="font-family:system-ui,Segoe UI,Tahoma,sans-serif;font-size:16px;line-height:1.7;color:#1f2933;max-width:480px">
+  <p style="margin:0 0 8px">رمز الدخول إلى PROJECT OS</p>
+  <p dir="ltr" style="font-size:36px;letter-spacing:8px;font-weight:700;margin:8px 0 12px;text-align:center;font-family:ui-monospace,Consolas,monospace">{{ .Token }}</p>
+  <p style="margin:0 0 16px">صالح 60 دقيقة، ويعمل مرة واحدة. أحدث رمز يصلك هو الوحيد الذي يعمل.</p>
+  <p style="margin:0 0 16px;text-align:center"><a href="{{ .SiteURL }}/login?step=code" style="display:inline-block;background:#0e6b70;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:8px">فتح صفحة الدخول</a></p>
+  <p style="margin:0;color:#52606d;font-size:14px">لم تطلب هذا الرمز؟ تجاهل الرسالة.</p>
+  <hr style="border:none;border-top:1px solid #d9dee3;margin:16px 0" />
+  <p dir="ltr" style="margin:0;color:#52606d;font-size:13px;text-align:left">Your PROJECT OS sign-in code is above. It is valid for 60 minutes and works once; only the newest code works. If you did not ask for it, ignore this message.</p>
 </div>
