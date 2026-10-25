@@ -1130,3 +1130,12 @@
 | الفحص المسبق يقرأ منطقة قاعدة Supabase ويقارنها بالأقرب في Vercel، ويقرأ `serverlessFunctionRegion` من مشروع Vercel الحيّ | `PROVEN` (محاكاة) / القراءة الحيّة `UNVERIFIED` حتى تشغيل الفحص المسبق | `preflight.ts`؛ `bootstrap.preflight.test.ts` «regions…». جدول المطابقة `NEAREST_VERCEL_REGION` في `scripts/bootstrap/lib.ts`. |
 | منطقة الدالة الحيّة وزمن طلب حقيقي على `dashio-lovat.vercel.app` | `HANDOFF_REQUIRED` (خطوة واحدة للمالك) | هذه الجلسة لا تصل إلى المضيف (سياسة الشبكة: `CONNECT tunnel failed, 403`) فلم أقِس. جُهِّز `scripts/measure-live.mjs` وworkflow يدوي بلا أسرار `Live probe` (Actions ← Live probe ← Run workflow): يطبع منطقة الدالة من `x-vercel-id` ويفشل إن لم تكن `sin1`، ويقيس p50/p95 لـ`/api/auth/config` و`/`. زمن من الرياض يحتاج متصفحًا هناك ولا يغني عنه مشغّل GitHub. |
 
+### أمر العمل 18 — بند 0-6: النسخ الاحتياطي اليومي
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| workflow يومي مجدول (`daily-backup.yml`، 01:17 UTC + يدوي): `pg_dump` 17 لمخططات public وdrizzle وauth وstorage في لقطة واحدة + ملفات التخزين، مشفّر gpg AES-256، يُحفظ 90 يومًا خارج Supabase (ملفات GitHub)، يفشل بلا سرّ (ويسمّي الناقص) أو عند ملف صغير أو بلا بيانات جدول أو عند نسخة pg_dump أقدم من الخادم | `PROVEN` للخط محليًا / `UNVERIFIED` على Supabase الحيّ | `scripts/backup/backup.mjs`؛ `server/dailyBackup.test.ts` (9) و`server/dailyBackup.database.test.ts` (6) على PostgreSQL 16 محلي، 2026-10-25: يفرّغ، يشفّر، يفكّ التشفير بالسرّ الصحيح ويفشل بالخطأ، يستعيد في قاعدة مؤقتة (تُحذف) ويقارن عدد صفوف **كل** الجداول (142 جدولًا، 93 صفًا، فروق صفر)، ولا يبقى ملف غير مشفّر. **سلبي:** بلا سرّ ← خروج 1 يسمّيه؛ حدّ أدنى مرتفع ← يرفض ولا يترك ملفًا؛ خادم استعادة غير موجود ← تشغيل أحمر؛ وفي أول محاولة خطأ حقيقي في خيار `pg_restore` أحمّر الإثبات كما يجب. |
+| الاستعادة مُثبتة فعلًا لا مفترضة | `PROVEN` محليًا / `UNVERIFIED` على Supabase | في كل تشغيل يُفك التشفير ويُستعاد ويُقارَن العدد الدقيق. لم يُجرَّب هنا إلا على قاعدة محلية: **تفريغ `auth` و`storage` بدور `postgres` في Supabase هو ما سيثبته أول تشغيل حقيقي**. |
+| سرّ جديد | `BLOCKED_BY_OWNER` | `BACKUP_ENCRYPTION_PASSPHRASE`: خطوات صنعه ووضعه في `docs/OWNER_ACTIONS.md` §10 (لا قيمته لأحد). |
+| حدود معلنة | | الاحتفاظ 90 يومًا هو أقصى ما يتيحه GitHub (قد يقصّره إعداد المستودع)؛ وتحسب الملفات على حصة تخزين Actions في الخطة. أُضيف مخطط `drizzle` (سجل الترحيلات) إلى الثلاثة المطلوبة لأن الاستعادة بدونه تعيد تطبيق الترحيلات. الاستعادة: `docs/BACKUP_RESTORE.md`. |
+
