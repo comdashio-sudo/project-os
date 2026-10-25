@@ -35,18 +35,18 @@ beforeEach(() => { sessions.rows.clear(); sessions.create.mockClear(); database.
 afterEach(() => { vi.unstubAllEnvs(); vi.doUnmock("../db"); vi.doUnmock("./sessionStore"); });
 
 describe("session tokens", () => {
-  it("round-trips a session with the documented shape, a 30-day lifetime, and a live row behind it", async () => {
+  it("round-trips a session with the documented shape, a 14-day lifetime (the owner's cap, 2026-10-25), and a live row behind it", async () => {
     const sdk = await load();
     const token = await sdk.issueSession("email:abc", { name: "Eng" });
     const verified = await sdk.verifySession(token);
     expect(verified).toEqual({ openId: "email:abc", appId: "project-os", name: "Eng", sid: expect.any(String) });
     const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
     const days = (payload.exp * 1000 - Date.now()) / 86_400_000;
-    expect(days).toBeGreaterThan(29.9);
-    expect(days).toBeLessThanOrEqual(30);
+    expect(days).toBeGreaterThan(13.9);
+    expect(days).toBeLessThanOrEqual(14);
     const row = sessions.rows.get(verified!.sid)!;
     expect(row.userId).toBe(user.id);
-    expect((row.expiresAt.getTime() - Date.now()) / 86_400_000).toBeGreaterThan(29.9);
+    expect((row.expiresAt.getTime() - Date.now()) / 86_400_000).toBeGreaterThan(13.9);
   });
 
   it("refuses a token signed with another secret, an expired one, a malformed one and one with missing fields", async () => {

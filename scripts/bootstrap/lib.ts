@@ -18,7 +18,7 @@ export const NEAREST_VERCEL_REGION: Readonly<Record<string, string>> = {
   "eu-central-1": "fra1", "eu-central-2": "fra1", "eu-west-1": "dub1", "eu-west-2": "lhr1", "eu-west-3": "cdg1", "eu-north-1": "arn1",
   "us-east-1": "iad1", "us-east-2": "cle1", "us-west-1": "sfo1", "us-west-2": "pdx1", "ca-central-1": "yul1", "sa-east-1": "gru1", "me-central-1": "dxb1",
 };
-export const OTP_SUBJECT = "PROJECT OS sign-in code";
+export const OTP_SUBJECT = "رمز الدخول إلى Dashio | Dashio sign-in code";
 export const STORAGE_BUCKET = "project-os-files";
 /** Supabase's published root certificate for database connections (pooler included). */
 export const SUPABASE_CA_URL = "https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt";
@@ -51,7 +51,7 @@ function client(fetchImpl: Fetch, base: string, token: string) {
 
 /** Supabase's answer when the e-mail templates cannot be changed because the project is on the free tier with its default e-mail provider. */
 export const isTemplateTierRefusal = (message: string) => /-> 400\b/.test(message) && /(free tier|default email provider|custom smtp)/i.test(message);
-export const TEMPLATE_TIER_INSTRUCTION = "Supabase لا يسمح بتعديل قالب بريد الدخول ما دام المشروع على الخطة المجانية بمزوّد البريد الافتراضي (ردّ Supabase: 400). باقي إعدادات الدخول طُبِّقت. لكن القالب الافتراضي يرسل رابطًا لا رمز دخول، ومزوّد Supabase الافتراضي لا يرسل إلا لأعضاء المنظمة وبعدد قليل جدًا في الساعة، فلن يستطيع أحد الدخول بالرمز قبل هذه الخطوة. المطلوب مرة واحدة: (1) في Resend أضف نطاقًا فرعيًا (مثل mail.نطاقك) وأضف سجلات DNS التي يعرضها ثم Verify. (2) Supabase ← مشروع dashio ← Authentication ← Emails ← SMTP Settings ← فعّل Custom SMTP: المضيف smtp.resend.com والمنفذ 465 والمستخدم resend وكلمة المرور مفتاح API من Resend، والمرسل عنوان على النطاق الفرعي الموثّق (تُدخل المفتاح في Supabase مباشرة، لا في GitHub ولا في أي رسالة). (3) أعد تشغيل الزر ليضع القالب (رمز كبير ومدة الصلاحية وزر واحد على نطاق المنصة).\n";
+export const TEMPLATE_TIER_INSTRUCTION = "Supabase لا يسمح بتعديل قالب بريد الدخول ما دام المشروع على الخطة المجانية بمزوّد البريد الافتراضي (ردّ Supabase: 400). باقي إعدادات الدخول طُبِّقت. لكن القالب الافتراضي يرسل رابطًا لا رمز دخول، ومزوّد Supabase الافتراضي لا يرسل إلا لأعضاء المنظمة وبعدد قليل جدًا في الساعة، فلن يستطيع أحد الدخول بالرمز قبل هذه الخطوة. المطلوب مرة واحدة: (1) في Resend أضف نطاقًا فرعيًا (مثل mail.نطاقك) وأضف سجلات DNS التي يعرضها ثم Verify. (2) Supabase ← مشروع dashio ← Authentication ← Emails ← SMTP Settings ← فعّل Custom SMTP: المضيف smtp.resend.com والمنفذ 465 والمستخدم resend وكلمة المرور مفتاح API من Resend، والمرسل عنوان على النطاق الفرعي الموثّق (تُدخل المفتاح في Supabase مباشرة، لا في GitHub ولا في أي رسالة). (3) أعد تشغيل الزر ليضع القالب (رمز كبير ومدة الصلاحية وجملة «أحدث رمز وحده يعمل» بالعربية والإنجليزية، بلا أي رابط).\n";
 
 // ---------------------------------------------------------------------------------------------------------------- Supabase
 export function supabaseApi(fetchImpl: Fetch, token: string) {

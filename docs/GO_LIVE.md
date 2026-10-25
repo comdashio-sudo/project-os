@@ -57,7 +57,7 @@
 | `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `EMAIL_FROM` | لوحة مزود البريد الذي تملك نطاقه (إشعارات المنصة؛ اختياري حتى تفعّلها) | Vercel |
 | `EMAIL_NOTIFICATIONS_ENABLED` | اكتب `false` الآن، و`true` حين يجهز البريد | Vercel |
 
-متغيرات اختيارية بقيمها: `DATABASE_POOL_MAX` = `3` · `AUTH_CODE_TTL_SECONDS` = `3600` · `API_RATE_LIMIT_PER_MINUTE` = `600` · `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` (اتركهما فارغين) · `LLM_ENABLED` = `false` مع ترك `LLM_API_KEY` و`LLM_BASE_URL` فارغين · `BACKUP_BUCKET` · `BACKUP_ENCRYPTION_KEY` · `BACKUP_DATABASE_URL` (للنسخ الاحتياطي اليدوي فقط، لا تضعها في Vercel) · `VITE_MAX_UPLOAD_BYTES` (افتراضي 3000000) · `VERCEL_FUNCTION_MAX_DURATION` (افتراضي 300) · `CRON_PLAN` (اتركه غير موجود ما دمت على Hobby).
+متغيرات اختيارية بقيمها: `DATABASE_POOL_MAX` = `3` · `AUTH_CODE_TTL_SECONDS` = `3600` · `REGISTRATION` (اتركه **غير موجود**: الدخول بدعوة فقط، ومالك المنصة وحده ينشئ الشركات؛ اكتب `open` فقط يوم تقرر فتح التسجيل) · `API_RATE_LIMIT_PER_MINUTE` = `600` · `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` (اتركهما فارغين) · `LLM_ENABLED` = `false` مع ترك `LLM_API_KEY` و`LLM_BASE_URL` فارغين · `BACKUP_BUCKET` · `BACKUP_ENCRYPTION_KEY` · `BACKUP_DATABASE_URL` (للنسخ الاحتياطي اليدوي فقط، لا تضعها في Vercel) · `VITE_MAX_UPLOAD_BYTES` (افتراضي 3000000) · `VERCEL_FUNCTION_MAX_DURATION` (افتراضي 300) · `CRON_PLAN` (اتركه غير موجود ما دمت على Hobby).
 
 **لا تضع أبدًا** في أي مكان: مفتاح `service_role`، ولا `DATABASE_SSL=off`، ولا `DATABASE_SSL_VERIFY=off`، ولا `TEST_DATABASE_URL`، ولا `PROJECT_OS_USE_ADMIN_DATABASE_URL`، ولا `TEST_DB_NO_FALLBACK`، ولا `GOTRUE_LIVE_URL`، ولا `SUPABASE_AUTH_URL` (لمحرك دخول محلي فقط).
 
@@ -70,7 +70,7 @@
 
 **الدخول برمز البريد (كلها نقر في لوحة Supabase):**
 ١. **Authentication ← Providers ← Email** ← مفعّل ← **Confirm email** مفعّل ← **Email OTP Length = 6** ← **Email OTP Expiration = 3600**. (الشاشة تقبل 6 أرقام؛ لا تغيّر الطول.)
-٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `PROJECT OS sign-in code`.
+٢. **Authentication ← Emails ← Templates** ← افتح **Confirm signup** و**Magic Link** ← الصق في **كلٍّ منهما** محتوى الملف `docs/auth-email-templates/otp.html` (افتحه من GitHub ← **Raw** ← انسخ). يعرض `{{ .Token }}` وهو الرمز؛ بدونه يصل رابط لا يستعمله التطبيق. الموضوع: `رمز الدخول إلى Dashio | Dashio sign-in code`. القالب بلا أي رابط عمدًا: نطاق المرسل غير نطاق المنصة، والزر الذي يشير إلى نطاق آخر يرفع احتمال وصول الرسالة إلى المزعجة؛ يعود الزر حين يصبح للمنصة نطاقها الخاص.
 ٣. **(مؤجَّل إلى ما قبل دعوة مستخدمين آخرين)** **Authentication ← SMTP Settings** ← **Enable Custom SMTP** ← بيانات مزود بريد تملك نطاقه (SPF وDKIM مضبوطان) ← مرسل مثل `PROJECT OS <login@mail.<نطاقك>>`. **هذا إلزامي حتى على المجانية:** بريد Supabase المدمج لا يرسل إلا عددًا ضئيلًا جدًا في الساعة ولا يصلح لأي مستخدم حقيقي.
 ٤. **Authentication ← Rate Limits** ← ارفع **Rate limit for sending emails** و**Rate limit for token verifications** إن سمحت لوحتك بذلك بعد تفعيل SMTP المخصص (حد التحقق يُحسب لكل IP، وكل مستخدمي Vercel يصلون من عدد قليل من العناوين).
 ٥. **Authentication ← Sign In / Providers** ← **Allow new users to sign up** مفعّل. لا تفعّل مزودًا آخر.

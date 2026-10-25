@@ -121,6 +121,23 @@
   --color-status-done: var(--status-done);
   --color-status-late: var(--status-late);
   --color-status-blocked: var(--status-blocked);
+  /* semantic states and the hero band (work order 19): defined per design direction in design/directions.css; the defaults below are Direction A light */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-foreground: var(--danger-soft-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
+  --color-hero: var(--hero);
+  --color-hero-foreground: var(--hero-foreground);
 }
 
 :root {
@@ -158,6 +175,11 @@
   --sidebar-accent-foreground: var(--dashio-ink);
   --sidebar-border: var(--dashio-line);
   --sidebar-ring: var(--dashio-indigo);
+  --success: #0b7a4b; --success-foreground: #ffffff; --success-soft: #def5ea; --success-soft-foreground: #08573a;
+  --warning: #9a5b00; --warning-foreground: #ffffff; --warning-soft: #fff1d6; --warning-soft-foreground: #6b3f00;
+  --danger-soft: #fde4e5; --danger-soft-foreground: #8f1b22;
+  --info: #1c5fd1; --info-foreground: #ffffff; --info-soft: #e1ecfd; --info-soft-foreground: #174a9e;
+  --hero: #0c1023; --hero-foreground: #f2f4fb;
 }
 
 .dark {

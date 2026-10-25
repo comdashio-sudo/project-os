@@ -54,10 +54,10 @@ const run = docker("run", "-d", "--name", NAME, "--network", "host",
   "-e", "GOTRUE_DB_DRIVER=postgres", "-e", "GOTRUE_DB_NAMESPACE=auth", "-e", `DATABASE_URL=${dbForGoTrue.toString()}`,
   "-e", "GOTRUE_SITE_URL=http://127.0.0.1:3000", "-e", `GOTRUE_JWT_SECRET=${jwtSecret}`, "-e", "GOTRUE_JWT_EXP=3600",
   "-e", "GOTRUE_DISABLE_SIGNUP=false", "-e", "GOTRUE_EXTERNAL_EMAIL_ENABLED=true", "-e", "GOTRUE_MAILER_AUTOCONFIRM=false",
-  "-e", "GOTRUE_SMTP_HOST=127.0.0.1", "-e", "GOTRUE_SMTP_PORT=2525", "-e", "GOTRUE_SMTP_USER=sink", "-e", "GOTRUE_SMTP_PASS=sink", "-e", "GOTRUE_SMTP_ADMIN_EMAIL=no-reply@mail.example.test", "-e", "GOTRUE_SMTP_SENDER_NAME=PROJECT OS",
+  "-e", "GOTRUE_SMTP_HOST=127.0.0.1", "-e", "GOTRUE_SMTP_PORT=2525", "-e", "GOTRUE_SMTP_USER=sink", "-e", "GOTRUE_SMTP_PASS=sink", "-e", "GOTRUE_SMTP_ADMIN_EMAIL=no-reply@mail.example.test", "-e", "GOTRUE_SMTP_SENDER_NAME=Dashio",
   "-e", "GOTRUE_MAILER_OTP_LENGTH=6", "-e", "GOTRUE_MAILER_OTP_EXP=3600", "-e", "GOTRUE_SMTP_MAX_FREQUENCY=2s", "-e", "GOTRUE_RATE_LIMIT_EMAIL_SENT=1000",
   "-e", "GOTRUE_MAILER_TEMPLATES_CONFIRMATION=http://127.0.0.1:2526/otp.html", "-e", "GOTRUE_MAILER_TEMPLATES_MAGIC_LINK=http://127.0.0.1:2526/otp.html",
-  "-e", "GOTRUE_MAILER_SUBJECTS_CONFIRMATION=PROJECT OS sign-in code", "-e", "GOTRUE_MAILER_SUBJECTS_MAGIC_LINK=PROJECT OS sign-in code",
+  "-e", "GOTRUE_MAILER_SUBJECTS_CONFIRMATION=رمز الدخول إلى Dashio | Dashio sign-in code", "-e", "GOTRUE_MAILER_SUBJECTS_MAGIC_LINK=رمز الدخول إلى Dashio | Dashio sign-in code",
   IMAGE);
 if (run.status !== 0) throw new Error(`docker run failed: ${run.stderr.trim().slice(0, 300)}`);
 

@@ -12,7 +12,7 @@ type Step = "email" | "code";
 const messages = {
   ar: {
     title: "تسجيل الدخول",
-    emailHelp: "أدخل بريدك وسنرسل إليك رمز الدخول.",
+    emailHelp: "أدخل بريدك وسنرسل إليك رمز الدخول. الدخول بدعوة من مدير شركتك أو من مالك المنصة.",
     email: "البريد الإلكتروني",
     send: "إرسال الرمز",
     sending: "جارٍ الإرسال…",
@@ -37,12 +37,13 @@ const messages = {
       google_denied: "أُلغي الدخول بحساب Google.",
       google_failed: "تعذّر الدخول بحساب Google. جرّب البريد.",
       google_unverified: "بريد حساب Google غير موثّق.",
+      not_invited: "هذا البريد غير مدعوّ. اطلب دعوة من مدير شركتك أو من مالك المنصة.",
       default: "حدث خطأ. أعد المحاولة.",
     },
   },
   en: {
     title: "Sign in",
-    emailHelp: "Enter your e-mail and we will send you a sign-in code.",
+    emailHelp: "Enter your e-mail and we will send you a sign-in code. Sign-in is by invitation from your company administrator or the platform owner.",
     email: "E-mail address",
     send: "Send code",
     sending: "Sending…",
@@ -67,12 +68,13 @@ const messages = {
       google_denied: "Google sign-in was cancelled.",
       google_failed: "Google sign-in failed. Try your e-mail instead.",
       google_unverified: "That Google account's e-mail is not verified.",
+      not_invited: "This address has not been invited. Ask your company administrator or the platform owner for an invitation.",
       default: "Something went wrong. Try again.",
     },
   },
   ur: {
     title: "لاگ ان",
-    emailHelp: "اپنا ای میل درج کریں، ہم آپ کو لاگ ان کوڈ بھیجیں گے۔",
+    emailHelp: "اپنا ای میل درج کریں، ہم آپ کو لاگ ان کوڈ بھیجیں گے۔ لاگ ان آپ کی کمپنی کے منتظم یا پلیٹ فارم کے مالک کی دعوت پر ہے۔",
     email: "ای میل ایڈریس",
     send: "کوڈ بھیجیں",
     sending: "بھیجا جا رہا ہے…",
@@ -97,6 +99,7 @@ const messages = {
       google_denied: "Google سے لاگ ان منسوخ کر دیا گیا۔",
       google_failed: "Google سے لاگ ان ناکام ہوا۔ اس کے بجائے اپنا ای میل آزمائیں۔",
       google_unverified: "اس Google اکاؤنٹ کا ای میل تصدیق شدہ نہیں ہے۔",
+      not_invited: "اس پتے کو دعوت نہیں ملی۔ اپنی کمپنی کے منتظم یا پلیٹ فارم کے مالک سے دعوت مانگیں۔",
       default: "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔",
     },
   },
@@ -125,7 +128,7 @@ export default function Login() {
   const t = pickLanguage(language, messages);
   const params = React.useMemo(() => new URLSearchParams(window.location.search), []);
   const next = safeNext(params.get("next"));
-  // The mailed button opens /login?step=code. The address never travels in a link: it is kept in this browser tab's session storage when the code is requested.
+  // /login?step=code opens the code step (the mailed button did, until the owner removed it on 2026-10-25 because the sender's domain differs from the platform's; it returns with a domain of its own). The address never travels in a link: it is kept in this browser tab's session storage when the code is requested.
   const resume = React.useMemo(() => (params.get("step") === "code" ? remembered() : ""), [params]);
   const [step, setStep] = React.useState<Step>(resume ? "code" : "email");
   const [email, setEmail] = React.useState(resume);
