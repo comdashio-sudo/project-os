@@ -5,7 +5,7 @@
 //   block    the run would fail here: the button stops BEFORE writing anything
 //   unknown  the platform decides at the moment of the real run (a plan limit, a deploy-time rule): said so, not guessed
 // No secret is ever put in a finding: only names, statuses, short codes and the platform's own words.
-import { GITHUB_LINK_INSTRUCTION, GITHUB_OWNER, GITHUB_REPO, SUPABASE_ORGANIZATION_NAME, SUPABASE_PROJECT_REF, TEMPLATE_TIER_INSTRUCTION, VERCEL_PROJECT_NAME, VERCEL_REGION, GuardError, supabaseApi, type Fetch } from "./lib.ts";
+import { NEAREST_VERCEL_REGION, GITHUB_LINK_INSTRUCTION, GITHUB_OWNER, GITHUB_REPO, SUPABASE_ORGANIZATION_NAME, SUPABASE_PROJECT_REF, TEMPLATE_TIER_INSTRUCTION, VERCEL_PROJECT_NAME, VERCEL_REGION, GuardError, supabaseApi, type Fetch } from "./lib.ts";
 
 export type Status = "ok" | "warn" | "block" | "unknown";
 export type Finding = { area: "الأسرار" | "Supabase" | "قاعدة البيانات" | "التخزين" | "Vercel" | "حدود الخطة"; status: Status; text: string };
@@ -69,6 +69,11 @@ export async function runPreflight(deps: PreflightDeps): Promise<Finding[]> {
       const state = String(project.data?.status ?? "");
       if (state && state !== "ACTIVE_HEALTHY") add("Supabase", "block", `حالة مشروع Supabase «${state}» وليست ACTIVE_HEALTHY: قد يكون موقوفًا (Paused) أو قيد التشغيل. أعده من لوحة Supabase ثم أعد التشغيل.`);
       else add("Supabase", "ok", `المشروع ${SUPABASE_PROJECT_REF} نشط (المنطقة ${short(project.data?.region)}).`);
+      const databaseRegion = String(project.data?.region ?? "");
+      const nearest = NEAREST_VERCEL_REGION[databaseRegion];
+      if (databaseRegion && nearest && nearest !== VERCEL_REGION) add("Supabase", "warn", `قاعدة البيانات في ${databaseRegion} (الأقرب لها في Vercel: ${nearest}) والدوال مضبوطة على ${VERCEL_REGION}: كل جملة SQL تدفع المسافة بين المنطقتين. غيّر المنطقة في vercel.json وscripts/build-vercel.mjs وVERCEL_REGION.`);
+      else if (databaseRegion && nearest) add("Supabase", "ok", `منطقة الدوال ${VERCEL_REGION} هي الأقرب لمنطقة القاعدة ${databaseRegion}.`);
+      else if (databaseRegion) add("Supabase", "unknown", `منطقة القاعدة ${databaseRegion} ليست في جدول المطابقة؛ تحقق يدويًا أن ${VERCEL_REGION} الأقرب لها.`);
       try {
         const target = await api.assertTarget(trim(env.SUPABASE_ORGANIZATION_SLUG));
         add("Supabase", "ok", target.organisationCheck === "organisation" ? `المنظمة ${SUPABASE_ORGANIZATION_NAME} قُرئت وطابقت.` : `المفتاح محصور بالمشروع ولا يقرأ المنظمة؛ طابق معرّفها المثبَّت (${short(target.organisationSlug)}).`);
@@ -180,6 +185,8 @@ export async function runPreflight(deps: PreflightDeps): Promise<Finding[]> {
       if (repo && repo !== want) add("Vercel", "block", `مشروع ${VERCEL_PROJECT_NAME} مربوط بمستودع آخر (${short(repo, 60)}). لن يلمسه الزر.`);
       else if (!repo) add("Vercel", "warn", `مشروع ${VERCEL_PROJECT_NAME} موجود بلا ربط بالمستودع؛ سيحاول الزر الربط، وإلا فخطوة يدوية.`);
       else add("Vercel", "ok", `مشروع ${VERCEL_PROJECT_NAME} موجود ومربوط بالمستودع الصحيح.`);
+      const functionRegion = project.data?.serverlessFunctionRegion;
+      add("Vercel", functionRegion === VERCEL_REGION ? "ok" : "warn", functionRegion === VERCEL_REGION ? `منطقة الدوال في إعداد المشروع الحيّ: ${VERCEL_REGION}.` : `منطقة الدوال في إعداد المشروع الحيّ «${short(functionRegion) || "غير مضبوطة"}» لا ${VERCEL_REGION}؛ الزر يضبطها، وvercel.json يحدّدها لكل نشر على أي حال.`);
       const fluid = project.data?.resourceConfig?.fluid;
       add("حدود الخطة", "unknown", `Fluid compute على المشروع: ${fluid === true ? "مفعّل" : fluid === false ? "غير مفعّل (الدالة بمدة 300 ثانية قد ترفضها خطة Hobby: الحد 60)" : "لم يُقرأ"}. القبول النهائي عند أول نشر حقيقي.`);
     });

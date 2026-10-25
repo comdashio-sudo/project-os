@@ -88,12 +88,38 @@ describe("session tokens", () => {
 });
 
 describe("authenticateRequest", () => {
-  it("returns the user for a valid session cookie and records the sign-in", async () => {
+  it("returns the user for a valid session cookie and does not write the account while it is current (role as assigned, last-seen under a minute old)", async () => {
     const sdk = await load();
     const token = await sdk.issueSession("email:abc", { name: "Eng" });
     await expect(sdk.authenticateRequest(request({ cookie: `other=1; ${COOKIE_NAME}=${token}` }))).resolves.toBe(user);
     expect(database.getUserByOpenId).toHaveBeenCalledWith("email:abc");
+    expect(database.upsertUser).not.toHaveBeenCalled();
+  });
+
+  it("records the sign-in when the last-seen is older than a minute", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    database.getUserByOpenId.mockResolvedValue({ ...user, lastSignedIn: new Date(Date.now() - 61_000) });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
     expect(database.upsertUser).toHaveBeenCalledWith(expect.objectContaining({ openId: "email:abc" }));
+  });
+
+  it("still re-assigns the role on a request when the stored role differs from the assigned one (a demoted or promoted owner is corrected at once)", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    database.getUserByOpenId.mockResolvedValue({ ...user, role: "admin" as const });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
+    expect(database.upsertUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the session row and the account together, and still refuses when either is missing", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    let order = "";
+    sessions.findLive.mockImplementationOnce(async () => { order += "s"; await Promise.resolve(); order += "S"; return user.id; });
+    database.getUserByOpenId.mockImplementationOnce(async () => { order += "u"; await Promise.resolve(); order += "U"; return user; });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
+    expect(order.slice(0, 2)).toBe("su"); // both started before either finished
   });
 
   it("refuses a request with no cookie, and ignores an Authorization bearer token", async () => {

@@ -60,6 +60,16 @@ describe("launch pre-flight", () => {
     expect(findings.some(item => item.status === "unknown" && /غير التجاري/.test(item.text))).toBe(true);
   });
 
+  it("regions: the function region is checked against the database's region and the live Vercel project setting", async () => {
+    const aligned = await runPreflight(deps(good()));
+    expect(aligned.some(item => item.area === "Supabase" && item.status === "ok" && /sin1 هي الأقرب لمنطقة القاعدة ap-southeast-1/.test(item.text))).toBe(true);
+    const far = await runPreflight(deps(good({ [`GET SB/v1/projects/${REF}`]: { body: { ref: REF, status: "ACTIVE_HEALTHY", region: "eu-central-1", organization_slug: "org-dashio", organization_id: "org-uuid" } } })));
+    expect(far.some(item => item.status === "warn" && /fra1/.test(item.text) && /sin1/.test(item.text))).toBe(true);
+    const projectIn = (region: string | undefined) => good({ "GET VC/v9/projects/dashio": { body: { id: "prj_1", name: "dashio", link: { type: "github", org: "comdashio-sudo", repo: "project-os" }, serverlessFunctionRegion: region } } });
+    expect((await runPreflight(deps(projectIn("sin1")))).some(item => item.area === "Vercel" && item.status === "ok" && /منطقة الدوال في إعداد المشروع الحيّ: sin1/.test(item.text))).toBe(true);
+    expect((await runPreflight(deps(projectIn("iad1")))).some(item => item.area === "Vercel" && item.status === "warn" && /iad1/.test(item.text))).toBe(true);
+  });
+
   it("READ-ONLY: every request it makes is a GET, nothing is written anywhere", async () => {
     const sim = simulate(good());
     await runPreflight({ ...deps(good()), fetch: sim.fetchImpl });
