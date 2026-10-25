@@ -1,3 +1,4 @@
+import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
 import { EXPORT_ENTITIES } from "./integrations/erpOutbound";
 import { createConnectionForManager, listConnectionsForManager, runConnectionForManager, setConnectionActiveForManager, testConnectionForManager } from "./integrations/connections";
@@ -200,7 +201,7 @@ export const appRouter = router({
   }),
   selfService: router({
     plans: protectedProcedure.query(() => getPublicCommercialPlans()),
-    signup: protectedProcedure.input(z.object({ legalName: z.string().trim().min(2).max(255), slug: z.string().trim().min(3).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), planCode: z.string().trim().min(3).max(80), seats: z.number().int().min(1).max(100000) })).mutation(async ({ ctx, input }) => { await assertMayCreateCompany(ctx.user.id); return createSelfServiceTenant({ userId: ctx.user.id, ...input }); }),
+    signup: protectedProcedure.input(z.object({ legalName: z.string().trim().min(2, { message: "PROJECT_OS_FIELD_REQUIRED" }).max(255), slug: z.string().trim().min(SLUG_MIN_LENGTH, { message: "PROJECT_OS_WORKSPACE_SLUG_TOO_SHORT" }).max(SLUG_MAX_LENGTH, { message: "PROJECT_OS_WORKSPACE_SLUG_TOO_LONG" }).regex(SLUG_RULE, { message: "PROJECT_OS_WORKSPACE_SLUG_FORMAT" }), planCode: z.string().trim().min(3).max(80), seats: z.number().int().min(1).max(100000) })).mutation(async ({ ctx, input }) => { await assertMayCreateCompany(ctx.user.id); return createSelfServiceTenant({ userId: ctx.user.id, ...input }); }),
   }),
   billing: router({
     register: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantBillingForManager({ userId: ctx.user.id, ...input })),

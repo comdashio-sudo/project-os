@@ -206,7 +206,7 @@ export default function Login() {
           <form onSubmit={verify} method="post" className="mt-5 space-y-4" noValidate>
             <p className="text-sm text-slate-600">{t.codeHelp} <bdi dir="ltr" className="font-medium">{email}</bdi></p>
             <label className="block text-sm font-medium" htmlFor="login-code">{t.code}</label>
-            <Input id="login-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="h-12 text-center text-2xl tracking-[0.4em]" required />
+            <Input id="login-code" inputMode="numeric" autoComplete="one-time-code" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="h-12 text-center text-2xl tracking-[0.4em]" required />
             <Button type="submit" className="h-12 w-full text-base" disabled={!ready || busy || code.length < CODE_MIN_LENGTH}>{!ready ? t.loading : busy ? t.verifying : t.verify}</Button>
             <p className="text-xs text-slate-600">{t.latestOnly}</p>
             <div className="flex justify-between text-sm">

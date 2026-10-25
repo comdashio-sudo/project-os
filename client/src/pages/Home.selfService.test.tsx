@@ -48,7 +48,7 @@ describe("Home self-service", () => {
     const user = userEvent.setup();
     render(<Home />);
     await user.type(screen.getByLabelText("Legal name"), "Pilot Company");
-    await user.type(screen.getByLabelText("Workspace slug"), "pilot-company");
+    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("pilot-company");
     await user.selectOptions(screen.getByLabelText("Plan"), "PROJECT_STANDARD");
     await user.clear(screen.getByLabelText("Seats"));
     await user.type(screen.getByLabelText("Seats"), "5");
@@ -95,6 +95,37 @@ describe("Home self-service", () => {
     expect(screen.queryByLabelText("Legal name")).toBeNull();
     expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
   });
+  it("suggests a short name from an Arabic legal name, and stops suggesting once the person edits it", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.type(screen.getByLabelText("Legal name"), "فناء");
+    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("fanaa");
+    await user.clear(screen.getByLabelText("Workspace slug"));
+    await user.type(screen.getByLabelText("Workspace slug"), "my-firm");
+    await user.type(screen.getByLabelText("Legal name"), " الجديدة");
+    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("my-firm");
+  });
+
+  it("gives the short name its rule as helper text, with no browser pattern and no browser validation on the form", () => {
+    render(<Home />);
+    const slug = screen.getByLabelText("Workspace slug");
+    expect(screen.getByText("Lowercase English letters, digits and dashes only, for example: fanaa")).toBeTruthy();
+    expect(slug.hasAttribute("pattern")).toBe(false);
+    expect(slug.closest("form")?.hasAttribute("novalidate")).toBe(true);
+  });
+
+  it("names the broken rule beside the short name in the form's language and does not submit", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.selectOptions(screen.getByLabelText("Plan"), "PROJECT_STANDARD");
+    await user.type(screen.getByLabelText("Legal name"), "Pilot Company");
+    await user.clear(screen.getByLabelText("Workspace slug"));
+    await user.type(screen.getByLabelText("Workspace slug"), "ab");
+    expect(screen.getByRole("alert").textContent).toBe("The short name must be at least 3 characters.");
+    await user.click(screen.getByRole("button", { name: "Create workspace" }));
+    expect(state.signup).not.toHaveBeenCalled();
+  });
+
   it("hides self-service creation when the current workspace query failed", () => {
     state.tenantQuery = { data: [], isLoading: false, isSuccess: false, isError: true, refetch: state.refetch };
     render(<Home />);
