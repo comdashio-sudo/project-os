@@ -8,11 +8,14 @@ import { describe, expect, it } from "vitest";
 // Arabic. (English words that reach an Arabic reader at run time are found by scripts/audit-arabic-ui.mjs, which needs a browser.)
 const repository = join(__dirname, "..");
 const roots = [join(repository, "client", "src"), join(repository, "shared"), join(repository, "server")];
+// Not product text: the smart-import reader must recognise what people type, including the misspelled forms this test forbids («اجمالي», «الكميه», «ايام»),
+// and its fixtures are CSV files whose commas are the format. What the reader shows a person lives in the screens and shared messages, which are scanned.
+const READS_INPUT = /server\/domain\/smartImport\/(dictionary|numbers|units|fixtures)\.ts$/;
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === "node_modules" ? [] : sources(path);
-    return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) && !READS_INPUT.test(path.replace(/\\/g, "/")) ? [path] : [];
   });
 }
 const strings: Array<{ file: string; text: string }> = [];
