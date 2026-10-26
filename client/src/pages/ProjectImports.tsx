@@ -97,6 +97,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "في الانتظار", downloading: "قراءة الملف من التخزين", parsing: "قراءة الصفوف", validating: "التحقق من الصفوف", writing: "حفظ النتيجة" },
         failedTitle: "فشلت المعالجة", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
         blocked: "التأكيد محجوب حتى يصبح التحليل خاليًا من أخطاء التحقق.",
+        ignored: "تجاهلنا (جداول في الملف لا يقرؤها هذا المستورد، ولا تمنع الاستيراد):",
       }, en: {
         title: "Data import",
         note: "Upload XLSX or CSV, select the duplicate policy, then review the result before confirming the operational write.",
@@ -148,6 +149,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
         failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
+        ignored: "We ignored (tables in the file that this importer does not read; they do not stop the import):",
       }, ur: {
         title: "Data import",
         note: "Upload XLSX or CSV, select the duplicate policy, then review the result before confirming the operational write.",
@@ -199,6 +201,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" },
         failedTitle: "Processing failed", moreErrors: "Only the first errors are listed; the full count is above.",
         blocked: "Confirmation remains blocked until analysis has no validation errors.",
+        ignored: "We ignored (tables in the file that this importer does not read; they do not stop the import):",
       } });
   const submit = async () => {
     if (!file) { setLocalError(t.noFile); return; }
@@ -269,6 +272,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         {(current.status === "uploaded" || current.status === "validated") && current.analysis && <>
           <p>{t.rows}: {current.totalRows}</p>
           <p>{t.errors}: {current.analysis.errorsTotal}</p>
+          {(current.analysis.warnings ?? []).length > 0 && <p className="mt-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-2 text-amber-900" data-testid="import-ignored">{t.ignored} <bdi dir="ltr">{(current.analysis.warnings ?? []).map(warning => warning.field).filter(Boolean).join(" · ")}</bdi></p>}
           {Object.keys(current.analysis.mapping ?? {}).length > 0 && <div className="mt-2"><p className="font-medium">{t.mapping}</p><ul className="mt-1 list-disc ps-4">{Object.entries(current.analysis.mapping ?? {}).map(([field, header]) => <li key={field}>{t.field[field as keyof typeof t.field] ?? field}: {String(header)}</li>)}</ul></div>}
           {current.analysis.errors.length > 0 && <div className="mt-3 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p className="font-semibold">{t.errors}</p><ul className="mt-1 space-y-1">{current.analysis.errors.map((error, index) => <li key={`${error.code}-${error.field ?? ""}-${index}`}>{importErrorLabel(error.code)}{error.field ? ` (${error.field})` : ""}</li>)}</ul>{current.analysis.errorsTotal > current.analysis.errorsListed && <p className="mt-1">{t.moreErrors}</p>}</div>}
           {current.analysis.errors.length > 0 && current.analysis.headers.length > 0 && <WriteGate permission={importModulePermissions[moduleCode]} projectId={projectId}><div className="mt-3 space-y-2"><p className="font-medium">{t.chooseMapping}</p>{requiredFields.map(field => <label className="block" key={field}>{t.field[field as keyof typeof t.field] ?? field}<select className="mt-1 block w-full rounded border p-1" value={mappingOverride[field] ?? ""} onChange={event => setMappingOverride(existing => ({ ...existing, [field]: event.target.value }))}><option value="">{t.chooseMapping}</option>{current.analysis!.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>)}<Button type="button" disabled={reanalyze.isPending || requiredFields.some(field => !mappingOverride[field])} onClick={() => reanalyze.mutate({ tenantId, projectId, importId: current.id, mappingOverride })}>{t.reanalyze}</Button></div></WriteGate>}
