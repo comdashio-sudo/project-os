@@ -4,6 +4,8 @@ import { Link } from "wouter";
 import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
+import { isRtlLanguage, pickLanguage, resolveLanguage } from "@/lib/language";
 import { LEVEL_IDS, LEVEL_NAMES, levelBelow, levelHref, type LevelId } from "@/lib/levels";
 
 // The one layout the four level dashboards share (work order 13, item 6): where the person is (level n of 4), the one-click link to the
@@ -14,7 +16,7 @@ const navContext: Record<LevelId, "executive" | "pmo" | "project"> = { company: 
 const copy = {
   ar: { level: "المستوى", of: "من", down: (name: string) => `انتقل إلى مستوى: ${name}`, lowest: "أدنى مستوى: لا مستوى تحته.", label: "المستويات", chooseProject: "انتقل إلى مشروع", chooseLabel: "المشاريع في هذا المستوى" },
   en: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels", chooseProject: "Go to a project", chooseLabel: "Projects in this level" },
-  ur: { level: "Level", of: "of", down: (name: string) => `Go to the level: ${name}`, lowest: "This is the lowest level.", label: "Levels", chooseProject: "Go to a project", chooseLabel: "Projects in this level" },
+  ur: { level: "سطح", of: "میں سے", down: (name: string) => `${name} سطح پر جائیں`, lowest: "یہ سب سے نچلی سطح ہے۔", label: "سطحیں", chooseProject: "پروجیکٹ پر جائیں", chooseLabel: "اس سطح کے پروجیکٹ" },
 };
 
 /** One link below this level, for a level that descends to several places (the portfolio: one link per project of the comparison). */
@@ -32,16 +34,18 @@ export function LevelDashboard({ level, tenantId, projectId, title, belowHref, b
   children: React.ReactNode;
 }) {
   const { isArabic } = useLanguage();
-  const t = isArabic ? copy.ar : copy.en;
+  const language = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  const isRtl = isRtlLanguage(language);
+  const t = copy[language];
   const names = LEVEL_NAMES[level];
   const below = levelBelow(level);
   const href = belowHref !== undefined ? belowHref : below ? levelHref(tenantId, below, projectId) : null;
-  return <main dir={isArabic ? "rtl" : "ltr"} lang={isArabic ? "ar" : "en"} data-level={level} className="min-h-screen bg-[#f7f8fc] px-4 py-6 text-slate-900 sm:px-8">
+  return <main dir={isRtl ? "rtl" : "ltr"} lang={language} data-level={level} className="min-h-screen bg-[#f7f8fc] px-4 py-6 text-slate-900 sm:px-8">
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex justify-end"><LanguageToggle /></div>
       <EnterpriseNavigation tenantId={tenantId} projectId={projectId} context={navContext[level]} />
       <header className="space-y-3">
-        <p className="text-xs font-semibold tracking-wide text-[#0e6b70]" data-level-position>{`${t.level} ${LEVEL_IDS.indexOf(level) + 1} ${t.of} ${LEVEL_IDS.length} · ${isArabic ? names.ar : names.en}`}</p>
+        <p className="text-xs font-semibold tracking-wide text-[#0e6b70]" data-level-position>{`${t.level} ${LEVEL_IDS.indexOf(level) + 1} ${t.of} ${LEVEL_IDS.length} · ${names[language]}`}</p>
         <h1 className="text-2xl font-semibold">{title}</h1>
         {belowLinks && belowLinks.length > 0 && below
           ? <nav aria-label={t.chooseLabel} data-level-down="" className="flex flex-wrap gap-2">
@@ -53,7 +57,7 @@ export function LevelDashboard({ level, tenantId, projectId, title, belowHref, b
           : below && href
           ? <Link href={href} data-level-down="" className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#0e6b70] px-4 text-sm font-semibold text-white">
               <ArrowDown className="h-4 w-4" aria-hidden="true" />
-              <span>{t.down(isArabic ? LEVEL_NAMES[below].ar : LEVEL_NAMES[below].en)}</span>
+              <span>{t.down(LEVEL_NAMES[below][language])}</span>
             </Link>
           : below === null ? <p className="text-sm text-slate-600" data-level-lowest="">{t.lowest}</p> : null}
       </header>
@@ -74,7 +78,8 @@ export function LevelSection({ id, title, children, action }: { id: string; titl
 
 /** A figure the server computed as unavailable for this project (not a missing route): said plainly, not as a zero. */
 export function NotAvailable({ isArabic }: { isArabic: boolean }) {
-  return <span className="text-slate-500">{isArabic ? "غير متاح" : "Not available"}</span>;
+  const language = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  return <span className="text-slate-500">{pickLanguage(language, { ar: "غير متاح", en: "Not available", ur: "دستیاب نہیں" })}</span>;
 }
 
 export function formatMoney(value: number, currency: string | null | undefined): string {

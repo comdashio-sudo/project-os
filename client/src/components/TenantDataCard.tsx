@@ -46,18 +46,18 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         report: (deleted: number, tables: number) => `${deleted} records deleted after checking ${tables} tables.`, files: (deleted: number, found: number) => `Files deleted: ${deleted} of ${found}.`,
         leftover: "Files that were not deleted:", home: "Back to the home page",
       }, ur: {
-        title: "Company data: full copy and permanent deletion", note: "For the company owner only. The export is one file with everything the company owns; deletion erases everything for good and cannot be undone.",
-        loading: "Reading the size of your data…", size: (rows: number, tables: number, files: number) => `Your company owns ${rows} records in ${tables} tables and ${files} stored files.`,
-        download: "Download a full copy of the company's data", downloadNote: "One compressed (NDJSON) file. When the download finishes press Refresh so it counts.", refresh: "Refresh",
-        lastExport: (at: string) => `Last full export: ${at}`, noExport: "No full export yet.",
-        danger: "Permanent deletion", needExport: "Deletion is available only after a full copy was downloaded in the last 7 days.",
-        ask: "I want to delete the company's data permanently", asking: "Preparing…",
-        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the memberships of ${people} people in it are removed; their accounts and identities are NOT deleted and they can still sign in. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
-        typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "Company name", understand: "I understand the deletion is permanent and cannot be undone.",
-        deleteNow: "Delete the company's data permanently", deleting: "Deleting…", expires: "This confirmation expires in 15 minutes.",
-        done: "Deletion finished", pass: "Verification: passed — no record is left in any table.", fail: "Verification: incomplete — items remain, listed below. Try again or contact support.",
+        title: "کمپنی کا ڈیٹا: مکمل نقل اور مستقل حذف", note: "صرف کمپنی کے مالک کے لیے۔ ایکسپورٹ ایک فائل ہے جس میں کمپنی کی ہر چیز ہے؛ حذف سب کچھ مستقل طور پر مٹا دیتا ہے اور اسے واپس نہیں کیا جا سکتا۔",
+        loading: "آپ کے ڈیٹا کا سائز پڑھا جا رہا ہے…", size: (rows: number, tables: number, files: number) => `Your company owns ${rows} records in ${tables} tables and ${files} stored files.`,
+        download: "کمپنی کے ڈیٹا کی مکمل نقل ڈاؤن لوڈ کریں", downloadNote: "ایک کمپریس شدہ (NDJSON) فائل۔ ڈاؤن لوڈ مکمل ہونے کے بعد ریفریش دبائیں تاکہ وہ شمار ہو۔", refresh: "تازہ کریں",
+        lastExport: (at: string) => `Last full export: ${at}`, noExport: "ابھی تک کوئی مکمل ایکسپورٹ نہیں۔",
+        danger: "مستقل حذف", needExport: "حذف صرف اس وقت دستیاب ہے جب پچھلے 7 دنوں میں مکمل نقل ڈاؤن لوڈ کی گئی ہو۔",
+        ask: "میں کمپنی کا ڈیٹا مستقل طور پر حذف کرنا چاہتا ہوں", asking: "تیار کیا جا رہا ہے…",
+        warn: (rows: number, files: number, people: number) => `${rows} ریکارڈ اور ${files} فائلیں حذف ہوں گی، اور اس میں شامل ${people} افراد کی رکنیت ہٹا دی جائے گی؛ ان کے اکاؤنٹس اور شناخت حذف نہیں ہوں گے، اور وہ اب بھی سائن ان کر سکتے ہیں۔ آڈٹ ٹریل باقی رہتا ہے (یہ ریکارڈ کرتا ہے کہ حذف ہوا)، جس میں حذف شدہ نام کے تحت ایک خالی خول ہوتا ہے۔`,
+        typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "کمپنی کا نام", understand: "میں سمجھتا ہوں کہ حذف مستقل ہے اور اسے واپس نہیں کیا جا سکتا۔",
+        deleteNow: "کمپنی کا ڈیٹا مستقل طور پر حذف کریں", deleting: "حذف کیا جا رہا ہے…", expires: "یہ تصدیق 15 منٹ میں ختم ہو جائے گی۔",
+        done: "حذف مکمل ہو گیا", pass: "تصدیق: کامیاب — کسی جدول میں کوئی ریکارڈ باقی نہیں۔", fail: "تصدیق: نامکمل — نیچے درج کچھ چیزیں باقی ہیں۔ دوبارہ کوشش کریں یا سپورٹ سے رابطہ کریں۔",
         report: (deleted: number, tables: number) => `${deleted} records deleted after checking ${tables} tables.`, files: (deleted: number, found: number) => `Files deleted: ${deleted} of ${found}.`,
-        leftover: "Files that were not deleted:", home: "Back to the home page",
+        leftover: "وہ فائلیں جو حذف نہیں ہوئیں:", home: "ہوم پیج پر واپس جائیں",
       } });
 
   const report = confirm.data;
@@ -94,7 +94,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
           <a href={`/api/tenant-export/${tenantId}`} download className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">{t.download}</a>
           <Button type="button" variant="outline" onClick={() => void preview.refetch()}>{t.refresh}</Button>
         </div>
-        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")) : t.noExport}</p>
+        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" }))) : t.noExport}</p>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <h3 className="flex items-center gap-2 font-semibold text-red-800"><ShieldAlert className="h-5 w-5" />{t.danger}</h3>
           {!data.exportFresh ? <p className="mt-2 text-sm text-red-900">{t.needExport}</p> : !asked ? (
@@ -105,11 +105,11 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
               <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-red-900">{t.typeName(asked.companyName)}</p></div>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} className="mt-1" />{t.understand}</label>
               <p className="text-xs text-red-900">{t.expires}</p>
-              {confirm.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p> : null}
+              {confirm.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(confirm.error, language)}</p> : null}
               <Button type="submit" variant="destructive" disabled={!canDelete}>{confirm.isPending ? t.deleting : t.deleteNow}</Button>
             </form>
           )}
-          {request.error ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{getLocalizedProjectError(request.error, isArabic)}</p> : null}
+          {request.error ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{getLocalizedProjectError(request.error, language)}</p> : null}
         </div>
       </CardContent>
     </Card>

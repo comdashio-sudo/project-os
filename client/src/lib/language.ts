@@ -19,3 +19,7 @@ export const isRtlLanguage = (language: Language) => language !== "en";
 export function pickLanguage<T>(language: Language, texts: { ar: T; en: T; ur: T }): T {
   return texts[language];
 }
+
+/** A screen that has its language passes the language; an older one passes `isArabic`, which resolves to Arabic or English (Urdu needs the language). */
+export const resolveLanguage = (value: Language | boolean): Language => (typeof value === "boolean" ? (value ? "ar" : "en") : value);
+

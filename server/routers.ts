@@ -1,3 +1,4 @@
+import { EXPORT_LOCALES } from "@shared/exportLocale";
 import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
@@ -179,7 +180,7 @@ export const appRouter = router({
     unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0) })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) }).and(z.union([z.object({ base64: z.string().min(1).max(12_000_000) }), z.object({ uploadKey: z.string().min(1).max(1024) })]))).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),
     saveUnitGeometries: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), geojson: z.string().min(2).max(8_000_000) })).mutation(({ ctx, input }) => savePmcUnitGeometries({ userId: ctx.user.id, ...input })),
-    exportScreen: protectedProcedure.input(pmcScreenInput.extend({ screen: z.enum(PMC_SCREEN_NAMES), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => exportPmcScreen({ userId: ctx.user.id, ...input })),
+    exportScreen: protectedProcedure.input(pmcScreenInput.extend({ screen: z.enum(PMC_SCREEN_NAMES), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportPmcScreen({ userId: ctx.user.id, ...input })),
     analyzeImport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(PMC_IMPORT_KINDS), format: z.enum(["xlsx", "csv"]), base64: z.string().min(1).max(12_000_000) })).mutation(({ ctx, input }) => analyzePmcImport({ userId: ctx.user.id, ...input })),
     confirmImport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(PMC_IMPORT_KINDS), format: z.enum(["xlsx", "csv"]), base64: z.string().min(1).max(12_000_000), approvedHash: z.string().length(64) })).mutation(({ ctx, input }) => confirmPmcImport({ userId: ctx.user.id, ...input })),
     respondInspection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), inspectionRequestId: z.string().uuid(), responseCode: z.enum(["A", "B", "C", "UR"]) })).mutation(({ ctx, input }) => respondPmcInspection({ userId: ctx.user.id, ...input })),
@@ -203,12 +204,12 @@ export const appRouter = router({
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
     diff: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), kind: z.enum(["new", "modified", "conflict", "all"]).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => previewImportDiff({ userId: ctx.user.id, ...input })),
     // The blank import template of a module, generated from the importer's own field table.
-    template: protectedProcedure.input(z.object({ moduleCode: z.union([importModuleSchema, z.enum(LEDGER_MODULES)]), locale: z.enum(["ar", "en"]) })).mutation(({ input }) => buildImportTemplateForUser(input)),
+    template: protectedProcedure.input(z.object({ moduleCode: z.union([importModuleSchema, z.enum(LEDGER_MODULES)]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ input }) => buildImportTemplateForUser(input)),
     // Direct upload (work order 6): the file goes browser → Storage by a signed URL, and is analysed / imported by a job the screen polls.
     createUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), context: importContextSchema.optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => createImportUpload({ userId: ctx.user.id, ...input })),
     registerUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), uploadKey: z.string().min(1).max(1024), context: importContextSchema.optional(), duplicateMode: importDuplicateModeSchema.optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).refine(value => Object.keys(value).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => registerImportUpload({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
-    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
   }),
   // Smart import («ارفع أي ملف»): the original goes to Storage, the platform works out what it is, the person corrects and approves, the existing importer takes over.
   smartImport: router({
@@ -660,7 +661,7 @@ export const appRouter = router({
     transitionStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), claimId: z.string().uuid(), nextStatus: z.enum(["submitted", "under_review", "approved", "rejected", "withdrawn"]), approvedAmount: z.number().finite().nonnegative().optional() })).mutation(({ ctx, input }) => transitionClaimStatus({ userId: ctx.user.id, ...input })),
   }),
   advisor: router({
-    project: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => generateProjectAdvisoryForTenant({ userId: ctx.user.id, ...input })),
+    project: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => generateProjectAdvisoryForTenant({ userId: ctx.user.id, ...input })),
   }),
   boq: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBoqItemsForTenant({ userId: ctx.user.id, ...input })),

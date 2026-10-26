@@ -1,3 +1,4 @@
+import { type ExportLocale } from "@shared/exportLocale";
 // Excel cycle for the operational data that is appended rather than keyed by a code on a master list (work order 11, item 4):
 // actual costs, purchase orders, employees and hours. Each module has the same four steps as the master-data cycle: a template, an export (with a hidden id and version
 // on every row), a differences preview (new / modified / unchanged / conflict, nothing written), and a confirmation that writes exactly what was previewed.
@@ -11,7 +12,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { auditLogs, budgetLines, contracts, costEntries, employeeAssignments, employeeAttendance, employees, employeeTimeEntries, purchaseOrders, suppliers, wbsItems } from "../drizzle/schema";
-import { isLedgerModule, ledgerColumns, LEDGER_ID_HEADER, LEDGER_VERSION_HEADER, type LedgerColumn, type LedgerModule } from "@shared/ledgerImportColumns";
+import { acceptedHeaders, isLedgerModule, ledgerColumns, LEDGER_ID_HEADER, LEDGER_VERSION_HEADER, type LedgerColumn, type LedgerModule } from "@shared/ledgerImportColumns";
 import { assertHrRecordAccess, assertProjectWithinTenant, assertTenantFeatureAccess, createDataExport, createTeamTimeEntriesForTenant, getDb } from "./db";
 import { buildDataExportFile, type ExportModuleCode } from "./domain/dataImport";
 import { readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./domain/excelWorkbook";
@@ -68,7 +69,7 @@ async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes
   const bounds = spreadsheetBoundsError(sheet, rows);
   if (bounds) return fail(bounds);
   const columns = ledgerColumns[moduleCode];
-  const accepted = (column: LedgerColumn) => new Set([column.key, column.en, column.ar, ...(column.aliases ?? [])].map(norm));
+  const accepted = (column: LedgerColumn) => new Set(acceptedHeaders(column).map(norm));
   const headerOf = new Map<string, string>();
   for (const column of columns) { const names = accepted(column); const header = headers.find(candidate => names.has(norm(candidate))); if (header) headerOf.set(column.key, header); }
   const known = new Set(Array.from(headerOf.values()));
@@ -414,7 +415,7 @@ export async function ledgerExportRows(db: Db, scope: LedgerScope, moduleCode: L
 }
 
 /** The export of an operational module: the same gates as the master-data export (read access to the project, the DATA_EXPORT feature, its row limit), plus the HR permission for the HR modules. */
-export async function exportLedgerData(input: LedgerScope & { moduleCode: LedgerModule; format: "xlsx" | "csv"; locale: "ar" | "en" }) {
+export async function exportLedgerData(input: LedgerScope & { moduleCode: LedgerModule; format: "xlsx" | "csv"; locale: ExportLocale }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const feature = await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_EXPORT", scope: { type: "project", id: input.projectId } });
@@ -429,7 +430,7 @@ export async function exportLedgerData(input: LedgerScope & { moduleCode: Ledger
 }
 
 /** The export button of every module: master-data and activity exports (the original function) and the operational ones. Both write the `data_export_generated` audit row. */
-export async function exportProjectData(input: LedgerScope & { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en" }) {
+export async function exportProjectData(input: LedgerScope & { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: ExportLocale }) {
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_EXPORT", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (isLedgerModule(input.moduleCode)) return exportLedgerData({ ...input, moduleCode: input.moduleCode });

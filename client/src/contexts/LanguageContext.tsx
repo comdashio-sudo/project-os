@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { isLanguage, isRtlLanguage, LANGUAGE_STORAGE_KEY, type Language } from "@/lib/language";
+import { OptionalLanguageContext } from "./optionalLanguage";
 
 export type { Language } from "@/lib/language";
 type LanguageContextValue = {
@@ -31,7 +32,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); } catch { /* storage blocked: the choice lasts for this visit only */ }
   }, [isRtl, language]);
   const value = useMemo(() => ({ language, isArabic, isRtl, setLanguage }), [isArabic, isRtl, language]);
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return <LanguageContext.Provider value={value}><OptionalLanguageContext.Provider value={language}>{children}</OptionalLanguageContext.Provider></LanguageContext.Provider>;
 }
 
 export function useLanguage() {

@@ -14,10 +14,10 @@ export type LevelId = (typeof LEVEL_IDS)[number];
 
 /** Arabic first; English is the second language of the same screen, chosen by the page's `isArabic`. */
 export const LEVEL_NAMES: Record<LevelId, { ar: string; en: string; ur: string }> = {
-  company: { ar: "الشركة ومجلس الإدارة", en: "Company and board", ur: "Company and board" },
-  portfolio: { ar: "إدارة المشاريع (المحفظة)", en: "Projects management (portfolio)", ur: "Projects management (portfolio)" },
-  project: { ar: "المشروع", en: "Project", ur: "Project" },
-  warehouse: { ar: "المستودع", en: "Warehouse", ur: "Warehouse" },
+  company: { ar: "الشركة ومجلس الإدارة", en: "Company and board", ur: "کمپنی اور بورڈ" },
+  portfolio: { ar: "إدارة المشاريع (المحفظة)", en: "Projects management (portfolio)", ur: "پروجیکٹس کا انتظام (پورٹ فولیو)" },
+  project: { ar: "المشروع", en: "Project", ur: "پروجیکٹ" },
+  warehouse: { ar: "المستودع", en: "Warehouse", ur: "گودام" },
 };
 
 /** The level one step down; the warehouse is the lowest level and has none. */

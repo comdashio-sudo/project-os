@@ -395,7 +395,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
 
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId: warehouse.id, scopeType: "company" })).rejects.toThrow("not licensed");
+      await expect(caller.tenant.assignMember({ tenantId: tenantA, targetUserId: unassignedUserId, roleId: warehouse.id, scopeType: "company" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       const [unlicensedMemberships] = await connection.query<{ count: number }[]>("SELECT COUNT(*) AS count FROM memberships WHERE tenantId = ? AND userId = ?", [tenantA, unassignedUserId]);
       expect(Number(unlicensedMemberships[0].count)).toBe(0);
     } finally {
@@ -431,7 +431,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('int-role-b', 'int-perm-write')");
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('int-membership-role-b', 'int-membership-b', 'int-role-b', 'company')");
     const unlicensedContext: TrpcContext = { user: { id: unassignedUserId, openId: "integration-unassigned-user", name: "Unassigned Test User", email: "unassigned@test.local", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
-    await expect(appRouter.createCaller(unlicensedContext).materials.createMaster({ tenantId: tenantB, code: "MAT-NO-LICENSE", description: "No license", unitOfMeasure: "ea", category: "Test" })).rejects.toThrow("not licensed");
+    await expect(appRouter.createCaller(unlicensedContext).materials.createMaster({ tenantId: tenantB, code: "MAT-NO-LICENSE", description: "No license", unitOfMeasure: "ea", category: "Test" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     const override = await caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId: master.id, projectDescription: "Project concrete mix", referenceSpecification: "Project Spec 033000", active: true });
     const listed = await caller.materials.list({ tenantId: tenantA, projectId: projectA });
     expect(listed).toEqual(expect.arrayContaining([expect.objectContaining({ id: master.id, code: "MAT-CONC-40", override: expect.objectContaining({ id: override.id, projectDescription: "Project concrete mix" }) })]));
@@ -678,7 +678,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.rfis.list({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await expect(caller.dashboards.pmo({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await expect(caller.tenant.administration({ tenantId: tenantB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
-    await expect(caller.dashboards.pmo({ tenantId: tenantA })).rejects.toThrow("Required permission is not granted.");
+    await expect(caller.dashboards.pmo({ tenantId: tenantA })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     const [claims, contracts, imports, ncrs, resources, rfis, administration, assignable] = await Promise.all([
       caller.claims.list({ tenantId: tenantA, projectId: projectA }),
       caller.contracts.getProjectRegister({ tenantId: tenantA, projectId: projectA }),
@@ -870,7 +870,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "MASTER_PLAN", active: true, limitValue: 0 });
     await expect(caller.masterPlans.create({ tenantId: tenantA, projectId: projectA, code: "MP-LIMIT", title: "Limit blocked" })).rejects.toThrow("PROJECT_OS_LICENSE_LIMIT_EXCEEDED");
     await caller.licensing.transition({ tenantId: tenantA, licenseId: licenseRegister.license!.id, nextStatus: "suspended" });
-    await expect(caller.masterPlans.list({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT product is not licensed");
+    await expect(caller.masterPlans.list({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     await caller.licensing.transition({ tenantId: tenantA, licenseId: licenseRegister.license!.id, nextStatus: "active" });
     await caller.licensing.setFeatureOverride({ tenantId: tenantA, licenseId: licenseRegister.license!.id, featureCode: "MASTER_PLAN", active: true, limitValue: 10 });
     const [rows] = await connection.query<{ licenses: number; overrides: number; audits: number }[]>("SELECT (SELECT COUNT(*) FROM tenant_licenses WHERE tenantId = ?) AS licenses, (SELECT COUNT(*) FROM tenant_license_feature_overrides WHERE tenantLicenseId = ?) AS overrides, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action LIKE 'licensing.%') AS audits", [tenantA, licenseRegister.license!.id, tenantA]);
@@ -1135,7 +1135,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const caller = appRouter.createCaller(context); const xer = Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\twbs_cost\n%R\t900\tWBS-SCHEDULE-TRPC\tImported schedule work package\t1000\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\ttarget_cost\tstatus_code\n%R\tACT-SCHEDULE-TRPC\tImported schedule activity\t900\t2026-09-01 00:00:00\t2026-09-05 00:00:00\t500\tTK_Active").toString("base64");
     await expect(caller.dataImports.analyze({ tenantId: tenantA, projectId: projectB, moduleCode: "schedule", fileName: "foreign.xer", sourceFormat: "xer", base64: xer })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
-    try { await expect(caller.dataImports.analyze({ tenantId: tenantA, projectId: projectA, moduleCode: "schedule", fileName: "unlicensed.xer", sourceFormat: "xer", base64: xer })).rejects.toThrow("PROJECT product is not licensed"); }
+    try { await expect(caller.dataImports.analyze({ tenantId: tenantA, projectId: projectA, moduleCode: "schedule", fileName: "unlicensed.xer", sourceFormat: "xer", base64: xer })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED"); }
     finally { await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]); }
     const invalid = await caller.dataImports.analyze({ tenantId: tenantA, projectId: projectA, moduleCode: "schedule", fileName: "missing-task.xer", sourceFormat: "xer", base64: Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t901\tWBS-MISSING\tIncomplete").toString("base64") });
     expect(invalid).toMatchObject({ status: "uploaded" }); expect(invalid.errors).toContainEqual(expect.objectContaining({ code: "XER_REQUIRED_TABLE_MISSING" })); await expect(caller.dataImports.confirm({ tenantId: tenantA, projectId: projectA, importId: invalid.id })).rejects.toThrow("PROJECT_OS_IMPORT_NOT_CONFIRMABLE");
@@ -1245,7 +1245,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
       await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectB, materialId, active: true, reorderLevel: 5 })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
       await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
       try {
-        await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId, active: true, reorderLevel: 5 })).rejects.toThrow("PROJECT product is not licensed");
+        await expect(caller.materials.saveProjectOverride({ tenantId: tenantA, projectId: projectA, materialId, active: true, reorderLevel: 5 })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       } finally {
         await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
       }
@@ -1297,7 +1297,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const input = { tenantId: tenantA, projectId: projectA, grnNumber: "GRN-TRPC", purchaseOrderId: purchaseOrder.id, materialId: material.id, receivedQuantity: 8, rejectedQuantity: 2, unitCost: 100, unitOfMeasure: "m3", receiptMode: "direct_to_site" as const, receivedAt: new Date("2026-08-21T01:00:00.000Z"), qualityInspectionId: inspection.id, ncrId: ncr.id, note: "Delivery partially rejected after quality inspection" };
     await expect(caller.goodsReceipts.create({ ...input, purchaseOrderId: foreignPurchaseOrderId })).rejects.toThrow("PROJECT_OS_PURCHASE_ORDER_NOT_FOUND");
     await expect(caller.goodsReceipts.create({ ...input, qualityInspectionId: undefined, ncrId: undefined })).rejects.toThrow("PROJECT_OS_GRN_REJECTION_EVIDENCE_REQUIRED");
-    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]); try { await expect(caller.goodsReceipts.create(input)).rejects.toThrow("PROJECT product is not licensed"); } finally { await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]); }
+    await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]); try { await expect(caller.goodsReceipts.create(input)).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED"); } finally { await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]); }
     await expect(caller.goodsReceipts.create(input)).resolves.toMatchObject({ id: expect.any(String) });
     await expect(caller.goodsReceipts.list({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject([expect.objectContaining({ grnNumber: "GRN-TRPC", purchaseOrderId: purchaseOrder.id, materialId: material.id, receivedQuantity: "8.000", rejectedQuantity: "2.000", inspectionNumber: "QI-GRN-TRPC", ncrNumber: "NCR-GRN-TRPC" })]);
     const [rows] = await connection.query<{ grns: number; audits: number; inventory: number; actualCosts: number; actualAmount: string; commitmentOpen: string }[]>("SELECT (SELECT COUNT(*) FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC' AND unitCost = 100) AS grns, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND action = 'procurement.goods_receipt_note_created' AND entityId IN (SELECT id FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC')) AS audits, (SELECT COUNT(*) FROM warehouse_inventory_transactions WHERE projectId = ? AND materialId = ?) AS inventory, (SELECT COUNT(*) FROM cost_entries WHERE projectId = ?) AS actualCosts, (SELECT amount FROM cost_entries WHERE id = (SELECT costEntryId FROM goods_receipt_notes WHERE projectId = ? AND grnNumber = 'GRN-TRPC')) AS actualAmount, (SELECT c.amount - COALESCE(SUM(g.receivedQuantity * g.unitCost), 0) FROM commitments c LEFT JOIN purchase_orders p ON p.commitmentId = c.id LEFT JOIN goods_receipt_notes g ON g.purchaseOrderId = p.id WHERE c.id = ? GROUP BY c.id) AS commitmentOpen", [projectA, tenantA, projectA, projectA, material.id, projectA, projectA, commitmentId]);
@@ -1320,7 +1320,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-WBS-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: foreignWbsId, description: "Blocked foreign work package", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_WBS_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-NO-LICENSE", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Must not write without product entitlement", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-NO-LICENSE", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Must not write without product entitlement", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1344,7 +1344,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [beforeLink] = await connection.query<{ purchaseOrders: number; purchaseOrderAmount: string; commitments: number; actualCosts: number }[]>("SELECT (SELECT COUNT(*) FROM purchase_orders WHERE projectId = ?) AS purchaseOrders, (SELECT amount FROM purchase_orders WHERE id = ?) AS purchaseOrderAmount, (SELECT COUNT(*) FROM commitments WHERE projectId = ?) AS commitments, (SELECT COUNT(*) FROM cost_entries WHERE projectId = ?) AS actualCosts", [projectA, purchaseOrder.id, projectA, projectA]);
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.procurement.linkPurchaseOrder({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, purchaseOrderId: purchaseOrder.id })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1728,7 +1728,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.employees.create({ tenantId: tenantB, ...employeeInput })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.employees.create({ tenantId: tenantA, ...employeeInput })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.employees.create({ tenantId: tenantA, ...employeeInput })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1757,8 +1757,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.assignments.create({ tenantId: tenantB, projectId: projectB, ...assignmentInput })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.assignments.create({ tenantId: tenantA, projectId: projectA, ...assignmentInput })).rejects.toThrow("PROJECT product is not licensed");
-      await expect(caller.employees.attendance.create({ tenantId: tenantA, projectId: projectA, employeeId: employee.id, attendanceDate: new Date("2026-09-07T00:00:00.000Z"), attendanceStatus: "present" })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.assignments.create({ tenantId: tenantA, projectId: projectA, ...assignmentInput })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
+      await expect(caller.employees.attendance.create({ tenantId: tenantA, projectId: projectA, employeeId: employee.id, attendanceDate: new Date("2026-09-07T00:00:00.000Z"), attendanceStatus: "present" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1771,7 +1771,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.employees.attendance.list({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: attendance.id, attendanceStatus: "present" })]));
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "submitted" })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "submitted" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1779,7 +1779,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await caller.employees.attendance.transition({ tenantId: tenantA, projectId: projectA, attendanceId: attendance.id, status: "approved" });
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.assignments.timeEntries.create({ tenantId: tenantA, projectId: projectA, assignmentId: assignment.id, workDate: new Date("2026-09-07T00:00:00.000Z"), actualHours: 8, reportedProgressPercent: 20 })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.assignments.timeEntries.create({ tenantId: tenantA, projectId: projectA, assignmentId: assignment.id, workDate: new Date("2026-09-07T00:00:00.000Z"), actualHours: 8, reportedProgressPercent: 20 })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1787,7 +1787,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.assignments.timeEntries.list({ tenantId: tenantA, projectId: projectA })).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: time.id, status: "draft" })]));
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.assignments.timeEntries.transition({ tenantId: tenantA, projectId: projectA, timeEntryId: time.id, status: "submitted" })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.assignments.timeEntries.transition({ tenantId: tenantA, projectId: projectA, timeEntryId: time.id, status: "submitted" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1798,8 +1798,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.performance.get({ tenantId: tenantB, projectId: projectB, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT product is not licensed");
-      await expect(caller.performance.objections.create({ tenantId: tenantA, projectId: projectA, statement: "The operating evidence should be reviewed before any interpretation." })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
+      await expect(caller.performance.objections.create({ tenantId: tenantA, projectId: projectA, statement: "The operating evidence should be reviewed before any interpretation." })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
@@ -1860,14 +1860,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantB, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT product is not licensed");
+      await expect(hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
     const structure = await hrCaller.employees.payroll.salaryStructure.save({ tenantId: tenantA, employeeId: employee.id, baseSalary: 10_000, housingAllowance: 2_000, transportAllowance: 800, hardshipAllowance: 200, gosiRate: 0.0975, otherDeductions: 300, eosAccrualMode: "manual" as const, eosMonthlyAccrual: 750, currency: "SAR" });
     await expect(hrCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).resolves.toMatchObject({ id: structure.id, baseSalary: "10000.00", currency: "SAR" });
-    await expect(accountantCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).rejects.toThrow("Required permission is not granted");
-    await expect(hrCaller.employees.payroll.createRun({ tenantId: tenantA, ...period })).rejects.toThrow("Required permission is not granted");
+    await expect(accountantCaller.employees.payroll.salaryStructure.get({ tenantId: tenantA, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(hrCaller.employees.payroll.createRun({ tenantId: tenantA, ...period })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     const run = await accountantCaller.employees.payroll.createRun({ tenantId: tenantA, ...period });
     await expect(accountantCaller.employees.payroll.createRun({ tenantId: tenantB, ...period })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
     await accountantCaller.employees.payroll.transition({ tenantId: tenantA, payrollRunId: run.id, status: "review" });
@@ -1946,7 +1946,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const caller = appRouter.createCaller(context);
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectB, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE id = 'int-ent-a'");
-    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("The PROJECT product is not licensed for this tenant.");
+    await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     await connection.query("UPDATE tenant_entitlements SET active = true WHERE id = 'int-ent-a'");
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: true, recipientCount: 1 });
     await expect(caller.dashboards.reportSectionIssue({ tenantId: tenantA, projectId: projectA, product: "PROJECT", sectionKey: "project_performance", state: "error" })).resolves.toMatchObject({ reported: false, recipientCount: 0 });

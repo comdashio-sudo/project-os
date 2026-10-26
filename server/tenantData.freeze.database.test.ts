@@ -33,7 +33,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("freezing a c
       () => owner.fieldReports.create({ ...base, reportNumber: `FR${n()}`, reportType: "daily", reportedAt: new Date(), shift: "day", workforceCount: 3, summary: "Daily report text" }),
     ];
   };
-  const refusal = (error: unknown) => error instanceof Error && /not licensed|Active tenant membership|Required permission|PROJECT_OS_(TENANT_ACCESS_DENIED|PRODUCT_NOT_ENTITLED|PERMISSION_DENIED|PROJECT_NOT_FOUND)/.test(error.message);
+  const refusal = (error: unknown) => error instanceof Error && /PROJECT_OS_PRODUCT_NOT_ENTITLED|Active tenant membership|PROJECT_OS_PERMISSION_DENIED|PROJECT_OS_(TENANT_ACCESS_DENIED|PRODUCT_NOT_ENTITLED|PERMISSION_DENIED|PROJECT_NOT_FOUND)/.test(error.message);
 
   beforeAll(async () => {
     connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);

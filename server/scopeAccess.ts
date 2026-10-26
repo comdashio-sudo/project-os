@@ -17,7 +17,7 @@ export type ScopedAccess = {
   projectIds: Set<string>;
 };
 
-const denied = () => new TRPCError({ code: "FORBIDDEN", message: "Required permission is not granted." });
+const denied = () => new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
 
 /**
  * @param permissions any one of these on an assignment makes that assignment count
@@ -28,9 +28,9 @@ export async function resolveScopedAccess(input: { userId: number; tenantId: str
   if (!db) throw new Error("Database connection is not available");
   const [membership] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.userId))).limit(1);
   if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  if (membership.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Active tenant membership is required." });
+  if (membership.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   const [entitled] = await db.select({ id: tenantEntitlements.id }).from(tenantEntitlements).where(and(eq(tenantEntitlements.tenantId, input.tenantId), eq(tenantEntitlements.productCode, input.product), eq(tenantEntitlements.active, true))).limit(1);
-  if (!entitled) throw new TRPCError({ code: "FORBIDDEN", message: `The ${input.product} product is not licensed for this tenant.` });
+  if (!entitled) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 
   // One row per (assignment, permission) it carries: the scope and the permission travel together.
   const assignments = await db
@@ -43,7 +43,7 @@ export async function resolveScopedAccess(input: { userId: number; tenantId: str
   if (!assignments.length) throw denied();
 
   const company = assignments.some(item => item.scopeType === "company");
-  if (input.requireCompanyScope && !company) throw new TRPCError({ code: "FORBIDDEN", message: "Role scope does not cover the requested resource." });
+  if (input.requireCompanyScope && !company) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
 
   const rows = await db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId }).from(projects).where(eq(projects.tenantId, input.tenantId));
   const visible = new Set<string>();
@@ -59,7 +59,7 @@ export async function resolveScopedAccess(input: { userId: number; tenantId: str
 
 /** The one question every project-level answer asks: is this project among the ones the caller's assignment covers? */
 export function assertProjectInScope(access: ScopedAccess, projectId: string): void {
-  if (!access.projectIds.has(projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "Role scope does not cover the requested resource." });
+  if (!access.projectIds.has(projectId)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
 }
 
 export type { Db };

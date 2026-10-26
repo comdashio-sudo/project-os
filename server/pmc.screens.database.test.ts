@@ -153,10 +153,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC screens read from a 
     await expect(reader.pmc.monthlyReport({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
     await expect(reader.pmc.pendingAtVerifier({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
     await expect(reader.pmc.stagesView({ ...scope, filters: { since: new Date("2026-01-01T00:00:00.000Z") } })).resolves.toMatchObject({ data: expect.anything(), freshness: expect.any(Array) });
-    await expect(none.pmc.approvals(scope)).rejects.toThrow("Required permission is not granted.");
+    await expect(none.pmc.approvals(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(reader.pmc.approvals({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     // Export is a read and needs only the read permission; the file holds this project's rows.
     await expect(reader.pmc.exportScreen({ ...scope, screen: "zones", locale: "ar", filters: undefined })).resolves.toMatchObject({ fileName: "pmc-zones.xlsx" });
-    await expect(none.pmc.exportScreen({ ...scope, screen: "zones", locale: "ar", filters: undefined })).rejects.toThrow("Required permission is not granted.");
+    await expect(none.pmc.exportScreen({ ...scope, screen: "zones", locale: "ar", filters: undefined })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
   }, 60_000);
 });

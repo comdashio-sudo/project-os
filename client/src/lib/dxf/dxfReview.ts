@@ -31,17 +31,17 @@ const ERRORS: Record<ReviewErrorCode, BilingualMessage> = {
   UNKNOWN_POLYGON: {
     ar: "هذا الشكل غير موجود في الرسم.",
     en: "This shape is not in the drawing.",
-    ur: "This shape is not in the drawing.",
+    ur: "یہ شکل ڈرائنگ میں موجود نہیں ہے۔",
   },
   NOT_PROPOSED: {
     ar: "لا يمكن تأكيد هذا الربط لأنه ليس اقتراحًا من المطابقة.",
     en: "This link cannot be confirmed because it is not a proposal from the matcher.",
-    ur: "This link cannot be confirmed because it is not a proposal from the matcher.",
+    ur: "یہ جوڑ تصدیق نہیں ہو سکتا کیونکہ یہ ملان کرنے والے نظام کی تجویز نہیں ہے۔",
   },
   UNIT_ALREADY_CONFIRMED: {
     ar: "هذه الوحدة مربوطة بشكل آخر مؤكَّد. ألغِ ذلك الربط أولًا.",
     en: "This unit is already confirmed on another shape. Clear that link first.",
-    ur: "This unit is already confirmed on another shape. Clear that link first.",
+    ur: "یہ یونٹ کسی اور شکل پر پہلے ہی تصدیق شدہ ہے۔ پہلے وہ جوڑ ختم کریں۔",
   },
 };
 

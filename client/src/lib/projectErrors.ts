@@ -1,6 +1,6 @@
 import type { BilingualMessage } from "@shared/projectErrors";
-import { isNetworkError } from "./offlineQueue";
 import type { Language } from "./language";
+import { isNetworkError } from "./offlineQueue";
 
 type ProjectErrorPayload = {
   data?: {
