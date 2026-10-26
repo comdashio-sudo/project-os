@@ -1,17 +1,25 @@
 import React from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAccountLanguage } from "@/contexts/accountLanguage";
 import { LANGUAGE_NAMES, LANGUAGES, pickLanguage } from "@/lib/language";
 import { Languages } from "lucide-react";
 
-/** The three-way language switch. The choice is kept in this browser only (the server stores no per-person language), so the screens that
- *  can show a note say so in words: `showNote`. */
+/** The three-way language switch. The choice is changed on this device at once and kept in this browser; when the person is signed in it is also saved
+ *  on their account (LanguageAccountSync), so it follows them to any device. The screens that can show a note say where it is kept: `showNote`. */
 export function LanguageToggle({ dark = false, showNote = false }: { dark?: boolean; showNote?: boolean }) {
   const { language, setLanguage } = useLanguage();
-  const note = pickLanguage(language, {
-    ar: "تُحفظ اللغة على هذا الجهاز فقط، ولا تُحفظ في حسابك.",
-    en: "The language is saved on this device only, not on your account.",
-    ur: "زبان صرف اس آلے پر محفوظ ہوتی ہے، آپ کے اکاؤنٹ میں نہیں۔",
-  });
+  const { signedIn, save } = useAccountLanguage();
+  const note = signedIn
+    ? pickLanguage(language, {
+      ar: "تُحفظ اللغة في حسابك، فتتبعك إلى أي جهاز.",
+      en: "The language is saved to your account, so it follows you to any device.",
+      ur: "زبان آپ کے اکاؤنٹ میں محفوظ ہوتی ہے، اور آپ کے ہر آلے پر آپ کے ساتھ جاتی ہے۔",
+    })
+    : pickLanguage(language, {
+      ar: "تُحفظ اللغة على هذا الجهاز. سجّل الدخول لتتبعك في أي جهاز.",
+      en: "The language is saved on this device. Sign in to keep it on your account.",
+      ur: "زبان اس آلے پر محفوظ ہوتی ہے۔ اپنے اکاؤنٹ میں رکھنے کے لیے سائن ان کریں۔",
+    });
   const groupLabel = pickLanguage(language, { ar: "لغة الواجهة", en: "Interface language", ur: "انٹرفیس کی زبان" });
   return (
     <div className="inline-flex flex-col items-end gap-1" title={note}>
@@ -28,7 +36,7 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
               type="button"
               lang={code}
               aria-pressed={pressed}
-              onClick={() => setLanguage(code)}
+              onClick={() => { setLanguage(code); save(code); }}
               className={`min-h-[44px] min-w-[44px] rounded-md border px-2.5 text-sm font-medium ${tone}`}
             >
               {LANGUAGE_NAMES[code]}

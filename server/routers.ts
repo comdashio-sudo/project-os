@@ -16,6 +16,8 @@ import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCel
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
+import { INTERFACE_LANGUAGES } from "@shared/interfaceLanguages";
+import { getAccountLanguage, setAccountLanguage } from "./userLanguage";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
 import { exportProjectData } from "./ledgerImports";
@@ -95,6 +97,11 @@ const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, c
 
 export const appRouter = router({
   system: systemRouter,
+  // Work order 16, item 4 (G-203): the interface language kept on the signed-in person's account. Only their own row (server/userLanguage.ts).
+  languagePreference: router({
+    get: protectedProcedure.query(({ ctx }) => getAccountLanguage(ctx.user.id)),
+    set: protectedProcedure.input(z.object({ language: z.enum(INTERFACE_LANGUAGES) })).mutation(({ ctx, input }) => setAccountLanguage(ctx.user.id, input.language)),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     // Logging out ends the session in the database first, so the token is dead even if a copy of it was kept; only then is the cookie cleared.
