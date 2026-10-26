@@ -11,8 +11,9 @@ import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // Work order 20, item 2 on a real database (owner's decision 2026-10-25): the platform owner and every company administrator pass a second step (TOTP, RFC 6238).
 // Synthetic addresses only (*.example.test). The enforcement switch is on here; every other suite runs with MFA_ENFORCEMENT=off.
-const callerFor = (userId: number, openId: string, role: "user" | "admin", mfaVerified: boolean, sessionId = "test-session") =>
-  appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mfa.example.test`, loginMethod: "email", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, sessionId, mfaVerified, req: { protocol: "https", headers: {} } as never, res: {} as never } as never);
+const cookies: Array<{ name: string; value: string }> = [];
+const callerFor = (userId: number, openId: string, role: "user" | "admin", mfaVerified: boolean, sessionId = "test-session", mfaDeferralSince: number | null = null) =>
+  appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mfa.example.test`, loginMethod: "email", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, sessionId, mfaVerified, mfaDeferralSince, req: { protocol: "https", headers: {} } as never, res: { cookie: (name: string, value: string) => { cookies.push({ name, value }); } } as never } as never);
 
 describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step verification", () => {
   let owner: fixtureDb.Connection;
@@ -43,7 +44,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     const sid = await newSession(uid[ids.admin]);
     const caller = callerFor(uid[ids.admin], ids.admin, "admin", false, sid);
     await expect(caller.tenant.mine()).rejects.toMatchObject({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_REQUIRED" });
-    expect(await caller.mfa.status()).toEqual({ required: true, enrolled: false, verified: false });
+    expect(await caller.mfa.status()).toMatchObject({ required: true, enrolled: false, verified: false });
   });
 
   it("enrolment: a wrong first code is refused; the right one switches it on, shows ten recovery codes once, and verifies this session", async () => {
@@ -110,7 +111,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
   });
 
   it("an ordinary user is not asked for it, and the check is on the person, not on the claim: a request that says role=admin for a plain user is not gated by that claim alone", async () => {
-    expect(await callerFor(uid[ids.plain], ids.plain, "user", false).mfa.status()).toEqual({ required: false, enrolled: false, verified: false });
+    expect(await callerFor(uid[ids.plain], ids.plain, "user", false).mfa.status()).toMatchObject({ required: false, enrolled: false, verified: false });
     await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.mine()).resolves.toBeDefined();
   });
 
@@ -132,6 +133,59 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
       await expect(callerFor(userId, ids.companyAdmin, "user", true).tenant.mine()).resolves.toBeDefined();
       expect(await callerFor(uid[ids.plain], ids.plain, "user", false).mfa.status()).toMatchObject({ required: false });
     } finally { if (created) await cleanupCompany(created.tenantId); }
+  });
+
+  it("ONE pending enrolment, however often it is asked for: a reload, a second tab or a second click returns the SAME secret, and the code from the first answer still works (2026-10-26)", async () => {
+    const userId = uid[ids.plain];
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+    const sid = await newSession(userId);
+    const caller = callerFor(userId, ids.plain, "user", false, sid);
+    const first = await caller.mfa.beginEnrolment();
+    const [again, third, ...parallel] = await Promise.all([caller.mfa.beginEnrolment(), caller.mfa.beginEnrolment(), ...Array.from({ length: 4 }, () => caller.mfa.beginEnrolment())]);
+    for (const other of [again, third, ...parallel]) { expect(other.secret).toBe(first.secret); expect(other.enrolmentId).toBe(first.enrolmentId); }
+    expect((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM user_mfa WHERE userId = ?", [userId]))[0][0].n).toBe(1);
+    // the screen holds the first answer; a code made from it is accepted, together with the id it was shown
+    const confirmed = await caller.mfa.confirmEnrolment({ code: totpCode(first.secret, stepAt(Date.now())), enrolmentId: first.enrolmentId });
+    expect(confirmed.recoveryCodes).toHaveLength(10);
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+  });
+
+  it("NEGATIVE: a screen that holds a DIFFERENT enrolment than the stored one is told so (not 'wrong code'), and nothing is confirmed", async () => {
+    const userId = uid[ids.plain];
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+    const caller = callerFor(userId, ids.plain, "user", false, await newSession(userId));
+    const shown = await caller.mfa.beginEnrolment();
+    await expect(caller.mfa.confirmEnrolment({ code: totpCode(shown.secret, stepAt(Date.now())), enrolmentId: "000000000000" })).rejects.toMatchObject({ message: "PROJECT_OS_MFA_ENROLMENT_CHANGED" });
+    expect((await owner.query<{ c: Date | null }[]>("SELECT confirmedAt AS c FROM user_mfa WHERE userId = ?", [userId]))[0][0].c).toBeNull();
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+  });
+
+  it("the platform owner's 'Later': seven days, once per browser; refused for anyone else; a company administrator's deferral cookie does nothing; after seven days the gate closes again", async () => {
+    const adminId = uid[ids.admin];
+    const sid = await newSession(adminId);
+    // not yet: the gate holds
+    await expect(callerFor(adminId, ids.admin, "admin", false, sid).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
+    expect(await callerFor(adminId, ids.admin, "admin", false, sid).mfa.status()).toMatchObject({ canPostpone: true, postponedUntil: null });
+    cookies.length = 0;
+    const result = await callerFor(adminId, ids.admin, "admin", false, sid).mfa.postpone();
+    expect(new Date(result.postponedUntil).getTime() - Date.now()).toBeGreaterThan(6.9 * 86_400_000);
+    expect(cookies).toHaveLength(1);
+    // the browser now sends the cookie back: the context carries its start
+    const { deferralSince } = await import("./_core/mfaDeferral");
+    const since = await deferralSince(cookies[0].value, adminId);
+    expect(since).not.toBeNull();
+    await expect(callerFor(adminId, ids.admin, "admin", false, sid, since).tenant.mine()).resolves.toBeDefined();
+    expect(await callerFor(adminId, ids.admin, "admin", false, sid, since).mfa.status()).toMatchObject({ canPostpone: false, postponedUntil: result.postponedUntil });
+    // once only
+    await expect(callerFor(adminId, ids.admin, "admin", false, sid, since).mfa.postpone()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_POSTPONE_USED" });
+    // a cookie of someone else is not mine
+    expect(await deferralSince(cookies[0].value, uid[ids.plain])).toBeNull();
+    // eight days later the window is over and the gate holds again (and it cannot be renewed)
+    const old = Date.now() - 8 * 86_400_000;
+    await expect(callerFor(adminId, ids.admin, "admin", false, sid, old).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
+    await expect(callerFor(adminId, ids.admin, "admin", false, sid, old).mfa.postpone()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_POSTPONE_USED" });
+    // NEGATIVE: not for anyone but the platform owner
+    await expect(callerFor(uid[ids.plain], ids.plain, "user", false).mfa.postpone()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED" });
   });
 
   it("the break-glass switch (MFA_ENFORCEMENT=off) lifts the requirement and nothing else: the secret and codes stay as they were", async () => {

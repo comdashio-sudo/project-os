@@ -56,7 +56,7 @@ const requireUser = t.middleware(async opts => {
   }
   const user = ctx.user;
   // Two-step verification: a platform owner or company administrator whose session has not passed the second step may do nothing but verify (the mfa router).
-  const refusal = await mfaGateRefusal(user, ctx.mfaVerified);
+  const refusal = await mfaGateRefusal(user, ctx.mfaVerified, ctx.mfaDeferralSince ?? null);
   if (refusal) throw refusal;
   const context = await dbContextOf(ctx, user);
 
@@ -86,7 +86,7 @@ export const adminProcedure = t.procedure.use(
     }
 
     const user = ctx.user;
-    const refusal = await mfaGateRefusal(user, ctx.mfaVerified);
+    const refusal = await mfaGateRefusal(user, ctx.mfaVerified, ctx.mfaDeferralSince ?? null);
     if (refusal) throw refusal;
     const context = await dbContextOf(ctx, user);
     return runWithDbContext(context, () => next({

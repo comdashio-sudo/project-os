@@ -426,6 +426,21 @@ export const projectErrorMessages = {
     en: "The sync run could not be closed because its record is missing. No status was recorded for it; try again.",
     ur: "مطابقت کا رن بند نہ ہو سکا کیونکہ اس کا ریکارڈ موجود نہیں۔ اس کی کوئی حالت درج نہیں ہوئی؛ دوبارہ کوشش کریں۔",
   },
+  PROJECT_OS_MFA_ENROLMENT_CHANGED: {
+    ar: "تغيّر مفتاح التفعيل المعروض عن المخزَّن (فتحتَ الصفحة في مكان آخر؟). أعد تحميل الصفحة وامسح الرمز المعروض الآن، ثم أدخل الرمز الجديد.",
+    en: "The key shown on this screen is not the one stored (did you open the page somewhere else?). Reload the page, scan the code it shows now, then enter the new code.",
+    ur: "اس اسکرین پر دکھائی گئی کلید محفوظ شدہ کلید سے مختلف ہے (کیا آپ نے صفحہ کہیں اور کھولا؟)۔ صفحہ دوبارہ لوڈ کریں، اب دکھایا گیا کوڈ اسکین کریں، پھر نیا کوڈ درج کریں۔",
+  },
+  PROJECT_OS_MFA_POSTPONE_USED: {
+    ar: "استُعمل التأجيل من قبل في هذا المتصفح وانتهت مدته. فعّل التحقق بخطوتين للمتابعة.",
+    en: "The postponement was already used in this browser and has ended. Set up two-step verification to continue.",
+    ur: "اس براؤزر میں مؤخر کرنے کی سہولت پہلے استعمال ہو چکی اور ختم ہو گئی۔ جاری رکھنے کے لیے دو مرحلوں کی تصدیق فعال کریں۔",
+  },
+  PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED: {
+    ar: "التأجيل لمالك المنصة وحده.",
+    en: "Postponing is for the platform owner only.",
+    ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
