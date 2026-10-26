@@ -36,6 +36,8 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   createImportUpload: "mints a signed upload URL and records nothing; the import is recorded by registerImportUpload, whose job writes data_import_uploaded (or data_import_failed)",
   requestImportConfirmation: "a small import is written by confirmAndImportData, which writes data_import_completed; a large one by runImportConfirmation, which calls the same function and writes data_import_failed when it cannot",
   requestImportReanalysis: "a small import is re-analysed by reanalyzeDataImport; a large one by runImportAnalysis, whose job writes data_import_uploaded (or data_import_failed)",
+  createSmartUpload: "mints a signed upload URL for the smart import box and records nothing; the import is recorded (and audited) by confirmSmartImport, which writes smart_import_confirmed and hands the rows to registerImportUpload",
+  analyzeSmartUpload: "reads the uploaded original and answers what it understood; nothing is imported. The only record it can make is the AI-reading usage counter (smart_reading_usage), when the owner has turned the AI reading on",
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",

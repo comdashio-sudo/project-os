@@ -435,6 +435,20 @@ CREATE TABLE "data_import_row_results" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "data_import_sources" (
+	"import_id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36),
+	"source_key" varchar(512) NOT NULL,
+	"source_name" varchar(255) NOT NULL,
+	"detected_kind" varchar(32) NOT NULL,
+	"sheet_name" varchar(160),
+	"mapping_json" text NOT NULL,
+	"profile_id" varchar(36),
+	"merged_cells_filled" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "data_imports" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -798,6 +812,19 @@ CREATE TABLE "hse_observations" (
 	"severity" "hse_observations_severity" DEFAULT 'medium' NOT NULL,
 	"status" "hse_observations_status" DEFAULT 'open' NOT NULL,
 	"due_at" timestamp with time zone,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "import_source_profiles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"name" varchar(160) NOT NULL,
+	"kind" varchar(32) NOT NULL,
+	"header_signature" text NOT NULL,
+	"column_map_json" text NOT NULL,
+	"times_used" integer DEFAULT 0 NOT NULL,
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -1809,6 +1836,15 @@ CREATE TABLE "site_daily_reports" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "smart_reading_usage" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"month" varchar(7) NOT NULL,
+	"calls" integer DEFAULT 0 NOT NULL,
+	"estimated_micro_usd" integer DEFAULT 0 NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "subcontract_certificate_lines" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"certificate_id" varchar(36) NOT NULL,
@@ -2234,6 +2270,9 @@ ALTER TABLE "cost_entries" ADD CONSTRAINT "cost_entries_project_id_projects_id_f
 ALTER TABLE "cost_entries" ADD CONSTRAINT "cost_entries_wbs_item_id_wbs_items_id_fk" FOREIGN KEY ("wbs_item_id") REFERENCES "public"."wbs_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_import_errors" ADD CONSTRAINT "data_import_errors_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_import_row_results" ADD CONSTRAINT "data_import_row_results_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2324,6 +2363,8 @@ ALTER TABLE "goods_receipt_notes" ADD CONSTRAINT "grn_creator_fk" FOREIGN KEY ("
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "import_source_profiles" ADD CONSTRAINT "import_source_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "import_source_profiles" ADD CONSTRAINT "import_source_profiles_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_inbound_records" ADD CONSTRAINT "integration_inbound_records_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2556,6 +2597,7 @@ ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_tenant_id_co
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_user_id_users_id_fk" FOREIGN KEY ("prepared_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificates" ADD CONSTRAINT "subcert_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2674,6 +2716,7 @@ CREATE INDEX "cost_entries_tenant_project_date_idx" ON "cost_entries" USING btre
 CREATE INDEX "data_import_errors_import_row_idx" ON "data_import_errors" USING btree ("import_id","row_number");--> statement-breakpoint
 CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_results" USING btree ("import_id","row_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
+CREATE INDEX "data_import_sources_tenant_project_idx" ON "data_import_sources" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" <> 'failed';--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
@@ -2721,6 +2764,7 @@ CREATE UNIQUE INDEX "grn_cost_entry_unique" ON "goods_receipt_notes" USING btree
 CREATE UNIQUE INDEX "grn_inventory_transaction_unique" ON "goods_receipt_notes" USING btree ("inventory_transaction_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "hse_observations_project_number_unique" ON "hse_observations" USING btree ("project_id","observation_number");--> statement-breakpoint
 CREATE INDEX "hse_observations_tenant_project_status_due_idx" ON "hse_observations" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "import_source_profiles_tenant_name_unique" ON "import_source_profiles" USING btree ("tenant_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_connections_tenant_system_name_unique" ON "integration_connections" USING btree ("tenant_id","system","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_inbound_records_unique" ON "integration_inbound_records" USING btree ("tenant_id","system","entity_type","external_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_mappings_unique" ON "integration_mappings" USING btree ("tenant_id","system","entity_type","external_id");--> statement-breakpoint
@@ -2864,6 +2908,7 @@ CREATE INDEX "site_daily_report_photos_report_idx" ON "site_daily_report_photos"
 CREATE UNIQUE INDEX "site_daily_report_photos_key_unique" ON "site_daily_report_photos" USING btree ("storage_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id");--> statement-breakpoint
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint

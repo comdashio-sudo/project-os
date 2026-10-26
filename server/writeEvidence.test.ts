@@ -34,6 +34,7 @@ function bareUpdatesWithoutRead(): string[] {
 
 // file: start of the statement -> why a zero row count is harmless there
 const HARMLESS: Record<string, string> = {
+  "smartImport.ts: await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUse": "a usage counter on a profile the analysis step just returned: if the profile was deleted meanwhile, zero rows changes nothing that matters (the import itself is already registered and its source link is written in the same transaction)",
   "importJobs.ts: await db.update(dataImports).set({ heartbeatAt: sql`now()`, progressStage: stage, progr": "documented no-op: the heartbeat does nothing once the import has left the in-flight statuses, and zero rows is exactly that case",
   "mfa.ts: await db.update(userMfa).set(next >= MFA_MAX_FAILURES ? { failures: 0, lockedUntil: new Date(now.ge": "recordFailure is handed a row its caller has just read; the wrong-code refusal is thrown whether or not the counter moved",
 };

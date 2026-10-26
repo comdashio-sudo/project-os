@@ -44,6 +44,7 @@ const integrationSources = await Promise.all([
 
   readFile(new URL("../server/masterPlanVision.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/importJobs.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/smartImport.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));

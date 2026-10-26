@@ -28,4 +28,6 @@ export const ENV = {
   llmEnabled: process.env.LLM_ENABLED === "true",
   llmApiKey: process.env.LLM_API_KEY ?? "",
   llmBaseUrl: (process.env.LLM_BASE_URL ?? "").replace(/\/+$/, ""),
+  // The AI reading of PDFs, scans and free text (smart import) stops for a company once its estimated cost this month reaches this many US dollars.
+  smartReadingMonthlyCapUsd: Number(process.env.SMART_READING_MONTHLY_CAP_USD ?? "5"),
 };

@@ -162,7 +162,7 @@ export async function buildSamples(): Promise<Sample[]> {
 
   // 12. A synthetic Primavera XER (kind detection only: the importer reads it natively).
   {
-    const xer = ["ERMHDR\t8.4\t2026-03-01\tProject\tadmin\tadmin\tdb\tProject Management\tUSD", "%T\tPROJWBS", "%F\twbs_id\twbs_short_name\twbs_name", "%R\t1\t1\tExample project", "%T\tTASK", "%F\ttask_id\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date", "%R\t10\tA100\tMobilise\t1\t2026-03-01 08:00\t2026-03-14 17:00", "%E"].join("\n");
+    const xer = ["ERMHDR\t8.4\t2026-03-01\tProject\tadmin\tadmin\tdb\tProject Management\tUSD", "%T\tPROJWBS", "%F\twbs_id\twbs_short_name\twbs_name", "%R\t1\t1\tExample project", "%T\tTASK", "%F\ttask_id\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code", "%R\t10\tA100\tMobilise\t1\t2026-03-01 08:00\t2026-03-14 17:00\tTK_NotStart", "%E"].join("\n");
     samples.push({ id: "xer", description: "Primavera XER", fileName: "program.xer", format: "xer", bytes: new TextEncoder().encode(xer), expectedKind: null, expectedSheet: null, expected: {}, expectedRows: 0 });
   }
   return samples;

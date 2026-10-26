@@ -3754,7 +3754,8 @@ export async function assertImportAccess(input: { userId: number; tenantId: stri
 }
 
 /** Everything a new import must clear before any byte of its file is read: tenant access, project membership of the tenant, the module permission, the plan feature and its count limit. */
-export async function authorizeNewImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode }) {
+/** `moduleCode: "any"` clears the gate every importer shares (any import permission, the DATA_IMPORT feature): the smart upload box asks it before it knows which importer a file belongs to. */
+export async function authorizeNewImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode | "any" }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(input.moduleCode), scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });

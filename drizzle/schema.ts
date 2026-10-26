@@ -2932,3 +2932,55 @@ export const integrationConnections = pgTable(
   },
   table => [uniqueIndex("integration_connections_tenant_system_name_unique").on(table.tenantId, table.system, table.name)],
 );
+
+// Work order 20, smart import. A profile remembers how one SOURCE's columns map (e.g. «جدول كميات مقاول X»), so the next file of the same shape is read without asking again.
+export const importSourceProfiles = pgTable(
+  "import_source_profiles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    name: varchar("name", { length: 160 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    // the normalised header words of the file the profile was learned from: a later file whose headers overlap enough is the same source
+    headerSignature: text("header_signature").notNull(),
+    columnMapJson: text("column_map_json").notNull(),
+    timesUsed: integer("times_used").default(0).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("import_source_profiles_tenant_name_unique").on(table.tenantId, table.name)],
+);
+
+// The original file an import was read from: kept in Storage and linked to the import (and so to every row it wrote, through data_import_row_results).
+export const dataImportSources = pgTable(
+  "data_import_sources",
+  {
+    importId: varchar("import_id", { length: 36 }).primaryKey().references(() => dataImports.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
+    sourceKey: varchar("source_key", { length: 512 }).notNull(),
+    sourceName: varchar("source_name", { length: 255 }).notNull(),
+    detectedKind: varchar("detected_kind", { length: 32 }).notNull(),
+    sheetName: varchar("sheet_name", { length: 160 }),
+    mappingJson: text("mapping_json").notNull(),
+    profileId: varchar("profile_id", { length: 36 }),
+    mergedCellsFilled: integer("merged_cells_filled").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("data_import_sources_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+// What the optional AI reading (PDF, scans, free text) has cost this company this month. Off by default; when on, a company-wide monthly cap stops it.
+export const smartReadingUsage = pgTable(
+  "smart_reading_usage",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    month: varchar("month", { length: 7 }).notNull(),
+    calls: integer("calls").default(0).notNull(),
+    estimatedMicroUsd: integer("estimated_micro_usd").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("smart_reading_usage_tenant_month_unique").on(table.tenantId, table.month)],
+);

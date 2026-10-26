@@ -102,3 +102,35 @@ describe("understanding", () => {
   it("a Primavera XER is recognised by its content, whatever it is called", () => { expect(detectFormat(new TextEncoder().encode("ERMHDR\t8.4\n%T\tTASK"), "export.txt")).toBe("xer"); });
   it("NEGATIVE: a corrupt workbook is reported, not thrown", async () => { expect((await understand(Uint8Array.of(0x50, 0x4b, 0x03, 0x04, 1, 2, 3), { fileName: "bad.xlsx" })).warnings.length).toBeGreaterThan(0); });
 });
+
+import { currencyCode, generatedCode, scheduleStatus, translate } from "./translate";
+describe("translate (what the existing importers read)", () => {
+  it("writes the Saudi riyal as SAR however it was typed, and leaves other currencies as written for the importer to refuse", () => {
+    for (const written of ["ريال", "ر.س", "SR", "sar", "ريال سعودي", "Saudi Riyal"]) expect(currencyCode(written)).toBe("SAR");
+    expect(currencyCode("usd")).toBe("USD");
+  });
+  it("generates the same material code for the same words, and different codes for different ones", () => {
+    expect(generatedCode("MAT", "حديد 16", "طن")).toBe(generatedCode("MAT", "  حديد 16 ", "طن"));
+    expect(generatedCode("MAT", "حديد 16", "طن")).not.toBe(generatedCode("MAT", "حديد 12", "طن"));
+  });
+  it("maps status words (and a progress figure) to the schedule importer's four statuses", () => {
+    expect(scheduleStatus("مكتمل", null)).toBe("Completed");
+    expect(scheduleStatus("In progress", null)).toBe("In Progress");
+    expect(scheduleStatus("", 0)).toBe("Not Started");
+    expect(scheduleStatus("", 100)).toBe("Completed");
+    expect(scheduleStatus("", 40)).toBe("In Progress");
+    expect(scheduleStatus("???", null)).toBe("");
+  });
+  it("sets aside rows missing what the importer requires and says why; a BOQ row's value is its amount, else quantity × rate", () => {
+    const rows = [
+      { rowNumber: 5, values: { code: "1.1", name: "حفر", quantity: 10, rate: 5, amount: null }, display: {} },
+      { rowNumber: 6, values: { code: "1.2", name: "ردم", amount: 70 }, display: {} },
+      { rowNumber: 7, values: { code: "", name: "بلا رمز" }, display: {} },
+      { rowNumber: 8, values: { code: "1.1", name: "مكرر" }, display: {} },
+    ];
+    const out = translate("boq", rows)!;
+    expect(out.rows).toEqual([["1.1", "حفر", 50], ["1.2", "ردم", 70]]);
+    expect(out.excluded).toEqual([{ rowNumber: 7, reason: "MISSING:code" }, { rowNumber: 8, reason: "DUPLICATE_CODE:1.1" }]);
+    expect(translate("valuation", rows)).toBeNull();
+  });
+});
