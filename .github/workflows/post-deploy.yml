@@ -1,0 +1,69 @@
+name: Post-deploy check
+
+# Every production deployment is called the way a visitor would call it (scripts/ci/post-deploy-check.mjs): /healthz, a WRONG sign-in code (must be 4xx, never 5xx), /api/readyz.
+# If it fails, the production deployment is rolled back to the one before it (Vercel Instant Rollback; needs the repository secret VERCEL_TOKEN) and an issue is opened, so the alert is in GitHub.
+# Also runnable by hand against any address (Actions <- Post-deploy check <- Run workflow).
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Site address to check"
+        type: string
+        required: false
+        default: "https://dashio-lovat.vercel.app"
+      rollback_on_failure:
+        description: "Roll production back to the previous deployment if the check fails (needs VERCEL_TOKEN)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: post-deploy-${{ github.event.deployment_status.target_url || inputs.url }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: check the deployed site
+    # only a SUCCESSFUL production deployment is checked; previews are checked by the promotion workflow
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_z9rRP8H1AzWS5ElYIZMtJn12sgZM' }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID || 'team_DDgIiaktQp5KcMWBYSnBPxEf' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Settle (the alias takes a moment to move)
+        run: sleep 20
+      - name: Check
+        id: check
+        env:
+          TARGET: ${{ github.event.deployment_status.environment_url || inputs.url }}
+          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/post-deploy-check.mjs "$TARGET"
+      - name: Roll production back to the previous deployment
+        if: failure() && steps.check.outcome == 'failure' && (github.event_name == 'deployment_status' || inputs.rollback_on_failure)
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then echo "::error title=No automatic rollback::the repository secret VERCEL_TOKEN is not set, so production was NOT rolled back. Use Vercel -> Deployments -> the previous one -> Instant Rollback."; exit 1; fi
+          api="https://api.vercel.com"
+          auth="Authorization: Bearer $VERCEL_TOKEN"
+          list="$(curl -fsS -H "$auth" "$api/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_TEAM_ID&target=production&state=READY&limit=5")"
+          previous="$(echo "$list" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")).deployments; console.log(d[1]?.uid ?? "")')"
+          [ -n "$previous" ] || { echo "::error::no previous production deployment to roll back to"; exit 1; }
+          curl -fsS -X POST -H "$auth" "$api/v9/projects/$VERCEL_PROJECT_ID/rollback/$previous?teamId=$VERCEL_TEAM_ID" >/dev/null
+          echo "::warning title=Production rolled back::to deployment $previous"
+      - name: Open an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Post-deploy check failed on production ($GITHUB_SHA)" --body "The check of the deployed site failed after a production deployment. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" || true

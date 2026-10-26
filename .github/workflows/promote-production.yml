@@ -1,0 +1,60 @@
+name: Promote to production
+
+# Production is deployed from the `production` branch ONLY; `main` deploys as a Preview (Vercel: Settings -> Git -> Production Branch = production).
+# This is the button: it takes a commit of `main` (default: its newest), finds that commit's Preview deployment, runs the post-deploy check against it, and ONLY IF IT PASSES moves
+# `production` to that commit (fast-forward, never a force-push), which makes Vercel build it for production. After the build, post-deploy.yml checks production itself.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit of main to promote (empty = main's newest)"
+        type: string
+        required: false
+
+permissions:
+  contents: write
+  deployments: read
+
+jobs:
+  promote:
+    name: check the preview, then promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Which commit
+        id: sha
+        run: |
+          sha="${{ inputs.sha }}"
+          [ -n "$sha" ] || sha="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Find the Preview deployment of that commit
+        id: preview
+        run: |
+          for i in $(seq 1 30); do
+            id="$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=${{ steps.sha.outputs.sha }}&per_page=20" --jq '[.[] | select(.environment | test("Preview"))][0].id // empty')"
+            if [ -n "$id" ]; then
+              state="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state')"
+              url="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].environment_url // .[0].target_url')"
+              if [ "$state" = "success" ] && [ -n "$url" ]; then echo "url=$url" >> "$GITHUB_OUTPUT"; echo "preview: $url"; exit 0; fi
+              [ "$state" = "failure" ] || [ "$state" = "error" ] && { echo "::error::the Preview build of this commit failed"; exit 1; }
+            fi
+            sleep 20
+          done
+          echo "::error::no finished Preview deployment for ${{ steps.sha.outputs.sha }} after 10 minutes"; exit 1
+      - name: Post-deploy check against the Preview
+        env:
+          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/post-deploy-check.mjs "${{ steps.preview.outputs.url }}"
+      - name: Move production to that commit (fast-forward only)
+        run: |
+          git push origin "${{ steps.sha.outputs.sha }}:refs/heads/production"
+          echo "production -> ${{ steps.sha.outputs.sha }}" >> "$GITHUB_STEP_SUMMARY"

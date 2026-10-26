@@ -102,3 +102,12 @@
 6. بقية الأسرار (`SUPABASE_ACCESS_TOKEN` و`SUPABASE_DB_PASSWORD` و`STORAGE_S3_ACCESS_KEY_ID` و`STORAGE_S3_SECRET_ACCESS_KEY`) هي نفسها التي يستعملها زر الإطلاق. إن غاب أحدها يقف التشغيل قبل أن يلمس شيئًا ويسمّي الناقص.
 
 **حدود يجب أن تعرفها:** (أ) الاحتفاظ 90 يومًا، وهو أقصى ما يسمح به GitHub لملفات التشغيل (إعداد المستودع نفسه قد يقصّره). (ب) ملفات التشغيل تحسب على حصة تخزين Actions في خطتك (عشرات الميغابايتات في اليوم تكفي أشهرًا، لكن إن كبرت ملفات التخزين إلى مئات الميغابايتات فالحصة هي القيد وقتها، ويلزم وجهة ثانية). (ج) أول تشغيل حقيقي هو الذي يثبت أن دور `postgres` في Supabase يستطيع تفريغ مخططي `auth` و`storage`؛ لم يُجرَّب إلا على قاعدة محلية.
+
+## 11. الإنتاج يُنشر من فرع `production` فقط (BLOCKED_BY_OWNER — ثلاث نقرات، 26 أكتوبر 2026)
+سبب القرار: دمجٌ إلى `main` كان يصير إنتاجًا فورًا، فكسر الدخول يوم 26 أكتوبر (الشيفرة سبقت ترحيلات القاعدة). بعد هذه الخطوات: `main` ← معاينة (Preview) فقط، والإنتاج لا يتحرك إلا بزر.
+1. **Vercel ← مشروع dashio ← Settings ← Git ← Production Branch** ← اكتب `production` ← Save. (إلى أن تفعل هذا يبقى `main` هو الإنتاج.)
+2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). يلزم للتراجع الآلي ولقراءة سجلات الأخطاء. (لا تلصقه في المحادثة.)
+3. اختياري للمعاينات المحمية: سرّ `VERCEL_AUTOMATION_BYPASS_SECRET` (Vercel ← Settings ← Deployment Protection ← Protection Bypass for Automation).
+**الترقية:** GitHub ← Actions ← **Promote to production** ← Run workflow. يجد معاينة آخر دمج، ويشغّل عليها فحص ما بعد النشر، وإن نجح يحرّك `production` إلى ذلك الدمج (بلا force-push). بعد بناء الإنتاج يفحصه **Post-deploy check** تلقائيًا، وإن فشل يتراجع إلى النشر السابق ويفتح بلاغًا في GitHub.
+**ترحيلات القاعدة** تُطبَّق بزر Bootstrap / Supabase setup (مفاتيحها عندك)، لا بالنشر. `/api/readyz` يقول أيها لم يُطبَّق بعد.
+
