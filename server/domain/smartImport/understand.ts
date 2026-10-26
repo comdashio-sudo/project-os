@@ -30,7 +30,7 @@ export type Understanding = {
   sheetNames: string[]; sheet: string | null;
   table: { headerRow: number; rows: number; skipped: { blank: number; section: number; total: number; repeatedHeader: number }; mergedFilled: number; titleLines: string[] } | null;
   columns: ColumnMatch[]; fields: Array<{ key: string; required: boolean; type: FieldType; label: { ar: string; en: string } }>;
-  autoMatchedShare: number; sample: NormalizedRow[]; flagged: FlaggedRow[]; hijriDates: number; warnings: string[];
+  autoMatchedShare: number; sample: NormalizedRow[]; rows?: NormalizedRow[]; flagged: FlaggedRow[]; hijriDates: number; warnings: string[];
 };
 
 const textOf = (cell: Cell) => (cell === null ? "" : cell instanceof Date ? cell.toISOString().slice(0, 10) : String(cell).trim());
@@ -87,6 +87,8 @@ export type UnderstandOptions = {
   forced?: Record<number, string | null>;
   extraSynonyms?: Partial<Record<Concept, string[]>>;
   sampleSize?: number;
+  /** also return every normalised row (the server translates them; the screen only needs the sample) */
+  includeRows?: boolean;
 };
 
 export async function understand(bytes: Uint8Array, options: UnderstandOptions): Promise<Understanding> {
@@ -154,7 +156,7 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
     table: { headerRow: table.headerRow, rows: table.dataRows.length, skipped, mergedFilled: table.mergedFilled, titleLines: table.titleLines },
     columns, fields: definition.fields.map(({ key, required, type, label }) => ({ key, required, type, label })),
     autoMatchedShare: mappedColumns.length ? columns.filter(isAuto).length / mappedColumns.length : 0,
-    sample: normalizedRows.slice(0, options.sampleSize ?? 8), flagged, hijriDates, warnings,
+    sample: normalizedRows.slice(0, options.sampleSize ?? 8), ...(options.includeRows ? { rows: normalizedRows } : {}), flagged, hijriDates, warnings,
   };
 }
 

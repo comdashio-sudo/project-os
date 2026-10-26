@@ -34,6 +34,7 @@ import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmc
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { getPmcProjectSummaryForTenant } from "./db";
+import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
 import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
@@ -83,6 +84,8 @@ const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "s
 const uploadModuleSchema = z.union([importModuleSchema, z.enum(EXTERNAL_MODULES)]);
 const importContextSchema = z.object({ masterPlanVersionId: z.string().uuid().optional() }).strict();
 const importDuplicateModeSchema = z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
+const smartKindSchema = z.enum(["xer", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
+const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max(64).nullable()).transform(value => Object.fromEntries(Object.entries(value).map(([key, field]) => [Number(key), field])) as Record<number, string | null>).refine(value => Object.keys(value).length <= 80, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" });
 /** Which file formats a module accepts: a schedule is xlsx or XER, every other module xlsx or csv. */
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
   if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" });
@@ -206,6 +209,14 @@ export const appRouter = router({
     registerUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), uploadKey: z.string().min(1).max(1024), context: importContextSchema.optional(), duplicateMode: importDuplicateModeSchema.optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).refine(value => Object.keys(value).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => registerImportUpload({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
+  }),
+  // Smart import («ارفع أي ملف»): the original goes to Storage, the platform works out what it is, the person corrects and approves, the existing importer takes over.
+  smartImport: router({
+    createUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) })).mutation(({ ctx, input }) => createSmartUpload({ userId: ctx.user.id, ...input })),
+    analyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255), sheet: z.string().max(160).optional(), kind: smartKindSchema.optional(), forced: smartForcedSchema.optional(), useAi: z.boolean().optional() })).mutation(({ ctx, input }) => analyzeSmartUpload({ userId: ctx.user.id, ...input })),
+    confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255), kind: smartKindSchema, sheet: z.string().max(160).optional(), forced: smartForcedSchema, profileName: z.string().trim().min(1).max(160).optional(), profileId: z.string().uuid().nullable().optional(), duplicateMode: importDuplicateModeSchema.optional() })).mutation(({ ctx, input }) => confirmSmartImport({ userId: ctx.user.id, ...input })),
+    profiles: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listImportProfiles({ userId: ctx.user.id, ...input })),
+    source: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), entityId: z.string().uuid().optional(), importId: z.string().uuid().optional() }).refine(value => Boolean(value.entityId || value.importId), { message: "PROJECT_OS_IMPORT_NOT_FOUND" })).query(({ ctx, input }) => getImportSourceLink({ userId: ctx.user.id, ...input })),
   }),
   licensing: router({
     catalog: protectedProcedure.query(({ ctx }) => getCommercialCatalogForAdministrator({ userId: ctx.user.id })),

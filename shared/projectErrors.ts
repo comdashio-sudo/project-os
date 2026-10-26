@@ -1401,6 +1401,51 @@ export const projectErrorMessages = {
     en: "The file is larger than the 50 MB limit.",
     ur: "The file is larger than the 50 MB limit.",
   },
+  PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED: {
+    ar: "هذا النوع من الملفات لا يُقرأ هنا. المقبول: Excel وCSV وXER، وPDF وصور المسح عند تفعيل القراءة الذكية.",
+    en: "This file type cannot be read here. Accepted: Excel, CSV and XER, and PDF or scanned images when smart reading is on.",
+    ur: "This file type cannot be read here. Accepted: Excel, CSV and XER, and PDF or scanned images when smart reading is on.",
+  },
+  PROJECT_OS_SMART_IMPORT_KIND_INVALID: {
+    ar: "نوع الملف غير معروف. اختر نوعًا من القائمة.",
+    en: "The file type is not recognised. Pick one from the list.",
+    ur: "The file type is not recognised. Pick one from the list.",
+  },
+  PROJECT_OS_SMART_IMPORT_NO_IMPORTER: {
+    ar: "هذا النوع (المستخلص أو التقرير اليومي) يُتعرَّف عليه لكن لا يوجد له استيراد بعد. لم يُكتب شيء.",
+    en: "This type (payment certificate or daily report) is recognised but has no importer yet. Nothing was written.",
+    ur: "This type (payment certificate or daily report) is recognised but has no importer yet. Nothing was written.",
+  },
+  PROJECT_OS_SMART_IMPORT_NO_TABLE: {
+    ar: "لم أجد جدولًا في الملف. تأكد من أنه يحوي سطر عناوين وصفوف بيانات.",
+    en: "No table was found in the file. Check that it has a header row and data rows.",
+    ur: "No table was found in the file. Check that it has a header row and data rows.",
+  },
+  PROJECT_OS_SMART_IMPORT_REQUIRED_UNMAPPED: {
+    ar: "بقي عمود مطلوب بلا مقابل. اربطه بعمود من الملف ثم اعتمد.",
+    en: "A required field has no column. Map it to a column of the file, then approve.",
+    ur: "A required field has no column. Map it to a column of the file, then approve.",
+  },
+  PROJECT_OS_SMART_IMPORT_NOTHING_TO_IMPORT: {
+    ar: "لا يوجد صف صالح للاستيراد بعد استبعاد الصفوف الناقصة. لم يُكتب شيء.",
+    en: "No row is valid for import once the incomplete ones are set aside. Nothing was written.",
+    ur: "No row is valid for import once the incomplete ones are set aside. Nothing was written.",
+  },
+  PROJECT_OS_SMART_READING_DISABLED: {
+    ar: "هذا النوع يحتاج تفعيل القراءة الذكية.",
+    en: "This type needs smart reading to be turned on.",
+    ur: "This type needs smart reading to be turned on.",
+  },
+  PROJECT_OS_SMART_READING_CAP_REACHED: {
+    ar: "بلغت الشركة سقف القراءة الذكية لهذا الشهر. يُستأنف مطلع الشهر القادم أو يرفعه المالك.",
+    en: "The company reached this month's smart-reading cap. It resumes next month, or the owner can raise it.",
+    ur: "The company reached this month's smart-reading cap. It resumes next month, or the owner can raise it.",
+  },
+  PROJECT_OS_SMART_READING_UNREADABLE: {
+    ar: "تعذّرت قراءة جدول من هذا الملف. جرّب ملفًا أوضح أو Excel.",
+    en: "A table could not be read from this file. Try a clearer file or Excel.",
+    ur: "A table could not be read from this file. Try a clearer file or Excel.",
+  },
   PROJECT_OS_IMPORT_JOB_FAILED: {
     ar: "تعذّر إكمال المعالجة لسبب غير متوقع. لم يُحفظ شيء؛ أعد المحاولة، وإن تكرر فتواصل مع الدعم.",
     en: "Processing could not finish because of an unexpected problem. Nothing was saved; try again, and contact support if it repeats.",
