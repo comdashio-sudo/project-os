@@ -147,8 +147,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a 
     const manager = callerFor(users.manager, "lab-manager");
     const finance = callerFor(users.finance, "lab-finance");
     const input = { tenantId: T, employerGosiRateSaudi: 0.1, employerGosiRateNonSaudi: 0.02, indirectLoadingPercent: 5, hoursPerDay: 8, workingDays: [0, 1, 2, 3, 4], eosFirstPeriodYears: 5, eosFirstPeriodMonthsPerYear: 0.5, eosLaterMonthsPerYear: 1 };
-    await expect(manager.labourSettings.save(input)).rejects.toThrow("Required permission is not granted.");
-    await expect(callerFor(users.plain, "lab-plain").labourSettings.get({ tenantId: T })).rejects.toThrow("Required permission is not granted.");
+    await expect(manager.labourSettings.save(input)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(callerFor(users.plain, "lab-plain").labourSettings.get({ tenantId: T })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(finance.labourSettings.save({ ...input, workingDays: [1, 1, 2] })).rejects.toThrow("PROJECT_OS_LABOUR_SETTINGS_INVALID");
     await expect(finance.labourSettings.save({ ...input, tenantId: T_OTHER })).rejects.toThrow();
     // a cash-flow reader can read the settings but not change them
@@ -197,7 +197,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded labour cost on a 
     await connection.query("UPDATE payroll_runs SET status = 'approved' WHERE id = ?", [RUN_JAN]);
     expect((await finance.employees.payroll.eosLiability({ tenantId: T })).total).toBe(1800.25);
     await connection.query("UPDATE payroll_runs SET status = 'draft' WHERE id = ?", [RUN_JAN]);
-    await expect(callerFor(users.manager, "lab-manager").employees.payroll.eosLiability({ tenantId: T })).rejects.toThrow("Required permission is not granted.");
-    await expect(callerFor(users.plain, "lab-plain").employees.payroll.eosLiability({ tenantId: T })).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.manager, "lab-manager").employees.payroll.eosLiability({ tenantId: T })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(callerFor(users.plain, "lab-plain").employees.payroll.eosLiability({ tenantId: T })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
   });
 });

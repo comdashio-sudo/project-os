@@ -17,7 +17,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
   }, en: {
     eyebrow: "PLANNING · COST · QUANTITY CONTROL", title: "One decision view from connected sources", note: "Connects schedule, budget, actual cost, commitments, BOQ, material requests and warehouse balances. Missing data is never turned into misleading zeroes.", controlled: "Controlled", attention: "Needs attention", budget: "Current budget", exposure: "Financial exposure", variance: "Remaining after exposure", boq: "Active BOQ value", quantities: "Quantity movement", issued: "Issued", remaining: "Request balance", onHand: "Warehouse on hand", schedule: "Schedule", overdue: "Overdue activities", blocked: "Blocked activities", coverage: "Execution coverage", gaps: "Data gaps that prevent a complete decision", noGaps: "Core sources are complete for this view", loading: "Calculating control center…", sourceNote: "These are derived read-only indicators; no financial or quantity record is created.", lines: "line"
   }, ur: {
-    eyebrow: "PLANNING · COST · QUANTITY CONTROL", title: "One decision view from connected sources", note: "Connects schedule, budget, actual cost, commitments, BOQ, material requests and warehouse balances. Missing data is never turned into misleading zeroes.", controlled: "Controlled", attention: "Needs attention", budget: "Current budget", exposure: "Financial exposure", variance: "Remaining after exposure", boq: "Active BOQ value", quantities: "Quantity movement", issued: "Issued", remaining: "Request balance", onHand: "Warehouse on hand", schedule: "Schedule", overdue: "Overdue activities", blocked: "Blocked activities", coverage: "Execution coverage", gaps: "Data gaps that prevent a complete decision", noGaps: "Core sources are complete for this view", loading: "Calculating control center…", sourceNote: "These are derived read-only indicators; no financial or quantity record is created.", lines: "line"
+    eyebrow: "منصوبہ بندی · لاگت · مقدار کا کنٹرول", title: "جڑے ہوئے ذرائع سے ایک فیصلہ کن منظر", note: "شیڈول، بجٹ، اصل لاگت، وعدے، BOQ، مواد کی درخواستوں اور گودام کے بقایا کو ایک جگہ جوڑتا ہے۔ غائب ڈیٹا کو گمراہ کن صفر میں تبدیل نہیں کیا جاتا۔", controlled: "کنٹرول میں", attention: "توجہ درکار ہے", budget: "موجودہ بجٹ", exposure: "مالی تعرض", variance: "تعرض کے بعد باقی", boq: "فعال BOQ کی قدر", quantities: "مقدار کی نقل و حرکت", issued: "جاری شدہ", remaining: "درخواست کا بقایا", onHand: "گودام میں موجود", schedule: "شیڈول", overdue: "تاخیر کا شکار سرگرمیاں", blocked: "رکی ہوئی سرگرمیاں", coverage: "عمل درآمد کی کوریج", gaps: "ڈیٹا کی کمیاں جو مکمل فیصلہ روکتی ہیں", noGaps: "اس منظر کے لیے بنیادی ذرائع مکمل ہیں", loading: "کنٹرول سینٹر کا حساب ہو رہا ہے…", sourceNote: "یہ اخذ شدہ صرف پڑھنے کے اشاریے ہیں؛ کوئی مالی یا مقداری ریکارڈ نہیں بنتا۔", lines: "سطر"
   } });
   const tone = result.riskLevel === "attention" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50";
   return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
@@ -27,19 +27,19 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
     </div>
     {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-slate-600">{t.loading}</p> : <>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency, isArabic)} />
-        <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency, isArabic)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency, isArabic)}`} />
-        <Metric icon={PackageSearch} label={t.boq} value={formatPlanningAmount(result.boqValue, currency, isArabic)} detail={`${result.activeBoqLines} ${t.lines}`} />
+        <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency, language)} />
+        <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency, language)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency, language)}`} />
+        <Metric icon={PackageSearch} label={t.boq} value={formatPlanningAmount(result.boqValue, currency, language)} detail={`${result.activeBoqLines} ${t.lines}`} />
         <Metric icon={TimerReset} label={t.coverage} value={formatPlanningPercent(result.progressCoverage)} detail={`${t.overdue}: ${result.overdueActivities} · ${t.blocked}: ${result.blockedActivities}`} />
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         <Metric label={t.quantities} value={`${result.issuedQuantity.toFixed(3)} / ${result.requestedQuantity.toFixed(3)}`} detail={`${t.issued} · ${t.remaining}: ${result.remainingQuantity.toFixed(3)}`} />
-        <Metric label={t.onHand} value={result.onHandQuantity.toFixed(3)} detail={`${result.unfulfilledRequisitions} ${isArabic ? "طلبات غير مكتملة" : "unfulfilled requisitions"}`} />
+        <Metric label={t.onHand} value={result.onHandQuantity.toFixed(3)} detail={`${result.unfulfilledRequisitions} ${pickLanguage(language, { ar: "طلبات غير مكتملة", en: "unfulfilled requisitions", ur: "نامکمل درخواستیں" })}`} />
         <Metric label={t.schedule} value={`${result.overdueActivities} / ${result.blockedActivities}`} detail={`${t.overdue} / ${t.blocked}`} />
       </div>
       <div className="mt-4 rounded-xl bg-white/80 p-4">
         <p className="text-sm font-semibold text-slate-900">{t.gaps}</p>
-        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, isArabic)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
+        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, language)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
       </div>
       <p className="mt-3 text-xs text-slate-500">{t.sourceNote}</p>
     </>}

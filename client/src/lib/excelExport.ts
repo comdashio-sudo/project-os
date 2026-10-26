@@ -1,3 +1,4 @@
+import { isRtlLanguage, type Language } from "./language";
 // Table exports built in the browser (work order 8). The layout is a pure function so it is tested without a workbook; the writer
 // loads exceljs on demand, as the import screens already do. Numbers stay numbers and dates stay dates, so Excel can sum and sort them.
 
@@ -23,7 +24,8 @@ export type ExportMeta = {
   company?: string;
   project?: string;
   exportedAt: Date;
-  locale: "ar" | "en";
+  /** The language of the workbook: its headings, its direction (Arabic and Urdu are right to left) and its labels. */
+  locale: Language;
 };
 
 export type ExportCell = { value: string | number | Date | null; kind: ExportCellKind };
@@ -35,10 +37,11 @@ export type ExportLayout = {
   rows: ExportCell[][];
 };
 
-const LABELS = {
+const LABELS: Record<Language, { company: string; project: string; exported: string }> = {
   ar: { company: "الشركة", project: "المشروع", exported: "تاريخ التصدير" },
-  en: { company: "Company", project: "Project", exported: "Exported on" }, ur: { company: "Company", project: "Project", exported: "Exported on" },
-} as const;
+  en: { company: "Company", project: "Project", exported: "Exported on" },
+  ur: { company: "کمپنی", project: "پروجیکٹ", exported: "برآمد کی تاریخ" },
+};
 
 /** The calendar day where the person is, not in UTC: an export made after 21:00 in Riyadh must not carry tomorrow's date. */
 const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -48,7 +51,7 @@ function isCellSpec(value: unknown): value is ExportCellSpec {
 }
 
 /** V1 decision (STATE.md): the company's base currency is the riyal. Every money figure is exported in it, and the header says so. */
-const BASE_CURRENCY: Record<"ar" | "en" | "ur", string> = { ar: "ريال", en: "SAR", ur: "SAR" };
+const BASE_CURRENCY: Record<Language, string> = { ar: "ريال", en: "SAR", ur: "ریال" };
 
 function normalise(value: string | number | Date | null | undefined): string | number | Date | null {
   if (value === undefined || value === null) return null;
@@ -112,7 +115,7 @@ export async function buildTableWorkbook<Row>(input: {
   const { default: ExcelJS } = await import("exceljs");
   const layout = buildExportLayout(input.columns, input.rows, input.meta);
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(sheetNameFor(input.sheetName), { views: [{ rightToLeft: input.meta.locale === "ar" }] });
+  const sheet = workbook.addWorksheet(sheetNameFor(input.sheetName), { views: [{ rightToLeft: isRtlLanguage(input.meta.locale) }] });
   for (const row of layout.metaRows) sheet.addRow(row).font = { bold: row.length === 1 };
   sheet.addRow([]);
   const headerIndex = sheet.rowCount + 1;
@@ -126,7 +129,7 @@ export async function buildTableWorkbook<Row>(input: {
       if (format) added.getCell(index + 1).numFmt = format;
     });
   }
-  sheet.views = [{ rightToLeft: input.meta.locale === "ar", state: "frozen", ySplit: headerIndex }];
+  sheet.views = [{ rightToLeft: isRtlLanguage(input.meta.locale), state: "frozen", ySplit: headerIndex }];
   layout.headerRow.forEach((text, index) => {
     const widest = Math.max(text.length, ...layout.rows.map(row => String(row[index]?.value instanceof Date ? "yyyy-mm-dd" : row[index]?.value ?? "").length));
     sheet.getColumn(index + 1).width = Math.min(Math.max(widest + 2, 12), 40);

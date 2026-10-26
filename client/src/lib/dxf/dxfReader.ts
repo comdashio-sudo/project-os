@@ -33,16 +33,16 @@ export type DxfReadResult = { ok: true; drawing: DxfDrawing } | { ok: false; err
 const MESSAGES: Record<DxfErrorCode, BilingualMessage> = {
   DWG_NOT_SUPPORTED: {
     ar: "ملف DWG غير مدعوم. احفظ الرسم بصيغة DXF من برنامج التصميم ثم ارفعه مرة أخرى.",
-    en: "DWG files are not supported. Save the drawing as DXF from your design program and upload it again.", ur: "DWG files are not supported. Save the drawing as DXF from your design program and upload it again.",
+    en: "DWG files are not supported. Save the drawing as DXF from your design program and upload it again.", ur: "DWG فائلیں معاون نہیں ہیں۔ ڈرائنگ کو اپنے ڈیزائن پروگرام سے DXF کے طور پر محفوظ کریں اور دوبارہ اپ لوڈ کریں۔",
   },
   DXF_BINARY_NOT_SUPPORTED: {
     ar: "ملف DXF الثنائي غير مدعوم. احفظ الرسم بصيغة DXF نصية (ASCII) ثم ارفعه مرة أخرى.",
-    en: "Binary DXF is not supported. Save the drawing as ASCII DXF and upload it again.", ur: "Binary DXF is not supported. Save the drawing as ASCII DXF and upload it again.",
+    en: "Binary DXF is not supported. Save the drawing as ASCII DXF and upload it again.", ur: "بائنری DXF معاون نہیں ہے۔ ڈرائنگ کو ASCII DXF کے طور پر محفوظ کریں اور دوبارہ اپ لوڈ کریں۔",
   },
-  DXF_EMPTY: { ar: "الملف فارغ.", en: "The file is empty.", ur: "The file is empty." },
+  DXF_EMPTY: { ar: "الملف فارغ.", en: "The file is empty.", ur: "فائل خالی ہے۔" },
   DXF_INVALID: {
     ar: "الملف ليس رسم DXF صالحًا، أو لا يحوي قسم ENTITIES.",
-    en: "The file is not a valid DXF drawing, or it has no ENTITIES section.", ur: "The file is not a valid DXF drawing, or it has no ENTITIES section.",
+    en: "The file is not a valid DXF drawing, or it has no ENTITIES section.", ur: "یہ درست DXF ڈرائنگ نہیں ہے، یا اس میں ENTITIES کا حصہ موجود نہیں۔",
   },
 };
 

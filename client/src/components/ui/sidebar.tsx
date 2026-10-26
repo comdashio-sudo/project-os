@@ -1,3 +1,4 @@
+import { useUiText } from "@/components/ui/uiText";
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,7 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none";
   disableTransition?: boolean;
 }) {
+  const ut = useUiText();
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === "none") {
@@ -197,8 +199,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{ut({ ar: "الشريط الجانبي", en: "Sidebar", ur: "سائیڈ بار" })}</SheetTitle>
+            <SheetDescription>{ut({ ar: "يعرض الشريط الجانبي للهاتف.", en: "Displays the mobile sidebar.", ur: "موبائل سائیڈ بار دکھاتا ہے۔" })}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -265,6 +267,7 @@ function SidebarTrigger({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const ut = useUiText();
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -281,22 +284,23 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">{ut({ ar: "تبديل الشريط الجانبي", en: "Toggle Sidebar", ur: "سائیڈ بار تبدیل کریں" })}</span>
     </Button>
   );
 }
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+  const ut = useUiText();
   const { toggleSidebar } = useSidebar();
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label={ut({ ar: "تبديل الشريط الجانبي", en: "Toggle Sidebar", ur: "سائیڈ بار تبدیل کریں" })}
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title={ut({ ar: "تبديل الشريط الجانبي", en: "Toggle Sidebar", ur: "سائیڈ بار تبدیل کریں" })}
       className={cn(
         "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
@@ -329,6 +333,7 @@ function SidebarInput({
   className,
   ...props
 }: React.ComponentProps<typeof Input>) {
+  const ut = useUiText();
   return (
     <Input
       data-slot="sidebar-input"

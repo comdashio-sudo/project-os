@@ -126,9 +126,13 @@ export async function listConsultantSubmittalsForTenant(input: Scope & { status?
   });
 }
 
+/** Urdu names of the four default reply codes. The codes are stored per company, so a company's own code keeps its English name. */
+const REPLY_CODE_LABEL_UR: Record<string, string> = { A: "منظور", B: "تبصروں کے ساتھ منظور", C: "نظرِ ثانی کر کے دوبارہ جمع کریں", D: "مسترد" };
+export const replyCodeLabelUr = (code: string, labelEn: string) => REPLY_CODE_LABEL_UR[code] ?? labelEn;
+
 export async function listSubmittalReplyCodesForTenant(input: Scope) {
   const db = await authorize(input, READ);
-  return (await ensureReplyCodes(db, input.tenantId)).sort((a, b) => a.sortOrder - b.sortOrder);
+  return (await ensureReplyCodes(db, input.tenantId)).sort((a, b) => a.sortOrder - b.sortOrder).map(row => ({ ...row, labelUr: replyCodeLabelUr(row.code, row.labelEn) }));
 }
 
 /** The company names its own reply codes and says which ones approve. At least one must approve and one must not (else the register could not tell a refusal). */

@@ -133,7 +133,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("cash flow, committed cos
     expect(changes.length).toBe(2); // issued, then paid: the refused moves left no trace
     expect(changes.find(change => change.to === "paid")).toMatchObject({ from: "issued", to: "paid", totalAmount: "1150.00" });
     // a reader may look but not move money
-    await expect(db.transitionProjectCommercialInvoiceStatus({ userId: users.reader, ...scope, invoiceId: ids.inv2, nextStatus: "void" })).rejects.toThrow("Required permission is not granted.");
+    await expect(db.transitionProjectCommercialInvoiceStatus({ userId: users.reader, ...scope, invoiceId: ids.inv2, nextStatus: "void" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
   }, 60_000);
 
   it("draws the net cash flow by month: September 250 out; October 1,725 in and 400 out", async () => {
@@ -153,8 +153,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("cash flow, committed cos
   });
 
   it("closes the cash flow to whoever may not read it", async () => {
-    await expect(callerFor(users.plain, "cfd-plain").profitability.cashFlow(scope)).rejects.toThrow("Required permission is not granted.");
-    await expect(callerFor(users.ops, "cfd-ops").profitability.cashFlow(scope)).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.plain, "cfd-plain").profitability.cashFlow(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(callerFor(users.ops, "cfd-ops").profitability.cashFlow(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(callerFor(users.reader, "cfd-reader").profitability.cashFlow({ tenantId: T, projectId: uid(998) })).rejects.toThrow();
   });
 });

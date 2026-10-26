@@ -1,6 +1,10 @@
 import { EXPORT_ID_HEADER, EXPORT_VERSION_HEADER, RESERVED_EXPORT_HEADERS, CYCLE_MODULES } from "./importCycle";
 import { importTemplateHeaders as templateHeaders } from "@shared/importTemplateHeaders";
 import { isLedgerModule, ledgerColumns, type LedgerModule } from "@shared/ledgerImportColumns";
+import { type ExportLocale } from "@shared/exportLocale";
+
+/** The header row in a locale. Urdu where the table has it; where it does not (the import templates and the PMC screens stay English, so their files import) the English row. */
+export const headersIn = <T,>(entry: Partial<Record<ExportLocale, T>>, locale: ExportLocale): T => (entry[locale] ?? entry.en) as T;
 import { buildSpreadsheet, MAX_XER_ROWS, readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
 export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "schedule" | "openingBalances";
@@ -307,8 +311,8 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
   return { sheetNames, headers, mapping, rows, validRows, errors };
 }
 
-const ledgerExportHeaders = (moduleCode: LedgerModule) => Object.fromEntries((["ar", "en"] as const).map(locale => [locale, Object.fromEntries(ledgerColumns[moduleCode].map(column => [column.key, column[locale]]))])) as Record<"ar" | "en", Record<string, string>>;
-const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string, string>>> = {
+const ledgerExportHeaders = (moduleCode: LedgerModule) => Object.fromEntries((["ar", "en", "ur"] as const).map(locale => [locale, Object.fromEntries(ledgerColumns[moduleCode].map(column => [column.key, column[locale]]))])) as Record<ExportLocale, Record<string, string>>;
+const exportHeaders: Record<ExportModuleCode, Partial<Record<ExportLocale, Record<string, string>>>> = {
   costs: ledgerExportHeaders("costs"), purchaseOrders: ledgerExportHeaders("purchaseOrders"), employees: ledgerExportHeaders("employees"), timeEntries: ledgerExportHeaders("timeEntries"),
   wbs: { ar: { code: "رمز WBS", name: "اسم WBS", plannedValue: "القيمة المخططة" }, en: { code: "WBS Code", name: "WBS Name", plannedValue: "Planned Value" } },
   budget: { ar: { costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية" }, en: { costCode: "Cost Code", originalAmount: "Original Amount", currentAmount: "Current Amount" } },
@@ -317,8 +321,8 @@ const exportHeaders: Record<ExportModuleCode, Record<"ar" | "en", Record<string,
   activities: { ar: { code: "رمز النشاط", name: "اسم النشاط", plannedValue: "القيمة المخططة", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" }, en: { code: "Activity Code", name: "Activity Name", plannedValue: "Planned Value", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", status: "Status" } },
 };
 
-export async function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en"; rows: Record<string, unknown>[] }) {
-  const headers = exportHeaders[input.moduleCode][input.locale];
+export async function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: ExportLocale; rows: Record<string, unknown>[] }) {
+  const headers = headersIn(exportHeaders[input.moduleCode], input.locale);
   // A module that takes part in the export → edit → re-import cycle carries each row's platform id and version in two reserved columns, hidden in Excel (and kept in CSV).
   const cycle = (CYCLE_MODULES as readonly string[]).includes(input.moduleCode) || isLedgerModule(input.moduleCode);
   const exportRows = input.rows.map(row => [...Object.keys(headers).map(key => safeSpreadsheetValue(row[key] ?? "")), ...(cycle ? [String(row[EXPORT_ID_HEADER] ?? ""), String(row[EXPORT_VERSION_HEADER] ?? "")] : [])]);
@@ -343,17 +347,17 @@ const templateLists: Partial<Record<ImportModuleCode, Array<{ field: string; lis
   schedule: [{ field: "recordType", list: ["WBS", "Activity"] }, { field: "status", list: ["Not Started", "In Progress", "Completed", "Blocked"] }],
 };
 
-export async function buildImportTemplateFile(input: { moduleCode: ImportModuleCode; locale: "ar" | "en" }) {
-  const headers = templateHeaders[input.moduleCode][input.locale];
+export async function buildImportTemplateFile(input: { moduleCode: ImportModuleCode; locale: ExportLocale }) {
+  const headers = headersIn(templateHeaders[input.moduleCode], input.locale);
   const fields = templates[input.moduleCode];
   if (headers.length !== fields.length) throw new Error(`Template headers for ${input.moduleCode} drifted from the import field table`); // the guard against the two lists diverging
   const validations = (templateLists[input.moduleCode] ?? []).flatMap(entry => { const index = fields.findIndex(field => field.key === entry.field); return index < 0 ? [] : [{ column: index + 1, list: entry.list }]; });
-  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode === "schedule" ? "Schedule" : input.moduleCode.toUpperCase(), headers, rows: templateExamples[input.moduleCode][input.locale], format: "xlsx", validations });
+  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode === "schedule" ? "Schedule" : input.moduleCode.toUpperCase(), headers, rows: headersIn(templateExamples[input.moduleCode], input.locale), format: "xlsx", validations });
   return { bytes, fileName: `${input.moduleCode}-template.xlsx`, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 }
 
 /** The blank template of an operational module (costs, purchase orders, employees, hours), generated from the same column table the importer and the export read. */
-export async function buildLedgerTemplateFile(input: { moduleCode: LedgerModule; locale: "ar" | "en" }) {
+export async function buildLedgerTemplateFile(input: { moduleCode: LedgerModule; locale: ExportLocale }) {
   const columns = ledgerColumns[input.moduleCode].filter(column => !column.readOnly); // a read-only column (an order's status) is in the export, not in a blank sheet
   const validations = columns.flatMap((column, index) => (column.list ? [{ column: index + 1, list: column.list }] : []));
   const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: columns.map(column => column[input.locale]), rows: [columns.map(column => column.example)], format: "xlsx", validations });

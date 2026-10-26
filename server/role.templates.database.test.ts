@@ -11,7 +11,7 @@ import { appRouter } from "./routers";
 const SLUG = "role-templates";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@templates.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
-const DENIED = "Required permission is not granted.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED";
 const TEMPLATES = ["EXECUTIVE", "PMO_LEAD", "COST_CONTROLLER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL", "CONTRACTS_MANAGER"] as const;
 
 let connection: fixtureDb.Connection;

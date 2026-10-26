@@ -10,7 +10,7 @@ describe("project error map", () => {
       messages: {
         ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
         en: "The selected WBS item does not belong to the requested project.",
-        ur: "The selected WBS item does not belong to the requested project.",
+        ur: "منتخب کردہ WBS آئٹم مطلوبہ پروجیکٹ سے تعلق نہیں رکھتا۔",
       },
     });
   });
@@ -31,7 +31,7 @@ describe("project error map", () => {
       messages: {
         ar: "تم بلوغ عدد المقاعد المسموح به في الرخصة النشطة.",
         en: "The active license seat limit has been reached.",
-        ur: "The active license seat limit has been reached.",
+        ur: "فعال لائسنس کی نشستوں کی حد پوری ہو چکی ہے۔",
       },
     });
   });
@@ -42,7 +42,7 @@ describe("project error map", () => {
       messages: {
         ar: "انتقال حالة العضوية المطلوب غير مسموح.",
         en: "The requested membership status transition is not allowed.",
-        ur: "The requested membership status transition is not allowed.",
+        ur: "رکنیت کی درخواست کردہ حیثیت کی تبدیلی کی اجازت نہیں ہے۔",
       },
     });
     expect(getProjectError("PROJECT_OS_LAST_TENANT_OWNER_DEACTIVATION_FORBIDDEN")).toEqual({
@@ -50,7 +50,7 @@ describe("project error map", () => {
       messages: {
         ar: "لا يمكن تعطيل آخر مالك نشط للمؤسسة.",
         en: "The last active tenant owner cannot be deactivated.",
-        ur: "The last active tenant owner cannot be deactivated.",
+        ur: "آخری فعال کمپنی مالک کو غیر فعال نہیں کیا جا سکتا۔",
       },
     });
   });
@@ -69,7 +69,7 @@ describe("project error map", () => {
       messages: {
         ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",
         en: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
-        ur: "The workspace could not be created now. No data was created. Try again later or contact support if the error persists.",
+        ur: "ابھی ورک اسپیس نہیں بن سکا۔ کوئی ڈیٹا نہیں بنایا گیا۔ بعد میں دوبارہ کوشش کریں، یا خرابی برقرار رہے تو سپورٹ سے رابطہ کریں۔",
       },
     });
   });

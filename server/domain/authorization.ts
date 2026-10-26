@@ -31,20 +31,20 @@ export function assertTenantAccess(
   request: { tenantId: string; product: ProductCode; permission: string | readonly string[]; scope?: { type: ScopeType; id?: string } },
 ): void {
   if (!request.tenantId || request.tenantId !== snapshot.tenantId) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Tenant scope is invalid." });
+    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   }
   if (snapshot.membershipStatus !== "active") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Active tenant membership is required." });
+    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   }
   if (!snapshot.entitledProducts.includes(request.product)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: `The ${request.product} product is not licensed for this tenant.` });
+    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
   }
   const accepted = typeof request.permission === "string" ? [request.permission] : request.permission;
   if (!accepted.some(code => snapshot.permissionCodes.includes(code))) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Required permission is not granted." });
+    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
   }
   if (request.scope && !hasScopeAccess(snapshot.scopes, request.scope)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Role scope does not cover the requested resource." });
+    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
   }
 }
 

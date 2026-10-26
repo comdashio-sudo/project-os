@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { isLanguage, isRtlLanguage, LANGUAGE_STORAGE_KEY, type Language } from "@/lib/language";
+import { OptionalLanguageContext } from "./optionalLanguage";
 
 export type { Language } from "@/lib/language";
 type LanguageContextValue = {
@@ -37,7 +38,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.dir = isRtl ? "rtl" : "ltr";
   }, [isRtl, language]);
   const value = useMemo(() => ({ language, isArabic, isRtl, setLanguage }), [isArabic, isRtl, language, setLanguage]);
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return <LanguageContext.Provider value={value}><OptionalLanguageContext.Provider value={language}>{children}</OptionalLanguageContext.Provider></LanguageContext.Provider>;
 }
 
 export function useLanguage() {
