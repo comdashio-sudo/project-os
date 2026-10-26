@@ -58,9 +58,13 @@ export function createApp(options: AppOptions) {
     res.setHeader("X-Request-Id", id);
     next();
   });
-  // Liveness probe for the host. Public, no database, no data: it only says the process answers.
-  app.get("/healthz", (_req, res) => {
-    res.set("Cache-Control", "no-store").status(200).type("text/plain").send("ok");
+  // Liveness probe for the host. Public, no data.
+  // Still 200 whatever the database says (the host must not pull a working process out of rotation), but it SAYS when the schema is behind the code, which is what turned a release into a
+  // broken sign-in on 2026-10-26: "ok" or "ok; schema behind: <migrations still to apply>". The database answer is cached half a minute and bounded to four seconds.
+  app.get("/healthz", async (_req, res) => {
+    const readiness = await Promise.race([schemaReadiness(), new Promise<null>(resolve => setTimeout(() => resolve(null), 4000))]);
+    const note = readiness === null ? "; schema unknown" : readiness.ready ? "" : `; schema behind: ${pendingMigrations(readiness).join(", ")}`;
+    res.set("Cache-Control", "no-store").status(200).type("text/plain").send(`ok${note}`);
   });
   // Readiness: 200 when the database has what this release's code names, 503 with the migrations still to apply. The post-deploy check reads it (a warning, not a rollback: the code tolerates it).
   app.get("/api/readyz", async (_req, res) => {
