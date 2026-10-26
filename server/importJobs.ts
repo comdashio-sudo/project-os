@@ -17,7 +17,7 @@ import { auditLogs, dataImportErrors, dataImportRowResults, dataImportSources, d
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
 import { assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
-import { analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
+import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, type ExternalContext, type ExternalModule } from "./externalImports";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
@@ -197,6 +197,9 @@ export async function runImportAnalysis(job: JobIdentity, options: { resume?: bo
       }).where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "analyzing"))).returning({ id: dataImports.id });
       if (!verdict.length) return; // cancelled or failed meanwhile: nothing to record
       await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null })));
+      // what the file holds that this importer does not read: kept as WARNINGS (named in the preview), which never stop the import
+      const ignored = analysisWarnings(analysis);
+      if (ignored.length) await insertChunked(tx, dataImportErrors, ignored.map(warning => ({ id: randomUUID(), importId: job.importId, rowNumber: warning.rowNumber, code: warning.code, severity: "warning" as const, suggestedFix: warning.field ?? null })));
       await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_uploaded", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, totalRows: analysis.rows.length, background: true }) });
     });
   } catch (error) {
@@ -322,12 +325,13 @@ async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord
   // Once the analysis is done the screen needs what the old synchronous answer carried: the file's columns, the detected mapping and the validation errors.
   if (record.status !== "uploaded" && record.status !== "validated") return { ...view, analysis: null, external: null };
   const [stored] = await db.select({ mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
-  const errors = await db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(eq(dataImportErrors.importId, input.importId)).orderBy(dataImportErrors.rowNumber).limit(PROGRESS_ERRORS_LIMIT);
-  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(dataImportErrors).where(eq(dataImportErrors.importId, input.importId));
+  const errors = await db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error"))).orderBy(dataImportErrors.rowNumber).limit(PROGRESS_ERRORS_LIMIT);
+  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error")));
+  const warnings = await db.select({ code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "warning"))).orderBy(dataImportErrors.suggestedFix).limit(PROGRESS_ERRORS_LIMIT);
   const parse = parseJson;
   const summary = parse<{ headers?: string[]; report?: Record<string, unknown>; canConfirm?: boolean }>(stored?.summaryJson, {});
   // `external` carries the PMC / master-plan importer's own report (what the file would create or change); the general importer's screen ignores it.
-  return { ...view, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorsListed: errors.length, errorsTotal: Number(total) }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
+  return { ...view, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorsListed: errors.length, errorsTotal: Number(total), warnings }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
 }
 
 /** What the screen polls. Anyone who can read the project's imports sees the state; a poll by someone who may import also revives a dead job. */

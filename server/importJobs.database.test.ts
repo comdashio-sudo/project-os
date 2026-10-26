@@ -144,6 +144,22 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     console.log(`Excel ${(workbook.bytes.length / 1048576).toFixed(2)} MB, 20000 rows: ${((Date.now() - started) / 1000).toFixed(1)} s in total`);
   }, 600_000);
 
+  it("a REAL-shaped XER (the sixteen tables P6 writes) is analysed and imported: PROJWBS and TASK are read, the other fourteen are named as warnings and stop nothing (the owner's 14-error rejection)", async () => {
+    const importer = callerFor(users.importer, "ijb-importer");
+    const ignoredTables = ["CURRTYPE", "FINTMPL", "OBS", "UMEASURE", "PROJECT", "CALENDAR", "SCHEDOPTIONS", "RSRC", "ACTVTYPE", "RSRCRATE", "ACTVCODE", "TASKPRED", "TASKRSRC", "TASKACTV"];
+    const text = `ERMHDR\t25.12\t2026-10-01\tProject\tadmin\tadmin\tdb\tProject Management\tUSD\n${ignoredTables.map(name => `%T\t${name}\n%F\tid\n%R\t1`).join("\n")}\n%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\tRX-W1\tCivil\n%R\t11\tRX-W2\tMEP\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code\n%R\tRX-A100\tExcavate\t10\t2026-09-01 08:00\t2026-09-05 17:00\tTK_NotStart\n%R\tRX-A110\tPipes\t11\t2026-09-06 08:00\t2026-09-09 17:00\tTK_Active\n`;
+    const { registered } = await upload(importer, { name: "real-shaped.xer", bytes: Buffer.from(text), format: "xer" });
+    const analysed = await pollUntilDone(importer, registered.id);
+    expect(analysed.view).toMatchObject({ status: "validated", failureReason: null, totalRows: 4, validRows: 4, invalidRows: 0 });
+    expect(analysed.view.analysis!.errors).toEqual([]);
+    expect(analysed.view.analysis!.warnings.map(warning => warning.field)).toEqual([...ignoredTables].sort());
+    expect(analysed.view.analysis!.warnings.every(warning => warning.code === "XER_TABLE_IGNORED")).toBe(true);
+    const confirming = await importer.dataImports.confirm({ ...scope, importId: registered.id });
+    const imported = confirming.status === "importing" ? (await pollUntilDone(importer, registered.id)).view : await importer.dataImports.progress({ ...scope, importId: registered.id });
+    expect(imported).toMatchObject({ status: "completed", createdRows: 4 });
+    expect(await count("wbs_items")).toBeGreaterThanOrEqual(2); expect(await count("activities")).toBeGreaterThanOrEqual(2);
+  }, 120_000);
+
   it("a file that fails shows WHY: the object changes after registration, the job fails with a reason code, and the same file can be sent again", async () => {
     const importer = callerFor(users.importer, "ijb-importer");
     const xer = syntheticXer(64 * 1024, 5);
