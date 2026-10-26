@@ -4,9 +4,9 @@ import type { Concept } from "./dictionary";
 // the preview says so plainly instead of pretending). Field keys are the importer's own keys, so the translation needs no second vocabulary.
 export type FieldType = "text" | "number" | "date" | "unit" | "percent" | "status";
 export type TargetField = { key: string; concept: Concept; required: boolean; type: FieldType; label: { ar: string; en: string } };
-export type KindCode = "xer" | "unitMatrix" | "boq" | "schedule" | "materials" | "budget" | "contracts" | "valuation" | "dailyReport";
+export type KindCode = "xer" | "unitMatrix" | "scheduleUpdate" | "boq" | "schedule" | "materials" | "budget" | "contracts" | "valuation" | "dailyReport";
 /** the kinds that are a plain table with columns to map (a Primavera file and a unit matrix have their own readers) */
-export type TableKindCode = Exclude<KindCode, "xer" | "unitMatrix">;
+export type TableKindCode = Exclude<KindCode, "xer" | "unitMatrix" | "scheduleUpdate">;
 export type ImportModule = "wbs" | "budget" | "contracts" | "materials" | "schedule";
 export type KindDefinition = { code: KindCode; module: ImportModule | null; label: { ar: string; en: string }; fields: TargetField[]; keywords: RegExp[] };
 

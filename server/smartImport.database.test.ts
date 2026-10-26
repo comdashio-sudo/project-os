@@ -137,9 +137,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("smart import on a real d
     expect((await importer.smartImport.profiles(scope)).map(profile => profile.name)).toContain("جدول كميات مقاول المثال");
   }, 120_000);
 
-  it("a Primavera XER goes to the schedule importer untouched; a schedule, a materials CSV (Windows-1256), a budget and contracts each reach their importer", async () => {
+  it("a Primavera XER is written in full by the P6 importer; a schedule, a materials CSV (Windows-1256), a budget and contracts each reach their importer", async () => {
     const importer = callerFor(users.importer, "smi-importer");
-    const expectations: Array<[string, string, string]> = [["xer", "xer", "schedule"], ["schedule-ar-hijri", "schedule", "schedule"], ["contracts-ar", "contracts", "contracts"], ["budget-ar", "budget", "budget"], ["materials-csv-1256", "materials", "materials"]];
+    const expectations: Array<[string, string, string]> = [["xer", "xer", "p6"], ["schedule-ar-hijri", "schedule", "schedule"], ["contracts-ar", "contracts", "contracts"], ["budget-ar", "budget", "budget"], ["materials-csv-1256", "materials", "materials"]];
     for (const [id, kind, module] of expectations) {
       const file = sample(id);
       const target = await upload(importer, file);
@@ -147,6 +147,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("smart import on a real d
       expect(analysis.understanding.kind, id).toBe(kind);
       const confirmed = await importer.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: file.fileName, kind: kind as never, sheet: analysis.understanding.sheet ?? undefined, forced: forcedOf(analysis.understanding.columns) as never });
       expect(confirmed.module, id).toBe(module);
+      if (id === "xer") { expect(confirmed.status).toBe("completed"); console.log(`SMART IMPORT xer: written in full by the P6 importer (${confirmed.rowsSent} activity)`); continue; } // a P6 export is written in one transaction, not by a job
       const view = await pollUntilDone(importer, confirmed.importId);
       // the importer's own verdict is the truth: what it accepted is `validated`, and every row that failed says why
       console.log(`SMART IMPORT ${id}: kind=${kind} → ${module}; sent ${confirmed.rowsSent}, excluded ${confirmed.rowsExcluded}; importer: ${view.status} valid=${view.validRows} invalid=${view.invalidRows} notes=${confirmed.notes.join(",") || "-"}`);
