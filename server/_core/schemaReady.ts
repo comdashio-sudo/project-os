@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "./database";
+import { logWarn } from "./logger";
 
 // The code and the database are one system, but they do not always arrive together: the application deploys from the repository, while the schema is applied by the owner's
 // Bootstrap / "Supabase setup" run. When a release needs a column the database does not have yet, an INSERT or SELECT naming it fails (42703 / 42P01) and, if nothing expects that,
@@ -9,6 +10,8 @@ export const REQUIRED_SCHEMA = [
   { migration: "0010_wo20_session_idle", kind: "column", table: "auth_sessions", column: "last_seen_at" },
   { migration: "0011_wo20_two_step_verification", kind: "column", table: "auth_sessions", column: "mfa_verified_at" },
   { migration: "0011_wo20_two_step_verification", kind: "table", table: "user_mfa" },
+  // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
+  { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
 
 /** PostgreSQL codes that mean "the schema is behind the code": undefined column, undefined table. Drizzle wraps the driver's error, so the code may sit on `cause`. */
@@ -35,11 +38,14 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
     for (const item of REQUIRED_SCHEMA) {
       const present = item.kind === "table"
         ? (await db.execute(sql`SELECT to_regclass(${`public.${item.table}`}) IS NOT NULL AS present`)).rows[0]?.present
+        : item.kind === "immutable-column-locked"
+        ? (await db.execute(sql`SELECT (current_user <> 'project_os_app') OR NOT has_column_privilege(current_user, ${`public.${item.table}`}, ${item.column}, 'UPDATE') AS present`)).rows[0]?.present
         : (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${item.table} AND column_name = ${item.column}) AS present`)).rows[0]?.present;
       if (!present) missing.push(item.kind === "table" ? `${item.table} (${item.migration})` : `${item.table}.${item.column} (${item.migration})`);
     }
   } catch { return { ready: false, missing: ["schema could not be read"] }; }
   const value = { ready: missing.length === 0, missing };
   cached = { at: now, value };
+  if (!value.ready) logWarn("schema.behind", { pending: pendingMigrations(value).join(", ") });
   return value;
 }

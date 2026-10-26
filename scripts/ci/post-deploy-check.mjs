@@ -19,6 +19,7 @@ async function call(path, init) {
 const health = await call("/healthz");
 console.log(`healthz: ${health.status}`);
 if (health.status !== 200) failures.push(`/healthz answered ${health.status}, not 200`);
+if (/schema behind/.test(health.text)) console.log(`::warning title=Schema behind on ${base}::${health.text.trim()} — apply the migrations with the Bootstrap / Supabase setup run.`);
 
 const verify = await call("/api/auth/email/verify", { method: "POST", body: JSON.stringify({ email: "post-deploy-probe@example.test", code: "000000" }) });
 let body = null; try { body = JSON.parse(verify.text); } catch { /* not JSON */ }
