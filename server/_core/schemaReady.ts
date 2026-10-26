@@ -13,6 +13,7 @@ export const REQUIRED_SCHEMA = [
   { migration: "0013_wo20_smart_import", kind: "table", table: "import_source_profiles" },
   { migration: "0013_wo20_smart_import", kind: "table", table: "data_import_sources" },
   { migration: "0013_wo20_smart_import", kind: "table", table: "smart_reading_usage" },
+  { migration: "0014_wo20_unit_external_code", kind: "column", table: "pmc_units", column: "external_code" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

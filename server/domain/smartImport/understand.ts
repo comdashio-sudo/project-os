@@ -1,6 +1,7 @@
 import type { Concept } from "./dictionary";
 import { inferDateOrder, parseDate, type DateOrder } from "./dates";
-import { KINDS, KIND_CODES, type FieldType, type KindCode, type KindDefinition } from "./kinds";
+import { KINDS, KIND_CODES, type FieldType, type KindCode, type KindDefinition, type TableKindCode } from "./kinds";
+import { detectMatrix, reconcile, validateMatrix, weightPercents, type MatchReport, type MatrixIssue, type MatrixModel } from "./matrix";
 import { AUTO_THRESHOLD, isAuto, mapColumns, type ColumnMatch } from "./mapper";
 import { parseNumber } from "./numbers";
 import { readGrid, type Cell, type SheetGrid } from "./sheetReader";
@@ -30,8 +31,26 @@ export type Understanding = {
   sheetNames: string[]; sheet: string | null;
   table: { headerRow: number; rows: number; skipped: { blank: number; section: number; total: number; repeatedHeader: number }; mergedFilled: number; titleLines: string[] } | null;
   columns: ColumnMatch[]; fields: Array<{ key: string; required: boolean; type: FieldType; label: { ar: string; en: string } }>;
+  /** a unit-completion matrix: what was read from it and how it compares with the platform's own calculation (kind === "unitMatrix") */
+  matrix?: MatrixSummary;
   autoMatchedShare: number; sample: NormalizedRow[]; rows?: NormalizedRow[]; flagged: FlaggedRow[]; hijriDates: number; warnings: string[];
 };
+
+export type MatrixSummary = {
+  sheet: string; reportDate: string | null; units: number; activities: number; models: string[]; zones: string[]; blocks: number; groups: number; divisions: number;
+  weightsTotalPercent: number; weightRoundingAdjustment: number; issues: MatrixIssue[]; match: MatchReport; ignored: MatrixModel["ignored"]; warnings: string[];
+  oracleCodes: number; completeCells: number; sample: Array<{ serial: number; oracleCode: string | null; zone: string; block: string; modelCode: string; reportedPercent: number | null }>;
+};
+export function summariseMatrix(model: MatrixModel): MatrixSummary {
+  const total = model.activities.reduce((sum, a) => sum + a.weight, 0);
+  return {
+    sheet: model.sheet, reportDate: model.reportDate, units: model.units.length, activities: model.activities.length, models: Array.from(new Set(model.units.map(u => u.modelCode))), zones: Array.from(new Set(model.units.map(u => u.zone))),
+    blocks: new Set(model.units.map(u => `${u.zone}-${u.block}`)).size, groups: new Set(model.activities.map(a => a.groupCode)).size, divisions: model.divisions.length,
+    weightsTotalPercent: Math.round(total * 100 * 1e6) / 1e6, weightRoundingAdjustment: weightPercents(model).adjustment, issues: validateMatrix(model), match: reconcile(model), ignored: model.ignored, warnings: model.warnings,
+    oracleCodes: model.units.filter(u => u.oracleCode).length, completeCells: model.units.reduce((sum, u) => sum + u.complete.filter(Boolean).length, 0),
+    sample: model.units.slice(0, 6).map(u => ({ serial: u.serial, oracleCode: u.oracleCode, zone: u.zone, block: u.block, modelCode: u.modelCode, reportedPercent: u.reportedPercent })),
+  };
+}
 
 const textOf = (cell: Cell) => (cell === null ? "" : cell instanceof Date ? cell.toISOString().slice(0, 10) : String(cell).trim());
 
@@ -100,6 +119,11 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
 
   const grid = await readGrid(bytes, format);
   if (!grid.ok) return { ...empty, warnings: [grid.code] };
+  // a unit-completion matrix is recognised by its structure before any table reading: its main sheet is chosen, whatever the other sheets are
+  for (const sheet of grid.sheets) {
+    const detected = detectMatrix(sheet);
+    if (detected.ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "unitMatrix", kindConfidence: 0.98, sheet: sheet.name, matrix: summariseMatrix(detected.model), table: null, candidates: [{ sheet: sheet.name, kind: "unitMatrix", score: 0.98, rows: detected.model.units.length }], warnings: detected.model.warnings };
+  }
   const tables = grid.sheets.map(sheet => ({ sheet, table: tabulate(sheet) })).filter((item): item is { sheet: SheetGrid; table: Table } => item.table !== null && item.table.dataRows.length > 0);
   const result: Understanding = { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(sheet => sheet.name) };
   if (!tables.length) return { ...result, warnings: ["NO_TABLE_FOUND"] };
@@ -108,7 +132,7 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
   const chosenSheet = options.sheet ?? (options.kind ? candidates.filter(candidate => candidate.kind === options.kind)[0]?.sheet : candidates[0]?.sheet) ?? tables[0].table.sheet;
   const pick = tables.find(item => item.table.sheet === chosenSheet) ?? tables[0];
   const kind = options.kind ?? candidates.find(candidate => candidate.sheet === pick.table.sheet)?.kind ?? candidates[0].kind;
-  const definition = KINDS[kind as Exclude<KindCode, "xer">];
+  const definition = KINDS[kind as TableKindCode];
   const top = candidates.filter(candidate => candidate.sheet === pick.table.sheet);
   const kindScore = top.find(candidate => candidate.kind === kind)?.score ?? 0;
   const runnerUp = top.filter(candidate => candidate.kind !== kind)[0]?.score ?? 0;

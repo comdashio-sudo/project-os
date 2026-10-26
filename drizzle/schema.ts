@@ -2127,12 +2127,14 @@ export const pmcUnits = pgTable(
     unitNumber: integer("unit_number").notNull(),
     modelCode: varchar("model_code", { length: 80 }).notNull(),
     saleStatus: varchar("sale_status", { length: 80 }),
+    // The unit's code in the company's ERP (e.g. an Oracle code «zone-block-plot»): the foreign key that ties this unit to the other system. Unique inside a project when present.
+    externalCode: varchar("external_code", { length: 120 }),
     geometryJson: text("geometry_json"),
     unitWeight: numeric("unit_weight", { precision: 12, scale: 4 }).default("1").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
 export const pmcActivityGroups = pgTable(

@@ -4,13 +4,15 @@ import type { Concept } from "./dictionary";
 // the preview says so plainly instead of pretending). Field keys are the importer's own keys, so the translation needs no second vocabulary.
 export type FieldType = "text" | "number" | "date" | "unit" | "percent" | "status";
 export type TargetField = { key: string; concept: Concept; required: boolean; type: FieldType; label: { ar: string; en: string } };
-export type KindCode = "xer" | "boq" | "schedule" | "materials" | "budget" | "contracts" | "valuation" | "dailyReport";
+export type KindCode = "xer" | "unitMatrix" | "boq" | "schedule" | "materials" | "budget" | "contracts" | "valuation" | "dailyReport";
+/** the kinds that are a plain table with columns to map (a Primavera file and a unit matrix have their own readers) */
+export type TableKindCode = Exclude<KindCode, "xer" | "unitMatrix">;
 export type ImportModule = "wbs" | "budget" | "contracts" | "materials" | "schedule";
 export type KindDefinition = { code: KindCode; module: ImportModule | null; label: { ar: string; en: string }; fields: TargetField[]; keywords: RegExp[] };
 
 const f = (key: string, concept: Concept, required: boolean, type: FieldType, ar: string, en: string): TargetField => ({ key, concept, required, type, label: { ar, en } });
 
-export const KINDS: Record<Exclude<KindCode, "xer">, KindDefinition> = {
+export const KINDS: Record<TableKindCode, KindDefinition> = {
   boq: {
     code: "boq", module: "wbs", label: { ar: "جدول كميات (BOQ)", en: "Bill of quantities (BOQ)" },
     fields: [f("code", "itemCode", true, "text", "رقم البند", "Item no."), f("name", "description", true, "text", "وصف البند", "Description"), f("unit", "unit", false, "unit", "الوحدة", "Unit"), f("quantity", "quantity", false, "number", "الكمية", "Quantity"), f("rate", "rate", false, "number", "سعر الوحدة", "Unit rate"), f("amount", "amount", false, "number", "الإجمالي", "Amount")],
@@ -47,4 +49,4 @@ export const KINDS: Record<Exclude<KindCode, "xer">, KindDefinition> = {
     keywords: [/تقرير يومي|التقرير اليومي|daily report|site diary|daily progress/i],
   },
 };
-export const KIND_CODES = Object.keys(KINDS) as Array<Exclude<KindCode, "xer">>;
+export const KIND_CODES = Object.keys(KINDS) as TableKindCode[];

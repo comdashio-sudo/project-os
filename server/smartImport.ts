@@ -15,6 +15,7 @@ import { KINDS, type KindCode } from "./domain/smartImport/kinds";
 import { normalizeHeader } from "./domain/smartImport/dictionary";
 import { hasTranslator, translate } from "./domain/smartImport/translate";
 import { registerImportUpload } from "./importJobs";
+import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./matrixImport";
 import { readTableWithAi, smartReadingQuote } from "./smartReading";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageGetSignedUrl, storageHead, storagePut, storageRead } from "./storage";
 import { logError } from "./_core/logger";
@@ -72,6 +73,8 @@ const strip = (u: Understanding) => { const { rows: _rows, ...rest } = u; return
 export type SmartAnalysis = {
   understanding: Omit<Understanding, "rows">;
   profile: { id: string; name: string; timesUsed: number } | null;
+  /** a unit-completion matrix: what importing it would change, counted by the database in a transaction that was rolled back, and how it compares with the platform's own calculation */
+  matrixPlan?: MatrixPlan;
   /** present for a PDF / image: whether the AI reading is on, what it would cost, what is left this month */
   smartReading?: Awaited<ReturnType<typeof smartReadingQuote>>;
 };
@@ -88,6 +91,13 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   }
   let result = await understand(bytes, { fileName: input.fileName, sheet: input.sheet, kind: input.kind, forced: input.forced });
   let profile: SmartAnalysis["profile"] = null;
+  if (result.kind === "unitMatrix") {
+    // the report's own structure is the map: nothing to correct column by column. The plan is counted by the database, in a transaction that is rolled back.
+    const matrixPlan = await analyzeMatrixImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes });
+    const found = await findProfile(input.tenantId, matrixPlan.activityNames);
+    if (found && found.profile.kind === "unitMatrix") profile = { id: found.profile.id, name: found.profile.name, timesUsed: found.profile.timesUsed };
+    return { understanding: strip(result), profile, matrixPlan };
+  }
   if (result.table && !input.forced) {
     const headers = result.columns.map(column => column.header);
     const found = await findProfile(input.tenantId, headers);
@@ -99,13 +109,31 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   return { understanding: strip(result), profile };
 }
 
-export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null };
+export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"] };
 
 /** Step 3: the person approved. The rows go to the existing importer in its own template; the original file is kept and linked to the import. */
-export async function confirmSmartImport(input: Identity & { uploadKey: string; fileName: string; kind: KindCode; sheet?: string; forced: Record<number, string | null>; profileName?: string; profileId?: string | null; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate" }): Promise<SmartConfirmation> {
+export async function confirmSmartImport(input: Identity & { uploadKey: string; fileName: string; kind: KindCode; sheet?: string; forced: Record<number, string | null>; approvedHash?: string; profileName?: string; profileId?: string | null; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate" }): Promise<SmartConfirmation> {
   const db = await database();
   const bytes = await takeSmartUpload(input);
   const format = detectFormat(bytes, input.fileName);
+  if (input.kind === "unitMatrix") {
+    if (format !== "xlsx") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
+    const plan = await confirmMatrixImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
+    const importId = plan.importId!;
+    let profileId: string | null = input.profileId ?? null;
+    try {
+      await db.transaction(async tx => {
+        if (input.profileName) {
+          const signature = JSON.stringify(signatureOf(plan.activityNames));
+          const [row] = await tx.insert(importSourceProfiles).values({ id: randomUUID(), tenantId: input.tenantId, name: input.profileName, kind: "unitMatrix", headerSignature: signature, columnMapJson: JSON.stringify({ unitMatrix: true, activities: plan.activityNames.length }), timesUsed: 1, createdByUserId: input.userId })
+            .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { kind: "unitMatrix", headerSignature: signature, timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` } }).returning({ id: importSourceProfiles.id });
+          profileId = row.id;
+        } else if (profileId) await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, profileId), eq(importSourceProfiles.tenantId, input.tenantId)));
+        if (profileId) await tx.update(dataImportSources).set({ profileId }).where(and(eq(dataImportSources.importId, importId), eq(dataImportSources.tenantId, input.tenantId)));
+      });
+    } catch (error) { logError("smart_import.profile_failed", error); }
+    return { importId, status: "completed", module: "pmcMatrix", rowsSent: plan.summary.units, rowsExcluded: 0, excluded: [], notes: plan.summary.warnings, profileId, matrixChanges: plan.changes };
+  }
   const base = { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, duplicateMode: input.duplicateMode };
   let registered: { id: string; status: string }; let module: string; let rowsSent = 0; let excluded: SmartConfirmation["excluded"] = []; let notes: string[] = [];
   let mapping: ColumnMap = {}; let mergedFilled = 0; let sheetName: string | null = input.sheet ?? null; let headers: string[] = [];

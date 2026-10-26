@@ -1446,6 +1446,31 @@ export const projectErrorMessages = {
     en: "A table could not be read from this file. Try a clearer file or Excel.",
     ur: "A table could not be read from this file. Try a clearer file or Excel.",
   },
+  PROJECT_OS_MATRIX_NOT_RECOGNISED: {
+    ar: "لم يُتعرَّف على شكل مصفوفة إنجاز الوحدات في هذا الملف. لم يُكتب شيء.",
+    en: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
+    ur: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
+  },
+  MATRIX_WEIGHTS_NOT_100: {
+    ar: "أوزان الأنشطة لا يبلغ مجموعها 100%. صحّح الصف الذي يحمل الأوزان في الملف ثم أعد الرفع.",
+    en: "The activity weights do not total 100%. Correct the weights row in the file and upload again.",
+    ur: "The activity weights do not total 100%. Correct the weights row in the file and upload again.",
+  },
+  MATRIX_ORACLE_CODE_DUPLICATE: {
+    ar: "كود Oracle مكرر بين وحدتين في الملف.",
+    en: "The same Oracle code appears on two units in the file.",
+    ur: "The same Oracle code appears on two units in the file.",
+  },
+  MATRIX_ORACLE_CODE_ALREADY_USED: {
+    ar: "كود Oracle مستعمل لوحدة أخرى في المشروع.",
+    en: "The Oracle code is already used by another unit in the project.",
+    ur: "The Oracle code is already used by another unit in the project.",
+  },
+  MATRIX_ORACLE_CODE_CHANGE_BLOCKED: {
+    ar: "وحدة لها كود Oracle مختلف عمّا في الملف؛ لا يُغيَّر كود الربط بصمت.",
+    en: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
+    ur: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
+  },
   PROJECT_OS_IMPORT_JOB_FAILED: {
     ar: "تعذّر إكمال المعالجة لسبب غير متوقع. لم يُحفظ شيء؛ أعد المحاولة، وإن تكرر فتواصل مع الدعم.",
     en: "Processing could not finish because of an unexpected problem. Nothing was saved; try again, and contact support if it repeats.",
