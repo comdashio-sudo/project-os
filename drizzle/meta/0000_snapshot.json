@@ -1,5 +1,5 @@
 {
-  "id": "8b4fe663-f97c-4c43-9f12-f5b5ad12c898",
+  "id": "599c7db9-5ab9-402c-932b-75a935644563",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -15842,6 +15842,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "external_code": {
+          "name": "external_code",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "geometry_json": {
           "name": "geometry_json",
           "type": "text",
@@ -15888,6 +15894,28 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_units_project_external_code_unique": {
+          "name": "pmc_units_project_external_code_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "external_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"pmc_units\".\"external_code\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

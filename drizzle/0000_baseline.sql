@@ -1451,6 +1451,7 @@ CREATE TABLE "pmc_units" (
 	"unit_number" integer NOT NULL,
 	"model_code" varchar(80) NOT NULL,
 	"sale_status" varchar(80),
+	"external_code" varchar(120),
 	"geometry_json" text,
 	"unit_weight" numeric(12, 4) DEFAULT '1' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -2855,6 +2856,7 @@ CREATE INDEX "pmc_history_tenant_project_changed_idx" ON "pmc_unit_activity_hist
 CREATE UNIQUE INDEX "pmc_unit_activity_unique" ON "pmc_unit_activity_progress" USING btree ("unit_id","activity_definition_id");--> statement-breakpoint
 CREATE INDEX "pmc_unit_progress_tenant_project_status_idx" ON "pmc_unit_activity_progress" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_units_project_number_unique" ON "pmc_units" USING btree ("project_id","unit_number");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_units_project_external_code_unique" ON "pmc_units" USING btree ("project_id","external_code") WHERE "pmc_units"."external_code" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "pmc_units_tenant_project_block_idx" ON "pmc_units" USING btree ("tenant_id","project_id","block_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_verification_status_project_code_unique" ON "pmc_verification_statuses" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_verification_status_tenant_project_idx" ON "pmc_verification_statuses" USING btree ("tenant_id","project_id","active");--> statement-breakpoint

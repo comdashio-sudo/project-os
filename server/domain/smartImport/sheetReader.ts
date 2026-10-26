@@ -1,8 +1,9 @@
 import ExcelJS from "exceljs";
-import { MAX_IMPORT_COLUMNS, MAX_IMPORT_ROWS, readSpreadsheetSafely } from "../excelWorkbook";
+import { MAX_IMPORT_ROWS, readSpreadsheetSafely } from "../excelWorkbook";
 
 // Reads ANY workbook or CSV into plain grids, without asking the file to look like our template: every sheet, the merged cells filled the way Excel SHOWS them (vertical merges only —
 // a horizontal merge must not copy a title into six columns), and CSV in UTF-8 or Windows-1256. Free, deterministic, no model.
+export const MATRIX_MAX_COLUMNS = 300;
 export type Cell = string | number | Date | null;
 export type SheetGrid = { name: string; rows: Cell[][]; mergedFilled: number; mergeRanges: number };
 export type GridResult = { ok: true; sheets: SheetGrid[]; encoding: "utf-8" | "windows-1256" | "xlsx" } | { ok: false; code: string };
@@ -28,7 +29,8 @@ function plainValue(value: ExcelJS.CellValue): Cell {
 
 export function sheetFromWorksheet(sheet: ExcelJS.Worksheet): SheetGrid {
   const lastRow = Math.min(sheet.rowCount, MAX_IMPORT_ROWS + 50);
-  const lastColumn = Math.min(sheet.columnCount, MAX_IMPORT_COLUMNS + 20);
+  // wide enough for a unit-completion matrix (160 columns); the importers still cap what they take (MAX_IMPORT_COLUMNS)
+  const lastColumn = Math.min(sheet.columnCount, MATRIX_MAX_COLUMNS);
   const merges = ((sheet.model as unknown as { merges?: string[] }).merges ?? []).map(parseRange).filter((range): range is NonNullable<typeof range> => range !== null);
   // a vertical merge is a range one column wide spanning several rows (a section code written once beside many lines)
   const vertical = merges.filter(range => range.left === range.right && range.bottom > range.top);

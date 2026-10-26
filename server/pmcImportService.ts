@@ -41,14 +41,15 @@ import {
   planStatus,
   type PmcImportCounts,
   type PmcImportError,
+  type ParsedFile,
   type PmcImportKind,
   type PmcStatus,
 } from "./domain/pmcImport";
 import { PMC_INSPECTION_STEPS } from "./pmcService";
 
-type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+export type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Scope = { userId: number; tenantId: string; projectId: string };
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_REPORTED_ERRORS = 200;
@@ -67,9 +68,9 @@ export type PmcImportReport = {
   canConfirm: boolean;
 };
 
-type Prepared = { report: PmcImportReport; apply: ((tx: Tx) => Promise<void>) | null };
+export type Prepared = { report: PmcImportReport; apply: ((tx: Tx) => Promise<void>) | null };
 
-async function authorize(input: Scope) {
+export async function authorize(input: Scope) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
@@ -92,6 +93,11 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes });
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
   if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none), apply: null };
+  return prepareRows(db, input, parsed, fileHash);
+}
+
+/** The checks and the plan for rows that are already read (a file's rows, or the rows a unit-completion matrix was turned into). `db` may be a transaction: later kinds then see what earlier ones wrote. */
+export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }, parsed: ParsedFile, fileHash: string): Promise<Prepared> {
   const total = parsed.rows.length;
   const scope = input;
 
@@ -189,8 +195,9 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
       for (const operation of completing) if (missingKeys.has(`${operation.unitId}:${operation.activityDefinitionId}`)) plan.errors.push({ rowNumber: 0, code: "QC_NOT_ACCEPTED", field: "status", detail: `unit ${operation.unitNumber}` });
     }
     if (plan.errors.length) return { report: report("status", fileHash, total, plan.errors, plan.counts), apply: null };
+    const statusDetails = { completing: plan.operations.filter(operation => operation.status === "COMPLETE" && operation.existing?.status !== "COMPLETE").length, units: new Set(plan.operations.map(operation => operation.unitNumber)).size };
     return {
-      report: report("status", fileHash, total, [], plan.counts),
+      report: report("status", fileHash, total, [], plan.counts, statusDetails),
       apply: async tx => {
         const now = new Date();
         const creates = plan.operations.filter(operation => !operation.existing);
