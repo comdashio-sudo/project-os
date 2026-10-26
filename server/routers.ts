@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
 import { EXPORT_ENTITIES } from "./integrations/erpOutbound";
 import { createConnectionForManager, listConnectionsForManager, runConnectionForManager, setConnectionActiveForManager, testConnectionForManager } from "./integrations/connections";
@@ -21,7 +23,7 @@ import { exportProjectData } from "./ledgerImports";
 import { createDirectUpload, DIRECT_UPLOAD_PURPOSES } from "./directUpload";
 import { riyalCurrency } from "./domain/currency";
 import { productCodes } from "../drizzle/schema";
-import { acceptMembershipInvitation, acknowledgeInternalNotification, getEndOfServiceLiabilityForTenant, addProjectDocumentVersion, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, captureProjectHealthSnapshot, confirmAndImportData, createAction, createActivity, createAndAnalyzeDataImport, createBoqItemForTenant, createBudgetLine, createChangeRequestForTenant, createClaimForTenant, createCommitmentForTenant, createContractForTenant, createControlRecordLinkForTenant, createCostEntry, createDataExport, buildImportTemplateForUser, createDecision, createFieldReportForTenant, createHseObservationForTenant, createIssue, createMaterialMasterForTenant, createMasterPlanForTenant, createMasterPlanSpatialEntityForTenant, createMasterPlanVersionForTenant, createMembershipInvitation, createNcrForTenant, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectCommercialInvoiceForTenant, createProjectDocumentWithVersion, createProjectForTenant, createProjectResourceForTenant, createPurchaseOrderForTenant, createQualityInspectionForTenant, createRfiForTenant, createRisk, createSubcontractCertificateForTenant, createSubcontractContractForTenant, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, generateProjectAdvisoryForTenant, getBoqItemsForTenant, getChangeRequestsForTenant, getClaimsForTenant, getCommercialCatalogForAdministrator, getContractsCommitmentsForTenant, getControlRecordLinksForTenant, getDataImportDetailForTenant, getDataImportsForTenant, getExecutiveDashboard, getFieldEntryContextForTenant, getFieldReportsForTenant, getHseObservationsForTenant, getInternalNotificationsForTenant, getMaterialCatalogForTenant, getMasterPlansForTenant, getNcrsForTenant, getPmoDashboard, getPortfolioProfitabilityForTenant, getProfitabilityCostBreakdownForTenant, getProfitabilityHistoryForTenant, getProjectCommercialInvoicesForTenant, getProjectProfitabilityForTenant, getProjectControlsForTenant, getProjectDocumentsForTenant, getProjectResourcesForTenant, getPurchaseOrdersForTenant, getQualityInspectionsForTenant, getRfisForTenant, getSubcontractCertificatesForTenant, getSubcontractContractsForTenant, getTenantAccessSnapshot, getTenantAdministration, getTenantLicenseForManager, getTenantNavigationForUser, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, provisionTenantLicense, revokeTenantMembershipRole, saveEvmSnapshot, saveProjectMaterialOverrideForTenant, setTenantLicenseFeatureOverride, transitionActionEscalation, transitionChangeRequestStatus, transitionClaimStatus, transitionFieldReportStatus, transitionHseObservationStatus, transitionIssueEscalation, transitionNcrStatus, transitionProjectDocumentStatus, transitionProjectLifecycle, transitionPurchaseOrderStatus, transitionQualityInspectionStatus, transitionRfiStatus, transitionTenantLicenseStatus, transitionTenantMembershipStatus, updateProjectResourceAllocationForTenant, updateTenantRole , getProjectLabourCostForTenant, getTenantLabourSettings, saveTenantLabourSettings , getProjectCashFlowForTenant, transitionProjectCommercialInvoiceStatus , createTeamTimeEntriesForTenant, getTeamHoursSheetForTenant } from "./db";
+import { decideRoleTemplateRemovals, getRoleTemplateRemovals, acceptMembershipInvitation, acknowledgeInternalNotification, getEndOfServiceLiabilityForTenant, addProjectDocumentVersion, assignTenantMember, assignTenantMembershipRole, captureOperationalEvmSnapshot, captureProjectHealthSnapshot, confirmAndImportData, createAction, createActivity, createAndAnalyzeDataImport, createBoqItemForTenant, createBudgetLine, createChangeRequestForTenant, createClaimForTenant, createCommitmentForTenant, createContractForTenant, createControlRecordLinkForTenant, createCostEntry, createDataExport, buildImportTemplateForUser, createDecision, createFieldReportForTenant, createHseObservationForTenant, createIssue, createMaterialMasterForTenant, createMasterPlanForTenant, createMasterPlanSpatialEntityForTenant, createMasterPlanVersionForTenant, createMembershipInvitation, createNcrForTenant, createPortfolioForTenant, createProgramForTenant, createProgressEntry, createProjectCommercialInvoiceForTenant, createProjectDocumentWithVersion, createProjectForTenant, createProjectResourceForTenant, createPurchaseOrderForTenant, createQualityInspectionForTenant, createRfiForTenant, createRisk, createSubcontractCertificateForTenant, createSubcontractContractForTenant, createTenantForUser, createTenantRole, createWbsItem, findAssignableTenantUser, generateProjectAdvisoryForTenant, getBoqItemsForTenant, getChangeRequestsForTenant, getClaimsForTenant, getCommercialCatalogForAdministrator, getContractsCommitmentsForTenant, getControlRecordLinksForTenant, getDataImportDetailForTenant, getDataImportsForTenant, getExecutiveDashboard, getFieldEntryContextForTenant, getFieldReportsForTenant, getHseObservationsForTenant, getInternalNotificationsForTenant, getMaterialCatalogForTenant, getMasterPlansForTenant, getNcrsForTenant, getPmoDashboard, getPortfolioProfitabilityForTenant, getProfitabilityCostBreakdownForTenant, getProfitabilityHistoryForTenant, getProjectCommercialInvoicesForTenant, getProjectProfitabilityForTenant, getProjectControlsForTenant, getProjectDocumentsForTenant, getProjectResourcesForTenant, getPurchaseOrdersForTenant, getQualityInspectionsForTenant, getRfisForTenant, getSubcontractCertificatesForTenant, getSubcontractContractsForTenant, getTenantAccessSnapshot, getTenantAdministration, getTenantLicenseForManager, getTenantNavigationForUser, linkProjectToProgramForTenant, listProjectsForTenant, listTenantsForUser, provisionTenantLicense, revokeTenantMembershipRole, saveEvmSnapshot, saveProjectMaterialOverrideForTenant, setTenantLicenseFeatureOverride, transitionActionEscalation, transitionChangeRequestStatus, transitionClaimStatus, transitionFieldReportStatus, transitionHseObservationStatus, transitionIssueEscalation, transitionNcrStatus, transitionProjectDocumentStatus, transitionProjectLifecycle, transitionPurchaseOrderStatus, transitionQualityInspectionStatus, transitionRfiStatus, transitionTenantLicenseStatus, transitionTenantMembershipStatus, updateProjectResourceAllocationForTenant, updateTenantRole , getProjectLabourCostForTenant, getTenantLabourSettings, saveTenantLabourSettings , getProjectCashFlowForTenant, transitionProjectCommercialInvoiceStatus , createTeamTimeEntriesForTenant, getTeamHoursSheetForTenant } from "./db";
 import { confirmTenantDeletion, previewTenantData, requestTenantDeletion } from "./tenantDataService";
 import { PMC_IMPORT_KINDS } from "./domain/pmcImport";
 import { withClientRequest } from "./clientRequests";
@@ -34,11 +36,12 @@ import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmc
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { getPmcProjectSummaryForTenant } from "./db";
+import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
 import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
-import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
+import { confirmManualTenantPayment, createSelfServiceTenant, createTenantPayment, assertMayCreateCompany, getPlatformOverview, getPublicCommercialPlans, getTenantBillingForManager, issueTenantInvoice } from "./db";
 import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicketForTenant, getSupportTicketForTenant, listApprovedSupportSourceDocuments, listKnowledgeArticlesForTenant, listSupportTicketsForTenant, replyToSupportTicket, transitionSupportTicket } from "./db";
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { getEmailNotificationPreferences, setEmailNotificationPreference, adjustPayrollAllocationForTenant, allocatePayrollEntryByHoursForTenant, allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
@@ -59,7 +62,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { beginEnrolment, confirmEnrolment, mfaStatus, verifySecondStep } from "./mfa";
+import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
 const scopeSchema = z.object({
   type: z.enum(["company", "portfolio", "program", "project"]),
@@ -81,6 +86,8 @@ const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "s
 const uploadModuleSchema = z.union([importModuleSchema, z.enum(EXTERNAL_MODULES)]);
 const importContextSchema = z.object({ masterPlanVersionId: z.string().uuid().optional() }).strict();
 const importDuplicateModeSchema = z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
+const smartKindSchema = z.enum(["xer", "unitMatrix", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
+const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max(64).nullable()).transform(value => Object.fromEntries(Object.entries(value).map(([key, field]) => [Number(key), field])) as Record<number, string | null>).refine(value => Object.keys(value).length <= 80, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" });
 /** Which file formats a module accepts: a schedule is xlsx or XER, every other module xlsx or csv. */
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
   if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" });
@@ -109,6 +116,21 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       return { success: true, ended } as const;
     }),
+  }),
+  // Two-step verification (TOTP). These procedures are outside the second-step gate on purpose: they are how a session gets through it.
+  mfa: router({
+    status: mfaProcedure.query(({ ctx }) => mfaStatus(ctx.user, ctx.mfaVerified, ctx.mfaDeferralSince ?? null)),
+    beginEnrolment: mfaProcedure.mutation(({ ctx }) => beginEnrolment(ctx.user)),
+    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12), enrolmentId: z.string().trim().min(8).max(32).optional() })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code, input.enrolmentId)),
+    // The platform owner's "Later": seven days, once per browser (server/_core/mfaDeferral.ts). A company administrator has no such button.
+    postpone: mfaProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED" });
+      if (ctx.mfaDeferralSince !== null && ctx.mfaDeferralSince !== undefined) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_POSTPONE_USED" });
+      const since = Date.now();
+      ctx.res.cookie(MFA_DEFERRAL_COOKIE, await signDeferral(ctx.user.id, since), { ...getSessionCookieOptions(ctx.req), maxAge: MFA_DEFERRAL_COOKIE_MAX_AGE_MS });
+      return { postponedUntil: deferralEnds(since).toISOString() };
+    }),
+    verify: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(16) })).mutation(({ ctx, input }) => verifySecondStep(ctx.user, ctx.sessionId ?? "", input.code)),
   }),
   access: router({
     check: protectedProcedure
@@ -195,6 +217,14 @@ export const appRouter = router({
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
   }),
+  // Smart import («ارفع أي ملف»): the original goes to Storage, the platform works out what it is, the person corrects and approves, the existing importer takes over.
+  smartImport: router({
+    createUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) })).mutation(({ ctx, input }) => createSmartUpload({ userId: ctx.user.id, ...input })),
+    analyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255), sheet: z.string().max(160).optional(), kind: smartKindSchema.optional(), forced: smartForcedSchema.optional(), useAi: z.boolean().optional() })).mutation(({ ctx, input }) => analyzeSmartUpload({ userId: ctx.user.id, ...input })),
+    confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255), kind: smartKindSchema, sheet: z.string().max(160).optional(), forced: smartForcedSchema, approvedHash: z.string().regex(/^[0-9a-f]{64}$/).optional(), profileName: z.string().trim().min(1).max(160).optional(), profileId: z.string().uuid().nullable().optional(), duplicateMode: importDuplicateModeSchema.optional() })).mutation(({ ctx, input }) => confirmSmartImport({ userId: ctx.user.id, ...input })),
+    profiles: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listImportProfiles({ userId: ctx.user.id, ...input })),
+    source: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), entityId: z.string().uuid().optional(), importId: z.string().uuid().optional() }).refine(value => Boolean(value.entityId || value.importId), { message: "PROJECT_OS_IMPORT_NOT_FOUND" })).query(({ ctx, input }) => getImportSourceLink({ userId: ctx.user.id, ...input })),
+  }),
   licensing: router({
     catalog: protectedProcedure.query(({ ctx }) => getCommercialCatalogForAdministrator({ userId: ctx.user.id })),
     tenantLicense: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantLicenseForManager({ userId: ctx.user.id, ...input })),
@@ -202,9 +232,12 @@ export const appRouter = router({
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), nextStatus: z.enum(["trialing", "active", "past_due", "suspended", "cancelled", "expired", "grace_period"]) })).mutation(({ ctx, input }) => transitionTenantLicenseStatus({ actorUserId: ctx.user.id, ...input })),
     setFeatureOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), licenseId: z.string().uuid(), featureCode: z.string().trim().min(3).max(120), active: z.boolean(), limitValue: z.number().int().min(0).optional() })).mutation(({ ctx, input }) => setTenantLicenseFeatureOverride({ actorUserId: ctx.user.id, ...input })),
   }),
+  platform: router({
+    overview: protectedProcedure.query(({ ctx }) => getPlatformOverview({ userId: ctx.user.id })),
+  }),
   selfService: router({
     plans: protectedProcedure.query(() => getPublicCommercialPlans()),
-    signup: protectedProcedure.input(z.object({ legalName: z.string().trim().min(2).max(255), slug: z.string().trim().min(3).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), planCode: z.string().trim().min(3).max(80), seats: z.number().int().min(1).max(100000) })).mutation(({ ctx, input }) => createSelfServiceTenant({ userId: ctx.user.id, ...input })),
+    signup: protectedProcedure.input(z.object({ legalName: z.string().trim().min(2, { message: "PROJECT_OS_FIELD_REQUIRED" }).max(255), slug: z.string().trim().min(SLUG_MIN_LENGTH, { message: "PROJECT_OS_WORKSPACE_SLUG_TOO_SHORT" }).max(SLUG_MAX_LENGTH, { message: "PROJECT_OS_WORKSPACE_SLUG_TOO_LONG" }).regex(SLUG_RULE, { message: "PROJECT_OS_WORKSPACE_SLUG_FORMAT" }), planCode: z.string().trim().min(3).max(80), seats: z.number().int().min(1).max(100000) })).mutation(async ({ ctx, input }) => { await assertMayCreateCompany(ctx.user.id); return createSelfServiceTenant({ userId: ctx.user.id, ...input }); }),
   }),
   billing: router({
     register: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantBillingForManager({ userId: ctx.user.id, ...input })),
@@ -256,6 +289,8 @@ export const appRouter = router({
   tenant: router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
     administration: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantAdministration({ userId: ctx.user.id, ...input })),
+    roleTemplateRemovals: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["pending", "approved", "declined"]).optional() })).query(({ ctx, input }) => getRoleTemplateRemovals({ userId: ctx.user.id, ...input })),
+    decideRoleTemplateRemovals: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ids: z.array(z.string().uuid()).min(1).max(50), decision: z.enum(["approve", "decline"]) })).mutation(({ ctx, input }) => decideRoleTemplateRemovals({ userId: ctx.user.id, ...input })),
     findAssignableUser: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), email: z.string().trim().email().max(320) })).query(({ ctx, input }) => findAssignableTenantUser({ userId: ctx.user.id, ...input })),
     createRole: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9_ -]+$/), name: z.string().trim().min(2).max(160), productCode: z.enum(productCodes), permissionCodes: z.array(z.string().trim().min(3).max(120)).min(1).max(30) })).mutation(({ ctx, input }) => createTenantRole({ actorUserId: ctx.user.id, ...input })),
     updateRole: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), roleId: z.string().uuid(), name: z.string().trim().min(2).max(160), permissionCodes: z.array(z.string().trim().min(3).max(120)).min(1).max(30) })).mutation(({ ctx, input }) => updateTenantRole({ actorUserId: ctx.user.id, ...input })),
@@ -271,7 +306,7 @@ export const appRouter = router({
         slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),
         packageCode: z.enum(["EXECUTIVE", "PMO", "PROJECT", "EXECUTIVE + PMO", "PMO + PROJECT", "EXECUTIVE + PROJECT", "ALL-IN-ONE"]),
       }))
-      .mutation(({ ctx, input }) => createTenantForUser({ ...input, userId: ctx.user.id })),
+      .mutation(async ({ ctx, input }) => { await assertMayCreateCompany(ctx.user.id); return createTenantForUser({ ...input, userId: ctx.user.id }); }),
   }),
   controls: router({
     calculateEvm: protectedProcedure

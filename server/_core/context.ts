@@ -1,6 +1,8 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { Request } from "express";
 import type { User } from "../../drizzle/schema";
+import { parse as parseCookieHeader } from "cookie";
+import { deferralSince, MFA_DEFERRAL_COOKIE } from "./mfaDeferral";
 import { sdk } from "./sdk";
 
 export type TrpcContext = {
@@ -9,9 +11,13 @@ export type TrpcContext = {
   user: User | null;
   /** the session that authenticated this request (absent for public calls and in tests that build a context by hand) */
   sessionId?: string;
+  /** true once this session passed two-step verification */
+  mfaVerified?: boolean;
+  /** when this person started the owner's 7-day "Later" window (ms), or null */
+  mfaDeferralSince?: number | null;
 };
 
-type Authenticated = { user: User; sessionId: string } | null;
+type Authenticated = { user: User; sessionId: string; mfaVerified: boolean } | null;
 
 // A request is authenticated once: the database context middleware needs the user before the route runs, and tRPC's context asks again.
 const authenticated = new WeakMap<object, Promise<Authenticated>>();
@@ -22,7 +28,7 @@ export function authenticateOnce(req: Request): Promise<Authenticated> {
   if (!pending) {
     // Authentication is optional for public procedures.
     pending = sdk.authenticateSession(req).then(
-      ({ user, sessionId }) => ({ user, sessionId }),
+      ({ user, sessionId, mfaVerified }) => ({ user, sessionId, mfaVerified }),
       () => null,
     );
     authenticated.set(req, pending);
@@ -39,5 +45,7 @@ export async function createContext(
     res: opts.res,
     user: result?.user ?? null,
     sessionId: result?.sessionId,
+    mfaVerified: result?.mfaVerified,
+    mfaDeferralSince: result ? await deferralSince(parseCookieHeader(opts.req.headers.cookie ?? "")[MFA_DEFERRAL_COOKIE], result.user.id) : null,
   };
 }

@@ -44,6 +44,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
       emailCodes: createEmailCodeService({ provider: fake.provider, attempts: createDbAttemptLimiter(), now: () => new Date(clock.value) }),
       google: null,
       secret: ENV.cookieSecret,
+      isEligible: async () => true,
       upsertUser: user => upsertUser(user),
       createSessionToken: (openId, options) => sdk.issueSession(openId, options),
     });
@@ -213,5 +214,20 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("e-mail sign-
     const db = (await getDb())!;
     expect(await db.select().from(users).where(eq(users.openId, openIdForEmail(address("stranger"))))).toHaveLength(0);
     expect(createHash("sha256").update("x").digest("hex")).toHaveLength(64);
+  });
+
+  it("an authenticated request costs two database reads and no write once the account is current (it used to be two reads and a write, one after the other)", async () => {
+    const { cookie } = await signIn("cost");
+    await me(cookie); // the first request after sign-in may refresh the last-seen
+    const pg = (await import("pg")).default;
+    const statements: string[] = [];
+    const proto = pg.Client.prototype as unknown as { query: (...args: unknown[]) => unknown };
+    const original = proto.query;
+    proto.query = function (this: unknown, ...args: unknown[]) { const first = args[0]; statements.push(typeof first === "string" ? first : String((first as { text?: string })?.text ?? "")); return original.apply(this, args); };
+    try {
+      await sdk.authenticateSession({ headers: { cookie } } as never);
+    } finally { proto.query = original; }
+    expect(statements.filter(text => /^\s*(select)/i.test(text))).toHaveLength(2);
+    expect(statements.filter(text => /^\s*(insert|update|delete)/i.test(text)), statements.join(" | ")).toEqual([]);
   });
 });

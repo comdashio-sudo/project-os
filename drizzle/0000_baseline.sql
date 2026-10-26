@@ -103,6 +103,7 @@ CREATE TYPE "public"."quality_inspections_outcome" AS ENUM('pass', 'fail', 'cond
 CREATE TYPE "public"."quality_inspections_status" AS ENUM('draft', 'submitted', 'accepted', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."rfis_status" AS ENUM('draft', 'submitted', 'under_review', 'answered', 'closed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."risks_status" AS ENUM('open', 'mitigating', 'accepted', 'closed');--> statement-breakpoint
+CREATE TYPE "public"."role_template_removal_status" AS ENUM('pending', 'approved', 'declined');--> statement-breakpoint
 CREATE TYPE "public"."roles_product_code" AS ENUM('EXECUTIVE', 'PMO', 'PROJECT');--> statement-breakpoint
 CREATE TYPE "public"."salary_structures_eos_accrual_mode" AS ENUM('computed', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."scheduled_jobs_purpose" AS ENUM('license_lifecycle');--> statement-breakpoint
@@ -209,7 +210,9 @@ CREATE TABLE "auth_sessions" (
 	"user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	"revoked_at" timestamp with time zone
+	"revoked_at" timestamp with time zone,
+	"last_seen_at" timestamp with time zone,
+	"mfa_verified_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "boq_items" (
@@ -429,6 +432,20 @@ CREATE TABLE "data_import_row_results" (
 	"row_key" varchar(160) NOT NULL,
 	"action" "data_import_row_results_action" NOT NULL,
 	"entity_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "data_import_sources" (
+	"import_id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36),
+	"source_key" varchar(512) NOT NULL,
+	"source_name" varchar(255) NOT NULL,
+	"detected_kind" varchar(32) NOT NULL,
+	"sheet_name" varchar(160),
+	"mapping_json" text NOT NULL,
+	"profile_id" varchar(36),
+	"merged_cells_filled" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -795,6 +812,19 @@ CREATE TABLE "hse_observations" (
 	"severity" "hse_observations_severity" DEFAULT 'medium' NOT NULL,
 	"status" "hse_observations_status" DEFAULT 'open' NOT NULL,
 	"due_at" timestamp with time zone,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "import_source_profiles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"name" varchar(160) NOT NULL,
+	"kind" varchar(32) NOT NULL,
+	"header_signature" text NOT NULL,
+	"column_map_json" text NOT NULL,
+	"times_used" integer DEFAULT 0 NOT NULL,
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -1421,6 +1451,7 @@ CREATE TABLE "pmc_units" (
 	"unit_number" integer NOT NULL,
 	"model_code" varchar(80) NOT NULL,
 	"sale_status" varchar(80),
+	"external_code" varchar(120),
 	"geometry_json" text,
 	"unit_weight" numeric(12, 4) DEFAULT '1' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1697,6 +1728,17 @@ CREATE TABLE "role_permissions" (
 	CONSTRAINT "role_permissions_pk" PRIMARY KEY("role_id","permission_id")
 );
 --> statement-breakpoint
+CREATE TABLE "role_template_removals" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"role_id" varchar(36) NOT NULL,
+	"permission_id" varchar(36) NOT NULL,
+	"status" "role_template_removal_status" DEFAULT 'pending' NOT NULL,
+	"proposed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"decided_by_user_id" integer,
+	"decided_at" timestamp with time zone
+);
+--> statement-breakpoint
 CREATE TABLE "roles" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -1792,6 +1834,15 @@ CREATE TABLE "site_daily_reports" (
 	"reviewed_at" timestamp with time zone,
 	"review_note" varchar(500),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "smart_reading_usage" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"month" varchar(7) NOT NULL,
+	"calls" integer DEFAULT 0 NOT NULL,
+	"estimated_micro_usd" integer DEFAULT 0 NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -2042,6 +2093,18 @@ CREATE TABLE "tender_packages" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "user_mfa" (
+	"user_id" integer PRIMARY KEY NOT NULL,
+	"secret_sealed" text NOT NULL,
+	"confirmed_at" timestamp with time zone,
+	"recovery_hashes" text DEFAULT '[]' NOT NULL,
+	"last_used_step" integer,
+	"failures" integer DEFAULT 0 NOT NULL,
+	"locked_until" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "users" (
 	"id" integer PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"open_id" varchar(64) NOT NULL,
@@ -2208,6 +2271,9 @@ ALTER TABLE "cost_entries" ADD CONSTRAINT "cost_entries_project_id_projects_id_f
 ALTER TABLE "cost_entries" ADD CONSTRAINT "cost_entries_wbs_item_id_wbs_items_id_fk" FOREIGN KEY ("wbs_item_id") REFERENCES "public"."wbs_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_import_errors" ADD CONSTRAINT "data_import_errors_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_import_row_results" ADD CONSTRAINT "data_import_row_results_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_import_id_data_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."data_imports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "data_import_sources" ADD CONSTRAINT "data_import_sources_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "data_imports" ADD CONSTRAINT "data_imports_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2298,6 +2364,8 @@ ALTER TABLE "goods_receipt_notes" ADD CONSTRAINT "grn_creator_fk" FOREIGN KEY ("
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hse_observations" ADD CONSTRAINT "hse_observations_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "import_source_profiles" ADD CONSTRAINT "import_source_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "import_source_profiles" ADD CONSTRAINT "import_source_profiles_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_inbound_records" ADD CONSTRAINT "integration_inbound_records_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2510,6 +2578,10 @@ ALTER TABLE "risks" ADD CONSTRAINT "risks_project_id_projects_id_fk" FOREIGN KEY
 ALTER TABLE "risks" ADD CONSTRAINT "risks_owner_membership_id_memberships_id_fk" FOREIGN KEY ("owner_membership_id") REFERENCES "public"."memberships"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_decided_by_user_id_users_id_fk" FOREIGN KEY ("decided_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2526,6 +2598,7 @@ ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_tenant_id_co
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_user_id_users_id_fk" FOREIGN KEY ("prepared_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificates" ADD CONSTRAINT "subcert_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2578,6 +2651,7 @@ ALTER TABLE "tender_packages" ADD CONSTRAINT "tender_packages_tenant_id_companie
 ALTER TABLE "tender_packages" ADD CONSTRAINT "tender_packages_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tender_packages" ADD CONSTRAINT "tender_packages_awarded_by_user_id_users_id_fk" FOREIGN KEY ("awarded_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tender_packages" ADD CONSTRAINT "tender_packages_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_mfa" ADD CONSTRAINT "user_mfa_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "warehouse_inventory_transactions" ADD CONSTRAINT "wit_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "warehouse_inventory_transactions" ADD CONSTRAINT "wit_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "warehouse_inventory_transactions" ADD CONSTRAINT "wit_warehouse_fk" FOREIGN KEY ("warehouse_id") REFERENCES "public"."project_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2643,6 +2717,7 @@ CREATE INDEX "cost_entries_tenant_project_date_idx" ON "cost_entries" USING btre
 CREATE INDEX "data_import_errors_import_row_idx" ON "data_import_errors" USING btree ("import_id","row_number");--> statement-breakpoint
 CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_results" USING btree ("import_id","row_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
+CREATE INDEX "data_import_sources_tenant_project_idx" ON "data_import_sources" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" <> 'failed';--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
@@ -2690,6 +2765,7 @@ CREATE UNIQUE INDEX "grn_cost_entry_unique" ON "goods_receipt_notes" USING btree
 CREATE UNIQUE INDEX "grn_inventory_transaction_unique" ON "goods_receipt_notes" USING btree ("inventory_transaction_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "hse_observations_project_number_unique" ON "hse_observations" USING btree ("project_id","observation_number");--> statement-breakpoint
 CREATE INDEX "hse_observations_tenant_project_status_due_idx" ON "hse_observations" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "import_source_profiles_tenant_name_unique" ON "import_source_profiles" USING btree ("tenant_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_connections_tenant_system_name_unique" ON "integration_connections" USING btree ("tenant_id","system","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_inbound_records_unique" ON "integration_inbound_records" USING btree ("tenant_id","system","entity_type","external_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "integration_mappings_unique" ON "integration_mappings" USING btree ("tenant_id","system","entity_type","external_id");--> statement-breakpoint
@@ -2780,6 +2856,7 @@ CREATE INDEX "pmc_history_tenant_project_changed_idx" ON "pmc_unit_activity_hist
 CREATE UNIQUE INDEX "pmc_unit_activity_unique" ON "pmc_unit_activity_progress" USING btree ("unit_id","activity_definition_id");--> statement-breakpoint
 CREATE INDEX "pmc_unit_progress_tenant_project_status_idx" ON "pmc_unit_activity_progress" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_units_project_number_unique" ON "pmc_units" USING btree ("project_id","unit_number");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_units_project_external_code_unique" ON "pmc_units" USING btree ("project_id","external_code") WHERE "pmc_units"."external_code" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "pmc_units_tenant_project_block_idx" ON "pmc_units" USING btree ("tenant_id","project_id","block_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_verification_status_project_code_unique" ON "pmc_verification_statuses" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_verification_status_tenant_project_idx" ON "pmc_verification_statuses" USING btree ("tenant_id","project_id","active");--> statement-breakpoint
@@ -2819,6 +2896,8 @@ CREATE UNIQUE INDEX "rfis_project_number_unique" ON "rfis" USING btree ("project
 CREATE INDEX "rfis_tenant_project_status_due_idx" ON "rfis" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "risks_project_code_unique" ON "risks" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "risks_tenant_project_status_idx" ON "risks" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "role_template_removals_role_permission_uq" ON "role_template_removals" USING btree ("role_id","permission_id");--> statement-breakpoint
+CREATE INDEX "role_template_removals_tenant_status_idx" ON "role_template_removals" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint
@@ -2831,6 +2910,7 @@ CREATE INDEX "site_daily_report_photos_report_idx" ON "site_daily_report_photos"
 CREATE UNIQUE INDEX "site_daily_report_photos_key_unique" ON "site_daily_report_photos" USING btree ("storage_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id");--> statement-breakpoint
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint
@@ -2944,6 +3024,17 @@ CREATE TRIGGER audit_logs_refuse_delete BEFORE DELETE ON audit_logs FOR EACH ROW
 --> statement-breakpoint
 CREATE TRIGGER audit_logs_refuse_truncate BEFORE TRUNCATE ON audit_logs FOR EACH STATEMENT EXECUTE FUNCTION project_os_audit_logs_refuse();
 --> statement-breakpoint
+-- 3b. a platform administrator's identity (the OWNER_EMAIL account) is never blanked or replaced by an erasure or a clean-up (work order 17, item 1) --
+CREATE FUNCTION project_os_users_protect_admin() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.role = 'admin' AND ((OLD.email IS NOT NULL AND NEW.email IS NULL) OR (NEW.open_id LIKE 'deleted:%' AND OLD.open_id NOT LIKE 'deleted:%')) THEN
+    RAISE EXCEPTION 'the identity of a platform administrator is never erased' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER users_protect_admin BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION project_os_users_protect_admin();
+--> statement-breakpoint
 -- ALWAYS: a session that sets session_replication_role = replica (the usual way to switch triggers off) still hits them.
 ALTER TABLE audit_logs ENABLE ALWAYS TRIGGER audit_logs_refuse_update;
 --> statement-breakpoint
@@ -2973,7 +3064,7 @@ GRANT EXECUTE ON FUNCTION app_system(), app_user_id(), app_tenant_ids() TO proje
 CREATE FUNCTION project_os_apply_conventions() RETURNS integer LANGUAGE plpgsql AS $fn$
 DECLARE
   t record;
-  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts'];
+  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts', 'user_mfa'];
   child_tables constant jsonb := '{
     "data_import_errors":            ["import_id",         "data_imports"],
     "data_import_row_results":       ["import_id",         "data_imports"],
@@ -2982,6 +3073,18 @@ DECLARE
     "membership_roles":              ["membership_id",     "memberships"],
     "role_permissions":              ["role_id",           "roles"]
   }'::jsonb;
+  -- Work order 20, item 3 (audit 4.3): the application role may UPDATE a column only when the column is not immutable. A statement that moves a row to another company (tenant_id),
+  -- rewrites its identity (id) or its history (created_at), or re-points a person's identity (users.open_id and the like) is refused by the database with 42501 before row-level security is
+  -- even consulted, whatever the application code or an injected statement says. A column added later is writable by default: this function runs after every migration and grants it.
+  immutable_cols constant text[] := ARRAY['id', 'tenant_id', 'created_at'];
+  immutable_extra constant jsonb := '{
+    "users":         ["open_id"],
+    "auth_sessions": ["user_id"],
+    "memberships":   ["user_id"],
+    "user_mfa":      ["user_id"]
+  }'::jsonb;
+  imm text[];            -- the immutable columns of the table in hand
+  writable text;         -- its writable columns, as a quoted list for GRANT UPDATE (...)
   pred text;
   swept integer := 0;
   reapplied integer := 0;
@@ -3010,10 +3113,12 @@ BEGIN
     swept := swept + 1;
 
     -- 1. what this table must look like (an unclassified table is refused here, before anything is touched)
+    imm := immutable_cols || ARRAY(SELECT jsonb_array_elements_text(coalesce(immutable_extra -> t.name, '[]'::jsonb)));
     IF t.name = 'audit_logs' THEN
       want_privs := ARRAY['INSERT', 'SELECT'];
     ELSE
-      want_privs := ARRAY['DELETE', 'INSERT', 'SELECT', 'UPDATE'];
+      -- UPDATE is not a table-level privilege any more: it is granted per column below (a column-level REVOKE would subtract nothing from a table-level grant)
+      want_privs := ARRAY['DELETE', 'INSERT', 'SELECT'];
     END IF;
     IF t.name = 'audit_logs' THEN
       pred := format('((SELECT app_system()) OR %I = ANY ((SELECT app_tenant_ids())::text[]))', 'tenant_id');
@@ -3048,13 +3153,15 @@ BEGIN
     ELSE
       RAISE EXCEPTION 'table % has no tenant_id and is not classified in project_os_apply_conventions(): add it to global_tables or child_tables', t.name;
     END IF;
-    sig := md5(array_to_string(policy_sql, E'\n') || '|' || array_to_string(want_privs, ','));
+    sig := md5(array_to_string(policy_sql, E'\n') || '|' || array_to_string(want_privs, ',') || '|' || array_to_string(imm, ','));
 
     -- 2. does it already look like that? (catalog reads only)
     SELECT array_agg(a.privilege_type::text ORDER BY a.privilege_type::text) INTO have_privs
       FROM aclexplode(t.acl) a JOIN pg_roles r ON r.oid = a.grantee WHERE r.rolname = 'project_os_app';
     conforming := t.rls_on
       AND have_privs IS NOT DISTINCT FROM want_privs
+      AND NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = t.oid AND a.attnum > 0 AND NOT a.attisdropped
+                         AND has_column_privilege('project_os_app', t.oid, a.attnum, 'UPDATE') IS DISTINCT FROM (t.name <> 'audit_logs' AND NOT (a.attname::text = ANY (imm))))
       AND (NOT t.has_updated OR EXISTS (SELECT 1 FROM pg_trigger tg WHERE tg.tgrelid = t.oid AND tg.tgname = 'set_updated_at' AND NOT tg.tgisinternal
                                          AND tg.tgfoid = 'project_os_set_updated_at'::regproc AND tg.tgtype = 19))
       AND (SELECT coalesce(array_agg(p.polname::text ORDER BY p.polname::text), ARRAY[]::text[]) FROM pg_policy p
@@ -3078,7 +3185,10 @@ BEGIN
       EXECUTE format('GRANT SELECT, INSERT ON %I TO project_os_app', t.name);
     ELSE
       EXECUTE format('REVOKE ALL ON %I FROM project_os_app', t.name);
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO project_os_app', t.name);
+      EXECUTE format('GRANT SELECT, INSERT, DELETE ON %I TO project_os_app', t.name);
+      SELECT string_agg(quote_ident(a.attname::text), ', ' ORDER BY a.attnum) INTO writable
+        FROM pg_attribute a WHERE a.attrelid = t.oid AND a.attnum > 0 AND NOT a.attisdropped AND NOT (a.attname::text = ANY (imm));
+      IF writable IS NOT NULL THEN EXECUTE format('GRANT UPDATE (%s) ON %I TO project_os_app', writable, t.name); END IF;
     END IF;
 
     -- row-level security

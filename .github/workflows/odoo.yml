@@ -10,12 +10,6 @@ on:
       - "server/odoo.connector.database.test.ts"
       - ".github/workflows/odoo.yml"
       - "drizzle/**"
-  push:
-    branches: [main]
-    paths:
-      - "server/integrations/**"
-      - "server/odoo.connector.database.test.ts"
-      - ".github/workflows/odoo.yml"
   workflow_dispatch:
 
 permissions:

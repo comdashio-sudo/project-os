@@ -35,6 +35,8 @@ const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1
 const checks = [];
 const check = (name, ok, detail) => { checks.push({ name, ok: Boolean(ok), ...(detail === undefined ? {} : { detail }) }); console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok || detail === undefined ? "" : ` — ${JSON.stringify(detail)}`}`); };
 const near = (a, b, tolerance = 0.01) => Math.abs(a - b) <= tolerance;
+// Waits for a condition (polled), never for a fixed time: the answer is true as soon as it holds, false after `ms`.
+const waitFor = async (condition, ms = 20000) => { const until = Date.now() + ms; while (Date.now() < until) { if (await condition().catch(() => false)) return true; await new Promise(resolve => setTimeout(resolve, 150)); } return false; };
 const money = value => Math.round(value * 100) / 100;
 
 // ---- the demonstration company, built the way the owner's button builds it (the owner connection: it is a setup script)
@@ -220,12 +222,17 @@ try {
   const inspection = await one("SELECT id FROM pmc_inspection_requests WHERE tenant_id = $1 AND request_code = 'IR-E2E-1'", [tenantId]);
   // the steps of the request, one by one, then the consultant's answer
   const requestCard = qcScreen.page.locator(`[data-request="IR-E2E-1"]`);
+  // Walk the steps until the consultant's answer buttons appear. The loop is driven by WHAT IS ON THE SCREEN, not by a count of clicks and fixed pauses: a click that lands on the
+  // button of a step already done is refused by the server and costs nothing, the next pass clicks the current one. (CI, 2026-10-25: 8 clicks with 600 ms pauses ran out on a slow runner.)
   const advanceButton = requestCard.getByRole("button", { name: "Complete this step" });
-  for (let guard = 0; guard < 8 && (await advanceButton.count()) > 0; guard += 1) {
-    await advanceButton.click();
-    await qcScreen.page.waitForTimeout(600);
+  const answerButton = requestCard.getByRole("button", { name: /^A\b|A — |Approved/ }).first();
+  const walkUntil = Date.now() + 40000;
+  while (Date.now() < walkUntil && (await answerButton.count()) === 0) {
+    if ((await advanceButton.count()) > 0) await advanceButton.first().click({ timeout: 5000 }).catch(() => undefined);
+    await qcScreen.page.waitForTimeout(400);
   }
-  await requestCard.getByRole("button", { name: /^A\b|A — |Approved/ }).first().click();
+  if ((await answerButton.count()) === 0) throw new Error(`the answer buttons never appeared on the request card; the card says: ${JSON.stringify((await requestCard.innerText().catch(() => "")).slice(0, 500))}`);
+  await answerButton.click();
   await qcScreen.page.waitForTimeout(800);
   await shot(qcScreen.page, "2b-quality-answered-desktop");
   check("the consultant's answer A is recorded on the request", (await one("SELECT response_code FROM pmc_inspection_requests WHERE id = $1", [inspection.id])).response_code === "A");
@@ -247,13 +254,25 @@ try {
   const held = await accepted();
   check("NEGATIVE: with an NCR open on the same cell, the same inspection no longer counts as accepted", held.accepted === false && held.heldByNcr === true, held);
   const ncr = await one("SELECT id FROM ncrs WHERE tenant_id = $1 AND ncr_number = 'NCR-E2E-1'", [tenantId]);
-  await call("qc", "ncrs.transitionStatus", { tenantId, projectId, ncrId: ncr.id, nextStatus: "closed" }, "POST").catch(async () => {
-    // the screen's own buttons walk the NCR through its stages to "Closed"
-    const ncrCard = qcScreen.page.locator(`[data-ncr="NCR-E2E-1"]`);
-    for (let i = 0; i < 6; i++) { const next = ncrCard.getByRole("button", { name: /^(Move to|Close)/ }).first(); if (!(await next.count())) break; await next.click(); await qcScreen.page.waitForTimeout(500); if ((await one("SELECT status FROM ncrs WHERE id = $1", [ncr.id])).status === "closed") break; }
-  });
-  check("the NCR is closed", (await one("SELECT status FROM ncrs WHERE id = $1", [ncr.id])).status === "closed");
-  check("closing it restores the acceptance", (await accepted()).accepted === true);
+  // The NCR walks open -> under investigation -> corrective action -> verification -> closed, one button per stage. Each click is followed by WAITING for the database to show the new
+  // stage (never a fixed pause): on a slow runner a fixed 500 ms pause let the next click land on the previous stage's button, the step was refused, and the loop ran out (CI, 2026-10-25).
+  const ncrCard = qcScreen.page.locator(`[data-ncr="NCR-E2E-1"]`);
+  const stages = [];
+  for (let i = 0; i < 6; i++) {
+    const before = (await one("SELECT status FROM ncrs WHERE id = $1", [ncr.id])).status;
+    if (before === "closed") break;
+    stages.push(before);
+    const button = ncrCard.getByRole("button", { name: /^(Move to|Close)/ }).first();
+    const label = await button.innerText();
+    await button.click();
+    const moved = await waitFor(async () => (await one("SELECT status FROM ncrs WHERE id = $1", [ncr.id])).status !== before, 20000);
+    if (!moved) { stages.push(`stuck at ${before}`); break; }
+    // the card shows the next stage's button only after the screen has re-read the NCR: wait for that before the next click (or for no button at all once closed)
+    await waitFor(async () => { const next = ncrCard.getByRole("button", { name: /^(Move to|Close)/ }).first(); return (await next.count()) === 0 || (await next.innerText()) !== label; }, 20000);
+  }
+  const ncrNow = (await one("SELECT status FROM ncrs WHERE id = $1", [ncr.id])).status;
+  check("the NCR is closed", ncrNow === "closed", { walked: stages, now: ncrNow });
+  check("closing it restores the acceptance", (await accepted()).accepted === true, await accepted());
   await qcScreen.context.close();
 
   // ================================================================================================ 3. issue -> actual cost -> EVM -> profit
@@ -266,8 +285,23 @@ try {
   await keeper.page.getByLabel("Search by code or name").fill("CEM");
   await keeper.page.getByText("CEM-50").first().click();
   await keeper.page.getByLabel(/Quantity/).fill("5");
-  await keeper.page.getByLabel("Unit number").fill(String(unitNumber));
-  await keeper.page.getByLabel(/Activity/).selectOption(cell.def_id);
+  const unitBox = keeper.page.getByLabel("Unit number");
+  await unitBox.fill(String(unitNumber));
+  // CI on 2026-10-25 (twice in a day, on different commits) found the unit box EMPTY a moment after it had been filled, with the rest of the screen intact: the typed value was lost. Whether that is
+  // a re-render on a slow runner or a screen that drops a keystroke is not known yet (docs/STATE.md, OPEN). So: check the box kept the value; if not, say so in the log (a loss is a finding, not
+  // noise) and type it once more, so one lost keystroke does not hide the rest of the journey.
+  if (!(await waitFor(async () => (await unitBox.inputValue()) === String(unitNumber), 3000))) {
+    console.log(`note the unit box lost its value after it was filled (it reads ${JSON.stringify(await unitBox.inputValue().catch(() => null))}); typing it again`);
+    await unitBox.fill(String(unitNumber));
+  }
+  // The Activity field exists only once the typed number is a unit of this project. If it never appears, say WHY (the screen's own words, a picture) instead of a bare 20 s timeout:
+  // the one CI failure of this step (2026-10-25) left nothing to tell a slow runner from a screen that had lost what was typed.
+  const activityField = keeper.page.getByLabel(/Activity/);
+  if (!(await waitFor(async () => (await activityField.count()) === 1, 20000))) {
+    await shot(keeper.page, "3x-issue-activity-missing-phone");
+    throw new Error(`the Activity field did not appear after typing unit ${unitNumber}; the screen says: ${JSON.stringify((await keeper.page.locator("main").innerText()).slice(0, 600))}; unit field now: ${JSON.stringify(await keeper.page.getByLabel("Unit number").inputValue().catch(() => null))}`);
+  }
+  await activityField.selectOption(cell.def_id);
   await keeper.page.getByRole("button", { name: "Save issue" }).click();
   await keeper.page.getByRole("status").filter({ hasText: "Issued" }).waitFor();
   await shot(keeper.page, "3a-issue-done-phone");

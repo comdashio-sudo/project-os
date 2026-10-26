@@ -6,6 +6,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { accountIsCurrent } from "./userRole";
 import { sessionStore } from "./sessionStore";
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
@@ -67,21 +68,22 @@ class SDKServer {
    * The session cookie is the only credential. There is no Authorization header
    * fallback; scheduled jobs call their own endpoint with a shared secret.
    */
-  async authenticateSession(req: Request): Promise<{ user: AuthenticatedUser; sessionId: string }> {
+  async authenticateSession(req: Request): Promise<{ user: AuthenticatedUser; sessionId: string; mfaVerified: boolean }> {
     const sessionToken = this.parseCookies(req.headers.cookie).get(COOKIE_NAME);
     const session = await this.verifySession(sessionToken);
     if (!session) throw ForbiddenError("Invalid session cookie");
 
-    // A valid signature is not enough: the session must still be live in the database (not logged out, not expired).
-    const sessionUserId = await sessionStore.findLive(session.sid);
+    // A valid signature is not enough: the session must still be live in the database (not logged out, not expired). The two reads do not depend on each
+    // one another, so they go out together (one round trip instead of two).
+    const [live, user] = await Promise.all([sessionStore.findLiveSession(session.sid), db.getUserByOpenId(session.openId)]);
+    const sessionUserId = live?.userId ?? null;
     if (sessionUserId === null) throw ForbiddenError("Session ended");
-
-    const user = await db.getUserByOpenId(session.openId);
     if (!user) throw ForbiddenError("User not found");
     if (user.id !== sessionUserId) throw ForbiddenError("Session does not belong to this user");
 
-    await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
-    return { user, sessionId: session.sid };
+    // The account is written only when the write would change something (its role as assigned, or a last-seen older than a minute): not on every request.
+    if (!accountIsCurrent(user)) await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+    return { user, sessionId: session.sid, mfaVerified: live!.mfaVerified };
   }
 
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {

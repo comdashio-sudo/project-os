@@ -20,6 +20,15 @@ describe("LicensingConsole", () => {
     expect(state.override).toHaveBeenCalledWith({ tenantId: "tenant-1", licenseId: "license-1", featureCode: "MASTER_PLAN", active: true, limitValue: 7 });
   });
 
+  it("names a seat count outside its range beside the field and provisions nothing", async () => {
+    const user = userEvent.setup(); render(<LicensingConsole />);
+    const seats = document.getElementById("license-seats") as HTMLInputElement;
+    await user.clear(seats); await user.type(seats, "0");
+    await user.click((seats.closest("form") as HTMLFormElement).querySelector("button") as HTMLButtonElement);
+    expect(screen.getByText("The value is outside the allowed range.")).toBeTruthy();
+    expect(state.provision).not.toHaveBeenCalled();
+  });
+
   it("keeps a tenant manager read-only when platform catalog access is unavailable", () => {
     cleanup();
     state.catalog = undefined as unknown as typeof state.catalog;

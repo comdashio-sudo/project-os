@@ -270,14 +270,16 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("company data
     expect(company.slug).toBe(`deleted-${a.tenantId}`);
     const [[entitled]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM tenant_entitlements WHERE tenantId = ?", [a.tenantId]);
     expect(Number(entitled.n)).toBe(0);
-    // people: only-in-A are scrubbed and signed out; the person who also belongs to B is untouched
-    const [[scrubbed]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
-    expect(scrubbed.email).toBeNull(); expect(scrubbed.name).toBe("Deleted user"); expect(scrubbed.openId).toMatch(/^deleted:/);
+    // people (work order 17): a person who belonged to A alone keeps their identity and sign-in account; only the membership went with the company
+    const [[kept]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT name, email, openId FROM users WHERE id = ?", [a.people.pm.id]);
+    expect(kept).toEqual({ name: onlyInABefore[0].name, email: onlyInABefore[0].email, openId: onlyInABefore[0].openId });
     const [[sessions]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM auth_sessions WHERE userId = ?", [a.people.pm.id]);
-    expect(Number(sessions.n)).toBe(0);
+    expect(Number(sessions.n)).toBeGreaterThanOrEqual(1);
+    const [[membershipsLeft]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT COUNT(*) AS n FROM memberships WHERE userId = ?", [a.people.pm.id]);
+    expect(Number(membershipsLeft.n)).toBe(0);
     const [[shared]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT id, name, email, openId FROM users WHERE id = ?", [a.people.site.id]);
     expect(shared).toEqual(sharedBefore[0]);
-    expect(report.people.keptBecauseInAnotherCompany).toBe(1);
+    expect(report.people.identitiesKept).toBeGreaterThanOrEqual(2); expect(report.people.membershipsRemoved).toBe(report.people.identitiesKept);
     // company B: every table, row for row
     expect(await rowsPerTable(b.tenantId)).toEqual(beforeB);
     const [[bStatus]] = await connection.query<fixtureDb.RowDataPacket[]>("SELECT status FROM companies WHERE id = ?", [b.tenantId]);

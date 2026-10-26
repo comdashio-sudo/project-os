@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSupabaseCodeProvider, supabaseAuthConfigFromEnv } from "./supabaseAuth";
+import { createSupabaseCodeProvider, retryAfterSecondsFrom, supabaseAuthConfigFromEnv } from "./supabaseAuth";
 import { EmailCodeError } from "./emailCode";
 
 // The response bodies below are the ones a real GoTrue v2.176.1 returned when this was written (server/auth.gotrue.live.test.ts drives the real one).
@@ -76,5 +76,16 @@ describe("verifying a code", () => {
   it("a failure to close the provider's session does not fail the sign-in", async () => {
     const { provider: p } = provider(url => { if (url.endsWith("/logout")) throw new TypeError("fetch failed"); return json(200, OK_SESSION); });
     await expect(p.verifyCode("engineer@example.test", "123456")).resolves.toEqual({ email: "engineer@example.test" });
+  });
+
+  it("a send limit carries the seconds GoTrue names, so the screen can count them down; a message without a number carries none", async () => {
+    const limited = await failure(provider(() => json(429, { code: 429, error_code: "over_email_send_rate_limit", msg: "For security purposes, you can only request this after 49 seconds." })).provider.sendCode("a@example.test")) as EmailCodeError;
+    expect(limited.code).toBe("RATE_LIMITED");
+    expect(limited.retryAfterSeconds).toBe(49);
+    const plain = await failure(provider(() => json(429, { error_code: "over_request_rate_limit", msg: "Request rate limit reached" })).provider.sendCode("a@example.test")) as EmailCodeError;
+    expect(plain.retryAfterSeconds).toBeUndefined();
+    expect(retryAfterSecondsFrom("you can only request this after 1 second.")).toBe(1);
+    expect(retryAfterSecondsFrom("after 0 seconds")).toBeUndefined();
+    expect(retryAfterSecondsFrom(undefined)).toBeUndefined();
   });
 });

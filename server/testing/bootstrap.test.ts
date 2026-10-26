@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  GITHUB_LINK_INSTRUCTION, GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, normalizeOwnerEmail, productionEnv, supabaseApi, vercelApi, type Fetch,
+  GITHUB_LINK_INSTRUCTION, GuardError, TEMPLATE_TIER_INSTRUCTION, isTemplateTierRefusal, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, normalizeOwnerEmail, productionEnv, supabaseApi, vercelApi, type Fetch,
 } from "../../scripts/bootstrap/lib";
 
 // The launch bootstrap against a SIMULATED Supabase and Vercel: the guards must refuse a wrong project, a wrong organisation and a Vercel project of
@@ -91,7 +91,7 @@ describe("Supabase guard: one project, inside one organisation, checked before a
     const sim = simulate({
       ...supabaseOk(),
       [`PATCH /v1/projects/${REF}/config/auth`]: () => ({ body: {} }),
-      [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "PROJECT OS sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "PROJECT OS sign-in code", mailer_templates_magic_link_content: "T" } }),
+      [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_magic_link_content: "T" } }),
       [`PATCH /v1/projects/${REF}/postgrest`]: () => ({ body: {} }),
       [`GET /v1/projects/${REF}/postgrest`]: () => ({ body: { db_schema: "graphql_public" } }),
       [`GET /v1/projects/${REF}/api-keys`]: () => ({ body: [{ name: "service_role", api_key: "SERVICE-ROLE-MUST-NOT-LEAK" }, { name: "anon", api_key: "anon-key-value" }] }),
@@ -107,15 +107,73 @@ describe("Supabase guard: one project, inside one organisation, checked before a
 
   it("sends exactly the sign-in settings the guide asks for, and fails loudly if the project did not keep them", async () => {
     const patch = vi.fn(() => ({ body: {} }));
-    const kept = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "PROJECT OS sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "PROJECT OS sign-in code", mailer_templates_magic_link_content: "T" };
+    const kept = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false, mailer_subjects_confirmation: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: "رمز الدخول إلى Dashio | Dashio sign-in code", mailer_templates_magic_link_content: "T" };
     const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: patch, [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { ...kept, mailer_otp_length: 8 } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T")).rejects.toThrow(/mailer_otp_length/);
     expect(sim.writes()[0].body).toMatchObject({ external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false });
   });
 
+  it("reads the templates back after writing them: the subject and the content of BOTH Confirm signup and Magic Link must be what was sent, else the run fails (WO18 follow-up)", async () => {
+    const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+    const subject = "رمز الدخول إلى Dashio | Dashio sign-in code";
+    const stored = { mailer_subjects_confirmation: subject, mailer_templates_confirmation_content: "T", mailer_subjects_magic_link: subject, mailer_templates_magic_link_content: "T" };
+    const run = (read: Record<string, unknown>) => supabaseApi(simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => ({ body: {} }), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { ...settings, ...read } }) }).fetchImpl, "t").applyAuthSettings("T");
+    await expect(run(stored)).resolves.toEqual({ templates: "applied" });
+    for (const key of Object.keys(stored)) await expect(run({ ...stored, [key]: "something else" }), key).rejects.toThrow(new RegExp(key));
+  });
+
+  it("launch run 31: a free-tier project refuses the e-mail templates (400); the settings are kept, the refusal is reported, nothing else is hidden", async () => {
+    const refusal = { status: 400, body: { message: "Email template modification is not available for free tier projects using the default email provider. Please upgrade your plan or set up a custom SMTP provider." } };
+    let calls = 0;
+    const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+    const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => (++calls === 1 ? { body: {} } : refusal), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: settings }) });
+    const result = await supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T");
+    expect(result).toMatchObject({ templates: "refused" });
+    expect(result.refusal).toMatch(/-> 400 Email template modification is not available for free tier/); // the status and Supabase's own words, in full
+    expect(sim.writes().map(call => Object.keys(call.body as object).length)).toEqual([5, 4]); // the settings first, the templates second
+  });
+
+  it("any OTHER refusal of the templates still stops the run (a 400 that is not the free-tier one, a 403, a 500)", async () => {
+    for (const status of [400, 403, 500]) {
+      let calls = 0;
+      const sim = simulate({ [`PATCH /v1/projects/${REF}/config/auth`]: () => (++calls === 1 ? { body: {} } : { status, body: { message: status === 400 ? "mailer_otp_exp must be at most 86400" : "boom" } }), [`GET /v1/projects/${REF}/config/auth`]: () => ({ body: { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false } }) });
+      await expect(supabaseApi(sim.fetchImpl, "t").applyAuthSettings("T"), String(status)).rejects.toThrow(new RegExp(`-> ${status}`));
+    }
+  });
+
+  it("the owner's instruction names where to click, is in Arabic, and carries no secret", () => {
+    expect(TEMPLATE_TIER_INSTRUCTION).toMatch(/Authentication ← Emails ← SMTP Settings/);
+    expect(TEMPLATE_TIER_INSTRUCTION).toMatch(/Custom SMTP/);
+    expect(isTemplateTierRefusal("PATCH /v1/projects/x/config/auth -> 400 Email template modification is not available for free tier projects using the default email provider.")).toBe(true);
+    expect(isTemplateTierRefusal("PATCH /v1/projects/x/config/auth -> 403 forbidden")).toBe(false);
+  });
+
   it("fails if the Data API still exposes public afterwards", async () => {
     const sim = simulate({ [`PATCH /v1/projects/${REF}/postgrest`]: () => ({}), [`GET /v1/projects/${REF}/postgrest`]: () => ({ body: { db_schema: "public,graphql_public" } }) });
     await expect(supabaseApi(sim.fetchImpl, "t").closeDataApi()).rejects.toThrow(/public/);
+  });
+});
+
+describe("Data API closing when Supabase answers 500 (launch run 35)", () => {
+  const PG = `/v1/projects/${REF}/postgrest`;
+  const timeout500 = { status: 500, body: { message: "Postgrest config update did not succeed within the expected time frame. The intended change might not have been applied." } };
+  it("500 on the PATCH but the read-back shows public closed: succeeds and says it recovered", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => timeout500, [`GET ${PG}`]: () => ({ body: { db_schema: "graphql_public" } }) });
+    expect(await supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).toEqual({ attempts: 1, recovered: true });
+  });
+  it("500 and public still exposed: repeats, then succeeds when a later PATCH takes", async () => {
+    let patches = 0;
+    const sim = simulate({ [`PATCH ${PG}`]: () => (++patches < 2 ? timeout500 : { body: {} }), [`GET ${PG}`]: () => ({ body: { db_schema: patches < 2 ? "public,graphql_public" : "graphql_public" } }) });
+    expect(await supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).toEqual({ attempts: 2, recovered: false });
+  });
+  it("500 every time and public still exposed: FAILS after 3 attempts with Supabase's words", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => timeout500, [`GET ${PG}`]: () => ({ body: { db_schema: "public" } }) });
+    await expect(supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).rejects.toThrow(/after 3 attempts.*500/);
+  });
+  it("a 403 is a real refusal: no read-back rescue, no repeat", async () => {
+    const sim = simulate({ [`PATCH ${PG}`]: () => ({ status: 403, body: { message: "forbidden" } }), [`GET ${PG}`]: () => ({ body: { db_schema: "graphql_public" } }) });
+    await expect(supabaseApi(sim.fetchImpl, "t").closeDataApi(0)).rejects.toThrow(/403/);
+    expect(sim.writes().length).toBe(1);
   });
 });
 
@@ -236,13 +294,20 @@ describe("deployment polling and health", () => {
 });
 
 describe("the workflow", () => {
+  it("runs ONLY on workflow_dispatch: the button holds the real secrets, so no pull_request, push, schedule or other trigger may ever start it", () => {
+    const file = readFileSync(path.resolve(import.meta.dirname, "../..", ".github/workflows/bootstrap.yml"), "utf8");
+    const onBlock = file.slice(file.indexOf("\non:"), file.indexOf("\npermissions:"));
+    expect(onBlock.match(/^ {2}[a-z_]+:/gm)).toEqual(["  workflow_dispatch:"]);
+  });
+
   const text = (file: string) => readFileSync(path.resolve(import.meta.dirname, "../..", file), "utf8");
   const workflow = text(".github/workflows/bootstrap.yml");
   it("is manual, takes owner_email plus an optional organisation identifier, and reads exactly the three secrets the owner puts in GitHub (plus optional ones)", () => {
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(2);
+    expect(workflow.match(/^ {6}[a-z_]+:\n {8}description:/gm)).toHaveLength(3);
     expect(workflow).toContain("owner_email:");
     expect(workflow).toContain("supabase_org_slug:");
+    expect(workflow).toContain("preflight_only:");
     for (const secret of ["SUPABASE_ACCESS_TOKEN", "VERCEL_TOKEN", "SUPABASE_DB_PASSWORD"]) expect(workflow).toContain(`secrets.${secret}`);
     expect(workflow).not.toMatch(/\bon:\s*\n\s*(push|schedule|pull_request)/);
   });
@@ -285,3 +350,20 @@ describe("the calls match the official API shapes (work order 11)", () => {
     expect(yml).toMatch(/BOOTSTRAP_STATE=\$RUNNER_TEMP\/bootstrap-state\.json/);
   });
 });
+
+describe("the workflow's pre-flight", () => {
+  const workflow = readFileSync(path.resolve(__dirname, "../../.github/workflows/bootstrap.yml"), "utf8");
+  it("runs first and read-only; every writing step after it is skipped when only the check is asked for", () => {
+    const steps = workflow.split(/\n      - /).slice(1);
+    const names = steps.map(step => /name: ([^\n]+)/.exec(step)?.[1] ?? "");
+    const index = names.findIndex(name => /^Pre-flight/.test(name));
+    expect(index).toBeGreaterThan(-1);
+    expect(names.slice(0, index).every(name => !/Supabase|Database|Storage|Vercel/.test(name))).toBe(true); // nothing that writes comes before it
+    for (const step of steps.slice(index + 1)) {
+      const name = /name: ([^\n]+)/.exec(step)?.[1] ?? "";
+      if (/^Summary/.test(name)) { expect(step).toContain("if: always()"); continue; }
+      expect(step, name).toContain("if: ${{ !inputs.preflight_only }}");
+    }
+  });
+});
+

@@ -11,7 +11,14 @@ export const VERCEL_PROJECT_NAME = "dashio";
 export const GITHUB_OWNER = "comdashio-sudo";
 export const GITHUB_REPO = "project-os";
 export const VERCEL_REGION = "sin1";
-export const OTP_SUBJECT = "PROJECT OS sign-in code";
+
+/** The Vercel region next to each Supabase region (the pairs Vercel's own region list makes obvious). A database far from its function costs a long round trip on every statement. */
+export const NEAREST_VERCEL_REGION: Readonly<Record<string, string>> = {
+  "ap-southeast-1": "sin1", "ap-southeast-2": "syd1", "ap-south-1": "bom1", "ap-northeast-1": "hnd1", "ap-northeast-2": "icn1",
+  "eu-central-1": "fra1", "eu-central-2": "fra1", "eu-west-1": "dub1", "eu-west-2": "lhr1", "eu-west-3": "cdg1", "eu-north-1": "arn1",
+  "us-east-1": "iad1", "us-east-2": "cle1", "us-west-1": "sfo1", "us-west-2": "pdx1", "ca-central-1": "yul1", "sa-east-1": "gru1", "me-central-1": "dxb1",
+};
+export const OTP_SUBJECT = "رمز الدخول إلى Dashio | Dashio sign-in code";
 export const STORAGE_BUCKET = "project-os-files";
 /** Supabase's published root certificate for database connections (pooler included). */
 export const SUPABASE_CA_URL = "https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt";
@@ -31,7 +38,7 @@ export function normalizeOwnerEmail(raw: string): string {
 }
 
 const parse = (text: string) => { try { return text ? JSON.parse(text) : null; } catch { return null; } };
-const shortCode = (body: unknown) => { const b = body as { message?: unknown; error?: { code?: unknown; message?: unknown } | string; code?: unknown } | null; const raw = b?.error && typeof b.error === "object" ? (b.error.code ?? b.error.message) : (b?.code ?? b?.message ?? b?.error); return typeof raw === "string" ? raw.slice(0, 120) : ""; };
+const shortCode = (body: unknown) => { const b = body as { message?: unknown; error?: { code?: unknown; message?: unknown } | string; code?: unknown } | null; const raw = b?.error && typeof b.error === "object" ? (b.error.code ?? b.error.message) : (b?.code ?? b?.message ?? b?.error); return typeof raw === "string" ? raw.slice(0, 300) : ""; };
 
 function client(fetchImpl: Fetch, base: string, token: string) {
   return async function call<T = any>(method: string, path: string, body?: unknown, allowed: number[] = []): Promise<{ status: number; data: T }> {
@@ -41,6 +48,10 @@ function client(fetchImpl: Fetch, base: string, token: string) {
     return { status: response.status, data };
   };
 }
+
+/** Supabase's answer when the e-mail templates cannot be changed because the project is on the free tier with its default e-mail provider. */
+export const isTemplateTierRefusal = (message: string) => /-> 400\b/.test(message) && /(free tier|default email provider|custom smtp)/i.test(message);
+export const TEMPLATE_TIER_INSTRUCTION = "Supabase لا يسمح بتعديل قالب بريد الدخول ما دام المشروع على الخطة المجانية بمزوّد البريد الافتراضي (ردّ Supabase: 400). باقي إعدادات الدخول طُبِّقت. لكن القالب الافتراضي يرسل رابطًا لا رمز دخول، ومزوّد Supabase الافتراضي لا يرسل إلا لأعضاء المنظمة وبعدد قليل جدًا في الساعة، فلن يستطيع أحد الدخول بالرمز قبل هذه الخطوة. المطلوب مرة واحدة: (1) في Resend أضف نطاقًا فرعيًا (مثل mail.نطاقك) وأضف سجلات DNS التي يعرضها ثم Verify. (2) Supabase ← مشروع dashio ← Authentication ← Emails ← SMTP Settings ← فعّل Custom SMTP: المضيف smtp.resend.com والمنفذ 465 والمستخدم resend وكلمة المرور مفتاح API من Resend، والمرسل عنوان على النطاق الفرعي الموثّق (تُدخل المفتاح في Supabase مباشرة، لا في GitHub ولا في أي رسالة). (3) أعد تشغيل الزر ليضع القالب (رمز كبير ومدة الصلاحية وجملة «أحدث رمز وحده يعمل» بالعربية والإنجليزية، بلا أي رابط).\n";
 
 // ---------------------------------------------------------------------------------------------------------------- Supabase
 export function supabaseApi(fetchImpl: Fetch, token: string) {
@@ -77,23 +88,54 @@ export function supabaseApi(fetchImpl: Fetch, token: string) {
 
   return {
     assertTarget,
-    async applyAuthSettings(template: string) {
-      const patch = {
-        external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false,
-        mailer_subjects_confirmation: OTP_SUBJECT, mailer_templates_confirmation_content: template,
-        mailer_subjects_magic_link: OTP_SUBJECT, mailer_templates_magic_link_content: template,
+    /**
+     * The sign-in settings, in two requests: the settings themselves, then the two e-mail templates. Supabase refuses to change a template on a free-tier project that still uses its
+     * default e-mail provider (400 "Email template modification is not available for free tier projects using the default email provider", seen in launch run 31). That refusal is
+     * reported back as `templates: "refused"` so the run can go on and tell the owner the one thing to do; every other failure still stops the run.
+     */
+    async applyAuthSettings(template: string): Promise<{ templates: "applied" | "refused"; refusal?: string }> {
+      const settings = { external_email_enabled: true, mailer_autoconfirm: false, mailer_otp_length: 6, mailer_otp_exp: 3600, disable_signup: false };
+      const templates = { mailer_subjects_confirmation: OTP_SUBJECT, mailer_templates_confirmation_content: template, mailer_subjects_magic_link: OTP_SUBJECT, mailer_templates_magic_link_content: template };
+      const verify = async (sent: Record<string, unknown>) => {
+        const { data: now } = await call("GET", `/v1/projects/${ref}/config/auth`);
+        const wrong = Object.keys(sent).filter(key => now?.[key] !== sent[key]);
+        if (wrong.length) throw new Error(`auth settings did not take: ${wrong.join(", ")}`);
       };
-      await call("PATCH", `/v1/projects/${ref}/config/auth`, patch);
-      const { data: now } = await call("GET", `/v1/projects/${ref}/config/auth`);
-      const wrong = (Object.keys(patch) as Array<keyof typeof patch>).filter(key => now?.[key] !== patch[key]);
-      if (wrong.length) throw new Error(`auth settings did not take: ${wrong.join(", ")}`);
+      await call("PATCH", `/v1/projects/${ref}/config/auth`, settings);
+      await verify(settings);
+      try {
+        await call("PATCH", `/v1/projects/${ref}/config/auth`, templates);
+      } catch (error) {
+        const message = (error as Error).message;
+        if (isTemplateTierRefusal(message)) return { templates: "refused", refusal: message };
+        throw error;
+      }
+      await verify(templates);
+      return { templates: "applied" };
     },
-    /** The Data API serves only graphql_public: `public` (where the application's tables are) is not exposed. */
-    async closeDataApi() {
-      await call("PATCH", `/v1/projects/${ref}/postgrest`, { db_schema: "graphql_public" });
-      const { data: now } = await call("GET", `/v1/projects/${ref}/postgrest`);
-      const schemas = String(now?.db_schema ?? "").split(",").map((s: string) => s.trim());
-      if (schemas.includes("public")) throw new Error("the Data API still exposes the public schema");
+    /**
+     * The Data API serves only graphql_public: `public` (where the application's tables are) is not exposed.
+     * Supabase answers this PATCH with 500 "Postgrest config update did not succeed within the expected time frame ... The intended change might not have been applied" (launch run 35)
+     * even though the change may well have been applied; so a server error is never taken as the answer: the setting is read back, and only if `public` is still exposed is the
+     * PATCH repeated (up to 3 attempts, `pauseMs` apart). A 4xx (key/permission) is a real refusal and stops at once. The end state is always checked by reading, never assumed.
+     */
+    async closeDataApi(pauseMs = 5000): Promise<{ attempts: number; recovered: boolean }> {
+      const exposesPublic = async () => { const { data: now } = await call("GET", `/v1/projects/${ref}/postgrest`); return String(now?.db_schema ?? "").split(",").map((s: string) => s.trim()).includes("public"); };
+      let lastError = "";
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await call("PATCH", `/v1/projects/${ref}/postgrest`, { db_schema: "graphql_public" });
+          if (await exposesPublic()) throw new Error("the Data API still exposes the public schema");
+          return { attempts: attempt, recovered: false };
+        } catch (error) {
+          const message = (error as Error).message;
+          if (!/-> 5\d\d\b/.test(message)) throw error; // only a server-side error is worth reading back; anything else (4xx, "still exposes public") is final
+          lastError = message;
+          if (!(await exposesPublic())) return { attempts: attempt, recovered: true }; // the change was applied although the answer was an error
+          if (attempt < 3 && pauseMs > 0) await new Promise(resolve => setTimeout(resolve, pauseMs));
+        }
+      }
+      throw new Error(`the Data API still exposes the public schema after 3 attempts (${lastError})`);
     },
     /** Only the anon key is read from the list; the service_role entry is never copied, stored or printed. */
     async anonKey(): Promise<string> {
@@ -139,6 +181,18 @@ export async function downloadCa(fetchImpl: Fetch): Promise<string> {
 // ------------------------------------------------------------------------------------------------------------------ Vercel
 export type VercelEnv = { key: string; value: string; secret: boolean };
 
+/** Vercel's own words for a refusal: its code and message, short, never a secret. */
+export const vercelReason = (data: any) => { const e = data?.error ?? data; return `${e?.code ? `${String(e.code).slice(0, 60)}: ` : ""}${String(e?.message ?? "").replace(/\s+/g, " ").slice(0, 240)}`.trim(); };
+/** Only a refusal that is ABOUT the repository link / the GitHub app becomes the "connect GitHub" instruction; any other refusal (scope, plan, a rejected setting) is shown as what it is. */
+export const isGitLinkRefusal = (data: any) => /(repo|repository|github|git provider|git integration|git namespace|install)/i.test(vercelReason(data));
+
+/** The team a token acts for when VERCEL_TEAM_ID is not set: the account's own default team (a read). Undefined when Vercel does not say. */
+export async function discoverVercelTeam(fetchImpl: Fetch, token: string): Promise<string | undefined> {
+  const response = await fetchImpl("https://api.vercel.com/v2/user", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return undefined;
+  try { const id = JSON.parse(await response.text())?.user?.defaultTeamId; return typeof id === "string" && id ? id : undefined; } catch { return undefined; }
+}
+
 export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
   const call = client(fetchImpl, "https://api.vercel.com", token);
   const scope = teamId ? `teamId=${encodeURIComponent(teamId)}` : "";
@@ -153,8 +207,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
       const created = await call("POST", q("/v11/projects"), {
         name: VERCEL_PROJECT_NAME, framework: null, installCommand: "pnpm install --frozen-lockfile", buildCommand: "pnpm build:vercel", serverlessFunctionRegion: VERCEL_REGION,
         gitRepository: { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` },
-      }, [400, 403, 404]);
-      if (created.status !== 200 && created.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      }, [400, 402, 403, 404, 409]);
+      if (created.status !== 200 && created.status !== 201) {
+        if (isGitLinkRefusal(created.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v11/projects -> ${created.status} ${vercelReason(created.data)}`);
+      }
       return { id: created.data.id, created: true };
     }
     const project = found.data;
@@ -162,8 +219,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
     if (repo && repo !== want) throw new GuardError(`يوجد مشروع Vercel باسم "${VERCEL_PROJECT_NAME}" مربوط بمستودع آخر. لم يُكتب شيء.`);
     if (!repo) {
       // Not in the public OpenAPI (the documented way to connect a repository is `gitRepository` when the project is created). This is the call `vercel git connect` makes; any non-2xx falls back to the manual step.
-      const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 403, 404]);
-      if (linked.status !== 200 && linked.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      const linked = await call("POST", q(`/v9/projects/${project.id}/link`), { type: "github", repo: `${GITHUB_OWNER}/${GITHUB_REPO}` }, [400, 402, 403, 404, 409]);
+      if (linked.status !== 200 && linked.status !== 201) {
+        if (isGitLinkRefusal(linked.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v9/projects/{id}/link -> ${linked.status} ${vercelReason(linked.data)}`);
+      }
     }
     if (project.serverlessFunctionRegion !== VERCEL_REGION) await call("PATCH", q(`/v9/projects/${project.id}`), { serverlessFunctionRegion: VERCEL_REGION });
     return { id: project.id, created: false };
@@ -180,8 +240,11 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
       await call("POST", q(`/v10/projects/${projectId}/env?upsert=true`), vars.map(v => ({ key: v.key, value: v.value, type: v.secret ? "sensitive" : "plain", target: ["production"] })));
     },
     async deployProduction(): Promise<{ id: string }> {
-      const deployed = await call("POST", q("/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 403, 404]);
-      if (deployed.status !== 200 && deployed.status !== 201) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+      const deployed = await call("POST", q("/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1"), { name: VERCEL_PROJECT_NAME, project: VERCEL_PROJECT_NAME, target: "production", gitSource: { type: "github", org: GITHUB_OWNER, repo: GITHUB_REPO, ref: "main" } }, [400, 402, 403, 404, 409]);
+      if (deployed.status !== 200 && deployed.status !== 201) {
+        if (isGitLinkRefusal(deployed.data)) throw new ManualStep(GITHUB_LINK_INSTRUCTION);
+        throw new Error(`POST /v13/deployments -> ${deployed.status} ${vercelReason(deployed.data)}`);
+      }
       return { id: deployed.data.id };
     },
     async waitReady(deploymentId: string, options: { intervalMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void> } = {}) {
@@ -191,7 +254,13 @@ export function vercelApi(fetchImpl: Fetch, token: string, teamId?: string) {
         const { data } = await call("GET", q(`/v13/deployments/${deploymentId}`));
         const state = data?.readyState ?? data?.status;
         if (state === "READY") return { url: String(data.url ?? ""), aliases: (data.alias ?? []) as string[] };
-        if (state === "ERROR" || state === "CANCELED") throw new Error(`deployment ended as ${state}`);
+        if (state === "ERROR" || state === "CANCELED") {
+          const why = [data?.errorCode, data?.errorMessage].filter(Boolean).join(": ").replace(/\s+/g, " ").slice(0, 240);
+          // the last error lines of the build log (Vercel masks its own sensitive variables in them); a failure to read them changes nothing
+          const events = await call("GET", q(`/v3/deployments/${deploymentId}/events?limit=-1&direction=backward`), undefined, [400, 403, 404]).catch(() => ({ status: 0, data: null as any }));
+          const lines = (Array.isArray(events.data) ? events.data : []).map((event: any) => String(event?.text ?? event?.payload?.text ?? "")).filter((text: string) => /(error|failed|cannot|exceed|invalid|maxDuration|not allowed)/i.test(text)).slice(0, 5).map((text: string) => text.replace(/\s+/g, " ").slice(0, 160));
+          throw new Error(`deployment ended as ${state}${why ? ` — ${why}` : ""}${lines.length ? ` — ${lines.join(" | ")}` : ""}`);
+        }
         if (Date.now() > deadline) throw new Error("deployment did not finish in 15 minutes");
         await sleep(interval);
       }

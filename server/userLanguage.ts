@@ -8,7 +8,7 @@ import { users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { INTERFACE_LANGUAGES, type InterfaceLanguage } from "@shared/interfaceLanguages";
 
-// The table is defined here, not in drizzle/schema.ts, and it is created only by migration drizzle/0008_wo16_user_language.sql. Reason: the baseline
+// The table is defined here, not in drizzle/schema.ts, and it is created only by migration drizzle/0015_wo16_user_language.sql. Reason: the baseline
 // (0000) is followed by 0006, which re-creates project_os_apply_conventions() with the list as it was then and runs the sweep. A table created in the
 // baseline would be refused there ("not classified"). Migration 0008 creates the table and re-creates the function with the table in its list, before
 // its own sweep runs. Keep this definition and that migration in step (the same columns and the same check).

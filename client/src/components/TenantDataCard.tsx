@@ -26,7 +26,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         lastExport: (at: string) => `آخر تصدير كامل: ${at}`, noExport: "لم يُجرَ أي تصدير كامل بعد.",
         danger: "الحذف النهائي", needExport: "لا يتاح الحذف إلا بعد تنزيل نسخة كاملة خلال الأيام السبعة الماضية.",
         ask: "أريد حذف بيانات الشركة نهائيًا", asking: "جارٍ التحضير…",
-        warn: (rows: number, files: number, people: number) => `سيُحذف ${rows} سجلًا و${files} ملفًا، ويُمحى اسم ${people} من الأشخاص وبريدهم ما داموا لا ينتمون إلى شركة أخرى. يبقى سجل التدقيق (يسجّل أن الحذف تم) وهيكل فارغ باسم محذوف.`,
+        warn: (rows: number, files: number, people: number) => `سيُحذف ${rows} سجلًا و${files} ملفًا، وتُزال عضويات ${people} من الأشخاص فيها؛ حساباتهم وهوياتهم لا تُحذف ويستطيعون الدخول بعدها. يبقى سجل التدقيق (يسجّل أن الحذف تم) وهيكل فارغ باسم محذوف.`,
         typeName: (name: string) => `اكتب اسم الشركة تمامًا كما هو: ${name}`, nameLabel: "اسم الشركة", understand: "أفهم أن الحذف نهائي ولا يمكن التراجع عنه.",
         deleteNow: "احذف بيانات الشركة نهائيًا", deleting: "جارٍ الحذف…", expires: "ينتهي هذا التأكيد خلال 15 دقيقة.",
         done: "اكتمل الحذف", pass: "التحقق: نجح — لا سجل واحد متبقٍّ في أي جدول.", fail: "التحقق: لم يكتمل — بقيت عناصر مذكورة أدناه. أعد المحاولة أو راسل الدعم.",
@@ -39,7 +39,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         lastExport: (at: string) => `Last full export: ${at}`, noExport: "No full export yet.",
         danger: "Permanent deletion", needExport: "Deletion is available only after a full copy was downloaded in the last 7 days.",
         ask: "I want to delete the company's data permanently", asking: "Preparing…",
-        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the name and e-mail of ${people} people are erased unless they belong to another company. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
+        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the memberships of ${people} people in it are removed; their accounts and identities are NOT deleted and they can still sign in. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
         typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "Company name", understand: "I understand the deletion is permanent and cannot be undone.",
         deleteNow: "Delete the company's data permanently", deleting: "Deleting…", expires: "This confirmation expires in 15 minutes.",
         done: "Deletion finished", pass: "Verification: passed — no record is left in any table.", fail: "Verification: incomplete — items remain, listed below. Try again or contact support.",
@@ -52,7 +52,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         lastExport: (at: string) => `Last full export: ${at}`, noExport: "No full export yet.",
         danger: "Permanent deletion", needExport: "Deletion is available only after a full copy was downloaded in the last 7 days.",
         ask: "I want to delete the company's data permanently", asking: "Preparing…",
-        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the name and e-mail of ${people} people are erased unless they belong to another company. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
+        warn: (rows: number, files: number, people: number) => `${rows} records and ${files} files will be deleted, and the memberships of ${people} people in it are removed; their accounts and identities are NOT deleted and they can still sign in. The audit trail stays (it records that the deletion happened), with an empty shell under a deleted name.`,
         typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "Company name", understand: "I understand the deletion is permanent and cannot be undone.",
         deleteNow: "Delete the company's data permanently", deleting: "Deleting…", expires: "This confirmation expires in 15 minutes.",
         done: "Deletion finished", pass: "Verification: passed — no record is left in any table.", fail: "Verification: incomplete — items remain, listed below. Try again or contact support.",
@@ -101,7 +101,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
             <div className="mt-3"><Button type="button" variant="destructive" disabled={request.isPending} onClick={() => request.mutate({ tenantId })}>{request.isPending ? t.asking : t.ask}</Button></div>
           ) : (
             <form className="mt-3 space-y-3" onSubmit={event => { event.preventDefault(); if (canDelete) confirm.mutate({ tenantId, confirmationToken: asked.confirmationToken, typedName, understandsItCannotBeUndone: true }); }}>
-              <p className="text-sm text-red-900">{t.warn(asked.totalRows, asked.files, asked.usersToScrub)}</p>
+              <p className="text-sm text-red-900">{t.warn(asked.totalRows, asked.files, asked.peopleKept)}</p>
               <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-red-900">{t.typeName(asked.companyName)}</p></div>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} className="mt-1" />{t.understand}</label>
               <p className="text-xs text-red-900">{t.expires}</p>

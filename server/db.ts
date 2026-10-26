@@ -1,7 +1,8 @@
+import { isReservedMailDomain, mailGateConfigFromEnv } from "./emailGate";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
 import { resolveScopedAccess } from "./scopeAccess";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -117,6 +118,7 @@ import {
   pmcBaselines,
 } from "../drizzle/schema";
 import { hasScopeAccess, productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
+import { defaultCommercialFeatures, defaultCommercialPlans } from "./domain/commercialCatalog";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
 import { calculateOperationalEvm, type OperationalEvmSources } from "./domain/operationalEvm";
@@ -134,6 +136,7 @@ import { structuredPayslipRenderer } from "./domain/payslipRenderer";
 import { buildPmoPlanningOverview } from "./domain/pmoPlanning";
 import { buildPmoTodayExceptions } from "./domain/pmoTodayExceptions";
 import { ENV } from "./_core/env";
+import { openIdForEmail } from "./_core/auth/emailCode";
 import { invokeLLM, isLlmEnabled } from "./_core/llm";
 import { MAX_DIRECT_UPLOAD_BYTES, storageGetSignedUrl, storagePut } from "./storage";
 import { takeDirectUpload } from "./directUploadKeys";
@@ -147,13 +150,14 @@ import { diffHash, diffImportRows, summariseDiff, DIFF_PAGE_SIZE, CYCLE_MODULES,
 import { isLedgerModule, type LedgerModule } from "@shared/ledgerImportColumns";
 import { analyzeImportFile, buildImportTemplateFile, buildLedgerTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
-import { openIdForEmail } from "./_core/auth/emailCode";
+import { defaultRoleFor } from "./_core/userRole";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
 import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } from "./domain/paymentProvider";
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 import { createInFlight } from "./inFlight";
 import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
+import { decideTemplateRemovals, listTemplateRemovals, proposeRetiredTemplateRemovals } from "./roleTemplateSync";
 import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
 
 export { getDb } from "./_core/database";
@@ -172,9 +176,28 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet[field] = user[field] ?? null;
     }
   }
-  values.role = user.role ?? (ENV.ownerEmail && user.openId === openIdForEmail(ENV.ownerEmail) ? "admin" : "user");
+  values.role = user.role ?? defaultRoleFor(user.openId);
   updateSet.role = values.role;
   await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
+}
+
+/**
+ * Sign-in is by invitation only (owner's decision 2026-10-25, docs/TASLEEM_AUDIT.md 1.11). An address may sign in when it is the platform owner's (OWNER_EMAIL), already has an account, or
+ * has a pending, unexpired invitation from a company. Everyone else gets no code and no session. The check spans companies (an invitation belongs to one), so it reads in the system view.
+ */
+export async function isEligibleToSignIn(rawEmail: string): Promise<boolean> {
+  const email = rawEmail.trim().toLowerCase();
+  if (ENV.ownerEmail && email === ENV.ownerEmail) return true;
+  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all.
+  if (mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
+  if (ENV.registrationOpen) return true;
+  return withSystemContext("invite-only sign-in: does this address have an account or a pending invitation", async () => {
+    const db = await getDb(); if (!db) return false;
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.openId, openIdForEmail(email))).limit(1);
+    if (user) return true;
+    const [invitation] = await db.select({ id: membershipInvitations.id }).from(membershipInvitations).where(and(eq(membershipInvitations.email, email), eq(membershipInvitations.status, "pending"), gt(membershipInvitations.expiresAt, new Date()))).limit(1);
+    return Boolean(invitation);
+  });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -250,27 +273,6 @@ async function assertPlatformAdministrator(userId: number): Promise<void> {
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
   if (user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_LICENSING_ADMIN_REQUIRED" });
 }
-
-const defaultCommercialPlans = [
-  { code: "EXECUTIVE_STANDARD", name: "Executive Standard", packageCode: "EXECUTIVE" as SubscriptionPackageCode },
-  { code: "PMO_STANDARD", name: "PMO Standard", packageCode: "PMO" as SubscriptionPackageCode },
-  { code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" as SubscriptionPackageCode },
-  { code: "EXECUTIVE_PMO_STANDARD", name: "Executive + PMO Standard", packageCode: "EXECUTIVE + PMO" as SubscriptionPackageCode },
-  { code: "PMO_PROJECT_STANDARD", name: "PMO + Project Standard", packageCode: "PMO + PROJECT" as SubscriptionPackageCode },
-  { code: "EXECUTIVE_PROJECT_STANDARD", name: "Executive + Project Standard", packageCode: "EXECUTIVE + PROJECT" as SubscriptionPackageCode },
-  { code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", packageCode: "ALL-IN-ONE" as SubscriptionPackageCode },
-];
-
-const defaultCommercialFeatures = [
-  { code: "MASTER_PLAN", name: "Master Plan", productCode: "PROJECT" as ProductCode },
-  { code: "MASTER_PLAN_ENTITIES", name: "Master Plan spatial entities", productCode: "PROJECT" as ProductCode },
-  { code: "DATA_IMPORT", name: "Data import", productCode: "PROJECT" as ProductCode },
-  { code: "DATA_EXPORT", name: "Data export", productCode: "PROJECT" as ProductCode },
-  { code: "PROJECT_LIMIT", name: "Project limit", productCode: "PROJECT" as ProductCode },
-  { code: "STORAGE_BYTES", name: "Document storage bytes", productCode: "PROJECT" as ProductCode },
-  { code: "PMC", name: "Project control (PMC)", productCode: "PROJECT" as ProductCode },
-  { code: "AI_ADVISORY_MONTHLY", name: "Monthly AI advisory requests", productCode: "PROJECT" as ProductCode },
-];
 
 export async function ensureDefaultCommercialCatalog(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   await db.insert(commercialPlans).values(defaultCommercialPlans.map(plan => ({ id: crypto.randomUUID(), ...plan, active: true }))).onConflictDoUpdate({ target: commercialPlans.code, set: { active: true } });
@@ -384,6 +386,31 @@ export async function getCommercialCatalogForAdministrator(input: { userId: numb
   return { plans, features, planFeatures };
 }
 
+/**
+ * The platform administrator's overview: every company with its licence, and the plan catalogue. Only the administrator (users.role = 'admin') may ask; it reads across companies,
+ * which only the system view can do. The company list is capped at 500 rows with the TRUE total beside it, so a long list is never mistaken for the whole.
+ */
+export async function getPlatformOverview(input: { userId: number }) {
+  await assertPlatformAdministrator(input.userId);
+  return withSystemContext("the platform administrator reads every company, plan and licence", async () => {
+    const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+    const cap = 500;
+    const [totals, companyRows, licenseRows, plans] = await Promise.all([
+      db.select({ companies: sql<number>`count(*)::int` }).from(companies),
+      db.select({ id: companies.id, legalName: companies.legalName, slug: companies.slug, status: companies.status, createdAt: companies.createdAt }).from(companies).orderBy(desc(companies.createdAt)).limit(cap),
+      db.select({ tenantId: tenantLicenses.tenantId, status: tenantLicenses.status, seats: tenantLicenses.seats, createdAt: tenantLicenses.createdAt, planCode: commercialPlans.code, planName: commercialPlans.name }).from(tenantLicenses).innerJoin(commercialPlans, eq(commercialPlans.id, tenantLicenses.planId)).orderBy(desc(tenantLicenses.createdAt)),
+      db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode, active: commercialPlans.active }).from(commercialPlans).orderBy(commercialPlans.code),
+    ]);
+    const latest = new Map<string, (typeof licenseRows)[number]>();
+    for (const row of licenseRows) if (!latest.has(row.tenantId)) latest.set(row.tenantId, row); // newest first, so the first seen is the current licence
+    return {
+      totalCompanies: totals[0]?.companies ?? 0, shownCompanies: companyRows.length, truncated: (totals[0]?.companies ?? 0) > companyRows.length,
+      companies: companyRows.map(company => { const license = latest.get(company.id); return { ...company, license: license ? { status: license.status, seats: license.seats, planCode: license.planCode, planName: license.planName } : null }; }),
+      plans,
+    };
+  });
+}
+
 export async function getTenantLicenseForManager(input: { userId: number; tenantId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const [actor] = await db.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
@@ -408,7 +435,7 @@ export async function provisionTenantLicense(input: { actorUserId: number; tenan
     else await tx.insert(subscriptions).values({ id: subscriptionId, tenantId: input.tenantId, packageCode: plan.packageCode, status: input.status, startsAt: now, endsAt: input.endsAt });
     const [existingLicense] = await tx.select({ id: tenantLicenses.id }).from(tenantLicenses).where(eq(tenantLicenses.subscriptionId, subscriptionId)).limit(1); const licenseId = existingLicense?.id ?? crypto.randomUUID();
     const licenseValues = { tenantId: input.tenantId, subscriptionId, planId: plan.id, status: input.status, seats: input.seats, priceAmount: String(input.priceAmount ?? 0), discountAmount: String(input.discountAmount ?? 0), manualActivation: input.manualActivation, startsAt: now, endsAt: input.endsAt, trialEndsAt: input.trialEndsAt, graceEndsAt: input.graceEndsAt, createdByUserId: input.actorUserId };
-    if (existingLicense) await tx.update(tenantLicenses).set(licenseValues).where(eq(tenantLicenses.id, licenseId)); else await tx.insert(tenantLicenses).values({ id: licenseId, ...licenseValues });
+    if (existingLicense) { const { tenantId: _sameCompany, ...changeable } = licenseValues; await tx.update(tenantLicenses).set(changeable).where(eq(tenantLicenses.id, licenseId)); } /* tenant_id is immutable for the application role (work order 20, item 3): the licence already belongs to this company */ else await tx.insert(tenantLicenses).values({ id: licenseId, ...licenseValues });
     await tx.update(tenantEntitlements).set({ active: false }).where(eq(tenantEntitlements.subscriptionId, subscriptionId));
     for (const productCode of productsForPackage(plan.packageCode as SubscriptionPackageCode)) await tx.insert(tenantEntitlements).values({ id: crypto.randomUUID(), tenantId: input.tenantId, subscriptionId, productCode, active, startsAt: now, endsAt: input.endsAt }).onConflictDoUpdate({ target: [tenantEntitlements.subscriptionId, tenantEntitlements.productCode], set: { active, startsAt: now, endsAt: input.endsAt } });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "licensing.license_provisioned", entityType: "tenant_license", entityId: licenseId, metadata: JSON.stringify({ subscriptionId, planCode: input.planCode, status: input.status, seats: input.seats, manualActivation: input.manualActivation }) });
@@ -845,14 +872,52 @@ type OperationalTx = Parameters<Parameters<OperationalDb["transaction"]>[0]>[0];
  * company-creation transactions (new companies only) and from the administration read (ensureTenantOperationalRoles), as it always was.
  * Idempotent: role rows are upserted and permission links use ON CONFLICT DO NOTHING, so a call adds nothing beyond the template.
  */
-async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string) {
+async function installOperationalRoleTemplates(tx: OperationalTx, tenantId: string, options: { audit?: boolean } = {}) {
   for (const definition of operationalRoleDefinitions) {
     await tx.insert(roles).values({ id: crypto.randomUUID(), tenantId, code: definition.code, name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true }).onConflictDoUpdate({ target: [roles.tenantId, roles.code], set: { name: definition.name, productCode: ("productCode" in definition && definition.productCode) || "PROJECT", systemManaged: true } });
     const [role] = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.tenantId, tenantId), eq(roles.code, definition.code))).limit(1);
-    const permissionRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
+    const permissionRows = await tx.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, [...definition.permissions]));
     if (!role || permissionRows.length !== definition.permissions.length) throw new Error("PROJECT_OS_OPERATIONAL_ROLE_CATALOG_INVALID");
-    for (const permission of permissionRows) await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
+    for (const permission of permissionRows) {
+      const added = await tx.insert(rolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing().returning({ roleId: rolePermissions.roleId });
+      // An addition that reaches an EXISTING company is written to its audit trail (a new company's first install is not news).
+      if (options.audit && added.length) await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId, actorUserId: null, action: "role_template.permission_added", entityType: "role", entityId: role.id, metadata: JSON.stringify({ role: definition.code, permission: permission.code, source: "template sync" }) });
+    }
   }
+  if (options.audit) await proposeRetiredTemplateRemovals(tx, tenantId);
+}
+
+/** Puts every permission of the catalog back by code (an upsert). The catalog is shared by every company; a test that has to replace some of it uses this to leave it whole. */
+export async function restorePermissionCatalog(): Promise<void> {
+  await withSystemContext("restore the shared permission catalog", async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    for (const permission of allCatalogPermissions) await db.insert(permissions).values({ id: crypto.randomUUID(), ...permission }).onConflictDoUpdate({ target: permissions.code, set: { name: permission.name } });
+  });
+}
+
+export async function getRoleTemplateRemovals(input: { userId: number; tenantId: string; status?: "pending" | "approved" | "declined" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  return listTemplateRemovals(db, input.tenantId, input.status ?? "pending");
+}
+export async function decideRoleTemplateRemovals(input: { userId: number; tenantId: string; ids: string[]; decision: "approve" | "decline" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantManager(input.userId, input.tenantId);
+  return decideTemplateRemovals(db, { tenantId: input.tenantId, actorUserId: input.userId, ids: input.ids, decision: input.decision });
+}
+
+/** Brings every existing company up to the current templates (additions applied and audited, retired powers proposed for approval). Safe to run again. */
+export async function syncRoleTemplatesForAllTenants(): Promise<{ companies: number }> {
+  return withSystemContext("sync the ready-made role templates into every existing company", async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    const rows = await db.select({ id: companies.id }).from(companies).where(eq(companies.status, "active"));
+    for (const row of rows) await ensureTenantOperationalRoles(db, row.id);
+    return { companies: rows.length };
+  });
 }
 
 /**
@@ -870,7 +935,7 @@ async function ensureTenantOperationalRoles(db: OperationalDb, tenantId: string)
       const catalogRows = await tx.select({ id: permissions.id }).from(permissions).where(inArray(permissions.code, allCatalogPermissions.map(permission => permission.code)));
       for (const permission of catalogRows) await tx.insert(rolePermissions).values({ roleId: ownerRole.id, permissionId: permission.id }).onConflictDoNothing();
     }
-    await installOperationalRoleTemplates(tx, tenantId);
+    await installOperationalRoleTemplates(tx, tenantId, { audit: true });
   });
 }
 
@@ -929,10 +994,23 @@ function normalizedEmailHash(email: string) {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 }
 
+/** Creating a company is the platform owner's act while registration is closed (REGISTRATION unset). The stored role decides, never the role the request claims. */
+export async function assertMayCreateCompany(userId: number): Promise<void> {
+  if (ENV.registrationOpen) return;
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_COMPANY_CREATION_OWNER_ONLY" });
+}
+
 export async function getPublicCommercialPlans() {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
-  await ensureDefaultCommercialCatalog(db);
-  return db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
+  const readPlans = () => db.select({ code: commercialPlans.code, name: commercialPlans.name, packageCode: commercialPlans.packageCode }).from(commercialPlans).where(eq(commercialPlans.active, true)).orderBy(commercialPlans.code);
+  // A READ comes first and never writes. The catalogue is planted by the launch button (scripts/bootstrap/run.ts `catalog`); only an EMPTY one is planted here as a fallback. Before this,
+  // every call began with seven upserts, so a refusal of any of them (a missing grant, a lock) took the whole list down with "Loading plans…" and no word on screen about why.
+  const plans = await readPlans();
+  if (plans.length) return plans;
+  try { await ensureDefaultCommercialCatalog(db); } catch (error) { logError("plans.default_catalog_failed", error, { databaseCode: safeDatabaseErrorCode(error) }); throw error; }
+  return readPlans();
 }
 
 // The query layer wraps the driver's error ("Failed query: ..."); isUniqueViolation reads the SQLSTATE (23505) off its cause.
@@ -3351,10 +3429,14 @@ export async function getProfitabilityCostBreakdownForTenant(input: { userId: nu
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cashflow.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const where = and(eq(costEntries.tenantId, input.tenantId), eq(costEntries.projectId, input.projectId), eq(costEntries.status, "posted"), eq(costEntries.entryType, "actual"), input.wbsItemId ? eq(costEntries.wbsItemId, input.wbsItemId) : undefined);
-  const lines = await db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt)).limit(500);
-  const byCategory = new Map<string, number>();
-  for (const line of lines) byCategory.set(line.category, round2((byCategory.get(line.category) ?? 0) + Number(line.amount)));
-  return { truncated: lines.length === 500, byCategory: Array.from(byCategory, ([category, amount]) => ({ category, amount })), lines: lines.slice(0, 100).map(line => ({ ...line, amount: Number(line.amount) })) };
+  // The totals by category are summed by the database over EVERY posted line; only the list of lines is cut (the newest 100, for display). It used to read the newest 500 lines
+  // and add them up in memory, so a project with more than 500 cost lines showed category totals that left the older lines out, with nothing on screen to say so.
+  const [totals, lines] = await Promise.all([
+    db.select({ category: costEntries.category, amount: sql<string>`COALESCE(SUM(${costEntries.amount}), 0)`, count: sql<number>`count(*)` }).from(costEntries).where(where).groupBy(costEntries.category).orderBy(costEntries.category),
+    db.select({ id: costEntries.id, wbsItemId: costEntries.wbsItemId, amount: costEntries.amount, category: costEntries.category, sourceType: costEntries.sourceType, sourceId: costEntries.sourceId, incurredAt: costEntries.incurredAt }).from(costEntries).where(where).orderBy(desc(costEntries.incurredAt), desc(costEntries.id)).limit(100),
+  ]);
+  const totalLines = totals.reduce((sum, row) => sum + Number(row.count), 0);
+  return { truncated: totalLines > lines.length, totalLines, byCategory: totals.map(row => ({ category: row.category, amount: round2(Number(row.amount)) })), lines: lines.map(line => ({ ...line, amount: Number(line.amount) })) };
 }
 
 /** FPAC over the stored snapshots (oldest first), for the trend line. */
@@ -3672,7 +3754,8 @@ export async function assertImportAccess(input: { userId: number; tenantId: stri
 }
 
 /** Everything a new import must clear before any byte of its file is read: tenant access, project membership of the tenant, the module permission, the plan feature and its count limit. */
-export async function authorizeNewImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode }) {
+/** `moduleCode: "any"` clears the gate every importer shares (any import permission, the DATA_IMPORT feature): the smart upload box asks it before it knows which importer a file belongs to. */
+export async function authorizeNewImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode | "any" }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(input.moduleCode), scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });

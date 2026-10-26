@@ -61,7 +61,7 @@ describe("project error map", () => {
       messages: {
         ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
         en: "This workspace slug is already in use. Choose a different workspace slug.",
-        ur: "This workspace slug is already in use. Choose a different workspace slug.",
+        ur: "یہ مختصر نام پہلے سے استعمال ہو رہا ہے۔ کوئی اور مختصر نام منتخب کریں۔",
       },
     });
     expect(getProjectError("PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE")).toEqual({

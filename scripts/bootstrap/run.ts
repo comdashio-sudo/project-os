@@ -2,15 +2,18 @@
 //   node --import tsx scripts/bootstrap/run.ts supabase   guard, sign-in settings, Data API, keys, connection strings, secrets  -> exports to the next steps
 //   node --import tsx scripts/bootstrap/run.ts vercel     project, variables, production deploy, address, health check
 //   node --import tsx scripts/bootstrap/run.ts database   guard, then ONLY the connection string and certificate for the next steps (changes nothing; the demonstration company's workflow uses it)
+//   node --import tsx scripts/bootstrap/run.ts catalog    after the migrations: plant the plan catalogue (no company data) and read back the plan count and the platform owner's role
 //   node --import tsx scripts/bootstrap/run.ts summary    renders the Arabic job summary from the state file (runs even after a failure)
 // Secrets are masked (::add-mask::) the moment they exist and are never printed. Re-running is safe: generated secrets are kept, the app-role password is derived.
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { GuardError, ManualStep, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
+import { runPreflight, renderPreflight, type Finding } from "./preflight.ts";
+import { EXPECTED_PLANS, checkPlatformOwner, plantCatalog } from "./catalog.ts";
+import { GuardError, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
-type State = { steps: Step[]; url?: string; health?: string; manual: string[] };
+type State = { steps: Step[]; url?: string; health?: string; manual: string[]; preflight?: Finding[] };
 const STATE_FILE = process.env.BOOTSTRAP_STATE ?? join(process.env.RUNNER_TEMP ?? ".", "bootstrap-state.json");
 const readState = (): State => (existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, "utf8")) : { steps: [], manual: [] });
 const state = readState();
@@ -20,7 +23,7 @@ const mask = (value: string) => { if (value) console.log(`::add-mask::${value}`)
 // Values pasted into GitHub often carry a trailing space or newline; trimming them is not a loosening of any guard, the checks still run on the value.
 const optional = (name: string) => (process.env[name] ?? "").trim();
 const need = (name: string) => { const value = optional(name); if (!value) throw new GuardError(`المتغير ${name} غير مضبوط في GitHub (Settings ← Secrets and variables ← Actions).`); return value; };
-const PHASE_LABEL: Record<string, string> = { supabase: "مرحلة Supabase", vercel: "مرحلة Vercel" };
+const PHASE_LABEL: Record<string, string> = { preflight: "الفحص المسبق", supabase: "مرحلة Supabase", catalog: "مرحلة كتالوج الخطط ومالك المنصة", vercel: "مرحلة Vercel" };
 const exportEnv = (name: string, value: string) => { const file = process.env.GITHUB_ENV; if (!file) throw new Error("GITHUB_ENV is not available"); const tag = `EOF_${randomBytes(6).toString("hex")}`; appendFileSync(file, `${name}<<${tag}\n${value}\n${tag}\n`); };
 const realFetch: Fetch = (url, init) => fetch(url, init as RequestInit);
 
@@ -33,10 +36,15 @@ async function supabasePhase() {
   const { region, organisationCheck, organisationSlug } = await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
   step("التحقق من أن المشروع والمنظمة هما المقصودان فقط", "ok", `المشروع ${SUPABASE_PROJECT_REF}؛ ${organisationCheck === "organisation" ? "المنظمة dashio قُرئت وطابقت" : `المفتاح محصور بالمشروع ولا يقرأ المنظمة، فطُبِّق التحقق بالمعرّف المثبَّت (${organisationSlug})`}`);
 
-  await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
-  step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
-  await api.closeDataApi();
-  step("واجهة Data API: أُزيل المخطط public من المكشوف", "ok");
+  const auth = await api.applyAuthSettings(readFileSync("docs/auth-email-templates/otp.html", "utf8"));
+  if (auth.templates === "applied") step("إعدادات الدخول: البريد مفعّل، تأكيد البريد، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح، وقالبا Confirm signup وMagic Link", "ok");
+  else {
+    step("إعدادات الدخول: البريد مفعّل، رمز 6 أرقام، صلاحية 3600 ثانية، التسجيل مسموح", "ok");
+    state.manual.unshift(TEMPLATE_TIER_INSTRUCTION); // first in the list: until it is done nobody can sign in with a code
+    step("قالبا بريد الدخول (Confirm signup وMagic Link)", "manual", "رفضتهما Supabase على الخطة المجانية بمزوّد البريد الافتراضي — انظر أول بند أسفل الملخص");
+  }
+  const dataApi = await api.closeDataApi();
+  step("واجهة Data API: أُزيل المخطط public من المكشوف", "ok", dataApi.recovered ? "ردّ Supabase بخطأ خادم (500) لكن القراءة اللاحقة أثبتت أن التغيير طُبِّق" : dataApi.attempts > 1 ? `نجح بعد ${dataApi.attempts} محاولات` : undefined);
 
   const anonKey = await api.anonKey(); mask(anonKey);
   const poolerHost = await api.poolerHost();
@@ -59,18 +67,79 @@ async function databasePhase() {
   const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
   const token = need("SUPABASE_ACCESS_TOKEN"); mask(token);
   const api = supabaseApi(realFetch, token);
-  await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
+  const target = await api.assertTarget(optional("SUPABASE_ORGANIZATION_SLUG")); // refuses (nothing written) unless project id AND organisation name match
   const poolerHost = await api.poolerHost();
   const ca = await downloadCa(realFetch);
   const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost, databasePassword, appRolePassword: deriveAppRolePassword(databasePassword) });
   mask(urls.adminSession);
   exportEnv("DATABASE_URL", urls.adminSession); exportEnv("DATABASE_SSL_CA", ca);
+  // for the daily backup, which also reads the storage buckets through the project's S3 endpoint (public information; the access keys are the repository's secrets)
+  exportEnv("STORAGE_S3_ENDPOINT", storageEndpoint(SUPABASE_PROJECT_REF)); exportEnv("STORAGE_S3_REGION", target.region || "ap-southeast-1");
   step("اتصال قاعدة البيانات للمشروع المقصود فقط", "ok");
+}
+
+/**
+ * After the migrations: plant the plan catalogue and prove, by reading, the two facts the first sign-in needs -- how many plans exist, and whether OWNER_EMAIL holds the
+ * platform-administrator role. The summary line is the proof; nothing about a company is created (see scripts/bootstrap/catalog.ts).
+ */
+async function catalogPhase() {
+  const ownerEmail = normalizeOwnerEmail(need("OWNER_EMAIL"));
+  const { default: pg } = await import("pg");
+  const ca = optional("DATABASE_SSL_CA");
+  const client = new pg.Client({ connectionString: need("DATABASE_URL"), ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) }, connectionTimeoutMillis: 15_000 });
+  await client.connect();
+  try {
+    const report = await plantCatalog(client);
+    const planted = report.plansPlanted + report.featuresPlanted + report.linksPlanted;
+    const detail = `خطط فعّالة: ${report.activePlans} من ${EXPECTED_PLANS}؛ ميزات: ${report.features}؛ ربط الخطط بالميزات: ${report.links}؛ ${planted ? `زُرع الآن: ${report.plansPlanted} خطة و${report.featuresPlanted} ميزة و${report.linksPlanted} ربطًا` : "لم يُضَف شيء (الكتالوج مكتمل)"}`;
+    step("كتالوج الخطط في الإنتاج (قراءة فعلية بعد الزرع)", report.activePlans >= EXPECTED_PLANS ? "ok" : "failed", detail);
+    if (report.activePlans < EXPECTED_PLANS) process.exitCode = 1;
+    const owner = await checkPlatformOwner(client, ownerEmail);
+    if (owner.state === "admin") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ نعم", "ok");
+    else if (owner.state === "corrected") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ نعم (كان دوره «" + owner.roleBefore + "» وصُحِّح الآن)", "ok");
+    else if (owner.state === "not_signed_in_yet") step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ لا يوجد حساب بعد", "manual", "لم يدخل بهذا البريد حتى الآن؛ أول دخول به يمنحه الدور");
+    else { step("مالك المنصة: هل OWNER_EMAIL يحمل دور مالك المنصة في القاعدة؟ لا", "failed", `الدور بقي «${owner.roleBefore}» رغم محاولة التصحيح`); process.exitCode = 1; }
+  } finally { await client.end(); }
+}
+
+async function preflightPhase() {
+  const env = process.env as Record<string, string | undefined>;
+  const ca = optional("DATABASE_SSL_CA") || (await downloadCa(realFetch).catch(() => ""));
+  const { default: pg } = await import("pg");
+  const open = async (user: string, password: string, host: string, port: number) => {
+    const client = new pg.Client({ host, port, user, password, database: "postgres", ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) }, connectionTimeoutMillis: 15_000 });
+    await client.connect();
+    return client;
+  };
+  const password = optional("SUPABASE_DB_PASSWORD");
+  const findings = await runPreflight({
+    fetch: realFetch, env,
+    migrationFilesCount: readdirSync("drizzle").filter(name => /^\d{4}_.*\.sql$/.test(name)).length,
+    openDatabase: async ({ poolerHost }) => {
+      const client = await open(`postgres.${SUPABASE_PROJECT_REF}`, password, poolerHost, 5432);
+      return { query: async (sql, params) => (await client.query(sql, params as unknown[])).rows, close: () => client.end() };
+    },
+    tryAppRole: async ({ poolerHost, port }) => {
+      try { const client = await open(`project_os_app.${SUPABASE_PROJECT_REF}`, deriveAppRolePassword(password), poolerHost, port); await client.end(); return "ok"; }
+      catch (error) { return (error as { code?: string }).code ?? "UNKNOWN"; }
+    },
+    listBuckets: async () => {
+      const { S3Client, ListBucketsCommand } = await import("@aws-sdk/client-s3");
+      const client = new S3Client({ region: optional("BOOTSTRAP_REGION") || "ap-southeast-1", endpoint: storageEndpoint(SUPABASE_PROJECT_REF), forcePathStyle: true, requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED", credentials: { accessKeyId: optional("STORAGE_S3_ACCESS_KEY_ID"), secretAccessKey: optional("STORAGE_S3_SECRET_ACCESS_KEY") } });
+      try { await client.send(new ListBucketsCommand({})); return "ok"; }
+      catch (error) { const e = error as { name?: string; $metadata?: { httpStatusCode?: number } }; return `${e.name ?? "Error"} ${e.$metadata?.httpStatusCode ?? ""}`.trim(); }
+    },
+  });
+  state.preflight = findings; save();
+  const blocking = findings.filter(item => item.status === "block");
+  step("الفحص المسبق (قراءة فقط، لم يُكتب شيء)", blocking.length ? "failed" : "ok", blocking.length ? `${blocking.length} مشكلة تمنع التشغيل — القائمة الكاملة أسفل الملخص` : "لا مشكلة تمنع التشغيل");
+  if (blocking.length) process.exitCode = 1;
 }
 
 async function vercelPhase() {
   const token = need("VERCEL_TOKEN"); mask(token);
-  const api = vercelApi(realFetch, token, optional("VERCEL_TEAM_ID") || undefined);
+  const teamId = optional("VERCEL_TEAM_ID") || await discoverVercelTeam(realFetch, token); // a token scoped to an account's own team acts on that team
+  const api = vercelApi(realFetch, token, teamId || undefined);
   const project = await api.ensureProject();
   step(project.created ? "أُنشئ مشروع Vercel باسم dashio مربوطًا بالمستودع في المنطقة sin1" : "مشروع Vercel dashio موجود ومربوط بالمستودع الصحيح، والمنطقة sin1", "ok");
 
@@ -112,7 +181,10 @@ function summary() {
   const lines: string[] = ["# إعداد الإطلاق بزر واحد", ""];
   const icon = { ok: "✅", manual: "🟡", failed: "❌" } as const;
   for (const s of state.steps) lines.push(`- ${icon[s.status]} ${s.name}${s.note ? ` — ${s.note}` : ""}`);
-  if (process.env.JOB_STATUS && process.env.JOB_STATUS !== "success" && !state.steps.some(item => item.status === "failed")) lines.push(`- ❌ توقف التشغيل في خطوة قاعدة البيانات أو التخزين أو الأمان (حالة المهمة: ${process.env.JOB_STATUS}) — افتح سجل تلك الخطوة؛ لا يحمل أسرارًا.`);
+  const noteFile = process.env.BOOTSTRAP_NOTE_FILE; const note = noteFile && existsSync(noteFile) ? readFileSync(noteFile, "utf8").trim() : "";
+  if (note) lines.push(`- ❌ ${note}`);
+  else if (process.env.JOB_STATUS && process.env.JOB_STATUS !== "success" && !state.steps.some(item => item.status === "failed")) lines.push(`- ❌ توقف التشغيل في خطوة قاعدة البيانات أو التخزين أو الأمان (حالة المهمة: ${process.env.JOB_STATUS}) — افتح سجل تلك الخطوة؛ لا يحمل أسرارًا.`);
+  if (state.preflight?.length) lines.push("", "## الفحص المسبق (قراءة فقط)", ...renderPreflight(state.preflight));
   lines.push("", `**الرابط:** ${state.url ?? "لم يُنشر بعد"}`, `**نتيجة /healthz:** ${state.health ?? "لم تُفحص"}`, "");
   if (state.manual.length) { lines.push("## ما بقي بيدك", ...state.manual.map((m, i) => `${i + 1}. ${m}`)); } else lines.push("لا شيء متبقٍّ يدويًا.");
   lines.push("", "_لا أسرار في هذا الملخص. الزر آمن لإعادة التشغيل._");
@@ -122,13 +194,15 @@ function summary() {
 
 const phase = process.argv[2];
 try {
-  if (phase === "supabase") await supabasePhase();
+  if (phase === "preflight") await preflightPhase();
+  else if (phase === "supabase") await supabasePhase();
   else if (phase === "database") await databasePhase();
+  else if (phase === "catalog") await catalogPhase();
   else if (phase === "vercel") await vercelPhase();
   else if (phase === "summary") summary();
-  else throw new Error("usage: run.ts supabase|database|vercel|summary");
+  else throw new Error("usage: run.ts supabase|database|catalog|vercel|summary");
 } catch (error) {
   if (error instanceof ManualStep) { state.manual.push(error.instruction); step(phase, "manual", "يحتاج نقرة واحدة"); }
-  else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 200)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret
+  else { const note = error instanceof GuardError ? error.message : `فشل الطلب: ${String((error as Error).message).slice(0, 400)}`; console.error(`[${phase}] ${note}`); step(PHASE_LABEL[phase] ?? phase, "failed", note); } // the note carries a status and a short code, never a body or a secret
   save(); process.exitCode = 1;
 }

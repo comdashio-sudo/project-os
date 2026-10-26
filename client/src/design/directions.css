@@ -1,0 +1,286 @@
+/*
+ * Design directions (work order 19, phase A). Three genuinely different looks, each a set of CSS variables that the shared components read through Tailwind's semantic colours
+ * (bg-primary, text-muted-foreground, border-border ...). A page chooses one with data-direction="a|b|c" on a wrapper; dark mode is data-mode="dark" on the same wrapper
+ * (directions A and C only). This file is the ONE place a colour is written as a value; everything else uses these tokens (scripts/check-design-rules.mjs fails the build otherwise).
+ * Every foreground/background pair is checked against WCAG AA by client/src/design/directions.contrast.test.ts, which reads THIS file.
+ */
+
+/* ---- fonts: hosted with the app (npm @fontsource packages, SIL Open Font License), downloaded only where their characters are used (unicode-range subsets) */
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-400.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-500.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-600.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-700.css";
+@import "@fontsource/readex-pro/arabic-400.css";
+@import "@fontsource/readex-pro/arabic-500.css";
+@import "@fontsource/readex-pro/arabic-600.css";
+@import "@fontsource/readex-pro/latin-400.css";
+@import "@fontsource/readex-pro/latin-500.css";
+@import "@fontsource/readex-pro/latin-600.css";
+@import "@fontsource/noto-kufi-arabic/arabic-400.css";
+@import "@fontsource/noto-kufi-arabic/arabic-500.css";
+@import "@fontsource/noto-kufi-arabic/arabic-600.css";
+@import "@fontsource/noto-kufi-arabic/arabic-700.css";
+@import "@fontsource/space-grotesk/latin-400.css";
+@import "@fontsource/space-grotesk/latin-500.css";
+@import "@fontsource/space-grotesk/latin-600.css";
+@import "@fontsource/space-grotesk/latin-700.css";
+
+/* ====================================================================================================================================
+   Direction A — "Indigo Precision": dense, cool, precise. The existing brand (indigo + aqua) tightened into a product-tool look. Light and dark.
+   ==================================================================================================================================== */
+[data-direction="a"] {
+  --font-ar: "Inter Variable", "IBM Plex Sans Arabic", system-ui, sans-serif; /* Latin face first: digits and Latin letters stay Western and consistent; Arabic letters fall to Plex */
+  --font-lat: "Inter Variable", system-ui, sans-serif;
+  --font-ur: "Inter Variable", "Noto Nastaliq Urdu", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --radius: 8px;
+  --density: 1;
+  --shadow-card: 0 1px 2px rgb(12 16 35 / 6%);
+  --background: #f6f7fb;
+  --foreground: #0c1023;
+  --card: #ffffff;
+  --card-foreground: #0c1023;
+  --popover: #ffffff;
+  --popover-foreground: #0c1023;
+  --primary: #4338ca;
+  --primary-foreground: #ffffff;
+  --secondary: #2ed3c6;
+  --secondary-foreground: #04302d;
+  --muted: #eceff7;
+  --muted-foreground: #4f5d7a;
+  --accent: #e8e7fd;
+  --accent-foreground: #2b2594;
+  --border: #dde2ef;
+  --input: #78849e;
+  --ring: #4338ca;
+  --destructive: #c4262e;
+  --destructive-foreground: #ffffff;
+  --success: #0b7a4b;
+  --success-foreground: #ffffff;
+  --success-soft: #def5ea;
+  --success-soft-foreground: #08573a;
+  --warning: #9a5b00;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fff1d6;
+  --warning-soft-foreground: #6b3f00;
+  --danger-soft: #fde4e5;
+  --danger-soft-foreground: #8f1b22;
+  --info: #1c5fd1;
+  --info-foreground: #ffffff;
+  --info-soft: #e1ecfd;
+  --info-soft-foreground: #174a9e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0c1023;
+  --sidebar-accent: #eceff7;
+  --sidebar-accent-foreground: #2b2594;
+  --sidebar-border: #dde2ef;
+  --hero: #0c1023;
+  --hero-foreground: #f2f4fb;
+}
+[data-direction="a"][data-mode="dark"] {
+  --background: #0a0e1e;
+  --foreground: #e6eaf6;
+  --card: #141a32;
+  --card-foreground: #e6eaf6;
+  --popover: #141a32;
+  --popover-foreground: #e6eaf6;
+  --primary: #9a97f7;
+  --primary-foreground: #0a0e1e;
+  --secondary: #2ed3c6;
+  --secondary-foreground: #04302d;
+  --muted: #1b2342;
+  --muted-foreground: #a3aec9;
+  --accent: #262d57;
+  --accent-foreground: #d6d5fb;
+  --border: #2a3358;
+  --input: #7482a5;
+  --ring: #9a97f7;
+  --destructive: #f0707a;
+  --destructive-foreground: #0a0e1e;
+  --success: #46c98c;
+  --success-foreground: #04200f;
+  --success-soft: #0f3a2a;
+  --success-soft-foreground: #9fe6c4;
+  --warning: #f2b44a;
+  --warning-foreground: #2a1700;
+  --warning-soft: #3f2c08;
+  --warning-soft-foreground: #f6cd85;
+  --danger-soft: #45161b;
+  --danger-soft-foreground: #f5a4aa;
+  --info: #7aa9f5;
+  --info-foreground: #06142e;
+  --info-soft: #14284d;
+  --info-soft-foreground: #aecbf9;
+  --sidebar: #0f1530;
+  --sidebar-foreground: #e6eaf6;
+  --sidebar-accent: #1b2342;
+  --sidebar-accent-foreground: #d6d5fb;
+  --sidebar-border: #2a3358;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
+  --hero: #141a32;
+  --hero-foreground: #e6eaf6;
+}
+
+/* ====================================================================================================================================
+   Direction B — "Warm Ledger": calm, roomy, paper-like. Deep green-teal with a warm amber complement, large radii and soft shadows. Light only.
+   ==================================================================================================================================== */
+[data-direction="b"] {
+  --font-ar: "Readex Pro", system-ui, sans-serif;
+  --font-lat: "Readex Pro", system-ui, sans-serif;
+  --font-ur: "Readex Pro", "Noto Nastaliq Urdu", system-ui, sans-serif;
+  --radius: 16px;
+  --density: 1.12;
+  --shadow-card: 0 1px 3px rgb(60 40 10 / 8%), 0 8px 24px -12px rgb(60 40 10 / 14%);
+  --background: #faf7f1;
+  --foreground: #1c211f;
+  --card: #ffffff;
+  --card-foreground: #1c211f;
+  --popover: #ffffff;
+  --popover-foreground: #1c211f;
+  --primary: #0b5d57;
+  --primary-foreground: #ffffff;
+  --secondary: #f2b24d;
+  --secondary-foreground: #3a2400;
+  --muted: #f1ece2;
+  --muted-foreground: #5a625f;
+  --accent: #e0efec;
+  --accent-foreground: #07423e;
+  --border: #e6dfd0;
+  --input: #8a8272;
+  --ring: #0b5d57;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --success: #1c7a3f;
+  --success-foreground: #ffffff;
+  --success-soft: #e0f2e5;
+  --success-soft-foreground: #145a2d;
+  --warning: #9a5a00;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fdf0d3;
+  --warning-soft-foreground: #6b4000;
+  --danger-soft: #fbe5e2;
+  --danger-soft-foreground: #86201a;
+  --info: #1a5f8f;
+  --info-foreground: #ffffff;
+  --info-soft: #e0eef7;
+  --info-soft-foreground: #134868;
+  --sidebar: #f4efe5;
+  --sidebar-foreground: #1c211f;
+  --sidebar-accent: #e6efe9;
+  --sidebar-accent-foreground: #07423e;
+  --sidebar-border: #e6dfd0;
+  --hero: #0b5d57;
+  --hero-foreground: #f3fbf9;
+}
+
+/* ====================================================================================================================================
+   Direction C — "Blueprint Mono": sharp, technical, near-black and white with a single signal orange. Small radii, hairline borders. Light and dark.
+   ==================================================================================================================================== */
+[data-direction="c"] {
+  --font-ar: "Space Grotesk", "Noto Kufi Arabic", system-ui, sans-serif;
+  --font-lat: "Space Grotesk", system-ui, sans-serif;
+  --font-ur: "Space Grotesk", "Noto Nastaliq Urdu", "Noto Kufi Arabic", system-ui, sans-serif;
+  --radius: 3px;
+  --density: 0.96;
+  --shadow-card: none;
+  --background: #ffffff;
+  --foreground: #0a0b0e;
+  --card: #ffffff;
+  --card-foreground: #0a0b0e;
+  --popover: #ffffff;
+  --popover-foreground: #0a0b0e;
+  --primary: #0a0b0e;
+  --primary-foreground: #ffffff;
+  --secondary: #c2410c;
+  --secondary-foreground: #ffffff;
+  --muted: #f3f3f4;
+  --muted-foreground: #54575f;
+  --accent: #f0f0f1;
+  --accent-foreground: #0a0b0e;
+  --border: #dcdce0;
+  --input: #7d808a;
+  --ring: #c2410c;
+  --destructive: #c21f1f;
+  --destructive-foreground: #ffffff;
+  --success: #12733a;
+  --success-foreground: #ffffff;
+  --success-soft: #e3f3e8;
+  --success-soft-foreground: #0d5429;
+  --warning: #8f5400;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fcefd2;
+  --warning-soft-foreground: #653b00;
+  --danger-soft: #fbe3e3;
+  --danger-soft-foreground: #861616;
+  --info: #1d4fd0;
+  --info-foreground: #ffffff;
+  --info-soft: #e3eafc;
+  --info-soft-foreground: #173a9c;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0a0b0e;
+  --sidebar-accent: #efeff1;
+  --sidebar-accent-foreground: #0a0b0e;
+  --sidebar-border: #dcdce0;
+  --hero: #0a0b0e;
+  --hero-foreground: #f5f5f6;
+}
+[data-direction="c"][data-mode="dark"] {
+  --background: #08090b;
+  --foreground: #ededee;
+  --card: #0f1013;
+  --card-foreground: #ededee;
+  --popover: #0f1013;
+  --popover-foreground: #ededee;
+  --primary: #f4f4f5;
+  --primary-foreground: #08090b;
+  --secondary: #ff7a3d;
+  --secondary-foreground: #1c0a00;
+  --muted: #17181c;
+  --muted-foreground: #a2a5ae;
+  --accent: #1d1e23;
+  --accent-foreground: #ededee;
+  --border: #2a2c33;
+  --input: #7b7e89;
+  --ring: #ff7a3d;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #1f0505;
+  --success: #3ccf7a;
+  --success-foreground: #04200f;
+  --success-soft: #0e3320;
+  --success-soft-foreground: #94e5b7;
+  --warning: #f3b13e;
+  --warning-foreground: #281600;
+  --warning-soft: #3a2907;
+  --warning-soft-foreground: #f5ca82;
+  --danger-soft: #3d1414;
+  --danger-soft-foreground: #f6a3a3;
+  --info: #7ea3ff;
+  --info-foreground: #06143a;
+  --info-soft: #14244d;
+  --info-soft-foreground: #b2c8ff;
+  --sidebar: #0c0d10;
+  --sidebar-foreground: #ededee;
+  --sidebar-accent: #17181c;
+  --sidebar-accent-foreground: #ededee;
+  --sidebar-border: #2a2c33;
+  --hero: #0f1013;
+  --hero-foreground: #ededee;
+}
+
+/* ---- what every direction shares: the face follows the language, numbers stay Western (lining, tabular), and the page background/text come from the tokens */
+[data-direction] {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-lat);
+  font-variant-numeric: lining-nums tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+[data-direction][dir="rtl"], [data-direction] [dir="rtl"] { font-family: var(--font-ar); }
+[data-direction][data-lang="ur"], [data-direction] [lang="ur"] { font-family: var(--font-ur); line-height: 1.95; }
+[data-direction] * { border-color: var(--border); }
+[data-direction] :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* the app's base layer sets the body's face from the page language; inside a direction the direction's own face wins, for the page and for the menus and dialogs drawn into <body> */
+html[data-direction][data-lang] body { font-family: var(--font-lat); background: var(--background); color: var(--foreground); }
+html[data-direction][data-lang][dir="rtl"] body { font-family: var(--font-ar); }
+html[data-direction][data-lang="ur"] body { font-family: var(--font-ur); line-height: 1.95; }

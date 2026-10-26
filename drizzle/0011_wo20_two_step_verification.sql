@@ -1,28 +1,32 @@
--- Work order 16, item 4 (G-203): the interface language a person chose is kept on their account, so it follows them to any device. One row per user
--- (user_id is the key; a second choice replaces the first). A per-person preference, not tenant data: it is listed as a global table in
--- project_os_apply_conventions() (like users and auth_sessions), and the server reads and writes it only for the signed-in user (server/userLanguage.ts).
--- The check admits the three interface languages only (shared/interfaceLanguages.ts).
--- The table is NOT in drizzle/schema.ts or in the baseline, on purpose: the migrations after the baseline (0006) re-create the convention function with an
--- older global list and run the sweep, so a table created in the baseline would be refused there. This migration is the one that creates it, and it
--- re-creates the function with the table listed BEFORE the sweep of this migration runs (the runner calls the sweep after each file). The table's
--- definition is in server/userLanguage.ts; keep the two in step.
--- Re-runnable. Rollback: drop the table user_language_preferences (nothing else refers to it), and re-create the previous body of
--- project_os_apply_conventions() from drizzle/0006_wo15_convention_sweep_skips_matching.sql (the only change is the one name added to global_tables).
-CREATE TABLE IF NOT EXISTS "user_language_preferences" (
+-- Work order 20, item 2 (owner's decision 2026-10-25): two-step verification (TOTP, RFC 6238) for the platform owner and every company administrator.
+-- (1) auth_sessions.mfa_verified_at: when a session passed the second step. (2) user_mfa: one row per enrolled person, the secret sealed (AES-256-GCM), recovery codes as hashes.
+-- (3) user_mfa is a global table (it belongs to a person, not a company): the convention function is replaced with the same body plus that one name in global_tables.
+-- Idempotent on purpose (a fresh database applies the baseline, which already holds all of this, and then this file).
+-- Rollback: DROP TABLE user_mfa; ALTER TABLE auth_sessions DROP COLUMN mfa_verified_at; and re-create the function from drizzle/0006 (no other data is touched).
+SET LOCAL lock_timeout = '5s';
+--> statement-breakpoint
+ALTER TABLE "auth_sessions" ADD COLUMN IF NOT EXISTS "mfa_verified_at" timestamp with time zone;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "user_mfa" (
 	"user_id" integer PRIMARY KEY NOT NULL,
-	"language" varchar(2) NOT NULL,
+	"secret_sealed" text NOT NULL,
+	"confirmed_at" timestamp with time zone,
+	"recovery_hashes" text DEFAULT '[]' NOT NULL,
+	"last_used_step" integer,
+	"failures" integer DEFAULT 0 NOT NULL,
+	"locked_until" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_language_preferences_user_fk') THEN ALTER TABLE "user_language_preferences" ADD CONSTRAINT "user_language_preferences_user_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action; END IF; END $$;
---> statement-breakpoint
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_language_preferences_language_check') THEN ALTER TABLE "user_language_preferences" ADD CONSTRAINT "user_language_preferences_language_check" CHECK ("user_language_preferences"."language" IN ('ar', 'en', 'ur')); END IF; END $$;
+DO $$ BEGIN
+	ALTER TABLE "user_mfa" ADD CONSTRAINT "user_mfa_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_os_apply_conventions() RETURNS integer LANGUAGE plpgsql AS $fn$
 DECLARE
   t record;
-  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts', 'user_language_preferences'];
+  global_tables constant text[] := ARRAY['users', 'auth_sessions', 'permissions', 'commercial_features', 'commercial_plans', 'plan_feature_entitlements', 'scheduled_jobs', 'self_service_signup_attempts', 'invoice_counters', 'auth_code_attempts', 'user_mfa'];
   child_tables constant jsonb := '{
     "data_import_errors":            ["import_id",         "data_imports"],
     "data_import_row_results":       ["import_id",         "data_imports"],

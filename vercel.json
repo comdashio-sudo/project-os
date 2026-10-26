@@ -3,5 +3,8 @@
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build:vercel",
-  "regions": ["sin1"]
+  "regions": [
+    "sin1"
+  ],
+  "ignoreCommand": "bash scripts/ci/vercel-ignore.sh"
 }

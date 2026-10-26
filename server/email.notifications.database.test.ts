@@ -25,8 +25,8 @@ const sent: OutgoingMail[] = [];
 const history: OutgoingMail[] = []; // everything sent in this file, in order: the later tests read what the earlier ones caused
 let failNext = 0;
 const mailer: Mailer = { async send(mail) { if (failNext > 0) { failNext -= 1; throw new Error("Resend rejected the message (503)"); } sent.push(mail); history.push(mail); } };
-const turnOn = () => { process.env.EMAIL_NOTIFICATIONS_ENABLED = "true"; process.env.SMTP_HOST = "smtp.example.test"; process.env.SMTP_PORT = "587"; process.env.SMTP_USER = "mailer"; process.env.SMTP_PASSWORD = "test-password-not-real"; process.env.EMAIL_FROM = "no-reply@mail.example.test"; process.env.APP_BASE_URL = "https://app.example.test"; }; // secret-scan:allow fake value
-const turnOff = () => { delete process.env.EMAIL_NOTIFICATIONS_ENABLED; for (const name of smtpVariables) delete process.env[name]; delete process.env.EMAIL_FROM; delete process.env.APP_BASE_URL; };
+const turnOn = () => { process.env.EMAIL_DAILY_LIMIT = "1000000"; process.env.EMAIL_BURST_PER_MINUTE = "1000000"; /* these tests send many mails in seconds: the gate has its own file (emailGate.database.test.ts) */ process.env.EMAIL_NOTIFICATIONS_ENABLED = "true"; process.env.SMTP_HOST = "smtp.example.test"; process.env.SMTP_PORT = "587"; process.env.SMTP_USER = "mailer"; process.env.SMTP_PASSWORD = "test-password-not-real"; process.env.EMAIL_FROM = "no-reply@mail.example.test"; process.env.APP_BASE_URL = "https://app.example.test"; }; // secret-scan:allow fake value
+const turnOff = () => { delete process.env.EMAIL_DAILY_LIMIT; delete process.env.EMAIL_BURST_PER_MINUTE; delete process.env.EMAIL_NOTIFICATIONS_ENABLED; for (const name of smtpVariables) delete process.env[name]; delete process.env.EMAIL_FROM; delete process.env.APP_BASE_URL; };
 
 async function clear() {
   const t = [T, T2];
