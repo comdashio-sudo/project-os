@@ -12,6 +12,7 @@ import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
 import { scheduledProfitabilitySnapshotsHandler } from "../scheduledProfitabilitySnapshots";
 import { apiRateLimit, apiRateLimitFromEnvironment } from "./apiRateLimit";
 import { registerDefaultAuthRoutes } from "./auth";
+import { pendingMigrations, schemaReadiness } from "./schemaReady";
 import { createContext } from "./context";
 import { asSystem } from "./requestContext";
 import { errorPageHtml, errorPageStatus, type ErrorPageKind } from "./errorPages";
@@ -60,6 +61,11 @@ export function createApp(options: AppOptions) {
   // Liveness probe for the host. Public, no database, no data: it only says the process answers.
   app.get("/healthz", (_req, res) => {
     res.set("Cache-Control", "no-store").status(200).type("text/plain").send("ok");
+  });
+  // Readiness: 200 when the database has what this release's code names, 503 with the migrations still to apply. The post-deploy check reads it (a warning, not a rollback: the code tolerates it).
+  app.get("/api/readyz", async (_req, res) => {
+    const readiness = await schemaReadiness();
+    res.set("Cache-Control", "no-store").status(readiness.ready ? 200 : 503).json({ ready: readiness.ready, pendingMigrations: pendingMigrations(readiness) });
   });
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.use(apiRateLimit({ perMinute: options.apiRequestsPerMinute ?? apiRateLimitFromEnvironment(), now: options.now }));

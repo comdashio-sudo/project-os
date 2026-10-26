@@ -20,6 +20,7 @@ const PUBLIC_PROCEDURES: Record<string, string> = {
 };
 const OPEN_ROUTES: Record<string, string> = {
   "/healthz": "liveness probe for the platform",
+  "/api/readyz": "readiness: whether the database has what this release names; answers with migration names only, no data",
   "/api/auth/config": "which sign-in methods exist (the login page needs it before anyone is signed in)",
   "/api/auth/email/request": "asks for a sign-in code; answers the same for every address (no account enumeration) and is rate limited",
   "/api/auth/email/verify": "exchanges the code for a session; attempt-limited per address",

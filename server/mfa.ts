@@ -5,6 +5,8 @@ import { rowsAffected, withSystemContext } from "./_core/database";
 import { ENV } from "./_core/env";
 import { sessionStore } from "./_core/sessionStore";
 import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, matchTotp, normalizeRecoveryCode, openSecret, otpauthUri, sealSecret } from "./_core/totp";
+import { logError } from "./_core/logger";
+import { schemaReadiness } from "./_core/schemaReady";
 import { getDb } from "./db";
 
 /** Five wrong codes lock the second step for fifteen minutes (a six-digit code is guessable otherwise). */
@@ -40,6 +42,10 @@ export async function isMfaRequired(user: Pick<User, "id" | "role">, now = Date.
 /** The refusal a request gets while it is not yet allowed to do anything but verify (null when it may proceed). One rule for tRPC and for the plain HTTP routes. */
 export async function mfaGateRefusal(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined): Promise<TRPCError | null> {
   if (mfaVerified) return null;
+  // The second step needs migration 0011 (user_mfa, auth_sessions.mfa_verified_at). While the database is behind the code, no one can enrol or verify, so refusing everything would lock
+  // the owner out of the very screen that applies the fix: the gate waits (and says so in the log) until the schema is there. This is an operational state, not a way round the gate:
+  // it opens only when the table itself does not exist.
+  if (!(await schemaReadiness()).ready) { logError("mfa.gate_waiting_for_schema", undefined, { userId: user.id }); return null; }
   return (await isMfaRequired(user)) ? refuse("FORBIDDEN", "PROJECT_OS_MFA_REQUIRED") : null;
 }
 
@@ -48,6 +54,7 @@ const rowOf = async (userId: number) => (await (await database()).select().from(
 
 export type MfaStatus = { required: boolean; enrolled: boolean; verified: boolean };
 export async function mfaStatus(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined): Promise<MfaStatus> {
+  if (!(await schemaReadiness()).ready) return { required: false, enrolled: false, verified: false };
   const [required, row] = await Promise.all([isMfaRequired(user), rowOf(user.id)]);
   return { required, enrolled: Boolean(row?.confirmedAt), verified: Boolean(mfaVerified) };
 }
