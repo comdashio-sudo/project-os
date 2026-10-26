@@ -1,6 +1,8 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { Request } from "express";
 import type { User } from "../../drizzle/schema";
+import { parse as parseCookieHeader } from "cookie";
+import { deferralSince, MFA_DEFERRAL_COOKIE } from "./mfaDeferral";
 import { sdk } from "./sdk";
 
 export type TrpcContext = {
@@ -11,6 +13,8 @@ export type TrpcContext = {
   sessionId?: string;
   /** true once this session passed two-step verification */
   mfaVerified?: boolean;
+  /** when this person started the owner's 7-day "Later" window (ms), or null */
+  mfaDeferralSince?: number | null;
 };
 
 type Authenticated = { user: User; sessionId: string; mfaVerified: boolean } | null;
@@ -42,5 +46,6 @@ export async function createContext(
     user: result?.user ?? null,
     sessionId: result?.sessionId,
     mfaVerified: result?.mfaVerified,
+    mfaDeferralSince: result ? await deferralSince(parseCookieHeader(opts.req.headers.cookie ?? "")[MFA_DEFERRAL_COOKIE], result.user.id) : null,
   };
 }

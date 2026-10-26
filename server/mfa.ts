@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { memberships, membershipRoles, permissions, rolePermissions, userMfa, type User } from "../drizzle/schema";
 import { rowsAffected, withSystemContext } from "./_core/database";
 import { ENV } from "./_core/env";
+import { deferralActive, deferralEnds } from "./_core/mfaDeferral";
 import { sessionStore } from "./_core/sessionStore";
 import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, matchTotp, normalizeRecoveryCode, openSecret, otpauthUri, sealSecret } from "./_core/totp";
 import { logError } from "./_core/logger";
@@ -40,8 +42,10 @@ export async function isMfaRequired(user: Pick<User, "id" | "role">, now = Date.
 }
 
 /** The refusal a request gets while it is not yet allowed to do anything but verify (null when it may proceed). One rule for tRPC and for the plain HTTP routes. */
-export async function mfaGateRefusal(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined): Promise<TRPCError | null> {
+export async function mfaGateRefusal(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined, deferralSince: number | null = null): Promise<TRPCError | null> {
   if (mfaVerified) return null;
+  // the platform owner's temporary "Later" (mfaDeferral.ts): only for role admin, only inside its 7 days
+  if (user.role === "admin" && deferralActive(deferralSince)) return null;
   // The second step needs migration 0011 (user_mfa, auth_sessions.mfa_verified_at). While the database is behind the code, no one can enrol or verify, so refusing everything would lock
   // the owner out of the very screen that applies the fix: the gate waits (and says so in the log) until the schema is there. This is an operational state, not a way round the gate:
   // it opens only when the table itself does not exist.
@@ -52,23 +56,33 @@ export async function mfaGateRefusal(user: Pick<User, "id" | "role">, mfaVerifie
 async function database() { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); return db; }
 const rowOf = async (userId: number) => (await (await database()).select().from(userMfa).where(eq(userMfa.userId, userId)).limit(1))[0];
 
-export type MfaStatus = { required: boolean; enrolled: boolean; verified: boolean };
-export async function mfaStatus(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined): Promise<MfaStatus> {
-  if (!(await schemaReadiness()).ready) return { required: false, enrolled: false, verified: false };
+export type MfaStatus = { required: boolean; enrolled: boolean; verified: boolean; /** the owner's "Later" window is running; it ends at this time (ISO) */ postponedUntil: string | null; /** the owner may still press "Later" (never used in this browser) */ canPostpone: boolean };
+export async function mfaStatus(user: Pick<User, "id" | "role">, mfaVerified: boolean | undefined, deferralSince: number | null = null): Promise<MfaStatus> {
+  if (!(await schemaReadiness()).ready) return { required: false, enrolled: false, verified: false, postponedUntil: null, canPostpone: false };
   const [required, row] = await Promise.all([isMfaRequired(user), rowOf(user.id)]);
-  return { required, enrolled: Boolean(row?.confirmedAt), verified: Boolean(mfaVerified) };
+  const owner = user.role === "admin";
+  return { required, enrolled: Boolean(row?.confirmedAt), verified: Boolean(mfaVerified), postponedUntil: owner && deferralActive(deferralSince) ? deferralEnds(deferralSince!).toISOString() : null, canPostpone: owner && deferralSince === null };
 }
 
-/** Starts enrolment: a fresh secret, shown once as text and as an otpauth link. Refused once enrolment is confirmed (a confirmed secret is never replaced from a session that has not proved the old one). */
-export async function beginEnrolment(user: Pick<User, "id" | "email" | "openId">): Promise<{ secret: string; otpauthUri: string }> {
+/** What the screen shows to tell one pending enrolment from another: a short fingerprint of the secret (never the secret). */
+export const enrolmentIdOf = (secret: string) => createHash("sha256").update(`project-os-mfa-enrolment|${secret}`).digest("hex").slice(0, 12);
+
+/**
+ * Starts enrolment — or CONTINUES it. There is at most ONE pending (unconfirmed) enrolment per person, and asking again (a page reload, a second tab, a second click, a new sign-in) returns the SAME
+ * secret, never a new one: a new secret each time left the authenticator app holding a key the server no longer knew, and the right code was refused (2026-10-26). Refused once confirmed
+ * (a confirmed secret is never replaced from a session that has not proved the old one).
+ */
+export async function beginEnrolment(user: Pick<User, "id" | "email" | "openId">): Promise<{ secret: string; otpauthUri: string; enrolmentId: string }> {
   const db = await database();
   const existing = await rowOf(user.id);
   if (existing?.confirmedAt) throw refuse("CONFLICT", "PROJECT_OS_MFA_ALREADY_ENROLLED");
+  const account = user.email ?? user.openId;
+  if (existing) { const secret = openSecret(existing.secretSealed); return { secret, otpauthUri: otpauthUri(secret, account), enrolmentId: enrolmentIdOf(secret) }; }
   const secret = generateTotpSecret();
-  const values = { secretSealed: sealSecret(secret), confirmedAt: null, recoveryHashes: "[]", lastUsedStep: null, failures: 0, lockedUntil: null };
-  if (existing) await db.update(userMfa).set(values).where(eq(userMfa.userId, user.id));
-  else await db.insert(userMfa).values({ userId: user.id, ...values });
-  return { secret, otpauthUri: otpauthUri(secret, user.email ?? user.openId) };
+  // two first requests at once: the primary key lets one insert win; the loser reads the winner's row and returns THAT secret
+  await db.insert(userMfa).values({ userId: user.id, secretSealed: sealSecret(secret), confirmedAt: null, recoveryHashes: "[]", lastUsedStep: null, failures: 0, lockedUntil: null }).onConflictDoNothing();
+  const stored = openSecret((await rowOf(user.id))!.secretSealed);
+  return { secret: stored, otpauthUri: otpauthUri(stored, account), enrolmentId: enrolmentIdOf(stored) };
 }
 
 async function recordFailure(userId: number, failures: number, now: Date) {
@@ -80,13 +94,16 @@ async function recordFailure(userId: number, failures: number, now: Date) {
 const assertNotLocked = (row: { lockedUntil: Date | null }, now: Date) => { if (row.lockedUntil && row.lockedUntil > now) throw refuse("TOO_MANY_REQUESTS", "PROJECT_OS_MFA_LOCKED"); };
 
 /** Accepts the first code, switches two-step verification on, and returns the recovery codes — the only time they are shown. */
-export async function confirmEnrolment(user: Pick<User, "id">, sessionId: string, code: string, now = new Date()): Promise<{ recoveryCodes: string[] }> {
+export async function confirmEnrolment(user: Pick<User, "id">, sessionId: string, code: string, enrolmentId?: string, now = new Date()): Promise<{ recoveryCodes: string[] }> {
   const db = await database();
   const row = await rowOf(user.id);
   if (!row) throw refuse("BAD_REQUEST", "PROJECT_OS_MFA_NOT_ENROLLED");
   if (row.confirmedAt) throw refuse("CONFLICT", "PROJECT_OS_MFA_ALREADY_ENROLLED");
   assertNotLocked(row, now);
-  const step = matchTotp(openSecret(row.secretSealed), code, now.getTime(), row.lastUsedStep);
+  const secret = openSecret(row.secretSealed);
+  // the code is checked against the enrolment the person was SHOWN: if the screen's enrolment is not the stored one, say so instead of "wrong code"
+  if (enrolmentId !== undefined && enrolmentId !== enrolmentIdOf(secret)) throw refuse("CONFLICT", "PROJECT_OS_MFA_ENROLMENT_CHANGED");
+  const step = matchTotp(secret, code, now.getTime(), row.lastUsedStep);
   if (step === null) { await recordFailure(user.id, row.failures, now); throw refuse("BAD_REQUEST", "PROJECT_OS_MFA_CODE_INVALID"); }
   const recoveryCodes = generateRecoveryCodes();
   const updated = await db.update(userMfa).set({ confirmedAt: now, lastUsedStep: step, failures: 0, lockedUntil: null, recoveryHashes: JSON.stringify(recoveryCodes.map(hashRecoveryCode)) })

@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
 import { EXPORT_ENTITIES } from "./integrations/erpOutbound";
@@ -60,6 +61,7 @@ import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { beginEnrolment, confirmEnrolment, mfaStatus, verifySecondStep } from "./mfa";
+import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
 const scopeSchema = z.object({
   type: z.enum(["company", "portfolio", "program", "project"]),
@@ -107,9 +109,17 @@ export const appRouter = router({
   }),
   // Two-step verification (TOTP). These procedures are outside the second-step gate on purpose: they are how a session gets through it.
   mfa: router({
-    status: mfaProcedure.query(({ ctx }) => mfaStatus(ctx.user, ctx.mfaVerified)),
+    status: mfaProcedure.query(({ ctx }) => mfaStatus(ctx.user, ctx.mfaVerified, ctx.mfaDeferralSince ?? null)),
     beginEnrolment: mfaProcedure.mutation(({ ctx }) => beginEnrolment(ctx.user)),
-    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12) })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code)),
+    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12), enrolmentId: z.string().trim().min(8).max(32).optional() })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code, input.enrolmentId)),
+    // The platform owner's "Later": seven days, once per browser (server/_core/mfaDeferral.ts). A company administrator has no such button.
+    postpone: mfaProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED" });
+      if (ctx.mfaDeferralSince !== null && ctx.mfaDeferralSince !== undefined) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_POSTPONE_USED" });
+      const since = Date.now();
+      ctx.res.cookie(MFA_DEFERRAL_COOKIE, await signDeferral(ctx.user.id, since), { ...getSessionCookieOptions(ctx.req), maxAge: MFA_DEFERRAL_COOKIE_MAX_AGE_MS });
+      return { postponedUntil: deferralEnds(since).toISOString() };
+    }),
     verify: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(16) })).mutation(({ ctx, input }) => verifySecondStep(ctx.user, ctx.sessionId ?? "", input.code)),
   }),
   access: router({
