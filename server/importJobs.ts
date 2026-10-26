@@ -13,7 +13,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, dataImportErrors, dataImportRowResults, dataImports } from "../drizzle/schema";
+import { auditLogs, dataImportErrors, dataImportRowResults, dataImportSources, dataImports } from "../drizzle/schema";
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
 import { assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
@@ -361,6 +361,13 @@ export async function sweepImportJobs(now = Date.now()) {
   let orphansRemoved = 0;
   for (const object of await storageList("imports/")) {
     if (!object.key.includes("/pending/") || referenced.has(object.key) || !object.lastModified || now - object.lastModified.getTime() < ORPHAN_UPLOAD_MAX_AGE_MS) continue;
+    await storageDelete(object.key).catch(error => logError("import.orphan_delete_failed", error));
+    orphansRemoved += 1;
+  }
+  // The same for the smart import box's originals (.../smart/): one nobody confirmed is not linked from data_import_sources.
+  const linked = new Set((await db.select({ key: dataImportSources.sourceKey }).from(dataImportSources)).map(row => row.key));
+  for (const object of await storageList("imports/")) {
+    if (!object.key.includes("/smart/") || linked.has(object.key) || !object.lastModified || now - object.lastModified.getTime() < ORPHAN_UPLOAD_MAX_AGE_MS) continue;
     await storageDelete(object.key).catch(error => logError("import.orphan_delete_failed", error));
     orphansRemoved += 1;
   }

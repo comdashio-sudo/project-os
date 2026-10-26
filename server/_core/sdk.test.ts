@@ -14,6 +14,7 @@ const sessions = vi.hoisted(() => {
     rows,
     create: vi.fn(async ({ userId, expiresAt }: { userId: number; expiresAt: Date }) => { const id = `sid-${++counter}`; rows.set(id, { userId, expiresAt, revokedAt: null }); return id; }),
     findLive: vi.fn(async (id: string, now = new Date()) => { const row = rows.get(id); return row && !row.revokedAt && row.expiresAt > now ? row.userId : null; }),
+    findLiveSession: vi.fn(async (id: string, now = new Date()) => { const row = rows.get(id); return row && !row.revokedAt && row.expiresAt > now ? { userId: row.userId, mfaVerified: false } : null; }),
     revoke: vi.fn(async (id: string) => { const row = rows.get(id); if (!row || row.revokedAt) return false; row.revokedAt = new Date(); return true; }),
     revokeAllForUser: vi.fn(),
   };
@@ -35,18 +36,18 @@ beforeEach(() => { sessions.rows.clear(); sessions.create.mockClear(); database.
 afterEach(() => { vi.unstubAllEnvs(); vi.doUnmock("../db"); vi.doUnmock("./sessionStore"); });
 
 describe("session tokens", () => {
-  it("round-trips a session with the documented shape, a 30-day lifetime, and a live row behind it", async () => {
+  it("round-trips a session with the documented shape, a 14-day lifetime (the owner's cap, 2026-10-25), and a live row behind it", async () => {
     const sdk = await load();
     const token = await sdk.issueSession("email:abc", { name: "Eng" });
     const verified = await sdk.verifySession(token);
     expect(verified).toEqual({ openId: "email:abc", appId: "project-os", name: "Eng", sid: expect.any(String) });
     const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
     const days = (payload.exp * 1000 - Date.now()) / 86_400_000;
-    expect(days).toBeGreaterThan(29.9);
-    expect(days).toBeLessThanOrEqual(30);
+    expect(days).toBeGreaterThan(13.9);
+    expect(days).toBeLessThanOrEqual(14);
     const row = sessions.rows.get(verified!.sid)!;
     expect(row.userId).toBe(user.id);
-    expect((row.expiresAt.getTime() - Date.now()) / 86_400_000).toBeGreaterThan(29.9);
+    expect((row.expiresAt.getTime() - Date.now()) / 86_400_000).toBeGreaterThan(13.9);
   });
 
   it("refuses a token signed with another secret, an expired one, a malformed one and one with missing fields", async () => {
@@ -88,12 +89,38 @@ describe("session tokens", () => {
 });
 
 describe("authenticateRequest", () => {
-  it("returns the user for a valid session cookie and records the sign-in", async () => {
+  it("returns the user for a valid session cookie and does not write the account while it is current (role as assigned, last-seen under a minute old)", async () => {
     const sdk = await load();
     const token = await sdk.issueSession("email:abc", { name: "Eng" });
     await expect(sdk.authenticateRequest(request({ cookie: `other=1; ${COOKIE_NAME}=${token}` }))).resolves.toBe(user);
     expect(database.getUserByOpenId).toHaveBeenCalledWith("email:abc");
+    expect(database.upsertUser).not.toHaveBeenCalled();
+  });
+
+  it("records the sign-in when the last-seen is older than a minute", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    database.getUserByOpenId.mockResolvedValue({ ...user, lastSignedIn: new Date(Date.now() - 61_000) });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
     expect(database.upsertUser).toHaveBeenCalledWith(expect.objectContaining({ openId: "email:abc" }));
+  });
+
+  it("still re-assigns the role on a request when the stored role differs from the assigned one (a demoted or promoted owner is corrected at once)", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    database.getUserByOpenId.mockResolvedValue({ ...user, role: "admin" as const });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
+    expect(database.upsertUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the session row and the account together, and still refuses when either is missing", async () => {
+    const sdk = await load();
+    const token = await sdk.issueSession("email:abc", { name: "Eng" });
+    let order = "";
+    sessions.findLiveSession.mockImplementationOnce(async () => { order += "s"; await Promise.resolve(); order += "S"; return { userId: user.id, mfaVerified: false }; });
+    database.getUserByOpenId.mockImplementationOnce(async () => { order += "u"; await Promise.resolve(); order += "U"; return user; });
+    await sdk.authenticateRequest(request({ cookie: `${COOKIE_NAME}=${token}` }));
+    expect(order.slice(0, 2)).toBe("su"); // both started before either finished
   });
 
   it("refuses a request with no cookie, and ignores an Authorization bearer token", async () => {

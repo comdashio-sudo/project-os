@@ -17,6 +17,13 @@ export interface CodeProvider {
 
 type GoTrueBody = { error_code?: string; msg?: string; access_token?: string; user?: { email?: string; email_confirmed_at?: string | null } };
 
+/** GoTrue words its send limit as "...you can only request this after 49 seconds." Anything else gives no number. */
+export function retryAfterSecondsFrom(message: unknown): number | undefined {
+  const match = typeof message === "string" ? message.match(/after\s+(\d{1,5})\s+seconds?/i) : null;
+  const seconds = match ? Number(match[1]) : NaN;
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+}
+
 export function supabaseAuthConfigFromEnv(env: NodeJS.ProcessEnv = process.env): SupabaseAuthConfig | null {
   const url = (env.SUPABASE_URL ?? "").replace(/\/+$/, "");
   const anonKey = env.SUPABASE_ANON_KEY ?? "";
@@ -44,7 +51,7 @@ export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProv
     async sendCode(email) {
       const { status, body } = await call("/otp", { email, create_user: true });
       if (status >= 200 && status < 300) return;
-      if (status === 429 || body.error_code === "over_email_send_rate_limit" || body.error_code === "over_request_rate_limit") throw new EmailCodeError("RATE_LIMITED");
+      if (status === 429 || body.error_code === "over_email_send_rate_limit" || body.error_code === "over_request_rate_limit") throw new EmailCodeError("RATE_LIMITED", retryAfterSecondsFrom(body.msg));
       if (status === 400 && (body.error_code === "validation_failed" || body.error_code === "email_address_invalid")) throw new EmailCodeError("EMAIL_INVALID");
       throw new EmailCodeError("MAIL_UNAVAILABLE");
     },

@@ -7,6 +7,9 @@ import { runWithDbContext } from "./_core/database";
 import { dbContextForUser } from "./_core/requestContext";
 import { sdk } from "./_core/sdk";
 import { logError } from "./_core/logger";
+import { parse as parseCookieHeader } from "cookie";
+import { deferralSince, MFA_DEFERRAL_COOKIE } from "./_core/mfaDeferral";
+import { mfaGateRefusal } from "./mfa";
 import { getDb } from "./db";
 import { storageGetSignedUrl } from "./storage";
 import { assertTenantOwner, exportTenantLines, recordAudit, type ExportLine } from "./tenantData";
@@ -20,8 +23,10 @@ export async function tenantExportHandler(req: Request, res: Response) {
   const parsed = z.string().uuid().safeParse(req.params.tenantId);
   if (!parsed.success) return res.status(400).json({ code: "PROJECT_OS_TENANT_NOT_FOUND" });
   const tenantId = parsed.data;
-  let user: Awaited<ReturnType<typeof sdk.authenticateSession>>["user"];
-  try { user = (await sdk.authenticateSession(req)).user; } catch { return res.status(401).json({ code: "PROJECT_OS_AUTH_REQUIRED" }); }
+  let user: Awaited<ReturnType<typeof sdk.authenticateSession>>["user"]; let mfaVerified: boolean;
+  try { ({ user, mfaVerified } = await sdk.authenticateSession(req)); } catch { return res.status(401).json({ code: "PROJECT_OS_AUTH_REQUIRED" }); }
+  // the second-step gate applies to this plain HTTP route exactly as it does to the tRPC procedures
+  if (await mfaGateRefusal(user, mfaVerified, await deferralSince(parseCookieHeader(req.headers.cookie ?? "")[MFA_DEFERRAL_COOKIE], user.id))) return res.status(403).json({ code: "PROJECT_OS_MFA_REQUIRED" });
   // Everything below runs with the caller's companies installed for the database (second layer of isolation, server/_core/database.ts).
   return runWithDbContext(await dbContextForUser(user), () => streamExport(res, tenantId, user.id));
 }

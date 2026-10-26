@@ -9,6 +9,7 @@ const good = (): DbSecurityEvidence => ({
   strangerTenantRows: 0,
   dataApiRoleTablePrivileges: 0,
   role: { superuser: false, bypassRls: false, canCreateInPublic: false, canReadPgAuthid: false },
+  objects: { sequencesUnusable: [], functionsOpenToPublic: [], newFunctionsClosedByDefault: true },
 });
 
 describe("evaluateAuditGrantVerification", () => {
@@ -56,5 +57,14 @@ describe("evaluateAuditGrantVerification", () => {
       const evidence = good(); evidence.role[key] = true;
       expect(evaluateAuditGrantVerification(evidence), key).toMatchObject({ approved: false, checks: { roleIsRestricted: false } });
     }
+  });
+
+  it("rejects a sequence the role cannot use, a function open to PUBLIC, and a default that would open the next function", () => {
+    const sequence = good(); sequence.objects.sequencesUnusable = ["users_id_seq"];
+    expect(evaluateAuditGrantVerification(sequence)).toMatchObject({ approved: false, checks: { everySequenceUsable: false } });
+    const open = good(); open.objects.functionsOpenToPublic = ["project_os_users_protect_admin"];
+    expect(evaluateAuditGrantVerification(open)).toMatchObject({ approved: false, checks: { noFunctionOpenToPublic: false } });
+    const next = good(); next.objects.newFunctionsClosedByDefault = false;
+    expect(evaluateAuditGrantVerification(next)).toMatchObject({ approved: false, checks: { newFunctionsClosedByDefault: false } });
   });
 });

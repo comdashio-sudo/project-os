@@ -1,0 +1,32 @@
+name: Vercel production errors
+
+# Manual. Reads the production function's error logs for the last N hours with the repository secret VERCEL_TOKEN (Settings -> Secrets -> Actions) and prints them, scrubbed:
+# addresses of people, tokens and long digit strings are replaced. Nothing is written anywhere.
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How many hours back (1 to 72)"
+        type: string
+        required: false
+        default: "24"
+
+permissions:
+  contents: read
+
+jobs:
+  logs:
+    name: read the errors
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_z9rRP8H1AzWS5ElYIZMtJn12sgZM' }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID || 'team_DDgIiaktQp5KcMWBYSnBPxEf' }}
+      HOURS: ${{ inputs.hours }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/ci/vercel-errors.mjs

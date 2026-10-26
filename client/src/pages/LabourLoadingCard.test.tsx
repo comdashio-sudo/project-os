@@ -44,6 +44,15 @@ describe("LabourLoadingCard", () => {
     expect(screen.getByText("No hours have been priced from payroll yet")).toBeTruthy();
   });
 
+  it("names a rate above its maximum beside its field and saves nothing", () => {
+    render_();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Employer insurance — Saudi (%)"), { target: { value: "99" } });
+    fireEvent.submit(document.getElementById("labour-gosi")!.closest("form") as HTMLFormElement);
+    expect(screen.getByText("The value is outside the allowed range.")).toBeTruthy();
+    expect(h.save).not.toHaveBeenCalled();
+  });
+
   it("lets a permitted user edit and save the factors and the working days, in the units the server stores", () => {
     render_();
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));

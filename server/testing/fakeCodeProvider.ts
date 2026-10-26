@@ -23,7 +23,7 @@ export function createFakeCodeProvider(options: FakeCodeProviderOptions = {}) {
       if (unavailable) throw new EmailCodeError("MAIL_UNAVAILABLE");
       const at = now().getTime();
       const last = sentAt.get(email);
-      if (last !== undefined && at - last < minIntervalMs) throw new EmailCodeError("RATE_LIMITED");
+      if (last !== undefined && at - last < minIntervalMs) throw new EmailCodeError("RATE_LIMITED", Math.ceil((minIntervalMs - (at - last)) / 1000)); // as GoTrue: "after N seconds"
       const code = randomCode();
       open.set(email, { code, issuedAt: at });
       sentAt.set(email, at);

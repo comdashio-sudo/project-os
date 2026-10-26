@@ -56,6 +56,11 @@ export const projectErrorMessages = {
     en: "The deletion confirmation code has expired (15 minutes). Request the deletion again.",
     ur: "حذف کی تصدیق کے کوڈ کی مدت ختم ہو چکی ہے (15 منٹ)۔ حذف کی درخواست دوبارہ کریں۔",
   },
+  PROJECT_OS_TEMPLATE_REMOVAL_NOT_PENDING: {
+    ar: "هذا الاقتراح لم يعد بانتظار القرار (قُرّر سابقًا أو ليس لشركتك). حدّث الصفحة.",
+    en: "This proposal is no longer waiting for a decision (it was decided already, or it is not your company's). Refresh the page.",
+    ur: "یہ تجویز اب فیصلے کی منتظر نہیں (پہلے طے ہو چکی یا آپ کی کمپنی کی نہیں)۔ صفحہ تازہ کریں۔",
+  },
   PROJECT_OS_DELETION_IN_PROGRESS: {
     ar: "حذف هذه الشركة جارٍ الآن في عملية أخرى. انتظر خمس دقائق ثم أعد المحاولة إن لم يكتمل.",
     en: "Deletion of this company is already running in another operation. Wait five minutes and try again if it has not finished.",
@@ -416,6 +421,56 @@ export const projectErrorMessages = {
     en: "Licensing management requires platform-administrator access.",
     ur: "لائسنس کا انتظام کرنے کے لیے پلیٹ فارم ایڈمنسٹریٹر کی رسائی درکار ہے۔",
   },
+  PROJECT_OS_SYNC_RUN_NOT_FOUND: {
+    ar: "تعذّر إغلاق تشغيل المزامنة لأن سجله غير موجود. لم يُسجَّل لها حالة؛ أعد المحاولة.",
+    en: "The sync run could not be closed because its record is missing. No status was recorded for it; try again.",
+    ur: "مطابقت کا رن بند نہ ہو سکا کیونکہ اس کا ریکارڈ موجود نہیں۔ اس کی کوئی حالت درج نہیں ہوئی؛ دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_ENROLMENT_CHANGED: {
+    ar: "تغيّر مفتاح التفعيل المعروض عن المخزَّن (فتحتَ الصفحة في مكان آخر؟). أعد تحميل الصفحة وامسح الرمز المعروض الآن، ثم أدخل الرمز الجديد.",
+    en: "The key shown on this screen is not the one stored (did you open the page somewhere else?). Reload the page, scan the code it shows now, then enter the new code.",
+    ur: "اس اسکرین پر دکھائی گئی کلید محفوظ شدہ کلید سے مختلف ہے (کیا آپ نے صفحہ کہیں اور کھولا؟)۔ صفحہ دوبارہ لوڈ کریں، اب دکھایا گیا کوڈ اسکین کریں، پھر نیا کوڈ درج کریں۔",
+  },
+  PROJECT_OS_MFA_POSTPONE_USED: {
+    ar: "استُعمل التأجيل من قبل في هذا المتصفح وانتهت مدته. فعّل التحقق بخطوتين للمتابعة.",
+    en: "The postponement was already used in this browser and has ended. Set up two-step verification to continue.",
+    ur: "اس براؤزر میں مؤخر کرنے کی سہولت پہلے استعمال ہو چکی اور ختم ہو گئی۔ جاری رکھنے کے لیے دو مرحلوں کی تصدیق فعال کریں۔",
+  },
+  PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED: {
+    ar: "التأجيل لمالك المنصة وحده.",
+    en: "Postponing is for the platform owner only.",
+    ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
+  },
+  PROJECT_OS_MFA_REQUIRED: {
+    ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
+    en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
+    ur: "آپ کے اکاؤنٹ کو دو مرحلوں کی تصدیق درکار ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+  },
+  PROJECT_OS_MFA_CODE_INVALID: {
+    ar: "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل.",
+    en: "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used.",
+    ur: "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔",
+  },
+  PROJECT_OS_MFA_LOCKED: {
+    ar: "محاولات خاطئة كثيرة. انتظر 15 دقيقة ثم حاول من جديد.",
+    en: "Too many wrong attempts. Wait 15 minutes and try again.",
+    ur: "بہت زیادہ غلط کوششیں۔ 15 منٹ انتظار کریں اور دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_NOT_ENROLLED: {
+    ar: "لم يُفعَّل التحقق بخطوتين لحسابك بعد. ابدأ التفعيل أولًا.",
+    en: "Two-step verification is not set up for your account yet. Start the setup first.",
+    ur: "آپ کے اکاؤنٹ کے لیے دو مرحلوں کی تصدیق ابھی فعال نہیں۔ پہلے سیٹ اپ شروع کریں۔",
+  },
+  PROJECT_OS_MFA_ALREADY_ENROLLED: {
+    ar: "التحقق بخطوتين مُفعَّل لحسابك. أدخل رمزك للمتابعة.",
+    en: "Two-step verification is already set up for your account. Enter your code to continue.",
+    ur: "آپ کے اکاؤنٹ کے لیے دو مرحلوں کی تصدیق پہلے سے فعال ہے۔ جاری رکھنے کے لیے کوڈ درج کریں۔",
+  },
+  PROJECT_OS_COMPANY_CREATION_OWNER_ONLY: {
+    ar: "إنشاء الشركات لمالك المنصة وحده. اطلب من مالك المنصة إنشاء شركتك أو دعوتك إلى شركة قائمة.",
+    en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
+    ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
+  },
   PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND: {
     ar: "الخطة التجارية المحددة غير متاحة أو غير نشطة.",
     en: "The selected commercial plan is unavailable or inactive.",
@@ -459,7 +514,62 @@ export const projectErrorMessages = {
   PROJECT_OS_WORKSPACE_SLUG_EXISTS: {
     ar: "الاسم المختصر لمساحة العمل مستخدم بالفعل. اختر اسمًا مختصرًا آخر.",
     en: "This workspace slug is already in use. Choose a different workspace slug.",
-    ur: "یہ ورک اسپیس کا سلَگ پہلے ہی استعمال ہو رہا ہے۔ کوئی اور ورک اسپیس سلَگ منتخب کریں۔",
+    ur: "یہ مختصر نام پہلے سے استعمال ہو رہا ہے۔ کوئی اور مختصر نام منتخب کریں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_REQUIRED: {
+    ar: "أدخل الاسم المختصر لمساحة العمل.",
+    en: "Enter the workspace short name.",
+    ur: "ورک اسپیس کا مختصر نام درج کریں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_TOO_SHORT: {
+    ar: "الاسم المختصر يجب أن يكون ٣ أحرف على الأقل.",
+    en: "The short name must be at least 3 characters.",
+    ur: "مختصر نام کم از کم 3 حروف کا ہونا چاہیے۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_TOO_LONG: {
+    ar: "الاسم المختصر طويل جدًا، وحده الأقصى ١٢٠ حرفًا.",
+    en: "The short name is too long. It can be 120 characters at most.",
+    ur: "مختصر نام بہت لمبا ہے۔ زیادہ سے زیادہ 120 حروف ہو سکتے ہیں۔",
+  },
+  PROJECT_OS_WORKSPACE_SLUG_FORMAT: {
+    ar: "استعمل أحرفًا إنجليزية صغيرة وأرقامًا وشرطة فقط، مثل: fanaa.",
+    en: "Use only lowercase English letters, digits and dashes, for example: fanaa.",
+    ur: "صرف چھوٹے انگریزی حروف، ہندسے اور ڈیش استعمال کریں، مثلاً: fanaa۔",
+  },
+  PROJECT_OS_FIELD_REQUIRED: {
+    ar: "هذا الحقل مطلوب.",
+    en: "This field is required.",
+    ur: "یہ فیلڈ ضروری ہے۔",
+  },
+  PROJECT_OS_FIELD_NUMBER_INVALID: {
+    ar: "أدخل رقمًا صحيحًا.",
+    en: "Enter a valid number.",
+    ur: "درست عدد درج کریں۔",
+  },
+  PROJECT_OS_FIELD_TOO_SHORT: {
+    ar: "النص أقصر من الحد الأدنى المطلوب.",
+    en: "The value is shorter than the minimum.",
+    ur: "قدر کم از کم حد سے چھوٹی ہے۔",
+  },
+  PROJECT_OS_FIELD_OUT_OF_RANGE: {
+    ar: "القيمة خارج الحدود المسموحة.",
+    en: "The value is outside the allowed range.",
+    ur: "قدر اجازت شدہ حد سے باہر ہے۔",
+  },
+  PROJECT_OS_FIELD_DATE_INVALID: {
+    ar: "أدخل تاريخًا صحيحًا.",
+    en: "Enter a valid date.",
+    ur: "درست تاریخ درج کریں۔",
+  },
+  PROJECT_OS_FIELD_EMAIL_INVALID: {
+    ar: "أدخل عنوان بريد إلكتروني صحيحًا.",
+    en: "Enter a valid email address.",
+    ur: "درست ای میل پتہ درج کریں۔",
+  },
+  PROJECT_OS_INPUT_INVALID: {
+    ar: "تحقق من الحقل المحدد ثم أعد المحاولة.",
+    en: "Check the field that is marked and try again.",
+    ur: "نشان زدہ فیلڈ چیک کریں اور دوبارہ کوشش کریں۔",
   },
   PROJECT_OS_SELF_SERVICE_SIGNUP_UNAVAILABLE: {
     ar: "تعذر إنشاء مساحة العمل الآن. لم تُنشأ أي بيانات. أعد المحاولة لاحقًا أو تواصل مع الدعم إذا استمر الخطأ.",
@@ -1290,6 +1400,76 @@ export const projectErrorMessages = {
     ar: "حجم الملف أكبر من الحد المسموح به وهو 50 MB.",
     en: "The file is larger than the 50 MB limit.",
     ur: "فائل 50 MB کی حد سے بڑی ہے۔",
+  },
+  PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED: {
+    ar: "هذا النوع من الملفات لا يُقرأ هنا. المقبول: Excel وCSV وXER، وPDF وصور المسح عند تفعيل القراءة الذكية.",
+    en: "This file type cannot be read here. Accepted: Excel, CSV and XER, and PDF or scanned images when smart reading is on.",
+    ur: "This file type cannot be read here. Accepted: Excel, CSV and XER, and PDF or scanned images when smart reading is on.",
+  },
+  PROJECT_OS_SMART_IMPORT_KIND_INVALID: {
+    ar: "نوع الملف غير معروف. اختر نوعًا من القائمة.",
+    en: "The file type is not recognised. Pick one from the list.",
+    ur: "The file type is not recognised. Pick one from the list.",
+  },
+  PROJECT_OS_SMART_IMPORT_NO_IMPORTER: {
+    ar: "هذا النوع (المستخلص أو التقرير اليومي) يُتعرَّف عليه لكن لا يوجد له استيراد بعد. لم يُكتب شيء.",
+    en: "This type (payment certificate or daily report) is recognised but has no importer yet. Nothing was written.",
+    ur: "This type (payment certificate or daily report) is recognised but has no importer yet. Nothing was written.",
+  },
+  PROJECT_OS_SMART_IMPORT_NO_TABLE: {
+    ar: "لم أجد جدولًا في الملف. تأكد من أنه يحوي سطر عناوين وصفوف بيانات.",
+    en: "No table was found in the file. Check that it has a header row and data rows.",
+    ur: "No table was found in the file. Check that it has a header row and data rows.",
+  },
+  PROJECT_OS_SMART_IMPORT_REQUIRED_UNMAPPED: {
+    ar: "بقي عمود مطلوب بلا مقابل. اربطه بعمود من الملف ثم اعتمد.",
+    en: "A required field has no column. Map it to a column of the file, then approve.",
+    ur: "A required field has no column. Map it to a column of the file, then approve.",
+  },
+  PROJECT_OS_SMART_IMPORT_NOTHING_TO_IMPORT: {
+    ar: "لا يوجد صف صالح للاستيراد بعد استبعاد الصفوف الناقصة. لم يُكتب شيء.",
+    en: "No row is valid for import once the incomplete ones are set aside. Nothing was written.",
+    ur: "No row is valid for import once the incomplete ones are set aside. Nothing was written.",
+  },
+  PROJECT_OS_SMART_READING_DISABLED: {
+    ar: "هذا النوع يحتاج تفعيل القراءة الذكية.",
+    en: "This type needs smart reading to be turned on.",
+    ur: "This type needs smart reading to be turned on.",
+  },
+  PROJECT_OS_SMART_READING_CAP_REACHED: {
+    ar: "بلغت الشركة سقف القراءة الذكية لهذا الشهر. يُستأنف مطلع الشهر القادم أو يرفعه المالك.",
+    en: "The company reached this month's smart-reading cap. It resumes next month, or the owner can raise it.",
+    ur: "The company reached this month's smart-reading cap. It resumes next month, or the owner can raise it.",
+  },
+  PROJECT_OS_SMART_READING_UNREADABLE: {
+    ar: "تعذّرت قراءة جدول من هذا الملف. جرّب ملفًا أوضح أو Excel.",
+    en: "A table could not be read from this file. Try a clearer file or Excel.",
+    ur: "A table could not be read from this file. Try a clearer file or Excel.",
+  },
+  PROJECT_OS_MATRIX_NOT_RECOGNISED: {
+    ar: "لم يُتعرَّف على شكل مصفوفة إنجاز الوحدات في هذا الملف. لم يُكتب شيء.",
+    en: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
+    ur: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
+  },
+  MATRIX_WEIGHTS_NOT_100: {
+    ar: "أوزان الأنشطة لا يبلغ مجموعها 100%. صحّح الصف الذي يحمل الأوزان في الملف ثم أعد الرفع.",
+    en: "The activity weights do not total 100%. Correct the weights row in the file and upload again.",
+    ur: "The activity weights do not total 100%. Correct the weights row in the file and upload again.",
+  },
+  MATRIX_ORACLE_CODE_DUPLICATE: {
+    ar: "كود Oracle مكرر بين وحدتين في الملف.",
+    en: "The same Oracle code appears on two units in the file.",
+    ur: "The same Oracle code appears on two units in the file.",
+  },
+  MATRIX_ORACLE_CODE_ALREADY_USED: {
+    ar: "كود Oracle مستعمل لوحدة أخرى في المشروع.",
+    en: "The Oracle code is already used by another unit in the project.",
+    ur: "The Oracle code is already used by another unit in the project.",
+  },
+  MATRIX_ORACLE_CODE_CHANGE_BLOCKED: {
+    ar: "وحدة لها كود Oracle مختلف عمّا في الملف؛ لا يُغيَّر كود الربط بصمت.",
+    en: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
+    ur: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
   },
   PROJECT_OS_IMPORT_JOB_FAILED: {
     ar: "تعذّر إكمال المعالجة لسبب غير متوقع. لم يُحفظ شيء؛ أعد المحاولة، وإن تكرر فتواصل مع الدعم.",

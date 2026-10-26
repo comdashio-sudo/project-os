@@ -19,6 +19,14 @@ describe("ProjectMaterials interaction", () => {
     await user.selectOptions(screen.getByLabelText("Material"), "11111111-1111-4111-8111-111111111111"); await user.type(screen.getByLabelText("Project description"), "Approved rebar"); await user.type(screen.getByLabelText("Reorder level"), "12.5"); await user.click(screen.getByRole("button", { name: "Save override" }));
     expect(state.override).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", projectDescription: "Approved rebar", reorderLevel: 12.5, active: true }));
   });
+  it("names a missing material code beside its field and creates nothing", async () => {
+    const user = userEvent.setup(); render(<ProjectMaterials tenantId="tenant-1" projectId="project-1" />);
+    await user.type(screen.getByLabelText("Description"), "Rebar"); await user.type(screen.getByLabelText("Unit of measure"), "ton"); await user.type(screen.getByLabelText("Category"), "Steel");
+    await user.click(screen.getByRole("button", { name: "Save material" }));
+    expect(screen.getByText("This field is required.")).toBeTruthy();
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
   it("renders only the localized error for a failed material write", async () => {
     const user = userEvent.setup(); state.error = {}; render(<ProjectMaterials tenantId="tenant-1" projectId="project-1" />);
     await user.type(screen.getByLabelText("Material code"), "MAT-FAIL"); await user.type(screen.getByLabelText("Description"), "Cable"); await user.type(screen.getByLabelText("Unit of measure"), "m"); await user.type(screen.getByLabelText("Category"), "Electrical"); await user.click(screen.getByRole("button", { name: "Save material" }));

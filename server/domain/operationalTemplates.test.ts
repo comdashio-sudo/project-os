@@ -41,7 +41,7 @@ describe("where the ready-made roles are written", () => {
     const body = functionSource("ensureTenantOperationalRoles");
     expect(body).toContain("allCatalogPermissions");
     expect(body).toContain('eq(roles.code, "TENANT_OWNER")');
-    expect(body).toContain("await installOperationalRoleTemplates(tx, tenantId);");
+    expect(body).toContain("await installOperationalRoleTemplates(tx, tenantId, { audit: true });"); // work order 17: the read path also audits what it adds
   });
 
   it("both company-creation transactions install the templates after the catalog and the owner's role", () => {

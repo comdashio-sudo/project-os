@@ -784,6 +784,24 @@ export const rolePermissions = pgTable(
   table => [primaryKey({ columns: [table.roleId, table.permissionId], name: "role_permissions_pk" })],
 );
 
+// Work order 17, item 2: a ready-made role template stops carrying a permission. Adding one reaches existing companies by itself (with an audit row); taking one
+// away is only PROPOSED here and applied when the company's administrator approves it after seeing the preview.
+export const roleTemplateRemovalStatus = pgEnum("role_template_removal_status", ["pending", "approved", "declined"]);
+export const roleTemplateRemovals = pgTable(
+  "role_template_removals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id),
+    permissionId: varchar("permission_id", { length: 36 }).notNull().references(() => permissions.id),
+    status: roleTemplateRemovalStatus("status").default("pending").notNull(),
+    proposedAt: timestamp("proposed_at", { withTimezone: true }).defaultNow().notNull(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  table => [uniqueIndex("role_template_removals_role_permission_uq").on(table.roleId, table.permissionId), index("role_template_removals_tenant_status_idx").on(table.tenantId, table.status)],
+);
+
 export const membershipRolesScopeTypeEnum = pgEnum("membership_roles_scope_type", ["company", "portfolio", "program", "project"]);
 export const membershipRoles = pgTable(
   "membership_roles",
@@ -2109,12 +2127,14 @@ export const pmcUnits = pgTable(
     unitNumber: integer("unit_number").notNull(),
     modelCode: varchar("model_code", { length: 80 }).notNull(),
     saleStatus: varchar("sale_status", { length: 80 }),
+    // The unit's code in the company's ERP (e.g. an Oracle code «zone-block-plot»): the foreign key that ties this unit to the other system. Unique inside a project when present.
+    externalCode: varchar("external_code", { length: 120 }),
     geometryJson: text("geometry_json"),
     unitWeight: numeric("unit_weight", { precision: 12, scale: 4 }).default("1").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
 export const pmcActivityGroups = pgTable(
@@ -2341,12 +2361,32 @@ export const authSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** The last request this session made (refreshed at most every five minutes). A session idle for 24 hours is over; null (a session from before the column) counts as created_at. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /** When this session passed the second step (an authenticator code or a recovery code). Null = not yet; a session for a user who must use two-step verification is refused everything but the verification itself until it is set. */
+    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
   },
   table => [
     foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "auth_sessions_user_fk" }).onDelete("cascade"),
     index("auth_sessions_user_idx").on(table.userId, table.revokedAt),
   ],
 );
+
+// Two-step verification (TOTP, RFC 6238) for the platform owner and company administrators. One row per person. The secret is stored sealed (AES-256-GCM),
+// never readable from a database copy alone; recovery codes are stored as hashes and each works once. `confirmed_at` null = enrolment started, not finished.
+export const userMfa = pgTable("user_mfa", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  secretSealed: text("secret_sealed").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  /** JSON array of sha256 hashes of the recovery codes not yet used. */
+  recoveryHashes: text("recovery_hashes").default("[]").notNull(),
+  /** The newest time-step already accepted: a code is good once (no replay inside its window). */
+  lastUsedStep: integer("last_used_step"),
+  failures: integer("failures").default(0).notNull(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // Wrong sign-in codes per address (a hash, never the address). Supabase Auth owns the code itself; this is the guess limit it does not give:
 // five wrong codes lock the address for fifteen minutes, whatever IP they come from, and a new code request does not clear the count.
@@ -2893,4 +2933,56 @@ export const integrationConnections = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("integration_connections_tenant_system_name_unique").on(table.tenantId, table.system, table.name)],
+);
+
+// Work order 20, smart import. A profile remembers how one SOURCE's columns map (e.g. «جدول كميات مقاول X»), so the next file of the same shape is read without asking again.
+export const importSourceProfiles = pgTable(
+  "import_source_profiles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    name: varchar("name", { length: 160 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    // the normalised header words of the file the profile was learned from: a later file whose headers overlap enough is the same source
+    headerSignature: text("header_signature").notNull(),
+    columnMapJson: text("column_map_json").notNull(),
+    timesUsed: integer("times_used").default(0).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("import_source_profiles_tenant_name_unique").on(table.tenantId, table.name)],
+);
+
+// The original file an import was read from: kept in Storage and linked to the import (and so to every row it wrote, through data_import_row_results).
+export const dataImportSources = pgTable(
+  "data_import_sources",
+  {
+    importId: varchar("import_id", { length: 36 }).primaryKey().references(() => dataImports.id),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).references(() => projects.id),
+    sourceKey: varchar("source_key", { length: 512 }).notNull(),
+    sourceName: varchar("source_name", { length: 255 }).notNull(),
+    detectedKind: varchar("detected_kind", { length: 32 }).notNull(),
+    sheetName: varchar("sheet_name", { length: 160 }),
+    mappingJson: text("mapping_json").notNull(),
+    profileId: varchar("profile_id", { length: 36 }),
+    mergedCellsFilled: integer("merged_cells_filled").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("data_import_sources_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+// What the optional AI reading (PDF, scans, free text) has cost this company this month. Off by default; when on, a company-wide monthly cap stops it.
+export const smartReadingUsage = pgTable(
+  "smart_reading_usage",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    month: varchar("month", { length: 7 }).notNull(),
+    calls: integer("calls").default(0).notNull(),
+    estimatedMicroUsd: integer("estimated_micro_usd").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("smart_reading_usage_tenant_month_unique").on(table.tenantId, table.month)],
 );

@@ -13,6 +13,17 @@ vi.mock("@/lib/trpc", () => ({ trpc: { employees: { list: { useQuery: () => ({ i
 describe("ProjectEmployees", () => {
   beforeEach(() => { cleanup(); state.identityQuery.mockReset(); state.create.mockReset(); state.archive.mockReset(); state.createContract.mockReset(); });
 
+  it("names a missing full name beside its field and creates no employee", () => {
+    render(<ProjectEmployees tenantId="tenant-1" />);
+    fireEvent.change(document.getElementById("employee-number") as HTMLInputElement, { target: { value: "EMP-09" } });
+    fireEvent.change(document.getElementById("employee-title") as HTMLInputElement, { target: { value: "Engineer" } });
+    fireEvent.change(document.getElementById("employee-department") as HTMLInputElement, { target: { value: "Design" } });
+    fireEvent.change(document.getElementById("employee-hire-date") as HTMLInputElement, { target: { value: "2026-01-15" } });
+    fireEvent.submit(document.getElementById("employee-create") as HTMLFormElement);
+    expect(screen.getByText("This field is required.")).toBeTruthy();
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
   it("keeps protected identity out of the employee card until an explicit audited-view request", async () => {
     render(<ProjectEmployees tenantId="tenant-1" />);
 

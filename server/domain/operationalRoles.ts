@@ -49,6 +49,12 @@ export const operationalPermissionCatalog = [
   { code: "schedule.write", name: "Write the schedule and the master plan", productCode: "PROJECT" as const },
 ] as const;
 
+/**
+ * Permissions a template USED to carry and no longer should. A company that still has one is never changed silently: the removal is proposed to its administrator
+ * (role_template_removals), who sees which role and how many people hold it, and approves or declines. Empty today; an entry is added here when a template drops a power.
+ */
+export const retiredTemplatePermissions: ReadonlyArray<{ roleCode: string; permission: string }> = [];
+
 export type OperationalRoleDefinition = { code: string; name: string; productCode?: "PROJECT" | "EXECUTIVE" | "PMO"; permissions: readonly string[] };
 
 /**

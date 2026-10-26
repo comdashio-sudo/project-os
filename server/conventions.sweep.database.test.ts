@@ -24,7 +24,7 @@ async function readState(connection: Connection): Promise<TableState[]> {
        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' ORDER BY c.relname`, [`{${POLICY_NAMES.join(",")}}`]);
   return rows.map(row => ({ name: row.name, rls: Boolean(row.rls), privileges: row.privileges ?? "", policies: row.policies ?? "", hasTrigger: Boolean(row.has_trigger), hasUpdatedAt: Boolean(row.has_updated_at) }));
 }
-const expectedPrivileges = (table: string) => (table === "audit_logs" ? "INSERT,SELECT" : "DELETE,INSERT,SELECT,UPDATE");
+const expectedPrivileges = (table: string) => (table === "audit_logs" ? "INSERT,SELECT" : "DELETE,INSERT,SELECT"); // UPDATE is granted per column (work order 20, item 3): see columnGrants.database.test.ts
 const expectedPolicies = (table: string, state: TableState[]) => {
   if (table === "audit_logs") return "project_os_insert,project_os_read";
   if (table === "companies") return "project_os_delete,project_os_insert,project_os_read,project_os_update";
@@ -64,7 +64,7 @@ describe.skipIf(!ownerUrl || !isTestDatabaseUrl(ownerUrl))("the convention sweep
     await owner.query("SELECT project_os_apply_conventions()");
     const after = await readState(owner);
     expect(wrong(after)).toEqual([]);
-    expect(after.find(table => table.name === PROBE)).toMatchObject({ rls: true, privileges: "DELETE,INSERT,SELECT,UPDATE", policies: "project_os_isolation", hasTrigger: true });
+    expect(after.find(table => table.name === PROBE)).toMatchObject({ rls: true, privileges: "DELETE,INSERT,SELECT", policies: "project_os_isolation", hasTrigger: true });
     // the fingerprint of the rule is stamped on the policy, which is how a later sweep knows the table matches
     const [stamp] = await owner.query<{ comment: string | null }[]>("SELECT obj_description(p.oid, 'pg_policy') AS comment FROM pg_policy p WHERE p.polrelid = ?::regclass", [PROBE]);
     expect(String(stamp[0].comment)).toMatch(/^[0-9a-f]{32}$/);

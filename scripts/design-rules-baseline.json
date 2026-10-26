@@ -1,0 +1,312 @@
+{
+ "client/src/components/DirectImportRunner.tsx": {
+  "raw-file-input": 1
+ },
+ "client/src/components/FieldShell.tsx": {
+  "hardcoded-colour": 3,
+  "number-format": 1
+ },
+ "client/src/components/LevelDashboard.tsx": {
+  "hardcoded-colour": 4,
+  "number-format": 3
+ },
+ "client/src/components/MasterPlanDrawing.tsx": {
+  "raw-file-input": 1,
+  "raw-select": 5,
+  "hardcoded-colour": 4
+ },
+ "client/src/components/MasterPlanTools.tsx": {
+  "raw-select": 3,
+  "hardcoded-colour": 3
+ },
+ "client/src/components/OfflineCopyNotice.tsx": {
+  "number-format": 1
+ },
+ "client/src/components/OperationalRoleGuide.tsx": {
+  "hardcoded-colour": 5
+ },
+ "client/src/components/PlanningControlCenter.tsx": {
+  "hardcoded-colour": 2,
+  "number-format": 4
+ },
+ "client/src/components/ScreenStates.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/components/TenantDataCard.tsx": {
+  "hardcoded-colour": 2,
+  "number-format": 1
+ },
+ "client/src/components/ui/calendar.tsx": {
+  "number-format": 1
+ },
+ "client/src/components/ui/chart.tsx": {
+  "hardcoded-colour": 5,
+  "number-format": 1
+ },
+ "client/src/lib/dxf/dxfReview.ts": {
+  "hardcoded-colour": 7
+ },
+ "client/src/lib/pdfExport.ts": {
+  "hardcoded-colour": 2
+ },
+ "client/src/lib/planningControl.ts": {
+  "number-format": 2
+ },
+ "client/src/lib/profitabilityView.ts": {
+  "number-format": 2
+ },
+ "client/src/lib/raster/rasterFile.ts": {
+  "hardcoded-colour": 1
+ },
+ "client/src/lib/uploadLimit.ts": {
+  "number-format": 1
+ },
+ "client/src/pages/AcceptInvitation.tsx": {
+  "hardcoded-colour": 3
+ },
+ "client/src/pages/BillingRegister.tsx": {
+  "hardcoded-colour": 3,
+  "number-format": 1
+ },
+ "client/src/pages/CommercialChain.tsx": {
+  "raw-select": 9,
+  "hardcoded-colour": 8
+ },
+ "client/src/pages/EmployeeRegistry.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/EosLiabilityCard.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/EvmCalculator.tsx": {
+  "hardcoded-colour": 8,
+  "number-format": 1
+ },
+ "client/src/pages/ExecutiveDashboard.tsx": {
+  "raw-select": 3,
+  "hardcoded-colour": 6,
+  "number-format": 1
+ },
+ "client/src/pages/FieldEntry.tsx": {
+  "raw-select": 9,
+  "hardcoded-colour": 12,
+  "number-format": 2
+ },
+ "client/src/pages/Home.tsx": {
+  "hardcoded-colour": 8
+ },
+ "client/src/pages/IntegrationSettings.tsx": {
+  "raw-select": 13,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/LabourLoadingCard.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/LevelCompany.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/LevelPortfolio.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/LevelProject.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/LevelWarehouse.tsx": {
+  "hardcoded-colour": 1,
+  "number-format": 1
+ },
+ "client/src/pages/LicensingConsole.tsx": {
+  "raw-select": 4,
+  "hardcoded-colour": 4
+ },
+ "client/src/pages/Login.tsx": {
+  "hardcoded-colour": 3
+ },
+ "client/src/pages/MyPerformance.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/NotFound.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/PayrollPanel.tsx": {
+  "raw-select": 18,
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/PayrollWorkspace.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/PlatformAdmin.tsx": {
+  "hardcoded-colour": 6
+ },
+ "client/src/pages/PmcProgramme.tsx": {
+  "hardcoded-colour": 4
+ },
+ "client/src/pages/PmcSitePlan.tsx": {
+  "raw-file-input": 2,
+  "raw-select": 5,
+  "hardcoded-colour": 8,
+  "number-format": 2
+ },
+ "client/src/pages/PmoControlLinks.tsx": {
+  "raw-select": 9,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/PmoDashboard.tsx": {
+  "raw-select": 24,
+  "hardcoded-colour": 7,
+  "number-format": 4
+ },
+ "client/src/pages/PortfolioCashFlowChart.tsx": {
+  "hardcoded-colour": 4
+ },
+ "client/src/pages/PortfolioProfitability.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectAdvisor.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectChanges.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/ProjectClaims.tsx": {
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/ProjectContracts.tsx": {
+  "raw-select": 7,
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectControls.tsx": {
+  "hardcoded-colour": 31,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectDataExport.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectDesign.tsx": {
+  "raw-select": 18,
+  "hardcoded-colour": 2,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectDocuments.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectEmployees.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectFieldReports.tsx": {
+  "raw-select": 7,
+  "hardcoded-colour": 1,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectFpac.tsx": {
+  "hardcoded-colour": 4
+ },
+ "client/src/pages/ProjectGoodsReceipts.tsx": {
+  "raw-select": 15,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectImports.tsx": {
+  "raw-select": 5,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/ProjectMasterPlan.tsx": {
+  "raw-select": 31,
+  "hardcoded-colour": 30,
+  "number-format": 2
+ },
+ "client/src/pages/ProjectMaterials.tsx": {
+  "raw-select": 3
+ },
+ "client/src/pages/ProjectNcrs.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/ProjectNotifications.tsx": {
+  "number-format": 1
+ },
+ "client/src/pages/ProjectPmc.tsx": {
+  "raw-select": 7,
+  "hardcoded-colour": 5
+ },
+ "client/src/pages/ProjectProcurement.tsx": {
+  "raw-select": 15
+ },
+ "client/src/pages/ProjectProfitability.tsx": {
+  "hardcoded-colour": 11,
+  "number-format": 3
+ },
+ "client/src/pages/ProjectPurchaseOrders.tsx": {
+  "raw-select": 12,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectQuality.tsx": {
+  "raw-select": 14,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/ProjectQualityInspections.tsx": {
+  "raw-select": 9,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectRegistry.tsx": {
+  "raw-select": 3,
+  "hardcoded-colour": 8,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectResources.tsx": {
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/ProjectRfis.tsx": {
+  "hardcoded-colour": 2,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectSubmittals.tsx": {
+  "raw-select": 17
+ },
+ "client/src/pages/ProjectTenders.tsx": {
+  "raw-select": 14,
+  "hardcoded-colour": 1,
+  "number-format": 1
+ },
+ "client/src/pages/ProjectWarehouses.tsx": {
+  "raw-select": 31
+ },
+ "client/src/pages/ProjectWorkforce.tsx": {
+  "hardcoded-colour": 3
+ },
+ "client/src/pages/QuickIssue.tsx": {
+  "raw-select": 5,
+  "hardcoded-colour": 2
+ },
+ "client/src/pages/SetupWizard.tsx": {
+  "western-digits": 4,
+  "raw-select": 12,
+  "hardcoded-colour": 5
+ },
+ "client/src/pages/SiteDailyReport.tsx": {
+  "raw-file-input": 1,
+  "raw-select": 13,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/SupportCenter.tsx": {
+  "raw-select": 4,
+  "hardcoded-colour": 3
+ },
+ "client/src/pages/SupportOwnerPanel.tsx": {
+  "raw-select": 3,
+  "hardcoded-colour": 1
+ },
+ "client/src/pages/TenantAdministration.tsx": {
+  "raw-select": 37,
+  "hardcoded-colour": 18
+ },
+ "client/src/pages/UnitCard.tsx": {
+  "raw-select": 6
+ },
+ "client/src/pages/UserGuide.tsx": {
+  "hardcoded-colour": 9
+ },
+ "client/src/pages/UserProfile.tsx": {
+  "raw-select": 4,
+  "hardcoded-colour": 2,
+  "number-format": 1
+ }
+}

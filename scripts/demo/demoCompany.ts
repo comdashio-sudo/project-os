@@ -11,6 +11,8 @@ import type { PoolClient } from "pg";
 import { appRouter } from "../../server/routers";
 import { createTenantForUser, ensureDefaultCommercialCatalog, getDb, upsertUser } from "../../server/db";
 import { deleteTenantData } from "../../server/tenantData";
+import { seedDemoExtras } from "./demoExtras";
+import { storageConfiguration, storagePut } from "../../server/storage";
 import { calculateEvm } from "../../server/domain/evm";
 import { fpac } from "../../server/domain/profitability";
 import { effectiveStatusFactors } from "../../server/domain/pmc";
@@ -278,7 +280,7 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
       // the activity named for this defect, or — when no villa has reached it yet — the nearest one that has been worked on
       const startedOf = (code: string) => cells.filter(item => item.activity === code && stateAt(item, PROJECT_DAYS) !== "NOT_STARTED");
       const activity = startedOf(ncrActivity[index]).length ? ncrActivity[index] : "BLK"; const pool = startedOf(activity); const cell = pool.find(item => item.unit % 12 === index % 12) ?? pool[index % pool.length];
-      return [randomUUID(), tenantId, projectId, `NCR-${pad(index + 1)}`, title, `${title} — مُسجَّل أثناء الفحص (بيانات عرض)`, ncrStatuses[index], unitIds[cell.unit], defId(modelOf(cell.unit), activity), addDays(now, index < 5 ? 6 - index * 3 : -10), staff[2].id, day(Math.max(3, cell.finish - 1))];
+      return [randomUUID(), tenantId, projectId, `NCR-${pad(index + 1)}`, title, `${title} — مُسجَّل أثناء الفحص (بيانات عرض)`, ncrStatuses[index], unitIds[cell.unit], defId(modelOf(cell.unit), activity), addDays(now, index < 5 ? 6 - index * 3 : -10), staff[3].id, day(Math.max(3, cell.finish - 1))];
     });
     await bulk(client, "ncrs", ["id", "tenant_id", "project_id", "ncr_number", "title", "description", "status", "pmc_unit_id", "pmc_activity_definition_id", "due_at", "created_by_user_id", "created_at"], ncrRows);
 
@@ -319,6 +321,9 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     }
     await bulk(client, "site_daily_reports", ["id", "tenant_id", "project_id", "report_date", "weather", "temperature_c", "summary", "obstacles", "status", "prepared_by_user_id", "submitted_at", "reviewed_by_user_id", "reviewed_at", "review_note"], reportRows);
     await bulk(client, "site_daily_report_lines", ["id", "tenant_id", "project_id", "report_id", "line_type", "pmc_activity_definition_id", "pmc_unit_id", "label", "quantity", "hours", "description", "reported_status", "sort_order"], lineRows);
+    const approvedReports = reportRows.filter(row => row[8] === "approved").map(row => ({ id: row[0] as string, preparedBy: row[9] as number }));
+    let storageReady = false; try { storageConfiguration(); storageReady = true; } catch { storageReady = false; }
+    await seedDemoExtras({ client, tenantId, projectId, ownerId: owner.id, reviewerId: people.get("pm")!.id, people: DEMO_PEOPLE.map(person => ({ key: person.key, name: person.name, id: people.get(person.key)!.id })), approvedReports, day, now, bulk, storagePut: storageReady ? (key, data, type) => storagePut(key, data, type) : undefined, log });
     log(`${reportRows.length} daily reports, ${submittalRows.length} submittals, ${ncrRows.length} NCRs`);
 
     // ---------------------------------------------------------------------------------------------------------- 4. the master plan: one drawing, the blocks and every villa on it
@@ -352,7 +357,7 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     await bulk(client, "decisions", ["id", "tenant_id", "project_id", "problem", "options", "recommendation", "cost_impact", "schedule_impact_days", "status"], [
       [randomUUID(), tenantId, projectId, "تأخر الأساسات في المجموعات الأخيرة", "زيادة الورديات أو تأجيل التشطيب", "زيادة وردية ثانية للأساسات", 1_200_000, -10, "submitted"],
       [randomUUID(), tenantId, projectId, "اعتماد بديل لمورد البلوك", "مورد حالي أو مورد بديل أقرب", "اعتماد المورد البديل", -350_000, -3, "draft"]]);
-    await bulk(client, "rfis", ["id", "tenant_id", "project_id", "rfi_number", "subject", "question", "status", "due_at", "submitted_at", "created_by_user_id"], Array.from({ length: 8 }, (_, i) => [randomUUID(), tenantId, projectId, `RFI-${pad(i + 1)}`, ["تفاصيل ربط الأسقف بالأعمدة", "مستوى التأسيس للمجموعة 12", "نوع العزل في الحمامات", "مسار تمديدات المكيفات", "قطاعات السلالم", "ارتفاع الأسوار", "لون واجهة النموذج ب", "موقع لوحات الكهرباء"][i], "نرجو التوضيح وفق المخططات المرفقة (بيانات عرض)", ["answered", "answered", "answered", "under_review", "submitted", "answered", "closed", "submitted"][i], addDays(now, 7 - i * 5), day(10 + i * 9), people.get("site1")!.id]));
+    await bulk(client, "rfis", ["id", "tenant_id", "project_id", "rfi_number", "subject", "question", "status", "due_at", "submitted_at", "created_by_user_id"], Array.from({ length: 8 }, (_, i) => [randomUUID(), tenantId, projectId, `RFI-${pad(i + 1)}`, ["تفاصيل ربط الأسقف بالأعمدة", "مستوى التأسيس للمجموعة 12", "نوع العزل في الحمامات", "مسار تمديدات المكيفات", "قطاعات السلالم", "ارتفاع الأسوار", "لون واجهة النموذج ب", "موقع لوحات الكهرباء"][i], "نرجو التوضيح وفق المخططات المرفقة (بيانات عرض)", ["answered", "answered", "answered", "under_review", "submitted", "answered", "closed", "submitted"][i], addDays(now, 7 - i * 5), day(10 + i * 9), people.get(i % 2 ? "site2" : "site1")!.id]));
     await bulk(client, "hse_observations", ["id", "tenant_id", "project_id", "observation_number", "title", "description", "category", "severity", "status", "due_at", "created_by_user_id"], [["حواجز مفتوحة حول الحفر", "safety", "high", "open"], ["غياب أحذية السلامة", "safety", "medium", "remediation"], ["غبار عالٍ عند القص", "health", "medium", "verification"], ["تسرب زيوت", "environment", "low", "closed"], ["سقالة بلا ربط", "safety", "critical", "assigned"]].map((r, i) => [randomUUID(), tenantId, projectId, `HSE-${pad(i + 1)}`, r[0], `${r[0]} — ملاحظة ميدانية (بيانات عرض)`, r[1], r[2], r[3], addDays(now, 4 - i * 3), people.get("site2")!.id]));
     const disciplines = ["architectural", "structural", "electrical", "plumbing", "mechanical", "civil"] as const;
     const drawingIds = Array.from({ length: 14 }, () => randomUUID());
