@@ -6,6 +6,7 @@ import ProjectControls from "./ProjectControls";
 
 vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }),
+  useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()],
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));

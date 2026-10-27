@@ -42,7 +42,9 @@ import { DashboardSectionReporter } from "@/components/DashboardSectionReporter"
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { Activity, ArrowLeft, Banknote, FileUp, CalendarDays, Calculator, CheckCircle2, ClipboardList, FileCheck2, HeartPulse, PackageCheck, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
+import { ProjectStart } from "@/components/ProjectStart";
+import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { enumLabel } from "@/lib/labels";
 import { WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
@@ -53,7 +55,7 @@ const emptyPlanningQuery = { data: undefined, isLoading: false, error: null, ref
 function withProjectSectionBoundary<P extends object>(Component: React.ComponentType<P>, titles: { ar: string; en: string; ur: string }) {
   return function ProjectSectionBoundary(props: P) {
     const { isArabic, language } = useLanguage();
-    return <SectionErrorBoundary title={pickLanguage(language, titles)} isArabic={isArabic}><Component {...props} /></SectionErrorBoundary>;
+    return <SectionErrorBoundary title={pickLanguage(language, titles)} isArabic={isArabic}><div data-section-scope className="flex flex-col gap-2"><SectionActions className="justify-end" /><Component {...props} /></div></SectionErrorBoundary>;
   };
 }
 
@@ -162,9 +164,13 @@ export default function ProjectControls() {
   const healthStatusLabel = (status: string) => ({ green: pickLanguage(language, { ar: "أخضر", en: "Green", ur: "سبز" }), amber: pickLanguage(language, { ar: "كهرماني", en: "Amber", ur: "نارنجی" }), red: pickLanguage(language, { ar: "أحمر", en: "Red", ur: "سرخ" }) }[status] ?? status);
   const healthConfidenceLabel = (confidence: string) => ({ low: pickLanguage(language, { ar: "منخفضة", en: "Low", ur: "کم" }), medium: pickLanguage(language, { ar: "متوسطة", en: "Medium", ur: "متوسط" }), high: pickLanguage(language, { ar: "مرتفعة", en: "High", ur: "زیادہ" }) }[confidence] ?? confidence);
   const dateLabel = (value: Date | string | null) => value ? new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value)) : "—";
+  const [, navigate] = useLocation();
+  // "Upload any file" and the start card's upload actions: the smart-import screen once it has a route (client/src/lib/uploadAnyFile.ts), the page's data imports until then
+  const openUpload = () => { const href = uploadAnyFileHref(tenantId, projectId); if (href) navigate(href); else jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP); };
   const jumpToManagerLane = (id: string) => { const target = document.getElementById(id); if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
+    <ProjectUploadContext.Provider value={openUpload}>
     <main className="flex min-w-0 flex-col gap-5 text-foreground [&>*]:min-w-0">
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
@@ -177,9 +183,7 @@ export default function ProjectControls() {
               <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{t.subtitle}</p>
             </div>
             {/* the smart-import screen (Agent 1); until it has a route, the page's own data-imports group (client/src/lib/uploadAnyFile.ts) */}
-            {uploadAnyFileHref(tenantId, projectId)
-              ? <Link href={uploadAnyFileHref(tenantId, projectId)!} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</Link>
-              : <button type="button" onClick={() => jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP)} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button>}
+            <button type="button" onClick={openUpload} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button>
           </div>
           <nav aria-label={pickLanguage(language, { ar: "صفحات المشروع", en: "Project pages", ur: "پروجیکٹ کے صفحات" })} className="flex flex-wrap gap-2 print:hidden">
             {([["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
@@ -187,6 +191,7 @@ export default function ProjectControls() {
             ))}
           </nav>
         </header>
+        {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={openUpload} onManual={() => jumpToManagerLane("manager-schedule")} /> : null}
 
         <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="flex flex-wrap gap-2 print:hidden">
           {([["overview", pickLanguage(language, { ar: "نظرة عامة وأدوات الضبط", en: "Overview and control tools", ur: "جائزہ اور کنٹرول کے ٹولز" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "PMC project control", ur: "PMC پروجیکٹ کنٹرول" })]] as const).map(([key, label]) => (
@@ -214,10 +219,10 @@ export default function ProjectControls() {
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="loading" /></div>}
         {scheduleQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(scheduleQuery.error, isArabic)} onRetry={() => void scheduleQuery.refetch()} /></div>}
-        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" /></div>}
+        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={() => jumpToManagerLane("manager-schedule")} />} /></div>}
         {financialsQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="loading" /></div>}
         {financialsQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(financialsQuery.error, isArabic)} onRetry={() => void financialsQuery.refetch()} /></div>}
-        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" /></div>}
+        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={() => jumpToManagerLane("manager-schedule")} />} /></div>}
         {performanceQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="loading" /></div>}
         {performanceQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="error" error={performanceQuery.error} onRetry={() => void performanceQuery.refetch()} /></div>}
         {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="empty" /></div>}
@@ -285,11 +290,12 @@ export default function ProjectControls() {
         </div>
         </div>
     </main>
+    </ProjectUploadContext.Provider>
   );
 }
 
 function SectionHeading({ icon: Icon, title, detail }: { icon: typeof Activity; title: string; detail?: string }) {
-  return <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><Icon className="h-5 w-5" /></span><div><h2 className="font-semibold">{title}</h2>{detail && <p className="text-sm text-muted-foreground">{detail}</p>}</div></div>;
+  return <div className="flex flex-wrap items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><Icon className="h-5 w-5" /></span><div><h2 className="font-semibold">{title}</h2>{detail && <p className="text-sm text-muted-foreground">{detail}</p>}</div><SectionActions className="ms-auto" /></div>;
 }
 
 function WbsSelect({ value, onChange, label, projectLabel, items }: { value: string; onChange: (value: string) => void; label: string; projectLabel: string; items: Array<{ id: string; code: string; name: string }> }) {

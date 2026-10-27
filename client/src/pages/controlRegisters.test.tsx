@@ -93,6 +93,7 @@ vi.mock("./ProjectGoodsReceipts", () => ({ ProjectGoodsReceipts: () => null }));
 vi.mock("wouter", () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),
+  useLocation: () => ["/", vi.fn()],
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
