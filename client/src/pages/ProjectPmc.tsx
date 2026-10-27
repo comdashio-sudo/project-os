@@ -329,7 +329,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
     <Shell embedded={embedded} isArabic={isArabic} isRtl={isRtl}>
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div>{!embedded && <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>}{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
+          <div>{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && <div className="flex gap-2">
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>

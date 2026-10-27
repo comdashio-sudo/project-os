@@ -37,7 +37,6 @@ import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/Mast
 import { ProjectPmcWorkspace } from "./ProjectPmc";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
 import { calculatePlanningControl } from "@/lib/planningControl";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { Activity, ArrowLeft, Banknote, CalendarDays, Calculator, CheckCircle2, ClipboardList, FileCheck2, HeartPulse, PackageCheck, Plus, ShieldCheck, TrendingUp } from "lucide-react";
@@ -168,16 +167,15 @@ export default function ProjectControls() {
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <Link href={`/projects/${tenantId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.registry}</Link>
           <div className="flex flex-wrap items-center gap-2"><Link href={`/projects/${tenantId}/${projectId}/guide`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })}</Link><Link href={`/projects/${tenantId}/${projectId}/pmc`} className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">{pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })}</Link><Link href={`/projects/${tenantId}/${projectId}/profitability`} className="rounded-lg bg-[#0e6b70] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0b5559]">{pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })}</Link><Link href={`/projects/${tenantId}/${projectId}/commercial`} className="rounded-lg bg-[#5147e5] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4338ca]">{pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <EnterpriseNavigation tenantId={tenantId} projectId={projectId} context="project" />
+        
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
-        <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
+        <section className="rounded-3xl bg-card p-7 text-card-foreground ring-1 ring-border">
           <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">{t.project} · {data.project.code}</p>
           <h1 className="mt-2 text-3xl font-semibold">{data.project.name}</h1>
           <p className="mt-3 max-w-3xl text-slate-300">{t.subtitle}</p>

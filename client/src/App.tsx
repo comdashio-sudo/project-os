@@ -42,6 +42,7 @@ import IntegrationSettings from "./pages/IntegrationSettings";
 import RequireAuth from "./components/RequireAuth";
 import { PermissionProvider } from "./lib/permissions";
 import { RouteBoundary } from "./components/RouteBoundary";
+import { ProductShell } from "./components/ProductShell";
 import { Suspense, lazy, type ComponentType } from "react";
 import { Route, Switch } from "wouter";
 
@@ -53,7 +54,7 @@ const lazyPage = (Page: ComponentType) => function LazyRoute() { return <Suspens
 function withAuth(Component: ComponentType<any>) {
   return function AuthenticatedRoute(props: any) {
     // every company route carries :tenantId; the provider asks the server once what this person may do there (client/src/lib/permissions.tsx)
-    return <RequireAuth><PermissionProvider tenantId={props.params?.tenantId}><RouteBoundary><Component {...props} /></RouteBoundary></PermissionProvider></RequireAuth>;
+    return <RequireAuth><PermissionProvider tenantId={props.params?.tenantId}><RouteBoundary>{props.params?.tenantId ? <ProductShell tenantId={props.params.tenantId} projectId={props.params?.projectId}><Component {...props} /></ProductShell> : <Component {...props} />}</RouteBoundary></PermissionProvider></RequireAuth>;
   };
 }
 

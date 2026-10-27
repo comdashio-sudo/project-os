@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { GovernedProjectControlLink } from "@/components/GovernedProjectControlLink";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -139,7 +138,7 @@ export default function PmoDashboard() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <EnterpriseNavigation tenantId={tenantId} context="pmo" />
+        
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_setup" state={setupQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_risks" state={risksQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_issues" state={issuesQuery.error ? "error" : null} />

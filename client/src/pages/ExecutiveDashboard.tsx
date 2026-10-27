@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { GovernedProjectControlLink } from "@/components/GovernedProjectControlLink";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -189,7 +188,7 @@ export default function ExecutiveDashboard() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <EnterpriseNavigation tenantId={tenantId} context="executive" />
+        
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_metrics" state={metricsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_projects" state={projectsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_decisions" state={decisionsQuery.error ? "error" : null} />

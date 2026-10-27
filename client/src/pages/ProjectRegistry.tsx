@@ -7,7 +7,6 @@ import { FieldError } from "@/components/FieldError";
 import { formFieldErrors } from "@/lib/formValidation";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { ArrowLeft, FolderKanban, Plus, Search, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
@@ -83,7 +82,7 @@ export default function ProjectRegistry() {
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <EnterpriseNavigation tenantId={tenantId} context="project" />
+        
         <div className="mb-8"><p className="text-xs font-bold tracking-[.16em] text-[#0e6b70]">{t.tag}</p><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><p className="mt-2 text-slate-600">{t.intro}</p></div>
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section>
