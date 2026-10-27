@@ -12,7 +12,7 @@ import { appRouter } from "./routers";
 const SLUG = "g120-sod";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@perm.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
-const DENIED = "Required permission is not granted.";
+const DENIED = "PROJECT_OS_PERMISSION_DENIED";
 
 let connection: fixtureDb.Connection;
 let tenantId = "";

@@ -2,7 +2,8 @@ import React from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { isRefusal, refusalSentence } from "@/components/ScreenStates";
-import { type Language, pickLanguage } from "@/lib/language";
+import { type Language, pickLanguage, resolveLanguage } from "@/lib/language";
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 
 type SectionErrorBoundaryProps = {
   children: React.ReactNode;
@@ -38,18 +39,21 @@ export class SectionErrorBoundary extends React.Component<SectionErrorBoundaryPr
  * neighbours keep working. `titles` names the panels by their component name, so the message says which one failed.
  */
 export function GuardedPanels({ children, isArabic, titles }: { children: React.ReactNode; isArabic: boolean; titles?: Record<string, { ar: string; en: string; ur: string }> }) {
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   return <>{React.Children.map(children, (child, index) => {
     if (!React.isValidElement(child)) return child;
     const type = child.type as { displayName?: string; name?: string };
     const label = titles?.[type.displayName ?? type.name ?? ""];
-    const title = label ? label[isArabic ? "ar" : "en"] : isArabic ? "هذا القسم" : "This section";
+    const title = label ? label[lang] : pickLanguage(lang, { ar: "هذا القسم", en: "This section", ur: "یہ حصہ" });
     return <SectionErrorBoundary key={child.key ?? index} title={title} isArabic={isArabic}>{child}</SectionErrorBoundary>;
   })}</>;
 }
 
 /** `error` is the source's error: a refusal says so in a sentence (the server's, when it sent one) instead of the generic failure copy. */
-export function SectionMessage({ title, isArabic, language = isArabic ? "ar" : "en", kind, detail, onRetry, error }: { title: string; isArabic: boolean; language?: Language; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
-  const copy = pickLanguage(language, { ar: {
+export function SectionMessage({ title, isArabic, language, kind, detail, onRetry, error }: { title: string; isArabic: boolean; language?: Language; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
+  const contextLanguage = useOptionalLanguage();
+  const lang = language ?? contextLanguage ?? resolveLanguage(isArabic);
+  const copy = pickLanguage(lang, { ar: {
         loading: "جارٍ تحميل هذا القسم…",
         empty: "لا توجد بيانات لهذا القسم ضمن نطاق الوصول الحالي.",
         error: "تعذّر تحميل هذا القسم. بقية اللوحة ما زالت متاحة.",
@@ -60,16 +64,16 @@ export function SectionMessage({ title, isArabic, language = isArabic ? "ar" : "
         error: "This section could not be loaded. The rest of the dashboard remains available.",
         partial: "Only partial data is available; missing sources are identified below.",
       }, ur: {
-        loading: "Loading this section…",
-        empty: "No data is available for this section in the current access scope.",
-        error: "This section could not be loaded. The rest of the dashboard remains available.",
-        partial: "Only partial data is available; missing sources are identified below.",
+        loading: "یہ حصہ لوڈ ہو رہا ہے…",
+        empty: "موجودہ رسائی کے دائرے میں اس حصے کا کوئی ڈیٹا دستیاب نہیں۔",
+        error: "یہ حصہ لوڈ نہیں ہو سکا۔ ڈیش بورڈ کا باقی حصہ دستیاب ہے۔",
+        partial: "صرف جزوی ڈیٹا دستیاب ہے؛ غائب ذرائع نیچے بتائے گئے ہیں۔",
       } });
   const tone = kind === "error" ? "border-red-200 bg-red-50 text-red-800" : kind === "partial" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-border bg-muted/30 text-muted-foreground";
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">
       {kind === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? (kind === "error" && isRefusal(error) ? refusalSentence(error, isArabic, "section") : copy[kind])}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}</div>
+      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? (kind === "error" && isRefusal(error) ? refusalSentence(error, lang, "section") : copy[kind])}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}</div>
     </div>
   </section>;
 }
@@ -83,10 +87,11 @@ export type SourceQuery = { error: unknown; isFetching?: boolean; refetch?: () =
  * carry on without the chart). Renders nothing while the source is healthy.
  */
 export function SourceNotice({ query, isArabic, title, fallback, className = "" }: { query: SourceQuery; isArabic: boolean; title: string; fallback?: string; className?: string }) {
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   if (!query.error) return null;
   return <div role="alert" aria-label={title} className={`rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 ${className}`}>
-    <p className="font-semibold">{isArabic ? `تعذّر تحميل: ${title}` : `Could not load: ${title}`}</p>
-    <p className="mt-1">{getLocalizedProjectError(query.error, isArabic)}{fallback ? ` ${fallback}` : ""}</p>
-    {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-amber-700 bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{isArabic ? "أعد المحاولة" : "Try again"}</button>}
+    <p className="font-semibold">{pickLanguage(lang, { ar: `تعذّر تحميل: ${title}`, en: `Could not load: ${title}`, ur: `لوڈ نہیں ہو سکا: ${title}` })}</p>
+    <p className="mt-1">{getLocalizedProjectError(query.error, lang)}{fallback ? ` ${fallback}` : ""}</p>
+    {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-amber-700 bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
   </div>;
 }

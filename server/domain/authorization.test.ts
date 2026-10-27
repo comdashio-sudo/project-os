@@ -34,13 +34,13 @@ describe("tenant authorization", () => {
   it("rejects a cross-tenant request", () => {
     expect(() =>
       assertTenantAccess(access, { tenantId: "tenant-b", product: "PROJECT", permission: "project.read" }),
-    ).toThrow(/Tenant scope is invalid/);
+    ).toThrow(/PROJECT_OS_TENANT_ACCESS_DENIED/);
   });
 
   it("rejects an entitlement bypass", () => {
     expect(() =>
       assertTenantAccess(access, { tenantId: "tenant-a", product: "EXECUTIVE", permission: "project.read" }),
-    ).toThrow(/not licensed/);
+    ).toThrow(/PROJECT_OS_PRODUCT_NOT_ENTITLED/);
   });
 
   it("rejects a role-scope bypass", () => {
@@ -51,6 +51,6 @@ describe("tenant authorization", () => {
         permission: "project.read",
         scope: { type: "project", id: "project-2" },
       }),
-    ).toThrow(/Role scope does not cover/);
+    ).toThrow(/PROJECT_OS_PERMISSION_DENIED/);
   });
 });

@@ -1,5 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
-import { type Language, pickLanguage } from "@/lib/language";
+import { type Language, pickLanguage, resolveLanguage } from "@/lib/language";
 import React from "react";
 import { Link, useLocation } from "wouter";
 
@@ -14,7 +14,7 @@ class RouteErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error) { console.error("[Route] render failed", error.name); } // name only: a message can carry data
   render() {
     if (!this.state.failed) return this.props.children;
-    const language = this.props.language ?? (this.props.isArabic ? "ar" : "en");
+    const language = this.props.language ?? resolveLanguage(this.props.isArabic);
     const t = pickLanguage(language, {
       ar: { title: "تعذّر عرض هذه الصفحة", body: "حدث خطأ أثناء العرض. بقية المنصة ما زالت تعمل ولم يضع شيء من بياناتك.", retry: "أعد المحاولة", home: "العودة إلى مساحة العمل" },
       en: { title: "This page could not be shown", body: "Something went wrong while rendering it. The rest of the platform still works and none of your data was lost.", retry: "Try again", home: "Back to the workspace" },

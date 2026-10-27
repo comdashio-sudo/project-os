@@ -1,3 +1,4 @@
+import { useUiText } from "@/components/ui/uiText";
 import * as React from "react";
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
@@ -175,6 +176,7 @@ function CarouselPrevious({
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const ut = useUiText();
   const { orientation, scrollPrev, canScrollPrev } = useCarousel();
 
   return (
@@ -194,7 +196,7 @@ function CarouselPrevious({
       {...props}
     >
       <ArrowLeft />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">{ut({ ar: "الشريحة السابقة", en: "Previous slide", ur: "پچھلی سلائیڈ" })}</span>
     </Button>
   );
 }
@@ -205,6 +207,7 @@ function CarouselNext({
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const ut = useUiText();
   const { orientation, scrollNext, canScrollNext } = useCarousel();
 
   return (
@@ -224,7 +227,7 @@ function CarouselNext({
       {...props}
     >
       <ArrowRight />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{ut({ ar: "الشريحة التالية", en: "Next slide", ur: "اگلی سلائیڈ" })}</span>
     </Button>
   );
 }

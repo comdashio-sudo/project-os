@@ -14,7 +14,8 @@ import { ArrowLeft, Check } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ProjectImports } from "./ProjectImports";
-import { pickLanguage } from "@/lib/language";
+import { pickLanguage, resolveLanguage } from "@/lib/language";
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 
 type Step = "company" | "project" | "import" | "invite";
 const STEPS: Step[] = ["company", "project", "import", "invite"];
@@ -154,7 +155,7 @@ function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetc
 }
 
 function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof text)["ar"]["invite"]; isArabic: boolean; tenantId: string; projectId: string; project?: { id: string; code: string; name: string } }) {
-  const { language } = useLanguage();
+  const language = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const admin = trpc.tenant.administration.useQuery({ tenantId }, { enabled: Boolean(tenantId) }); // opening it installs the ready-made system roles for the company
   const [email, setEmail] = useState(""); const [roleId, setRoleId] = useState(""); const [scopeChoice, setScopeChoice] = useState<"project" | "company" | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -176,7 +177,7 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
           <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /><FieldError id="setup-email-error" message={fieldErrors["setup-email"]} /></div>
           <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select><FieldError id="setup-role-error" message={fieldErrors["setup-role"]} /></div>
           <div><Label htmlFor="setup-scope">{t.scope}</Label><select id="setup-scope" className={`${field} mt-1`} value={scope} onChange={event => setScopeChoice(event.target.value as "project" | "company")}><option value="project" disabled={!projectId}>{t.scopeProject}{project ? ` — ${project.name}` : ""}</option><option value="company">{t.scopeCompany}</option></select></div>
-          {profile && <dl className="rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><dt className="font-semibold">{t.purpose}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).purpose}</dd><dt className="mt-2 font-semibold">{t.focus}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).focus}</dd><dt className="mt-2 font-semibold">{t.boundary}</dt><dd>{pickLanguage<Record<"purpose" | "focus" | "boundary", string>>(language, { ar: profile.ar, en: profile.en, ur: profile.en }).boundary}</dd></dl>}
+          {profile && <dl className="rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><dt className="font-semibold">{t.purpose}</dt><dd>{profile[language].purpose}</dd><dt className="mt-2 font-semibold">{t.focus}</dt><dd>{profile[language].focus}</dd><dt className="mt-2 font-semibold">{t.boundary}</dt><dd>{profile[language].boundary}</dd></dl>}
           {invite.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(invite.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={invite.isPending || !roleId}>{invite.isPending ? t.sending : t.send}</Button></div>
         </form>

@@ -39,6 +39,16 @@ describe("ProjectImports confirmation", () => {
     expect(state.mock.confirm).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", importId: JOB });
   });
 
+  it("names the tables of a real XER that were ignored — as a notice, not an error — and the confirm button stays available", async () => {
+    state.mock.progress = { ...(validated as object), analysis: { ...(validated as { analysis: object }).analysis, warnings: [{ code: "XER_TABLE_IGNORED", field: "CURRTYPE" }, { code: "XER_TABLE_IGNORED", field: "TASKPRED" }] } };
+    await startImport();
+    const notice = await screen.findByTestId("import-ignored");
+    expect(notice.textContent).toContain("We ignored");
+    expect(notice.textContent).toContain("CURRTYPE · TASKPRED");
+    expect(screen.queryByText("Validation errors:")).toBeNull();
+    expect(await screen.findByRole("button", { name: "Confirm import" })).toBeTruthy();
+  });
+
   it("never confirms by itself: the analysis alone writes nothing", async () => {
     await startImport();
     await screen.findByRole("button", { name: "Confirm import" });

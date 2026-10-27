@@ -1,5 +1,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import React from "react";
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
+import { pickLanguage, resolveLanguage } from "@/lib/language";
 import type { AppRouter } from "../../../server/routers";
 
 // The differences preview of an import, before anything is written: new / modified (old → new) / unchanged / conflict / absent from the file. Shared by the master-data importer
@@ -22,15 +24,16 @@ export const conflictReasons: Record<"ar" | "en" | "ur", Record<string, string>>
     COST_ENTRY_READ_ONLY: "A posted cost is not edited from a file.", PO_NOT_DRAFT: "The purchase order has left draft: it is changed in its workflow, not from a file.", PO_STATUS_READ_ONLY: "A purchase order's status is not changed from a file.",
     TIME_ENTRY_READ_ONLY: "A booked day is not edited from a file.", EMPLOYEE_READ_ONLY: "A terminated or archived employee record is not edited from a file.", EMPLOYEE_TERMINATION_NOT_BY_IMPORT: "Termination is done on the HR screen, not from a file.",
   }, ur: {
-    VERSION_CHANGED: "This row changed in the platform after the export.", ID_KEY_MISMATCH: "This row matches no record in the platform (it was re-keyed or no longer exists).",
-    COST_ENTRY_READ_ONLY: "A posted cost is not edited from a file.", PO_NOT_DRAFT: "The purchase order has left draft: it is changed in its workflow, not from a file.", PO_STATUS_READ_ONLY: "A purchase order's status is not changed from a file.",
-    TIME_ENTRY_READ_ONLY: "A booked day is not edited from a file.", EMPLOYEE_READ_ONLY: "A terminated or archived employee record is not edited from a file.", EMPLOYEE_TERMINATION_NOT_BY_IMPORT: "Termination is done on the HR screen, not from a file.",
+    VERSION_CHANGED: "ایکسپورٹ کے بعد پلیٹ فارم پر یہ قطار تبدیل ہو گئی ہے۔", ID_KEY_MISMATCH: "یہ قطار پلیٹ فارم کے کسی ریکارڈ سے نہیں ملتی (اس کی کلید دوبارہ درج ہوئی ہے یا وہ اب موجود نہیں)۔",
+    COST_ENTRY_READ_ONLY: "درج شدہ لاگت فائل سے تبدیل نہیں کی جاتی۔", PO_NOT_DRAFT: "خریداری کا آرڈر مسودے سے آگے جا چکا ہے: یہ اپنے ورک فلو میں تبدیل ہوتا ہے، فائل سے نہیں۔", PO_STATUS_READ_ONLY: "خریداری کے آرڈر کی حیثیت فائل سے تبدیل نہیں ہوتی۔",
+    TIME_ENTRY_READ_ONLY: "درج شدہ دن فائل سے تبدیل نہیں ہوتا۔", EMPLOYEE_READ_ONLY: "ختم شدہ یا محفوظ شدہ ملازم کا ریکارڈ فائل سے تبدیل نہیں ہوتا۔", EMPLOYEE_TERMINATION_NOT_BY_IMPORT: "ملازمت ختم کرنا HR اسکرین پر ہوتا ہے، فائل سے نہیں۔",
   },
 };
 
 export function ImportDiffPreview({ diff, isArabic, fieldLabel }: { diff: DiffData; isArabic: boolean; fieldLabel?: (field: string) => string | undefined }) {
-  const t = isArabic ? dictionary.ar : dictionary.en;
-  const reason = isArabic ? conflictReasons.ar : conflictReasons.en;
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  const t = dictionary[lang];
+  const reason = conflictReasons[lang];
   const label = (field: string) => fieldLabel?.(field) ?? field;
   const kindLabel = (kind: string) => (kind === "new" ? t.diffNew : kind === "modified" ? t.diffModified : t.diffConflict);
   const kindClass = (kind: string) => (kind === "new" ? "bg-emerald-100 text-emerald-800" : kind === "modified" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800");
@@ -42,7 +45,7 @@ export function ImportDiffPreview({ diff, isArabic, fieldLabel }: { diff: DiffDa
       {noChanges && <p className="mt-1 text-muted-foreground">{t.diffNoChanges}</p>}
       {diff.summary.conflict > 0 && <p role="alert" className="mt-1 text-red-700">{t.diffConflictNote}</p>}
       {diff.entries.some(entry => entry.kind === "conflict") && <ul className="mt-1 space-y-0.5 text-red-700">{diff.entries.filter(entry => entry.kind === "conflict").map(entry => <li key={`${entry.rowNumber}-reason`}>#{entry.rowNumber} · {entry.key} — {reason[entry.conflict ?? ""] ?? entry.conflict}</li>)}</ul>}
-      {diff.entries.length > 0 && <div className="mt-2 overflow-x-auto"><table className="w-full text-start text-xs"><thead><tr className="text-muted-foreground"><th className="p-1 text-start">#</th><th className="p-1 text-start">{isArabic ? "المفتاح" : "Key"}</th><th className="p-1 text-start">{isArabic ? "الحالة" : "Status"}</th><th className="p-1 text-start">{isArabic ? "الحقل" : "Field"}</th><th className="p-1 text-start">{t.diffOld}</th><th className="p-1 text-start">{t.diffNewValue}</th></tr></thead><tbody>
+      {diff.entries.length > 0 && <div className="mt-2 overflow-x-auto"><table className="w-full text-start text-xs"><thead><tr className="text-muted-foreground"><th className="p-1 text-start">#</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "المفتاح", en: "Key", ur: "کلید" })}</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "الحالة", en: "Status", ur: "حیثیت" })}</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "الحقل", en: "Field", ur: "فیلڈ" })}</th><th className="p-1 text-start">{t.diffOld}</th><th className="p-1 text-start">{t.diffNewValue}</th></tr></thead><tbody>
         {diff.entries.flatMap(entry => (entry.changes.length ? entry.changes : [{ field: "", oldValue: "", newValue: "" }]).map((change, index) => (
           <tr key={`${entry.rowNumber}-${index}`} className="border-t border-border"><td className="p-1">{index === 0 ? entry.rowNumber : ""}</td><td className="p-1">{index === 0 ? entry.key : ""}</td><td className="p-1">{index === 0 ? <span className={`rounded-full px-2 py-0.5 ${kindClass(entry.kind)}`}>{kindLabel(entry.kind)}</span> : ""}</td><td className="p-1">{label(change.field)}</td><td className="p-1">{entry.kind === "modified" ? change.oldValue : ""}</td><td className="p-1">{entry.kind === "conflict" ? "" : change.newValue}</td></tr>
         )))}

@@ -10,3 +10,9 @@ export const importTemplateHeaders: Record<ImportModuleCode, Record<"ar" | "en",
   openingBalances: { ar: ["رمز المستودع", "رمز المادة", "الكمية", "تكلفة الوحدة"], en: ["Warehouse Code", "Material Code", "Quantity", "Unit Cost"] },
   schedule: { ar: ["نوع السجل", "رمز WBS", "اسم WBS", "رمز النشاط", "اسم النشاط", "البداية المخططة", "النهاية المخططة", "القيمة المخططة", "الحالة"], en: ["Record Type", "WBS Code", "WBS Name", "Activity Code", "Activity Name", "Planned Start", "Planned Finish", "Planned Value", "Status"] },
 };
+
+/**
+ * The header row an import template shows in a language. The importer matches these headers exactly (Arabic and English), so Urdu shows the
+ * English row: an Urdu header would not import. Covered by server/exportLocale.test.ts.
+ */
+export const templateHeadersIn = (moduleCode: ImportModuleCode, locale: "ar" | "en" | "ur") => importTemplateHeaders[moduleCode][locale === "ar" ? "ar" : "en"];

@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { buildSpreadsheet } from "./excelWorkbook";
-import { analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile } from "./dataImport";
+import { analysisWarnings, analyzeImportFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile } from "./dataImport";
 
 async function workbookBytes(rows: Record<string, unknown>[]) {
   const headers = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
@@ -98,9 +98,21 @@ describe("analyzeImportFile", () => {
     const bytes = Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\twbs_cost\n%R\t10\t1.0\tCivil\t1000\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\ttarget_cost\tstatus_code\n%R\tA-100\tFoundation\t10\t2026-09-01 00:00:00\t2026-09-05 00:00:00\t500\tTK_Active");
     const result = await analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes }); expect(result.errors).toEqual([]); expect(result.validRows).toHaveLength(2);
   });
-  it("rejects an XER with an extra unsupported table instead of partially importing it", async () => {
-    const bytes = Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\t1.0\tCivil\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code\n%R\tA-100\tFoundation\t10\t2026-09-01 00:00:00\t2026-09-05 00:00:00\tTK_Active\n%T\tTASKPRED\n%F\ttask_id\n%R\tA-100");
-    const result = await analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes }); expect(result.validRows).toEqual([]); expect(result.errors).toContainEqual({ rowNumber: 0, code: "XER_UNSUPPORTED_TABLE", field: "TASKPRED" });
+  it("IGNORES the other tables of a real XER (named as warnings) and imports PROJWBS and TASK — all sixteen tables a real export holds", async () => {
+    const tables = ["CURRTYPE", "FINTMPL", "OBS", "UMEASURE", "PROJECT", "CALENDAR", "SCHEDOPTIONS", "RSRC", "ACTVTYPE", "RSRCRATE", "ACTVCODE", "TASKPRED", "TASKRSRC", "TASKACTV"];
+    const extra = tables.map(name => `%T\t${name}\n%F\tid\n%R\t1`).join("\n");
+    const bytes = Buffer.from(`ERMHDR\t25.12\t2026-10-01\tProject\tadmin\tadmin\tdb\tProject Management\tUSD\n${extra}\n%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\t1.0\tCivil\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code\n%R\tA-100\tFoundation\t10\t2026-09-01 00:00:00\t2026-09-05 00:00:00\tTK_Active`);
+    const result = await analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes });
+    expect(result.errors).toEqual([]);                       // nothing stops the import
+    expect(result.validRows.length).toBe(2);                 // the WBS node and the activity
+    expect(analysisWarnings(result).map(warning => warning.field)).toEqual(tables); // every ignored table is named, none is silent
+    expect(analysisWarnings(result).every(warning => warning.code === "XER_TABLE_IGNORED" && warning.rowNumber === 0)).toBe(true);
+  });
+  it("still refuses what is really wrong with an XER: a missing TASK table, an activity under a WBS that is not in the file", async () => {
+    const noTask = await analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes: Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\t1.0\tCivil\n%T\tCURRTYPE\n%F\tid\n%R\t1") });
+    expect(noTask.errors.map(error => error.code)).toContain("XER_REQUIRED_TABLE_MISSING");
+    const orphan = await analyzeImportFile({ moduleCode: "schedule", format: "xer", bytes: Buffer.from("%T\tPROJWBS\n%F\twbs_id\twbs_short_name\twbs_name\n%R\t10\t1.0\tCivil\n%T\tTASK\n%F\ttask_code\ttask_name\twbs_id\ttarget_start_date\ttarget_end_date\tstatus_code\n%R\tA-100\tFoundation\t99\t2026-09-01 00:00:00\t2026-09-05 00:00:00\tTK_Active") });
+    expect(orphan.errors.length).toBeGreaterThan(0); expect(orphan.validRows.some(row => row.kind === "activity")).toBe(false); // an activity under a WBS the file does not hold is never imported
   });
   it("builds localized CSV headers without exposing unrequested columns", async () => {
     const result = await buildDataExportFile({ moduleCode: "wbs", format: "csv", locale: "ar", rows: [{ code: "1.0", name: "أعمال مدنية", plannedValue: 100, tenantId: "must-not-export" }] }); const csv = result.bytes.toString("utf8");

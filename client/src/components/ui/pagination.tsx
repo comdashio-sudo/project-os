@@ -1,3 +1,4 @@
+import { useUiText } from "@/components/ui/uiText";
 import * as React from "react";
 import {
   ChevronLeftIcon,
@@ -9,10 +10,11 @@ import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
+  const ut = useUiText();
   return (
     <nav
       role="navigation"
-      aria-label="pagination"
+      aria-label={ut({ ar: "ترقيم الصفحات", en: "pagination", ur: "صفحہ بندی" })}
       data-slot="pagination"
       className={cn("mx-auto flex w-full justify-center", className)}
       {...props}
@@ -69,15 +71,16 @@ function PaginationPrevious({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const ut = useUiText();
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label={ut({ ar: "الانتقال إلى الصفحة السابقة", en: "Go to previous page", ur: "پچھلے صفحے پر جائیں" })}
       size="default"
       className={cn("gap-1 px-2.5 sm:pl-2.5", className)}
       {...props}
     >
       <ChevronLeftIcon />
-      <span className="hidden sm:block">Previous</span>
+      <span className="hidden sm:block">{ut({ ar: "السابق", en: "Previous", ur: "پچھلا" })}</span>
     </PaginationLink>
   );
 }
@@ -86,14 +89,15 @@ function PaginationNext({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const ut = useUiText();
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label={ut({ ar: "الانتقال إلى الصفحة التالية", en: "Go to next page", ur: "اگلے صفحے پر جائیں" })}
       size="default"
       className={cn("gap-1 px-2.5 sm:pr-2.5", className)}
       {...props}
     >
-      <span className="hidden sm:block">Next</span>
+      <span className="hidden sm:block">{ut({ ar: "التالي", en: "Next", ur: "اگلا" })}</span>
       <ChevronRightIcon />
     </PaginationLink>
   );
@@ -103,6 +107,7 @@ function PaginationEllipsis({
   className,
   ...props
 }: React.ComponentProps<"span">) {
+  const ut = useUiText();
   return (
     <span
       aria-hidden
@@ -111,7 +116,7 @@ function PaginationEllipsis({
       {...props}
     >
       <MoreHorizontalIcon className="size-4" />
-      <span className="sr-only">More pages</span>
+      <span className="sr-only">{ut({ ar: "صفحات أخرى", en: "More pages", ur: "مزید صفحات" })}</span>
     </span>
   );
 }

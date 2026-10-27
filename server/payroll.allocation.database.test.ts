@@ -124,8 +124,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
 
   it("refuses to share the pay across projects for someone whose approval is limited to one project, and writes nothing", async () => {
     const before = await one("SELECT (SELECT COUNT(*) FROM payroll_allocations WHERE tenantId = ?) AS allocations, (SELECT COUNT(*) FROM cost_entries WHERE tenantId = ? AND status = 'void') AS voided", [T, T]);
-    await expect(callerFor(users.p1only, "pal-p1only").employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("Role scope does not cover the request"); // a one-project approval cannot share pay across projects
-    await expect(callerFor(users.runner, "pal-runner").employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.p1only, "pal-p1only").employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED"); // a one-project approval cannot share pay across projects
+    await expect(callerFor(users.runner, "pal-runner").employees.payroll.allocateByHours({ tenantId: T, payrollEntryId: await entryFor(E1) })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     expect(await one("SELECT (SELECT COUNT(*) FROM payroll_allocations WHERE tenantId = ?) AS allocations, (SELECT COUNT(*) FROM cost_entries WHERE tenantId = ? AND status = 'void') AS voided", [T, T])).toEqual(before);
   });
 
@@ -178,7 +178,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("loaded pay shared by app
     await expect(caller.employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 2500, reason: "abc" })).rejects.toThrow();
     await expect(caller.employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 2858.5, reason: "Same amount again" })).rejects.toThrow("PROJECT_OS_PAYROLL_ADJUSTMENT_NO_CHANGE");
     await expect(caller.employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 99999, reason: "Far too much" })).rejects.toThrow("PROJECT_OS_PAYROLL_ALLOCATION_EXCEEDS_COST");
-    await expect(callerFor(users.runner, "pal-runner").employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 2500, reason: "Roof crew was on loan" })).rejects.toThrow("Required permission is not granted.");
+    await expect(callerFor(users.runner, "pal-runner").employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 2500, reason: "Roof crew was on loan" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     expect(Number((await one("SELECT amount FROM payroll_allocations WHERE id = ?", [roof.id])).amount)).toBe(2858.5); // every refusal left the share alone
 
     const result = await caller.employees.payroll.adjustAllocation({ tenantId: T, allocationId: roof.id, newAmount: 2500, reason: "Roof crew was on loan to project two for a week" });

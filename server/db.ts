@@ -1,3 +1,4 @@
+import { type ExportLocale } from "@shared/exportLocale";
 import { isReservedMailDomain, mailGateConfigFromEnv } from "./emailGate";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
@@ -148,7 +149,7 @@ export const IMPORT_DETAIL_MAX_ROWS = 1_000;
 const bulkInsert = <T extends PgTable>(executor: unknown, table: T) => ({ values: (rows: readonly T["$inferInsert"][]) => insertChunked(executor, table, rows) });
 import { diffHash, diffImportRows, summariseDiff, DIFF_PAGE_SIZE, CYCLE_MODULES, EXPORT_ID_HEADER, EXPORT_VERSION_HEADER, type CycleModuleCode, type FileRow, type StoredRow } from "./domain/importCycle";
 import { isLedgerModule, type LedgerModule } from "@shared/ledgerImportColumns";
-import { analyzeImportFile, buildImportTemplateFile, buildLedgerTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
+import { analysisWarnings, analyzeImportFile, buildImportTemplateFile, buildLedgerTemplateFile, analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile, buildDataExportFile, type BudgetImportRow, type ContractImportRow, type ExportModuleCode, type ImportModuleCode, type MaterialImportRow, type OpeningBalanceImportRow, type ScheduleImportRow, type WbsImportRow } from "./domain/dataImport";
 import { buildTenantNavigation } from "./domain/navigation";
 import { defaultRoleFor } from "./_core/userRole";
 import { StructuredInvoiceRenderer } from "./domain/invoiceRenderer";
@@ -256,7 +257,7 @@ export async function assertTenantManager(userId: number, tenantId: string): Pro
 async function assertRoleProductEntitled(input: { userId: number; tenantId: string; productCode: ProductCode }): Promise<void> {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  if (!snapshot.entitledProducts.includes(input.productCode)) throw new TRPCError({ code: "FORBIDDEN", message: `The ${input.productCode} product is not licensed for this tenant.` });
+  if (!snapshot.entitledProducts.includes(input.productCode)) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 }
 
 async function assertTenantBillingManager(userId: number, tenantId: string): Promise<void> {
@@ -358,7 +359,7 @@ function utcMonthStart(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: "ar" | "en" }, options: { modelAvailable?: boolean } = {}): Promise<void> {
+async function consumeTenantAdvisorUsage(db: DatabaseTransaction, input: { tenantId: string; projectId: string; userId: number; locale: ExportLocale }, options: { modelAvailable?: boolean } = {}): Promise<void> {
   const [license] = await db.select({ id: tenantLicenses.id, planId: tenantLicenses.planId }).from(tenantLicenses).where(and(eq(tenantLicenses.tenantId, input.tenantId), inArray(tenantLicenses.status, ["trialing", "active", "grace_period"]))).orderBy(desc(tenantLicenses.updatedAt)).limit(1).for("update");
   if (!license) return;
   const [feature] = await db.select({ id: commercialFeatures.id }).from(commercialFeatures).where(and(eq(commercialFeatures.code, "AI_ADVISORY_MONTHLY"), eq(commercialFeatures.active, true))).limit(1);
@@ -1376,7 +1377,7 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
 type AdvisoryKind = "actual" | "calculated" | "forecast" | "assumption" | "recommendation";
 const advisoryKinds: AdvisoryKind[] = ["actual", "calculated", "forecast", "assumption", "recommendation"];
 
-export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: "ar" | "en" }) {
+export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: ExportLocale }) {
   const controls = await getProjectControlsForTenant(input);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -1388,7 +1389,7 @@ export async function generateProjectAdvisoryForTenant(input: { userId: number; 
     calculated: { plannedBudget: controls.cashFlow.plannedBudget, totalExposure: controls.cashFlow.totalExposure, remainingBudget: controls.cashFlow.remainingBudget, committedAmount: controls.cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },
     forecast: { forecastCost: Number(controls.project.forecastCost), eac: controls.latestEvm ? Number(controls.latestEvm.eac) : null, etc: controls.latestEvm ? Number(controls.latestEvm.etc) : null, vac: controls.latestEvm ? Number(controls.latestEvm.vac) : null },
   };
-  const language = input.locale === "ar" ? "Arabic" : "English";
+  const language = ({ ar: "Arabic", en: "English", ur: "Urdu" } as const)[input.locale];
   try {
     const result = await invokeLLM({
       model: "gpt-5-mini",
@@ -3772,7 +3773,7 @@ export async function createAndAnalyzeDataImport(input: { userId: number; tenant
   const duplicateMode = input.duplicateMode ?? "fail_on_duplicate";
   // The same file cannot be uploaded twice by one tenant (unique file hash): say so by name instead of a generic failure, and point to re-analysis for a file that is still waiting.
   try {
-  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode, totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, duplicateMode, totalRows: analysis.rows.length }) }); });
+  await db.transaction(async tx => { await tx.insert(dataImports).values({ id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, templateCode: `${input.moduleCode}_v1`, sourceFormat: input.sourceFormat, fileName: input.fileName, fileKey: stored.key, fileHash, status: analysis.errors.length ? "uploaded" : "validated", duplicateMode, totalRows: analysis.rows.length, validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }), createdByUserId: input.userId }); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); { const ignored = analysisWarnings(analysis); if (ignored.length) await bulkInsert(tx, dataImportErrors).values(ignored.map(warning => ({ id: crypto.randomUUID(), importId: id, rowNumber: warning.rowNumber, code: warning.code, severity: "warning" as const, suggestedFix: warning.field ?? null }))); } await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_uploaded", entityType: "data_import", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: input.moduleCode, fileHash, duplicateMode, totalRows: analysis.rows.length }) }); });
   } catch (error) { if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" }); throw error; }
   return { id, status: analysis.errors.length ? "uploaded" : "validated", headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
@@ -3784,7 +3785,7 @@ export async function reanalyzeDataImport(input: { userId: number; tenantId: str
   const [record] = await db.select({ id: dataImports.id, moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, status: dataImports.status }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" }); assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } }); if (record.status !== "uploaded" && record.status !== "validated" && record.status !== "failed") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" }); if (record.moduleCode !== "wbs" && record.moduleCode !== "budget" && record.moduleCode !== "contracts" && record.moduleCode !== "materials" && record.moduleCode !== "schedule" && record.moduleCode !== "openingBalances") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
   const response = await fetch(await storageGetSignedUrl(record.fileKey)); if (!response.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_UNAVAILABLE" }); const bytes = Buffer.from(await response.arrayBuffer()); const analysis = await analyzeImportFile({ moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv" | "xer", /* a legacy .xls import is the smart box's own and never re-analysed here */ bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, analysis });
-  await db.transaction(async tx => { await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id)); await tx.update(dataImports).set({ status: analysis.errors.length ? "uploaded" : "validated", validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }) }).where(eq(dataImports.id, record.id)); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_reanalyzed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, mapping: analysis.mapping }) }); });
+  await db.transaction(async tx => { await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id)); await tx.update(dataImports).set({ status: analysis.errors.length ? "uploaded" : "validated", validRows: analysis.validRows.length, invalidRows: analysis.rows.length - analysis.validRows.length, mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames }) }).where(eq(dataImports.id, record.id)); if (analysis.errors.length) await bulkInsert(tx, dataImportErrors).values(analysis.errors.map(error => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null }))); { const ignored = analysisWarnings(analysis); if (ignored.length) await bulkInsert(tx, dataImportErrors).values(ignored.map(warning => ({ id: crypto.randomUUID(), importId: record.id, rowNumber: warning.rowNumber, code: warning.code, severity: "warning" as const, suggestedFix: warning.field ?? null }))); } await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_reanalyzed", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, mapping: analysis.mapping }) }); });
   return { id: record.id, status: analysis.errors.length ? "uploaded" as const : "validated" as const, headers: analysis.headers, mapping: analysis.mapping, errors: analysis.errors, totalRows: analysis.rows.length };
 }
 
@@ -3846,7 +3847,7 @@ export async function previewDataImportDiff(input: { userId: number; tenantId: s
   return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff(diff), diffHash: diffHash(diff), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: diff.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: diff.missing.length };
 }
 
-export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode | LedgerModule; locale: "ar" | "en" }) {
+export async function buildImportTemplateForUser(input: { moduleCode: ImportModuleCode | LedgerModule; locale: ExportLocale }) {
   const file = isLedgerModule(input.moduleCode) ? await buildLedgerTemplateFile({ moduleCode: input.moduleCode, locale: input.locale }) : await buildImportTemplateFile({ moduleCode: input.moduleCode, locale: input.locale });
   return { fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64") };
 }
@@ -3994,7 +3995,7 @@ async function confirmAndImportDataInner(input: { userId: number; tenantId: stri
   return { id: record.id, status: "completed" as const, createdRows: created.length, updatedRows: updated.length, skippedRows: skipped.length };
 }
 
-export async function createDataExport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: "ar" | "en" }) {
+export async function createDataExport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: ExportLocale }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -4169,7 +4170,7 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
   const certificateId = crypto.randomUUID();
   const processedLines = input.lines.map(line => {
     const boq = boqMap.get(line.boqItemId);
-    if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: `BOQ item ${line.boqItemId} not found` });
+    if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_REQUEST_FAILED" });
     const prevQty = prevQtyMap.get(line.boqItemId) ?? 0;
     const cumulativeQty = prevQty + line.currentQuantity;
     const amount = line.currentQuantity * Number(boq.unitRate);

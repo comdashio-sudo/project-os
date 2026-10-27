@@ -1,3 +1,4 @@
+import { resolveLanguage, type Language } from "./language";
 import { riyalLabel } from "./profitabilityView";
 
 export type PlanningControlInput = {
@@ -76,18 +77,18 @@ export function formatPlanningPercent(value: number | null) {
 }
 
 /** V1 shows the riyal (see formatMoney): the stored code is ignored, and the label follows the language. */
-export function formatPlanningAmount(value: number, currency: string, isArabic = false) {
+export function formatPlanningAmount(value: number, currency: string, language: Language | boolean = false) {
   void currency;
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value) + ` ${riyalLabel(isArabic)}`;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value) + ` ${riyalLabel(language)}`;
 }
 
-export function planningControlLabel(code: string, isArabic: boolean) {
-  const labels: Record<string, [string, string]> = {
-    missing_budget: ["لا توجد ميزانية", "Budget is missing"],
-    missing_schedule: ["لا يوجد برنامج", "Schedule is missing"],
-    undated_activities: ["أنشطة بلا تواريخ", "Activities need dates"],
-    unlinked_boq: ["بنود BOQ غير مربوطة بـWBS", "BOQ lines are not linked to WBS"],
-    unlinked_actual_cost: ["تكاليف فعلية بلا WBS", "Actual costs are not linked to WBS"],
+export function planningControlLabel(code: string, language: Language | boolean) {
+  const labels: Record<string, Record<Language, string>> = {
+    missing_budget: { ar: "لا توجد ميزانية", en: "Budget is missing", ur: "بجٹ موجود نہیں ہے" },
+    missing_schedule: { ar: "لا يوجد برنامج", en: "Schedule is missing", ur: "شیڈول موجود نہیں ہے" },
+    undated_activities: { ar: "أنشطة بلا تواريخ", en: "Activities need dates", ur: "سرگرمیوں کو تاریخوں کی ضرورت ہے" },
+    unlinked_boq: { ar: "بنود BOQ غير مربوطة بـWBS", en: "BOQ lines are not linked to WBS", ur: "BOQ کی سطریں WBS سے نہیں جڑیں" },
+    unlinked_actual_cost: { ar: "تكاليف فعلية بلا WBS", en: "Actual costs are not linked to WBS", ur: "اصل لاگتیں WBS سے نہیں جڑیں" },
   };
-  return labels[code]?.[isArabic ? 0 : 1] ?? code;
+  return labels[code]?.[resolveLanguage(language)] ?? code;
 }
