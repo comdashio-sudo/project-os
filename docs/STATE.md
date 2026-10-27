@@ -1159,6 +1159,18 @@
 | الاختبار `server/domain/roleMatrix.test.ts` (72 اختبارًا) يفشل إن اختلف الكود عن الجدول | `PROVEN` (إيجابي وسلبي) | `pnpm exec vitest run server/domain/roleMatrix.test.ts` ← 72/72. **سلبي:** (أ) حذف `project.payroll.run` من قالب المحاسب ← يفشل «الجدول يساوي المولَّد»؛ (ب) تغيير فحص `getSalaryStructureForTenant` من `payroll.sensitive.read` إلى `payroll.run` ← يفشل «يطلب بالضبط الرموز المعلنة»؛ ثم أُعيد كلاهما وعاد الأخضر. التجديد: `pnpm exec tsx scripts/write-role-matrix.ts`. |
 | ما كشفه الكود (للمالك، لم يُغيَّر) | `OPEN` (قرار مالك) | (1) من يفتح المشروع (`project.read`) يرى الميزانية والتكاليف والتدفق النقدي (`getProjectControlsForTenant`) وقيم العقود والبنود والمقاولين من الباطن وكل عروض المناقصة؛ `project.cashflow.read` تحرس الربحية والتدفق المفصّل فقط. (2) أربع صلاحيات تُمنح ولا يفحصها شيء: `payment.prepare` و`payment.approve` و`project.create` و`schedule.write`. (3) أحد عشر قالبًا من 17 لا تحمل `project.read`. (4) `project.manage` تكفي لردّ الاستشاري. (5) لا بيانات مستفيدين في المخطط. التفصيل في القسم 3 من الوثيقة. |
 
+## الإطلاق الآلي: الترحيل قبل النشر، والنشر بعد الفحص (27 أكتوبر 2026)
+
+**السلطة:** أمر المالك (27 أكتوبر 2026) لأن مفتاحَي Supabase وVercel ينتهيان في 31 أكتوبر؛ يعمل بسرّ `SUPABASE_DB_PASSWORD` وحده. **لا Deploy Hook:** دفع فرع `production` هو المُطلِق.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `migrate-production.yml`: عند كل push إلى `main` ← توافق الترحيلات ← ترحيل الإنتاج ← `verify-db-security` ← بناء النسخة وتشغيلها على القاعدة المرحَّلة بحساب التطبيق المقيَّد (`/healthz` 200 · رمز خاطئ 4xx لا 5xx · `/api/readyz` بلا ترحيلة معلّقة) ← تقديم `production` fast-forward ← انتظار بناء الإنتاج. أي فشل يوقف ما بعده | `WRITTEN` | الملف مكتوب وYAML صالح؛ **لم يُشغَّل على Actions بعد** (أول دمج يشغّله). بروفة الفحص نفسه على نسخة محلية أظهرت أنه بلا `SUPABASE_ANON_KEY` يرجع 503 فقط، لذا صار المتغير شرطًا يُسقط التشغيل قبل أي ترحيل |
+| الاتصال بكلمة المرور وحدها: `run.ts direct` (يستنتج كلمة مرور حساب التطبيق، ويجرّب مضيفَي المجمّع المعروفَين أو يقرأ `SUPABASE_POOLER_HOST`) | `WRITTEN` | `tsc` نظيف؛ **الاتصال الحقيقي لم يُجرَّب** (لا وصول من هذه البيئة إلى Supabase) |
+| ترحيلات متوافقة للخلف: `scripts/ci/check-migration-compat.mjs` من الترحيلة 0016 فصاعدًا (يمنع حذف/إعادة تسمية/تغيير نوع/`SET NOT NULL`/عمود `NOT NULL` بلا `DEFAULT`، ويسمح بها بسطر `-- contract-ok: <سبب>`) ويعمل في CI وفي الإطلاق | `PROVEN` (قاعدته) | `server/testing/migrationCompat.test.ts` 5 اختبارات: يقبل الإضافي، ويرفض كل خطوة انكماش، ولا تُحسب كلمة في تعليق أو نص، ويحسب `DROP` داخل `DO` |
+| Vercel لا يبني إنتاجًا من `main`: `vercel-ignore.sh` يتخطى `VERCEL_ENV=production` مع فرع `main`، ويبني فرع `production` | `PROVEN` (القاعدة) | `server/testing/vercelIgnore.test.ts` 17 اختبارًا (2 جديدان) على مستودعات git حقيقية |
+| **ما يبقى بيد المالك** | `BLOCKED_BY_OWNER` | متغير GitHub `SUPABASE_ANON_KEY` (المفتاح العام)، وVercel ← Production Branch = `production` إن لم يُضبط (`docs/GO_LIVE.md` «الإطلاق الآلي»). **حدّ معلن:** بعد 31 أكتوبر يبطل `VERCEL_TOKEN` فيتعطل التراجع الآلي في `post-deploy.yml` (يبقى البلاغ)، أما الإطلاق نفسه فلا يحتاجه |
+
 ## إصلاح عاجل — XER حقيقي من P6 كان يُرفض بـ14 خطأ (26 أكتوبر 2026)
 
 المالك رفع على الإنتاج XER حقيقيًا (مشروع الفرسان) فرفضه المستورد القديم للجدول الزمني بـ14 خطأ `XER_UNSUPPORTED_TABLE` — لكل جدول غير `PROJWBS` و`TASK`: CURRTYPE · FINTMPL · OBS · UMEASURE · PROJECT · CALENDAR · SCHEDOPTIONS · RSRC · ACTVTYPE · RSRCRATE · ACTVCODE · TASKPRED · TASKRSRC · TASKACTV. **كل XER حقيقي يحمل هذه الجداول، فكان هذا المستورد لا يقبل أي ملف حقيقي.** (الدرس نفسه: المستورد كُتب وفُحص على ملف تركيبي من جدولين فقط.)

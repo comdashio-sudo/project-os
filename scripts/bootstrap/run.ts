@@ -2,6 +2,7 @@
 //   node --import tsx scripts/bootstrap/run.ts supabase   guard, sign-in settings, Data API, keys, connection strings, secrets  -> exports to the next steps
 //   node --import tsx scripts/bootstrap/run.ts vercel     project, variables, production deploy, address, health check
 //   node --import tsx scripts/bootstrap/run.ts database   guard, then ONLY the connection string and certificate for the next steps (changes nothing; the demonstration company's workflow uses it)
+//   node --import tsx scripts/bootstrap/run.ts direct     like database, but needs ONLY SUPABASE_DB_PASSWORD (no access token): the automatic migration after every merge uses it
 //   node --import tsx scripts/bootstrap/run.ts catalog    after the migrations: plant the plan catalogue (no company data) and read back the plan count and the platform owner's role
 //   node --import tsx scripts/bootstrap/run.ts summary    renders the Arabic job summary from the state file (runs even after a failure)
 // Secrets are masked (::add-mask::) the moment they exist and are never printed. Re-running is safe: generated secrets are kept, the app-role password is derived.
@@ -10,7 +11,7 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } 
 import { join } from "node:path";
 import { runPreflight, renderPreflight, type Finding } from "./preflight.ts";
 import { EXPECTED_PLANS, checkPlatformOwner, plantCatalog } from "./catalog.ts";
-import { GuardError, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
+import { POOLER_HOST_CANDIDATES, GuardError, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
 type State = { steps: Step[]; url?: string; health?: string; manual: string[]; preflight?: Finding[] };
@@ -23,7 +24,7 @@ const mask = (value: string) => { if (value) console.log(`::add-mask::${value}`)
 // Values pasted into GitHub often carry a trailing space or newline; trimming them is not a loosening of any guard, the checks still run on the value.
 const optional = (name: string) => (process.env[name] ?? "").trim();
 const need = (name: string) => { const value = optional(name); if (!value) throw new GuardError(`المتغير ${name} غير مضبوط في GitHub (Settings ← Secrets and variables ← Actions).`); return value; };
-const PHASE_LABEL: Record<string, string> = { preflight: "الفحص المسبق", supabase: "مرحلة Supabase", catalog: "مرحلة كتالوج الخطط ومالك المنصة", vercel: "مرحلة Vercel" };
+const PHASE_LABEL: Record<string, string> = { preflight: "الفحص المسبق", supabase: "مرحلة Supabase", direct: "اتصال القاعدة بكلمة المرور وحدها", catalog: "مرحلة كتالوج الخطط ومالك المنصة", vercel: "مرحلة Vercel" };
 const exportEnv = (name: string, value: string) => { const file = process.env.GITHUB_ENV; if (!file) throw new Error("GITHUB_ENV is not available"); const tag = `EOF_${randomBytes(6).toString("hex")}`; appendFileSync(file, `${name}<<${tag}\n${value}\n${tag}\n`); };
 const realFetch: Fetch = (url, init) => fetch(url, init as RequestInit);
 
@@ -76,6 +77,35 @@ async function databasePhase() {
   // for the daily backup, which also reads the storage buckets through the project's S3 endpoint (public information; the access keys are the repository's secrets)
   exportEnv("STORAGE_S3_ENDPOINT", storageEndpoint(SUPABASE_PROJECT_REF)); exportEnv("STORAGE_S3_REGION", target.region || "ap-southeast-1");
   step("اتصال قاعدة البيانات للمشروع المقصود فقط", "ok");
+}
+
+/**
+ * The automatic path (.github/workflows/migrate-production.yml): the project is fixed in the code (SUPABASE_PROJECT_REF) and the password only opens that project's pooler, so the one
+ * secret SUPABASE_DB_PASSWORD is enough; no Supabase or Vercel token is read. The pooler host is the pinned variable, or the one candidate that accepts this project's role.
+ */
+async function directPhase() {
+  const databasePassword = need("SUPABASE_DB_PASSWORD"); mask(databasePassword);
+  const appRolePassword = deriveAppRolePassword(databasePassword); mask(appRolePassword);
+  const ca = await downloadCa(realFetch);
+  const pinned = optional("SUPABASE_POOLER_HOST");
+  if (pinned && !/^[a-z0-9.-]+\.pooler\.supabase\.com$/.test(pinned)) throw new GuardError("SUPABASE_POOLER_HOST يجب أن يكون عنوانًا ينتهي بـ pooler.supabase.com.");
+  const { default: pg } = await import("pg");
+  let host = pinned;
+  if (!host) {
+    const refused: string[] = [];
+    for (const candidate of POOLER_HOST_CANDIDATES) {
+      const client = new pg.Client({ host: candidate, port: 5432, user: `postgres.${SUPABASE_PROJECT_REF}`, password: databasePassword, database: "postgres", ssl: { rejectUnauthorized: true, ca }, connectionTimeoutMillis: 15_000 });
+      try { await client.connect(); await client.query("SELECT 1"); host = candidate; break; }
+      catch (error) { refused.push(`${candidate}: ${String((error as Error).message).slice(0, 80)}`); }
+      finally { await client.end().catch(() => undefined); }
+    }
+    if (!host) throw new GuardError(`لم يقبل أي مضيف مجمّع اتصال المشروع (${refused.join(" | ")}). تأكد من SUPABASE_DB_PASSWORD، أو ضع عنوان المجمّع في متغير المستودع SUPABASE_POOLER_HOST (Supabase ← Connect ← Session pooler).`);
+  }
+  const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost: host, databasePassword, appRolePassword });
+  mask(urls.adminSession);
+  exportEnv("DATABASE_URL", urls.adminSession); exportEnv("DATABASE_SSL_CA", ca); exportEnv("PROJECT_OS_APP_DB_PASSWORD", appRolePassword);
+  mask(urls.appTransaction); exportEnv("RELEASE_GATE_DATABASE_URL", urls.appTransaction); // the release gate runs the new build as the restricted application role, the way production does
+  step(`اتصال القاعدة بكلمة المرور وحدها (مضيف المجمّع: ${host})`, "ok", pinned ? "مثبّت بمتغير المستودع" : "اكتُشف بالتجربة؛ ثبّته بمتغير SUPABASE_POOLER_HOST لتوفير المحاولة");
 }
 
 /**
@@ -197,6 +227,7 @@ try {
   if (phase === "preflight") await preflightPhase();
   else if (phase === "supabase") await supabasePhase();
   else if (phase === "database") await databasePhase();
+  else if (phase === "direct") await directPhase();
   else if (phase === "catalog") await catalogPhase();
   else if (phase === "vercel") await vercelPhase();
   else if (phase === "summary") summary();
