@@ -29,7 +29,10 @@ describe("the health indicator quotes the server's own numbers", () => {
 describe("indicatorBasisLine", () => {
   it("puts formula, source and date in one line, in both languages", () => {
     const en = indicatorBasisLine("evm", false, new Date("2026-09-30T00:00:00.000Z"));
-    expect(en).toBe("Formula: CPI = EV ÷ AC, SPI = EV ÷ PV, EAC by the method saved with the snapshot (default BAC ÷ CPI). · Source: latest saved EVM snapshot · as of 30/09/2026");
+    expect(en).toBe("Formula: CPI = EV ÷ AC, SPI = EV ÷ PV, EAC by the method saved with the snapshot (default BAC ÷ CPI). · Source: latest saved EVM snapshot · as of Sep 30, 2026");
+    const arDated = indicatorBasisLine("evm", true, new Date("2026-09-30T00:00:00.000Z"));
+    // Western digits and the Gregorian year, never Arabic-Indic digits or a Hijri date
+    expect(arDated).toContain("2026"); expect(arDated).not.toMatch(/[٠-٩]|هـ/);
     const ar = indicatorBasisLine("remaining", true, null);
     expect(ar.startsWith("المعادلة: ")).toBe(true); expect(ar).toContain("المصدر: "); expect(ar.endsWith("بتاريخ العرض")).toBe(true);
   });

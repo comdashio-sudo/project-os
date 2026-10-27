@@ -135,9 +135,11 @@ describe("ProjectControls section resilience", () => {
     const lines = screen.getAllByTestId("indicator-basis").map(node => node.textContent ?? "");
     expect(lines).toHaveLength(5);
     expect(lines[0]).toContain("no snapshot saved yet"); // health: no snapshot in this fixture
-    expect(lines[1]).toContain("CPI = EV ÷ AC"); expect(lines[1]).toContain("as of 30/09/2026"); // EVM: its snapshot date
+    expect(lines[1]).toContain("CPI = EV ÷ AC"); expect(lines[1]).toContain("as of Sep 30, 2026"); // EVM: its snapshot date
     expect(lines[2]).toContain("Remaining = planned budget"); expect(lines[2]).toContain("as of now");
     expect(lines[3]).toContain("blocked"); expect(lines[4]).toContain("WBS");
     expect(lines.every(line => line.startsWith("Formula: ") && line.includes("Source: "))).toBe(true);
+    // work order 21: the face shows the number and its status; each formula is folded behind "How is it calculated?"
+    for (const node of screen.getAllByTestId("indicator-basis")) expect(node.closest("details")?.querySelector("summary")?.textContent).toBe("How is it calculated?");
   });
 });

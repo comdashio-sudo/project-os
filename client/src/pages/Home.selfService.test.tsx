@@ -24,12 +24,11 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/const", () => ({ startLogin: vi.fn() }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/components/ui/select", () => ({
-  Select: ({ value, onValueChange, children }: { value: string; onValueChange: (value: string) => void; children: React.ReactNode }) => <select aria-label="Plan" value={value} onChange={event => onValueChange(event.target.value)}>{children}</select>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => <option value={value}>{children}</option>,
+// The custom list (Radix) needs pointer APIs jsdom lacks; a native stand-in keeps the same contract (value, options, placeholder, the field's id for its label).
+vi.mock("@/components/ds", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/components/ds")>()),
+  Select: ({ id, value, onValueChange, options, placeholder }: { id?: string; value?: string; onValueChange: (value: string) => void; options: Array<{ value: string; label: string }>; placeholder?: string }) =>
+    <select id={id} value={value} onChange={event => onValueChange(event.target.value)}><option value="">{placeholder}</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>,
 }));
 vi.mock("@/components/MfaGate", () => ({ MfaGate: ({ children }: { children: React.ReactNode }) => <>{children}</> })); // the second-step gate has its own test (MfaGate.test.tsx)
 vi.mock("@/lib/trpc", () => ({

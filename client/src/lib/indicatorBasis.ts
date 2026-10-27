@@ -1,3 +1,4 @@
+import { formatDate } from "@/components/ds/format";
 import { pickLanguage, resolveLanguage, type Language } from "./language";
 // G-106: a status indicator shows its number, the formula behind it, and the date it stands at, in the same place.
 // The formulas are the ones the server uses (server/domain/projectHealth.ts, evm.ts, cashFlow.ts); the wording here is
@@ -31,7 +32,8 @@ export const indicatorBasis: Record<IndicatorKey, Basis> = {
 export function indicatorBasisLine(key: IndicatorKey, language: Language | boolean, asOf: Date | string | null | undefined): string {
   const basis = indicatorBasis[key];
   const lang = resolveLanguage(language);
-  const date = asOf ? new Date(asOf).toLocaleDateString(pickLanguage(lang, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" }), { timeZone: "UTC" }) : null;
+  // Western digits and the Gregorian calendar in every language (work order 21): the one date format of the design system.
+  const date = asOf ? formatDate(asOf, lang) : null;
   // Snapshot-based indicators with no snapshot yet say so; the others are computed when shown.
   const snapshotBased = key === "health" || key === "evm";
   const when = date

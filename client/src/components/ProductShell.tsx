@@ -4,7 +4,7 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
-import { LayoutPanelTop } from "lucide-react";
+import { BarChart3, Building2, ClipboardList, FolderKanban, Gauge, Layers, LayoutPanelTop, type LucideIcon, Settings2, UsersRound, Wallet } from "lucide-react";
 import React from "react";
 import { useLocation } from "wouter";
 
@@ -21,6 +21,11 @@ const MODULE_LABELS: Record<string, { ar: string; en: string; ur: string }> = {
   "navigation.projectControls": { ar: "ضوابط المشروع", en: "Project controls", ur: "پروجیکٹ کنٹرولز" },
   "navigation.myPerformance": { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
   "navigation.tenantAdministration": { ar: "إدارة الشركة", en: "Tenant administration", ur: "کمپنی کا انتظام" },
+};
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  "navigation.levels": Layers, "navigation.executiveDashboard": BarChart3, "navigation.pmoDashboard": ClipboardList, "navigation.projectRegistry": FolderKanban,
+  "navigation.employeeRegistry": UsersRound, "navigation.payroll": Wallet, "navigation.projectControls": Gauge, "navigation.myPerformance": LayoutPanelTop,
+  "navigation.tenantAdministration": Settings2,
 };
 const WORKSPACE = { ar: "مساحة العمل", en: "Workspace", ur: "ورک اسپیس" };
 const SOURCE_TITLES = {
@@ -40,7 +45,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
     label: MODULE_LABELS[item.labelKey] ? pickLanguage(language, MODULE_LABELS[item.labelKey]) : item.id,
-    icon: LayoutPanelTop,
+    icon: MODULE_ICONS[item.labelKey] ?? Building2,
     href: item.href,
   }));
   const active = nav.find(item => item.href && location === item.href) ?? nav.find(item => item.href && location.startsWith(item.href));
@@ -54,6 +59,9 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     </>
   );
   const crumbs: Crumb[] = [{ label: pickLanguage(language, WORKSPACE), href: "/" }];
+  // a project screen names its project between the workspace and the module
+  const currentProject = projectId ? (projects.data ?? []).find(item => item.id === projectId) : undefined;
+  if (currentProject) crumbs.push({ label: `${currentProject.code} · ${currentProject.name}`, href: `/projects/${tenantId}/${projectId}/controls` });
   if (active) crumbs.push({ label: active.label });
 
   const companies = (tenants.data ?? []).map(item => ({ value: item.tenantId, label: item.legalName }));
