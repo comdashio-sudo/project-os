@@ -32,7 +32,7 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
 /** Loading: a short line that names what is being read, so the place is never blank. */
 export function LoadingState({ isArabic, label }: { isArabic: boolean; label?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
-  return <p role="status" data-screen-state="loading" className="flex items-center gap-2 py-4 text-sm text-slate-600">
+  return <p role="status" data-screen-state="loading" className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
     <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
     <span>{label ?? pickLanguage(lang, { ar: "جارٍ التحميل…", en: "Loading…", ur: "لوڈ ہو رہا ہے…" })}</span>
   </p>;
@@ -45,10 +45,10 @@ export type NextAction = { label: string; href: string };
  * that adds the first item). A screen without a next action passes none and says so in `body`.
  */
 export function EmptyState({ isArabic, title, body, action }: { isArabic: boolean; title: string; body: string; action?: NextAction }) {
-  const className = "inline-flex min-h-[44px] items-center rounded-lg bg-[#0e6b70] px-4 text-sm font-semibold text-white";
-  return <div role="status" data-screen-state="empty" className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
-    <Inbox className="mx-auto h-6 w-6 text-slate-400" aria-hidden="true" />
-    <p className="mt-3 font-semibold text-slate-900">{title}</p>
+  const className = "inline-flex min-h-[44px] items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white";
+  return <div role="status" data-screen-state="empty" className="rounded-2xl border border-dashed border-input bg-card p-8 text-center text-muted-foreground">
+    <Inbox className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+    <p className="mt-3 font-semibold text-foreground">{title}</p>
     <p className="mx-auto mt-2 max-w-md text-sm">{body}</p>
     {action && (action.href.startsWith("/")
       ? <Link href={action.href} className={`mt-4 ${className}`}>{action.label}</Link>
@@ -63,13 +63,13 @@ export function EmptyState({ isArabic, title, body, action }: { isArabic: boolea
 export function ErrorState({ isArabic, error, onRetry, retrying = false, title, retryLabel }: { isArabic: boolean; error: unknown; onRetry?: () => unknown; retrying?: boolean; title?: string; retryLabel?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   if (isRefusal(error)) return <NoPermission isArabic={isArabic} error={error} />;
-  return <div role="alert" data-screen-state="error" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+  return <div role="alert" data-screen-state="error" className="rounded-2xl border border-destructive/30 bg-danger-soft p-5 text-sm text-danger-soft-foreground">
     <div className="flex items-start gap-2">
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div>
         {title && <p className="font-semibold">{title}</p>}
         <p className={title ? "mt-1" : "font-semibold"}>{getLocalizedProjectError(error, lang)}</p>
-        {onRetry && <button type="button" disabled={retrying} onClick={() => void onRetry()} className="mt-3 min-h-[44px] rounded-lg border border-red-700 bg-white px-4 font-semibold text-red-900 disabled:opacity-60">{retryLabel ?? pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
+        {onRetry && <button type="button" disabled={retrying} onClick={() => void onRetry()} className="mt-3 min-h-[44px] rounded-lg border border-red-700 bg-card px-4 font-semibold text-danger-soft-foreground disabled:opacity-60">{retryLabel ?? pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
       </div>
     </div>
   </div>;
@@ -92,13 +92,13 @@ export function NoPermission({ isArabic, error, title }: { isArabic: boolean; er
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const sentence = refusalSentence(error, lang);
   const next = pickLanguage(lang, { ar: "اطلب من مالك الشركة أو من يدير صلاحيات فريقك إضافتها لك، ثم أعد فتح الشاشة.", en: "Ask the company owner or whoever manages your team's permissions to grant it, then reopen this screen.", ur: "کمپنی کے مالک یا اپنی ٹیم کی صلاحیتیں منظم کرنے والے شخص سے یہ صلاحیت دینے کو کہیں، پھر یہ اسکرین دوبارہ کھولیں۔" });
-  return <section role="note" data-screen-state="no-permission" className="rounded-2xl border border-slate-300 bg-slate-50 p-5 text-sm text-slate-800">
+  return <section role="note" data-screen-state="no-permission" className="rounded-2xl border border-input bg-muted p-5 text-sm text-foreground">
     <div className="flex items-start gap-3">
-      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div>
         <p className="font-semibold">{title ?? pickLanguage(lang, { ar: "لا صلاحية لعرض هذه الشاشة", en: "No permission to view this screen", ur: "اس اسکرین کو دیکھنے کی اجازت نہیں" })}</p>
         <p className="mt-1">{sentence}</p>
-        <p className="mt-1 text-slate-600">{next}</p>
+        <p className="mt-1 text-muted-foreground">{next}</p>
       </div>
     </div>
   </section>;

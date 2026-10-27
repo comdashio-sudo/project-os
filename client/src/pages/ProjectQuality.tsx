@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ListSelect, Option } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -135,58 +136,58 @@ export default function ProjectQuality() {
   const error = createInspection.error ?? advance.error ?? respond.error ?? createNcr.error ?? transition.error ?? saveRules.error;
   const back = `/m/${tenantId}/${projectId}`;
   const loadError = options.error ?? inspections.error ?? ncrList.error;
-  if (options.isLoading || inspections.isLoading || ncrList.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
-  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (options.isLoading || inspections.isLoading || ncrList.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
+  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
 
-  const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-[#0e6b70] text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
+  const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-card text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes } : null);
-  const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<select className={`${fieldInput} mt-1`} value={draft[key]} disabled={!isManager} onChange={event => setRules({ ...draft, [key]: event.target.value as Mode })}>{MODES.map(mode => <option key={mode} value={mode}>{(t as Record<string, string>)[mode]}</option>)}</select></label>;
+  const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<ListSelect className={`${fieldInput} mt-1`} value={draft[key]} disabled={!isManager} onChange={event => setRules({ ...draft, [key]: event.target.value as Mode })}>{MODES.map(mode => <Option key={mode} value={mode}>{(t as Record<string, string>)[mode]}</Option>)}</ListSelect></label>;
 
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}>
       <div role="tablist" className="flex flex-wrap gap-2">{tabButton("inspections", t.tabInspections)}{tabButton("ncrs", `${t.tabNcrs} (${ncrs.filter(item => item.status !== "closed" && item.status !== "cancelled").length} ${t.openCount})`)}{tabButton("rules", t.tabRules)}</div>
-      {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
-      {warning && <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>}
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
+      {warning && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{warning}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
 
       {tab === "inspections" && (
         <section aria-label={t.tabInspections} className="space-y-3">
           <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
-            <details className="rounded-xl border bg-white p-3">
+            <details className="rounded-xl border bg-card p-3">
               <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.newInspection}</summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className="block text-sm font-medium">{t.requestCode}<input className={`${fieldInput} mt-1`} value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.unitNumbers}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={form.units} onChange={event => setForm({ ...form, units: event.target.value, activityId: "" })} /></label>
-                {typed.length === 0 && <p className="text-sm text-slate-600 sm:col-span-2">{t.needUnits}</p>}
-                {unitsUnknown && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
-                {unitsMixed && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsMixed}</p>}
-                <label className="block text-sm font-medium sm:col-span-2">{t.activity}<select className={`${fieldInput} mt-1`} value={form.activityId} disabled={activityChoices.length === 0} onChange={event => setForm({ ...form, activityId: event.target.value })}><option value="">{t.pickActivity}</option>{activityChoices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}</select></label>
+                {typed.length === 0 && <p className="text-sm text-muted-foreground sm:col-span-2">{t.needUnits}</p>}
+                {unitsUnknown && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsUnknown}</p>}
+                {unitsMixed && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsMixed}</p>}
+                <label className="block text-sm font-medium sm:col-span-2">{t.activity}<ListSelect className={`${fieldInput} mt-1`} value={form.activityId} disabled={activityChoices.length === 0} onChange={event => setForm({ ...form, activityId: event.target.value })}><Option value="">{t.pickActivity}</Option>{activityChoices.map(activity => <Option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</Option>)}</ListSelect></label>
                 <label className="block text-sm font-medium">{t.consultant}<input className={`${fieldInput} mt-1`} value={form.consultant} onChange={event => setForm({ ...form, consultant: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.contractor}<input className={`${fieldInput} mt-1`} value={form.contractor} onChange={event => setForm({ ...form, contractor: event.target.value })} /></label>
               </div>
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateInspection || createInspection.isPending} onClick={() => { setMessage(null); createInspection.mutate({ ...scope, requestCode: form.code.trim(), activityDefinitionId: form.activityId, unitIds: typedUnits.map(unit => unit!.id), consultantLabel: form.consultant.trim() || undefined, contractorLabel: form.contractor.trim() || undefined, requestedAt: new Date() }); }}>{createInspection.isPending ? t.creating : t.create}</Button>
             </details>
           </WriteGate>
-          <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<select className={`${fieldInput} mt-1`} value={view} onChange={event => setView(event.target.value as typeof view)}>
-            <option value="all">{t.all}</option><option value="awaiting">{t.awaiting}</option><option value="answered">{t.answered}</option><option value="accepted">{t.accepted}</option><option value="notAccepted">{t.notAccepted}</option></select></label>
-          {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noInspections}</p>
-            : shown.length === 0 ? <p role="status" className="text-sm text-slate-600">{t.noMatch}</p>
+          <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<ListSelect className={`${fieldInput} mt-1`} value={view} onChange={event => setView(event.target.value as typeof view)}>
+            <Option value="all">{t.all}</Option><Option value="awaiting">{t.awaiting}</Option><Option value="answered">{t.answered}</Option><Option value="accepted">{t.accepted}</Option><Option value="notAccepted">{t.notAccepted}</Option></ListSelect></label>
+          {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noInspections}</p>
+            : shown.length === 0 ? <p role="status" className="text-sm text-muted-foreground">{t.noMatch}</p>
             : <ul className="space-y-2">{shown.map(request => {
               const current = request.steps.find(step => step.status === "in_progress");
               const atResult = current?.stepCode === "RESULT_RECEIVING";
               const accepted = isAccepted(request);
               return (
-                <li key={request.id} className="space-y-2 rounded-xl border bg-white p-3" data-request={request.requestCode} data-answer={request.responseCode ?? ""}>
+                <li key={request.id} className="space-y-2 rounded-xl border bg-card p-3" data-request={request.requestCode} data-answer={request.responseCode ?? ""}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div><p className="text-base font-semibold">{request.requestCode}</p>
                       <p className="text-sm">{t.unit}: <bdi dir="ltr">{request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ")}</bdi> · <bdi dir="ltr">{activityById.get(request.activityDefinitionId)?.code ?? "?"}</bdi></p>
-                      <p className="text-xs text-slate-600">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
+                      <p className="text-xs text-muted-foreground">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
                     <div className="text-end text-sm">
-                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-emerald-700" : "text-red-700"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-slate-600">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
-                      {current && <p className="text-xs text-slate-600">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
+                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-success-soft-foreground" : "text-danger-soft-foreground"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-muted-foreground">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
+                      {current && <p className="text-xs text-muted-foreground">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
                     </div>
                   </div>
-                  {heldByNcr(request) && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.holdNote}</p>}
+                  {heldByNcr(request) && <p role="note" className="rounded-lg bg-warning-soft p-2 text-sm text-warning-soft-foreground">{t.holdNote}</p>}
                   <WriteGate permission="project.pmc.update" projectId={projectId}>
                     {current && !atResult && <div className="flex flex-wrap gap-2">
                       <Button variant="outline" className={tap} disabled={advance.isPending} onClick={() => advance.mutate({ ...scope, inspectionRequestId: request.id, stepCode: current.stepCode as (typeof STEPS)[number], outcome: "complete" })}>{t.advance}</Button>
@@ -201,30 +202,30 @@ export default function ProjectQuality() {
 
       {tab === "ncrs" && (
         <section aria-label={t.tabNcrs} className="space-y-3">
-          <p className="text-sm text-slate-600">{t.ncrBlocks}.</p>
+          <p className="text-sm text-muted-foreground">{t.ncrBlocks}.</p>
           <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
-            <details className="rounded-xl border bg-white p-3">
+            <details className="rounded-xl border bg-card p-3">
               <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.createNcr}</summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className="block text-sm font-medium">{t.ncrNumber}<input className={`${fieldInput} mt-1`} value={ncr.number} onChange={event => setNcr({ ...ncr, number: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.ncrDue}<input className={`${fieldInput} mt-1`} type="date" value={ncr.due} onChange={event => setNcr({ ...ncr, due: event.target.value })} /></label>
                 <label className="block text-sm font-medium sm:col-span-2">{t.ncrTitle}<input className={`${fieldInput} mt-1`} value={ncr.title} onChange={event => setNcr({ ...ncr, title: event.target.value })} /></label>
-                <label className="block text-sm font-medium sm:col-span-2">{t.ncrDescription}<textarea className="mt-1 min-h-[72px] w-full rounded-xl border bg-white p-3 text-base" value={ncr.description} onChange={event => setNcr({ ...ncr, description: event.target.value })} /></label>
+                <label className="block text-sm font-medium sm:col-span-2">{t.ncrDescription}<textarea className="mt-1 min-h-[72px] w-full rounded-xl border bg-card p-3 text-base" value={ncr.description} onChange={event => setNcr({ ...ncr, description: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.ncrUnit}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={ncr.unit} onChange={event => setNcr({ ...ncr, unit: event.target.value, activityId: "" })} /></label>
-                <label className="block text-sm font-medium">{t.ncrActivity}<select className={`${fieldInput} mt-1`} value={ncr.activityId} disabled={ncrChoices.length === 0} onChange={event => setNcr({ ...ncr, activityId: event.target.value })}><option value="">{t.none}</option>{ncrChoices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}</select></label>
-                {ncr.unit.trim() && !ncrUnit && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
+                <label className="block text-sm font-medium">{t.ncrActivity}<ListSelect className={`${fieldInput} mt-1`} value={ncr.activityId} disabled={ncrChoices.length === 0} onChange={event => setNcr({ ...ncr, activityId: event.target.value })}><Option value="">{t.none}</Option>{ncrChoices.map(activity => <Option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</Option>)}</ListSelect></label>
+                {ncr.unit.trim() && !ncrUnit && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsUnknown}</p>}
               </div>
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateNcr || createNcr.isPending} onClick={() => { setMessage(null); createNcr.mutate({ ...scope, ncrNumber: ncr.number.trim(), title: ncr.title.trim(), description: ncr.description.trim(), dueAt: ncr.due ? new Date(`${ncr.due}T12:00:00Z`) : undefined, pmcUnitId: ncrUnit?.id, pmcActivityDefinitionId: ncr.activityId || undefined }); }}>{t.createNcr}</Button>
             </details>
           </WriteGate>
-          {ncrs.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noNcrs}</p>
+          {ncrs.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noNcrs}</p>
             : <ul className="space-y-2">{ncrs.map(item => {
               const next = NEXT[item.status] ?? [];
               const cell = item.pmcUnitId ? `${t.unit}: ${unitById.get(item.pmcUnitId)?.number ?? "?"}${item.pmcActivityDefinitionId ? ` · ${activityById.get(item.pmcActivityDefinitionId)?.code ?? "?"}` : ""}` : null;
               return (
-                <li key={item.id} className="space-y-2 rounded-xl border bg-white p-3" data-ncr={item.ncrNumber} data-status={item.status}>
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-base font-semibold">{item.ncrNumber} · {item.title}</p><p className="text-sm text-slate-700">{item.description}</p>{cell && <p className="text-xs text-slate-600">{cell}</p>}</div>
-                    <div className="text-end text-sm"><p className="font-semibold">{statusName(item.status)}</p><p className="text-xs text-slate-600">{t.age}: {dayAge(item.createdAt)} {t.days}</p></div></div>
+                <li key={item.id} className="space-y-2 rounded-xl border bg-card p-3" data-ncr={item.ncrNumber} data-status={item.status}>
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-base font-semibold">{item.ncrNumber} · {item.title}</p><p className="text-sm text-muted-foreground">{item.description}</p>{cell && <p className="text-xs text-muted-foreground">{cell}</p>}</div>
+                    <div className="text-end text-sm"><p className="font-semibold">{statusName(item.status)}</p><p className="text-xs text-muted-foreground">{t.age}: {dayAge(item.createdAt)} {t.days}</p></div></div>
                   <WriteGate permission="project.pmc.update" projectId={projectId}>
                     <div className="flex flex-wrap gap-2">
                       {next.map(status => <Button key={status} variant="outline" className={tap} disabled={transition.isPending} onClick={() => transition.mutate({ ...scope, ncrId: item.id, nextStatus: status as "closed" })}>{status === "closed" ? t.closeNcr : `${t.toNext} ${statusName(status)}`}</Button>)}
@@ -239,10 +240,10 @@ export default function ProjectQuality() {
 
       {tab === "rules" && (
         <section aria-label={t.tabRules} className="space-y-3">
-          {policyQuery.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(policyQuery.error, isArabic)}</p>}
-          {!isManager && <p role="note" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{t.rulesManager}</p>}
+          {policyQuery.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(policyQuery.error, isArabic)}</p>}
+          {!isManager && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.rulesManager}</p>}
           {draft && (
-            <div className="space-y-3 rounded-xl border bg-white p-3">
+            <div className="space-y-3 rounded-xl border bg-card p-3">
               <fieldset className="space-y-1"><legend className="text-sm font-medium">{t.rulesAccepted}</legend><div className="flex flex-wrap gap-3">{RESPONSES.map(code => <label key={code} className={`${tap} flex items-center gap-2 text-sm`}><input type="checkbox" disabled={!isManager} checked={draft.codes.includes(code)} onChange={event => setRules({ ...draft, codes: event.target.checked ? [...draft.codes, code] : draft.codes.filter(item => item !== code) })} />{(t as Record<string, string>)[`response${code}`]}</label>)}</div></fieldset>
               {modeSelect(t.rulesCompletion, "qcCompletionMode")}
               {modeSelect(t.rulesMaterial, "materialApprovalMode")}

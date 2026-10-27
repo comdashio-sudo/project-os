@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -120,7 +121,7 @@ export default function ExecutiveDashboard() {
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
        projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
-    return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
+    return <main className="min-h-screen bg-background p-8 text-danger-soft-foreground">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
   }
   const data = {
     totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
@@ -171,18 +172,18 @@ export default function ExecutiveDashboard() {
         projects: "پروجیکٹس",
       } });
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b bg-white">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="border-b bg-card">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             {t.back}
           </Link>
           <div className="flex gap-3">
-            <span className="text-sm text-slate-500">{t.level}</span>
+            <span className="text-sm text-muted-foreground">{t.level}</span>
           </div>
         </div>
       </header>
@@ -192,12 +193,12 @@ export default function ExecutiveDashboard() {
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_projects" state={projectsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_decisions" state={decisionsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_cash_flow" state={cashFlowQuery.error ? "error" : null} />
-        <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
-          <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">
+        <section className="rounded-3xl bg-primary p-7 text-white">
+          <p className="text-xs font-bold tracking-[.16em] text-primary">
             {t.projectOs}
           </p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
-          <p className="mt-2 text-slate-300">{t.sub}</p>
+          <p className="mt-2 text-muted-foreground">{t.sub}</p>
         </section>
         <SectionErrorBoundary title={t.title} isArabic={isArabic}>
         {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} onRetry={() => void metricsQuery.refetch()} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -221,44 +222,44 @@ export default function ExecutiveDashboard() {
         {metricsQuery.data && <SectionErrorBoundary title={t.projectProfitability} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
         {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" error={cashFlowQuery.error} onRetry={() => void cashFlowQuery.refetch()} /></div> : cashFlowQuery.data.cashFlow ? (
-          <Card className="mt-6 border-amber-200 bg-amber-50">
+          <Card className="mt-6 border-warning/30 bg-warning-soft">
             <CardHeader>
               <CardTitle>{cash.title}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 text-sm">
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.budget}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.plannedBudget)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.actual}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.actualCost)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.committed}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.committedAmount)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.exposure}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.totalExposure)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.remaining}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.remainingBudget)}</b>
                 </p>
               </div>
-              {(cashFlowQuery.data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-slate-500">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={cashFlowQuery.data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
+              {(cashFlowQuery.data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-muted-foreground">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={cashFlowQuery.data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
               {cashFlowQuery.data.cashFlowByPortfolio?.length ? (
                 <div className="mt-5">
                   <p className="text-sm font-semibold">{cash.byPortfolio}</p>
@@ -319,13 +320,13 @@ export default function ExecutiveDashboard() {
                 data.projects.map(project => (
                   <div
                     key={project.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 p-4"
+                    className="flex items-center justify-between rounded-xl bg-muted p-4"
                   >
                     <div>
                       <p className="font-semibold">
                         {project.code} · {project.name}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {enumLabel(project.status, language)} ·{" "}
                         {project.health?.status ? enumLabel(project.health.status, language) : t.notAssessed}
                       </p>
@@ -334,7 +335,7 @@ export default function ExecutiveDashboard() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">{t.empty}</p>
+                <p className="text-sm text-muted-foreground">{t.empty}</p>
               )}
             </CardContent>
           </Card>}
@@ -349,11 +350,11 @@ export default function ExecutiveDashboard() {
                 data.decisions.map(item => (
                   <div key={item.id} className="rounded-xl border p-4">
                     <p className="font-semibold">{item.problem}</p>
-                    <p className="mt-1 text-xs text-slate-500">{enumLabel(item.status, language)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{enumLabel(item.status, language)}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">{t.empty}</p>
+                <p className="text-sm text-muted-foreground">{t.empty}</p>
               )}
             </CardContent>
           </Card>}
@@ -373,21 +374,21 @@ export default function ExecutiveDashboard() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}
-                  <select
+                  <ListSelect
                     value={form.projectId}
                     onChange={e =>
                       setForm({ ...form, projectId: e.target.value })
                     }
                     required
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
                   >
-                    <option value="">{t.select}</option>
+                    <Option value="">{t.select}</Option>
                     {data.projects.map(project => (
-                      <option key={project.id} value={project.id}>
+                      <Option key={project.id} value={project.id}>
                         {project.code} · {project.name}
-                      </option>
+                      </Option>
                     ))}
-                  </select>
+                  </ListSelect>
                 </Label>
                 <Label>
                   {t.problem}
@@ -406,7 +407,7 @@ export default function ExecutiveDashboard() {
                   value={form.options}
                   required
                   onChange={e => setForm({ ...form, options: e.target.value })}
-                  className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 p-3 text-sm"
+                  className="mt-1 min-h-24 w-full rounded-lg border border-border p-3 text-sm"
                 />
               </Label>
               <Label>
@@ -416,7 +417,7 @@ export default function ExecutiveDashboard() {
                   onChange={e =>
                     setForm({ ...form, recommendation: e.target.value })
                   }
-                  className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm"
+                  className="mt-1 min-h-20 w-full rounded-lg border border-border p-3 text-sm"
                 />
               </Label>
               <div>
@@ -424,12 +425,12 @@ export default function ExecutiveDashboard() {
                   {mutation.isPending ? t.saving : t.save}
                 </Button>
                 {mutation.error && (
-                  <p className="mt-3 text-sm text-red-700">
+                  <p className="mt-3 text-sm text-danger-soft-foreground">
                     {getLocalizedProjectError(mutation.error, isArabic)}
                   </p>
                 )}
                 {mutation.isSuccess && (
-                  <p className="mt-3 text-sm text-emerald-700">{t.success}</p>
+                  <p className="mt-3 text-sm text-success-soft-foreground">{t.success}</p>
                 )}
               </div>
             </CheckedForm></WriteGate>
@@ -454,8 +455,8 @@ function Metric({
     <SectionErrorBoundary title={label} isArabic={isArabic}>
       <Card>
         <CardContent className="p-5">
-          <Icon className="h-5 w-5 text-[#0e6b70]" />
-          <p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">
+          <Icon className="h-5 w-5 text-primary" />
+          <p className="mt-5 text-xs font-bold tracking-[.12em] text-muted-foreground">
             {label}
           </p>
           <p className="mt-2 text-2xl font-semibold">{value}</p>

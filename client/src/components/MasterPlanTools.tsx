@@ -3,6 +3,7 @@
 // activity (G-137). The rules and arithmetic are shared/masterPlanTools.ts; every write is shown only to someone who may make it, and the
 // server judges every call anyway.
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,8 +30,8 @@ export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }
   if (!version) return null;
   const t = pickLanguage(language, { ar: { title: "تدوير الخطة ومعايرتها", note: "يدوّر الخلفية فقط، لا الكيانات. أدخل العرض والطول الحقيقيين لمنطقة الخطة بالأمتار لتظهر أبعاد كل كيان بالمتر.", rotation: "زاوية التدوير (درجة)", left: "تدوير 90° لليسار", right: "تدوير 90° لليمين", width: "عرض منطقة الخطة (م)", height: "طول منطقة الخطة (م)", save: "حفظ التدوير والمعايرة" }, en: { title: "Rotate and calibrate the plan", note: "Turns the background only, not the entities. Enter the real width and length of the plan area in metres so each entity's size shows in metres.", rotation: "Rotation (degrees)", left: "Rotate 90° left", right: "Rotate 90° right", width: "Plan area width (m)", height: "Plan area length (m)", save: "Save rotation and calibration" }, ur: { title: "پلان کو گھمائیں اور درست کریں", note: "صرف پس منظر گھماتا ہے، اکائیاں نہیں۔ پلان کے رقبے کی اصل چوڑائی اور لمبائی میٹر میں لکھیں تاکہ ہر اکائی کا سائز میٹر میں دکھائی دے۔", rotation: "گردش (ڈگری)", left: "90° بائیں گھمائیں", right: "90° دائیں گھمائیں", width: "پلان کے رقبے کی چوڑائی (میٹر)", height: "پلان کے رقبے کی لمبائی (میٹر)", save: "گردش اور درستگی محفوظ کریں" } });
   const turn = (by: number) => setRotation(String(normalizeRotation(Number(rotation || 0) + by)));
-  return <WriteGate permission="project.write" projectId={projectId}><CheckedForm className="mt-3 rounded-xl border border-dashed border-[#74d0c1] bg-[#f4fbfa] p-3" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, projectId, masterPlanVersionId: version.id, rotationDegrees: Number(rotation || 0), mapWidthMeters: width ? Number(width) : null, mapHeightMeters: height ? Number(height) : null }); }}>
-    <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-slate-500">{t.note}</p>
+  return <WriteGate permission="project.write" projectId={projectId}><CheckedForm className="mt-3 rounded-xl border border-dashed border-primary bg-[#f4fbfa] p-3" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, projectId, masterPlanVersionId: version.id, rotationDegrees: Number(rotation || 0), mapWidthMeters: width ? Number(width) : null, mapHeightMeters: height ? Number(height) : null }); }}>
+    <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-muted-foreground">{t.note}</p>
     <div className="mt-2 flex flex-wrap items-end gap-2">
       <Label className="min-w-28 flex-1 text-xs">{t.rotation}<Input className="mt-1" aria-label={t.rotation} type="number" step="1" value={rotation} onChange={event => setRotation(event.target.value)} /></Label>
       <Button type="button" variant="outline" size="sm" aria-label={t.left} onClick={() => turn(-90)}><RotateCcw className="h-4 w-4" /></Button>
@@ -38,7 +39,7 @@ export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }
       <Label className="min-w-28 flex-1 text-xs">{t.width}<Input className="mt-1" aria-label={t.width} type="number" min="0" step="0.01" value={width} onChange={event => setWidth(event.target.value)} /></Label>
       <Label className="min-w-28 flex-1 text-xs">{t.height}<Input className="mt-1" aria-label={t.height} type="number" min="0" step="0.01" value={height} onChange={event => setHeight(event.target.value)} /></Label>
     </div>
-    {save.error ? <p role="alert" className="mt-2 text-xs text-red-700">{getLocalizedProjectError(save.error, language)}</p> : null}
+    {save.error ? <p role="alert" className="mt-2 text-xs text-danger-soft-foreground">{getLocalizedProjectError(save.error, language)}</p> : null}
     <Button className="mt-3" disabled={save.isPending}>{t.save}</Button>
   </CheckedForm></WriteGate>;
 }
@@ -83,16 +84,16 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
   const candidates = entities.filter(item => item.id !== entity.id && !wouldCreateCycle(parentOf, entity.id, item.id));
   const [parent, setParent] = useState(entity.parentEntityId ?? "");
   useEffect(() => setParent(entity.parentEntityId ?? ""), [entity.id, entity.parentEntityId]);
-  const tone = (severity: string) => severity === "critical" ? "bg-red-50 text-red-800" : severity === "warning" ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-700";
-  return <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+  const tone = (severity: string) => severity === "critical" ? "bg-danger-soft text-danger-soft-foreground" : severity === "warning" ? "bg-warning-soft text-warning-soft-foreground" : "bg-muted text-muted-foreground";
+  return <div className="mt-3 space-y-3 rounded-xl border border-border bg-card p-3 text-xs">
     <section aria-label={t.alerts}><h4 className="font-semibold">{t.alerts}</h4>
-      {alerts.length ? <ul className="mt-1 space-y-1">{alerts.map(alert => <li key={alert.code} className={`rounded-lg px-2 py-1 ${tone(alert.severity)}`}>{alertText(alert)}</li>)}</ul> : <p className="mt-1 text-slate-500">{t.none}</p>}
-      {real ? <p className="mt-2 text-slate-700">{t.size}: {real.widthMeters} × {real.heightMeters} {t.meters} · {real.areaSquareMeters} {t.area}</p> : null}
-      <p className="mt-2 flex flex-wrap items-center gap-2"><span className="text-slate-500">{t.jumps}:</span>{SECTION_LINKS.map(link => <a key={link.id} href={`#${link.id}`} className="font-semibold text-[#0e6b70] underline">{pickLanguage(language, link)}</a>)}</p>
+      {alerts.length ? <ul className="mt-1 space-y-1">{alerts.map(alert => <li key={alert.code} className={`rounded-lg px-2 py-1 ${tone(alert.severity)}`}>{alertText(alert)}</li>)}</ul> : <p className="mt-1 text-muted-foreground">{t.none}</p>}
+      {real ? <p className="mt-2 text-muted-foreground">{t.size}: {real.widthMeters} × {real.heightMeters} {t.meters} · {real.areaSquareMeters} {t.area}</p> : null}
+      <p className="mt-2 flex flex-wrap items-center gap-2"><span className="text-muted-foreground">{t.jumps}:</span>{SECTION_LINKS.map(link => <a key={link.id} href={`#${link.id}`} className="font-semibold text-primary underline">{pickLanguage(language, link)}</a>)}</p>
     </section>
     <WriteGate permission="project.write" projectId={projectId}>
       <CheckedForm className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, parentEntityId: parent || null }); }}>
-        <Label className="min-w-48 flex-1">{t.parentTitle}<select aria-label={t.parentTitle} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" value={parent} onChange={event => setParent(event.target.value)}><option value="">{t.noParent}</option>{candidates.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></Label>
+        <Label className="min-w-48 flex-1">{t.parentTitle}<ListSelect aria-label={t.parentTitle} className="mt-1 h-9 w-full rounded-md border border-input bg-card px-2 text-sm" value={parent} onChange={event => setParent(event.target.value)}><Option value="">{t.noParent}</Option>{candidates.map(item => <Option key={item.id} value={item.id}>{item.code} · {item.name}</Option>)}</ListSelect></Label>
         <Button size="sm" disabled={update.isPending || parent === (entity.parentEntityId ?? "")}>{t.saveParent}</Button>
       </CheckedForm>
       <CheckedForm className="grid grid-cols-2 gap-2 md:grid-cols-5" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, geometry: { x: Number(draft.x), y: Number(draft.y), width: Number(draft.width), height: Number(draft.height) } }); }}>
@@ -100,7 +101,7 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
         {([["x", t.x], ["y", t.y], ["width", t.w], ["height", t.h]] as const).map(([key, label]) => <Label key={key}>{label}<Input className="mt-1" aria-label={label} type="number" step="0.1" value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></Label>)}
         <Button size="sm" className="self-end" disabled={update.isPending}>{t.saveGeometry}</Button>
       </CheckedForm>
-      {update.error ? <p role="alert" className="text-red-700">{getLocalizedProjectError(update.error, language)}</p> : null}
+      {update.error ? <p role="alert" className="text-danger-soft-foreground">{getLocalizedProjectError(update.error, language)}</p> : null}
     </WriteGate>
   </div>;
 }
@@ -109,6 +110,6 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
 export function SnapshotShareToggle({ tenantId, projectId, snapshot, currentUserId, onChanged }: { tenantId: string; projectId: string; snapshot: { id: string; createdByUserId: number; sharedWithProject: boolean }; currentUserId: number | undefined; onChanged: () => void }) {
   const { language } = useLanguage();
   const share = trpc.masterPlans.setSnapshotSharing.useMutation({ onSuccess: onChanged });
-  if (snapshot.createdByUserId !== currentUserId) return snapshot.sharedWithProject ? <span className="text-[10px] font-medium text-slate-500">{pickLanguage(language, { ar: "مشاركة من زميل", en: "Shared by a colleague", ur: "ایک ساتھی کی طرف سے شیئر کیا گیا" })}</span> : null;
+  if (snapshot.createdByUserId !== currentUserId) return snapshot.sharedWithProject ? <span className="text-[10px] font-medium text-muted-foreground">{pickLanguage(language, { ar: "مشاركة من زميل", en: "Shared by a colleague", ur: "ایک ساتھی کی طرف سے شیئر کیا گیا" })}</span> : null;
   return <Button type="button" size="sm" variant={snapshot.sharedWithProject ? "default" : "outline"} aria-pressed={snapshot.sharedWithProject} disabled={share.isPending} onClick={() => share.mutate({ tenantId, projectId, snapshotId: snapshot.id, shared: !snapshot.sharedWithProject })}>{snapshot.sharedWithProject ? pickLanguage(language, { ar: "إيقاف المشاركة", en: "Stop sharing", ur: "شیئرنگ بند کریں" }) : pickLanguage(language, { ar: "مشاركة مع المشروع", en: "Share with the project", ur: "پروجیکٹ کے ساتھ شیئر کریں" })}</Button>;
 }

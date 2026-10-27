@@ -19,13 +19,13 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
   }, ur: {
     eyebrow: "منصوبہ بندی · لاگت · مقدار کا کنٹرول", title: "جڑے ہوئے ذرائع سے ایک فیصلہ کن منظر", note: "شیڈول، بجٹ، اصل لاگت، وعدے، BOQ، مواد کی درخواستوں اور گودام کے بقایا کو ایک جگہ جوڑتا ہے۔ غائب ڈیٹا کو گمراہ کن صفر میں تبدیل نہیں کیا جاتا۔", controlled: "کنٹرول میں", attention: "توجہ درکار ہے", budget: "موجودہ بجٹ", exposure: "مالی تعرض", variance: "تعرض کے بعد باقی", boq: "فعال BOQ کی قدر", quantities: "مقدار کی نقل و حرکت", issued: "جاری شدہ", remaining: "درخواست کا بقایا", onHand: "گودام میں موجود", schedule: "شیڈول", overdue: "تاخیر کا شکار سرگرمیاں", blocked: "رکی ہوئی سرگرمیاں", coverage: "عمل درآمد کی کوریج", gaps: "ڈیٹا کی کمیاں جو مکمل فیصلہ روکتی ہیں", noGaps: "اس منظر کے لیے بنیادی ذرائع مکمل ہیں", loading: "کنٹرول سینٹر کا حساب ہو رہا ہے…", sourceNote: "یہ اخذ شدہ صرف پڑھنے کے اشاریے ہیں؛ کوئی مالی یا مقداری ریکارڈ نہیں بنتا۔", lines: "سطر"
   } });
-  const tone = result.riskLevel === "attention" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50";
+  const tone = result.riskLevel === "attention" ? "border-warning/30 bg-warning-soft" : "border-success/30 bg-success-soft";
   return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs font-bold tracking-[.14em] text-[#0e6b70]">{t.eyebrow}</p><h2 className="mt-2 text-xl font-semibold text-slate-900">{t.title}</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{t.note}</p></div>
-      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{result.riskLevel === "attention" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div>
+      <div><p className="text-xs font-bold tracking-[.14em] text-primary">{t.eyebrow}</p><h2 className="mt-2 text-xl font-semibold text-foreground">{t.title}</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">{t.note}</p></div>
+      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-amber-200 text-warning-soft-foreground" : "bg-emerald-200 text-success-soft-foreground"}`}>{result.riskLevel === "attention" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div>
     </div>
-    {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-slate-600">{t.loading}</p> : <>
+    {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-muted-foreground">{t.loading}</p> : <>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency, language)} />
         <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency, language)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency, language)}`} />
@@ -38,14 +38,14 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
         <Metric label={t.schedule} value={`${result.overdueActivities} / ${result.blockedActivities}`} detail={`${t.overdue} / ${t.blocked}`} />
       </div>
       <div className="mt-4 rounded-xl bg-white/80 p-4">
-        <p className="text-sm font-semibold text-slate-900">{t.gaps}</p>
-        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, language)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
+        <p className="text-sm font-semibold text-foreground">{t.gaps}</p>
+        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-warning-soft-foreground sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, language)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-success-soft-foreground"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
       </div>
-      <p className="mt-3 text-xs text-slate-500">{t.sourceNote}</p>
+      <p className="mt-3 text-xs text-muted-foreground">{t.sourceNote}</p>
     </>}
   </section>;
 }
 
 function Metric({ icon: Icon, label, value, detail }: { icon?: typeof Scale; label: string; value: string; detail?: string }) {
-  return <div className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{Icon ? <Icon className="h-4 w-4 text-[#0e6b70]" /> : null}{label}</div><p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>{detail ? <p className="mt-1 text-xs text-slate-500">{detail}</p> : null}</div>;
+  return <div className="rounded-xl border border-border bg-card p-4"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{Icon ? <Icon className="h-4 w-4 text-primary" /> : null}{label}</div><p className="mt-2 text-lg font-semibold text-foreground">{value}</p>{detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}</div>;
 }

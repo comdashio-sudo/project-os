@@ -12,9 +12,19 @@ const copy = { ar: "صحّح الحقول التالية ثم أعد الإرس�
 
 type Problem = { element: HTMLElement; label: string; message: string };
 
-/** The name a person sees for a field: its label, else its aria-label, else its placeholder. */
+/** A label's own words, without the text of the controls inside it (a wrapped list would add its options or its current choice). */
+function labelText(label: HTMLLabelElement | undefined): string {
+  if (!label) return "";
+  const copy = label.cloneNode(true) as HTMLElement;
+  for (const control of Array.from(copy.querySelectorAll("select, button, input, textarea, [role=combobox]"))) control.remove();
+  return copy.textContent?.trim() ?? "";
+}
+
+/** The name a person sees for a field: its label, else its aria-label, else its placeholder. A design-system list's hidden value copy (data-list-for) is named by its list. */
 function fieldName(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): string {
-  const label = element.labels?.[0]?.textContent?.trim();
+  const list = element.dataset.listFor ? document.getElementById(element.dataset.listFor) as HTMLButtonElement | null : null;
+  if (list) return labelText(list.labels?.[0]) || list.getAttribute("aria-label") || "";
+  const label = labelText(element.labels?.[0]);
   return label || element.getAttribute("aria-label") || ("placeholder" in element ? element.placeholder : "") || "";
 }
 

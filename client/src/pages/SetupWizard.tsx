@@ -1,4 +1,5 @@
 import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
+import { ListSelect, Option } from "@/components/ds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,25 +68,25 @@ export default function SetupWizard() {
   const complete: Record<Step, boolean> = { company: Boolean(tenantId), project: Boolean(projectId), import: false, invite: false };
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
-      <header className="border-b bg-white"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></header>
+    <main className="min-h-screen bg-background text-foreground" dir={isRtl ? "rtl" : "ltr"}>
+      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></header>
       <div className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
-        <p className="mt-2 max-w-3xl leading-7 text-slate-600">{t.sub}</p>
+        <p className="mt-2 max-w-3xl leading-7 text-muted-foreground">{t.sub}</p>
         <nav aria-label={t.title} className="mt-6"><ol className="grid gap-2 sm:grid-cols-4">
           {STEPS.map((key, i) => (
-            <li key={key}><button type="button" aria-current={step === key ? "step" : undefined} disabled={i > 0 && !tenantId} onClick={() => goto(key)} className={`flex min-h-[44px] w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${step === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "border-slate-300 bg-white text-slate-700 disabled:opacity-50"}`}>
+            <li key={key}><button type="button" aria-current={step === key ? "step" : undefined} disabled={i > 0 && !tenantId} onClick={() => goto(key)} className={`flex min-h-[44px] w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${step === key ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground disabled:opacity-50"}`}>
               <span className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{complete[key] ? <Check className="h-4 w-4" aria-label={t.done} /> : i + 1}</span>{t.steps[key]}</button></li>
           ))}
         </ol></nav>
-        <p className="mt-3 text-xs text-slate-600">{t.stepOf(index + 1)}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t.stepOf(index + 1)}</p>
         <SourceNotice query={tenants} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة شركاتك", en: "Your company list", ur: "آپ کی کمپنیوں کی فہرست" })} className="mt-4" />
         <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة مشاريع الشركة", en: "The company's project list", ur: "کمپنی کے پروجیکٹس کی فہرست" })} className="mt-4" />
-        <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section className="mt-4 rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
           <SectionErrorBoundary key={step} title={t.steps[step]} isArabic={isArabic}>
             {step === "company" && <CompanyStep t={t.company} isArabic={isArabic} tenantId={tenantId} tenants={tenants.data ?? []} onDone={id => { navigate(`/setup/${id}#project`); setStep("project"); }} />}
             {step === "project" && (tenantId ? <ProjectStep t={t.project} isArabic={isArabic} tenantId={tenantId} projects={projects.data ?? []} chosen={projectId} onChoose={setProjectId} refetch={() => projects.refetch()} /> : <p>{t.company.choose}</p>)}
-            {step === "import" && <div><h2 className="text-xl font-semibold">{t.import.head}</h2><p className="mt-2 leading-7 text-slate-600">{t.import.lead}</p>{projectId ? <div className="mt-4"><ProjectImports tenantId={tenantId} projectId={projectId} /></div> : <p role="status" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.import.needProject}</p>}</div>}
+            {step === "import" && <div><h2 className="text-xl font-semibold">{t.import.head}</h2><p className="mt-2 leading-7 text-muted-foreground">{t.import.lead}</p>{projectId ? <div className="mt-4"><ProjectImports tenantId={tenantId} projectId={projectId} /></div> : <p role="status" className="mt-4 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.import.needProject}</p>}</div>}
             {step === "invite" && <InviteStep t={t.invite} isArabic={isArabic} tenantId={tenantId} projectId={projectId} project={project} />}
           </SectionErrorBoundary>
         </section>
@@ -114,15 +115,15 @@ function CompanyStep({ t, isArabic, tenantId, tenants, onDone }: { t: (typeof te
       <h2 className="text-xl font-semibold">{t.head}</h2>
       <SourceNotice query={plans} isArabic={isArabic} title={pickLanguage(language, { ar: "قائمة الخطط", en: "The plan list", ur: "پلانز کی فہرست" })} className="mt-3" />
       {tenants.length > 0 && <div className="mt-4"><Label htmlFor="setup-company">{current ? t.have : t.choose}</Label>
-        <select id="setup-company" className={`${field} mt-1`} value={tenantId} onChange={event => { if (event.target.value) onDone(event.target.value); }}><option value="">—</option>{tenants.map(item => <option key={item.tenantId} value={item.tenantId}>{item.legalName ?? item.name ?? item.tenantId}</option>)}</select></div>}
-      {tenantId && <p role="status" className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{t.created}</p>}
+        <ListSelect id="setup-company" className={`${field} mt-1`} value={tenantId} onChange={event => { if (event.target.value) onDone(event.target.value); }}><Option value="">—</Option>{tenants.map(item => <Option key={item.tenantId} value={item.tenantId}>{item.legalName ?? item.name ?? item.tenantId}</Option>)}</ListSelect></div>}
+      {tenantId && <p role="status" className="mt-3 rounded-xl bg-success-soft p-3 text-sm text-success-soft-foreground">{t.created}</p>}
       {!tenants.length && (
         <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); const slugProblem = slugFieldError(slug, language); if (slugProblem) errors["setup-slug"] = slugProblem; setFieldErrors(errors); if (Object.keys(errors).length === 0) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
           <div><Label htmlFor="setup-legal">{t.legal}</Label><Input id="setup-legal" className="mt-1" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} /><FieldError id="setup-legal-error" message={fieldErrors["setup-legal"]} /></div>
           <div><Label htmlFor="setup-slug">{t.slug}</Label><Input id="setup-slug" dir="ltr" className="mt-1" aria-describedby="setup-slug-error" aria-invalid={slug !== "" && !!slugFieldError(slug, language)} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required /><FieldError id="setup-slug-error" message={fieldErrors["setup-slug"] ?? (slug !== "" ? slugFieldError(slug, language) : null)} /></div>
-          <div><Label htmlFor="setup-plan">{t.plan}</Label><select id="setup-plan" className={`${field} mt-1`} value={planCode} onChange={event => setPlanCode(event.target.value)} disabled={plans.isLoading} required><option value="">{plans.isLoading ? t.loading : t.pick}</option>{plans.data?.map(plan => <option key={plan.code} value={plan.code}>{plan.name} · {plan.packageCode}</option>)}</select><FieldError id="setup-plan-error" message={fieldErrors["setup-plan"]} /></div>
+          <div><Label htmlFor="setup-plan">{t.plan}</Label><ListSelect id="setup-plan" className={`${field} mt-1`} value={planCode} onChange={event => setPlanCode(event.target.value)} disabled={plans.isLoading} required><Option value="">{plans.isLoading ? t.loading : t.pick}</Option>{plans.data?.map(plan => <Option key={plan.code} value={plan.code}>{plan.name} · {plan.packageCode}</Option>)}</ListSelect><FieldError id="setup-plan-error" message={fieldErrors["setup-plan"]} /></div>
           <div><Label htmlFor="setup-seats">{t.seats}</Label><Input id="setup-seats" type="number" min={1} max={100000} className="mt-1" value={seats} onChange={event => setSeats(event.target.value)} required /><FieldError id="setup-seats-error" message={fieldErrors["setup-seats"]} /></div>
-          {signup.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
+          {signup.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={signup.isPending || !planCode}>{signup.isPending ? t.creating : t.create}</Button></div>
         </form>
       )}
@@ -138,14 +139,14 @@ function ProjectStep({ t, isArabic, tenantId, projects, chosen, onChoose, refetc
   return (
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
-      {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3"><span><span dir="ltr" className="font-mono text-xs text-slate-500">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-emerald-700">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-slate-600">{t.none}</p>}
+      {projects.length > 0 ? <div className="mt-4"><p className="text-sm font-semibold">{t.exists}</p><ul className="mt-2 space-y-2">{projects.map(project => <li key={project.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3"><span><span dir="ltr" className="font-mono text-xs text-muted-foreground">{project.code}</span> {project.name}</span>{chosen === project.id ? <span className="text-sm font-semibold text-success-soft-foreground">✓ {t.chosen}</span> : <Button variant="outline" className="min-h-[44px]" onClick={() => onChoose(project.id)}>{t.use}</Button>}</li>)}</ul></div> : <p className="mt-3 text-sm text-muted-foreground">{t.none}</p>}
       <WriteGate permission="project.write" reason={{ ar: "لا تملك صلاحية إنشاء المشاريع.", en: "You do not have permission to create projects.", ur: "آپ کو پروجیکٹ بنانے کی اجازت نہیں ہے۔" }}>
         <form noValidate className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) create.mutate({ tenantId, ...form }); }}>
           <div><Label htmlFor="setup-code">{t.code}</Label><Input id="setup-code" dir="ltr" className="mt-1" value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} required minLength={2} /><FieldError id="setup-code-error" message={fieldErrors["setup-code"]} /></div>
           <div><Label htmlFor="setup-name">{t.name}</Label><Input id="setup-name" className="mt-1" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required minLength={2} /><FieldError id="setup-name-error" message={fieldErrors["setup-name"]} /></div>
           <div><Label htmlFor="setup-type">{t.type}</Label><Input id="setup-type" className="mt-1" value={form.projectType} onChange={event => setForm({ ...form, projectType: event.target.value })} required minLength={2} /><FieldError id="setup-type-error" message={fieldErrors["setup-type"]} /></div>
           <div><Label htmlFor="setup-currency">{t.currency}</Label><Input id="setup-currency" dir="ltr" className="mt-1" maxLength={3} minLength={3} value={form.currency} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} required /><FieldError id="setup-currency-error" message={fieldErrors["setup-currency"]} /></div>
-          {create.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(create.error, isArabic)}</p>}
+          {create.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(create.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={create.isPending}>{create.isPending ? t.creating : t.create}</Button></div>
         </form>
       </WriteGate>
@@ -168,21 +169,21 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
   return (
     <div>
       <h2 className="text-xl font-semibold">{t.head}</h2>
-      <p className="mt-2 leading-7 text-slate-600">{t.lead}</p>
-      {admin.error ? <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(admin.error, isArabic)}</p> : null}
-      {!roles.length && !admin.isLoading && !admin.error ? <p className="mt-3 text-sm text-slate-600">{t.noRoles}</p> : null}
+      <p className="mt-2 leading-7 text-muted-foreground">{t.lead}</p>
+      {admin.error ? <p role="alert" className="mt-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(admin.error, isArabic)}</p> : null}
+      {!roles.length && !admin.isLoading && !admin.error ? <p className="mt-3 text-sm text-muted-foreground">{t.noRoles}</p> : null}
       <WriteGate permission="tenant.manage" reason={{ ar: "لا تملك صلاحية إدارة الشركة، فلا تُرسل دعوات.", en: "You do not have permission to manage the company, so you cannot invite.", ur: "آپ کو کمپنی کا انتظام کرنے کی اجازت نہیں ہے، اس لیے آپ دعوت نہیں دے سکتے۔" }}>
         <form noValidate className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) invite.mutate({ tenantId, email, roleId, scopeType: scope, scopeId: scope === "project" ? projectId : undefined }); }}>
           <div><Label htmlFor="setup-email">{t.email}</Label><Input id="setup-email" type="email" dir="ltr" className="mt-1" value={email} onChange={event => setEmail(event.target.value)} required /><FieldError id="setup-email-error" message={fieldErrors["setup-email"]} /></div>
-          <div><Label htmlFor="setup-role">{t.role}</Label><select id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><option value="">{t.pickRole}</option>{roles.map(item => <option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</option>)}</select><FieldError id="setup-role-error" message={fieldErrors["setup-role"]} /></div>
-          <div><Label htmlFor="setup-scope">{t.scope}</Label><select id="setup-scope" className={`${field} mt-1`} value={scope} onChange={event => setScopeChoice(event.target.value as "project" | "company")}><option value="project" disabled={!projectId}>{t.scopeProject}{project ? ` — ${project.name}` : ""}</option><option value="company">{t.scopeCompany}</option></select></div>
-          {profile && <dl className="rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><dt className="font-semibold">{t.purpose}</dt><dd>{profile[language].purpose}</dd><dt className="mt-2 font-semibold">{t.focus}</dt><dd>{profile[language].focus}</dd><dt className="mt-2 font-semibold">{t.boundary}</dt><dd>{profile[language].boundary}</dd></dl>}
-          {invite.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(invite.error, isArabic)}</p>}
+          <div><Label htmlFor="setup-role">{t.role}</Label><ListSelect id="setup-role" className={`${field} mt-1`} value={roleId} onChange={event => setRoleId(event.target.value)} required><Option value="">{t.pickRole}</Option>{roles.map(item => <Option key={item.id} value={item.id}>{getOperationalRoleName(item, isArabic)}</Option>)}</ListSelect><FieldError id="setup-role-error" message={fieldErrors["setup-role"]} /></div>
+          <div><Label htmlFor="setup-scope">{t.scope}</Label><ListSelect id="setup-scope" className={`${field} mt-1`} value={scope} onChange={event => setScopeChoice(event.target.value as "project" | "company")}><Option value="project" disabled={!projectId}>{t.scopeProject}{project ? ` — ${project.name}` : ""}</Option><Option value="company">{t.scopeCompany}</Option></ListSelect></div>
+          {profile && <dl className="rounded-xl bg-muted p-3 text-sm sm:col-span-2"><dt className="font-semibold">{t.purpose}</dt><dd>{profile[language].purpose}</dd><dt className="mt-2 font-semibold">{t.focus}</dt><dd>{profile[language].focus}</dd><dt className="mt-2 font-semibold">{t.boundary}</dt><dd>{profile[language].boundary}</dd></dl>}
+          {invite.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(invite.error, isArabic)}</p>}
           <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={invite.isPending || !roleId}>{invite.isPending ? t.sending : t.send}</Button></div>
         </form>
       </WriteGate>
-      {sent.length > 0 && <div className="mt-5"><p className="text-sm font-semibold">{t.sent}</p><ul className="mt-2 space-y-2">{sent.map(item => <li key={item.token} className="rounded-xl border border-slate-200 p-3 text-sm"><p><span dir="ltr">{item.email}</span> · {item.role}</p><p className="mt-1 text-xs text-slate-500">{t.link}</p><code dir="ltr" className="mt-1 block break-all rounded bg-slate-100 p-2 text-xs">{`${origin}/invite/accept?token=${item.token}`}</code></li>)}</ul></div>}
-      <div className="mt-6">{projectId ? <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center rounded-xl bg-[#0e6b70] px-4 text-sm font-semibold text-white">{t.finish}</Link> : <p className="text-sm text-slate-500">{t.needProject}</p>}</div>
+      {sent.length > 0 && <div className="mt-5"><p className="text-sm font-semibold">{t.sent}</p><ul className="mt-2 space-y-2">{sent.map(item => <li key={item.token} className="rounded-xl border border-border p-3 text-sm"><p><span dir="ltr">{item.email}</span> · {item.role}</p><p className="mt-1 text-xs text-muted-foreground">{t.link}</p><code dir="ltr" className="mt-1 block break-all rounded bg-muted p-2 text-xs">{`${origin}/invite/accept?token=${item.token}`}</code></li>)}</ul></div>}
+      <div className="mt-6">{projectId ? <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white">{t.finish}</Link> : <p className="text-sm text-muted-foreground">{t.needProject}</p>}</div>
     </div>
   );
 }

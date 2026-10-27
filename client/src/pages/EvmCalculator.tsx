@@ -119,7 +119,7 @@ export default function EvmCalculator() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-7 lg:py-10">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[#0e6b70] hover:underline">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
           <BackChevron className="h-4 w-4" />
           {t.workspace}
           <span className="text-muted-foreground">/</span>
@@ -133,7 +133,7 @@ export default function EvmCalculator() {
             <div>
               <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-[.14em] text-[var(--dashio-aqua)]"><Calculator className="h-3.5 w-3.5" />{t.controlLabel}</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{t.engine}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{t.engineSub}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t.engineSub}</p>
             </div>
             <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--dashio-aqua)]"><ShieldCheck className="h-3.5 w-3.5" />{t.secure}</p>
           </div>
@@ -154,8 +154,8 @@ export default function EvmCalculator() {
           </section>
 
           <section className="space-y-6">
-            <div><p className="text-sm font-semibold tracking-[.16em] text-[#0e6b70]">{t.outcome}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{t.title}</h2></div>
-            {query.isError ? <div role="alert" className="rounded-[var(--radius-lg)] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><AlertTriangle className="mb-2 h-5 w-5" />{getLocalizedProjectError(query.error, isArabic)}</div> : null}
+            <div><p className="text-sm font-semibold tracking-[.16em] text-primary">{t.outcome}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{t.title}</h2></div>
+            {query.isError ? <div role="alert" className="rounded-[var(--radius-lg)] border border-warning/30 bg-warning-soft p-5 text-sm text-warning-soft-foreground"><AlertTriangle className="mb-2 h-5 w-5" />{getLocalizedProjectError(query.error, isArabic)}</div> : null}
             {!submitted ? <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-card px-8 py-16 text-center text-muted-foreground">{t.empty}</div> : null}
             {submitted && query.isLoading ? <div className="rounded-[var(--radius-lg)] bg-card px-8 py-16 text-center text-muted-foreground">{t.loading}</div> : null}
             {query.data ? <>

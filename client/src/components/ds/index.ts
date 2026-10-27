@@ -9,6 +9,7 @@ export * from "./DataTable";
 export * from "./Feedback";
 export * from "./Field";
 export * from "./FileDropzone";
+export * from "./ListSelect";
 export * from "./Logo";
 export * from "./MetricCard";
 export * from "./Modal";

@@ -99,17 +99,27 @@ describe("static check: every field on the controls and HSE screens has a name, 
 });
 
 describe("static check: the text colours that failed on the screens are the ones the screens already use", () => {
-  it("draws the EVM outcome heading in the dark teal, not the aqua that measured 2.78:1", () => {
-    expect(page("EvmCalculator.tsx")).toContain(`text-[#0e6b70]">{t.outcome}`);
+  // Work order 21 moved these screens onto the design tokens: the headings that were dark teal are the direction's primary, the step count is the
+  // muted text. The tokens themselves are measured below (direction A, light): they keep 4.5:1 on every surface those texts sit on.
+  it("draws the EVM outcome heading in the primary token, not the aqua that measured 2.78:1", () => {
+    expect(page("EvmCalculator.tsx")).toContain(`text-primary">{t.outcome}`);
   });
 
-  it("draws the commercial chain and profitability eyebrows in the dark teal, not #0e8f9a (3.65:1)", () => {
-    expect(page("CommercialChain.tsx")).toContain(`text-[#0e6b70]">{copy.eyebrow}`);
-    expect(page("ProjectProfitability.tsx")).toContain(`text-[#0e6b70]">{t.eyebrow}`);
+  it("draws the commercial chain and profitability eyebrows in the primary token, not #0e8f9a (3.65:1)", () => {
+    expect(page("CommercialChain.tsx")).toContain(`text-primary">{copy.eyebrow}`);
+    expect(page("ProjectProfitability.tsx")).toContain(`text-primary">{t.eyebrow}`);
   });
 
-  it("draws the setup step count in slate-600 (4.4:1 on the tinted panel before)", () => {
-    expect(page("SetupWizard.tsx")).toContain(`<p className="mt-3 text-xs text-slate-600">{t.stepOf(index + 1)}</p>`);
+  it("draws the setup step count in the muted text token", () => {
+    expect(page("SetupWizard.tsx")).toContain(`<p className="mt-3 text-xs text-muted-foreground">{t.stepOf(index + 1)}</p>`);
+  });
+
+  it("direction A's primary and muted text keep 4.5:1 on its background, card, muted and accent surfaces", () => {
+    const directions = read("design", "directions.css");
+    const block = directions.slice(directions.indexOf('[data-direction="a"] {'), directions.indexOf("}", directions.indexOf('[data-direction="a"] {')));
+    const token = (name: string) => { const match = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(block); if (!match) throw new Error(`direction A has no hex --${name}`); return match[1]; };
+    for (const text of ["primary", "muted-foreground"]) for (const surface of ["background", "card", "muted", "accent"])
+      expect(contrastRatio(token(text), token(surface)), `--${text} on --${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
   it("fills the active step number with 10% white, which keeps white text at 4.5:1 or more on the teal", () => {

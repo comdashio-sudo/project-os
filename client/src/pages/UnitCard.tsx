@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ListSelect, Option } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -98,9 +99,9 @@ export default function UnitCard() {
         <p><span className="block text-xs text-slate-600">{t.model}</span><b>{data.unit.modelCode}</b></p>
         <p><span className="block text-xs text-slate-600">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-red-700" : ""}>{data.openNcrs}</b></p>
         <label className="block text-sm font-medium sm:col-span-4">{t.activity}
-          <select className={`${fieldInput} mt-1`} value={activity?.code ?? ""} onChange={event => { setShownCount(PAGE); navigate(`${back}/unit/${encodeURIComponent(unitNumber)}${event.target.value ? `?activity=${encodeURIComponent(event.target.value)}` : ""}`); }}>
-            <option value="">{t.allActivities}</option>{activities.map(item => <option key={item.id} value={item.code}>{item.code} — {item.name}</option>)}
-          </select></label>
+          <ListSelect className={`${fieldInput} mt-1`} value={activity?.code ?? ""} onChange={event => { setShownCount(PAGE); navigate(`${back}/unit/${encodeURIComponent(unitNumber)}${event.target.value ? `?activity=${encodeURIComponent(event.target.value)}` : ""}`); }}>
+            <Option value="">{t.allActivities}</Option>{activities.map(item => <Option key={item.id} value={item.code}>{item.code} — {item.name}</Option>)}
+          </ListSelect></label>
         {data.activity && (
           <div className="space-y-1 sm:col-span-4" data-cell-status>
             <p className="text-sm"><b>{t.status}:</b> {name(data.status ?? "NOT_STARTED")}</p>
@@ -114,7 +115,7 @@ export default function UnitCard() {
 
       <section aria-label={t.timeline} className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.timeline}</h2>
-          <label className="flex items-center gap-2 text-sm font-medium">{t.filter}<select className={`${tap} rounded-xl border bg-white px-2`} value={kind} onChange={event => { setKind(event.target.value as typeof kind); setShownCount(PAGE); }}><option value="all">{t.all}</option>{KINDS.map(value => <option key={value} value={value}>{name(value)}</option>)}</select></label></div>
+          <label className="flex items-center gap-2 text-sm font-medium">{t.filter}<ListSelect className={`${tap} rounded-xl border bg-white px-2`} value={kind} onChange={event => { setKind(event.target.value as typeof kind); setShownCount(PAGE); }}><Option value="all">{t.all}</Option>{KINDS.map(value => <Option key={value} value={value}>{name(value)}</Option>)}</ListSelect></label></div>
         {events.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.empty}</p>
           : <ol className="space-y-2">{events.slice(0, shownCount).map(event => (
             <li key={`${event.kind}-${event.ref}-${event.at}`} className="rounded-xl border bg-white p-3" data-kind={event.kind}>

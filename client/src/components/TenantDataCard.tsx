@@ -65,15 +65,15 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
   // The verdict first: after the erasure the preview query refetches, fails (the company and the caller's membership are gone) and would hide this card before it is read.
   if (report) {
     return (
-      <Card className="mt-6 border-red-200" role="status">
+      <Card className="mt-6 border-destructive/30" role="status">
         <CardHeader><CardTitle>{t.done}</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p className={report.verification === "PASS" ? "font-semibold text-emerald-800" : "font-semibold text-red-700"}>{report.verification === "PASS" ? t.pass : t.fail}</p>
+          <p className={report.verification === "PASS" ? "font-semibold text-success-soft-foreground" : "font-semibold text-danger-soft-foreground"}>{report.verification === "PASS" ? t.pass : t.fail}</p>
           <p>{t.report(report.rowsDeleted, report.tablesChecked)}</p>
           <p>{t.files(report.files.deleted, report.files.found)}</p>
           {report.remaining.length ? <p>{report.remaining.map(item => `${item.table}: ${item.rows}`).join("، ")}</p> : null}
           {report.files.failedKeys.length ? <div><p>{t.leftover}</p><ul className="list-disc ps-5" dir="ltr">{report.files.failedKeys.map(key => <li key={key}>{key}</li>)}</ul></div> : null}
-          <a href="/" className="inline-block font-semibold text-[#0e6b70] underline">{t.home}</a>
+          <a href="/" className="inline-block font-semibold text-primary underline">{t.home}</a>
         </CardContent>
       </Card>
     );
@@ -81,36 +81,36 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
 
   // not the owner (or nothing to show yet): no card, and no hint that one exists
   if (preview.error || (!preview.data && !preview.isLoading)) return null;
-  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-slate-500">{t.loading}</CardContent></Card>;
+  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-muted-foreground">{t.loading}</CardContent></Card>;
   const data = preview.data!;
   const asked = request.data;
   const canDelete = Boolean(asked) && typedName.trim() === asked!.companyName && understood && !confirm.isPending;
 
   return (
     <Card className="mt-6">
-      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-[#0e6b70]" />{t.title}</CardTitle><p className="text-sm leading-6 text-slate-500">{t.note}</p></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-primary" />{t.title}</CardTitle><p className="text-sm leading-6 text-muted-foreground">{t.note}</p></CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm">{t.size(data.totalRows, data.tables.filter(item => item.rows > 0).length, data.files)}</p>
         <div className="flex flex-wrap items-center gap-3">
           <a href={`/api/tenant-export/${tenantId}`} download className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">{t.download}</a>
           <Button type="button" variant="outline" onClick={() => void preview.refetch()}>{t.refresh}</Button>
         </div>
-        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" }))) : t.noExport}</p>
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <h3 className="flex items-center gap-2 font-semibold text-red-800"><ShieldAlert className="h-5 w-5" />{t.danger}</h3>
-          {!data.exportFresh ? <p className="mt-2 text-sm text-red-900">{t.needExport}</p> : !asked ? (
+        <p className="text-xs text-muted-foreground">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" }))) : t.noExport}</p>
+        <div className="rounded-xl border border-destructive/30 bg-danger-soft p-4">
+          <h3 className="flex items-center gap-2 font-semibold text-danger-soft-foreground"><ShieldAlert className="h-5 w-5" />{t.danger}</h3>
+          {!data.exportFresh ? <p className="mt-2 text-sm text-danger-soft-foreground">{t.needExport}</p> : !asked ? (
             <div className="mt-3"><Button type="button" variant="destructive" disabled={request.isPending} onClick={() => request.mutate({ tenantId })}>{request.isPending ? t.asking : t.ask}</Button></div>
           ) : (
             <CheckedForm className="mt-3 space-y-3" onSubmit={event => { event.preventDefault(); if (canDelete) confirm.mutate({ tenantId, confirmationToken: asked.confirmationToken, typedName, understandsItCannotBeUndone: true }); }}>
-              <p className="text-sm text-red-900">{t.warn(asked.totalRows, asked.files, asked.peopleKept)}</p>
-              <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-red-900">{t.typeName(asked.companyName)}</p></div>
+              <p className="text-sm text-danger-soft-foreground">{t.warn(asked.totalRows, asked.files, asked.peopleKept)}</p>
+              <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-danger-soft-foreground">{t.typeName(asked.companyName)}</p></div>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} className="mt-1" />{t.understand}</label>
-              <p className="text-xs text-red-900">{t.expires}</p>
-              {confirm.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(confirm.error, language)}</p> : null}
+              <p className="text-xs text-danger-soft-foreground">{t.expires}</p>
+              {confirm.error ? <p role="alert" className="text-sm font-medium text-danger-soft-foreground">{getLocalizedProjectError(confirm.error, language)}</p> : null}
               <Button type="submit" variant="destructive" disabled={!canDelete}>{confirm.isPending ? t.deleting : t.deleteNow}</Button>
             </CheckedForm>
           )}
-          {request.error ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{getLocalizedProjectError(request.error, language)}</p> : null}
+          {request.error ? <p role="alert" className="mt-2 text-sm font-medium text-danger-soft-foreground">{getLocalizedProjectError(request.error, language)}</p> : null}
         </div>
       </CardContent>
     </Card>

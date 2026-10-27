@@ -115,6 +115,11 @@ async function choose(page, trigger, value) {
   await trigger.click();
   await page.locator(`[role="option"][data-value="${value}"]`).click();
 }
+/** The same list, picking the option at `index` (0 = the first), when the journey does not know the value beforehand. */
+async function chooseAt(page, trigger, index) {
+  await trigger.click();
+  await page.locator('[role="option"]').nth(index).click();
+}
 
 try {
   // ================================================================================================ 1. daily report -> approval -> progress
@@ -178,10 +183,10 @@ try {
   await coord.page.goto(`${BASE_URL}${walk.replace("/m/", "/projects/")}/submittals?lang=en`, { waitUntil: "networkidle" });
   const createForm = coord.page.locator("details", { hasText: "New submittal" });
   if (!(await createForm.getAttribute("open"))) await createForm.locator("summary").click();
-  await coord.page.getByLabel("Submittal type").selectOption("material_approval");
+  await choose(coord.page, coord.page.getByLabel("Submittal type"), "material_approval");
   await coord.page.getByLabel("Submittal number").fill("MA-E2E-1");
   await coord.page.getByLabel("Title", { exact: true }).fill("Block approval (walk-through)");
-  await createForm.locator("label", { hasText: /^Material/ }).locator("select").selectOption({ index: 1 });
+  await chooseAt(coord.page, createForm.locator("label", { hasText: /^Material/ }).locator('[role="combobox"]'), 1);
   await coord.page.getByLabel("Sent to (consultant)").fill("استشاري العرض أ");
   await coord.page.getByRole("button", { name: "Create submittal" }).click();
   await coord.page.getByText("Submittal created").waitFor();
@@ -194,7 +199,7 @@ try {
   check("sent: the consultant is now holding one more submittal, at the project, portfolio and company levels", S2a.project.pendingConsultant.submittals === beforeSub.submittals + 1 && S2a.portfolio.pendingConsultant.submittals === S1.portfolio.pendingConsultant.submittals + 1 && S2a.company.pendingConsultant.submittals === beforeSubCompany.submittals + 1, { project: S2a.project.pendingConsultant, before: beforeSub });
   // the one who sent a submittal cannot record its reply (separation of duties) -- refused with a clear message
   await cardOf("MA-E2E-1").getByRole("button", { name: "Record the reply" }).click();
-  await coord.page.locator("[data-reply-form] select").selectOption("A");
+  await choose(coord.page, coord.page.locator('[data-reply-form] [role="combobox"]'), "A");
   await coord.page.getByRole("button", { name: "Save the reply" }).click();
   await coord.page.locator("[role=alert]").getByText("Whoever sent the submittal does not record its reply.").waitFor();
   check("NEGATIVE: whoever sent the submittal cannot record its reply (refused, with the reason on screen)", (await one("SELECT status FROM consultant_submittals WHERE id = $1", [sub.id])).status === "sent");
@@ -202,7 +207,7 @@ try {
   await replier.page.goto(`${BASE_URL}${walk.replace("/m/", "/projects/")}/submittals?lang=en`, { waitUntil: "networkidle" });
   const pmCard = replier.page.locator('[data-submittal="MA-E2E-1"]');
   await pmCard.getByRole("button", { name: "Record the reply" }).click();
-  await replier.page.locator("[data-reply-form] select").selectOption("A");
+  await choose(replier.page, replier.page.locator('[data-reply-form] [role="combobox"]'), "A");
   await replier.page.getByRole("button", { name: "Save the reply" }).click();
   await pmCard.getByText(/Answered/).first().waitFor();
   await replier.context.close();
@@ -222,7 +227,7 @@ try {
   if (!(await inspForm.getAttribute("open"))) await inspForm.locator("summary").click();
   await qcScreen.page.getByLabel("Request code").fill("IR-E2E-1");
   await qcScreen.page.getByLabel("Unit numbers (comma separated)").fill(String(unitNumber));
-  await inspForm.locator("label", { hasText: /^Activity/ }).locator("select").selectOption(cell.def_id);
+  await choose(inspForm.page(), inspForm.locator("label", { hasText: /^Activity/ }).locator('[role="combobox"]'), cell.def_id);
   await qcScreen.page.getByRole("button", { name: "Create the request" }).click();
   await qcScreen.page.getByText("Request created").waitFor();
   check("an inspection request now waits for the consultant at the project level (+1)", (await levels()).project.pendingConsultant.inspectionRequests === inspBefore + 1);
@@ -255,7 +260,7 @@ try {
   await qcScreen.page.getByLabel("Title", { exact: true }).last().fill("Crack at a block course (walk-through)");
   await qcScreen.page.getByLabel("Description", { exact: true }).fill("A crack found while the block work was inspected.");
   await qcScreen.page.getByLabel("Unit number (optional)").fill(String(unitNumber));
-  await qcScreen.page.getByLabel("Activity (optional)").selectOption(cell.def_id);
+  await choose(qcScreen.page, qcScreen.page.getByLabel("Activity (optional)"), cell.def_id);
   await qcScreen.page.getByRole("button", { name: "Create NCR" }).click();
   await qcScreen.page.getByText("NCR created").waitFor();
   const held = await accepted();

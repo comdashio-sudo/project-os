@@ -2,6 +2,7 @@
 // let a person confirm each link, colour the map by unit status, and export the confirmed links.
 // The file never leaves the browser, and nothing is saved on the server (G-189).
 import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { ListSelect, Option } from "@/components/ds";
 import { trpc } from "@/lib/trpc";
 import { latestVersionId } from "@/lib/masterPlanDrawingLayout";
 import { useMasterPlanDrawingLayout } from "@/lib/useMasterPlanDrawingLayout";
@@ -341,49 +342,49 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const reasonText = (reason: string | null) => (reason && (t.reason as Record<string, string>)[reason]) || null;
 
   return (
-    <section aria-labelledby="master-plan-drawing-title" className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <section aria-labelledby="master-plan-drawing-title" className="space-y-4 rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border">
       <div>
         <h3 id="master-plan-drawing-title" className="text-lg font-semibold">{t.title}</h3>
-        <p className="mt-1 text-sm text-slate-600">{t.intro}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.intro}</p>
       </div>
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
 
-      {plansQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noUnits}</p> : null}
+      {plansQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium">
+        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-input bg-card px-4 text-sm font-medium">
           {t.upload}
           <input type="file" accept=".dxf,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
         </label>
         {pdfSource && pdfSource.pageCount > 1 ? (
           <label className="flex flex-col text-xs">
             {t.page}
-            <select className="min-h-[44px] rounded-lg border border-slate-300 px-2 text-sm" value={pdfSource.page} disabled={progress !== null} onChange={event => readRasterDrawing(pdfSource.file, "pdf", Number(event.target.value))}>
+            <ListSelect className="min-h-[44px] rounded-lg border border-input px-2 text-sm" value={pdfSource.page} disabled={progress !== null} onChange={event => readRasterDrawing(pdfSource.file, "pdf", Number(event.target.value))}>
               {Array.from({ length: pdfSource.pageCount }, (_, index) => (
-                <option key={index + 1} value={index + 1}>{t.pageOption(index + 1, pdfSource.pageCount)}</option>
+                <Option key={index + 1} value={index + 1}>{t.pageOption(index + 1, pdfSource.pageCount)}</Option>
               ))}
-            </select>
+            </ListSelect>
           </label>
         ) : null}
       </div>
 
-      {saved.layout?.latestVersion ? <p className="text-sm text-slate-700">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
-      {savedNotice ? <p role="status" className="text-sm text-emerald-800">{t.saved}</p> : null}
-      {progress ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{t.busy(progress.done, progress.total)}</p> : null}
+      {saved.layout?.latestVersion ? <p className="text-sm text-muted-foreground">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
+      {savedNotice ? <p role="status" className="text-sm text-success-soft-foreground">{t.saved}</p> : null}
+      {progress ? <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{t.busy(progress.done, progress.total)}</p> : null}
 
-      {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{pickLanguage(language, error.message)}</p> : null}
+      {error ? <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger-soft-foreground">{pickLanguage(language, error.message)}</p> : null}
 
-      {!drawing ? <p className="text-sm text-slate-500">{t.empty}</p> : (
+      {!drawing ? <p className="text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
-          {rasterStats ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
-          {ignoredCount > 0 ? <p className="text-xs text-slate-500">{t.ignored}: {ignoredCount}</p> : null}
+          {rasterStats ? <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
+          {ignoredCount > 0 ? <p className="text-xs text-muted-foreground">{t.ignored}: {ignoredCount}</p> : null}
 
           {geometry ? (
             <div>
               <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView }} />
-              <svg role="img" aria-label={t.map} {...pan.svgProps} className="h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200">
+              <svg role="img" aria-label={t.map} {...pan.svgProps} className="h-auto w-full rounded-lg bg-muted ring-1 ring-border">
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
                   if (!item) return null;
@@ -412,46 +413,46 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                   );
                 })}
               </svg>
-              <p className="mt-2 text-xs text-slate-600">{t.legend}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{t.legend}</p>
             </div>
           ) : null}
 
           <div className="space-y-2">
             <h4 className="font-semibold">{t.shapes}</h4>
-            <ul className="divide-y divide-slate-200">
+            <ul className="divide-y divide-border">
               {items.map((item, index) => {
                 return (
-                  <li key={item.polygonId} className={`py-3 ${selectedId === item.polygonId ? "bg-slate-50" : ""}`}>
+                  <li key={item.polygonId} className={`py-3 ${selectedId === item.polygonId ? "bg-muted" : ""}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <button type="button" className="min-h-[44px] text-start font-medium" onClick={() => setSelectedId(item.polygonId)} aria-pressed={selectedId === item.polygonId}>
                         {t.shape(index + 1)} · {t.state[item.state]}{item.unitCode ? ` · ${item.unitCode}` : ""}
                       </button>
-                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-slate-600">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
-                      {reasonText(item.reason) ? <span className="text-xs text-slate-600">{reasonText(item.reason)}</span> : null}
+                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-muted-foreground">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
+                      {reasonText(item.reason) ? <span className="text-xs text-muted-foreground">{reasonText(item.reason)}</span> : null}
                     </div>
                     {selectedId === item.polygonId ? (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
                         {item.state === "proposed" ? (
                           <>
                             <button type="button" className="min-h-[44px] rounded-lg bg-primary px-3 text-sm text-white" onClick={() => applyResult(confirmLink(items, item.polygonId))}>{t.confirm}</button>
-                            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => applyResult(rejectLink(items, item.polygonId))}>{t.reject}</button>
+                            <button type="button" className="min-h-[44px] rounded-lg border border-input px-3 text-sm" onClick={() => applyResult(rejectLink(items, item.polygonId))}>{t.reject}</button>
                           </>
                         ) : null}
                         {item.state === "confirmed" ? (
-                          <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => applyResult(clearLink(items, item.polygonId))}>{t.clear}</button>
+                          <button type="button" className="min-h-[44px] rounded-lg border border-input px-3 text-sm" onClick={() => applyResult(clearLink(items, item.polygonId))}>{t.clear}</button>
                         ) : null}
                         {item.state !== "confirmed" ? (
                           <>
                             <label className="flex flex-col text-xs">
                               {t.assignLabel}
-                              <select className="min-h-[44px] rounded-lg border border-slate-300 px-2 text-sm" value={choice[item.polygonId] ?? ""} onChange={event => setChoice(prev => ({ ...prev, [item.polygonId]: event.target.value }))}>
-                                <option value="">{t.noChoice}</option>
-                                {remaining.map(unit => <option key={unit.id} value={unit.id}>{unit.code}</option>)}
-                              </select>
+                              <ListSelect className="min-h-[44px] rounded-lg border border-input px-2 text-sm" value={choice[item.polygonId] ?? ""} onChange={event => setChoice(prev => ({ ...prev, [item.polygonId]: event.target.value }))}>
+                                <Option value="">{t.noChoice}</Option>
+                                {remaining.map(unit => <Option key={unit.id} value={unit.id}>{unit.code}</Option>)}
+                              </ListSelect>
                             </label>
                             <button
                               type="button"
-                              className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
+                              className="min-h-[44px] rounded-lg border border-input px-3 text-sm"
                               disabled={!choice[item.polygonId]}
                               onClick={() => {
                                 const unit = unitById.get(choice[item.polygonId]);
@@ -468,13 +469,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 );
               })}
             </ul>
-            {items.length === 0 ? <p className="text-sm text-slate-500">{t.none}</p> : null}
+            {items.length === 0 ? <p className="text-sm text-muted-foreground">{t.none}</p> : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white disabled:opacity-50" disabled={!drawing || saved.busy || (!file && !saved.layout?.latestVersion)} onClick={onSave}>{t.save}</button>
-            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
-            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
+            <button type="button" className="min-h-[44px] rounded-lg border border-input px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
+            <button type="button" className="min-h-[44px] rounded-lg border border-input px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
           </div>
         </>
       )}

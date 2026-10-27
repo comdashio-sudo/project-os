@@ -64,11 +64,11 @@ const text = {
   },
 };
 
-const toneClass = { good: "text-emerald-700", bad: "text-red-700", flat: "text-slate-600" };
+const toneClass = { good: "text-success-soft-foreground", bad: "text-danger-soft-foreground", flat: "text-muted-foreground" };
 type T = typeof text.en;
 
 function Unavailable({ reason, t }: { reason: string; t: T }) {
-  return <p role="status" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600"><b>{t.unavailable}:</b> {t.reasons[reason] ?? reason}</p>;
+  return <p role="status" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground"><b>{t.unavailable}:</b> {t.reasons[reason] ?? reason}</p>;
 }
 
 export function ProjectFpac({ tenantId, projectId }: { tenantId: string; projectId: string }) {
@@ -79,11 +79,11 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
   const [openItem, setOpenItem] = useState<string | null>(null);
   const breakdown = trpc.profitability.costBreakdown.useQuery({ tenantId, projectId, wbsItemId: openItem ?? undefined }, { enabled: openItem !== null });
 
-  if (report.isLoading) return <section aria-busy="true" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><p role="status" className="text-sm text-slate-500">{t.loading}</p></section>;
+  if (report.isLoading) return <section aria-busy="true" className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></section>;
   if (!report.data) {
     return (
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(report.error, isArabic)}</p>
+      <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
+        <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(report.error, isArabic)}</p>
         <Button className="mt-3" variant="outline" size="sm" onClick={() => report.refetch()}>{t.retry}</Button>
       </section>
     );
@@ -118,11 +118,11 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
   ];
 
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
-      <div className="flex items-center gap-3"><TrendingUp className="text-[#0e6b70]" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.subtitle}</p></div></div>
+    <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border" aria-label={t.title}>
+      <div className="flex items-center gap-3"><TrendingUp className="text-primary" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-muted-foreground">{t.subtitle}</p></div></div>
 
       {stale && (
-        <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+        <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">
           <AlertTriangle className="h-4 w-4" />
           {staleAge === null ? t.neverWarning(t[stalest as Source]) : t.staleWarning(staleAge, t[stalest as Source])}
           <a className="font-semibold underline" href={sourceAnchor[stalest]}>{t.openSource}</a>
@@ -131,14 +131,14 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
 
       {headline.status === "ok" ? (
         <div className="mt-5">
-          <p className="text-xs text-slate-500">{t.fpac}</p>
-          <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-red-700" : "text-emerald-700"}`}>{money(headline.data.fpac)}</p>
+          <p className="text-xs text-muted-foreground">{t.fpac}</p>
+          <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-danger-soft-foreground" : "text-success-soft-foreground"}`}>{money(headline.data.fpac)}</p>
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
-          {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
+          {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-danger-soft p-3 text-sm font-semibold text-danger-soft-foreground">{t.loss}</p>}
           <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} /></div>
           <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={pickLanguage(language, { ar: "جدول التكلفة والقيمة", en: "Cost and value table", ur: "لاگت اور قدر کا جدول" })}>
             <table className="w-full min-w-[34rem] text-start text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
+              <thead><tr className="text-xs text-muted-foreground"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
                 {headline.data.rows.map(row => {
                   const labels = t.rows[row.key] ?? [row.key, row.formula];
@@ -146,9 +146,9 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                     <tr key={row.key} className="border-t">
                       <td className="py-1.5 font-medium">{labels[0]}</td>
                       <td className="whitespace-nowrap pe-3">{row.key === "margin" ? formatPercent(row.value, isArabic) : row.value === null ? "—" : money(row.value)}</td>
-                      <td className="text-xs text-slate-600">{labels[1]}</td>
-                      <td className="text-xs text-slate-600">{t.sources[row.source] ?? row.source}</td>
-                      <td className="text-xs text-slate-600">{row.asOf ? row.asOf.slice(0, 10) : "—"}</td>
+                      <td className="text-xs text-muted-foreground">{labels[1]}</td>
+                      <td className="text-xs text-muted-foreground">{t.sources[row.source] ?? row.source}</td>
+                      <td className="text-xs text-muted-foreground">{row.asOf ? row.asOf.slice(0, 10) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -166,15 +166,15 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
             const tr = trend(m.delta);
             return (
               <>
-                <p className={`text-lg font-bold ${toneClass[tr.tone]}`}>{tr.arrow} {money(m.delta)}{m.deltaPercent !== null && <span className="text-sm"> ({formatPercent(m.deltaPercent, isArabic)})</span>} <span className="text-xs font-normal text-slate-500">{t.since} {m.since.slice(0, 10)}</span></p>
-                <p className="mt-2 text-xs text-slate-500">{t.causes} · {t.dominant}</p>
+                <p className={`text-lg font-bold ${toneClass[tr.tone]}`}>{tr.arrow} {money(m.delta)}{m.deltaPercent !== null && <span className="text-sm"> ({formatPercent(m.deltaPercent, isArabic)})</span>} <span className="text-xs font-normal text-muted-foreground">{t.since} {m.since.slice(0, 10)}</span></p>
+                <p className="mt-2 text-xs text-muted-foreground">{t.causes} · {t.dominant}</p>
                 <ul className="mt-1 grid gap-1 text-sm md:grid-cols-3">
-                  {(["contractValue", "actualCost", "forecastToComplete"] as const).map(cause => <li key={cause} className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t[cause]}</span><br /><b className={toneClass[trend(m.causes[cause]).tone]}>{money(m.causes[cause])}</b>{m.dominantCause === cause && <span className="ms-1 text-xs">●</span>}</li>)}
+                  {(["contractValue", "actualCost", "forecastToComplete"] as const).map(cause => <li key={cause} className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t[cause]}</span><br /><b className={toneClass[trend(m.causes[cause]).tone]}>{money(m.causes[cause])}</b>{m.dominantCause === cause && <span className="ms-1 text-xs">●</span>}</li>)}
                 </ul>
                 {m.wbs && (m.wbs.raisedProfit.length > 0 || m.wbs.loweredProfit.length > 0) && (
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     {([["raised", m.wbs.raisedProfit], ["lowered", m.wbs.loweredProfit]] as const).map(([key, rows]) => (
-                      <div key={key}><p className="text-xs text-slate-500">{t[key]}</p>{rows.length === 0 ? <p className="text-sm text-slate-400">—</p> : <ul className="text-sm">{rows.map(r => <li key={r.wbsItemId}>{r.code} · {r.name} <b className={toneClass[trend(r.profitEffect).tone]}>{money(r.profitEffect)}</b></li>)}</ul>}</div>
+                      <div key={key}><p className="text-xs text-muted-foreground">{t[key]}</p>{rows.length === 0 ? <p className="text-sm text-muted-foreground">—</p> : <ul className="text-sm">{rows.map(r => <li key={r.wbsItemId}>{r.code} · {r.name} <b className={toneClass[trend(r.profitEffect).tone]}>{money(r.profitEffect)}</b></li>)}</ul>}</div>
                     ))}
                   </div>
                 )}
@@ -184,35 +184,35 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         </div>
       ) : <div className="mt-2"><Unavailable reason={data.movement.reason} t={t} /></div>}
       <SourceNotice query={history} isArabic={isArabic} title={pickLanguage(language, { ar: "سجل الربحية السابق (الرسم)", en: "Profit history (the chart)", ur: "منافع کی پچھلی تاریخ (چارٹ)" })} fallback={pickLanguage(language, { ar: "بقية الشاشة سليمة.", en: "The rest of the screen is unaffected.", ur: "اسکرین کا باقی حصہ متاثر نہیں ہوا۔" })} />
-      {points.length >= 2 && <div className="mt-3"><p className="text-xs text-slate-500">{t.trend}</p><svg role="img" aria-label={t.trend} viewBox="0 0 200 40" className="h-12 w-full max-w-md"><polyline fill="none" stroke="#0e6b70" strokeWidth="2" points={sparklinePoints(points, 200, 40)} /></svg></div>}
+      {points.length >= 2 && <div className="mt-3"><p className="text-xs text-muted-foreground">{t.trend}</p><svg role="img" aria-label={t.trend} viewBox="0 0 200 40" className="h-12 w-full max-w-md"><polyline fill="none" stroke="#0e6b70" strokeWidth="2" points={sparklinePoints(points, 200, 40)} /></svg></div>}
 
       <h3 className="mt-6 font-semibold">{t.cash}</h3>
       {data.cash.status === "ok" ? (
         <div className="mt-2" data-testid="cash">
           <ul className="grid gap-2 text-sm md:grid-cols-4">
-            <li className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t.openCommitment}</span><br /><b>{money(data.cash.data.openCommitment)}</b></li>
-            <li className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t.receipts}</span><br /><b>{money(data.cash.data.receipts)}</b></li>
-            <li className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t.outflows}</span><br /><b>{money(data.cash.data.outflows)}</b></li>
-            <li className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">{t.netCash}</span><br /><b className={toneClass[trend(data.cash.data.netCashFlow).tone]}>{money(data.cash.data.netCashFlow)}</b></li>
+            <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.openCommitment}</span><br /><b>{money(data.cash.data.openCommitment)}</b></li>
+            <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.receipts}</span><br /><b>{money(data.cash.data.receipts)}</b></li>
+            <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.outflows}</span><br /><b>{money(data.cash.data.outflows)}</b></li>
+            <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.netCash}</span><br /><b className={toneClass[trend(data.cash.data.netCashFlow).tone]}>{money(data.cash.data.netCashFlow)}</b></li>
           </ul>
-          {data.cash.data.warning && <p role="alert" className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cashWarning}</p>}
+          {data.cash.data.warning && <p role="alert" className="mt-2 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.cashWarning}</p>}
         </div>
       ) : <div className="mt-2"><Unavailable reason={data.cash.reason} t={t} /></div>}
 
       <h3 className="mt-6 font-semibold">{t.confidence}</h3>
       <ul className="mt-2 flex flex-wrap gap-2 text-sm" data-testid="freshness">
-        {data.freshness.perSource.map(item => <li key={item.source} className="rounded-xl bg-slate-50 px-3 py-2">{t[item.source as Source]}: <b>{ageSentence(item.ageDays, isArabic)}</b></li>)}
-        {data.freshness.percentWbsUpdated !== null && <li className="rounded-xl bg-slate-50 px-3 py-2">{t.percentWbs(data.freshness.percentWbsUpdated)}</li>}
+        {data.freshness.perSource.map(item => <li key={item.source} className="rounded-xl bg-muted px-3 py-2">{t[item.source as Source]}: <b>{ageSentence(item.ageDays, isArabic)}</b></li>)}
+        {data.freshness.percentWbsUpdated !== null && <li className="rounded-xl bg-muted px-3 py-2">{t.percentWbs(data.freshness.percentWbsUpdated)}</li>}
       </ul>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.drill}</h3>{data.drill.status === "ok" && <ExportExcelButton fileName={`${data.project.code}-wbs-variance`} sheetName={t.drill} title={t.drill} project={projectTag} rows={drillItems} columns={drillColumns} />}</div>
       {data.drill.status === "ok" ? (
-        data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
+        data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t.empty}</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{pickLanguage(language, { ar: "التفاصيل", en: "Details", ur: "تفصیلات" })}</span></th></tr></thead>
+              <thead><tr className="text-xs text-muted-foreground"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{pickLanguage(language, { ar: "التفاصيل", en: "Details", ur: "تفصیلات" })}</span></th></tr></thead>
               <tbody>
-                <tr className="border-t bg-slate-50 font-semibold" data-testid="drill-totals">
+                <tr className="border-t bg-muted font-semibold" data-testid="drill-totals">
                   <td className="py-1.5 pe-3">{t.whole}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.planned)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.actual)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.committed)}</td><td className="whitespace-nowrap pe-3">{money(data.drill.data.totals.forecast)}</td>
                   <td className={`whitespace-nowrap pe-3 ${toneClass[trend(data.drill.data.totals.variance).tone]}`}>{money(data.drill.data.totals.variance)}</td><td />
                 </tr>
@@ -224,14 +224,14 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                       <td><Button size="sm" variant="outline" aria-expanded={openItem === item.wbsItemId} onClick={() => setOpenItem(openItem === item.wbsItemId ? null : item.wbsItemId)}>{t.open}</Button></td>
                     </tr>
                     {openItem === item.wbsItemId && (
-                      <tr><td colSpan={7} className="bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">{t.breakdown}</p>
+                      <tr><td colSpan={7} className="bg-muted p-3">
+                        <p className="text-xs text-muted-foreground">{t.breakdown}</p>
                         {breakdown.isLoading && <p role="status" className="text-sm">{t.loading}</p>}
-                        {breakdown.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(breakdown.error, isArabic)}</p>}
-                        {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-slate-500">{t.noBreakdown}</p> : (
+                        {breakdown.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(breakdown.error, isArabic)}</p>}
+                        {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-muted-foreground">{t.noBreakdown}</p> : (
                           <>
-                            <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-white px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
-                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (pickLanguage(language, route.label)) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-[#0e6b70] underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
+                            <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-card px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
+                            <ul className="mt-2 text-xs text-muted-foreground">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (pickLanguage(language, route.label)) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-primary underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
                           </>
                         ))}
                       </td></tr>
@@ -240,8 +240,8 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                 ))}
               </tbody>
             </table>
-            {data.drill.data.unallocatedActual !== 0 && <p className="mt-2 text-xs text-slate-600">{t.unallocated}: <b>{money(data.drill.data.unallocatedActual)}</b></p>}
-            {data.drill.data.reconciliationDifference !== null && data.drill.data.reconciliationDifference !== 0 && <p className="mt-1 text-xs text-amber-800">{t.reconciliation}: <b>{money(data.drill.data.reconciliationDifference)}</b></p>}
+            {data.drill.data.unallocatedActual !== 0 && <p className="mt-2 text-xs text-muted-foreground">{t.unallocated}: <b>{money(data.drill.data.unallocatedActual)}</b></p>}
+            {data.drill.data.reconciliationDifference !== null && data.drill.data.reconciliationDifference !== 0 && <p className="mt-1 text-xs text-warning-soft-foreground">{t.reconciliation}: <b>{money(data.drill.data.reconciliationDifference)}</b></p>}
           </div>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}

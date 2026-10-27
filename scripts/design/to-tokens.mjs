@@ -9,7 +9,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 export const TOKEN_TABLE = [
   // page grounds and surfaces
   [/\bbg-\[#f4f6f8\]/g, "bg-background"], [/\bbg-\[#f7f8fc\]/g, "bg-background"], [/\bbg-slate-50\b/g, "bg-muted"], [/\bbg-slate-100\b/g, "bg-muted"],
-  [/\bhover:bg-slate-50\b/g, "hover:bg-muted"], [/\bhover:bg-slate-100\b/g, "hover:bg-muted"], [/\bbg-white\b/g, "bg-card"],
+  [/\bhover:bg-slate-50\b/g, "hover:bg-muted"], [/\bhover:bg-slate-100\b/g, "hover:bg-muted"],
+  // solid white only: a translucent white (bg-white/10, bg-white/80) is an overlay or frosted glass and must stay white in the dark mode too
+  [/\bbg-white\b(?!\/)/g, "bg-card"],
   // text
   [/\btext-slate-(?:900|950|800)\b/g, "text-foreground"], [/\btext-slate-(?:700|600|500|400|300)\b/g, "text-muted-foreground"],
   // lines

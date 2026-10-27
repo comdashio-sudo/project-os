@@ -12,5 +12,5 @@ export default function EmployeeRegistry() {
     en: { title: "People & workforce", subtitle: "Governed employee records and employment contracts, with protected identity and retention controls." },
     ur: { title: "ملازمین اور افرادی قوت", subtitle: "محفوظ ملازمین کا ریکارڈ اور ملازمت کے معاہدے، جن میں شناخت کا تحفظ اور ریکارڈ رکھنے کے منظم کنٹرولز شامل ہیں۔" },
   });
-  return <div className="min-h-screen bg-slate-50"><main className="mx-auto max-w-6xl space-y-6 px-4 py-8"><header className="rounded-2xl bg-[#0e6b70] p-6 text-white shadow-sm"><div className="flex items-start gap-3"><UsersRound className="mt-1" /><div><h1 className="text-xl font-semibold">{t.title}</h1><p className="mt-2 max-w-3xl text-sm text-teal-50">{t.subtitle}</p></div></div></header><ProjectEmployees tenantId={tenantId} /></main></div>;
+  return <div className="min-h-screen bg-muted"><main className="mx-auto max-w-6xl space-y-6 px-4 py-8"><header className="rounded-2xl bg-primary p-6 text-white shadow-sm"><div className="flex items-start gap-3"><UsersRound className="mt-1" /><div><h1 className="text-xl font-semibold">{t.title}</h1><p className="mt-2 max-w-3xl text-sm text-teal-50">{t.subtitle}</p></div></div></header><ProjectEmployees tenantId={tenantId} /></main></div>;
 }
