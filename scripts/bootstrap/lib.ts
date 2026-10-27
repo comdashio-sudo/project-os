@@ -168,6 +168,13 @@ export function connectionUrls(input: { ref: string; poolerHost: string; databas
   };
 }
 
+/**
+ * The session-pooler hosts a project of the Singapore region can have. Without the Management API (no access token) the host is not looked up but TRIED: a wrong host answers
+ * "Tenant or user not found" before any password check, so a probe with the real password cannot leak it to a stranger's database (it is sent only to *.pooler.supabase.com).
+ * SUPABASE_POOLER_HOST (a repository variable) pins it and skips the probe.
+ */
+export const POOLER_HOST_CANDIDATES: readonly string[] = ["aws-0-ap-southeast-1.pooler.supabase.com", "aws-1-ap-southeast-1.pooler.supabase.com"];
+
 /** The S3 endpoint is public information of the project; the access keys are not (see GO_LIVE: the one manual step). */
 export function storageEndpoint(ref: string) { return `https://${ref}.storage.supabase.co/storage/v1/s3`; }
 

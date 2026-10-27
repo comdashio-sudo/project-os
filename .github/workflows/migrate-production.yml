@@ -1,0 +1,151 @@
+name: Migrate and promote production
+
+# Automatic, on every push to main (and by hand). The ORDER is the safety: the database first, the site last, and the site only if everything before it passed.
+#   1. migrations are checked for backward compatibility (expand, then contract): the release still serving traffic must keep working on the migrated schema;
+#   2. the migrations are applied to the production database, then verify-db-security proves the restricted application role (the result is written in the summary);
+#   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
+#   4. only then is the `production` branch fast-forwarded to this commit, which is what makes Vercel build production (Vercel: Settings -> Git -> Production Branch = production; main is a Preview only).
+# Any failure stops the run before the next step: nothing is promoted, the site keeps serving the previous release.
+# Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variables (Settings -> Secrets and variables -> Actions -> Variables):
+# SUPABASE_ANON_KEY (the project's PUBLIC anon key, needed to run the sign-in check), SUPABASE_POOLER_HOST (optional: pins the session-pooler host; otherwise it is found by trying).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  deployments: read
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: migrate, prove, promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_POOLER_HOST }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: What would ship (a change to documentation or workflows only needs nothing)
+        id: scope
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --heads origin production >/dev/null 2>&1; then
+            git fetch -q origin production
+            base="origin/production"
+            git merge-base --is-ancestor "$base" "$sha" || { echo "::error::the production branch is not an ancestor of $sha, so it cannot be fast-forwarded. Do not force-push: merge production into main."; exit 1; }
+            changed="$(git diff --name-only "$base" "$sha")"
+          else
+            changed="(no production branch yet)"
+          fi
+          if [ -n "$changed" ] && ! echo "$changed" | grep -vE '^(docs/|qa/|\.github/)|\.md$' | grep -q .; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "### Nothing to ship" >> "$GITHUB_STEP_SUMMARY"; echo "Only documentation or workflow files differ from production; no migration, no deployment." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.deploy == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.deploy == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        if: steps.scope.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Refuse to start without the one secret
+        if: steps.scope.outputs.deploy == 'true'
+        run: |
+          [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
+          [ -n "${{ vars.SUPABASE_ANON_KEY }}" ] || { echo "::error::the repository VARIABLE SUPABASE_ANON_KEY is not set: without it the sign-in check cannot run, and nothing is promoted without that check (docs/GO_LIVE.md)"; exit 1; }
+      - name: 1. Migrations are backward compatible
+        if: steps.scope.outputs.deploy == 'true'
+        run: node scripts/ci/check-migration-compat.mjs
+      - name: Database connection (the password alone)
+        if: steps.scope.outputs.deploy == 'true'
+        env:
+          BOOTSTRAP_STATE: ${{ runner.temp }}/release-state.json
+        run: node --import tsx scripts/bootstrap/run.ts direct
+      - name: 2. Apply the migrations and prove the restricted role
+        if: steps.scope.outputs.deploy == 'true'
+        run: |
+          set -o pipefail
+          node --import tsx scripts/predeploy.mjs 2>&1 | tee "$RUNNER_TEMP/migrate.log"
+      - name: 2b. verify-db-security (read-only)
+        if: steps.scope.outputs.deploy == 'true'
+        run: |
+          set -o pipefail
+          node --import tsx scripts/verify-db-security.mjs 2>&1 | tee "$RUNNER_TEMP/verify.log"
+      - name: 3. Build the release candidate and run it against the migrated database
+        if: steps.scope.outputs.deploy == 'true'
+        env:
+          NODE_ENV: production
+          PORT: "3920"
+          DATABASE_POOL_MAX: "2"
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          EMAIL_NOTIFICATIONS_ENABLED: "false"
+        run: |
+          set -euo pipefail
+          NODE_ENV=development pnpm build
+          export DATABASE_URL="$RELEASE_GATE_DATABASE_URL"
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          export SUPABASE_URL="https://dzfxgxccnlyhcjgqstgn.supabase.co"
+          node dist/index.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do curl -fsS "http://127.0.0.1:3920/healthz" >/dev/null 2>&1 && break; sleep 2; done
+          set +e
+          node scripts/ci/post-deploy-check.mjs "http://127.0.0.1:3920" 2>&1 | tee "$RUNNER_TEMP/gate.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          # the same check also WARNS (does not fail) on pending migrations; here that is a failure: step 2 has just applied them all
+          if grep -q "migrations pending\|schema behind" "$RUNNER_TEMP/gate.log"; then echo "::error::the migrated database still lacks migrations the release names"; status=1; fi
+          [ "$status" -eq 0 ] || { echo "--- server log (tail, no secrets) ---"; tail -n 20 "$RUNNER_TEMP/server.log" | cut -c1-300; exit 1; }
+      - name: 4. Promote (fast-forward the production branch; never a force-push)
+        id: promote
+        if: steps.scope.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          sha="${{ steps.scope.outputs.sha }}"
+          git push origin "$sha:refs/heads/production"
+          echo "promoted=$sha" >> "$GITHUB_OUTPUT"
+      - name: 5. Did Vercel build it as PRODUCTION? (a Preview means the Production Branch setting is still main)
+        if: steps.scope.outputs.deploy == 'true'
+        run: |
+          sha="${{ steps.scope.outputs.sha }}"
+          for _ in $(seq 1 45); do
+            rows="$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$sha&per_page=20" --jq '.[] | "\(.id) \(.environment)"' 2>/dev/null || true)"
+            if echo "$rows" | grep -qi "production"; then
+              id="$(echo "$rows" | grep -i production | head -1 | cut -d' ' -f1)"
+              state="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state' 2>/dev/null || true)"
+              echo "production deployment $id: ${state:-pending}"
+              [ "$state" = "success" ] && { echo "Vercel built $sha for production (post-deploy.yml checks it and rolls back on failure)." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then echo "::error::the production build of $sha failed on Vercel"; exit 1; fi
+            elif [ -n "$rows" ] && echo "$rows" | grep -qi "preview"; then
+              echo "::error title=Vercel built it as a Preview::Vercel -> dashio -> Settings -> Git -> Production Branch must be 'production' (docs/GO_LIVE.md). Until then production does not move; the database is already migrated and the site is safe on the previous release."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "::warning::no deployment for $sha appeared within 15 minutes (Vercel may have skipped it as unchanged)"
+      - name: Summary (no secrets)
+        if: always() && steps.scope.outputs.deploy == 'true'
+        run: |
+          {
+            echo "## Release ${{ steps.scope.outputs.sha }}"
+            echo "### Migrations"; echo '```'; tail -n 4 "$RUNNER_TEMP/migrate.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
+            echo "### verify-db-security"; echo '```'; tail -n 3 "$RUNNER_TEMP/verify.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
+            echo "### Release check (healthz, wrong sign-in code is 4xx, readyz)"; echo '```'; cat "$RUNNER_TEMP/gate.log" 2>/dev/null | cut -c1-300 || echo "(did not run)"; echo '```'
+            echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'NOT promoted: a step before it failed, the site stays on the previous release' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

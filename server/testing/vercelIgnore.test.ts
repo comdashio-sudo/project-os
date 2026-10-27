@@ -24,6 +24,18 @@ function repo(files: Record<string, string>) {
 }
 const run = (cwd: string, env: Record<string, string>) => { const result = spawnSync("bash", [script], { cwd, encoding: "utf8", env: { PATH: process.env.PATH ?? "", ...env } }); return { code: result.status, out: result.stdout }; };
 
+describe("vercel-ignore: production is never built from main", () => {
+  it("SKIPS a production build of main even when code changed (the migrations run first, then the production branch moves)", () => {
+    const r = repo({}); const head = r.change({ "src/app.ts": "2" });
+    expect(run(r.dir, { VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 0 });
+  });
+  it("still BUILDS a production build of the production branch, and a Preview of main", () => {
+    const r = repo({}); const head = r.change({ "src/app.ts": "2" });
+    expect(run(r.dir, { VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "production", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 1 });
+    expect(run(r.dir, { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "main", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 1 });
+  });
+});
+
 describe("vercel-ignore: skip only documentation, build at any doubt", () => {
   it("is wired in vercel.json", () => {
     expect(JSON.parse(readFileSync(path.join(root, "vercel.json"), "utf8")).ignoreCommand).toBe("bash scripts/ci/vercel-ignore.sh");
