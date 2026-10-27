@@ -5,56 +5,27 @@ name: CI
 # application role (so row-level security is exercised), and the passwords below belong to that container alone.
 # The `ui-screenshots` job builds the app on its own throw-away PostgreSQL, seeds the synthetic demo tenant, runs tests/ui/audit.mjs
 # (1280px and 390px, Arabic) and uploads the screenshots as the `ui-screenshots-390-1280-ar` artifact. It fails on a hard audit failure.
-# Actions are a rationed resource (owner's decision, work order 20 item 11: billing stopped once on too many runs). So:
-#  - a pull request runs the cheap gate always, and the heavy jobs (database suite, screenshots, journeys) only when something other than documentation changed;
-#    the English and Urdu screenshot runs only when the interface (client/, shared/, tests/ui/, the workflows) changed;
-#  - a push to main (the squash that just passed on its pull request) runs the gate and the light checks only;
-#  - ONE full run a day on main (schedule) and on demand (workflow_dispatch) is the net that catches drift between pull requests.
+# Actions are a rationed resource (owner's decision, 2026-10-27, after the plan's minutes ran out; before that, work order 20 item 11). So:
+#  - a pull request runs ONLY the light checks: `pnpm check`, the secret scan, actionlint and the migration check (about 4 billed minutes).
+#    The full test suite, the database suite, the screenshots and the journeys are run LOCALLY before every push (CLAUDE.md section 7);
+#  - the heavy jobs (build and unit tests, database suite, screenshots in the three languages, the three end-to-end journeys) run ONCE on main,
+#    after the squash lands (push), and on demand (workflow_dispatch). Promotion to production (promote-production.yml) refuses a commit of
+#    main that has no successful run here, so nothing reaches production without them, and they are not run a second time;
+#  - no daily scheduled run; a newer run on the same branch cancels the older one; every job has a time limit.
 on:
   pull_request:
   push:
     branches: [main]
-  schedule:
-    - cron: "23 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event_name == 'schedule' && 'daily' || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: what changed (decides which heavy jobs run)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      heavy: ${{ steps.scope.outputs.heavy }}
-      ui_matrix: ${{ steps.scope.outputs.ui_matrix }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: scope
-        run: |
-          all='{"include":[{"language":"ar","label":"Arabic"},{"language":"en","label":"English"},{"language":"ur","label":"Urdu"}]}'
-          arabic='{"include":[{"language":"ar","label":"Arabic"}]}'
-          case "$GITHUB_EVENT_NAME" in
-            schedule|workflow_dispatch) heavy=true; matrix="$all" ;;
-            pull_request)
-              files="$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")"
-              echo "changed files:"; echo "$files"
-              # documentation only = every changed file is under docs/ or is a Markdown file
-              if [ -n "$files" ] && ! echo "$files" | grep -vE '^docs/|\.md$' | grep -q .; then heavy=false; else heavy=true; fi
-              if echo "$files" | grep -qE '^(client/|shared/|tests/ui/|\.github/workflows/|package\.json|pnpm-lock\.yaml)'; then matrix="$all"; else matrix="$arabic"; fi ;;
-            *) heavy=false; matrix="$arabic" ;;
-          esac
-          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
-          echo "ui_matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "heavy=$heavy matrix=$matrix"
-
   gate:
     name: check, build, test
     runs-on: ubuntu-latest
@@ -68,13 +39,15 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm build
-      - run: pnpm test
+      # On a pull request the build and the unit tests were run locally before the push; they run here once main has the change.
+      - if: github.event_name != 'pull_request'
+        run: pnpm build
+      - if: github.event_name != 'pull_request'
+        run: pnpm test
 
   database:
     name: database suite (PostgreSQL)
-    needs: changes
-    if: needs.changes.outputs.heavy == 'true'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -105,13 +78,16 @@ jobs:
 
   ui-screenshots:
     name: ui screenshots (390px and 1280px, ${{ matrix.label }})
-    needs: changes
-    if: needs.changes.outputs.heavy == 'true'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.ui_matrix) }}
+      matrix:
+        include:
+          - { language: ar, label: Arabic }
+          - { language: en, label: English }
+          - { language: ur, label: Urdu }
     services:
       postgres:
         image: postgres:16
@@ -220,13 +196,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
   demo-journeys:
-    # Work order 17, item 5: the three journeys through the demonstration company (scripts/e2e-demo-journey.mjs) run on every change, in a real browser, as the people who would
+    # Work order 17, item 5: the three journeys through the demonstration company (scripts/e2e-demo-journey.mjs) run once on main after every merge, in a real browser, as the people who would
     # do them and with the numbers checked at every level: (1) daily report -> approval -> progress, (2) submittal -> reply A -> inspection -> acceptance, (3) material issue ->
     # actual cost -> EVM -> expected profit on the board's dashboard. The script builds the demonstration company itself, starts the production build as the restricted role,
     # and removes the company at the end.
     name: demo journeys (3 end-to-end journeys)
-    needs: changes
-    if: needs.changes.outputs.heavy == 'true'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
