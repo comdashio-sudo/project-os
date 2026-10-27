@@ -99,7 +99,8 @@ jobs:
           set -euo pipefail
           NODE_ENV=development pnpm build
           export DATABASE_URL="$RELEASE_GATE_DATABASE_URL"
-          export JWT_SECRET="$(openssl rand -hex 32)"
+          jwt="$(openssl rand -hex 32)"
+          export JWT_SECRET="$jwt"
           export SUPABASE_URL="https://dzfxgxccnlyhcjgqstgn.supabase.co"
           node dist/index.js > "$RUNNER_TEMP/server.log" 2>&1 &
           server=$!
@@ -146,6 +147,6 @@ jobs:
             echo "## Release ${{ steps.scope.outputs.sha }}"
             echo "### Migrations"; echo '```'; tail -n 4 "$RUNNER_TEMP/migrate.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
             echo "### verify-db-security"; echo '```'; tail -n 3 "$RUNNER_TEMP/verify.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
-            echo "### Release check (healthz, wrong sign-in code is 4xx, readyz)"; echo '```'; cat "$RUNNER_TEMP/gate.log" 2>/dev/null | cut -c1-300 || echo "(did not run)"; echo '```'
+            echo "### Release check (healthz, wrong sign-in code is 4xx, readyz)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/gate.log" 2>/dev/null || echo "(did not run)"; echo '```'
             echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'NOT promoted: a step before it failed, the site stays on the previous release' }}"
           } >> "$GITHUB_STEP_SUMMARY"
