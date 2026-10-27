@@ -68,6 +68,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      # Every migration from 0016 on must be backward compatible (expand, then contract): the automatic release applies it while the previous release still serves traffic.
+      - run: node scripts/ci/check-migration-compat.mjs
       - run: pnpm build
       - run: pnpm test
 
