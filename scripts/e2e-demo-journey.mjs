@@ -109,18 +109,25 @@ const S0 = await levels();
 const base = figures(S0);
 console.log(JSON.stringify({ start: base, unitNumber }));
 
+// The design system's list (client/src/components/ds/Select.tsx) is not the browser's select: open it from its trigger, then click the option
+// that carries the wanted value (each option has data-value). Work order 21 moved the phone screens onto it.
+async function choose(page, trigger, value) {
+  await trigger.click();
+  await page.locator(`[role="option"][data-value="${value}"]`).click();
+}
+
 try {
   // ================================================================================================ 1. daily report -> approval -> progress
   const progressBefore = await latestProgress();
   const siteScreen = await open("site", PHONE);
   await siteScreen.page.goto(`${BASE_URL}${walk}/report?lang=en`, { waitUntil: "networkidle" });
-  await siteScreen.page.getByLabel("Weather").selectOption("clear");
+  await choose(siteScreen.page, siteScreen.page.getByLabel("Weather"), "clear");
   await siteScreen.page.getByLabel("Summary of the day").fill("Walk-through report: block work finished on one villa.");
   await siteScreen.page.getByRole("button", { name: "Add work" }).click();
   await siteScreen.page.getByLabel("Unit number").nth(1).fill(String(unitNumber)); // the first one is the unit-card shortcut
   const activitySelect = siteScreen.page.getByLabel("Activity");
-  await activitySelect.selectOption(cell.def_id);
-  await siteScreen.page.getByLabel("Status after the work").selectOption("COMPLETE");
+  await choose(siteScreen.page, activitySelect, cell.def_id);
+  await choose(siteScreen.page, siteScreen.page.getByLabel("Status after the work"), "COMPLETE");
   await siteScreen.page.getByRole("button", { name: "Save draft" }).click();
   await siteScreen.page.getByText("Draft saved").waitFor();
   await siteScreen.page.getByRole("button", { name: "Send for approval" }).click();
@@ -301,7 +308,7 @@ try {
     await shot(keeper.page, "3x-issue-activity-missing-phone");
     throw new Error(`the Activity field did not appear after typing unit ${unitNumber}; the screen says: ${JSON.stringify((await keeper.page.locator("main").innerText()).slice(0, 600))}; unit field now: ${JSON.stringify(await keeper.page.getByLabel("Unit number").inputValue().catch(() => null))}`);
   }
-  await activityField.selectOption(cell.def_id);
+  await choose(keeper.page, activityField, cell.def_id);
   await keeper.page.getByRole("button", { name: "Save issue" }).click();
   await keeper.page.getByRole("status").filter({ hasText: "Issued" }).waitFor();
   await shot(keeper.page, "3a-issue-done-phone");

@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FieldError } from "@/components/FieldError";
 import { formFieldErrors } from "@/lib/formValidation";
@@ -78,7 +77,7 @@ export default function ProjectRegistry() {
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.workspace}</Link>
-          <div className="flex items-center gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
+          <div className="flex items-center gap-3"><span className="text-sm text-slate-500">{t.level}</span></div>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-5 py-10">

@@ -30,15 +30,13 @@ describe("ProjectRegistry keyboard access", () => {
     const user = userEvent.setup();
     render(<ProjectRegistry />);
     const workspace = screen.getByRole("link", { name: "Workspace" });
-    const language = screen.getByRole("button", { name: "Language" });
     const projectCode = screen.getByLabelText("Project code");
     expect(screen.getByLabelText("Project name")).toBeTruthy();
     expect(screen.getByLabelText("Project type")).toBeTruthy();
     expect(screen.getByLabelText("Currency")).toBeTruthy();
     await user.tab();
     expect(document.activeElement).toBe(workspace);
-    await user.tab();
-    expect(document.activeElement).toBe(language);
+    // the language switch lives in the shell's top bar now (work order 21), not on the page
     // The registry is empty here, so its empty state's next action (a link to the form) comes before the form in the focus path.
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("link", { name: "Go to the new project form" }));

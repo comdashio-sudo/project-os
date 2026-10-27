@@ -1,4 +1,3 @@
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -134,7 +133,7 @@ export default function PmoDashboard() {
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>
-          <div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
+          <div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span></div>
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 py-8">

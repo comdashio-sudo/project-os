@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft } from "lucide-react";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { GUIDE_CADENCES, guideStepHref, userGuide, type GuideCadence, type GuideSectionId } from "@/lib/userGuide";
 import { getOperationalRoleName } from "@/lib/operationalRolePresentation";
@@ -26,7 +25,7 @@ export default function UserGuide() {
   const ordered = GUIDE_CADENCES.flatMap((cadence: GuideCadence) => section.steps.flatMap((step, index) => (step.cadence === cadence ? [{ step, index }] : [])));
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
-      <header className="border-b bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></header>
+      <header className="border-b bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></header>
       <div className="mx-auto max-w-5xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
         <p className="mt-2 text-slate-600">{t.sub}</p>

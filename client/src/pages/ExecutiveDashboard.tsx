@@ -1,4 +1,3 @@
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -183,7 +182,6 @@ export default function ExecutiveDashboard() {
           </Link>
           <div className="flex gap-3">
             <span className="text-sm text-slate-500">{t.level}</span>
-            <LanguageToggle />
           </div>
         </div>
       </header>

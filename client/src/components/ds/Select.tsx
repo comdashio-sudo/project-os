@@ -24,7 +24,7 @@ export function Select({ options, value, onValueChange, placeholder, id, invalid
           <RadixSelect.Viewport className="p-1">
             {options.length === 0 ? <p className="px-3 py-2 text-sm text-muted-foreground">{text.selectEmpty}</p> : null}
             {options.map(option => (
-              <RadixSelect.Item key={option.value} value={option.value} disabled={option.disabled}
+              <RadixSelect.Item key={option.value} value={option.value} disabled={option.disabled} data-value={option.value}
                 className="relative flex min-h-10 cursor-pointer select-none items-center gap-2 rounded-[calc(var(--radius)-2px)] py-2 ps-8 pe-3 text-sm outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground">
                 <RadixSelect.ItemIndicator className="absolute start-2"><Check className="h-4 w-4" aria-hidden="true" /></RadixSelect.ItemIndicator>
                 <span className="flex flex-col"><RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>{option.description ? <span className="text-xs text-muted-foreground">{option.description}</span> : null}</span>

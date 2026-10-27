@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   save: vi.fn(),
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const square = (x: number, y: number) => ({ type: "Polygon", coordinates: [[[x, y], [x + 0.1, y], [x + 0.1, y + 0.1], [x, y + 0.1], [x, y]]] });
@@ -56,7 +57,7 @@ describe("PmcSitePlan", () => {
   it("draws one clickable polygon per unit that has one, scaled to the plan, and counts those without", () => {
     render(<PmcSitePlan tenantId="t" projectId="p" />);
     expect(polygons().map(p => p.getAttribute("data-unit"))).toEqual(["1", "2"]);
-    expect(polygons()[0].getAttribute("points")).toBe("100.0,50.0 200.0,50.0 200.0,100.0 100.0,100.0 100.0,50.0");
+    expect(polygons()[0].getAttribute("points")).toBe("100,50 200,50 200,100 100,100 100,50");
     expect(screen.getByRole("img", { name: "Site plan" }).getAttribute("viewBox")).toBe("0 0 1000 500");
     expect(screen.getByText("1 units have no outline on the plan")).toBeTruthy();
   });
@@ -65,8 +66,8 @@ describe("PmcSitePlan", () => {
     render(<PmcSitePlan tenantId="t" projectId="p" />);
     fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "WALLS" } });
     expect((h.inputs[h.inputs.length - 1] as { activityCode?: string }).activityCode).toBe("WALLS");
-    expect(polygons()[0].getAttribute("fill")).toBe("#34d399");
-    expect(polygons()[1].getAttribute("fill")).toBe("#fbbf24");
+    expect(polygons()[0].getAttribute("fill")).toBe("var(--success)") // status colours are design tokens;
+    expect(polygons()[1].getAttribute("fill")).toBe("var(--warning)");
     expect(polygons()[1].getAttribute("aria-label")).toBe("Unit 2: In progress");
   });
 
@@ -127,7 +128,8 @@ describe("PmcSitePlan", () => {
     h.put.mockReset().mockResolvedValue(undefined); h.upload.mockClear();
     render(<PmcSitePlan tenantId="t" projectId="p" />);
     const file = new File([new Uint8Array(2048)], "plan.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("Upload plan image"), { target: { files: [file] } });
+    // the plan picker is the design system's drop zone (its file input is hidden inside the labelled group)
+    fireEvent.change(screen.getByRole("group", { name: "Upload plan image" }).querySelector('input[type="file"]')!, { target: { files: [file] } });
     await waitFor(() => expect(h.upload).toHaveBeenCalled());
     expect(h.directCreate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", purpose: "sitePlan", fileName: "plan.png", contentType: "image/png" }));
     expect(h.put).toHaveBeenCalledWith("https://storage.example.test/u", { "content-type": "image/png" }, file, expect.any(Function));
