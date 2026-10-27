@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { CheckedForm } from "@/components/CheckedForm";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -303,7 +304,7 @@ export function AIChatBox({
       </div>
 
       {/* Input Area */}
-      <form
+      <CheckedForm
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         className="flex gap-2 p-4 border-t bg-background/50 items-end"
@@ -329,7 +330,7 @@ export function AIChatBox({
             <Send className="size-4" />
           )}
         </Button>
-      </form>
+      </CheckedForm>
     </div>
   );
 }

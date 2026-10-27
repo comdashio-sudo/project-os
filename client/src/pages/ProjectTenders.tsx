@@ -1,4 +1,5 @@
 import { riyalLabel } from "@/lib/profitabilityView";
+import { CheckedForm } from "@/components/CheckedForm";
 // Tenders before award (work order 5, item 8): packages, the invitation list, bid entry, the levelled comparison and the award that creates the
 // contract and the commitment. Every write is shown only to someone who holds its power (WriteGate); the server judges every call anyway,
 // including the rule about people (whoever entered a bid of the package does not award it).
@@ -91,14 +92,14 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
 
       {sheet(t.packagesTitle, <>
         <WriteGate permission="project.tender.manage" projectId={projectId} reason={noWrite("إنشاء حزم المناقصة", "create tender packages", "ٹینڈر پیکیجز بنانے")}>
-          <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => createPackage.mutate({ ...scope, packageCode: form.packageCode, title: form.title, currency: form.currency, ...(form.estimateAmount ? { estimateAmount: Number(form.estimateAmount) } : {}), ...(form.scopeSummary ? { scopeSummary: form.scopeSummary } : {}) }, { onSuccess: () => setForm({ ...form, packageCode: "", title: "", estimateAmount: "", scopeSummary: "" }) }))}>
+          <CheckedForm className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => createPackage.mutate({ ...scope, packageCode: form.packageCode, title: form.title, currency: form.currency, ...(form.estimateAmount ? { estimateAmount: Number(form.estimateAmount) } : {}), ...(form.scopeSummary ? { scopeSummary: form.scopeSummary } : {}) }, { onSuccess: () => setForm({ ...form, packageCode: "", title: "", estimateAmount: "", scopeSummary: "" }) }))}>
             <div><Label htmlFor="tp-code">{t.code}</Label><Input id="tp-code" value={form.packageCode} onChange={event => setForm({ ...form, packageCode: event.target.value })} required /></div>
             <div className="md:col-span-2"><Label htmlFor="tp-title">{t.name}</Label><Input id="tp-title" value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} required minLength={2} /></div>
             <div><Label htmlFor="tp-estimate">{t.estimate}</Label><Input id="tp-estimate" type="number" min="0" step="0.01" value={form.estimateAmount} onChange={event => setForm({ ...form, estimateAmount: event.target.value })} /></div>
             <div><Label htmlFor="tp-currency">{t.currency}</Label><Input id="tp-currency" value={form.currency} maxLength={3} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} required /></div>
             <div className="md:col-span-3"><Label htmlFor="tp-scope">{t.scopeSummary}</Label><Input id="tp-scope" value={form.scopeSummary} onChange={event => setForm({ ...form, scopeSummary: event.target.value })} /></div>
             <Button type="submit" disabled={createPackage.isPending} className="min-h-[44px] md:col-span-4">{t.create}</Button>
-          </form>
+          </CheckedForm>
         </WriteGate>
         {list.length ? <><p className="text-xs text-slate-500">{t.total}: {packages.data?.total}</p><div className="divide-y rounded-xl border">{list.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <div><b>{item.packageCode} · {item.title}</b><p className="text-xs text-slate-500">{label(item.status)} · {t.invitees}: {item.invitees} · {t.bids}: {item.bids} · {t.lowest}: {money(item.lowestLevelled)}</p></div>
@@ -124,14 +125,14 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         </>)}
 
         {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId} reason={noWrite("إدخال العروض", "enter bids", "بولیاں درج کرنے")}>{sheet(t.bidEntry,
-          <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => enterBid.mutate({ ...scope, packageId: selected, supplierId: bid.supplierId, amount: Number(bid.amount), ...(bid.durationDays ? { durationDays: Number(bid.durationDays) } : {}), ...(bid.validityDays ? { validityDays: Number(bid.validityDays) } : {}), ...(bid.notes ? { notes: bid.notes } : {}) }, { onSuccess: () => setBid({ supplierId: "", amount: "", durationDays: "", validityDays: "", notes: "" }) }))}>
+          <CheckedForm className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => enterBid.mutate({ ...scope, packageId: selected, supplierId: bid.supplierId, amount: Number(bid.amount), ...(bid.durationDays ? { durationDays: Number(bid.durationDays) } : {}), ...(bid.validityDays ? { validityDays: Number(bid.validityDays) } : {}), ...(bid.notes ? { notes: bid.notes } : {}) }, { onSuccess: () => setBid({ supplierId: "", amount: "", durationDays: "", validityDays: "", notes: "" }) }))}>
             <div><Label htmlFor="tb-supplier">{t.supplier}</Label><select id="tb-supplier" className={field} value={bid.supplierId} onChange={event => setBid({ ...bid, supplierId: event.target.value })} required><option value="">{t.pickSupplier}</option>{biddable.map(item => <option key={item.supplierId} value={item.supplierId}>{item.supplierName}</option>)}</select></div>
             <div><Label htmlFor="tb-amount">{t.amount}</Label><Input id="tb-amount" type="number" min="0.01" step="0.01" value={bid.amount} onChange={event => setBid({ ...bid, amount: event.target.value })} required /></div>
             <div><Label htmlFor="tb-duration">{t.duration}</Label><Input id="tb-duration" type="number" min="1" value={bid.durationDays} onChange={event => setBid({ ...bid, durationDays: event.target.value })} /></div>
             <div><Label htmlFor="tb-validity">{t.validity}</Label><Input id="tb-validity" type="number" min="1" value={bid.validityDays} onChange={event => setBid({ ...bid, validityDays: event.target.value })} /></div>
             <div><Label htmlFor="tb-notes">{t.notes}</Label><Input id="tb-notes" value={bid.notes} onChange={event => setBid({ ...bid, notes: event.target.value })} /></div>
             <Button type="submit" disabled={enterBid.isPending} className="min-h-[44px] md:col-span-5">{t.enter}</Button>
-          </form>)}</WriteGate> : null}
+          </CheckedForm>)}</WriteGate> : null}
 
         {sheet(t.comparisonTitle, <>
           <p className="text-xs text-slate-600">{t.comparable}: {current.comparable} · {t.lowest}: {money(current.lowest)} · {t.medianLine}: {money(current.median)}</p>
@@ -148,23 +149,23 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
               <td className="p-2">{item.aboveLowestPercent === null ? "—" : `${item.aboveLowestPercent}%`}</td><td className="p-2">{pct(item.versusEstimatePercent)}</td><td className="p-2">{item.durationDays ?? "—"}</td>
               <td className="p-2 text-xs">{item.flags.map(flag => flagText(flag)).join("، ") || "—"}</td></tr>)}</tbody></table></div>
           {status === "closed" && live.length ? <WriteGate permission="project.tender.level" projectId={projectId} reason={noWrite("تسوية العروض", "level bids", "بولیوں کا موازنہ ہم وار کرنے")}>
-            <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => addAdjustment.mutate({ ...scope, bidId: adjustment.bidId, kind: adjustment.kind as never, description: adjustment.description, amount: Number(adjustment.amount) }, { onSuccess: () => setAdjustment({ bidId: adjustment.bidId, kind: "scope_gap", description: "", amount: "" }) }))}>
+            <CheckedForm className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => addAdjustment.mutate({ ...scope, bidId: adjustment.bidId, kind: adjustment.kind as never, description: adjustment.description, amount: Number(adjustment.amount) }, { onSuccess: () => setAdjustment({ bidId: adjustment.bidId, kind: "scope_gap", description: "", amount: "" }) }))}>
               <div><Label htmlFor="ta-bid">{t.supplier}</Label><select id="ta-bid" className={field} value={adjustment.bidId} onChange={event => setAdjustment({ ...adjustment, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.supplierName}</option>)}</select></div>
               <div><Label htmlFor="ta-kind">{t.kind}</Label><select id="ta-kind" className={field} value={adjustment.kind} onChange={event => setAdjustment({ ...adjustment, kind: event.target.value })}>{KINDS.map(code => <option key={code} value={code}>{label(code)}</option>)}</select></div>
               <div className="md:col-span-2"><Label htmlFor="ta-description">{t.description}</Label><Input id="ta-description" value={adjustment.description} onChange={event => setAdjustment({ ...adjustment, description: event.target.value })} required minLength={3} /></div>
               <div><Label htmlFor="ta-amount">{t.adjAmount}</Label><Input id="ta-amount" type="number" step="0.01" value={adjustment.amount} onChange={event => setAdjustment({ ...adjustment, amount: event.target.value })} required /></div>
               <Button type="submit" disabled={addAdjustment.isPending} className="min-h-[44px] md:col-span-5">{t.addAdj}</Button>
-            </form></WriteGate> : null}
+            </CheckedForm></WriteGate> : null}
         </>, <ExportExcelButton fileName="tenders-bid-comparison" sheetName={t.comparisonTitle} title={`${t.title} · ${t.comparisonTitle}`} rows={current.bids} columns={bidColumns} />)}
 
         {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-emerald-800">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
         {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders", "ٹینڈرز کا ایوارڈ دینے")}>{sheet(t.awardTitle,
-          <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => award.mutate({ ...scope, packageId: selected, bidId: winning.bidId, contractCode: winning.contractCode, ...(winning.justification ? { justification: winning.justification } : {}) }))}>
+          <CheckedForm className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => award.mutate({ ...scope, packageId: selected, bidId: winning.bidId, contractCode: winning.contractCode, ...(winning.justification ? { justification: winning.justification } : {}) }))}>
             <div className="md:col-span-2"><Label htmlFor="aw-bid">{t.supplier}</Label><select id="aw-bid" className={field} value={winning.bidId} onChange={event => setWinning({ ...winning, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.rank}. {item.supplierName} — {money(item.levelledTotal)}</option>)}</select></div>
             <div><Label htmlFor="aw-code">{t.contractCode}</Label><Input id="aw-code" value={winning.contractCode} onChange={event => setWinning({ ...winning, contractCode: event.target.value })} required /></div>
             <div className="md:col-span-4"><Label htmlFor="aw-justification">{t.justification}</Label><Input id="aw-justification" value={winning.justification} onChange={event => setWinning({ ...winning, justification: event.target.value })} /></div>
             <Button type="submit" disabled={award.isPending} className="min-h-[44px] md:col-span-4">{t.awardButton}</Button>
-          </form>)}</WriteGate> : null}
+          </CheckedForm>)}</WriteGate> : null}
       </section> : null}
     </CardContent>
   </Card>;

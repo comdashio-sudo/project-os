@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { CheckedForm } from "@/components/CheckedForm";
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Card, CardBody, CardHeader, CardTitle, DirectionProvider, Field, Logo, TextInput, notify } from "@/components/ds";
 import { DashboardLayoutSkeleton } from "@/components/DashboardLayoutSkeleton";
@@ -73,12 +74,12 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
                 <div><Button onClick={done}>{t.saved}</Button></div>
               </>
             ) : enrolled ? (
-              <form className="grid gap-5" onSubmit={event => { event.preventDefault(); verify.mutate({ code }); }}>
+              <CheckedForm className="grid gap-5" onSubmit={event => { event.preventDefault(); verify.mutate({ code }); }}>
                 <p className="text-sm text-muted-foreground">{t.verifyIntro}</p>
                 <Field label={t.verifyCodeLabel} required>{props => <TextInput {...props} dir="ltr" autoComplete="one-time-code" inputMode="text" value={code} onChange={event => setCode(event.target.value)} />}</Field>
                 {error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
                 <div className="flex items-center gap-3"><Button type="submit" loading={verify.isPending} disabled={code.trim().length < 6}>{t.verify}</Button><Button type="button" variant="ghost" onClick={logout}>{t.signOut}</Button></div>
-              </form>
+              </CheckedForm>
             ) : !setup ? (
               <>
                 <p className="text-sm text-muted-foreground">{t.setupIntro}</p>
@@ -86,7 +87,7 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
                 <div className="flex items-center gap-3"><Button variant="secondary" onClick={() => begin.mutate()}>{t.start}</Button><Button variant="ghost" onClick={logout}>{t.signOut}</Button></div>
               </>
             ) : (
-              <form className="grid gap-5" onSubmit={event => { event.preventDefault(); confirm.mutate({ code, enrolmentId: setup!.enrolmentId }); }}>
+              <CheckedForm className="grid gap-5" onSubmit={event => { event.preventDefault(); confirm.mutate({ code, enrolmentId: setup!.enrolmentId }); }}>
                 <div className="grid gap-3">
                   <p className="text-sm text-muted-foreground">{t.setupIntro}</p>
                   <p className="text-sm font-medium">{t.scan}</p>
@@ -99,7 +100,7 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
                 {error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
                 <div className="flex items-center gap-3"><Button type="submit" loading={confirm.isPending} disabled={code.trim().length < 6}>{t.confirm}</Button>{canPostpone ? <Button type="button" variant="secondary" loading={postpone.isPending} onClick={() => postpone.mutate()}>{t.later}</Button> : null}<Button type="button" variant="ghost" onClick={logout}>{t.signOut}</Button></div>
                 {canPostpone ? <p className="text-xs text-muted-foreground">{t.laterNote}</p> : null}
-              </form>
+              </CheckedForm>
             )}
           </CardBody>
         </Card>

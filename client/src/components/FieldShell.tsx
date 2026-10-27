@@ -1,4 +1,5 @@
 import { formatShortDate } from "@/components/ds/format";
+import { CheckedForm } from "@/components/CheckedForm";
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -25,10 +26,10 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
       {tabs.map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-white" : "border bg-card text-foreground"}`}>{label}</Link>)}
-      <form className="flex items-center gap-1" onSubmit={event => { event.preventDefault(); if (unit.trim()) navigate(`${base}/unit/${encodeURIComponent(unit.trim())}`); }}>
+      <CheckedForm className="flex items-center gap-1" onSubmit={event => { event.preventDefault(); if (unit.trim()) navigate(`${base}/unit/${encodeURIComponent(unit.trim())}`); }}>
         <input aria-label={t.unitNumber} placeholder={t.unitNumber} inputMode="numeric" className={`${tap} w-28 rounded-xl border bg-card px-3 text-sm`} value={unit} onChange={event => setUnit(event.target.value)} />
         <button type="submit" className={`${tap} rounded-xl border bg-card px-3 text-sm font-semibold`}>{t.unit}</button>
-      </form>
+      </CheckedForm>
     </nav>
   );
 }
