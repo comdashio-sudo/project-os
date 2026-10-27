@@ -12,6 +12,7 @@ import { exportElementToPdf } from "@/lib/pdfExport";
 import { Link, useParams } from "wouter";
 import { PmcProgramme } from "./PmcProgramme";
 import { PmcSitePlan } from "./PmcSitePlan";
+import { PmcEditors } from "./PmcEditors";
 import { WriteGate } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
@@ -20,7 +21,7 @@ import { pickLanguage } from "@/lib/language";
 const text = {
   ar: {
     title: "ضبط المشروع PMC", back: "العودة إلى ضوابط المشروع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noData: "لا توجد بيانات", export: "تصدير Excel", pdf: "PDF", print: "طباعة", pdfFailed: "تعذّر بناء ملف PDF. اطبع من المتصفح بدلًا منه.",
-    tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", programme: "البرنامج الزمني", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", import: "الاستيراد" },
+    tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", programme: "البرنامج الزمني", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", editors: "تحرير الوحدات والأوزان والحالة", import: "الاستيراد" },
     filters: { zone: "المنطقة", block: "البلوك", unitFrom: "من وحدة", unitTo: "إلى وحدة", group: "المجموعة", stage: "المرحلة", activity: "النشاط", period: "الفترة", all: "الكل", default: "الافتراضية", d7: "آخر 7 أيام", d30: "آخر 30 يومًا", d90: "آخر 90 يومًا", d365: "آخر 12 شهرًا", everything: "كل الفترة", contractor: "المقاول", consultant: "الاستشاري" },
     freshness: "حداثة البيانات", sources: { locations: "المواقع", catalog: "الكتالوج", status: "حالة الأنشطة", requests: "الطلبات", baseline: "خط الأساس" }, never: "لا تحديث بعد", today: "اليوم", daysAgo: (n: number) => `قبل ${n} يومًا`,
     engineer: "المهندس", updates: "التحديثات", activeDays: "أيام نشطة", unitRange: "نطاق الوحدات", added: "النسبة المضافة", byGroup: "حسب المجموعة", total: "الإجمالي",
@@ -35,7 +36,7 @@ const text = {
   },
   en: {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
-    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
+    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", editors: "Units, weights and status", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
     freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
     engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
@@ -49,7 +50,7 @@ const text = {
     importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
   }, ur: {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
-    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
+    tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", editors: "یونٹس، وزن اور حیثیت", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
     freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
     engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
@@ -64,7 +65,7 @@ const text = {
   },
 };
 type T = typeof text.en;
-const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "import"] as const;
+const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "editors", "import"] as const;
 type Tab = (typeof TABS)[number];
 type Filters = { zone?: string; block?: string; unitFrom?: number; unitTo?: number; group?: string; stage?: string; activity?: string; contractor?: string; consultant?: string; since?: Date };
 const field = "min-h-[44px] rounded-lg border border-input bg-card px-2 text-sm";
@@ -164,7 +165,7 @@ type MatrixCell = { count: number; weightPoints: number; sharePercent: number };
 /** One row of the activities matrix: a group subtotal (`label` null) or an activity under its group. */
 type MatrixRow = { groupName: string; label: string | null; cells: MatrixCell[] };
 
-function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
+function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme" | "editors">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
   const input = { tenantId, projectId, filters };
   const common = { t, isArabic, onOptions: onData };
   /** Export names: the file gets the screen's tab and the table's name, e.g. pmc-approvals-requests-<date>.xlsx. */
@@ -322,7 +323,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const exportScreen = trpc.pmc.exportScreen.useMutation({
     onSuccess: file => { const bytes = Uint8Array.from(atob(file.base64), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const link = document.createElement("a"); link.href = url; link.download = file.fileName; link.click(); URL.revokeObjectURL(url); },
   });
-  const screenOfTab: Record<Exclude<Tab, "import" | "sitePlan" | "programme">, "latestUpdates" | "approvals" | "inspections" | "activities" | "zones" | "weekly" | "monthly" | "pending" | "stages"> = { latestUpdates: "latestUpdates", approvals: "approvals", inspections: "inspections", activities: "activities", zones: "zones", weekly: "weekly", monthly: "monthly", pending: "pending", stages: "stages" };
+  const screenOfTab: Record<Exclude<Tab, "import" | "sitePlan" | "programme" | "editors">, "latestUpdates" | "approvals" | "inspections" | "activities" | "zones" | "weekly" | "monthly" | "pending" | "stages"> = { latestUpdates: "latestUpdates", approvals: "approvals", inspections: "inspections", activities: "activities", zones: "zones", weekly: "weekly", monthly: "monthly", pending: "pending", stages: "stages" };
   const select = (key: keyof Filters, label: string, values: string[]) => (
     <LabelledSelect label={label} value={(filters[key] as string | undefined) ?? ALL} onValueChange={value => setFilters({ ...filters, [key]: value === ALL ? undefined : value })} options={[{ value: ALL, label: t.filters.all }, ...values.map(v => ({ value: v, label: v }))]} />
   );
@@ -331,14 +332,14 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
       <div className="mx-auto max-w-7xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
-          {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && <div className="flex gap-2">
+          {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && <div className="flex gap-2">
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
         </header>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
-        {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
+        {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && (
           <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
             <label className="text-xs">{t.filters.unitFrom}<input aria-label={t.filters.unitFrom} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitFrom ?? ""} onChange={event => setFilters({ ...filters, unitFrom: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
@@ -350,7 +351,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         <section ref={bodyRef} className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border">
           {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
           <SectionErrorBoundary key={tab} title={pickLanguage(language, { ar: "هذه الشاشة", en: "This screen", ur: "یہ اسکرین" })} isArabic={isArabic}>
-            {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+            {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : tab === "editors" ? <PmcEditors tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
           </SectionErrorBoundary>
         </section>
       </div>

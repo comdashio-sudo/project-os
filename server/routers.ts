@@ -1,3 +1,4 @@
+import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
 import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
@@ -166,6 +167,11 @@ export const appRouter = router({
     summary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProjectSummaryForTenant({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgress({ userId: ctx.user.id, ...input })),
     setUnitActivityStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid(), status: z.enum(PMC_STATUSES), verificationStatusId: z.string().uuid().nullable().optional(), note: z.string().trim().max(1000).optional() })).mutation(({ ctx, input }) => setPmcUnitActivityStatus({ userId: ctx.user.id, ...input })),
+    // work order 21: the PMC table editors (server/pmcEditorService.ts)
+    structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
+    createUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), from: z.number().int().min(1), to: z.number().int().min(1) })).mutation(({ ctx, input }) => createPmcUnits({ userId: ctx.user.id, ...input })),
+    saveActivityWeights: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), weights: z.array(z.object({ activityDefinitionId: z.string().uuid(), weightPercent: z.number().min(0).max(100) })).min(1).max(500) })).mutation(({ ctx, input }) => savePmcActivityWeights({ userId: ctx.user.id, ...input })),
+    statusGrid: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid().optional(), from: z.number().int().min(1).optional(), to: z.number().int().min(1).optional() })).query(({ ctx, input }) => getPmcStatusGrid({ userId: ctx.user.id, ...input })),
     statusFactors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStatusFactors({ userId: ctx.user.id, ...input })),
     setStatusFactors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), factors: z.object({ NOT_STARTED: z.number().min(0).max(1), IN_PROGRESS: z.number().min(0).max(1), UNDER_REVIEW: z.number().min(0).max(1), COMPLETE: z.number().min(0).max(1) }).partial() })).mutation(({ ctx, input }) => setPmcStatusFactors({ userId: ctx.user.id, ...input })),
     verificationStatuses: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listPmcVerificationStatuses({ userId: ctx.user.id, ...input })),
