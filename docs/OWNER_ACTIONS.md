@@ -109,7 +109,8 @@
 2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). يلزم للتراجع الآلي ولقراءة سجلات الأخطاء. (لا تلصقه في المحادثة.)
 3. اختياري للمعاينات المحمية: سرّ `VERCEL_AUTOMATION_BYPASS_SECRET` (Vercel ← Settings ← Deployment Protection ← Protection Bypass for Automation).
 **الترقية:** GitHub ← Actions ← **Promote to production** ← Run workflow. يجد معاينة آخر دمج، ويشغّل عليها فحص ما بعد النشر، وإن نجح يحرّك `production` إلى ذلك الدمج (بلا force-push). بعد بناء الإنتاج يفحصه **Post-deploy check** تلقائيًا، وإن فشل يتراجع إلى النشر السابق ويفتح بلاغًا في GitHub.
-**ترحيلات القاعدة** تُطبَّق بزر Bootstrap / Supabase setup (مفاتيحها عندك)، لا بالنشر. `/api/readyz` يقول أيها لم يُطبَّق بعد.
+**ترحيلات القاعدة (تحديث 27 أكتوبر):** تُطبَّق الآن آليًا بعد أن يخضرّ CI على `main` لكل دمج، بـ`migrate-production.yml` ثم يُقدَّم فرع `production` وحده بعد نجاح الفحص (التفاصيل وما تحتاجه: `docs/GO_LIVE.md` «الإطلاق الآلي»). زر **Promote to production** يبقى للترقية اليدوية.
+**ترحيلات القاعدة (القديم):** كانت تُطبَّق بزر Bootstrap / Supabase setup، لا بالنشر. `/api/readyz` يقول أيها لم يُطبَّق بعد.
 
 
 ## 12. دقائق GitHub Actions نفدت (BLOCKED_BY_OWNER — 27 أكتوبر 2026)

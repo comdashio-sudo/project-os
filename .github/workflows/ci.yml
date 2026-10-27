@@ -39,6 +39,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      # Every migration from 0016 on must be backward compatible (expand, then contract): the automatic release applies it while the previous release still serves traffic.
+      # A light check, so it runs on pull requests too.
+      - run: node scripts/ci/check-migration-compat.mjs
       # On a pull request the build and the unit tests were run locally before the push; they run here once main has the change.
       - if: github.event_name != 'pull_request'
         run: pnpm build

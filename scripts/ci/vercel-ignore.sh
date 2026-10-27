@@ -6,6 +6,12 @@
 # At any doubt it builds: no previous deployment, a commit this clone does not have, a diff that cannot be computed, an empty diff. Nothing here can hide a code change.
 set -u
 
+# Production is built from the `production` branch ONLY, and that branch is moved by .github/workflows/migrate-production.yml after the database migrations and the release check
+# passed. A production build of `main` (Vercel's Production Branch still set to main) would ship code before its migrations: refused here, whatever the dashboard says.
+if [ "${VERCEL_ENV:-}" = "production" ] && [ "${VERCEL_GIT_COMMIT_REF:-}" = "main" ]; then
+  echo "vercel-ignore: skip (production is deployed from the production branch, after the migrations; main is a Preview only)"; exit 0
+fi
+
 previous="${VERCEL_GIT_PREVIOUS_SHA:-}"
 current="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
 
