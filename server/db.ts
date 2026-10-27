@@ -3704,7 +3704,7 @@ export async function getDataImportsForTenant(input: { userId: number; tenantId:
     await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.read", featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   } else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "company", id: input.tenantId } });
   const filter = input.projectId ? and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)) : eq(dataImports.tenantId, input.tenantId);
-  return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, progressPercent: dataImports.progressPercent, progressStage: dataImports.progressStage, failureReason: dataImports.failureReason, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, completedAt: dataImports.completedAt, createdAt: dataImports.createdAt }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
+  return db.select({ id: dataImports.id, projectId: dataImports.projectId, moduleCode: dataImports.moduleCode, templateCode: dataImports.templateCode, fileName: dataImports.fileName, status: dataImports.status, progressPercent: dataImports.progressPercent, progressStage: dataImports.progressStage, failureReason: dataImports.failureReason, duplicateMode: dataImports.duplicateMode, totalRows: dataImports.totalRows, validRows: dataImports.validRows, invalidRows: dataImports.invalidRows, createdRows: dataImports.createdRows, updatedRows: dataImports.updatedRows, skippedRows: dataImports.skippedRows, completedAt: dataImports.completedAt, createdAt: dataImports.createdAt, errorCount: sql<number>`(SELECT count(*)::int FROM data_import_errors e WHERE e.import_id = data_imports.id AND e.severity = 'error')` }).from(dataImports).where(filter).orderBy(desc(dataImports.createdAt));
 }
 
 export async function getDataImportDetailForTenant(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
@@ -3765,10 +3765,19 @@ export async function authorizeNewImport(input: { userId: number; tenantId: stri
   return db;
 }
 
+/**
+ * The same file is refused only when an earlier copy was CONFIRMED (confirmed / importing / completed): a refused or unconfirmed analysis wrote nothing and must not block it.
+ * The unique index (data_imports_tenant_file_hash_unique) is the final guard at the moment of confirmation; this is the early, readable refusal at upload.
+ */
+export async function assertFileNotAlreadyImported(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: { tenantId: string; fileHash: string }) {
+  const [hit] = await db.select({ id: dataImports.id }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.fileHash, input.fileHash), inArray(dataImports.status, ["confirmed", "importing", "completed"]))).limit(1);
+  if (hit) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+}
+
 export async function createAndAnalyzeDataImport(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode; fileName: string; sourceFormat: "xlsx" | "csv" | "xer"; base64: string; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate"; mappingOverride?: Record<string, string> }) {
   const db = await authorizeNewImport(input);
   const bytes = Buffer.from(input.base64, "base64"); if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("PROJECT_OS_IMPORT_FILE_INVALID");
-  const analysis = await analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, analysis }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex");
+  const analysis = await analyzeImportFile({ moduleCode: input.moduleCode, format: input.sourceFormat, bytes, mappingOverride: input.mappingOverride }); await addOpeningBalanceReferenceErrors(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: input.moduleCode, analysis }); const id = crypto.randomUUID(); const fileHash = createHash("sha256").update(bytes).digest("hex"); await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash });
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/${id}/${input.fileName}`, bytes, input.sourceFormat === "csv" ? "text/csv" : input.sourceFormat === "xer" ? "text/plain" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   const duplicateMode = input.duplicateMode ?? "fail_on_duplicate";
   // The same file cannot be uploaded twice by one tenant (unique file hash): say so by name instead of a generic failure, and point to re-analysis for a file that is still waiting.

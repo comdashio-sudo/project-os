@@ -16,7 +16,7 @@ import { TRPCError } from "@trpc/server";
 import { auditLogs, dataImportErrors, dataImportRowResults, dataImportSources, dataImports } from "../drizzle/schema";
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
-import { assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
+import { assertFileNotAlreadyImported, assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, type ExternalContext, type ExternalModule } from "./externalImports";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
@@ -85,6 +85,8 @@ export async function registerImportUpload(input: { userId: number; tenantId: st
   const bytes = await storageRead(input.uploadKey);
   if (bytes.length !== head.size) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   const fileHash = createHash("sha256").update(bytes).digest("hex");
+  // a file that was already CONFIRMED is refused here, readably; a refused or unconfirmed attempt of it never blocks (the unique index only guards the confirmed ones)
+  try { await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash }); } catch (error) { await storageDelete(input.uploadKey).catch(() => undefined); throw error; }
   const id = randomUUID();
   try {
     await db.insert(dataImports).values({

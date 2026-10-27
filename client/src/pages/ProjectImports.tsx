@@ -7,6 +7,7 @@ import { BadgeCheck, Download, FileCheck2, FileSpreadsheet, ListChecks, Upload }
 import React, { useState } from "react";
 import { SourceNotice } from "@/components/SectionResilience";
 import { WriteGate } from "@/lib/permissions";
+import { attemptState } from "@shared/importAttempts";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
 import { getProjectError } from "@shared/projectErrors";
 import { importModulePermissions } from "@shared/importPermissions";
@@ -45,7 +46,12 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   const finishJob = () => { void imports.refetch(); void detail.refetch(); void progress.refetch(); };
   const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
   const confirm = trpc.dataImports.confirm.useMutation({ onSuccess: result => { setCurrentImportId(result.id); setSelectedImportId(result.id); finishJob(); } });
+  const discard = trpc.dataImports.discard.useMutation({ onSuccess: () => { setSelectedImportId(null); finishJob(); } });
+  const rollback = trpc.dataImports.rollback.useMutation({ onSuccess: () => finishJob() });
+  const [replacing, setReplacing] = useState<string | null>(null);
   const busy = uploadPercent !== null || createUpload.isPending || registerUpload.isPending;
+  const REPLACEABLE = ["wbs", "budget", "contracts", "materials", "schedule"];
+  const isReplaceable = (code: string): code is typeof moduleCode => REPLACEABLE.includes(code);
   const t = pickLanguage(language, { ar: {
         title: "استيراد بيانات",
         note: "ارفع XLSX أو CSV، واختر سياسة التكرار، ثم راجع النتيجة قبل تأكيد الكتابة التشغيلية.",
@@ -68,6 +74,17 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         history: "سجل الاستيراد",
         details: "نتائج الاستيراد",
         viewDetails: "عرض النتائج",
+        attemptRejected: "مرفوض — لم يُكتب شيء",
+        attemptAwaiting: "بانتظار التأكيد",
+        attemptProcessing: "قيد المعالجة",
+        attemptImported: "مُستورد",
+        attemptUndone: "مُتراجَع عنه",
+        discard: "حذف هذه المحاولة",
+        discardAsk: "حذف هذه المحاولة؟ لم يُكتب منها شيء، ويُحذف ملفها المحفوظ.",
+        rollback: "تراجع عن هذا الاستيراد",
+        rollbackAsk: "التراجع يحذف الصفوف التي أنشأها هذا الاستيراد وحده (لا غيرها) ويسجَّل في سجل التدقيق. متابعة؟",
+        replace: "استبدال بنسخة أحدث",
+        replaceNote: "ارفع الملف الأحدث أدناه: سياسة الصفوف المكررة صارت «تحديث الموجود وإضافة الجديد»، وتظهر معاينة الفروق قبل أي كتابة.",
         results: "نتائج الصفوف",
         duplicateMode: "سياسة الصفوف المكررة",
         choose: "اختر ملفًا",
@@ -120,6 +137,17 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         history: "Import history",
         details: "Import results",
         viewDetails: "View results",
+        attemptRejected: "Rejected — nothing was written",
+        attemptAwaiting: "Waiting for confirmation",
+        attemptProcessing: "Processing",
+        attemptImported: "Imported",
+        attemptUndone: "Rolled back",
+        discard: "Delete this attempt",
+        discardAsk: "Delete this attempt? Nothing was written from it, and its stored file is removed.",
+        rollback: "Roll back this import",
+        rollbackAsk: "Rolling back deletes only the rows this import created (nothing else) and is recorded in the audit log. Continue?",
+        replace: "Replace with a newer version",
+        replaceNote: "Upload the newer file below: the duplicate policy is now \"update existing and add new\", and the differences are shown before anything is written.",
         results: "Row results",
         duplicateMode: "Duplicate-row policy",
         choose: "Choose a file",
@@ -172,6 +200,17 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
         history: "Import history",
         details: "Import results",
         viewDetails: "View results",
+        attemptRejected: "Rejected — nothing was written",
+        attemptAwaiting: "Waiting for confirmation",
+        attemptProcessing: "Processing",
+        attemptImported: "Imported",
+        attemptUndone: "Rolled back",
+        discard: "Delete this attempt",
+        discardAsk: "Delete this attempt? Nothing was written from it, and its stored file is removed.",
+        rollback: "Roll back this import",
+        rollbackAsk: "Rolling back deletes only the rows this import created (nothing else) and is recorded in the audit log. Continue?",
+        replace: "Replace with a newer version",
+        replaceNote: "Upload the newer file below: the duplicate policy is now \"update existing and add new\", and the differences are shown before anything is written.",
         results: "Row results",
         duplicateMode: "Duplicate-row policy",
         choose: "Choose a file",
@@ -222,6 +261,7 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
   };
   const requiredFields = moduleCode === "openingBalances" ? ["warehouseCode", "materialCode", "quantity", "unitCost"] : moduleCode === "wbs" ? ["code", "name"] : moduleCode === "budget" ? ["costCode", "originalAmount", "currentAmount"] : moduleCode === "contracts" ? ["code", "title", "counterparty", "contractValue", "currency"] : moduleCode === "materials" ? ["code", "description", "unitOfMeasure", "category"] : ["recordType", "wbsCode"];
   // The blank template is generated by the server from the importer's own field table, so it cannot drift from what the importer reads.
+  const attemptLabel = (attempt: string) => ({ rejected: t.attemptRejected, awaiting: t.attemptAwaiting, processing: t.attemptProcessing, imported: t.attemptImported, undone: t.attemptUndone } as Record<string, string>)[attempt] ?? attempt;
   const templateFile = trpc.dataImports.template.useMutation({ onSuccess: file => {
     const bytes = Uint8Array.from(window.atob(file.base64), value => value.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: file.contentType })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = file.fileName; anchor.click(); URL.revokeObjectURL(url);
@@ -282,8 +322,10 @@ export function ProjectImports({ tenantId, projectId }: { tenantId: string; proj
       </div>}
       {progress.error && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError(progress.error, isArabic)}</p>}
       {confirm.error && <p className="mt-3 text-xs text-red-700">{getLocalizedProjectError(confirm.error, isArabic)}</p>}
+      {(discard.error || rollback.error) && <p role="alert" className="mt-3 text-xs text-red-700">{getLocalizedProjectError((discard.error ?? rollback.error)!, isArabic)}</p>}
+      {replacing && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900" data-testid="replace-note">{t.replaceNote}</p>}
       <SourceNotice query={imports} isArabic={isArabic} title={pickLanguage(language, { ar: "سجل الاستيرادات السابقة", en: "Previous imports", ur: "پچھلے امپورٹس" })} />
-      {imports.data?.length ? <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.history}</h3><div className="mt-2 space-y-2">{imports.data.slice(0, 5).map(record => <div className="rounded-lg bg-slate-50 p-2 text-xs" key={record.id}><div className="flex items-center justify-between gap-3"><span className="min-w-0 truncate">{record.fileName}</span><span className="text-slate-500">{t.status[record.status] ?? record.status}</span></div><p className="mt-1 text-slate-500">{t.duplicate[record.duplicateMode as DuplicateMode] ?? record.duplicateMode}</p>{record.status === "completed" && <p className="mt-1 text-slate-600">{t.created}: {record.createdRows} · {t.updated}: {record.updatedRows} · {t.skipped}: {record.skippedRows}</p>}<div className="mt-2 flex flex-wrap gap-2">{record.status === "validated" && <Button type="button" size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: record.id })}>{t.confirm}</Button>}<Button type="button" size="sm" variant="outline" onClick={() => setSelectedImportId(record.id)}>{t.viewDetails}</Button></div></div>)}</div></div> : null}
+      {imports.data?.length ? <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.history}</h3><div className="mt-2 space-y-2">{imports.data.slice(0, 20).map(row => { const record = { ...row, attempt: attemptState({ status: row.status, errorCount: Number((row as { errorCount?: number }).errorCount ?? 0) }) }; return <div className="rounded-lg bg-slate-50 p-2 text-xs" key={record.id} data-testid={`import-attempt-${record.attempt}`}><div className="flex items-center justify-between gap-3"><span className="min-w-0 truncate">{record.fileName}</span><span className={record.attempt === "rejected" ? "font-medium text-red-700" : "text-slate-500"}>{attemptLabel(record.attempt)}</span></div><p className="mt-1 text-slate-500">{t.duplicate[record.duplicateMode as DuplicateMode] ?? record.duplicateMode}</p>{record.status === "completed" && <p className="mt-1 text-slate-600">{t.created}: {record.createdRows} · {t.updated}: {record.updatedRows} · {t.skipped}: {record.skippedRows}</p>}<div className="mt-2 flex flex-wrap gap-2">{record.status === "validated" && <Button type="button" size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate({ tenantId, projectId, importId: record.id })}>{t.confirm}</Button>}<Button type="button" size="sm" variant="outline" onClick={() => setSelectedImportId(record.id)}>{t.viewDetails}</Button>{(record.attempt === "rejected" || record.attempt === "awaiting" || record.attempt === "undone") && <Button type="button" size="sm" variant="outline" disabled={discard.isPending} onClick={() => { if (window.confirm(t.discardAsk)) discard.mutate({ tenantId, projectId, importId: record.id }); }}>{t.discard}</Button>}{record.attempt === "imported" && <WriteGate permission="project.manage" projectId={projectId}><Button type="button" size="sm" variant="outline" disabled={rollback.isPending} onClick={() => { if (window.confirm(t.rollbackAsk)) rollback.mutate({ tenantId, projectId, importId: record.id }); }}>{t.rollback}</Button></WriteGate>}{record.attempt === "imported" && isReplaceable(record.moduleCode) && <Button type="button" size="sm" variant="outline" onClick={() => { if (isReplaceable(record.moduleCode)) setModuleCode(record.moduleCode); setDuplicateMode("upsert"); setReplacing(record.id); }}>{t.replace}</Button>}</div></div>; })}</div></div> : null}
       {selectedImportId && <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-sm font-medium">{t.details}</h3>{detail.error && <p className="mt-2 text-xs text-red-700">{getLocalizedProjectError(detail.error, isArabic)}</p>}{selected && <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs"><p className="font-medium">{selected.fileName}</p><p className="mt-1 text-slate-500">{t.duplicate[selected.duplicateMode as DuplicateMode] ?? selected.duplicateMode}</p>{selected.rowResults.length ? <div className="mt-3"><p className="font-medium">{t.results}</p><ul className="mt-1 space-y-1">{selected.rowResults.slice(0, 20).map(result => <li key={`${result.rowNumber}-${result.action}`} className="flex justify-between gap-3"><span>#{result.rowNumber} · {result.rowKey}</span><span>{t.action[result.action]}</span></li>)}</ul></div> : <p className="mt-3 text-slate-500">{t.noRowResults}</p>}{selected.errors.length ? <div className="mt-3"><p className="font-medium">{t.validationErrors}</p><ul className="mt-1 space-y-1">{selected.errors.slice(0, 20).map(error => <li key={`${error.rowNumber}-${error.code}`}>#{error.rowNumber} · {error.code}</li>)}</ul></div> : null}</div>}</div>}
     </section>
   );

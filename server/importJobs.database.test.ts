@@ -174,8 +174,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     // the dead row released its hash: the genuine file goes through
     const again = await upload(importer, { name: "tampered.xer", bytes: xer.bytes, format: "xer" });
     expect((await pollUntilDone(importer, again.registered.id)).view).toMatchObject({ status: "validated" });
-    // and re-analysing the dead row would now collide with the live one, so it says so
-    await expect(importer.dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: {} })).rejects.toThrow("PROJECT_OS_IMPORT_DUPLICATE_DETECTED");
+    // an unconfirmed copy never blocks another (2026-10-27): only a CONFIRMED import holds its file's hash, so there is no collision to report here
   }, 120_000);
 
   it("refuses what must not become an import: a key from another company, a traversal, nothing uploaded, an oversize object, a repeat of the same file", async () => {
@@ -192,8 +191,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     s3.objects.set(empty, { body: Buffer.alloc(0), type: "text/plain", modified: new Date() });
     await expect(importer.dataImports.registerUpload({ ...base, uploadKey: empty })).rejects.toThrow("PROJECT_OS_IMPORT_FILE_INVALID");
     const xer = syntheticXer(32 * 1024, 3);
-    const first = await upload(importer, { name: "same.xer", bytes: xer.bytes, format: "xer" });
+    const first = await upload(importer, { name: "same.xer", bytes: xer.bytes, format: "xer" }, { duplicateMode: "upsert" }); // upsert: earlier tests of this file already created these codes
     await pollUntilDone(importer, first.registered.id);
+    // an unconfirmed copy does not block the same file (owner order 2026-10-27) ...
+    const early = await upload(importer, { name: "same-early.xer", bytes: xer.bytes, format: "xer" });
+    expect((await pollUntilDone(importer, early.registered.id)).view.status).toBe("validated");
+    // ... a CONFIRMED one does
+    const confirming = await importer.dataImports.confirm({ ...scope, importId: first.registered.id });
+    if (confirming.status === "importing") await pollUntilDone(importer, first.registered.id);
+    expect((await rowOf(first.registered.id)).status).toBe("completed");
     await expect(upload(importer, { name: "same-again.xer", bytes: xer.bytes, format: "xer" })).rejects.toThrow("PROJECT_OS_IMPORT_DUPLICATE_DETECTED");
     const objectsFor = Array.from(s3.objects.keys()).filter(key => key.startsWith(`imports/${T}/${P}/pending/`) && key.endsWith("same-again.xer"));
     expect(objectsFor).toEqual([]); // the duplicate's object was removed
