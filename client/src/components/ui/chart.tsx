@@ -1,4 +1,5 @@
 import * as React from "react";
+import { formatAmount } from "@/components/ds/format";
 import * as RechartsPrimitive from "recharts";
 
 import { cn } from "@/lib/utils";
@@ -237,7 +238,7 @@ function ChartTooltipContent({
                       </div>
                       {item.value && (
                         <span className="text-foreground font-mono font-medium tabular-nums">
-                          {item.value.toLocaleString()}
+                          {typeof item.value === "number" ? formatAmount(item.value) : item.value}
                         </span>
                       )}
                     </div>

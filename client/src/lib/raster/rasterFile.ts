@@ -1,5 +1,6 @@
 // Browser-only: decodes a PNG, JPEG or one page of a PDF into grey pixels. The file stays in the browser.
 // Images longer than MAX_RASTER_SIDE pixels are scaled down so detection stays within memory.
+import { CANVAS_WHITE } from "@/design/literalColours";
 import { rgbaToGray, type GrayImage } from "./rasterCore";
 
 export const MAX_RASTER_SIDE = 3000;
@@ -59,7 +60,7 @@ async function drawToGray(width: number, height: number, draw: (context: CanvasR
   canvas.height = height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("2D canvas is not available");
-  context.fillStyle = "#ffffff";
+  context.fillStyle = CANVAS_WHITE;
   context.fillRect(0, 0, width, height);
   await draw(context);
   const pixels = context.getImageData(0, 0, width, height);

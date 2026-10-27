@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatNumber } from "@/components/ds/format";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React from "react";
@@ -22,7 +23,7 @@ export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
   const liability = trpc.employees.payroll.eosLiability.useQuery({ tenantId }, { enabled: allowed });
   if (capabilities.error) return <SourceNotice query={capabilities} isArabic={isArabic} title={t.eosLiability} />;
   if (!allowed) return null;
-  const money = (value: number) => new Intl.NumberFormat(pickLanguage(language, { ar: "ar-SA", en: "en-SA", ur: "ur-PK" }), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+  const money = (value: number) => formatNumber(value, 2);
   // The export is the month table only: the total row is on screen, not a data row, and the per-employee list is not a table.
   const rows = liability.data?.months ?? [];
   const columns: ExportColumn<(typeof rows)[number]>[] = [

@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/profitabilityView";
+import { formatDate } from "@/components/ds/format";
 import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export function ProjectPurchaseOrders({ tenantId, projectId }: { tenantId: strin
   const create = trpc.purchaseOrders.create.useMutation({ onSuccess: () => { setDraft({ contractId: "", commitmentId: "", wbsItemId: "", purchaseOrderNumber: "", supplierId: "", supplierName: "", orderDate: today, amount: "", currency: "SAR", summary: "" }); setNotice(t.saved); void list.refetch(); } });
   const transition = trpc.purchaseOrders.transitionStatus.useMutation({ onSuccess: () => { setNotice(t.moved); void list.refetch(); } });
   const error = list.error ?? commercial.error ?? create.error ?? transition.error;
-  const displayDate = (value: Date | string) => new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value));
+  const displayDate = (value: Date | string) => formatDate(value, language);
   const displayAmount = (value: string, currency: string) => formatMoney(Number(value), currency, isArabic, 2);
   if (list.isLoading || commercial.isLoading) return null;
   if (!list.data || !commercial.data) return <p className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>;

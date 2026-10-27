@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { formatAmount } from "@/components/ds/format";
 import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,7 +130,7 @@ export default function ExecutiveDashboard() {
     decisions: decisionsQuery.data?.decisions ?? [],
   };
   const money = (value: number) =>
-    value.toLocaleString(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { maximumFractionDigits: 0 });
+    formatAmount(value, 0);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({ tenantId, ...form });

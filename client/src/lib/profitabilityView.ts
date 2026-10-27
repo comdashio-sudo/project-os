@@ -1,4 +1,5 @@
 import { isRtlLanguage, pickLanguage, resolveLanguage, type Language } from "./language";
+import { formatAmount, formatNumber } from "@/components/ds/format";
 
 // Presentation helpers for the profitability screen. No arithmetic on money
 // lives here: every figure arrives computed from the server.
@@ -22,16 +23,14 @@ export const riyalLabel = (language: Language | boolean) => pickLanguage(resolve
 export function formatMoney(value: number, currency: string, language: Language | boolean, fractionDigits = 0) {
   void currency;
   const lang = resolveLanguage(language);
-  const number = new Intl.NumberFormat(numberLocale(lang), { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(Math.abs(value));
+  const number = formatNumber(Math.abs(value), fractionDigits);
   return isolate(`${value < 0 ? "-" : ""}${number} ${riyalLabel(lang)}`, lang);
 }
 
-/** The digits and grouping: Arabic and Urdu keep Latin digits (the screen reads the same numbers in every language). */
-const numberLocale = (lang: Language) => pickLanguage(lang, { ar: "ar-SA-u-nu-latn", en: "en-US", ur: "ur-PK-u-nu-latn" });
 
 export const formatPercent = (value: number | null, language: Language | boolean) => {
   const lang = resolveLanguage(language);
-  return value === null ? "—" : isolate(`${new Intl.NumberFormat(numberLocale(lang), { signDisplay: "negative", maximumFractionDigits: 1 }).format(value)}%`, lang);
+  return value === null ? "—" : isolate(`${formatAmount(value, 1)}%`, lang);
 };
 
 /** Colour and arrow for a profit change: profit going up is good, down is bad. */

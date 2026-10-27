@@ -1,4 +1,5 @@
 import { pickLanguage } from "@/lib/language";
+import { formatDateTime } from "@/components/ds/format";
 import React from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState } from "react";
@@ -13,7 +14,7 @@ export function OfflineCopyNotice({ copiedAt }: { copiedAt: number | null }) {
     return () => { window.removeEventListener("offline", down); window.removeEventListener("online", up); };
   }, []);
   if (!offline || copiedAt === null) return null;
-  const when = new Intl.DateTimeFormat(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK-u-nu-latn" }), { dateStyle: "medium", timeStyle: "short" }).format(new Date(copiedAt));
+  const when = formatDateTime(new Date(copiedAt), language);
   return (
     <p role="status" data-testid="offline-copy-notice" className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-900 print:hidden" dir={isRtl ? "rtl" : "ltr"}>
       {pickLanguage(language, {

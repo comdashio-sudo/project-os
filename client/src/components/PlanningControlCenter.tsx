@@ -1,4 +1,5 @@
 import React from "react";
+import { formatNumber } from "@/components/ds/format";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, Scale, TimerReset } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { calculatePlanningControl, formatPlanningAmount, formatPlanningPercent, planningControlLabel, type PlanningControlResult } from "@/lib/planningControl";
@@ -33,8 +34,8 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
         <Metric icon={TimerReset} label={t.coverage} value={formatPlanningPercent(result.progressCoverage)} detail={`${t.overdue}: ${result.overdueActivities} · ${t.blocked}: ${result.blockedActivities}`} />
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <Metric label={t.quantities} value={`${result.issuedQuantity.toFixed(3)} / ${result.requestedQuantity.toFixed(3)}`} detail={`${t.issued} · ${t.remaining}: ${result.remainingQuantity.toFixed(3)}`} />
-        <Metric label={t.onHand} value={result.onHandQuantity.toFixed(3)} detail={`${result.unfulfilledRequisitions} ${pickLanguage(language, { ar: "طلبات غير مكتملة", en: "unfulfilled requisitions", ur: "نامکمل درخواستیں" })}`} />
+        <Metric label={t.quantities} value={`${formatNumber(result.issuedQuantity, 3)} / ${formatNumber(result.requestedQuantity, 3)}`} detail={`${t.issued} · ${t.remaining}: ${formatNumber(result.remainingQuantity, 3)}`} />
+        <Metric label={t.onHand} value={formatNumber(result.onHandQuantity, 3)} detail={`${result.unfulfilledRequisitions} ${pickLanguage(language, { ar: "طلبات غير مكتملة", en: "unfulfilled requisitions", ur: "نامکمل درخواستیں" })}`} />
         <Metric label={t.schedule} value={`${result.overdueActivities} / ${result.blockedActivities}`} detail={`${t.overdue} / ${t.blocked}`} />
       </div>
       <div className="mt-4 rounded-xl bg-white/80 p-4">

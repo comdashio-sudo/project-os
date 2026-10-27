@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { formatNumber } from "@/components/ds/format";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -56,7 +57,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
     <section aria-label={t.title} className="mt-6 rounded-xl border p-4" data-testid="labour-card">
       <h3 className="text-base font-semibold">{t.title}</h3>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
-        <p><span className="text-sm text-slate-500">{t.factor}: </span><b data-testid="labour-factor">{data.effectiveLoadingFactor === null ? "—" : `×${data.effectiveLoadingFactor.toFixed(2)}`}</b></p>
+        <p><span className="text-sm text-slate-500">{t.factor}: </span><b data-testid="labour-factor">{data.effectiveLoadingFactor === null ? "—" : `×${formatNumber(data.effectiveLoadingFactor, 2)}`}</b></p>
         <p><span className="text-sm text-slate-500">{t.loadedCost}: </span><b>{formatMoney(data.loadedCost, currency, isArabic)}</b></p>
       </div>
       <p className="mt-1 text-sm text-slate-600">{data.approvedEntries === 0 ? t.none : t.priced(data.loadedEntries, data.resourceEntries, data.hours)}</p>

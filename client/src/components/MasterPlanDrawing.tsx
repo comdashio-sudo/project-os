@@ -2,6 +2,7 @@
 // let a person confirm each link, colour the map by unit status, and export the confirmed links.
 // The file never leaves the browser, and nothing is saved on the server (G-189).
 import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { FileButton } from "@/components/ds";
 import { ListSelect, Option } from "@/components/ds";
 import { trpc } from "@/lib/trpc";
 import { latestVersionId } from "@/lib/masterPlanDrawingLayout";
@@ -353,10 +354,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       {plansQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-input bg-card px-4 text-sm font-medium">
-          {t.upload}
-          <input type="file" accept=".dxf,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
-        </label>
+        <FileButton label={t.upload} accept=".dxf,.png,.jpg,.jpeg,.pdf" onChange={onFile} disabled={units.length === 0} />
         {pdfSource && pdfSource.pageCount > 1 ? (
           <label className="flex flex-col text-xs">
             {t.page}
@@ -398,7 +396,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         points={points}
                         fill={polygonFill(item, unit?.status ?? null)}
                         fillOpacity={0.75}
-                        stroke={isSelected ? "#111827" : "#475569"}
+                        stroke={isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
                         strokeWidth={isSelected ? 0.4 : 0.15}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
                         role="button"
@@ -408,7 +406,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setSelectedId(polygon.id); }}
                         style={{ cursor: "pointer" }}
                       />
-                      {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="#111827" pointerEvents="none">{item.unitCode}</text> : null}
+                      {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="var(--foreground)" pointerEvents="none">{item.unitCode}</text> : null}
                     </g>
                   );
                 })}

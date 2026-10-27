@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/components/ds/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +31,7 @@ export default function MyPerformance() {
     [t.assigned, metrics.assignedCount, Target], [t.completed, metrics.completedCount, ShieldCheck], [t.overdue, metrics.overdueCount, FileWarning], [t.onTime, metrics.onTimeCompletionPercent === null ? t.notApplicable : `${metrics.onTimeCompletionPercent}%`, Clock3], [t.response, metrics.averageResponseHours === null ? t.notApplicable : `${metrics.averageResponseHours} ${t.hours}`, TimerReset], [t.open, metrics.openCount, AlertCircle],
   ] as const : [];
   return <main className="min-h-screen bg-background text-foreground"><div className="container py-7 space-y-6" dir={isRtl ? "rtl" : "ltr"}>
-    <section className="rounded-3xl bg-[var(--dashio-indigo)] text-white p-6 md:p-8 shadow-xl"><p className="text-xs font-semibold tracking-[0.18em] uppercase text-white/90">PROJECT OS · {query.data?.employee.employeeNumber ?? "—"}</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{t.title}</h1><p className="mt-2 max-w-3xl text-white/80">{t.subtitle}</p>{metrics && <p className="mt-4 text-sm text-white/70">{t.generated}: {metrics.generatedAt.toLocaleString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK" }))}</p>}</section>
+    <section className="rounded-3xl bg-[var(--dashio-indigo)] text-white p-6 md:p-8 shadow-xl"><p className="text-xs font-semibold tracking-[0.18em] uppercase text-white/90">PROJECT OS · {query.data?.employee.employeeNumber ?? "—"}</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{t.title}</h1><p className="mt-2 max-w-3xl text-white/80">{t.subtitle}</p>{metrics && <p className="mt-4 text-sm text-white/70">{t.generated}: {formatDateTime(metrics.generatedAt, language)}</p>}</section>
     {query.isLoading && <Card><CardContent className="py-8 text-sm text-muted-foreground">{t.loading}</CardContent></Card>}
     {query.error && <ErrorState isArabic={isArabic} error={query.error} title={t.error} onRetry={() => query.refetch()} retrying={query.isFetching} />}
     {metrics && <><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(([label, value, Icon]) => <Card key={label}><CardContent className="flex items-center justify-between p-5"><div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div><Icon className="h-5 w-5 text-[var(--dashio-aqua)]" /></CardContent></Card>)}</section>

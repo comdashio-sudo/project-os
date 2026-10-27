@@ -161,14 +161,14 @@ export function exportLinksJson(items: ReviewItem[]): string {
 // Colour by unit status, from masterPlanSpatialEntities.status. Proposed and unlinked shapes get fixed neutral
 // colours so a reviewer can tell them apart from confirmed status colours. Status is also written as text beside the map.
 export const UNIT_STATUS_COLOUR: Record<string, string> = {
-  not_started: "#94a3b8",
-  in_progress: "#d97706",
-  completed: "#0e6b70",
-  blocked: "#D62839",
+  not_started: "var(--muted-foreground)",
+  in_progress: "var(--warning)",
+  completed: "var(--primary)",
+  blocked: "var(--destructive)",
 };
-export const PROPOSED_COLOUR = "#bfdbfe";
-export const UNLINKED_COLOUR = "#e5e7eb";
-const FALLBACK_STATUS_COLOUR = "#94a3b8";
+export const PROPOSED_COLOUR = "var(--info-soft)";
+export const UNLINKED_COLOUR = "var(--muted)";
+const FALLBACK_STATUS_COLOUR = "var(--muted-foreground)";
 
 export function polygonFill(item: ReviewItem, unitStatus: string | null): string {
   if (item.state === "proposed") return PROPOSED_COLOUR;

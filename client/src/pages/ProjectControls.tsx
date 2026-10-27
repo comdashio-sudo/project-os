@@ -1,4 +1,5 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
+import { formatDate } from "@/components/ds/format";
 import { CheckedForm } from "@/components/CheckedForm";
 import { MetricCard, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
@@ -165,7 +166,7 @@ export default function ProjectControls() {
   };
   const healthStatusLabel = (status: string) => ({ green: pickLanguage(language, { ar: "أخضر", en: "Green", ur: "سبز" }), amber: pickLanguage(language, { ar: "كهرماني", en: "Amber", ur: "نارنجی" }), red: pickLanguage(language, { ar: "أحمر", en: "Red", ur: "سرخ" }) }[status] ?? status);
   const healthConfidenceLabel = (confidence: string) => ({ low: pickLanguage(language, { ar: "منخفضة", en: "Low", ur: "کم" }), medium: pickLanguage(language, { ar: "متوسطة", en: "Medium", ur: "متوسط" }), high: pickLanguage(language, { ar: "مرتفعة", en: "High", ur: "زیادہ" }) }[confidence] ?? confidence);
-  const dateLabel = (value: Date | string | null) => value ? new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value)) : "—";
+  const dateLabel = (value: Date | string | null) => value ? formatDate(value, language) : "—";
   const sheet = pickLanguage(language, {
     ar: { open: "إدخال جدولي (لصق من Excel)", wbs: "جدول بنود هيكل تجزئة العمل", budget: "جدول بنود الميزانية", wbsCode: "رمز بند WBS (فارغ = المشروع)", unknownWbs: "لا بند WBS بهذا الرمز في المشروع" },
     en: { open: "Sheet entry (paste from Excel)", wbs: "WBS items sheet", budget: "Budget lines sheet", wbsCode: "WBS code (empty = the project)", unknownWbs: "No WBS item with this code in the project" },

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { formatMonthShort } from "@/components/ds/format";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -35,7 +36,7 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: date =>
-          date.toLocaleString("default", { month: "short" }),
+          formatMonthShort(date),
         ...formatters,
       }}
       classNames={{

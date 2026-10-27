@@ -16,12 +16,16 @@ const SCAN = ["client/src"];
 const STRICT = [/^client\/src\/components\/ds\//, /^client\/src\/design\//, /^client\/src\/pages\/DesignPreview(Frame)?\.tsx$/];
 const LIBRARY = /^client\/src\/components\/ds\//;
 const FORMAT_MODULE = "client/src/components/ds/format.ts";
+// The colour rule's two named exceptions. The literal-colour module holds the few values that are data or output, not paint (a canvas
+// background, the defaults of colours a project saves); chart.tsx's [stroke='#ccc'] are attribute selectors that find recharts' own
+// default strokes so they can be replaced by tokens — they paint nothing.
+const COLOUR_EXEMPT = new Set(["client/src/design/literalColours.ts", "client/src/components/ui/chart.tsx"]);
 
 const rules = {
   "western-digits": { test: text => count(text, /[٠-٩۰-۹]/g), inLibrary: true },
   "raw-file-input": { test: text => count(text, /<input\b[^>]*\btype=["']file["']/g), inLibrary: false },
   "raw-select": { test: text => count(text, /<select[\s>]/g) + count(text, /<option[\s>]/g), inLibrary: false },
-  "hardcoded-colour": { test: text => count(text, /\[#[0-9a-fA-F]{3,8}\]/g) + count(text, /(?:fill|stroke|color|background(?:Color)?|borderColor)\s*[:=]\s*\{?["'`]#[0-9a-fA-F]{3,8}["'`]/g) + count(text, /["'`]#[0-9a-fA-F]{6}["'`]/g) + count(text, /\b(?:rgb|rgba|hsl|hsla|oklch)\(/g), inLibrary: true },
+  "hardcoded-colour": { test: (text, file) => COLOUR_EXEMPT.has(file) ? 0 : count(text, /\[#[0-9a-fA-F]{3,8}\]/g) + count(text, /(?:fill|stroke|color|background(?:Color)?|borderColor)\s*[:=]\s*\{?["'`]#[0-9a-fA-F]{3,8}["'`]/g) + count(text, /["'`]#[0-9a-fA-F]{6}["'`]/g) + count(text, /\b(?:rgb|rgba|hsl|hsla|oklch)\(/g), inLibrary: true },
   "number-format": { test: (text, file) => (file === FORMAT_MODULE ? 0 : count(text, /\.toLocaleString\(/g) + count(text, /\bIntl\.(?:NumberFormat|DateTimeFormat)\b/g) + count(text, /\.toFixed\(/g)), inLibrary: true },
 };
 function count(text, pattern) { return (text.match(pattern) ?? []).length; }

@@ -2,6 +2,7 @@
 // transmittals, review comments and the consultant submittals with replies A/B/C/D. Every write is shown only to someone who holds its power
 // (WriteGate); the server judges every call anyway, including the rules about people (the one who issued a revision does not approve it).
 import React, { useState } from "react";
+import { formatDate } from "@/components/ds/format";
 import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import { DESIGN_DISCIPLINES } from "@shared/designDisciplines";
 import { pickLanguage, type Language } from "@/lib/language";
 
 const field = "mt-1 block min-h-[44px] w-full rounded-lg border border-input bg-card px-3 text-sm";
-const when = (value: Date | string | null | undefined, language: Language) => value ? new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value)) : "—";
+const when = (value: Date | string | null | undefined, language: Language) => value ? formatDate(value, language) : "—";
 const noWrite = (ar: string, en: string, ur: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `آپ کو ${ur} کی اجازت نہیں ہے؛ یہ حصہ آپ کے لیے صرف دیکھنے کے لیے ہے۔` });
 
 export function ProjectDesign({ tenantId, projectId }: { tenantId: string; projectId: string }) {

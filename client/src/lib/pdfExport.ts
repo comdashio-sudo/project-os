@@ -3,6 +3,8 @@
 // (text in it is not selectable — that is the stated trade-off, and the browser print route stays beside it for selectable text).
 // html2canvas-pro (not html2canvas: the original throws on the oklch() colours the Tailwind 4 stylesheet uses — found by the live check, which the unit tests could not see) and jspdf are loaded on first use, so no one pays for them until a PDF is asked for.
 
+import { CANVAS_WHITE } from "@/design/literalColours";
+
 export type PdfSlice = { sourceY: number; sourceHeight: number; drawHeightMm: number };
 
 /** Cuts a canvas of the given pixel size into page-high slices for a page of the given millimetre size. Pure, so it is tested without a browser. */
@@ -33,7 +35,7 @@ export async function exportElementToPdf(element: HTMLElement, fileBase: string)
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
   const canvas = await html2canvas(element, {
     scale: 2,
-    backgroundColor: "#ffffff",
+    backgroundColor: CANVAS_WHITE,
     useCORS: false,
     logging: false,
     // The screen's own tools (filters, tabs, buttons) are not part of the report, exactly as in the print stylesheet.

@@ -1,4 +1,5 @@
 import { useOptionalLanguage } from "@/contexts/optionalLanguage";
+import { FileButton } from "@/components/ds";
 import { resolveLanguage } from "@/lib/language";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { Button } from "@/components/ui/button";
@@ -123,32 +124,33 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
   return (
     <div className="space-y-3" data-testid="direct-import">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">{fileLabel}<input aria-label={fileLabel} type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-1 block min-h-[44px] rounded-xl border border-slate-200 p-2 text-sm" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /></label>
+        <FileButton label={fileLabel} accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} />
+        {file ? <span className="min-h-11 content-center text-sm text-muted-foreground" dir="auto">{file.name}</span> : null}
         <Button type="button" className="min-h-[44px]" disabled={!file || busy || inFlight} onClick={() => void start()}><FileUp className="me-1 h-4 w-4" />{analyzeLabel}</Button>
       </div>
-      {localError && <p role="alert" className="text-sm text-red-700">{localError}</p>}
-      {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
+      {localError && <p role="alert" className="text-sm text-danger-soft-foreground">{localError}</p>}
+      {uploadError && <p role="alert" className="text-sm text-danger-soft-foreground">{uploadError}</p>}
       {uploadPercent !== null && <div role="status" aria-live="polite"><p className="text-sm">{t.uploading} ({uploadPercent}%)</p><progress className="mt-1 h-2 w-full" max={100} value={uploadPercent} aria-label={t.progressLabel} /></div>}
       {view && inFlight && <div role="status" aria-live="polite" data-testid="direct-import-progress">
         <p className="text-sm">{view.status === "analyzing" ? t.analyzing : t.importing}{view.progressStage ? ` — ${t.stage[view.progressStage] ?? view.progressStage}` : ""} ({view.progressPercent}%)</p>
         <progress className="mt-1 h-2 w-full" max={100} value={view.progressPercent} aria-label={t.progressLabel} />
       </div>}
-      {view?.status === "failed" && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+      {view?.status === "failed" && <div role="alert" className="rounded-xl border border-destructive/30 bg-danger-soft p-3 text-sm text-danger-soft-foreground">
         <p className="font-semibold">{t.failedTitle}</p>
         <p className="mt-1">{view.failureReason ? getProjectError(view.failureReason).messages[lang] : t.failedTitle}</p>
       </div>}
       {view && (view.status === "uploaded" || view.status === "validated") && <div className="space-y-3">
         <p className="text-sm">{t.rows}: {view.totalRows}</p>
-        {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{errorLabel?.(error.code) ?? error.code}{error.field ? ` (${fieldLabel?.(error.field) ?? error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
+        {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-destructive/30 bg-danger-soft p-3 text-sm text-danger-soft-foreground"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{errorLabel?.(error.code) ?? error.code}{error.field ? ` (${fieldLabel?.(error.field) ?? error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
         {renderReport?.(view)}
         {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
-        {withDiff && diff.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(diff.error, lang)}</p>}
-        {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.nothingToConfirm}</p>}
+        {withDiff && diff.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(diff.error, lang)}</p>}
+        {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.nothingToConfirm}</p>}
         {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
       </div>}
-      {view?.status === "completed" && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
-      {confirm.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(confirm.error, lang)}</p>}
-      {progress.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(progress.error, lang)}</p>}
+      {view?.status === "completed" && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
+      {confirm.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(confirm.error, lang)}</p>}
+      {progress.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(progress.error, lang)}</p>}
     </div>
   );
 }
