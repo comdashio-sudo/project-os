@@ -129,7 +129,7 @@ export function GridEditor({ label, columns, onSaveRow, validateRow, initialRows
                     <td key={column.key} className="px-1 py-1">
                       <input aria-label={`${column.label} (${t.row} ${rowIndex + 1})`} value={row[column.key] ?? ""} disabled={locked} dir={column.dir ?? (column.kind === "number" ? "ltr" : undefined)} inputMode={column.kind === "number" ? "decimal" : undefined}
                         aria-invalid={state.status === "invalid" || undefined} onChange={event => setCell(rowIndex, column.key, event.target.value)} onPaste={paste(rowIndex, columnIndex)}
-                        className="min-h-10 w-full rounded-[calc(var(--radius)-2px)] border border-input bg-card px-2 text-sm text-foreground aria-[invalid=true]:border-destructive disabled:opacity-70" />
+                        className="min-h-11 w-full rounded-[calc(var(--radius)-2px)] border border-input bg-card px-2 md:min-h-10 text-sm text-foreground aria-[invalid=true]:border-destructive disabled:opacity-70" />
                     </td>
                   ))}
                   <td className="px-2 py-1 text-xs" aria-live="polite">

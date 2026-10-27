@@ -11,7 +11,7 @@ const variants: Record<ButtonVariant, string> = {
   ghost: "bg-transparent text-foreground border border-transparent hover:bg-muted active:bg-muted/80",
   danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 border border-transparent",
 };
-const sizes: Record<ButtonSize, string> = { sm: "min-h-9 px-3 text-sm gap-1.5", md: "min-h-11 px-4 text-sm gap-2 md:min-h-10", lg: "min-h-12 px-6 text-base gap-2.5" };
+const sizes: Record<ButtonSize, string> = { sm: "min-h-11 px-3 text-sm gap-1.5 md:min-h-9", md: "min-h-11 px-4 text-sm gap-2 md:min-h-10", lg: "min-h-12 px-6 text-base gap-2.5" };
 
 export function Spinner({ className = "" }: { className?: string }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className={cn("h-4 w-4 animate-spin motion-reduce:animate-none", className)} fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" /><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>;

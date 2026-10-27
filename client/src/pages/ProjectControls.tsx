@@ -198,7 +198,7 @@ export default function ProjectControls() {
           </div>
           <nav aria-label={pickLanguage(language, { ar: "صفحات المشروع", en: "Project pages", ur: "پروجیکٹ کے صفحات" })} className="flex flex-wrap gap-2 print:hidden">
             {([["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
-              <Link key={path} href={`/projects/${tenantId}/${projectId}/${path}`} className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-input px-3 text-sm font-medium text-foreground hover:bg-muted">{label}</Link>
+              <Link key={path} href={`/projects/${tenantId}/${projectId}/${path}`} className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-input px-3 md:min-h-10 text-sm font-medium text-foreground hover:bg-muted">{label}</Link>
             ))}
           </nav>
         </header>
