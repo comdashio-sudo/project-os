@@ -15,6 +15,11 @@ permissions:
   contents: write
   deployments: read
 
+# one at a time; never cancelled half-way (it writes to production or reads its logs once)
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
 jobs:
   promote:
     name: check the preview, then promote
