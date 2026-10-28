@@ -1,3 +1,6 @@
+import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
+import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
+import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
 import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
@@ -87,7 +90,7 @@ const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "s
 const uploadModuleSchema = z.union([importModuleSchema, z.enum(EXTERNAL_MODULES)]);
 const importContextSchema = z.object({ masterPlanVersionId: z.string().uuid().optional() }).strict();
 const importDuplicateModeSchema = z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
-const smartKindSchema = z.enum(["xer", "unitMatrix", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
+const smartKindSchema = z.enum(["xer", "unitMatrix", "consultantExport", "siteWorkbook", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
 const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max(64).nullable()).transform(value => Object.fromEntries(Object.entries(value).map(([key, field]) => [Number(key), field])) as Record<number, string | null>).refine(value => Object.keys(value).length <= 80, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" });
 /** Which file formats a module accepts: a schedule is xlsx or XER, every other module xlsx or csv. */
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
@@ -217,6 +220,25 @@ export const appRouter = router({
     registerUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), uploadKey: z.string().min(1).max(1024), context: importContextSchema.optional(), duplicateMode: importDuplicateModeSchema.optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).refine(value => Object.keys(value).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => registerImportUpload({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
+  }),
+  // Work order 22: the site ↔ the consultant ↔ the monthly report (server/pmcSiteService.ts, server/consultantImport.ts, server/wo22Exports.ts)
+  pmcSite: router({
+    activities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listSiteActivities({ userId: ctx.user.id, ...input })),
+    confirmLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), links: z.array(z.object({ siteActivityId: z.string().uuid(), activityCodes: z.array(z.string().min(1).max(80)).max(20) })).min(1).max(500) })).mutation(({ ctx, input }) => confirmSiteActivityLinks({ userId: ctx.user.id, ...input })),
+    consultantColumns: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listConsultantColumns({ userId: ctx.user.id, ...input })),
+    linkConsultantColumns: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), links: z.array(z.object({ columnId: z.string().uuid(), activityCode: z.string().min(1).max(80).nullable() })).min(1).max(500) })).mutation(({ ctx, input }) => linkConsultantColumns({ userId: ctx.user.id, ...input })),
+    // one entry for several villas: a list, a range «268-272», or a whole block; refused before anything is written when anything is wrong
+    update: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), siteActivityId: z.string().uuid(), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(["NOT_STARTED", "IN_PROGRESS", "DONE", "INSPECTION_REQUESTED", "QC_APPROVED"]), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).mutation(({ ctx, input }) => updateSiteStatus({ userId: ctx.user.id, ...input })),
+    history: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), siteActivityId: z.string().uuid() })).query(({ ctx, input }) => siteCellHistory({ userId: ctx.user.id, ...input })),
+    percentages: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcSourcePercentages({ userId: ctx.user.id, ...input })),
+    comparison: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(["site_done_not_received", "received_not_done"]).optional(), zone: z.string().max(80).optional(), block: z.string().max(255).optional(), section: z.string().max(255).optional(), villa: z.string().max(40).optional(), minAgeDays: z.number().int().min(0).max(10_000).optional(), offset: z.number().int().min(0).max(1_000_000).optional(), limit: z.number().int().min(1).max(2000).optional() })).query(({ ctx, input }) => pmcComparison({ userId: ctx.user.id, ...input })),
+    saveNote: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityCode: z.string().min(1).max(80), note: z.string().max(2000) })).mutation(({ ctx, input }) => savePmcCellNote({ userId: ctx.user.id, ...input })),
+    act: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), action: z.enum(["create_inspection", "update_site"]), items: z.array(z.object({ unitId: z.string().uuid(), activityCode: z.string().min(1).max(80) })).min(1).max(2000), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).mutation(({ ctx, input }) => actOnDifferences({ userId: ctx.user.id, ...input })),
+    exportComparison: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).mutation(({ ctx, input }) => exportComparisonWorkbook({ userId: ctx.user.id, ...input })),
+    exportMonthlyReport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), source: z.enum(["site", "monthly"]).optional(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).mutation(({ ctx, input }) => exportMonthlyReportWorkbook({ userId: ctx.user.id, ...input })),
+    canSeeFinancials: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => canSeeFinancials({ userId: ctx.user.id, ...input })),
+    earnedValue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcEarnedValue({ userId: ctx.user.id, ...input })),
+    curve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcSiteCurve({ userId: ctx.user.id, ...input })),
   }),
   // Smart import («ارفع أي ملف»): the original goes to Storage, the platform works out what it is, the person corrects and approves, the existing importer takes over.
   smartImport: router({

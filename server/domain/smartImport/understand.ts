@@ -1,6 +1,8 @@
 import type { Concept } from "./dictionary";
 import { inferDateOrder, parseDate, type DateOrder } from "./dates";
 import { KINDS, KIND_CODES, type FieldType, type KindCode, type KindDefinition, type TableKindCode } from "./kinds";
+import { detectConsultantExport } from "./consultantExport";
+import { isSiteWorkbook } from "./siteWorkbook";
 import { detectMatrix, reconcile, validateMatrix, weightPercents, type MatchReport, type MatrixIssue, type MatrixModel } from "./matrix";
 import { AUTO_THRESHOLD, isAuto, mapColumns, type ColumnMatch } from "./mapper";
 import { parseNumber } from "./numbers";
@@ -124,6 +126,9 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
     const detected = detectMatrix(sheet);
     if (detected.ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "unitMatrix", kindConfidence: 0.98, sheet: sheet.name, matrix: summariseMatrix(detected.model), table: null, candidates: [{ sheet: sheet.name, kind: "unitMatrix", score: 0.98, rows: detected.model.units.length }], warnings: detected.model.warnings };
   }
+  // work order 22: the consultant's weekly export and the site's old workbook, by their structure
+  for (const sheet of grid.sheets) if (detectConsultantExport(sheet).ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "consultantExport", kindConfidence: 0.97, sheet: sheet.name, table: null };
+  if (isSiteWorkbook(grid.sheets)) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "siteWorkbook", kindConfidence: 0.95, sheet: null, table: null };
   const tables = grid.sheets.map(sheet => ({ sheet, table: tabulate(sheet) })).filter((item): item is { sheet: SheetGrid; table: Table } => item.table !== null && item.table.dataRows.length > 0);
   const result: Understanding = { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(sheet => sheet.name) };
   if (!tables.length) return { ...result, warnings: ["NO_TABLE_FOUND"] };
