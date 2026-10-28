@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { WriteGate } from "@/lib/permissions";
+import { SourceNotice } from "@/components/SectionResilience";
 import { trpc } from "@/lib/trpc";
 import { wo22Text } from "@/lib/wo22Text";
 
@@ -72,6 +73,7 @@ export default function PmcSiteUpdate() {
       <WriteGate permission="project.pmc.update" projectId={projectId}>
         <Card>
           <CardBody className="flex flex-col gap-4">
+            <SourceNotice query={activities} isArabic={language === "ar"} title={t.update.activity} />
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
                 <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>

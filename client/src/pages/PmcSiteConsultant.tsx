@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, formatNumber, formatPercent, notify } from "@/components/ds";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
+import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -86,6 +87,8 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <SourceNotice query={query} isArabic={language === "ar"} title={t.listTitle} />
+      <SourceNotice query={percentages} isArabic={language === "ar"} title={t.byZone} />
       <Card>
         <CardHeader><CardTitle>{t.summaryTitle}</CardTitle></CardHeader>
         {query.isLoading ? <CardBody><SkeletonRows rows={4} /></CardBody> : (
@@ -167,6 +170,9 @@ function Matching({ scope, t }: { scope: Scope; t: Wo22Text }) {
   const unlinked = (columns.data ?? []).filter(column => !column.activityCode);
   return (
     <div className="flex flex-col gap-5">
+      <SourceNotice query={site} isArabic={language === "ar"} title={t.matchingSite} />
+      <SourceNotice query={catalog} isArabic={language === "ar"} title={t.catalogActivities} />
+      <SourceNotice query={columns} isArabic={language === "ar"} title={t.matchingWir} />
       <Card>
         <CardHeader><CardTitle>{t.matchingSite}</CardTitle><p className="text-sm text-muted-foreground">{t.matchingSiteLine}</p></CardHeader>
         {site.isLoading ? <CardBody><SkeletonRows rows={5} /></CardBody> : (
@@ -213,8 +219,10 @@ export function curvePath(values: Array<number | null>, width: number, height: n
 }
 
 function Curve({ scope, t }: { scope: Scope; t: Wo22Text }) {
+  const { language } = useLanguage();
   const query = trpc.pmcSite.curve.useQuery(scope);
   if (query.isLoading) return <SkeletonRows rows={6} />;
+  if (query.error) return <SourceNotice query={query} isArabic={language === "ar"} title={t.curveTitle} />;
   const points = query.data?.points ?? [];
   if (!points.length || points.every(point => point.plannedCumulative === null)) return <EmptyState title={t.noPlan} />;
   const width = 720; const height = 260;
@@ -254,6 +262,8 @@ function Exports({ scope, t }: { scope: Scope; t: Wo22Text }) {
   const earned = trpc.pmcSite.earnedValue.useQuery(scope, { enabled: financial.data === true });
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <SourceNotice query={financial} isArabic={language === "ar"} title={t.earnedValue} className="lg:col-span-2" />
+      <SourceNotice query={earned} isArabic={language === "ar"} title={t.earnedValue} className="lg:col-span-2" />
       <Card>
         <CardHeader><CardTitle>{t.exportComparison}</CardTitle><p className="text-sm text-muted-foreground">{t.exportComparisonLine}</p></CardHeader>
         <CardFooter><Button loading={comparison.isPending} onClick={() => comparison.mutate(scope)}>{t.download}</Button></CardFooter>

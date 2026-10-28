@@ -4,6 +4,7 @@ import { Badge, Card, CardBody, CardHeader, CardTitle, DataTable, Segmented, Ske
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { SourceNotice } from "@/components/SectionResilience";
 import { wo22Text } from "@/lib/wo22Text";
 import React, { useState } from "react";
 
@@ -19,6 +20,7 @@ export function SourcePercentages({ tenantId, projectId, levels = true }: { tena
   const query = trpc.pmcSite.percentages.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
   const [level, setLevel] = useState<"zone" | "block">("zone");
   if (query.isLoading) return <SkeletonRows rows={2} />;
+  if (query.error) return <SourceNotice query={query} isArabic={language === "ar"} title={t.sources.site} />;
   if (!query.data) return null;
   const { project, byZone, byBlock, readiness } = query.data;
   const kpis: Array<{ key: string; label: string; value: number }> = [
