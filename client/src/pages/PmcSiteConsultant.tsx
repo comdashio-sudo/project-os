@@ -1,7 +1,7 @@
 // Work order 22: «المقارنة: الموقع ↔ الاستشاري» — replaces the weekly Excel comparison. The summary by section, the differences of both kinds with their age and the site's note,
 // an action on one difference or on a selection («أنشئ طلب فحص» / «حدّث حالة الموقع»), the one-time matching (site ↔ report activities, consultant columns whose WIR differs),
 // the planned-against-actual S-curve, and the two Excel exports (the comparison with the old file's columns, and the monthly report in the shape sent to the consultant).
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, formatNumber, formatPercent, notify } from "@/components/ds";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
@@ -16,6 +16,10 @@ import { siteTodayInBrowser } from "./PmcSiteUpdate";
 type Scope = { tenantId: string; projectId: string };
 type Kind = "site_done_not_received" | "received_not_done";
 const PAGE = 200;
+/** The ds Select cannot hold an empty value, so «all» has its own. */
+const ALL = "__all";
+const fromSelect = (value: string) => (value === ALL ? "" : value);
+const toSelect = (value: string) => value || ALL;
 const keyOf = (row: { unitId: string; activityCode: string }) => `${row.unitId}|${row.activityCode}`;
 
 /** Which selected differences an action may act on: an inspection request for what the site finished, a site update for what the consultant already has. */
@@ -70,7 +74,7 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
   const saveNote = trpc.pmcSite.saveNote.useMutation({ onSuccess: () => { notify.success(t.noteSaved); void utils.pmcSite.comparison.invalidate(); }, onError: error => notify.error(getLocalizedProjectError(error, language)) });
 
   const rows = query.data?.rows ?? [];
-  const withAll = (label: string, values: string[]) => [{ value: "", label: `${label}: ${t.all}` }, ...values.filter(Boolean).map(value => ({ value, label: value }))];
+  const withAll = (label: string, values: string[]) => [{ value: ALL, label: `${label}: ${t.all}` }, ...values.filter(Boolean).map(value => ({ value, label: value }))];
   const zones = useMemo(() => withAll(t.filterZone, (percentages.data?.byZone ?? []).map(row => row.key)), [percentages.data, t]); // eslint-disable-line react-hooks/exhaustive-deps
   const blocks = useMemo(() => withAll(t.filterBlock, (percentages.data?.byBlock ?? []).map(row => row.key)), [percentages.data, t]); // eslint-disable-line react-hooks/exhaustive-deps
   const sections = useMemo(() => withAll(t.filterSection, (query.data?.summary ?? []).map(row => row.section)), [query.data, t]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,10 +103,10 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
       <Card>
         <CardHeader><CardTitle>{t.listTitle}</CardTitle></CardHeader>
         <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Select aria-label={t.filterKind} value={kind} onValueChange={value => { setKind(value as "" | Kind); setLimit(PAGE); }} options={[{ value: "", label: `${t.filterKind}: ${t.all}` }, { value: "site_done_not_received", label: `${t.kinds.site_done_not_received} (${formatNumber(query.data?.totals.siteDoneNotReceived ?? 0)})` }, { value: "received_not_done", label: `${t.kinds.received_not_done} (${formatNumber(query.data?.totals.receivedNotDone ?? 0)})` }]} />
-          <Select aria-label={t.filterZone} value={zone} onValueChange={value => { setZone(value); setLimit(PAGE); }} options={zones} />
-          <Select aria-label={t.filterBlock} value={block} onValueChange={value => { setBlock(value); setLimit(PAGE); }} options={blocks} />
-          <Select aria-label={t.filterSection} value={section} onValueChange={value => { setSection(value); setLimit(PAGE); }} options={sections} />
+          <Select aria-label={t.filterKind} value={toSelect(kind)} onValueChange={value => { setKind(fromSelect(value) as "" | Kind); setLimit(PAGE); }} options={[{ value: ALL, label: `${t.filterKind}: ${t.all}` }, { value: "site_done_not_received", label: `${t.kinds.site_done_not_received} (${formatNumber(query.data?.totals.siteDoneNotReceived ?? 0)})` }, { value: "received_not_done", label: `${t.kinds.received_not_done} (${formatNumber(query.data?.totals.receivedNotDone ?? 0)})` }]} />
+          <Select aria-label={t.filterZone} value={toSelect(zone)} onValueChange={value => { setZone(fromSelect(value)); setLimit(PAGE); }} options={zones} />
+          <Select aria-label={t.filterBlock} value={toSelect(block)} onValueChange={value => { setBlock(fromSelect(value)); setLimit(PAGE); }} options={blocks} />
+          <Select aria-label={t.filterSection} value={toSelect(section)} onValueChange={value => { setSection(fromSelect(value)); setLimit(PAGE); }} options={sections} />
           <TextInput aria-label={t.filterVilla} placeholder={t.filterVilla} inputMode="numeric" dir="ltr" value={villa} onChange={event => { setVilla(event.target.value); setLimit(PAGE); }} />
         </CardBody>
         {mayAct && (

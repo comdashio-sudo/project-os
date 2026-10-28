@@ -5,7 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { wo22Text } from "@/lib/wo22Text";
-import { useState } from "react";
+import React, { useState } from "react";
 
 type Shares = { units: number; site: number; consultant: number; monthly: number; siteMinusConsultant: number; siteMinusMonthly: number; consultantMinusMonthly: number };
 

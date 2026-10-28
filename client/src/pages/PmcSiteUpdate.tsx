@@ -1,6 +1,6 @@
 // Work order 22: the site engineer's update from the phone. One activity, several villas (a list, a range «268-272», or a whole block), one status and its date.
 // The server refuses the whole entry before writing anything when one villa is wrong, and says which; the entry is saved under the signed-in account, never a typed e-mail.
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, notify } from "@/components/ds";
 import { useLanguage } from "@/contexts/LanguageContext";
