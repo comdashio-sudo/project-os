@@ -22,6 +22,8 @@ const STATUS_AR: Record<string, string> = {
   // design coordination
   registered: "مُسجَّل", responded: "تم الرد", acknowledged: "تم الاستلام", replied: "تم الرد عليه", minor: "بسيط", major: "جوهري", architectural: "معماري", interior: "تصميم داخلي", landscape: "تنسيق مواقع", structural: "إنشائي", civil: "مدني", mechanical: "ميكانيكا", electrical: "كهرباء", plumbing: "سباكة", fire_fighting: "مكافحة حريق", other: "أخرى", outgoing: "صادرة", incoming: "واردة",
   absent: "غائب", present: "حاضر", leave: "إجازة", error: "خطأ", warning: "تحذير", none: "لا شيء",
+  // work order 22: the site's and the consultant's states of a cell
+  inspection_requested: "طُلب الفحص", qc_approved: "اعتمد QC", not_received: "غير مستلَم", code_a: "رمز A", code_b: "رمز B", code_c: "رمز C", code_d: "رمز D",
   // project lifecycle stages
   opportunity: "فرصة", pre_award: "ما قبل الترسية", tender: "المناقصة", award: "الترسية", mobilization: "التعبئة وتجهيز الموقع", planning: "التخطيط", design: "التصميم",
   procurement: "المشتريات", execution: "التنفيذ", commissioning: "الاختبار والتشغيل التجريبي", handover: "التسليم", closeout: "الإغلاق", post_project_review: "مراجعة ما بعد المشروع",
@@ -73,6 +75,8 @@ const STATUS_UR: Record<string, string> = {
   "normal": "معمول", "not_assessed": "جانچا نہیں گیا", "secondment": "عارضی تبادلہ", "action": "اقدام",
   "activity": "سرگرمی", "decision": "فیصلہ", "field_report": "فیلڈ رپورٹ", "material_request": "مواد کی درخواست",
   "ncr": "عدم مطابقت (NCR)", "quality_inspection": "معیار کا معائنہ", "rfi": "معلومات کی درخواست (RFI)", "risk": "خطرہ",
+  // work order 22: the site's and the consultant's states of a cell
+  inspection_requested: "معائنے کی درخواست", qc_approved: "QC منظور", not_received: "موصول نہیں", code_a: "کوڈ A", code_b: "کوڈ B", code_c: "کوڈ C", code_d: "کوڈ D",
 };
 const PERMISSION_UR: Record<string, string> = {
   "executive.read": "سینئر انتظامیہ کا ڈیش بورڈ", "pmo.read": "پی ایم او ڈیش بورڈ دیکھیں (2)", "pmo.write": "پی ایم او ڈیش بورڈ میں ترمیم", "project.read": "پروجیکٹ دیکھیں (3)",

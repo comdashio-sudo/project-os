@@ -1,4 +1,4 @@
-import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
+import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
 import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
@@ -224,6 +224,7 @@ export const appRouter = router({
   // Work order 22: the site ↔ the consultant ↔ the monthly report (server/pmcSiteService.ts, server/consultantImport.ts, server/wo22Exports.ts)
   pmcSite: router({
     activities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listSiteActivities({ userId: ctx.user.id, ...input })),
+    catalog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listCatalogActivities({ userId: ctx.user.id, ...input })),
     confirmLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), links: z.array(z.object({ siteActivityId: z.string().uuid(), activityCodes: z.array(z.string().min(1).max(80)).max(20) })).min(1).max(500) })).mutation(({ ctx, input }) => confirmSiteActivityLinks({ userId: ctx.user.id, ...input })),
     consultantColumns: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listConsultantColumns({ userId: ctx.user.id, ...input })),
     linkConsultantColumns: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), links: z.array(z.object({ columnId: z.string().uuid(), activityCode: z.string().min(1).max(80).nullable() })).min(1).max(500) })).mutation(({ ctx, input }) => linkConsultantColumns({ userId: ctx.user.id, ...input })),

@@ -1356,6 +1356,41 @@ export const projectErrorMessages = {
     en: "This file was already imported into this project.",
     ur: "یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔",
   },
+  PROJECT_OS_CONSULTANT_EXPORT_NOT_RECOGNISED: {
+    ar: "لم نتعرّف على هذا الملف كتصدير من نظام الاستشاري (نبحث عن صف فيه Zone وBlock وUnit وVilla Type، ثم الأنشطة ورقم WIR لكل نشاط).",
+    en: "This file was not recognised as the consultant's export (we look for a row with Zone, Block, Unit and Villa Type, then the activities with a WIR number each).",
+    ur: "اس فائل کو مشیر کے نظام کی برآمد کے طور پر نہیں پہچانا گیا (ہم Zone، Block، Unit اور Villa Type والی قطار اور ہر سرگرمی کا WIR نمبر تلاش کرتے ہیں)۔",
+  },
+  PROJECT_OS_SITE_WORKBOOK_NOT_RECOGNISED: {
+    ar: "لم نتعرّف على هذا الملف كملف الموقع القديم (نبحث عن ورقة Weights وورقة Progress أو Progress Log).",
+    en: "This file was not recognised as the site's old workbook (we look for a Weights sheet and a Progress or Progress Log sheet).",
+    ur: "اس فائل کو سائٹ کی پرانی ورک بک کے طور پر نہیں پہچانا گیا (ہم Weights اور Progress یا Progress Log شیٹ تلاش کرتے ہیں)۔",
+  },
+  PROJECT_OS_SITE_LEGACY_ALREADY_IMPORTED: {
+    ar: "سجل الموقع القديم استُورد من قبل في هذا المشروع، ولا يُستورد مرتين.",
+    en: "The site's old record was already imported into this project; it is imported only once.",
+    ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
+  },
+  PROJECT_OS_SITE_UPDATE_INVALID: {
+    ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
+    en: "Nothing was saved: something in the entry must be corrected (a villa that does not exist, a date in the future, a missing field, or an activity that does not apply to the villa's type). The details are under the form.",
+    ur: "کچھ محفوظ نہیں ہوا: اندراج میں کچھ درست کرنا ہے (غیر موجود ولا، مستقبل کی تاریخ، خالی خانہ، یا ایسی سرگرمی جو ولا کی قسم پر لاگو نہیں)۔ تفصیل فارم کے نیچے ہے۔",
+  },
+  PROJECT_OS_PMC_SITE_ACTIVITY_NOT_FOUND: {
+    ar: "نشاط الموقع غير موجود في هذا المشروع.",
+    en: "The site activity was not found in this project.",
+    ur: "سائٹ کی سرگرمی اس پروجیکٹ میں نہیں ملی۔",
+  },
+  PROJECT_OS_PMC_DIFFERENCE_CHANGED: {
+    ar: "تغيّر بعض الفروقات منذ فتحت الشاشة (عولج أو تغيّرت حالته)، فلم يُطبَّق شيء. حدّث القائمة ثم أعد الاختيار.",
+    en: "Some differences changed since the screen was opened (handled or changed state), so nothing was applied. Refresh the list and choose again.",
+    ur: "اسکرین کھلنے کے بعد کچھ فرق بدل گئے، اس لیے کچھ لاگو نہیں ہوا۔ فہرست تازہ کریں اور دوبارہ منتخب کریں۔",
+  },
+  PROJECT_OS_PMC_DIFFERENCE_NOT_FOUND: {
+    ar: "اختر فرقًا واحدًا على الأقل.",
+    en: "Choose at least one difference.",
+    ur: "کم از کم ایک فرق منتخب کریں۔",
+  },
   PROJECT_OS_UPLOAD_TYPE_INVALID: {
     ar: "نوع الملف غير مقبول لهذا الرفع.",
     en: "This file type is not accepted for this upload.",

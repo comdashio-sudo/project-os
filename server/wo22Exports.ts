@@ -3,9 +3,10 @@
 //   2. the monthly report in the very shape that is sent to the consultant (the report date in V1, the weights in row 2 with their total, the three-level header,
 //      the WIR row, one row per villa) — built from the SITE's record or from the last imported report, and readable again by the platform's own importer.
 // Numbers are written as numbers (Western digits by Excel's own display); no personal e-mail or name of a person is written.
+import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import { and, eq } from "drizzle-orm";
-import { pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcSiteActivityLinks, pmcSiteCells, pmcUnitActivityProgress, pmcUnits, pmcZones, projects } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcSiteActivityLinks, pmcSiteCells, pmcUnitActivityProgress, pmcUnits, pmcZones, projects } from "../drizzle/schema";
 import { isSiteDone, pmcComparisonAll, type ComparisonRow } from "./pmcSiteService";
 import { pmcGate, siteToday, type Scope } from "./wo22Shared";
 
@@ -36,6 +37,8 @@ export async function exportComparisonWorkbook(input: Scope) {
     for (const row of rows.filter(item => item.section === section)) ws.addRow(comparisonRowValues(row));
     ws.columns.forEach(column => { column.width = 18; });
   }
+  const db = await pmcGate(input, "project.pmc.read");
+  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ export: "pmc_site_consultant_comparison", rows: rows.length }) });
   return { fileName: `site-consultant-comparison-${siteToday()}.xlsx`, base64: await toBase64(wb), rows: rows.length };
 }
 
@@ -114,5 +117,6 @@ export async function exportMonthlyReportWorkbook(input: Scope & { source?: "sit
   const totals = 7 + ordered.length;
   ws.getCell(totals, 1).value = "الإجمالي";
   columns.forEach((column, k) => { ws.getCell(totals, FIRST + k).value = ordered.filter(unit => complete.has(`${unit.id}|${column.code}`)).length; });
+  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ export: "pmc_monthly_report", source, reportDate, villas: ordered.length }) });
   return { fileName: `monthly-report-${reportDate}-${source}.xlsx`, base64: await toBase64(wb), villas: ordered.length, activities: columns.length, completeCells: complete.size, source };
 }

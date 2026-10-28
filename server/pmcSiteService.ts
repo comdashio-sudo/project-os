@@ -54,6 +54,19 @@ export async function confirmSiteActivityLinks(input: Scope & { links: Array<{ s
   return { confirmed: input.links.length };
 }
 
+/** The catalogue (the monthly report's activities, one entry per code) for choosing a link by hand: code, name, WIR and section. */
+export async function listCatalogActivities(input: Scope) {
+  const db = await pmcGate(input, "project.pmc.read");
+  const [defs, stages] = await Promise.all([
+    db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, wirCode: pmcActivityDefinitions.wirCode, stageId: pmcActivityDefinitions.stageId }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)),
+    db.select({ id: pmcActivityStages.id, name: pmcActivityStages.name }).from(pmcActivityStages).where(mine(pmcActivityStages, input)),
+  ]);
+  const stageName = new Map(stages.map(stage => [stage.id, stage.name]));
+  const byCode = new Map<string, { code: string; name: string; wirCode: string | null; section: string }>();
+  for (const def of defs) if (!byCode.has(def.code)) byCode.set(def.code, { code: def.code, name: def.name, wirCode: def.wirCode, section: stageName.get(def.stageId) ?? "" });
+  return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
+}
+
 // ------------------------------------------------------------------ one update for several villas
 
 export type SiteUpdateInput = Scope & { siteActivityId: string; villas?: string[]; range?: string; blockCode?: string; status: SiteStatus; date: string; batchSource?: "site" | "comparison" };
