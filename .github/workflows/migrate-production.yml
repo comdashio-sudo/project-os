@@ -4,11 +4,13 @@ name: Migrate and promote production
 #   1. migrations are checked for backward compatibility (expand, then contract): the release still serving traffic must keep working on the migrated schema;
 #   2. the migrations are applied to the production database, then verify-db-security proves the restricted application role (the result is written in the summary);
 #   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
+#      with no publishable key in the repository (D-69) the sign-in check is replaced by the public tRPC procedure system.health (200, ok=true): without a key that check answers 503 by design;
 #   4. only then is the `production` branch fast-forwarded to this commit, which is what makes Vercel build production (Vercel: Settings -> Git -> Production Branch = production; main is a Preview only).
 # Any failure stops the run before the next step: nothing is promoted, the site keeps serving the previous release.
 # Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variable (optional): SUPABASE_POOLER_HOST (pins the
-# session-pooler host; otherwise it is found by trying). The project URL and its PUBLIC publishable key (sb_publishable_, needed for the sign-in check) are read from
-# config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused here and by server/testing/supabasePublicConfig.test.ts.
+# session-pooler host; otherwise it is found by trying). The project URL and its PUBLIC publishable key (sb_publishable_, optional since D-69: it adds the sign-in check) are
+# read from config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused by scripts/ci/public-config-check.sh and by
+# server/testing/supabasePublicConfig.test.ts.
 # It starts when CI on main has FINISHED GREEN for the commit (workflow_run), not on the push itself: the heavy checks (unit tests, database suite,
 # screenshots, the three journeys) run once on main and nothing is migrated or promoted before they pass (owner's decision, 2026-10-27). A CI run cancelled
 # by a newer merge releases nothing; the newer commit's run does. By hand (workflow_dispatch) it releases main's newest commit.
@@ -75,19 +77,14 @@ jobs:
       - name: Install
         if: steps.scope.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile
-      - name: Refuse to start without the one secret and the public Supabase config
+      - name: Refuse to start without the one secret or with a non-public Supabase key
+        id: config
         if: steps.scope.outputs.deploy == 'true'
         run: |
+          set -euo pipefail
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
-          cfg=config/supabase.public.json
-          url="$(jq -r '.url // ""' "$cfg")"
-          key="$(jq -r '.publishableKey // ""' "$cfg")"
-          case "$url" in https://*.supabase.co) ;; *) echo "::error::$cfg has no https://<ref>.supabase.co url"; exit 1 ;; esac
-          case "$key" in
-            sb_publishable_?*) ;;
-            "") echo "::error::$cfg has no publishableKey: without it the sign-in check cannot run, and nothing is promoted without that check (docs/GO_LIVE.md)"; exit 1 ;;
-            *) echo "::error::$cfg publishableKey is not an sb_publishable_ key; only the public key belongs there (never sb_secret_ or service_role)"; exit 1 ;;
-          esac
+          # url required; publishableKey empty = has_key=false (step 3 runs without the sign-in check); anything but sb_publishable_ fails (D-69)
+          bash scripts/ci/public-config-check.sh config/supabase.public.json >> "$GITHUB_OUTPUT"
       - name: 1. Migrations are backward compatible
         if: steps.scope.outputs.deploy == 'true'
         run: node scripts/ci/check-migration-compat.mjs
@@ -119,16 +116,24 @@ jobs:
           export DATABASE_URL="$RELEASE_GATE_DATABASE_URL"
           jwt="$(openssl rand -hex 32)"
           export JWT_SECRET="$jwt"
-          # the public URL and publishable key from the repository (D-35); the server sends the key in the apikey header only
+          # the public URL and publishable key from the repository (D-35); the server sends the key in the apikey header only.
+          # No key (D-69): SUPABASE_ANON_KEY is not exported at all (never empty), and the check runs --without-sign-in.
           SUPABASE_URL="$(jq -r '.url' config/supabase.public.json)"
-          SUPABASE_ANON_KEY="$(jq -r '.publishableKey' config/supabase.public.json)"
-          export SUPABASE_URL SUPABASE_ANON_KEY
+          export SUPABASE_URL
+          gate_args=()
+          if [ "${{ steps.config.outputs.has_key }}" = "true" ]; then
+            SUPABASE_ANON_KEY="$(jq -r '.publishableKey' config/supabase.public.json)"
+            export SUPABASE_ANON_KEY
+          else
+            gate_args=(--without-sign-in)
+            echo "::notice::config/supabase.public.json has no publishable key: the release check uses system.health instead of the sign-in check (D-69)"
+          fi
           node dist/index.js > "$RUNNER_TEMP/server.log" 2>&1 &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           for _ in $(seq 1 30); do curl -fsS "http://127.0.0.1:3920/healthz" >/dev/null 2>&1 && break; sleep 2; done
           set +e
-          node scripts/ci/post-deploy-check.mjs "http://127.0.0.1:3920" 2>&1 | tee "$RUNNER_TEMP/gate.log"
+          node scripts/ci/post-deploy-check.mjs "http://127.0.0.1:3920" "${gate_args[@]}" 2>&1 | tee "$RUNNER_TEMP/gate.log"
           status=${PIPESTATUS[0]}
           set -e
           # the same check also WARNS (does not fail) on pending migrations; here that is a failure: step 2 has just applied them all
@@ -168,6 +173,6 @@ jobs:
             echo "## Release ${{ steps.scope.outputs.sha }}"
             echo "### Migrations"; echo '```'; tail -n 4 "$RUNNER_TEMP/migrate.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
             echo "### verify-db-security"; echo '```'; tail -n 3 "$RUNNER_TEMP/verify.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
-            echo "### Release check (healthz, wrong sign-in code is 4xx, readyz)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/gate.log" 2>/dev/null || echo "(did not run)"; echo '```'
+            echo "### Release check (healthz, wrong sign-in code is 4xx or system.health without a key, readyz)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/gate.log" 2>/dev/null || echo "(did not run)"; echo '```'
             echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'NOT promoted: a step before it failed, the site stays on the previous release' }}"
           } >> "$GITHUB_STEP_SUMMARY"
