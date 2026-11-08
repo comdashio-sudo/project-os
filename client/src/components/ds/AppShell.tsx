@@ -99,7 +99,7 @@ export function AppShell(props: Props) {
             </button>
           </div>
         </aside>
-        <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7"><div className="mx-auto flex max-w-5xl flex-col gap-5"><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.children}</div></div>
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7"><div className="mx-auto flex max-w-5xl flex-col gap-5"><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.children}</div></main>
       </div>
     </div>
   );

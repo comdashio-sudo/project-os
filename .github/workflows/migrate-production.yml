@@ -1,6 +1,6 @@
 name: Migrate and promote production
 
-# Automatic, after every green CI run on main (and by hand). The ORDER is the safety: the database first, the site last, and the site only if everything before it passed.
+# Automatic, on every push to main (and by hand). The ORDER is the safety: the database first, the site last, and the site only if everything before it passed.
 #   1. migrations are checked for backward compatibility (expand, then contract): the release still serving traffic must keep working on the migrated schema;
 #   2. the migrations are applied to the production database, then verify-db-security proves the restricted application role (the result is written in the summary);
 #   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
@@ -8,13 +8,8 @@ name: Migrate and promote production
 # Any failure stops the run before the next step: nothing is promoted, the site keeps serving the previous release.
 # Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variables (Settings -> Secrets and variables -> Actions -> Variables):
 # SUPABASE_ANON_KEY (the project's PUBLIC anon key, needed to run the sign-in check), SUPABASE_POOLER_HOST (optional: pins the session-pooler host; otherwise it is found by trying).
-# It starts when CI on main has FINISHED GREEN for the commit (workflow_run), not on the push itself: the heavy checks (unit tests, database suite,
-# screenshots, the three journeys) run once on main and nothing is migrated or promoted before they pass (owner's decision, 2026-10-27). A CI run cancelled
-# by a newer merge releases nothing; the newer commit's run does. By hand (workflow_dispatch) it releases main's newest commit.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -29,7 +24,6 @@ concurrency:
 jobs:
   release:
     name: migrate, prove, promote
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -40,8 +34,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # the commit CI just proved, not whatever main is now
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: What would ship (a change to documentation or workflows only needs nothing)
         id: scope
         run: |

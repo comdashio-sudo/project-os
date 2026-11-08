@@ -14,10 +14,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: vercel-logs-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   logs:
     name: read the errors

@@ -4,7 +4,8 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
-import { LayoutPanelTop } from "lucide-react";
+import { Briefcase, FolderKanban, Gauge, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, Wallet, type LucideIcon } from "lucide-react";
+import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
 import { useLocation } from "wouter";
 
@@ -22,12 +23,42 @@ const MODULE_LABELS: Record<string, { ar: string; en: string; ur: string }> = {
   "navigation.myPerformance": { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
   "navigation.tenantAdministration": { ar: "إدارة الشركة", en: "Tenant administration", ur: "کمپنی کا انتظام" },
 };
+// One icon per module (design brief D-2: one icon for every module is not allowed); an unknown module falls back to the generic panel.
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  "levels": Layers,
+  "executive-dashboard": Gauge,
+  "pmo-dashboard": Briefcase,
+  "project-registry": FolderKanban,
+  "employee-registry": Users,
+  "payroll": Wallet,
+  "project-controls": SlidersHorizontal,
+  "my-performance": Target,
+  "tenant-administration": Settings,
+};
 const WORKSPACE = { ar: "مساحة العمل", en: "Workspace", ur: "ورک اسپیس" };
 const SOURCE_TITLES = {
   navigation: { ar: "القائمة الجانبية", en: "side menu", ur: "سائیڈ مینو" },
   companies: { ar: "قائمة الشركات", en: "company list", ur: "کمپنیوں کی فہرست" },
   projects: { ar: "قائمة المشاريع", en: "project list", ur: "پروجیکٹوں کی فہرست" },
 };
+
+// The phone screens (/m/…) and the setup wizard (/setup/…) carry :tenantId but are full-screen flows of their own: they are not framed.
+const UNFRAMED_ROOTS = new Set(["m", "setup"]);
+export function isFramedPath(path: string): boolean {
+  return !UNFRAMED_ROOTS.has(path.split("?")[0].split("/")[1] ?? "");
+}
+
+// Choosing another project keeps the person on the same screen of the other project when the current address names a project
+// (/projects/t/p/quality → /projects/t/q/quality, /levels/t/projects/p → /levels/t/projects/q); otherwise it opens that project's controls page.
+// There is no /projects/:tenantId/:projectId route, so the address must never stop at the project (code review of #156, item 1).
+export function projectSwitchHref(location: string, tenantId: string, current: string | undefined, next: string): string {
+  const path = location.split("?")[0];
+  if (current) {
+    const segments = path.split("/");
+    if (segments.includes(current)) return segments.map(segment => (segment === current ? next : segment)).join("/");
+  }
+  return `/projects/${tenantId}/${next}/controls`;
+}
 
 export function ProductShell({ tenantId, projectId, children }: { tenantId: string; projectId?: string; children: React.ReactNode }) {
   const { language } = useLanguage();
@@ -40,7 +71,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
     label: MODULE_LABELS[item.labelKey] ? pickLanguage(language, MODULE_LABELS[item.labelKey]) : item.id,
-    icon: LayoutPanelTop,
+    icon: MODULE_ICONS[item.id] ?? LayoutPanelTop,
     href: item.href,
   }));
   const active = nav.find(item => item.href && location === item.href) ?? nav.find(item => item.href && location.startsWith(item.href));
@@ -70,13 +101,13 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
         onCompany={value => setLocation(`/projects/${value}`)}
         projects={projectOptions}
         project={projectId ?? ""}
-        onProject={value => setLocation(`/projects/${tenantId}/${value}`)}
+        onProject={value => setLocation(projectSwitchHref(location, tenantId, projectId, value))}
         breadcrumbs={crumbs}
         user={{ name: user?.name ?? "", email: user?.email ?? "" }}
         onSignOut={() => { void logout(); }}
       >
         {notices}
-        {children}
+        <InShellProvider>{children}</InShellProvider>
       </AppShell>
     </DirectionProvider>
   );

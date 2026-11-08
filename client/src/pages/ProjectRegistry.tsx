@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -74,13 +75,13 @@ export default function ProjectRegistry() {
   }, [projectSearch, projects.data]);
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b bg-white">
+    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.workspace}</Link>
+          <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.workspace}</Link></OutsideShell>
           <div className="flex items-center gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-6xl px-5 py-10">
         
         <div className="mb-8"><p className="text-xs font-bold tracking-[.16em] text-[#0e6b70]">{t.tag}</p><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><p className="mt-2 text-slate-600">{t.intro}</p></div>
@@ -106,6 +107,6 @@ export default function ProjectRegistry() {
           {!readDenied ? <WriteGate permission={"project.write"} reason={{ ar: "لا تملك صلاحية إنشاء المشاريع، فالشاشة للعرض فقط.", en: "You do not have permission to create projects; this view is read-only for you.", ur: "آپ کو پروجیکٹس بنانے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><form noValidate id="project-create" className="h-fit rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) createProject.mutate({ tenantId, ...form }); }}><div className="flex items-center gap-2"><Plus className="h-5 w-5 text-[#0e6b70]" /><h2 className="font-semibold">{t.create}</h2></div><div className="mt-5 space-y-4"><div><Label htmlFor="project-code">{t.code}</Label><Input id="project-code" dir="ltr" className="mt-1.5" value={form.code} onChange={event => setForm(current => ({ ...current, code: event.target.value }))} required /><FieldError id="project-code-error" message={fieldErrors["project-code"]} /></div><div><Label htmlFor="project-name">{t.name}</Label><Input id="project-name" className="mt-1.5" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required /><FieldError id="project-name-error" message={fieldErrors["project-name"]} /></div><div><Label htmlFor="project-type">{t.type}</Label><Input id="project-type" className="mt-1.5" value={form.projectType} onChange={event => setForm(current => ({ ...current, projectType: event.target.value }))} required /><FieldError id="project-type-error" message={fieldErrors["project-type"]} /></div><div><Label htmlFor="project-currency">{t.currency}</Label><Input id="project-currency" dir="ltr" className="mt-1.5" maxLength={3} value={form.currency} onChange={event => setForm(current => ({ ...current, currency: event.target.value.toUpperCase() }))} required /><FieldError id="project-currency-error" message={fieldErrors["project-currency"]} /></div>{createProject.error ? <p className="text-sm text-red-700">{getLocalizedProjectError(createProject.error, isArabic)}</p> : null}<Button className="w-full bg-[#123a4a] hover:bg-[#0d2e3b]" disabled={createProject.isPending}>{createProject.isPending ? t.creating : t.create}</Button></div></form></WriteGate> : null}
         </div>
       </div>
-    </main>
+    </PageMain>
   );
 }

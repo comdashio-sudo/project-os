@@ -1,4 +1,5 @@
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -120,7 +121,7 @@ export default function ExecutiveDashboard() {
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
        projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
-    return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
+    return <PageMain className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
   }
   const data = {
     totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
@@ -171,22 +172,22 @@ export default function ExecutiveDashboard() {
         projects: "پروجیکٹس",
       } });
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b bg-white">
+    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <Link
+          <OutsideShell><Link
             href="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"
           >
             <ArrowLeft className="h-4 w-4" />
             {t.back}
-          </Link>
+          </Link></OutsideShell>
           <div className="flex gap-3">
             <span className="text-sm text-slate-500">{t.level}</span>
             <LanguageToggle />
           </div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">
         
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_metrics" state={metricsQuery.error ? "error" : null} />
@@ -438,7 +439,7 @@ export default function ExecutiveDashboard() {
         </Card>
         </details>
       </div>
-    </main>
+    </PageMain>
   );
 }
 function Metric({

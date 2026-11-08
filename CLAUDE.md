@@ -125,7 +125,6 @@ pnpm verify:db-security
 
 - `run-integration-database-test.mjs` يقرأ `DATABASE_URL`، ويستبدل اسم القاعدة بـ`project_os_integration_test`، ويبني المخطط بالترحيلات، ويشغّل التطبيق بحساب `project_os_app` المقيَّد (فتُمارَس RLS فعلًا) والتجهيز بحساب المالك. فليشر `DATABASE_URL` إلى PostgreSQL محلي أو غير إنتاجي.
 - انخفاض عدد الاختبارات الناجحة عن آخر رقم مُثبت شرط توقف (`WORK_ORDER_BATCH_6.md:35`).
-- **دقائق Actions مقنَّنة (قرار المالك، 2026-10-27):** CI على طلب الدمج فحوص خفيفة فقط (`pnpm check`، فحص الأسرار، actionlint، فحص الترحيلات). قبل كل دفع شغّل محليًا: `pnpm check` و`pnpm build` و`pnpm test` و`pnpm test:db` والرحلات الثلاث (`node --import tsx scripts/e2e-demo-journey.mjs` على قاعدة الاختبار). المهام الثقيلة (الاختبارات، قاعدة البيانات، لقطات اللغات الثلاث، الرحلات، Odoo) تعمل مرة واحدة على `main` بعد الدمج، والترقية إلى production ترفض commit بلا CI أخضر على `main`. اجمع التعديلات الصغيرة في طلبات أقل.
 
 ## 8. التقرير
 

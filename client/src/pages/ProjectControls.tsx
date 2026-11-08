@@ -1,4 +1,5 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
+import { PageMain, PageHeader } from "@/components/pageFrame";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,7 @@ export default function ProjectControls() {
 
   const operational = pickLanguage(language, { ar: { title: "التقاط EVM محسوب", note: "تحسب PV من الأنشطة المجدولة حتى التاريخ المحدد، وEV من أحدث تقدم مُرسل لكل بند WBS، وAC من قيود التكلفة الفعلية المُرحّلة، وBAC من بنود الميزانية الحالية.", capture: "حساب وحفظ لقطة تشغيلية", sources: "مصادر اللقطة", activities: "أنشطة مجدولة", budgets: "بنود الميزانية", actualCosts: "قيود تكلفة فعلية", progress: "تقدم WBS", period: "تاريخ القطع" }, en: { title: "Calculated EVM capture", note: "PV is derived from scheduled activities through the selected date, EV from the latest submitted progress for each WBS item, AC from posted actual-cost entries, and BAC from current budget lines.", capture: "Calculate and save operational snapshot", sources: "Snapshot sources", activities: "Scheduled activities", budgets: "Budget lines", actualCosts: "Posted actual-cost entries", progress: "WBS progress", period: "Cut-off date" }, ur: { title: "Calculated EVM capture", note: "PV is derived from scheduled activities through the selected date, EV from the latest submitted progress for each WBS item, AC from posted actual-cost entries, and BAC from current budget lines.", capture: "Calculate and save operational snapshot", sources: "Snapshot sources", activities: "Scheduled activities", budgets: "Budget lines", actualCosts: "Posted actual-cost entries", progress: "WBS progress", period: "Cut-off date" } });
 
-  if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</main>;
+  if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <PageMain className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</PageMain>;
 
   const fallbackData = { project: { code: projectId, name: t.title }, wbs: [], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null };
   const baseData = {
@@ -164,21 +165,21 @@ export default function ProjectControls() {
   const jumpToManagerLane = (id: string) => { const target = document.getElementById(id); if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
+    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <PageHeader className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div className="flex flex-wrap items-center gap-2"><Link href={`/projects/${tenantId}/${projectId}/guide`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })}</Link><Link href={`/projects/${tenantId}/${projectId}/pmc`} className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">{pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })}</Link><Link href={`/projects/${tenantId}/${projectId}/profitability`} className="rounded-lg bg-[#0e6b70] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0b5559]">{pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })}</Link><Link href={`/projects/${tenantId}/${projectId}/commercial`} className="rounded-lg bg-[#5147e5] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4338ca]">{pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">
         
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
         <section className="rounded-3xl bg-card p-7 text-card-foreground ring-1 ring-border">
-          <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">{t.project} · {data.project.code}</p>
+          <p className="text-xs font-bold tracking-[.16em] text-primary">{t.project} · {data.project.code}</p>
           <h1 className="mt-2 text-3xl font-semibold">{data.project.name}</h1>
-          <p className="mt-3 max-w-3xl text-slate-300">{t.subtitle}</p>
+          <p className="mt-3 max-w-3xl text-muted-foreground">{t.subtitle}</p>
         </section>
 
         <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="mt-6 flex flex-wrap gap-2 print:hidden">
@@ -273,7 +274,7 @@ export default function ProjectControls() {
         </div>
         </div>
       </div>
-    </main>
+    </PageMain>
   );
 }
 

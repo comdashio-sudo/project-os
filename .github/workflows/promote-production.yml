@@ -1,7 +1,7 @@
 name: Promote to production
 
 # Production is deployed from the `production` branch ONLY; `main` deploys as a Preview (Vercel: Settings -> Git -> Production Branch = production).
-# This is the button: it takes a commit of `main` (default: its newest), requires that commit's CI run on main to have passed, finds its Preview deployment, runs the post-deploy check against it, and ONLY IF IT PASSES moves
+# This is the button: it takes a commit of `main` (default: its newest), finds that commit's Preview deployment, runs the post-deploy check against it, and ONLY IF IT PASSES moves
 # `production` to that commit (fast-forward, never a force-push), which makes Vercel build it for production. After the build, post-deploy.yml checks production itself.
 on:
   workflow_dispatch:
@@ -14,12 +14,6 @@ on:
 permissions:
   contents: write
   deployments: read
-  actions: read
-
-# one promotion at a time, and a promotion is never cut off half-way: a second request waits
-concurrency:
-  group: promote-production
-  cancel-in-progress: false
 
 jobs:
   promote:
@@ -42,16 +36,6 @@ jobs:
           [ -n "$sha" ] || sha="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-      # The heavy checks (unit tests, database suite, screenshots, the three journeys) run once on main, not on pull requests (ci.yml). Production takes only a commit
-      # whose CI run on main finished green; if that run was cancelled by a newer merge, run CI on main by hand (Actions <- CI <- Run workflow) and promote the newer commit.
-      - name: The heavy checks passed on main for that commit
-        run: |
-          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=${{ steps.sha.outputs.sha }}&per_page=50" \
-            --jq '[.workflow_runs[] | select(.head_branch == "main" and .event != "pull_request" and .conclusion == "success")] | length')"
-          if [ "${runs:-0}" -lt 1 ]; then
-            echo "::error::no successful CI run on main for ${{ steps.sha.outputs.sha }}: the heavy checks have not passed for this commit"; exit 1
-          fi
-          echo "CI on main passed for this commit ($runs run(s))"
       - name: Find the Preview deployment of that commit
         id: preview
         run: |

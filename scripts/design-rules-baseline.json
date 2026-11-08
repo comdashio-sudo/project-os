@@ -176,7 +176,7 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectControls.tsx": {
-  "hardcoded-colour": 29,
+  "hardcoded-colour": 28,
   "number-format": 1
  },
  "client/src/pages/ProjectDataExport.tsx": {
