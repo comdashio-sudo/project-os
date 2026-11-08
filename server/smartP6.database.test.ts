@@ -5,15 +5,20 @@ import { ENV } from "./_core/env";
 import { appRouter } from "./routers";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 import { buildP6Xer, P6_COUNTS } from "./domain/smartImport/p6Fixture";
+import { analyzeP6Import, confirmP6Import } from "./p6Import";
+import { activitySnapshot, clearP6Tenant, seedOutsiderTenant } from "./testing/p6Isolation";
 
 // Work order 20, a Primavera P6 export (.xer): a SYNTHETIC file with the table sizes of a real export (p6Fixture.ts; nothing real in it) goes through the smart import box and is written in FULL —
 // the WBS tree, the activities, their relationships, the resources and assignments, the activity codes and the calendars — not the activities alone.
 const T = "79000000-0000-4000-8000-0000000000f1";
 const P = "79000000-0000-4000-8000-0000000000f2";
+const PB = "79000000-0000-4000-8000-0000000000f3"; // a second project of the SAME company (isolation between projects)
+const T2 = "79000000-0000-4000-8000-0000000000f4"; // ANOTHER company, with its own project (isolation between companies)
+const P2 = "79000000-0000-4000-8000-0000000000f5";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;
 let s3: FakeS3;
-const users = { manager: 0, reader: 0 };
+const users = { manager: 0, reader: 0, outsider: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@p6.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
 const one = async <R,>(sql: string, params: unknown[] = []) => (await connection.query<any[]>(sql, params))[0] as R[];
@@ -34,8 +39,9 @@ async function clear() {
   await connection.query("DELETE FROM memberships WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T]);
-  await connection.query("DELETE FROM projects WHERE id = ?", [P]);
+  await connection.query("DELETE FROM projects WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM companies WHERE id = ?", [T]);
+  await clearP6Tenant(connection, T2);
   await connection.query("DELETE FROM users WHERE openId LIKE 'p6x-%'");
 }
 
@@ -57,15 +63,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'p6x-%'");
     users.manager = rows.find(r => r.openId === "p6x-manager")!.id; users.reader = rows.find(r => r.openId === "p6x-reader")!.id;
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'P6 Tenant', 'p6-tenant')", [T]);
-    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'P6-A', 'P6 project', 'villas', 'SAR', 'active')", [P, T]);
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'P6-A', 'P6 project', 'villas', 'SAR', 'active'), (?, ?, 'P6-B', 'P6 project B', 'villas', 'SAR', 'active')", [P, T, PB, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('p6x-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('p6x-ent', ?, 'p6x-sub', 'PROJECT', true, NOW())", [T]);
-    for (const code of ["project.read", "project.wbs.manage", "project.schedule.manage"]) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
+    for (const code of ["project.read", "project.wbs.manage", "project.schedule.manage", "project.manage"]) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('p6x-r-manager', ?, 'P6X_MANAGER','Manager','PROJECT'), ('p6x-r-reader', ?, 'P6X_READER','Reader','PROJECT')", [T, T]);
-    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'p6x-r-manager', id FROM permissions WHERE code IN ('project.read','project.wbs.manage','project.schedule.manage')");
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'p6x-r-manager', id FROM permissions WHERE code IN ('project.read','project.wbs.manage','project.schedule.manage','project.manage')"); // project.manage: the rollback below is refused for the MODULE, not for want of permission
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'p6x-r-reader', id FROM permissions WHERE code = 'project.read'");
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('p6x-m-manager', ?, ?, 'active'), ('p6x-m-reader', ?, ?, 'active')", [T, users.manager, T, users.reader]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('p6x-mr-manager','p6x-m-manager','p6x-r-manager','company'),('p6x-mr-reader','p6x-m-reader','p6x-r-reader','company')");
+    users.outsider = await seedOutsiderTenant(connection, { tenantId: T2, projectId: P2, prefix: "p6x" });
   }, 60_000);
   afterAll(async () => { await clear(); await connection.end(); await s3.close(); });
 
@@ -136,5 +143,62 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     const plan = (await manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "two.xer" })).p6Plan!;
     expect(plan.canConfirm).toBe(false); expect(plan.issues.map(i => i.code)).toContain("XER_MULTIPLE_PROJECTS");
     await expect(manager.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: "two.xer", kind: "xer", forced: {} as never })).rejects.toThrow("PROJECT_OS_IMPORT_VALIDATION_FAILED");
+  }, 60_000);
+
+  // ---- D-4 (#153), review items 2 and 4
+  it("a confirmed P6 import cannot be rolled back: refused as PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED (even for project.manage), and no activity goes", async () => {
+    const manager = callerFor(users.manager, "p6x-manager");
+    const [record] = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed' LIMIT 1", [T, P]);
+    expect(record?.id).toBeTruthy();
+    const before = await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ?", [T, P]);
+    expect(before).toBe(611);
+    await expect(manager.dataImports.rollback({ ...scope, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ?", [T, P])).toBe(before);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id = ? AND status = 'completed'", [record.id])).toBe(1);
+  }, 60_000);
+
+  it("isolation between companies: a user who holds every schedule permission in ANOTHER company can neither analyse nor confirm on this project, and nothing is written", async () => {
+    const outsider = callerFor(users.outsider, "p6x-outsider");
+    const imports = await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId IN (?, ?)", [T, T2]);
+    const before = await activitySnapshot(connection, { tenantId: T, projectId: P });
+    const bytes = buildP6Xer({ nameSuffix: " (outsider)" }).bytes;
+    await expect(outsider.smartImport.createUpload({ ...scope, fileName: "x.xer" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(analyzeP6Import({ userId: users.outsider, ...scope, bytes })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(confirmP6Import({ userId: users.outsider, ...scope, bytes, source: { key: "x", name: "x.xer" } })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // naming HIS OWN company with THIS project does not reach it either
+    await expect(confirmP6Import({ userId: users.outsider, tenantId: T2, projectId: P, bytes, source: { key: "x", name: "x.xer" } })).rejects.toThrow(/PROJECT_OS_/);
+    expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(before);
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? OR projectId = ?", [T2, P2])).toBe(0);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId IN (?, ?)", [T, T2])).toBe(imports);
+    // positive control: the same outsider imports into HIS company's project
+    const own = await confirmP6Import({ userId: users.outsider, tenantId: T2, projectId: P2, bytes, source: { key: "own", name: "own.xer" } });
+    expect(own.canConfirm).toBe(true);
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ?", [T2, P2])).toBe(611);
+    expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(before);
+  }, 120_000);
+
+  it("isolation between projects: importing the SAME activity codes into project B creates B's own 611 and leaves project A's activities exactly as they were", async () => {
+    const manager = callerFor(users.manager, "p6x-manager");
+    const before = await activitySnapshot(connection, { tenantId: T, projectId: P });
+    const relationsA = await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE tenantId = ? AND projectId = ?", [T, P]);
+    const target = await manager.smartImport.createUpload({ tenantId: T, projectId: PB, fileName: "b.xer" });
+    const put = await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(buildP6Xer({ nameSuffix: " (B)" }).bytes) }); expect(put.ok).toBe(true);
+    const plan = (await manager.smartImport.analyze({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b.xer" })).p6Plan!;
+    expect(plan.counts.activities).toMatchObject({ create: 611, update: 0 }); // B's codes are matched against B only
+    await manager.smartImport.confirm({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b.xer", kind: "xer", forced: {} as never, approvedHash: plan.fileHash });
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ? AND name LIKE '% (B)'", [T, PB])).toBe(611);
+    expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(before);
+    expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE tenantId = ? AND projectId = ?", [T, P])).toBe(relationsA);
+  }, 120_000);
+
+  it("a schedule link cannot join two projects: the database refuses a relationship whose activities are not both in its project (negative), and takes one that is (positive)", async () => {
+    const [a] = await one<{ id: string }>("SELECT id FROM activities WHERE tenantId = ? AND projectId = ? AND code = 'A1000'", [T, P]);
+    const [b1] = await one<{ id: string }>("SELECT id FROM activities WHERE tenantId = ? AND projectId = ? AND code = 'A1000'", [T, PB]);
+    const [b2] = await one<{ id: string }>("SELECT id FROM activities WHERE tenantId = ? AND projectId = ? AND code = 'A1010'", [T, PB]);
+    const insert = (id: string, pred: string, succ: string) => connection.query("INSERT INTO activity_relationships (id, tenantId, projectId, predecessorActivityId, successorActivityId, relationType) VALUES (?, ?, ?, ?, ?, 'SF')", [id, T, PB, pred, succ]);
+    await expect(insert("79000000-0000-4000-8000-00000000f0a1", a.id, b1.id)).rejects.toThrow("ACTIVITY_RELATIONSHIP_CROSS_PROJECT");
+    expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE id = '79000000-0000-4000-8000-00000000f0a1'")).toBe(0);
+    await insert("79000000-0000-4000-8000-00000000f0a2", b1.id, b2.id);
+    expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE id = '79000000-0000-4000-8000-00000000f0a2'")).toBe(1);
   }, 60_000);
 });

@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { activities, auditLogs, dataImportRowResults, dataImportSources, dataImports } from "../drizzle/schema";
+import { bulkUpdate } from "./bulkUpdate";
 import { authorizeNewImport } from "./db";
 import { detectScheduleUpdate, type ScheduleUpdateModel } from "./domain/smartImport/scheduleUpdate";
 import { readGrid } from "./domain/smartImport/sheetReader";
@@ -83,14 +84,16 @@ export async function confirmScheduleUpdate(input: Scope & { bytes: Uint8Array; 
     const { plan: current, changes } = await plan(tx as unknown as Reader, input, model, fileHash); // re-counted inside the transaction: the project may have changed since the preview
     if (!current.canConfirm) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: current.issues.slice(0, 20) });
     const now = new Date(); const at = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00Z`) : null);
-    for (const batch of chunks(changes, 50)) await Promise.all(batch.map(async change => {
-      const finishing = change.actualFinish !== null;
-      const updated = await tx.update(activities).set({
-        ...(change.actualStart ? { actualStartAt: at(change.actualStart) } : {}), ...(change.actualFinish ? { actualFinishAt: at(change.actualFinish) } : {}),
-        status: finishing ? "completed" : "in_progress", ...(finishing ? { percentComplete: "100", remainingHours: "0" } : {}), updatedAt: now,
-      }).where(and(eq(activities.id, change.id), eq(activities.tenantId, input.tenantId))).returning({ id: activities.id });
-      if (updated.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" }); // rows = 0 is never taken for success
-    }));
+    // batched (≤500 rows per UPDATE … FROM (VALUES …)), grouped by what the row changes so a date the file does not carry is never overwritten; every row must be written (bulkUpdate checks the count)
+    const scope = { tenantId: input.tenantId, projectId: input.projectId };
+    const startOnly = changes.filter(change => change.actualStart && !change.actualFinish);
+    const finishing = changes.filter(change => change.actualFinish);
+    await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, status: activities.status, updatedAt: activities.updatedAt }, scope,
+      rows: startOnly.map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), status: "in_progress", updatedAt: now } })) });
+    await bulkUpdate(tx, { table: activities, columns: { actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt }, scope,
+      rows: finishing.filter(change => !change.actualStart).map(change => ({ id: change.id, values: { actualFinishAt: at(change.actualFinish), status: "completed", percentComplete: "100", remainingHours: "0", updatedAt: now } })) });
+    await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt }, scope,
+      rows: finishing.filter(change => change.actualStart).map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), actualFinishAt: at(change.actualFinish), status: "completed", percentComplete: "100", remainingHours: "0", updatedAt: now } })) });
     const importId = randomUUID();
     await tx.insert(dataImports).values({ id: importId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "p6update", templateCode: "p6update_v1", sourceFormat: detectFormat(input.bytes, input.source.name) === "xls" ? "xls" : "xlsx", fileName: input.source.name, fileKey: input.source.key, fileHash, status: "completed",
       totalRows: current.rowsInFile, validRows: current.updated + current.unchanged, invalidRows: current.unknown + current.issues.length, createdRows: 0, updatedRows: current.updated, skippedRows: current.unchanged,

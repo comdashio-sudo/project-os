@@ -10,7 +10,9 @@ import {
   activities, activityCodeAssignments, activityCodeTypes, activityCodeValues, activityRelationships, activityResourceAssignments, auditLogs, dataImportRowResults, dataImportSources, dataImports,
   projectResources, projects, scheduleCalendars, wbsItems,
 } from "../drizzle/schema";
+import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
+import { bulkUpdate } from "./bulkUpdate";
 import { authorizeNewImport } from "./db";
 import { parseXerFile, plannedCostByActivity, readP6, type P6Model } from "./domain/smartImport/p6Xer";
 
@@ -45,17 +47,18 @@ const at = (iso: string | null) => (iso ? new Date(`${iso}Z`) : null);
 const STATUS: Record<string, "not_started" | "in_progress" | "completed"> = { TK_NotStart: "not_started", TK_Active: "in_progress", TK_Complete: "completed" };
 
 type Syncable = { id: string };
-/** One entity: what exists (by the source's key) against what the file wants. Writes only what differs, in chunks; returns the counts. */
-async function sync<E extends Syncable, D extends Syncable>(input: { desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (stored: E, wanted: D) => Promise<void> }): Promise<EntityCount> {
-  const toCreate: D[] = []; let update = 0; let unchanged = 0; const seen = new Set<string>();
+/** One entity: what exists (by the source's key) against what the file wants. Writes only what differs — inserts and updates both in batches of ≤500 rows — and returns the counts. */
+async function sync<E extends Syncable, D extends Syncable>(input: { desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (rows: Array<{ stored: E; wanted: D }>) => Promise<void> }): Promise<EntityCount> {
+  const toCreate: D[] = []; const toUpdate: Array<{ stored: E; wanted: D }> = []; let unchanged = 0; const seen = new Set<string>();
   for (const item of input.desired) {
     const stored = input.existing.get(input.key(item)); seen.add(input.key(item));
     if (!stored) toCreate.push(item);
     else if (input.same(stored, item)) unchanged += 1;
-    else { await input.update(stored, item); update += 1; }
+    else toUpdate.push({ stored, wanted: item });
   }
   for (const batch of chunks(toCreate)) await input.insert(batch);
-  return { create: toCreate.length, update, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
+  for (const batch of chunks(toUpdate)) await input.update(batch);
+  return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
 }
 
 async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean): Promise<P6Plan> {
@@ -73,6 +76,9 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const common = { tenantId: input.tenantId, projectId: input.projectId };
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
   const now = new Date();
+  // the updates of one entity: one UPDATE … FROM (VALUES …) per batch, scoped to this company and project (bulkUpdate.ts)
+  const bulk = <K extends string, E extends Syncable, D>(table: PgTable, columns: Record<K, PgColumn>, values: (stored: E, wanted: D) => Record<K, unknown>) =>
+    async (rows: Array<{ stored: E; wanted: D }>) => { await bulkUpdate(tx, { table, columns, rows: rows.map(({ stored, wanted }) => ({ id: stored.id, values: values(stored, wanted) })), scope: common }); };
 
   // ---- WBS (tree, with each node's own activities' cost)
   const existingWbs = new Map((await tx.select().from(wbsItems).where(mine(wbsItems))).map(row => [row.code, row]));
@@ -83,7 +89,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     existing: existingWbs, key: item => item.code,
     same: (stored, wanted) => stored.name === wanted.name && (stored.parentId ?? null) === wanted.parentId && same2(stored.plannedValue, wanted.plannedValue),
     insert: async rows => { await tx.insert(wbsItems).values(rows.map(row => ({ ...common, id: row.id, code: row.code, name: row.name, parentId: row.parentId, plannedValue: String(row.plannedValue) }))); },
-    update: async (stored, wanted) => { await tx.update(wbsItems).set({ name: wanted.name, parentId: wanted.parentId, plannedValue: String(wanted.plannedValue), updatedAt: now }).where(eq(wbsItems.id, stored.id)); },
+    update: bulk(wbsItems, { name: wbsItems.name, parentId: wbsItems.parentId, plannedValue: wbsItems.plannedValue, updatedAt: wbsItems.updatedAt }, (_s, wanted: { name: string; parentId: string | null; plannedValue: number }) => ({ name: wanted.name, parentId: wanted.parentId, plannedValue: String(wanted.plannedValue), updatedAt: now })),
   });
 
   // ---- calendars
@@ -94,7 +100,8 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     existing: existingCalendars, key: item => item.externalId,
     same: (stored, wanted) => stored.name === wanted.name && stored.isDefault === wanted.isDefault && same2(stored.hoursPerDay, wanted.day) && same2(stored.hoursPerWeek, wanted.week) && (stored.definition ?? "") === wanted.data,
     insert: async rows => { await tx.insert(scheduleCalendars).values(rows.map(row => ({ ...common, id: row.id, externalId: row.externalId, name: row.name, calendarType: row.type || null, isDefault: row.isDefault, hoursPerDay: String(row.day), hoursPerWeek: String(row.week), definition: row.data || null }))); },
-    update: async (stored, wanted) => { await tx.update(scheduleCalendars).set({ name: wanted.name, calendarType: wanted.type || null, isDefault: wanted.isDefault, hoursPerDay: String(wanted.day), hoursPerWeek: String(wanted.week), definition: wanted.data || null, updatedAt: now }).where(eq(scheduleCalendars.id, stored.id)); },
+    update: bulk(scheduleCalendars, { name: scheduleCalendars.name, calendarType: scheduleCalendars.calendarType, isDefault: scheduleCalendars.isDefault, hoursPerDay: scheduleCalendars.hoursPerDay, hoursPerWeek: scheduleCalendars.hoursPerWeek, definition: scheduleCalendars.definition, updatedAt: scheduleCalendars.updatedAt },
+      (_s, wanted: { name: string; type: string; isDefault: boolean; day: number; week: number; data: string }) => ({ name: wanted.name, calendarType: wanted.type || null, isDefault: wanted.isDefault, hoursPerDay: String(wanted.day), hoursPerWeek: String(wanted.week), definition: wanted.data || null, updatedAt: now })),
   });
 
   // ---- activities
@@ -111,7 +118,8 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
       && s.externalId === w.externalId && s.taskType === w.taskType && (s.calendarId ?? null) === w.calendarId && same2(s.durationHours, w.duration) && same2(s.remainingHours, w.remaining) && same2(s.percentComplete, w.percent) && (s.totalFloatHours === null ? w.float === null : w.float !== null && same2(s.totalFloatHours, w.float)),
     insert: async rows => { await tx.insert(activities).values(rows.map(w => ({ ...common, id: w.id, code: w.code, name: w.name, wbsItemId: w.wbsItemId, status: w.status, plannedValue: String(w.plannedValue), plannedStartAt: at(w.plannedStart), plannedFinishAt: at(w.plannedFinish), actualStartAt: at(w.actualStart), actualFinishAt: at(w.actualFinish), externalId: w.externalId, taskType: w.taskType, calendarId: w.calendarId, durationHours: String(w.duration), remainingHours: String(w.remaining), percentComplete: String(w.percent), totalFloatHours: w.float === null ? null : String(w.float), constraintType: w.constraintType, constraintDate: at(w.constraintDate) }))); },
     // earnedValue is the platform's own measure: a schedule update never overwrites it
-    update: async (s, w) => { await tx.update(activities).set({ name: w.name, wbsItemId: w.wbsItemId, status: w.status, plannedValue: String(w.plannedValue), plannedStartAt: at(w.plannedStart), plannedFinishAt: at(w.plannedFinish), actualStartAt: at(w.actualStart), actualFinishAt: at(w.actualFinish), externalId: w.externalId, taskType: w.taskType, calendarId: w.calendarId, durationHours: String(w.duration), remainingHours: String(w.remaining), percentComplete: String(w.percent), totalFloatHours: w.float === null ? null : String(w.float), constraintType: w.constraintType, constraintDate: at(w.constraintDate), updatedAt: now }).where(eq(activities.id, s.id)); },
+    update: bulk(activities, { name: activities.name, wbsItemId: activities.wbsItemId, status: activities.status, plannedValue: activities.plannedValue, plannedStartAt: activities.plannedStartAt, plannedFinishAt: activities.plannedFinishAt, actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, externalId: activities.externalId, taskType: activities.taskType, calendarId: activities.calendarId, durationHours: activities.durationHours, remainingHours: activities.remainingHours, percentComplete: activities.percentComplete, totalFloatHours: activities.totalFloatHours, constraintType: activities.constraintType, constraintDate: activities.constraintDate, updatedAt: activities.updatedAt },
+      (_s, w: (typeof wanted)[number]) => ({ name: w.name, wbsItemId: w.wbsItemId, status: w.status, plannedValue: String(w.plannedValue), plannedStartAt: at(w.plannedStart), plannedFinishAt: at(w.plannedFinish), actualStartAt: at(w.actualStart), actualFinishAt: at(w.actualFinish), externalId: w.externalId, taskType: w.taskType, calendarId: w.calendarId, durationHours: String(w.duration), remainingHours: String(w.remaining), percentComplete: String(w.percent), totalFloatHours: w.float === null ? null : String(w.float), constraintType: w.constraintType, constraintDate: at(w.constraintDate), updatedAt: now })),
   });
 
   // ---- resources (the platform keeps them per project, with their planned units)
@@ -123,7 +131,8 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     existing: existingResources, key: item => item.code,
     same: (s, w) => s.name === w.name && s.resourceType === w.type && same2(s.plannedUnits, w.plannedUnits) && same2(s.unitCost, w.unitCost) && s.currency === projectCurrency,
     insert: async rows => { await tx.insert(projectResources).values(rows.map(w => ({ ...common, id: w.id, resourceCode: w.code, name: w.name, resourceType: w.type, plannedUnits: String(w.plannedUnits), unitCost: String(w.unitCost), currency: projectCurrency, createdByUserId: input.userId }))); },
-    update: async (s, w) => { await tx.update(projectResources).set({ name: w.name, resourceType: w.type, plannedUnits: String(w.plannedUnits), unitCost: String(w.unitCost), currency: projectCurrency, updatedAt: now }).where(eq(projectResources.id, s.id)); },
+    update: bulk(projectResources, { name: projectResources.name, resourceType: projectResources.resourceType, plannedUnits: projectResources.plannedUnits, unitCost: projectResources.unitCost, currency: projectResources.currency, updatedAt: projectResources.updatedAt },
+      (_s, w: { name: string; type: string; plannedUnits: number; unitCost: number }) => ({ name: w.name, resourceType: w.type, plannedUnits: String(w.plannedUnits), unitCost: String(w.unitCost), currency: projectCurrency, updatedAt: now })),
   });
 
   // ---- what is assigned to each activity
@@ -133,7 +142,8 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     existing: existingAssignments, key: item => item.externalId,
     same: (s, w) => s.activityId === w.activityId && s.resourceId === w.resourceId && same2(s.plannedUnits, w.plannedUnits) && same2(s.actualUnits, w.actualUnits) && same2(s.remainingUnits, w.remainingUnits) && same2(s.plannedCost, w.plannedCost) && same2(s.actualCost, w.actualCost) && same2(s.remainingCost, w.remainingCost),
     insert: async rows => { await tx.insert(activityResourceAssignments).values(rows.map(w => ({ ...common, id: w.id, externalId: w.externalId, activityId: w.activityId, resourceId: w.resourceId, plannedUnits: String(w.plannedUnits), actualUnits: String(w.actualUnits), remainingUnits: String(w.remainingUnits), plannedCost: String(w.plannedCost), actualCost: String(w.actualCost), remainingCost: String(w.remainingCost) }))); },
-    update: async (s, w) => { await tx.update(activityResourceAssignments).set({ activityId: w.activityId, resourceId: w.resourceId, plannedUnits: String(w.plannedUnits), actualUnits: String(w.actualUnits), remainingUnits: String(w.remainingUnits), plannedCost: String(w.plannedCost), actualCost: String(w.actualCost), remainingCost: String(w.remainingCost), updatedAt: now }).where(eq(activityResourceAssignments.id, s.id)); },
+    update: bulk(activityResourceAssignments, { activityId: activityResourceAssignments.activityId, resourceId: activityResourceAssignments.resourceId, plannedUnits: activityResourceAssignments.plannedUnits, actualUnits: activityResourceAssignments.actualUnits, remainingUnits: activityResourceAssignments.remainingUnits, plannedCost: activityResourceAssignments.plannedCost, actualCost: activityResourceAssignments.actualCost, remainingCost: activityResourceAssignments.remainingCost, updatedAt: activityResourceAssignments.updatedAt },
+      (_s, w: { activityId: string; resourceId: string; plannedUnits: number; actualUnits: number; remainingUnits: number; plannedCost: number; actualCost: number; remainingCost: number }) => ({ activityId: w.activityId, resourceId: w.resourceId, plannedUnits: String(w.plannedUnits), actualUnits: String(w.actualUnits), remainingUnits: String(w.remainingUnits), plannedCost: String(w.plannedCost), actualCost: String(w.actualCost), remainingCost: String(w.remainingCost), updatedAt: now })),
   });
 
   // ---- relationships (keyed by predecessor + successor + type)
@@ -148,7 +158,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     desired: Array.from(relations.values()), existing: existingRelations, key: item => `${item.predecessorId}|${item.successorId}|${item.type}`,
     same: (s, w) => same2(s.lagHours, w.lag),
     insert: async rows => { await tx.insert(activityRelationships).values(rows.map(w => ({ ...common, id: w.id, predecessorActivityId: w.predecessorId, successorActivityId: w.successorId, relationType: w.type, lagHours: String(w.lag) }))); },
-    update: async (s, w) => { await tx.update(activityRelationships).set({ lagHours: String(w.lag), updatedAt: now }).where(eq(activityRelationships.id, s.id)); },
+    update: bulk(activityRelationships, { lagHours: activityRelationships.lagHours, updatedAt: activityRelationships.updatedAt }, (_s, w: { lag: number }) => ({ lagHours: String(w.lag), updatedAt: now })),
   });
 
   // ---- activity codes: types, their values (a tree), and which value each activity carries
@@ -158,7 +168,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     desired: model.codeTypes.map(item => ({ id: typeId.get(item.externalId)!, externalId: item.externalId, name: item.name.slice(0, 120), scope: item.scope.slice(0, 40), sequence: item.sequence })),
     existing: existingTypes, key: item => item.externalId, same: (s, w) => s.name === w.name && (s.scope ?? "") === w.scope && s.sequence === w.sequence,
     insert: async rows => { await tx.insert(activityCodeTypes).values(rows.map(w => ({ ...common, id: w.id, externalId: w.externalId, name: w.name, scope: w.scope || null, sequence: w.sequence }))); },
-    update: async (s, w) => { await tx.update(activityCodeTypes).set({ name: w.name, scope: w.scope || null, sequence: w.sequence, updatedAt: now }).where(eq(activityCodeTypes.id, s.id)); },
+    update: bulk(activityCodeTypes, { name: activityCodeTypes.name, scope: activityCodeTypes.scope, sequence: activityCodeTypes.sequence, updatedAt: activityCodeTypes.updatedAt }, (_s, w: { name: string; scope: string; sequence: number }) => ({ name: w.name, scope: w.scope || null, sequence: w.sequence, updatedAt: now })),
   });
   const existingValues = new Map((await tx.select().from(activityCodeValues).where(mine(activityCodeValues))).map(row => [row.externalId, row]));
   const valueId = new Map(model.codeValues.map(item => [item.externalId, existingValues.get(item.externalId)?.id ?? randomUUID()]));
@@ -166,7 +176,8 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     desired: model.codeValues.filter(item => typeId.has(item.typeExternalId)).map(item => ({ id: valueId.get(item.externalId)!, externalId: item.externalId, typeId: typeId.get(item.typeExternalId)!, parentId: item.parentExternalId ? valueId.get(item.parentExternalId) ?? null : null, shortName: item.shortName.slice(0, 80), name: item.name.slice(0, 255), sequence: item.sequence })),
     existing: existingValues, key: item => item.externalId, same: (s, w) => s.codeTypeId === w.typeId && (s.parentId ?? null) === w.parentId && s.shortName === w.shortName && s.name === w.name && s.sequence === w.sequence,
     insert: async rows => { await tx.insert(activityCodeValues).values(rows.map(w => ({ ...common, id: w.id, externalId: w.externalId, codeTypeId: w.typeId, parentId: w.parentId, shortName: w.shortName, name: w.name, sequence: w.sequence }))); },
-    update: async (s, w) => { await tx.update(activityCodeValues).set({ codeTypeId: w.typeId, parentId: w.parentId, shortName: w.shortName, name: w.name, sequence: w.sequence, updatedAt: now }).where(eq(activityCodeValues.id, s.id)); },
+    update: bulk(activityCodeValues, { codeTypeId: activityCodeValues.codeTypeId, parentId: activityCodeValues.parentId, shortName: activityCodeValues.shortName, name: activityCodeValues.name, sequence: activityCodeValues.sequence, updatedAt: activityCodeValues.updatedAt },
+      (_s, w: { typeId: string; parentId: string | null; shortName: string; name: string; sequence: number }) => ({ codeTypeId: w.typeId, parentId: w.parentId, shortName: w.shortName, name: w.name, sequence: w.sequence, updatedAt: now })),
   });
   const existingCodeAssignments = new Map((await tx.select().from(activityCodeAssignments).where(mine(activityCodeAssignments))).map(row => [`${row.activityId}|${row.codeTypeId}`, row]));
   const wantedCodeAssignments = new Map<string, { id: string; activityId: string; typeId: string; valueId: string }>();
@@ -178,7 +189,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   counts.codeAssignments = await sync({
     desired: Array.from(wantedCodeAssignments.values()), existing: existingCodeAssignments, key: item => `${item.activityId}|${item.typeId}`, same: (s, w) => s.codeValueId === w.valueId,
     insert: async rows => { await tx.insert(activityCodeAssignments).values(rows.map(w => ({ ...common, id: w.id, activityId: w.activityId, codeTypeId: w.typeId, codeValueId: w.valueId }))); },
-    update: async (s, w) => { await tx.update(activityCodeAssignments).set({ codeValueId: w.valueId, updatedAt: now }).where(eq(activityCodeAssignments.id, s.id)); },
+    update: bulk(activityCodeAssignments, { codeValueId: activityCodeAssignments.codeValueId, updatedAt: activityCodeAssignments.updatedAt }, (_s, w: { valueId: string }) => ({ codeValueId: w.valueId, updatedAt: now })),
   });
 
   plan.canConfirm = true;
@@ -199,10 +210,10 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   return plan;
 }
 
-async function inTransaction(input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean): Promise<P6Plan & { importId?: string }> {
+async function inTransaction(input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean): Promise<{ db: Db; plan: P6Plan & { importId?: string } }> {
   const db = await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "schedule" });
-  try { return await db.transaction(tx => run(tx, input, model, fileHash, source, commit)); }
-  catch (error) { if (error instanceof Rollback) return error.plan; throw error; }
+  try { return { db, plan: await db.transaction(tx => run(tx, input, model, fileHash, source, commit)) }; }
+  catch (error) { if (error instanceof Rollback) return { db, plan: error.plan }; throw error; }
 }
 
 const read = (bytes: Uint8Array) => ({ model: readP6(parseXerFile(bytes)), fileHash: createHash("sha256").update(bytes).digest("hex") });
@@ -210,15 +221,14 @@ const read = (bytes: Uint8Array) => ({ model: readP6(parseXerFile(bytes)), fileH
 /** What the file would do, counted by the database in a transaction that is rolled back. Writes nothing. */
 export async function analyzeP6Import(input: Scope & { bytes: Uint8Array }): Promise<P6Plan> {
   const { model, fileHash } = read(input.bytes);
-  return inTransaction(input, model, fileHash, null, false);
+  return (await inTransaction(input, model, fileHash, null, false)).plan;
 }
 
 export async function confirmP6Import(input: Scope & { bytes: Uint8Array; approvedHash?: string; source: { key: string; name: string } }): Promise<P6Plan & { importId?: string }> {
   const { model, fileHash } = read(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
-  const plan = await inTransaction(input, model, fileHash, input.source, true);
+  const { db, plan } = await inTransaction(input, model, fileHash, input.source, true); // the connection authorised for this import (no second authorisation for it)
   if (!plan.canConfirm || plan.issues.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.issues.slice(0, 20) });
-  const db = await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "schedule" });
   void refreshStatisticsAfterBulkLoad(db, ["activities", "wbs_items", "activity_*"], model.activities.length);
   return plan;
 }

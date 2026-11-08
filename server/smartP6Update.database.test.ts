@@ -7,16 +7,21 @@ import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildP6Xer } from "./domain/smartImport/p6Fixture";
+import { analyzeScheduleUpdate, confirmScheduleUpdate } from "./p6Update";
+import { activitySnapshot, clearP6Tenant, seedOutsiderTenant } from "./testing/p6Isolation";
 
 // Work order 20, a Primavera P6 «update activities» export in the legacy .xls format applied to a schedule already imported from the .xer.
 // (was: a Primavera P6 export (.xer): a SYNTHETIC file with the table sizes of a real export (p6Fixture.ts; nothing real in it) goes through the smart import box and is written in FULL —
 // the WBS tree, the activities, their relationships, the resources and assignments, the activity codes and the calendars — not the activities alone.
 const T = "79000000-0000-4000-8000-0000000000a9";
 const P = "79000000-0000-4000-8000-0000000000aa";
+const PB = "79000000-0000-4000-8000-0000000000ab"; // a second project of the SAME company (isolation between projects)
+const T2 = "79000000-0000-4000-8000-0000000000ac"; // ANOTHER company (isolation between companies)
+const P2 = "79000000-0000-4000-8000-0000000000ad";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;
 let s3: FakeS3;
-const users = { manager: 0, reader: 0 };
+const users = { manager: 0, reader: 0, outsider: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@p6u.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
 const one = async <R,>(sql: string, params: unknown[] = []) => (await connection.query<any[]>(sql, params))[0] as R[];
@@ -37,8 +42,9 @@ async function clear() {
   await connection.query("DELETE FROM memberships WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T]);
-  await connection.query("DELETE FROM projects WHERE id = ?", [P]);
+  await connection.query("DELETE FROM projects WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM companies WHERE id = ?", [T]);
+  await clearP6Tenant(connection, T2);
   await connection.query("DELETE FROM users WHERE openId LIKE 'p6u-%'");
 }
 
@@ -60,7 +66,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'p6u-%'");
     users.manager = rows.find(r => r.openId === "p6u-manager")!.id; users.reader = rows.find(r => r.openId === "p6u-reader")!.id;
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'P6U Tenant', 'p6u-tenant')", [T]);
-    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'P6-U', 'P6 project', 'villas', 'SAR', 'active')", [P, T]);
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'P6-U', 'P6 project', 'villas', 'SAR', 'active'), (?, ?, 'P6-UB', 'P6 project B', 'villas', 'SAR', 'active')", [P, T, PB, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('p6u-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('p6u-ent', ?, 'p6u-sub', 'PROJECT', true, NOW())", [T]);
     for (const code of ["project.read", "project.wbs.manage", "project.schedule.manage"]) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
@@ -69,6 +75,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'p6u-r-reader', id FROM permissions WHERE code = 'project.read'");
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('p6u-m-manager', ?, ?, 'active'), ('p6u-m-reader', ?, ?, 'active')", [T, users.manager, T, users.reader]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('p6u-mr-manager','p6u-m-manager','p6u-r-manager','company'),('p6u-mr-reader','p6u-m-reader','p6u-r-reader','company')");
+    users.outsider = await seedOutsiderTenant(connection, { tenantId: T2, projectId: P2, prefix: "p6u" });
   }, 60_000);
   afterAll(async () => { await clear(); await connection.end(); await s3.close(); });
 
@@ -118,4 +125,40 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     expect(plan.canConfirm).toBe(false); expect(plan.unknown).toBe(615); expect(plan.issues.map(i => i.code)).toContain("SCHEDULE_UPDATE_NO_SCHEDULE");
     await expect(manager.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: "update-activities-3.xls", kind: "scheduleUpdate", forced: {} as never })).rejects.toThrow("PROJECT_OS_IMPORT_VALIDATION_FAILED");
   }, 60_000);
+
+  // ---- D-4 (#153), review item 4: the progress update stays inside its company and its project
+  it("isolation: an outsider cannot analyse or confirm an update here; an update applied to project B (same activity ids) leaves project A untouched", async () => {
+    const manager = callerFor(users.manager, "p6u-manager");
+    const xls = readFileSync(join(__dirname, "testing", "fixtures", "p6-activity-update.xls"));
+    // the same not-started schedule in both projects (names differ only so the two files are not the same file)
+    for (const [project, suffix] of [[P, " (A)"], [PB, " (B)"]] as const) {
+      const target = await manager.smartImport.createUpload({ tenantId: T, projectId: project, fileName: `base${suffix}.xer` });
+      expect((await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(buildP6Xer({ withActuals: false, nameSuffix: suffix }).bytes) })).ok).toBe(true);
+      const base = (await manager.smartImport.analyze({ tenantId: T, projectId: project, uploadKey: target.uploadKey, fileName: `base${suffix}.xer` })).p6Plan!;
+      await manager.smartImport.confirm({ tenantId: T, projectId: project, uploadKey: target.uploadKey, fileName: `base${suffix}.xer`, kind: "xer", forced: {} as never, approvedHash: base.fileHash });
+    }
+    // fixture reset: the first test already confirmed this synthetic .xls in this company, and the same file is refused twice — its record goes so the file can be applied again
+    await connection.query("DELETE r FROM data_import_row_results r INNER JOIN data_imports i ON i.id = r.importId WHERE i.tenantId = ? AND i.moduleCode = 'p6update'", [T]);
+    await connection.query("DELETE FROM data_import_sources WHERE tenantId = ? AND importId IN (SELECT id FROM data_imports WHERE tenantId = ? AND moduleCode = 'p6update')", [T, T]);
+    await connection.query("DELETE FROM data_imports WHERE tenantId = ? AND moduleCode = 'p6update'", [T]);
+    const beforeA = await activitySnapshot(connection, { tenantId: T, projectId: P });
+    expect(beforeA).toHaveLength(611);
+
+    // between companies: refused by name, nothing written anywhere
+    await expect(analyzeScheduleUpdate({ userId: users.outsider, tenantId: T, projectId: P, bytes: xls })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(confirmScheduleUpdate({ userId: users.outsider, tenantId: T, projectId: P, bytes: xls, source: { key: "x", name: "x.xls" } })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(confirmScheduleUpdate({ userId: users.outsider, tenantId: T2, projectId: P, bytes: xls, source: { key: "x", name: "x.xls" } })).rejects.toThrow(/PROJECT_OS_/);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId IN (?, ?) AND moduleCode = 'p6update'", [T, T2])).toBe(0);
+    expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(beforeA);
+
+    // between projects: the update goes to B only
+    const target = await manager.smartImport.createUpload({ tenantId: T, projectId: PB, fileName: "update-b.xls" });
+    expect((await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: xls })).ok).toBe(true);
+    const plan = (await manager.smartImport.analyze({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "update-b.xls" })).scheduleUpdatePlan!;
+    expect(plan).toMatchObject({ updated: 139, started: 139, finished: 120 });
+    await manager.smartImport.confirm({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "update-b.xls", kind: "scheduleUpdate", forced: {} as never, approvedHash: plan.fileHash });
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ? AND actualStartAt IS NOT NULL", [T, PB])).toBe(139);
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ? AND status = 'completed' AND percentComplete = 100", [T, PB])).toBe(120);
+    expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(beforeA); // A: not one date, status or timestamp moved
+  }, 180_000);
 });
