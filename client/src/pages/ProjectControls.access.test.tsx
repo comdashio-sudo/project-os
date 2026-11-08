@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 
 vi.mock("wouter", () => ({
+  useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()],
   useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }),
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
