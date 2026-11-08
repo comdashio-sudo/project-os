@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ProjectImports } from "./ProjectImports";
 
 // The import log lists ATTEMPTS (owner order 2026-10-27): each says plainly what happened, a refused or unconfirmed one can be deleted, a confirmed one can be rolled back or replaced.
@@ -64,5 +66,34 @@ describe("the import log shows what each attempt is and what can be done with it
     const ledger = within(screen.getByTestId("import-attempt-imported"));
     expect(ledger.queryByRole("button", { name: "Roll back this import" })).toBeNull();
     expect(ledger.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
+  });
+});
+
+describe("the attempt rows follow the design system (design review of #157)", () => {
+  const setup = () => { state.mock.list = [row(ids.rejected, "2234-21.xer", "uploaded", 14, "schedule"), row(ids.awaiting, "wbs.xlsx", "validated", 0), row(ids.imported, "done.xlsx", "completed", 0)]; render(<ProjectImports tenantId="tenant-1" projectId="project-1" />); };
+
+  it("shows each state as a badge with words and an icon, so «Rejected» is never colour alone", () => {
+    setup();
+    const tones: Record<string, string> = { rejected: "danger", awaiting: "warning", imported: "success" };
+    for (const [attempt, tone] of Object.entries(tones)) {
+      const badge = screen.getByTestId(`import-attempt-${attempt}`).querySelector(`[data-tone="${tone}"]`);
+      expect(badge, attempt).not.toBeNull();
+      expect(badge!.querySelector("svg[aria-hidden='true']"), attempt).not.toBeNull();
+      expect(badge!.textContent!.trim().length, attempt).toBeGreaterThan(0);
+    }
+  });
+
+  it("gives every row action a 44px touch target on phones (min-h-11)", () => {
+    setup();
+    const buttons = ["rejected", "awaiting", "imported"].flatMap(attempt => within(screen.getByTestId(`import-attempt-${attempt}`)).getAllByRole("button"));
+    expect(buttons.length).toBeGreaterThanOrEqual(6);
+    for (const button of buttons) expect(button.className, button.textContent ?? "").toContain("min-h-11");
+  });
+
+  it("uses no raw palette colours on the import screen (negative: a red-700 would fail)", () => {
+    const source = readFileSync(resolve(process.cwd(), "client/src/pages/ProjectImports.tsx"), "utf8");
+    const raw = /\b(?:text|bg|border)-(?:red|amber|slate|gray|green|yellow)-\d{2,3}\b/;
+    expect(raw.test("text-red-700")).toBe(true);
+    expect(source.match(new RegExp(raw.source, "g")) ?? []).toEqual([]);
   });
 });
