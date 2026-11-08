@@ -16,3 +16,8 @@ report.json per shot: dir, horizontal scroll (none), buttons/links under 44px (n
 before-* = client build of main 8f333b9; after-* = client build of 5fcd35e. No server and no database: every tRPC reply is a fixed synthetic fake (Demo Builders Co., Demo Tower, *.example.test); queries without a fixture answer NOT_FOUND, so lower sections may show their own error state.
 Workspace (/) and project page (/projects/:t/:p/controls), 390 and 1280, Arabic, English and Urdu, full page.
 before-report.json / after-report.json per shot: dir, horizontal scroll, main count, buttons/links under 44px inside main on 390, Arabic-Indic digits in the page text.
+
+## d-3/part-2/ef1439b/ — review fixes for #217
+
+after-* = client build of ef1439b; before-* = main 8f333b9 (unchanged since 5fcd35e, copied). Same fixed fake tRPC replies, no server, no database.
+Fixes visible here: health/EVM results on a muted surface with full-contrast text and the overdue HSE line inside the health card; one column (no empty "Schedule & cost updates" panel at 1280); cut-off date full width under its label at 390 and 1280; company and project names in <bdi> (the full stop stays at the end in ar/ur).
