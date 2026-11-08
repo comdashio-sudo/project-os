@@ -1,0 +1,5 @@
+{
+  "_note": "PUBLIC values only. publishableKey must be the project's sb_publishable_ key (Supabase -> Project Settings -> API Keys -> Publishable key). Never put an sb_secret_ or service_role key here: server/testing/supabasePublicConfig.test.ts and the release workflow refuse it.",
+  "url": "https://dzfxgxccnlyhcjgqstgn.supabase.co",
+  "publishableKey": ""
+}
