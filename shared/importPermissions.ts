@@ -10,3 +10,10 @@ export const importModulePermissions = {
   openingBalances: ["project.inventory.manage"],
   schedule: ["project.schedule.manage", "project.wbs.manage"],
 } as const satisfies Record<string, readonly string[]>;
+
+/** An attempt whose module is unknown, and deleting an attempt (server/importAttempts.ts), accept any one of the import permissions. */
+export const anyImportPermission: readonly string[] = Array.from(new Set(Object.values(importModulePermissions).flat()));
+
+/** What the server checks to confirm or reanalyze an import of this module; the import log gates its buttons on the same answer. */
+export const importPermissionFor = (moduleCode: string): readonly string[] =>
+  importModulePermissions[moduleCode as keyof typeof importModulePermissions] ?? anyImportPermission;

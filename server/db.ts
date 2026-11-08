@@ -159,7 +159,8 @@ import { createInFlight } from "./inFlight";
 import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions } from "./domain/operationalRoles";
 import { decideTemplateRemovals, listTemplateRemovals, proposeRetiredTemplateRemovals } from "./roleTemplateSync";
-import { findPermissionConflict, importModulePermissions } from "./domain/operationalPermissions";
+import { findPermissionConflict } from "./domain/operationalPermissions";
+import { anyImportPermission, importPermissionFor } from "@shared/importPermissions";
 
 export { getDb } from "./_core/database";
 import { getDb, isUniqueViolation, rowsAffected, withSystemContext, withSystemContextJoining } from "./_core/database";
@@ -851,8 +852,7 @@ async function assertWbsItemWithinProject(input: { tenantId: string; projectId: 
   if (!wbsItem[0]) throw new Error("PROJECT_OS_WBS_SCOPE_MISMATCH");
 }
 
-const anyImportPermission = Array.from(new Set(Object.values(importModulePermissions).flat()));
-export const importPermissionFor = (moduleCode: string) => importModulePermissions[moduleCode as keyof typeof importModulePermissions] ?? anyImportPermission;
+export { importPermissionFor };
 
 const ownerPermissions = [
   { code: "tenant.manage", name: "Manage the company", productCode: "EXECUTIVE" as const },
