@@ -13,6 +13,7 @@ import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
+import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
@@ -86,6 +87,9 @@ const pmcFiltersInput = z.object({ zone: z.string().max(80).optional(), block: z
 const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput });
 const pmcScreen = <N extends PmcScreenName>(screen: N) => protectedProcedure.input(pmcScreenInput).query(({ ctx, input }) => getPmcScreen({ userId: ctx.user.id, screen, ...input }));
 
+// the project profile's free text: trimmed, an empty string stored as «not given»
+const profileText = (max: number) => z.string().trim().max(max).nullable().transform(value => value || null);
+const logoChange = z.object({ uploadKey: z.string().min(1).max(1024) }).strict().nullable().optional();
 const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "schedule", "openingBalances"]);
 // the general importer's modules plus the PMC and master-plan imports, which now travel the same direct-upload path (server/externalImports.ts)
 const uploadModuleSchema = z.union([importModuleSchema, z.enum(EXTERNAL_MODULES)]);
@@ -522,6 +526,21 @@ export const appRouter = router({
       currency: riyalCurrency(),
     })).mutation(({ ctx, input }) => createProjectForTenant({ userId: ctx.user.id, ...input })),
     transitionLifecycle: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), lifecycleStage: z.enum(["opportunity", "pre_award", "tender", "award", "mobilization", "planning", "design", "procurement", "execution", "commissioning", "handover", "closeout", "post_project_review"]) })).mutation(({ ctx, input }) => transitionProjectLifecycle({ userId: ctx.user.id, ...input })),
+    // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
+    profile: router({
+      get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectProfile({ userId: ctx.user.id, ...input })),
+      save: protectedProcedure.input(z.object({
+        tenantId: z.string().uuid(), projectId: z.string().uuid(),
+        location: profileText(255), contractNumber: profileText(80), clientName: profileText(255), consultantName: profileText(255), contractorName: profileText(255),
+        workDays: z.array(z.number().int()).min(1).max(7), workStart: z.string().max(5).nullable(), workEnd: z.string().max(5).nullable(), reportPrefix: z.string().trim().max(16).nullable().transform(value => value || null),
+        logos: z.object({ client: logoChange, consultant: logoChange, contractor: logoChange }).strict().optional(),
+      })).mutation(({ ctx, input }) => saveProjectProfile({ userId: ctx.user.id, ...input })),
+    }),
+    companies: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectCompanies({ userId: ctx.user.id, ...input })),
+      save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid().optional(), name: z.string().trim().min(1).max(255), role: z.enum(["main", "sub"]) })).mutation(({ ctx, input }) => saveProjectCompany({ userId: ctx.user.id, ...input })),
+      deactivate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid() })).mutation(({ ctx, input }) => deactivateProjectCompany({ userId: ctx.user.id, ...input })),
+    }),
   }),
   contracts: router({
     getProjectRegister: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getContractsCommitmentsForTenant({ userId: ctx.user.id, ...input })),
