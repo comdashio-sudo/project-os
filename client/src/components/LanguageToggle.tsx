@@ -3,6 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAccountLanguage } from "@/contexts/accountLanguage";
 import { LANGUAGE_NAMES, LANGUAGES, pickLanguage } from "@/lib/language";
 import { Languages } from "lucide-react";
+import { useInShell } from "@/components/pageFrame";
 
 /** The three-way language switch. The choice is changed on this device at once and kept in this browser; when the person is signed in it is also saved
  *  on their account (LanguageAccountSync), so it follows them to any device. The screens that can show a note say where it is kept: `showNote`. */
@@ -21,6 +22,8 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
       ur: "زبان اس آلے پر محفوظ ہوتی ہے۔ اپنے اکاؤنٹ میں رکھنے کے لیے سائن ان کریں۔",
     });
   const groupLabel = pickLanguage(language, { ar: "لغة الواجهة", en: "Interface language", ur: "انٹرفیس کی زبان" });
+  // inside the product frame the frame's own language menu is the one switch: a page must not draw a second (code review of #156, item 2)
+  if (useInShell()) return null;
   return (
     <div className="inline-flex flex-col items-end gap-1" title={note}>
       <div role="group" aria-label={groupLabel} className="inline-flex flex-wrap items-center gap-1">

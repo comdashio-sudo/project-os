@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
+import { InShellProvider } from "@/components/pageFrame";
 
 const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false }));
 
@@ -51,6 +52,21 @@ vi.mock("@/lib/trpc", () => {
 
 describe("ProjectControls section resilience", () => {
   afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.contractsRenderFailure = false; });
+
+  it("inside the product frame draws no top bar or main of its own: the frame keeps the one banner and the one main (review of #156, item 2)", () => {
+    const { container } = render(<InShellProvider><ProjectControls /></InShellProvider>);
+    expect(screen.queryAllByRole("banner")).toHaveLength(0);
+    expect(screen.queryAllByRole("main")).toHaveLength(0);
+    expect(container.querySelectorAll("header, main")).toHaveLength(0);
+    // the page's actions stay, as a toolbar in the content
+    expect(container.querySelector("[data-page-toolbar]")?.textContent).toContain("Profitability");
+    expect(screen.getByText("Delivery evidence")).toBeTruthy();
+  });
+
+  it("opened on its own (outside the frame) keeps its own main landmark", () => {
+    render(<ProjectControls />);
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+  });
 
   it("keeps project controls available when the independent performance source fails", () => {
     render(<ProjectControls />);

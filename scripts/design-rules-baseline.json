@@ -176,7 +176,7 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectControls.tsx": {
-  "hardcoded-colour": 31,
+  "hardcoded-colour": 28,
   "number-format": 1
  },
  "client/src/pages/ProjectDataExport.tsx": {
@@ -225,7 +225,7 @@
  },
  "client/src/pages/ProjectPmc.tsx": {
   "raw-select": 7,
-  "hardcoded-colour": 5
+  "hardcoded-colour": 4
  },
  "client/src/pages/ProjectProcurement.tsx": {
   "raw-select": 15

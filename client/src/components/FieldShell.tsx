@@ -1,4 +1,5 @@
 import React from "react";
+import { PageMain } from "@/components/pageFrame";
 import { Link, useLocation } from "wouter";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -38,7 +39,7 @@ export function FieldShell({ title, backHref, backLabel, wide, tenantId, project
   const { isRtl, language } = useLanguage();
   // the Urdu face (Nastaliq) needs far more room between lines than the tight default: without it the label of one field sits on the value of the one above
   return (
-    <main className={`min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900 ${language === "ur" ? "[&_*]:!leading-[2.1]" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
+    <PageMain className={`min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900 ${language === "ur" ? "[&_*]:!leading-[2.1]" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className={`mx-auto space-y-4 ${wide ? "max-w-5xl" : "max-w-md"}`}>
         <Link href={backHref} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{backLabel}</Link>
@@ -46,7 +47,7 @@ export function FieldShell({ title, backHref, backLabel, wide, tenantId, project
         {tenantId && projectId && <FieldTabs tenantId={tenantId} projectId={projectId} current={current} />}
         {children}
       </div>
-    </main>
+    </PageMain>
   );
 }
 
