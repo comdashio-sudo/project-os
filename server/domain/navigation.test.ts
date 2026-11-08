@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildTenantNavigation } from "./navigation";
+import { buildTenantNavigation as build } from "./navigation";
+
+// Each snapshot below stands for ONE assignment, so its grants are every listed permission on every listed scope (G-142, D-18: the real snapshot
+// keeps the pairs it read; the merged case is tested in authorization.grants.test.ts).
+type NavInput = Omit<Parameters<typeof build>[0], "snapshot"> & { snapshot: Omit<Parameters<typeof build>[0]["snapshot"], "grants"> };
+const buildTenantNavigation = (input: NavInput) => build({ ...input, snapshot: { ...input.snapshot, grants: input.snapshot.permissionCodes.flatMap(code => input.snapshot.scopes.map(scope => ({ code, ...scope }))) } });
 
 describe("buildTenantNavigation", () => {
   it("returns only items backed by licensed products, permissions, and company scope", () => {
@@ -22,7 +27,7 @@ describe("buildTenantNavigation", () => {
 
 // The sidebar is one list computed here; these cases pin the exact ids a person sees by role, so a change to the list shows up as a diff.
 describe("buildTenantNavigation by role", () => {
-  const ids = (input: Parameters<typeof buildTenantNavigation>[0]) => buildTenantNavigation(input).map(item => item.id);
+  const ids = (input: NavInput) => buildTenantNavigation(input).map(item => item.id);
   const company = [{ scopeType: "company" as const, scopeId: null }];
   const allProducts = ["EXECUTIVE", "PMO", "PROJECT"] as const;
   // The company owner holds the whole catalog at company scope (server/db.ts ensureTenantOperationalRoles). Only the codes the navigation checks are listed.
@@ -56,8 +61,8 @@ describe("buildTenantNavigation by role", () => {
 
 // Work order 16 (G-193 to G-195): the levels entry is in the sidebar for anyone who can enter a level, and the PMO page stays company-only.
 describe("buildTenantNavigation: the levels entry", () => {
-  const ids = (input: Parameters<typeof buildTenantNavigation>[0]) => buildTenantNavigation(input).map(item => item.id);
-  const snapshot = (overrides: Partial<Parameters<typeof buildTenantNavigation>[0]["snapshot"]>) => ({ tenantId: "tenant-a", membershipStatus: "active" as const, entitledProducts: ["PROJECT"] as const, permissionCodes: [] as string[], scopes: [{ scopeType: "project" as const, scopeId: "project-a" }], ...overrides });
+  const ids = (input: NavInput) => buildTenantNavigation(input).map(item => item.id);
+  const snapshot = (overrides: Partial<NavInput["snapshot"]>) => ({ tenantId: "tenant-a", membershipStatus: "active" as const, entitledProducts: ["PROJECT"] as const, permissionCodes: [] as string[], scopes: [{ scopeType: "project" as const, scopeId: "project-a" }], ...overrides });
 
   it("offers the portfolio level to a PMO person whose scope is one project, and keeps the PMO page company-only", () => {
     const input = { tenantId: "tenant-a", snapshot: snapshot({ entitledProducts: ["PMO"], permissionCodes: ["pmo.read"] }) };

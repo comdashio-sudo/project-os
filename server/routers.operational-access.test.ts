@@ -4,6 +4,7 @@ const databaseDouble = vi.hoisted(() => ({
   select: vi.fn(),
   transaction: vi.fn(),
 }));
+pairGrantSelects(databaseDouble.select);
 const storageDouble = vi.hoisted(() => ({ storagePut: vi.fn(async () => ({ key: "tenant/project/document.bin", url: "https://files.example.test/tenant/project/document.bin" })) }));
 
 vi.mock("drizzle-orm/node-postgres", () => ({
@@ -17,6 +18,7 @@ vi.mock("./_core/requestContext", () => ({ dbContextForUser: async () => ({ user
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { operationalPermissionCatalog } from "./domain/operationalRoles";
+import { pairGrantSelects } from "./testing/grantPairs";
 
 // The fully authorised user of these doubles is the tenant owner: the generic write permission plus every operational one.
 const ownerPermissionRows = [{ code: "project.write" }, ...operationalPermissionCatalog.map(permission => ({ code: permission.code }))];
