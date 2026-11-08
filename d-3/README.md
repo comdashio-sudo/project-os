@@ -38,3 +38,7 @@ Visible fixes: wide tables scroll inside their frame with a hint and an edge fad
 before-* = client build of main 935516d; after-* = client build of 306de4e. No server and no database: fixed synthetic tRPC replies.
 controls-empty-* = an empty project (PRJ-002 "New Villas": no activities, budget or progress) — the start card, its steps bar, and the empty sections with + Add / Upload file. controls-* = a project with data (no start card: activities, budget and progress recorded... the fixture has activities and budget and progress, so the card is hidden).
 390 and 1280, Arabic, English and Urdu, full page. *-report.json: horizontal scroll, main count, buttons under 44px on 390 (34 inherited, unchanged), Arabic-Indic digits.
+
+## d-3/part-4/c938bb1/ — review fixes for #224
+
+before-* = main 935516d; after-* = c938bb1. Same fixed synthetic replies. The empty project (controls-empty-*) now says each section is empty and what to do ("No schedule recorded yet. Add an activity or upload the programme."), not "not in your access scope".
