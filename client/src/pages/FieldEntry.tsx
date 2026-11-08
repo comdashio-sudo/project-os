@@ -1,3 +1,4 @@
+import { Select, formatNumber } from "@/components/ds";
 import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,10 +9,10 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { getProjectError } from "@shared/projectErrors";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Link, useParams } from "wouter";
 import { SourceNotice } from "@/components/SectionResilience";
 import { type Language, pickLanguage } from "@/lib/language";
-import { LanguageToggle } from "@/components/LanguageToggle";
 
 // Phone entry for the two things a site engineer does all day: log progress and
 // issue material. Built for speed: every control is at least 44px, the screen
@@ -76,36 +77,36 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
     onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
     onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "progress", payload: variables, summary: `${context.wbs.find(w => w.id === variables.wbsItemId)?.code ?? ""} → ${variables.percentComplete}%` })) { setNotKept(false); finish(true); } else setNotKept(true); },
   });
-  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.name} → {done.percent}%</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
-  if (context.wbs.length === 0) return <p className="text-sm text-slate-500">{t.noWbs}</p>;
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{done.queued ? t.queuedSaved : t.saved}: {done.name} → {done.percent}%</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  if (context.wbs.length === 0) return <p className="text-sm text-muted-foreground">{t.noWbs}</p>;
   const selected = context.wbs.find(w => w.id === itemId) ?? null;
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-slate-600">{t.pickItem}</p>
+      <p className="text-sm font-semibold text-muted-foreground">{t.pickItem}</p>
       <ul className="space-y-2">
         {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-[#0e6b70] bg-teal-50" : "bg-white"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
+            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
               <span className="font-semibold">{item.code} · {item.name}</span>
-              <span className="block text-xs text-slate-500">{t.nowAt}: {item.lastPercent === null ? t.never : `${item.lastPercent}%`}</span>
+              <span className="block text-xs text-muted-foreground">{t.nowAt}: {item.lastPercent === null ? t.never : `${item.lastPercent}%`}</span>
             </button>
             {item.id === itemId && (
-              <div className="mt-2 rounded-xl bg-slate-50 p-3">
+              <div className="mt-2 rounded-xl bg-muted p-3">
                 <div className="grid grid-cols-5 gap-2" role="group" aria-label={t.progress}>
-                  {PRESETS.map(value => <button key={value} type="button" aria-pressed={percent === value} className={`${tap} rounded-lg border text-base font-semibold ${percent === value ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setPercent(value)}>{value}%</button>)}
+                  {PRESETS.map(value => <button key={value} type="button" aria-pressed={percent === value} className={`${tap} rounded-lg border text-base font-semibold ${percent === value ? "border-primary bg-primary text-white" : "bg-card"}`} onClick={() => setPercent(value)}>{value}%</button>)}
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <button type="button" className={`${tap} rounded-lg border bg-white px-4`} onClick={() => setPercent(Math.max(0, (percent ?? selected?.lastPercent ?? 0) - 5))}>{t.minus5}</button>
+                  <button type="button" className={`${tap} rounded-lg border bg-card px-4`} onClick={() => setPercent(Math.max(0, (percent ?? selected?.lastPercent ?? 0) - 5))}>{t.minus5}</button>
                   <b className="text-xl" dir="ltr">{percent === null ? "—" : `${percent}%`}</b>
-                  <button type="button" className={`${tap} rounded-lg border bg-white px-4`} onClick={() => setPercent(Math.min(100, (percent ?? selected?.lastPercent ?? 0) + 5))}>{t.plus5}</button>
+                  <button type="button" className={`${tap} rounded-lg border bg-card px-4`} onClick={() => setPercent(Math.min(100, (percent ?? selected?.lastPercent ?? 0) + 5))}>{t.plus5}</button>
                 </div>
               </div>
             )}
           </li>
         ))}
       </ul>
-      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
-      {create.error && !isNetworkError(create.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(create.error, isArabic)}</p>}
+      {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
+      {create.error && !isNetworkError(create.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(create.error, isArabic)}</p>}
       <Button className={`${tap} w-full text-base`} disabled={itemId === null || percent === null || create.isPending} onClick={() => create.mutate({ tenantId, projectId, wbsItemId: itemId!, percentComplete: percent!, reportedAt: new Date(), clientRequestId: requestId.current })}>{create.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -132,9 +133,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
     onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
     onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "issue", payload: variables, summary })) { setNotKept(false); finish(true); } else setNotKept(true); },
   });
-  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
-  if (context.materials.length === 0) return <p className="text-sm text-slate-500">{t.noMaterials}</p>;
-  if (context.warehouses.length === 0) return <p className="text-sm text-slate-500">{t.noWarehouses}</p>;
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  if (context.materials.length === 0) return <p className="text-sm text-muted-foreground">{t.noMaterials}</p>;
+  if (context.warehouses.length === 0) return <p className="text-sm text-muted-foreground">{t.noWarehouses}</p>;
   const qty = Number(quantity);
   const cost = Number(unitCost);
   const shelf = material?.onHand.find(h => h.warehouseId === warehouseId);
@@ -143,33 +144,33 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   const onHand = shelf?.quantity ?? null;
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-slate-600">{t.pickMaterial}</p>
+      <p className="text-sm font-semibold text-muted-foreground">{t.pickMaterial}</p>
       <ul className="max-h-72 space-y-2 overflow-y-auto">
         {context.materials.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-[#0e6b70] bg-teal-50" : "bg-white"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
+            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
               <span className="font-semibold">{item.code} · {item.description}</span>
-              <span className="block text-xs text-slate-500">{item.unitOfMeasure}</span>
+              <span className="block text-xs text-muted-foreground">{item.unitOfMeasure}</span>
             </button>
           </li>
         ))}
       </ul>
       {material && (
-        <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
-          <label className="text-sm">{t.quantity} ({material.unitOfMeasure})<input aria-label={t.quantity} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
+        <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
+          <label className="text-sm">{t.quantity} ({material.unitOfMeasure})<input aria-label={t.quantity} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
           {averageCost === null
-            ? <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
-            : <p className="text-sm">{t.averageCost}: <b>{averageCost}</b><span className="block text-xs text-slate-500">{t.usesAverage}</span></p>}
-          <p className="col-span-2 text-xs text-slate-600">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && (averageCost ?? cost) > 0 && <> · {t.total}: <b>{(qty * (averageCost ?? cost)).toFixed(2)}</b></>}</p>
+            ? <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
+            : <p className="text-sm">{t.averageCost}: <b>{averageCost}</b><span className="block text-xs text-muted-foreground">{t.usesAverage}</span></p>}
+          <p className="col-span-2 text-xs text-muted-foreground">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && (averageCost ?? cost) > 0 && <> · {t.total}: <b>{formatNumber(qty * (averageCost ?? cost), 2)}</b></>}</p>
         </div>
       )}
-      <details className="rounded-xl border bg-white p-3 text-sm">
-        <summary className={`${tap} flex cursor-pointer items-center`}>{t.warehouse}: <b className="mx-1">{warehouse?.code}</b> · {t.workItem}: <b className="mx-1">{wbsItem?.code}</b> <span className="ms-auto text-[#0e6b70]">{t.change}</span></summary>
-        <label className="mt-2 block">{t.warehouse}<select aria-label={t.warehouse} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={warehouseId} onChange={event => setWarehouseId(event.target.value)}>{context.warehouses.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select></label>
-        <label className="mt-2 block">{t.workItem}<select aria-label={t.workItem} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={wbsItemId} onChange={event => setWbsItemId(event.target.value)}>{context.wbs.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select></label>
+      <details className="rounded-xl border bg-card p-3 text-sm">
+        <summary className={`${tap} flex cursor-pointer items-center`}>{t.warehouse}: <b className="mx-1">{warehouse?.code}</b> · {t.workItem}: <b className="mx-1">{wbsItem?.code}</b> <span className="ms-auto text-primary">{t.change}</span></summary>
+        <label className="mt-2 block">{t.warehouse}<Select aria-label={t.warehouse} className={`${tap} mt-1`} value={warehouseId} onValueChange={setWarehouseId} options={context.warehouses.map(w => ({ value: w.id, label: `${w.code} · ${w.name}` }))} /></label>
+        <label className="mt-2 block">{t.workItem}<Select aria-label={t.workItem} className={`${tap} mt-1`} value={wbsItemId} onValueChange={setWbsItemId} options={context.wbs.map(w => ({ value: w.id, label: `${w.code} · ${w.name}` }))} /></label>
       </details>
-      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
-      {issue.error && !isNetworkError(issue.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(issue.error, isArabic)}</p>}
+      {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
+      {issue.error && !isNetworkError(issue.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(issue.error, isArabic)}</p>}
       <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: averageCost === null ? cost : undefined, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -198,8 +199,8 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
     onSuccess: () => { setNotKept(false); finish(false); onSaved(); },
     onError: (error, variables) => { if (!isNetworkError(error)) return; if (keepOffline({ id: variables.clientRequestId!, kind: "receipt", payload: variables, summary })) { setNotKept(false); finish(true); } else setNotKept(true); },
   });
-  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
-  if (orders.length === 0) return <p className="text-sm text-slate-500">{t.noOrders}</p>;
+  if (done) return <div className="space-y-3"><p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{done.queued ? t.queuedSaved : t.saved}: {done.text}</p><Button className={`${tap} w-full`} onClick={() => setDone(null)}>{t.another}</Button></div>;
+  if (orders.length === 0) return <p className="text-sm text-muted-foreground">{t.noOrders}</p>;
   const qty = Number(quantity);
   const cost = Number(unitCost || material?.lastUnitCost || 0);
   const ready = Boolean(order && material && qty > 0 && cost > 0 && (direct || receiveWarehouseId));
@@ -209,35 +210,35 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
   };
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-slate-600">{t.pickOrder}</p>
+      <p className="text-sm font-semibold text-muted-foreground">{t.pickOrder}</p>
       <ul className="space-y-2">
         {orders.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-[#0e6b70] bg-teal-50" : "bg-white"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
+            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
               <span className="font-semibold">{item.purchaseOrderNumber}</span>
-              <span className="block text-xs text-slate-500">{item.supplierName}</span>
+              <span className="block text-xs text-muted-foreground">{item.supplierName}</span>
             </button>
           </li>
         ))}
       </ul>
       {order && (
         <>
-          <label className="block text-sm">{t.pickMaterial}<select aria-label={t.pickMaterial} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={chosenMaterialId ?? ""} onChange={event => { setMaterialId(event.target.value || null); setUnitCost(""); }}><option value="">—</option>{context.materials.map(m => <option key={m.id} value={m.id}>{m.code} · {m.description}</option>)}</select></label>
+          <label className="block text-sm">{t.pickMaterial}<Select aria-label={t.pickMaterial} className={`${tap} mt-1`} value={chosenMaterialId ?? undefined} placeholder="—" onValueChange={value => { setMaterialId(value || null); setUnitCost(""); }} options={context.materials.map(m => ({ value: m.id, label: `${m.code} · ${m.description}` }))} /></label>
           {material && (
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
-              <label className="text-sm">{t.receivedQty} ({material.unitOfMeasure})<input aria-label={t.receivedQty} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
-              <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} inputMode="decimal" placeholder={material.lastUnitCost === null ? "" : String(material.lastUnitCost)} value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
+              <label className="text-sm">{t.receivedQty} ({material.unitOfMeasure})<input aria-label={t.receivedQty} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
+              <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" placeholder={material.lastUnitCost === null ? "" : String(material.lastUnitCost)} value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
               <label className="col-span-2 flex items-start gap-2 text-sm"><input type="checkbox" aria-label={t.directToSite} className="mt-1 h-5 w-5" checked={direct} onChange={event => setDirect(event.target.checked)} />{t.directToSite}</label>
               {!direct && (context.warehouses.length === 0
-                ? <p role="alert" className="col-span-2 text-xs text-red-700">{t.noWarehouseToReceive}</p>
-                : <label className="col-span-2 text-sm">{t.warehouse}<select aria-label={t.warehouse} className={`${tap} mt-1 w-full rounded-lg border bg-white px-2`} value={receiveWarehouseId} onChange={event => setReceiveWarehouseId(event.target.value)}>{context.warehouses.map(w => <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}</select><span className="block text-xs text-slate-500">{t.intoWarehouse}</span></label>)}
-              <p className="col-span-2 text-xs text-slate-600">{qty > 0 && cost > 0 && <>{t.total}: <b>{(qty * cost).toFixed(2)}</b> {riyalLabel(isArabic)} · </>}{t.rejectedHint}</p>
+                ? <p role="alert" className="col-span-2 text-xs text-danger-soft-foreground">{t.noWarehouseToReceive}</p>
+                : <label className="col-span-2 text-sm">{t.warehouse}<Select aria-label={t.warehouse} className={`${tap} mt-1`} value={receiveWarehouseId} onValueChange={setReceiveWarehouseId} options={context.warehouses.map(w => ({ value: w.id, label: `${w.code} · ${w.name}` }))} /><span className="block text-xs text-muted-foreground">{t.intoWarehouse}</span></label>)}
+              <p className="col-span-2 text-xs text-muted-foreground">{qty > 0 && cost > 0 && <>{t.total}: <b>{formatNumber(qty * cost, 2)}</b> {riyalLabel(isArabic)} · </>}{t.rejectedHint}</p>
             </div>
           )}
         </>
       )}
-      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
-      {receive.error && !isNetworkError(receive.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(receive.error, isArabic)}</p>}
+      {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
+      {receive.error && !isNetworkError(receive.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(receive.error, isArabic)}</p>}
       <Button className={`${tap} w-full text-base`} disabled={!ready || receive.isPending} onClick={submit}>{receive.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -270,29 +271,29 @@ function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, language, 
   const label = (assignmentId: string) => { const row = rows?.find(entry => entry.assignmentId === assignmentId); return row ? `${row.employeeNumber} · ${row.fullName}` : assignmentId; };
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-semibold text-slate-600">{t.workDate}<input type="date" aria-label={t.workDate} className={`${tap} mt-1 w-full rounded-lg border bg-white px-3 text-lg`} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setDone(null); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); } }} /></label>
-      {cached && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cachedNotice}</p>}
-      {sheet.isLoading && !rows && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
-      {sheet.error && !rows && !isNetworkError(sheet.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(sheet.error, isArabic)}</p>}
-      {rows && rows.length === 0 && <p className="text-sm text-slate-500">{t.teamEmpty}</p>}
+      <label className="block text-sm font-semibold text-muted-foreground">{t.workDate}<input type="date" aria-label={t.workDate} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setDone(null); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); } }} /></label>
+      {cached && <p role="status" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.cachedNotice}</p>}
+      {sheet.isLoading && !rows && <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>}
+      {sheet.error && !rows && !isNetworkError(sheet.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(sheet.error, isArabic)}</p>}
+      {rows && rows.length === 0 && <p className="text-sm text-muted-foreground">{t.teamEmpty}</p>}
       {rows && rows.length > 0 && (
         <ul className="space-y-2">
           {rows.map(row => {
             const open = row.attendanceApproved && !row.entered;
             return (
-              <li key={row.assignmentId} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${open ? "bg-white" : "bg-slate-50 text-slate-500"}`}>
+              <li key={row.assignmentId} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${open ? "bg-card" : "bg-muted text-muted-foreground"}`}>
                 <input type="checkbox" aria-label={`${row.employeeNumber} ${row.fullName}`} className={`${tap} shrink-0`} disabled={!open} checked={open && !unticked.has(row.assignmentId)} onChange={event => setUnticked(previous => { const next = new Set(previous); if (event.target.checked) next.delete(row.assignmentId); else next.add(row.assignmentId); return next; })} />
                 <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{row.employeeNumber} · {row.fullName}</span><span className="block text-xs">{row.wbsCode ? `${row.wbsCode} · ` : ""}{row.entered ? `${t.entered}: ${row.entered.hours} ${t.hours}` : row.attendanceApproved ? "" : t.attendanceMissing}</span></span>
-                {open && <input aria-label={`${t.hours} ${row.employeeNumber}`} className={`${tap} w-20 rounded-lg border bg-white px-2 text-center text-lg`} inputMode="decimal" value={hoursOf(row.assignmentId)} onChange={event => setHours(previous => ({ ...previous, [row.assignmentId]: event.target.value }))} />}
+                {open && <input aria-label={`${t.hours} ${row.employeeNumber}`} className={`${tap} w-20 rounded-lg border bg-card px-2 text-center text-lg`} inputMode="decimal" value={hoursOf(row.assignmentId)} onChange={event => setHours(previous => ({ ...previous, [row.assignmentId]: event.target.value }))} />}
               </li>
             );
           })}
         </ul>
       )}
-      {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, language)}</li>)}</ul></div>}
-      {notKept && <p role="alert" className="text-sm text-red-700">{t.queueNotSaved}</p>}
-      {save.error && !isNetworkError(save.error) && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(save.error, isArabic)}</p>}
-      {done && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-base font-semibold text-emerald-800">{done.queued ? t.queuedSaved : t.teamSaved}: {done.count} {t.rows}</p>}
+      {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-soft-foreground"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, language)}</li>)}</ul></div>}
+      {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
+      {save.error && !isNetworkError(save.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(save.error, isArabic)}</p>}
+      {done && <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{done.queued ? t.queuedSaved : t.teamSaved}: {done.count} {t.rows}</p>}
       <Button className={`${tap} w-full text-base`} disabled={entries.length === 0 || save.isPending} onClick={() => { setDone(null); save.mutate({ tenantId, projectId, workDate: dayOf(date), entries, clientRequestId: requestId.current }); }}>{save.isPending ? t.saving : `${t.saveTeam}${entries.length ? ` (${entries.length})` : ""}`}</Button>
     </div>
   );
@@ -303,12 +304,12 @@ function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, 
   const failed = items.filter(item => item.status === "failed");
   return (
     <section className="space-y-2">
-      <p aria-live="polite" data-testid="queue-status" className={`rounded-xl px-3 py-2 text-sm font-semibold ${online ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{online ? t.online : t.offline}{pending.length > 0 && ` · ${pending.length} ${t.pending}`}</p>
+      <p aria-live="polite" data-testid="queue-status" className={`rounded-xl px-3 py-2 text-sm font-semibold ${online ? "bg-success-soft text-success-soft-foreground" : "bg-warning-soft text-warning-soft-foreground"}`}>{online ? t.online : t.offline}{pending.length > 0 && ` · ${pending.length} ${t.pending}`}</p>
       {pending.length > 0 && <Button className={`${tap} w-full`} variant="outline" disabled={!online || flushing} onClick={onFlush}>{flushing ? t.sending : t.sendNow}</Button>}
       {failed.length > 0 && (
-        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger-soft-foreground">
           <p className="font-semibold">{t.failedItems}</p>
-          <ul className="mt-1 space-y-2">{failed.map(item => <li key={item.id}><span className="block">{item.summary}</span><span className="block text-xs">{localized(item.error ?? "", language)}</span><span className="mt-1 flex gap-2"><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onRetry(item.id)}>{t.retryItem}</button><button type="button" className={`${tap} rounded-lg border bg-white px-3`} onClick={() => onDiscard(item.id)}>{t.discard}</button></span></li>)}</ul>
+          <ul className="mt-1 space-y-2">{failed.map(item => <li key={item.id}><span className="block">{item.summary}</span><span className="block text-xs">{localized(item.error ?? "", language)}</span><span className="mt-1 flex gap-2"><button type="button" className={`${tap} rounded-lg border bg-card px-3`} onClick={() => onRetry(item.id)}>{t.retryItem}</button><button type="button" className={`${tap} rounded-lg border bg-card px-3`} onClick={() => onDiscard(item.id)}>{t.discard}</button></span></li>)}</ul>
         </div>
       )}
     </section>
@@ -373,21 +374,21 @@ export default function FieldEntry() {
   const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.receive ? "receive" : can.team ? "team" : "progress";
   const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 py-4 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+    <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
-        <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-[#0e6b70]`}>{t.back}</Link>
+        <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <SourceNotice query={me} isArabic={isArabic} title={t.checkingIdentity} fallback={t.offlineOff} />
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} language={language} />
         <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-          {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
+          {tabs.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} disabled={!can[key]} className={`${tap} rounded-xl border text-base font-semibold disabled:opacity-40 ${tab === key ? "border-primary bg-primary text-white" : "bg-card"}`} onClick={() => setTab(key)}>{t[key]}</button>)}
         </div>
-        {can.issue && tab === "issue" && <Link href={`/m/${tenantId}/${projectId}/issue`} className={`${tap} inline-flex w-full items-center justify-center rounded-xl border border-[#0e6b70] text-base font-semibold text-[#0e6b70]`}>{t.issueToUnit}</Link>}
-        {cachedContext && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cachedNotice}</p>}
-        {context.isLoading && !data && <p role="status" className="text-sm text-slate-500">{t.loading}</p>}
-        {context.error && !data && <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(context.error, isArabic)}</p><Button className={`${tap} mt-2`} variant="outline" onClick={() => context.refetch()}>{t.retry}</Button></div>}
-        {nothingAllowed && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.notAllowed}</p>}
+        {can.issue && tab === "issue" && <Link href={`/m/${tenantId}/${projectId}/issue`} className={`${tap} inline-flex w-full items-center justify-center rounded-xl border border-primary text-base font-semibold text-primary`}>{t.issueToUnit}</Link>}
+        {cachedContext && <p role="status" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.cachedNotice}</p>}
+        {context.isLoading && !data && <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>}
+        {context.error && !data && <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(context.error, isArabic)}</p><Button className={`${tap} mt-2`} variant="outline" onClick={() => context.refetch()}>{t.retry}</Button></div>}
+        {nothingAllowed && <p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.notAllowed}</p>}
         {data && !nothingAllowed && (tab === "progress"
           ? <ProgressEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
           : tab === "issue"

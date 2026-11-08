@@ -1,3 +1,4 @@
+import { formatDate } from "@/components/ds/format";
 import React from "react";
 import { Link, useParams, useSearch } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -9,6 +10,7 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { Figure } from "@/pages/LevelCompany";
 import { type ScopeLevels, levelHref } from "@/lib/levels";
 import { enumLabel } from "@/lib/labels";
+import { TableScroll } from "@/components/ds/TableScroll";
 
 // Level 4, one project warehouse: balance, movements, shortages and the materials not yet approved. The balance, movements and shortages
 // come from `scopes.warehouse` (scopeDashboards.ts). The warehouse is chosen from the project's own list (`warehouses.list`) by the
@@ -80,24 +82,24 @@ export default function LevelWarehouse() {
         <Figure label={t.stockValue} value={amount(data.totals.stockValue)} />
         <Figure label={t.belowReorder} value={String(data.totals.materialsBelowReorder)} />
       </dl>
-      {data.stock.length === 0 ? <p className="text-sm text-slate-600">{t.noMovements}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
-        <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.code}</th><th scope="col" className="py-2 text-start">{t.description}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.unit}</th><th scope="col" className="py-2 text-start">{t.value}</th><th scope="col" className="py-2 text-start">{t.reorder}</th></tr></thead>
-        <tbody className="divide-y divide-slate-100">{data.stock.map(line => <tr key={line.materialId} data-material-row={line.materialId} className={line.belowReorder ? "bg-amber-50" : undefined}>
+      {data.stock.length === 0 ? <p className="text-sm text-muted-foreground">{t.noMovements}</p> : <TableScroll label={t.balance}><table className="w-full min-w-[640px] text-sm">
+        <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.code}</th><th scope="col" className="py-2 text-start">{t.description}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.unit}</th><th scope="col" className="py-2 text-start">{t.value}</th><th scope="col" className="py-2 text-start">{t.reorder}</th></tr></thead>
+        <tbody className="divide-y divide-border">{data.stock.map(line => <tr key={line.materialId} data-material-row={line.materialId} className={line.belowReorder ? "bg-warning-soft" : undefined}>
           <th scope="row" className="py-3 text-start font-medium">{line.code}</th><td className="py-3">{line.description}</td><td className="py-3">{line.quantity}</td><td className="py-3">{line.unit}</td><td className="py-3">{amount(line.value)}</td><td className="py-3">{line.reorderLevel ?? "—"}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></TableScroll>}
     </LevelSection>
     <LevelSection id="warehouse-movements" title={t.movements}>
-      {data.recentMovements.length === 0 ? <p className="text-sm text-slate-600">{t.noMovements}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-        <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.type}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.reference}</th></tr></thead>
-        <tbody className="divide-y divide-slate-100">{data.recentMovements.map(item => <tr key={item.id}>
-          <td className="py-3">{new Intl.DateTimeFormat(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { dateStyle: "medium" }).format(new Date(item.occurredAt))}</td><td className="py-3">{enumLabel(item.transactionType, language)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
+      {data.recentMovements.length === 0 ? <p className="text-sm text-muted-foreground">{t.noMovements}</p> : <TableScroll label={t.movements}><table className="w-full min-w-[560px] text-sm">
+        <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.type}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.reference}</th></tr></thead>
+        <tbody className="divide-y divide-border">{data.recentMovements.map(item => <tr key={item.id}>
+          <td className="py-3">{formatDate(item.occurredAt, language)}</td><td className="py-3">{enumLabel(item.transactionType, language)}</td><td className="py-3">{item.quantityDelta}</td><td className="py-3">{item.referenceNumber ?? "—"}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></TableScroll>}
     </LevelSection>
     <LevelSection id="warehouse-shortages" title={t.shortages}>
-      {shortages.length === 0 ? <p className="text-sm text-slate-600">{t.noShortage}</p> : <ul className="space-y-2 text-sm">
-        {shortages.map(line => <li key={line.materialId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-amber-50 p-3">
+      {shortages.length === 0 ? <p className="text-sm text-muted-foreground">{t.noShortage}</p> : <ul className="space-y-2 text-sm">
+        {shortages.map(line => <li key={line.materialId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-warning-soft p-3">
           <span className="font-medium">{line.code} · {line.description}</span>
           <span>{line.quantity} {line.unit} / {t.reorder} {line.reorderLevel} — {t.belowLine}</span>
         </li>)}
@@ -111,8 +113,8 @@ export default function LevelWarehouse() {
               <Figure label={t.held} value={String(unapproved.data.stockedMaterials)} />
               <Figure label={t.unapprovedCount} value={String(unapproved.data.unapprovedCount)} />
             </dl>
-            {unapproved.data.unapproved.length === 0 ? <p className="text-sm text-slate-600">{t.allApproved}</p> : <ul className="space-y-2 text-sm">
-              {unapproved.data.unapproved.map(item => <li key={item.materialId} data-unapproved-material={item.materialId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-amber-50 p-3">
+            {unapproved.data.unapproved.length === 0 ? <p className="text-sm text-muted-foreground">{t.allApproved}</p> : <ul className="space-y-2 text-sm">
+              {unapproved.data.unapproved.map(item => <li key={item.materialId} data-unapproved-material={item.materialId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-warning-soft p-3">
                 <span className="font-medium">{item.code} · {item.description}</span>
                 <span>{item.state === "no_submittal" ? t.noSubmittal : t.notApproved}</span>
               </li>)}
@@ -126,6 +128,6 @@ export default function LevelWarehouse() {
 function Chooser({ warehouses, tenantId, projectId, currentId, t }: { warehouses: { id: string; code: string; name: string }[]; tenantId: string; projectId: string; currentId: string; t: typeof text.ar }) {
   const base = levelHref(tenantId, "warehouse", projectId);
   return <nav aria-label={t.chooser} className="flex flex-wrap gap-2">
-    {warehouses.map(item => <Link key={item.id} href={`${base}?warehouse=${item.id}`} aria-current={item.id === currentId ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-slate-300 ${item.id === currentId ? "bg-[#0e6b70] text-white" : "bg-white text-slate-900"}`}>{item.code} · {item.name}</Link>)}
+    {warehouses.map(item => <Link key={item.id} href={`${base}?warehouse=${item.id}`} aria-current={item.id === currentId ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-border ${item.id === currentId ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>{item.code} · {item.name}</Link>)}
   </nav>;
 }

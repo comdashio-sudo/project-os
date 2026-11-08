@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import QuickIssue from "./QuickIssue";
 
 const h = vi.hoisted(() => ({ arabic: false, issue: vi.fn(), search: vi.fn(), result: { totalCost: 250 } as { totalCost: number } | null, issueError: null as unknown }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const options = {
@@ -25,6 +26,11 @@ afterEach(cleanup);
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 describe("QuickIssue", () => {
+  it("outside the product frame keeps its own language switch", () => {
+    render(<QuickIssue />);
+    expect(screen.getByRole("group", { name: "Interface language" })).toBeTruthy();
+  });
+
   it("find → quantity → unit → activity → save, in one pass", () => {
     render(<QuickIssue />);
     type("Search by code or name", "cem");

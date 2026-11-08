@@ -13,6 +13,7 @@ import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
 import { SourceNotice } from "@/components/SectionResilience";
 import { pickLanguage } from "@/lib/language";
+import { ErrorState } from "@/components/ScreenStates";
 
 const text = {
   ar: {
@@ -82,9 +83,10 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
   if (report.isLoading) return <section aria-busy="true" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><p role="status" className="text-sm text-slate-500">{t.loading}</p></section>;
   if (!report.data) {
     return (
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(report.error, isArabic)}</p>
-        <Button className="mt-3" variant="outline" size="sm" onClick={() => report.refetch()}>{t.retry}</Button>
+      // the failed section keeps its name, so the reader knows which one failed (D-3 part 3 design review)
+      <section aria-label={t.title} className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
+        <h2 className="mb-3 font-semibold">{t.title}</h2>
+        <ErrorState isArabic={isArabic} error={report.error} title={pickLanguage(language, { ar: `تعذّر تحميل: ${t.title}`, en: `Could not load: ${t.title}`, ur: `لوڈ نہیں ہو سکا: ${t.title}` })} retryLabel={t.retry} onRetry={() => report.refetch()} retrying={Boolean(report.isFetching)} />
       </section>
     );
   }
