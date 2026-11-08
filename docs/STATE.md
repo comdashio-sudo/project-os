@@ -1627,3 +1627,18 @@
 | (ب) الطريقان بلا مفتاح S3: مفتاح anon وحده (دور `anon`)، أو جلسة S3 (معرّف المشروع + anon + رمز JWT للمستخدم، دور `authenticated`). كلاهما تحكمه RLS على `storage.objects`، و«Storage does not allow any uploads to buckets without RLS policies» | `SOURCE_VERIFIED` | وثائق Supabase عبر `search_docs` (2026-11-08): `guides/storage/s3/authentication` (مفاتيح S3 وحدها «bypass RLS» وللخادم؛ جلسة S3 «RLS policies on the Storage Schema are respected»، و`publishableKey` «not yet supported» فيها)، و`guides/storage/security/access-control`. |
 | (ج) ما يلزم لذلك: سياسة على `storage.objects` لدور `anon` أو `authenticated`، وفحص الشركة فيها يحتاج قراءة جداول التطبيق (منحة SELECT أو EXECUTE على دالة DEFINER لذلك الدور) | `SOURCE_VERIFIED` | المفتاح العام في كل متصفح، وأي حامل له يحصل على JWT `authenticated` من GoTrue؛ فالسياسة تفتح الملفات لغير شركتها. CLAUDE.md §4: المستودع لا يمنح صلاحيات. وفوق ذلك الخادم لا يحتفظ بأي JWT للمستخدم: يُنهي جلسة GoTrue فور التحقق (`server/_core/auth/supabaseAuth.ts:65-66`). |
 | القرار: لا تنفيذ؛ مفتاح S3 يبقى في `docs/GO_LIVE.md` (مع السبب) وخطوة واحدة في `docs/OWNER_ACTIONS.md` §14؛ O-7 يعود للمالك | `BLOCKED_BY_OWNER` | لم يُلمس `server/storage.ts` ولا مستدعوه ولا `scripts/backup` ولا `scripts/setup-storage.mjs`. |
+
+### D-56: فرع الإنتاج في Vercel ما زال `main` — لا طريق من المستودع (2026-11-08، الوكيل 1، على `main` @ `2945838`)
+
+خطة توثيق معتمدة، بلا كود ولا ترحيلة. لم يُلمس `vercel.json` ولا `scripts/ci/vercel-ignore.sh` ولا `migrate-production.yml` ولا أي سر أو إعداد في Vercel.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| (1) قراءة نشرات الإنتاج من GitHub | `BLOCKED_BY_PLATFORM` | `gh api "repos/comdashio-sudo/project-os/deployments?environment=Production"` ← `403 «Resource not accessible by integration»` من جلسة الوكيل (2026-11-08) |
+| (2) حالة Vercel على دمج الكود في `main` | `PROVEN` (أمر) | `gh api repos/comdashio-sudo/project-os/commits/<sha>/statuses` ← السياق `Vercel`، الوصف «Canceled by Ignored Build Step» على `6d126ac` و`8f333b9` و`010f2e5` و`6cffcf1` و`b6adaee` و`5d0a7c8` و`aead060` (كلها تغيّر ملفات كود، بـ`git show --name-only`). (`2945838` يحمل الوصف نفسه لكنه توثيق فقط، فلا يُحتسب دليلًا.) |
+| (3) المسار الذي يلغي بناء كود | `SOURCE_VERIFIED` | `scripts/ci/vercel-ignore.sh:11-13`: الفرع الوحيد الذي يتخطى تغيير كود هو `VERCEL_ENV=production` مع `VERCEL_GIT_COMMIT_REF=main`؛ معاينة من `main` تُبنى (اختبار سالب في الملف نفسه) |
+| (4) فرع `production` | `PROVEN` (أمر) | `gh api repos/comdashio-sudo/project-os/branches/production` ← `428d1aa` (#147، 2026-10-26)، لم يتحرك |
+| الاستنتاج: Production Branch في Vercel = `main` | `SOURCE_VERIFIED` | من (2)+(3)+(4). وفرعٌ إنتاجه `production` كان سيبني `main` معاينةً، فلا يُلغى |
+| طريق داخل المستودع | `BLOCKED_BY_OWNER` | `search_vercel_documentation` (2026-11-08): لا مفتاح في `vercel.json` يضبط فرع الإنتاج؛ `git.deploymentEnabled` يشغّل الفروع أو يطفئها ولا يغيّر أيها إنتاج؛ والبدائل (رمز Vercel، Deploy Hook، `vercel project update`) أسرار من اللوحة يمنعها نص السير «no Vercel access token, no Deploy Hook». خطوة المالك: `docs/OWNER_ACTIONS.md` §11 |
+| الحارس قائم: لا إطلاق إنتاج من `main` قبل الترحيلات | `PROVEN` (أمر) | `pnpm exec vitest run server/testing/vercelIgnore.test.ts` ← 17/17 ناجحًا، 2026-11-08، `2945838` (موجب: بناء إنتاج من `production` ومعاينة من `main`؛ سالب: إنتاج من `main` يُتخطى) |
+| O-5 «تم» | `OPEN` | لا يُكتب قبل التحقق بعد خطوة المالك: حالة Vercel على دمج كود جديد في `main` بناء Preview ناجح (لا «Canceled»)، والخطوة 5 في «Migrate and promote production» تنجح |
