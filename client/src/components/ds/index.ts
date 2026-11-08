@@ -5,6 +5,7 @@ export * from "./Breadcrumbs";
 export * from "./Button";
 export * from "./CameraCapture";
 export * from "./Card";
+export * from "./Checkbox";
 export * from "./DataTable";
 export * from "./Feedback";
 export * from "./Field";

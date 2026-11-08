@@ -16,6 +16,8 @@ import { normalizeHeader } from "./domain/smartImport/dictionary";
 import { hasTranslator, translate } from "./domain/smartImport/translate";
 import { registerImportUpload } from "./importJobs";
 import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./matrixImport";
+import { analyzeConsultantImport, confirmConsultantImport, type ConsultantPlan } from "./consultantImport";
+import { analyzeSiteLegacyImport, confirmSiteLegacyImport, type SiteLegacyPlan } from "./siteLegacyImport";
 import { analyzeP6Import, confirmP6Import, type P6Plan } from "./p6Import";
 import { analyzeScheduleUpdate, confirmScheduleUpdate, type ScheduleUpdatePlan } from "./p6Update";
 import { readTableWithAi, smartReadingQuote } from "./smartReading";
@@ -77,6 +79,9 @@ export type SmartAnalysis = {
   profile: { id: string; name: string; timesUsed: number } | null;
   /** a unit-completion matrix: what importing it would change, counted by the database in a transaction that was rolled back, and how it compares with the platform's own calculation */
   matrixPlan?: MatrixPlan;
+  /** work order 22: the consultant's export (what changed since the last one) and the site's old workbook (what the one-time import would bring) */
+  consultantPlan?: ConsultantPlan;
+  siteLegacyPlan?: SiteLegacyPlan;
   /** a Primavera P6 export: what importing it in full would change (WBS, activities, relationships, resources, assignments, codes, calendars), counted by the database in a transaction that was rolled back */
   p6Plan?: P6Plan;
   /** a progress update (activity id + actual start / finish): what it would change in the project's schedule, counted against its own rows */
@@ -112,6 +117,8 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
     if (found && found.profile.kind === "unitMatrix") profile = { id: found.profile.id, name: found.profile.name, timesUsed: found.profile.timesUsed };
     return { understanding: strip(result), profile, matrixPlan };
   }
+  if (result.kind === "consultantExport") return { understanding: strip(result), profile: null, consultantPlan: await analyzeConsultantImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes }) };
+  if (result.kind === "siteWorkbook") return { understanding: strip(result), profile: null, siteLegacyPlan: await analyzeSiteLegacyImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes }) };
   if (result.table && !input.forced) {
     const headers = result.columns.map(column => column.header);
     const found = await findProfile(input.tenantId, headers);
@@ -123,7 +130,7 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   return { understanding: strip(result), profile };
 }
 
-export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; p6Counts?: P6Plan["counts"]; scheduleUpdate?: Pick<ScheduleUpdatePlan, "updated" | "started" | "finished" | "moved" | "unknown" | "unchanged"> };
+export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; consultantPlan?: ConsultantPlan; siteLegacyPlan?: SiteLegacyPlan; p6Counts?: P6Plan["counts"]; scheduleUpdate?: Pick<ScheduleUpdatePlan, "updated" | "started" | "finished" | "moved" | "unknown" | "unchanged"> };
 
 /** Step 3: the person approved. The rows go to the existing importer in its own template; the original file is kept and linked to the import. */
 export async function confirmSmartImport(input: Identity & { uploadKey: string; fileName: string; kind: KindCode; sheet?: string; forced: Record<number, string | null>; approvedHash?: string; profileName?: string; profileId?: string | null; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate" }): Promise<SmartConfirmation> {
@@ -152,6 +159,16 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
       });
     } catch (error) { logError("smart_import.profile_failed", error); }
     return { importId, status: "completed", module: "pmcMatrix", rowsSent: plan.summary.units, rowsExcluded: 0, excluded: [], notes: plan.summary.warnings, profileId, matrixChanges: plan.changes };
+  }
+  if (input.kind === "consultantExport" || input.kind === "siteWorkbook") {
+    if (format !== "xlsx") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
+    const scope = { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } };
+    if (input.kind === "consultantExport") {
+      const plan = await confirmConsultantImport(scope);
+      return { importId: plan.importId!, status: "completed", module: "pmcConsultant", rowsSent: plan.units, rowsExcluded: plan.unknownVillas.length, excluded: plan.unknownVillas.slice(0, 50).map(item => ({ rowNumber: item.row, reason: "CONSULTANT_UNKNOWN_VILLAS" })), notes: plan.warnings, profileId: null, consultantPlan: plan };
+    }
+    const plan = await confirmSiteLegacyImport(scope);
+    return { importId: plan.importId!, status: "completed", module: "pmcSiteLegacy", rowsSent: plan.cells, rowsExcluded: plan.rejected.length, excluded: plan.rejected.slice(0, 50).map(item => ({ rowNumber: item.row, reason: item.reason })), notes: Object.keys(plan.rejectedByReason), profileId: null, siteLegacyPlan: plan };
   }
   const base = { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, duplicateMode: input.duplicateMode };
   let registered: { id: string; status: string }; let module: string; let rowsSent = 0; let excluded: SmartConfirmation["excluded"] = []; let notes: string[] = [];
