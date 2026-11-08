@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +11,7 @@ const configPath = path.join(root, "config/supabase.public.json");
 const workflowsDir = path.join(root, ".github/workflows");
 const releaseWorkflow = readFileSync(path.join(workflowsDir, "migrate-production.yml"), "utf8");
 const scopeScript = path.join(root, "scripts/ci/release-scope.sh");
+const configCheckScript = path.join(root, "scripts/ci/public-config-check.sh");
 
 type PublicConfig = { url?: unknown; publishableKey?: unknown };
 
@@ -60,12 +62,52 @@ describe("config/supabase.public.json (D-35)", () => {
     }
   });
 
-  it("the release workflow reads the URL and key from the file, and refuses a non-publishable key", () => {
-    expect(releaseWorkflow).toMatch(/jq -r '\.publishableKey[^']*' "?\$?\{?cfg\}?"?|jq -r '\.publishableKey' config\/supabase\.public\.json/);
+  it("the release workflow reads the URL and key from the file, checks it with the script, and runs without sign-in only when there is no key (D-69)", () => {
+    expect(releaseWorkflow).toContain("bash scripts/ci/public-config-check.sh config/supabase.public.json >> \"$GITHUB_OUTPUT\"");
     expect(releaseWorkflow).toContain(`SUPABASE_URL="$(jq -r '.url' config/supabase.public.json)"`);
     expect(releaseWorkflow).toContain(`SUPABASE_ANON_KEY="$(jq -r '.publishableKey' config/supabase.public.json)"`);
-    expect(releaseWorkflow).toMatch(/sb_publishable_\?\*\) ;;/);
     expect(releaseWorkflow).not.toMatch(/export SUPABASE_URL="https:/);
+    const step3 = releaseWorkflow.slice(releaseWorkflow.indexOf("- name: 3."), releaseWorkflow.indexOf("- name: 4."));
+    // the key is exported only inside the has_key=true branch; the empty case passes --without-sign-in and never exports an empty key
+    expect(step3).toMatch(/if \[ "\$\{\{ steps\.config\.outputs\.has_key \}\}" = "true" \]; then\s+SUPABASE_ANON_KEY=[^\n]+\n\s+export SUPABASE_ANON_KEY\n\s+else\s+gate_args=\(--without-sign-in\)/);
+    expect(step3).toContain(`post-deploy-check.mjs "http://127.0.0.1:3920" "\${gate_args[@]}"`);
+    expect(releaseWorkflow).toContain("SUPABASE_DB_PASSWORD is not set");
+  });
+});
+
+describe("scripts/ci/public-config-check.sh (D-69)", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "public-config-"));
+  const check = (config: unknown) => {
+    const file = path.join(dir, `c${Math.random().toString(36).slice(2)}.json`);
+    writeFileSync(file, typeof config === "string" ? config : JSON.stringify(config));
+    const result = spawnSync("bash", [configCheckScript, file], { encoding: "utf8" });
+    return { status: result.status, stdout: result.stdout.trim(), stderr: result.stderr };
+  };
+  const url = "https://abcdefghij.supabase.co";
+
+  it("accepts an empty key (has_key=false) and an sb_publishable_ key (has_key=true)", () => {
+    expect(check({ url, publishableKey: "" })).toMatchObject({ status: 0, stdout: "has_key=false" });
+    expect(check({ url })).toMatchObject({ status: 0, stdout: "has_key=false" });
+    expect(check({ url, publishableKey: "sb_publishable_" + "A".repeat(24) })).toMatchObject({ status: 0, stdout: "has_key=true" });
+  });
+
+  it("the committed config passes", () => {
+    expect(spawnSync("bash", [configCheckScript, configPath], { encoding: "utf8" }).status).toBe(0);
+  });
+
+  it("refuses a secret key, a JWT, any other key and a URL that is not supabase.co, without printing the key", () => {
+    const secret = "sb_secret_" + "z".repeat(30); // secret-scan:allow (fabricated)
+    const refused = check({ url, publishableKey: secret });
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/SECRET/);
+    expect(refused.stdout + refused.stderr).not.toContain("z".repeat(30));
+    expect(check({ url, publishableKey: "eyJhbGciOiJIUzI1NiJ9.e30.c2ln" }).status).toBe(1); // secret-scan:allow (fabricated)
+    expect(check({ url, publishableKey: "not-a-key-at-all-1234567890" }).status).toBe(1);
+    expect(check({ url, publishableKey: "sb_publishable_short" }).status).toBe(1);
+    expect(check({ url: "http://example.test", publishableKey: "" }).status).toBe(1);
+    expect(check({ url: "https://abc.supabase.co.example.test", publishableKey: "" }).status).toBe(1);
+    expect(check({ publishableKey: "" }).status).toBe(1);
+    expect(check("{not json").status).toBe(1);
   });
 });
 
@@ -88,6 +130,23 @@ describe("release scope (D-57)", () => {
     expect(scope(["docs/GO_LIVE.md", ".github/workflows/ci.yml", "qa/x.txt", "README.md"])).toBe("deploy=false");
     expect(scope(["docs/GO_LIVE.md", "server/app.ts"])).toBe("deploy=true");
     expect(scope(["(no production branch yet)"])).toBe("deploy=true");
+  });
+
+  it("a grep failure (exit 2) fails closed instead of reading as deploy=false (D-69)", () => {
+    const fakeBin = mkdtempSync(path.join(os.tmpdir(), "fake-grep-"));
+    const fakeGrep = path.join(fakeBin, "grep");
+    writeFileSync(fakeGrep, "#!/usr/bin/env bash\necho 'grep: simulated failure' >&2\nexit 2\n");
+    chmodSync(fakeGrep, 0o755);
+    for (const paths of [["docs/GO_LIVE.md"], ["server/app.ts"]]) {
+      const result = spawnSync("bash", [scopeScript], { input: paths.join("\n"), encoding: "utf8", env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` } });
+      expect(result.status).toBe(1);
+      expect(result.stdout).not.toMatch(/deploy=/);
+      expect(result.stderr).toMatch(/grep failed \(exit 2\)/);
+    }
+    // and the workflow step runs it under `set -euo pipefail` inside $(…), so that exit stops the run
+    const scopeStep = releaseWorkflow.slice(releaseWorkflow.indexOf("id: scope"), releaseWorkflow.indexOf("pnpm/action-setup"));
+    expect(scopeStep).toMatch(/set -euo pipefail/);
+    expect(readFileSync(scopeScript, "utf8")).not.toMatch(/\|\| true/);
   });
 
   it("the workflow uses the script on a full-history checkout, with no pipeline into grep -q", () => {

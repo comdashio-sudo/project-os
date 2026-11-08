@@ -1594,6 +1594,18 @@
 | D-35 قيمة المفتاح العام في الملف | `BLOCKED_BY_OWNER` | `get_publishable_keys` للمشروع dzfxgxccnlyhcjgqstgn ← «You do not have permission»؛ لم تُختلق قيمة، و`publishableKey` فارغ فيتوقف الإطلاق برسالة تسمّي الملف. الخطوات: `docs/OWNER_ACTIONS.md` البند 13 |
 | معيار D-57 «0016 مطبقة و/healthz ok» | `OPEN` | يُتحقق بعد الدمج وملء المفتاح، بأول تشغيل تلقائي على `main` (لا تشغيل يدوي) |
 
+### D-69: الإطلاق بلا المفتاح العام، وrelease-scope يفشل مغلقًا (2026-11-08، الوكيل 1، على `main` @ `8f333b9`)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `scripts/ci/public-config-check.sh` (جديد) يحل محل منطق «Refuse to start»: `url` إلزامي `https://<ref>.supabase.co`؛ المفتاح الفارغ يطبع `has_key=false`؛ `sb_publishable_` يطبع `has_key=true`؛ `sb_secret_` و`service_role` وأي JWT وأي مفتاح آخر ← خروج 1 دون طباعة القيمة. `SUPABASE_DB_PASSWORD` يبقى إلزاميًا في الخطوة | `PROVEN` (اختبار، 2026-11-08) | `pnpm exec vitest run server/testing/supabasePublicConfig.test.ts` ← 11/11: موجب (فارغ، غائب، `sb_publishable_`، الملف الملتزم) وسالب (`sb_secret_` مختلق، JWT، مفتاح آخر، مفتاح قصير، رابط ليس supabase.co، JSON تالف) |
+| `scripts/ci/post-deploy-check.mjs --without-sign-in`: يستبدل فحص الرمز الخاطئ بـ`GET /api/trpc/system.health` (200 و`ok=true`)؛ بلا الخيار السلوك كما هو حرفيًا، فلا يتغير `post-deploy.yml` ولا `promote-production.yml` | `PROVEN` (اختبار، 2026-11-08) | `server/testing/postDeployCheck.test.ts` ← 6/6 على خادم http محلي مختلق: موجب (healthz 200 وhealth ok ← 0، ولا يُستدعى التحقق)؛ سالب (healthz 500 ← 1؛ health ok=false ← 1؛ health 503 ← 1؛ خيار مجهول ← 2)؛ والوضع الافتراضي: 503 على التحقق ← 1 |
+| شكل الرد الحقيقي لـ`system.health` (superjson) يطابق ما يقرؤه السكربت | `PROVEN` (أمر، 2026-11-08) | `createApp` محليًا بلا قاعدة: `{"result":{"data":{"json":{"ok":true}}}}` 200، و`post-deploy-check.mjs … --without-sign-in` ← خروج 0 |
+| السير: الخطوة 3 تمرر `--without-sign-in` حين `has_key=false` ولا تصدّر `SUPABASE_ANON_KEY` فارغًا؛ الخطوتان 4 و5 لم تُمسّا | `PROVEN` (اختبار) | فحص ساكن في `supabasePublicConfig.test.ts`؛ `actionlint` 1.7.7 مع shellcheck ← 0 |
+| `release-scope.sh`: حُذف `\|\| true`؛ رمز grep مفصول (1 = لا كود، 2+ = خروج 1 برسالة `::error`) بدل `deploy=false` صامت | `PROVEN` (اختبار + إعادة إنتاج) | grep وهمي في PATH يخرج 2 ← الجديد خروج 1 بلا `deploy=`؛ السكربت القديم بالـgrep نفسه ← `deploy=false` خروج 0 (حتى لـ`server/app.ts`)؛ اختبارات 30000 مسار باقية |
+| البوابات المحلية | `PROVEN` (أمر، 2026-11-08) | `pnpm check` ← 0 (737 مخالفة قديمة، لا جديد)؛ `pnpm build` ← 0؛ `pnpm test` ← 2829 ناجحًا و0 فاشل (لا ينقص عن 2788)؛ `pnpm check:secrets` ← 0 |
+| تشغيل السير على `main` بلا مفتاح، و0016 وما بعدها و`/healthz` | `OPEN` | يُقرأ بعد الدمج من أول تشغيل تلقائي، ويُكتب في سطر D-8. **حدّ معلن:** الخطوة 5 ستفشل برسالة «Preview» حتى يضبط المالك Vercel ← dashio ← Settings ← Git ← Production Branch = `production` (D-56)؛ لا تُرخى |
+
 ### D-3 (فرع `feat/design-pages`): دمج `main` بعد D-2، والتقسيم إلى طلبات صغيرة (2026-11-08، الوكيل 2)
 
 | البند | الحالة | الدليل |
