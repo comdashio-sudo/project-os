@@ -16,6 +16,9 @@ const code = (promise: Promise<unknown>) => promise.then(() => "no error", (erro
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a0a6a1a20000000049454e44ae426082", "hex");
 const SVG = Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#0a7"/></svg>');
 const SVG_SCRIPT = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+const SVG_ENCODED = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><a href="jav&#x61;script:alert(1)"><rect width="1" height="1"/></a></svg>');
+const SVG_ENCODED_COLON = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript&#58;alert(1)"><rect width="1" height="1"/></a></svg>');
+const SVG_ENTITY = Buffer.from('<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x "javascript:alert(1)">]><svg xmlns="http://www.w3.org/2000/svg"><a href="&x;"><rect width="1" height="1"/></a></svg>');
 const SVG_HANDLER = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="1" height="1"/></svg>');
 
 let connection: fixtureDb.Connection;
@@ -143,14 +146,26 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project profile and comp
     const foreign = await uploadLogo("otherOwner", PNG, "image/png", projectC, otherTenantId);
     const sibling = await uploadLogo("owner", PNG, "image/png", projectB);
     for (const uploadKey of [foreign, sibling]) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey } } }))).toBe("PROJECT_OS_IMPORT_UPLOAD_KEY_INVALID");
-    for (const [bytes, type] of [[SVG_SCRIPT, "image/svg+xml"], [SVG_HANDLER, "image/svg+xml"]] as const) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", bytes, type) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_UNSAFE");
+    for (const [bytes, type] of [[SVG_SCRIPT, "image/svg+xml"], [SVG_HANDLER, "image/svg+xml"], [SVG_ENCODED, "image/svg+xml"], [SVG_ENCODED_COLON, "image/svg+xml"], [SVG_ENTITY, "image/svg+xml"]] as const) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", bytes, type) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_UNSAFE");
     expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", Buffer.from("GIF89a not a logo")) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_TYPE_INVALID");
     const big = Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024)]);
-    expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", big) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_TOO_LARGE");
+    // refused on the object's size before its bytes are read (review of #223)
+    const bigKey = await uploadLogo("manager", big);
+    const reads = vi.spyOn(storage, "storageRead");
+    expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: bigKey } } }))).toBe("PROJECT_OS_PROJECT_LOGO_TOO_LARGE");
+    expect(reads.mock.calls.some(([key]) => key === bigKey)).toBe(false);
+    reads.mockRestore();
     expect(await code(callers.manager.directUploads.create({ tenantId, projectId: projectA, purpose: "logo", fileName: "x.gif", contentType: "image/gif" }))).toBe("PROJECT_OS_UPLOAD_TYPE_INVALID");
     const after = await callers.manager.projects.profile.get({ tenantId, projectId: projectA });
     expect(after.logos.contractor).toBeNull();
     expect(after.logos.client?.key).toBe(before);
+  });
+
+  it("two first saves of the same profile at the same moment: one is stored, the other gets a translated code, never a raw server error (review of #223)", async () => {
+    const results = await Promise.all([0, 1, 2].map(index => code(callers.owner.projects.profile.save(profile({ projectId: projectB, contractNumber: `RACE-${index}` })))));
+    expect(results.every(result => result === "no error" || result === "PROJECT_OS_PROJECT_PROFILE_CONFLICT")).toBe(true);
+    expect(results).toContain("no error");
+    expect(await count("SELECT COUNT(*) AS n FROM project_profiles WHERE tenantId = ? AND projectId = ?", [tenantId, projectB])).toBe(1);
   });
 
   it("isolation: another company neither reads nor writes this profile; the manager of A neither reads nor writes project B", async () => {
@@ -162,7 +177,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project profile and comp
     expect(await code(callers.manager.projects.profile.save(profile({ projectId: projectB })))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callers.manager.projects.profile.get({ tenantId, projectId: projectB }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callers.manager.projects.companies.save({ tenantId, projectId: projectB, name: "Leak", role: "sub" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
-    expect(await count("SELECT COUNT(*) AS n FROM project_profiles WHERE clientName = 'Foreign' OR projectId IN (?, ?)", [projectB, projectC])).toBe(0);
+    expect(await count("SELECT COUNT(*) AS n FROM project_profiles WHERE clientName = 'Foreign' OR projectId = ? OR (projectId = ? AND contractNumber NOT LIKE 'RACE-%')", [projectC, projectB])).toBe(0);
     expect(await count("SELECT COUNT(*) AS n FROM project_companies WHERE projectId IN (?, ?)", [projectB, projectC])).toBe(0);
     // the company owner (company scope) reads A
     expect((await callers.owner.projects.profile.get({ tenantId, projectId: projectA })).contractNumber).toBe("CN-0001");

@@ -22,11 +22,15 @@ describe("logo content", () => {
     expect(logoKind(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe("png");
     expect(logoKind(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe("jpeg");
     expect(logoKind(Buffer.from('﻿<?xml version="1.0"?>\n<!-- made by hand -->\n<svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBe("svg");
+    // a DOCTYPE with an internal subset is still an SVG (so its entity declaration is refused as unsafe, not as an unknown type)
+    expect(logoKind(Buffer.from('<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBe("svg");
     expect(logoKind(Buffer.from("GIF89a"))).toBeNull();
     expect(logoKind(Buffer.from("<html><svg></svg></html>"))).toBeNull();
   });
   it("refuses an SVG with script, an event handler, a javascript: link or embedded HTML; a plain SVG passes", () => {
     expect(svgIsUnsafe('<svg><rect width="1" height="1" fill="#000"/></svg>')).toBe(false);
+    // character references and entity declarations (review of #223): «javascript:» spelled past the pattern
+    for (const bad of ['<svg><a href="jav&#x61;script:x()">a</a></svg>', '<svg><a href="javascript&#58;x()">a</a></svg>', '<!DOCTYPE svg [<!ENTITY e "x">]><svg>&e;</svg>']) expect(svgIsUnsafe(bad)).toBe(true);
     for (const bad of ["<svg><script>x()</script></svg>", '<svg onload="x()"></svg>', '<svg><a href="javascript:x()">a</a></svg>', "<svg><foreignObject><div/></foreignObject></svg>", '<svg><iframe src="x"/></svg>']) expect(svgIsUnsafe(bad)).toBe(true);
   });
 });

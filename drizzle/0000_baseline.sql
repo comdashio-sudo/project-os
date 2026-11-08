@@ -1262,7 +1262,8 @@ CREATE TABLE "memberships" (
 	"status" "memberships_status" DEFAULT 'invited' NOT NULL,
 	"joined_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "memberships_id_tenant_unique" UNIQUE("id","tenant_id")
 );
 --> statement-breakpoint
 CREATE TABLE "ncrs" (
@@ -1854,6 +1855,18 @@ CREATE TABLE "project_profiles" (
 	CONSTRAINT "project_profiles_work_days_check" CHECK ("project_profiles"."work_days" ~ '^0?1?2?3?4?5?6?$' AND "project_profiles"."work_days" <> ''),
 	CONSTRAINT "project_profiles_work_hours_check" CHECK (("project_profiles"."work_start" IS NULL) = ("project_profiles"."work_end" IS NULL) AND ("project_profiles"."work_start" IS NULL OR "project_profiles"."work_start" < "project_profiles"."work_end")),
 	CONSTRAINT "project_profiles_report_prefix_check" CHECK ("project_profiles"."report_prefix" IS NULL OR "project_profiles"."report_prefix" ~ '^[A-Z0-9][A-Z0-9-]{0,15}$')
+);
+--> statement-breakpoint
+CREATE TABLE "project_report_approvers" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"step" varchar(8) NOT NULL,
+	"membership_id" varchar(36) NOT NULL,
+	"assigned_by_user_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_report_approvers_step_check" CHECK ("project_report_approvers"."step" IN ('prepare', 'review', 'approve'))
 );
 --> statement-breakpoint
 CREATE TABLE "project_resources" (
@@ -2893,6 +2906,10 @@ ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overri
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_assigned_by_user_id_users_id_fk" FOREIGN KEY ("assigned_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_membership_tenant_fk" FOREIGN KEY ("membership_id","tenant_id") REFERENCES "public"."memberships"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3254,6 +3271,8 @@ CREATE INDEX "project_health_tenant_project_idx" ON "project_health_snapshots" U
 CREATE UNIQUE INDEX "project_material_overrides_project_material_unique" ON "project_material_overrides" USING btree ("project_id","material_id");--> statement-breakpoint
 CREATE INDEX "project_material_overrides_tenant_project_idx" ON "project_material_overrides" USING btree ("tenant_id","project_id","material_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_profiles_tenant_project_unique" ON "project_profiles" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_report_approvers_project_step_unique" ON "project_report_approvers" USING btree ("tenant_id","project_id","step");--> statement-breakpoint
+CREATE INDEX "project_report_approvers_membership_idx" ON "project_report_approvers" USING btree ("membership_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_resources_project_code_unique" ON "project_resources" USING btree ("project_id","resource_code");--> statement-breakpoint
 CREATE INDEX "project_resources_tenant_project_type_idx" ON "project_resources" USING btree ("tenant_id","project_id","resource_type");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_warehouses_project_code_unique" ON "project_warehouses" USING btree ("project_id","code");--> statement-breakpoint

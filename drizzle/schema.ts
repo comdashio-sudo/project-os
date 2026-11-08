@@ -12,6 +12,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -72,6 +73,8 @@ export const memberships = pgTable(
   table => [
     uniqueIndex("memberships_tenant_user_unique").on(table.tenantId, table.userId),
     index("memberships_user_tenant_idx").on(table.userId, table.tenantId),
+    // the target of a (membership, company) foreign key: a row that names a person of company X cannot point at a membership of company Y (0021)
+    unique("memberships_id_tenant_unique").on(table.id, table.tenantId),
   ],
 );
 
@@ -3411,5 +3414,27 @@ export const projectCompanies = pgTable(
     check("project_companies_role_check", sql`${table.role} IN ('main', 'sub')`),
     uniqueIndex("project_companies_one_active_main").on(table.projectId).where(sql`${table.role} = 'main' AND ${table.active}`),
     index("project_companies_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+// Work order 23, P-18 (D-42 b): who prepares, reviews and approves a project's reports — one person per step, a membership of the SAME company
+// (held by the composite foreign key, not by a check in code). That the person has a role on the project is checked when the step is assigned.
+export const projectReportApprovers = pgTable(
+  "project_report_approvers",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    step: varchar("step", { length: 8 }).notNull(),
+    membershipId: varchar("membership_id", { length: 36 }).notNull(),
+    assignedByUserId: integer("assigned_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_report_approvers_step_check", sql`${table.step} IN ('prepare', 'review', 'approve')`),
+    uniqueIndex("project_report_approvers_project_step_unique").on(table.tenantId, table.projectId, table.step),
+    foreignKey({ name: "project_report_approvers_membership_tenant_fk", columns: [table.membershipId, table.tenantId], foreignColumns: [memberships.id, memberships.tenantId] }),
+    index("project_report_approvers_membership_idx").on(table.membershipId),
   ],
 );

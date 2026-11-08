@@ -14,6 +14,7 @@ import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listW
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
+import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
@@ -540,6 +541,14 @@ export const appRouter = router({
       list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectCompanies({ userId: ctx.user.id, ...input })),
       save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid().optional(), name: z.string().trim().min(1).max(255), role: z.enum(["main", "sub"]) })).mutation(({ ctx, input }) => saveProjectCompany({ userId: ctx.user.id, ...input })),
       deactivate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid() })).mutation(({ ctx, input }) => deactivateProjectCompany({ userId: ctx.user.id, ...input })),
+    }),
+    // Work order 23, P-18 (D-42 b): the people on the project (put there by tenant.createInvitation / tenant.assignMembershipRole with scope «project») and the report chain
+    team: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectTeam({ userId: ctx.user.id, ...input })),
+    }),
+    approvers: router({
+      get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getReportApprovers({ userId: ctx.user.id, ...input })),
+      set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), step: z.enum(APPROVAL_STEPS), membershipId: z.string().uuid().nullable() })).mutation(({ ctx, input }) => setReportApprover({ userId: ctx.user.id, ...input })),
     }),
   }),
   contracts: router({
