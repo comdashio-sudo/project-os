@@ -42,9 +42,9 @@ describe("login page", () => {
     withSearch("?next=%2Fpmo%2Ftenant-a");
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
-    await user.type(await screen.findByLabelText("Sign-in code"), "424242");
+    await user.type(await screen.findByLabelText(/^Sign-in code/), "424242");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(state.assign).toHaveBeenCalledWith("/pmo/tenant-a"));
     expect(calls.filter(c => c.url.includes("/email/"))).toEqual([
@@ -57,7 +57,7 @@ describe("login page", () => {
     const calls = stubFetch({ "/api/auth/config": { ok: true, body: { google: false } } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer example");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer example");
     await user.click(screen.getByRole("button", { name: "Send code" }));
     expect(screen.getByRole("alert").textContent).toBe("Enter a valid email address.");
     expect(calls.filter(c => c.url.includes("/email/"))).toEqual([]);
@@ -68,9 +68,9 @@ describe("login page", () => {
     withSearch("?next=%2F%2Fevil.example");
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
-    await user.type(await screen.findByLabelText("Sign-in code"), "111111");
+    await user.type(await screen.findByLabelText(/^Sign-in code/), "111111");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(state.assign).toHaveBeenCalledWith("/"));
   });
@@ -79,9 +79,9 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true }, "/api/auth/email/verify": { ok: false, status: 401, body: { code: "PROJECT_OS_AUTH_CODE_INVALID" } } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
-    const input = await screen.findByLabelText("Sign-in code");
+    const input = await screen.findByLabelText(/^Sign-in code/);
     await user.type(input, "12a34");
     expect((input as HTMLInputElement).value).toBe("1234");
     expect((screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement).disabled).toBe(true);
@@ -96,7 +96,7 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: false, status: 429, body: { code: "PROJECT_OS_AUTH_RATE_LIMITED" } } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("البريد الإلكتروني"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^البريد الإلكتروني/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "إرسال الرمز" }));
     expect((await screen.findByRole("alert")).textContent).toBe("محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.");
   });
@@ -121,9 +121,9 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
-    const input = (await screen.findByLabelText("Sign-in code")) as HTMLInputElement;
+    const input = (await screen.findByLabelText(/^Sign-in code/)) as HTMLInputElement;
     const submit = screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement;
     await user.type(input, "12345");
     expect(submit.disabled).toBe(true);
@@ -142,9 +142,9 @@ describe("login page", () => {
       const calls = stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true } });
       const user = userEvent.setup({ advanceTimers: ms => vi.advanceTimersByTime(ms) });
       render(<Login />);
-      await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+      await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
       await user.click(screen.getByRole("button", { name: "Send code" }));
-      await screen.findByLabelText("Sign-in code");
+      await screen.findByLabelText(/^Sign-in code/);
       expect(screen.getByText("Only the newest code works: every new request cancels the previous one.")).toBeTruthy();
       const waiting = screen.getByRole("button", { name: "Send a new code in 60 s" }) as HTMLButtonElement;
       expect(waiting.disabled).toBe(true);
@@ -160,10 +160,10 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: false, status: 429, body: { code: "PROJECT_OS_AUTH_RATE_LIMITED", retryAfterSeconds: 49 } } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
     expect((await screen.findByRole("alert")).textContent).toBe("A code was sent to you a moment ago. Enter the code you received; asking for a new one cancels the previous one.");
-    expect(screen.getByLabelText("Sign-in code")).toBeTruthy();
+    expect(screen.getByLabelText(/^Sign-in code/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send a new code in 49 s" })).toBeTruthy();
   });
 
@@ -171,7 +171,7 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: false, status: 500, body: { code: "PROJECT_OS_AUTH_FAILED" } } });
     const user = userEvent.setup();
     render(<Login />);
-    await user.type(screen.getByLabelText("E-mail address"), "engineer@example.test");
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
     await user.click(screen.getByRole("button", { name: "Send code" }));
     expect((await screen.findByRole("alert")).textContent).toBe("We could not complete the request because of a problem on our side, not with your e-mail. Try again shortly.");
   });
@@ -182,7 +182,7 @@ describe("login page", () => {
     withSearch("?step=code");
     const user = userEvent.setup();
     const { container } = render(<Login />);
-    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
+    await user.type(await screen.findByLabelText(/^Sign-in code/), "123456");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(calls.some(call => call.url === "/api/auth/email/verify")).toBe(true));
     expect(calls.find(call => call.url === "/api/auth/email/verify")?.body).toEqual({ email: "engineer@example.test", code: "123456" });
@@ -196,6 +196,22 @@ describe("login page", () => {
     stubFetch({ "/api/auth/config": { ok: true, body: {} } });
     withSearch("?step=code");
     render(<Login />);
-    expect(await screen.findByLabelText("E-mail address")).toBeTruthy();
+    expect(await screen.findByLabelText(/^E-mail address/)).toBeTruthy();
+  });
+
+  it("D-3 design review: both fields are marked required (asterisk + aria-required), and the code step's two text buttons are 44 px tall on a phone", async () => {
+    stubFetch({ "/api/auth/config": { ok: true, body: { google: false } }, "/api/auth/email/request": { ok: true, body: { ok: true } } });
+    const user = userEvent.setup();
+    render(<Login />);
+    const email = screen.getByLabelText(/^E-mail address/);
+    expect(email.getAttribute("aria-required")).toBe("true");
+    await user.type(email, "engineer@example.test");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect((await screen.findByLabelText(/^Sign-in code/)).getAttribute("aria-required")).toBe("true");
+    for (const name of ["Use another e-mail", /^Send a new code/]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className.split(" ")).toContain("min-h-11");
+      expect(button.className.split(" ")).not.toContain("min-h-9");
+    }
   });
 });

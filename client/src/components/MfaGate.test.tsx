@@ -8,11 +8,11 @@ const state = vi.hoisted(() => ({
   status: { data: undefined as unknown, isLoading: false, isError: false },
   begin: vi.fn(), confirm: vi.fn(), verify: vi.fn(), postpone: vi.fn(),
   invalidate: vi.fn(async () => undefined),
+  language: "en" as "ar" | "en" | "ur", verifyError: null as unknown,
 }));
 vi.mock("qrcode", () => ({ default: { toDataURL: vi.fn(async () => "data:image/png;base64,QR") } }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ logout: vi.fn() }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.language === "ar", language: state.language, isRtl: state.language !== "en" }) }));
 vi.mock("@/components/DashboardLayoutSkeleton", () => ({ DashboardLayoutSkeleton: () => <div>loading</div> }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -21,7 +21,7 @@ vi.mock("@/lib/trpc", () => ({
       status: { useQuery: () => state.status },
       beginEnrolment: { useMutation: (options: { onSuccess: (r: unknown) => void }) => ({ mutate: () => { state.begin(); options.onSuccess({ secret: "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567", otpauthUri: "otpauth://totp/x", enrolmentId: "abc123def456" }); }, isPending: false, error: null }) },
       confirmEnrolment: { useMutation: (options: { onSuccess: (r: unknown) => void }) => ({ mutate: (input: unknown) => { state.confirm(input); options.onSuccess({ recoveryCodes: ["AAAAA-BBBBB", "CCCCC-DDDDD"] }); }, isPending: false, error: null }) },
-      verify: { useMutation: (options: { onSuccess: () => Promise<void> }) => ({ mutate: (input: unknown) => { state.verify(input); void options.onSuccess(); }, isPending: false, error: null }) },
+      verify: { useMutation: (options: { onSuccess: () => Promise<void> }) => ({ mutate: (input: unknown) => { state.verify(input); void options.onSuccess(); }, isPending: false, error: state.verifyError }) },
       postpone: { useMutation: (options: { onSuccess: () => Promise<void> }) => ({ mutate: () => { state.postpone(); void options.onSuccess(); }, isPending: false, error: null }) },
     },
   },
@@ -32,7 +32,7 @@ vi.mock("@/components/ds", async () => {
 });
 
 const status = (over: Record<string, unknown>) => ({ data: { required: true, enrolled: false, verified: false, postponedUntil: null, canPostpone: false, ...over }, isLoading: false, isError: false });
-afterEach(() => { cleanup(); vi.clearAllMocks(); state.status = { data: undefined, isLoading: false, isError: false }; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.status = { data: undefined, isLoading: false, isError: false }; state.language = "en"; state.verifyError = null; });
 
 describe("two-step verification gate", () => {
   it("lets the page through when the person does not need the second step, this session already passed it, or the owner's 'Later' window is running", () => {
@@ -93,5 +93,25 @@ describe("two-step verification gate", () => {
     state.status = { data: undefined, isLoading: false, isError: true };
     render(<MfaGate><p>the page</p></MfaGate>);
     expect(screen.getByText("the page")).toBeTruthy();
+  });
+
+  it("D-3 design review: an Urdu reader gets the error in Urdu, beside the code field (aria-describedby), not in English under the form", () => {
+    state.language = "ur";
+    state.verifyError = { data: { projectError: { code: "X", messages: { ar: "رسالة عربية", en: "English message", ur: "اردو پیغام" } } } };
+    state.status = status({ enrolled: true });
+    render(<MfaGate><p>the page</p></MfaGate>);
+    expect(screen.queryByText("English message")).toBeNull();
+    const message = screen.getByText("اردو پیغام");
+    const field = screen.getByLabelText(/ایپ کا کوڈ یا ریکوری کوڈ/);
+    expect(field.getAttribute("aria-describedby")).toBe(message.id);
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    expect(field.getAttribute("aria-required")).toBe("true");
+  });
+
+  it("D-3 design review: the 'open in the authenticator app' link is 44 px tall on a phone", async () => {
+    state.status = status({});
+    render(<MfaGate><p>the page</p></MfaGate>);
+    const link = await screen.findByRole("link", { name: "Open in the authenticator app" });
+    expect(link.className.split(" ")).toContain("min-h-11");
   });
 });

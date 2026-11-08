@@ -40,7 +40,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
 }
 
 function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: boolean }) {
-  const { language, isArabic } = useLanguage(); const t = pickLanguage(language, dictionary);
+  const { language } = useLanguage(); const t = pickLanguage(language, dictionary);
   const { logout } = useAuth();
   const utils = trpc.useUtils();
   const [code, setCode] = useState("");
@@ -59,6 +59,8 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
   useEffect(() => { if (!enrolled && !started.current) { started.current = true; begin.mutate(); } }, [enrolled]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (setup) void QRCode.toDataURL(setup.otpauthUri, { margin: 1, width: 224 }).then(setQr).catch(() => setQr(null)); }, [setup]);
   const error = begin.error ?? confirm.error ?? verify.error ?? postpone.error;
+  // the error is said in the page's language (Urdu included) and, on the code forms, beside the field it is about (Field ties it by aria-describedby)
+  const errorText = error ? getLocalizedProjectError(error, language) : undefined;
   return (
     <DirectionProvider direction="a">
       <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background px-5 py-10 text-foreground">
@@ -75,14 +77,13 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
             ) : enrolled ? (
               <form className="grid gap-5" onSubmit={event => { event.preventDefault(); verify.mutate({ code }); }}>
                 <p className="text-sm text-muted-foreground">{t.verifyIntro}</p>
-                <Field label={t.verifyCodeLabel} required>{props => <TextInput {...props} dir="ltr" autoComplete="one-time-code" inputMode="text" value={code} onChange={event => setCode(event.target.value)} />}</Field>
-                {error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
+                <Field label={t.verifyCodeLabel} required error={errorText}>{props => <TextInput {...props} dir="ltr" autoComplete="one-time-code" inputMode="text" value={code} onChange={event => setCode(event.target.value)} />}</Field>
                 <div className="flex items-center gap-3"><Button type="submit" loading={verify.isPending} disabled={code.trim().length < 6}>{t.verify}</Button><Button type="button" variant="ghost" onClick={logout}>{t.signOut}</Button></div>
               </form>
             ) : !setup ? (
               <>
                 <p className="text-sm text-muted-foreground">{t.setupIntro}</p>
-                {error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : <p role="status" className="text-sm text-muted-foreground">{t.preparing}</p>}
+                {errorText ? <p role="alert" className="text-sm font-medium text-destructive">{errorText}</p> : <p role="status" className="text-sm text-muted-foreground">{t.preparing}</p>}
                 <div className="flex items-center gap-3"><Button variant="secondary" onClick={() => begin.mutate()}>{t.start}</Button><Button variant="ghost" onClick={logout}>{t.signOut}</Button></div>
               </>
             ) : (
@@ -91,13 +92,12 @@ function MfaPanel({ enrolled, canPostpone }: { enrolled: boolean; canPostpone: b
                   <p className="text-sm text-muted-foreground">{t.setupIntro}</p>
                   <p className="text-sm font-medium">{t.scan}</p>
                   {qr ? <img src={qr} alt={t.qrAlt} width={224} height={224} className="hidden rounded-[var(--radius-sm)] border border-border bg-white sm:block" /> : null}
-                  <a href={setup.otpauthUri} className="text-sm font-semibold text-primary">{t.openApp}</a>
-                  <div><Button type="button" variant="ghost" onClick={() => setShowKey(value => !value)}>{showKey ? t.hideKey : t.showKey}</Button></div>
+                  <a href={setup.otpauthUri} className="inline-flex min-h-11 items-center justify-self-start text-sm font-semibold text-primary underline-offset-4 hover:underline">{t.openApp}</a>
+                  <div><Button type="button" variant="ghost" className="-ms-4" onClick={() => setShowKey(value => !value)}>{showKey ? t.hideKey : t.showKey}</Button></div>
                   {showKey ? <p dir="ltr" className="break-all rounded-[var(--radius-sm)] border border-border bg-muted px-3 py-2 font-mono text-sm" data-testid="mfa-secret">{setup.secret}</p> : null}
                 </div>
-                <Field label={t.codeLabel} required>{props => <TextInput {...props} dir="ltr" autoComplete="one-time-code" inputMode="numeric" value={code} onChange={event => setCode(event.target.value)} />}</Field>
-                {error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
-                <div className="flex items-center gap-3"><Button type="submit" loading={confirm.isPending} disabled={code.trim().length < 6}>{t.confirm}</Button>{canPostpone ? <Button type="button" variant="secondary" loading={postpone.isPending} onClick={() => postpone.mutate()}>{t.later}</Button> : null}<Button type="button" variant="ghost" onClick={logout}>{t.signOut}</Button></div>
+                <Field label={t.codeLabel} required error={errorText}>{props => <TextInput {...props} dir="ltr" autoComplete="one-time-code" inputMode="numeric" value={code} onChange={event => setCode(event.target.value)} />}</Field>
+                <div className="flex flex-wrap items-center gap-3"><Button type="submit" loading={confirm.isPending} disabled={code.trim().length < 6}>{t.confirm}</Button>{canPostpone ? <Button type="button" variant="secondary" loading={postpone.isPending} onClick={() => postpone.mutate()}>{t.later}</Button> : null}<Button type="button" variant="ghost" onClick={logout}>{t.signOut}</Button></div>
                 {canPostpone ? <p className="text-xs text-muted-foreground">{t.laterNote}</p> : null}
               </form>
             )}

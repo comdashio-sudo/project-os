@@ -203,7 +203,7 @@ export default function Login() {
           {step === "email" ? (
             <form onSubmit={requestCode} method="post" className="mt-5 grid gap-4" noValidate>
               <p className="text-sm text-muted-foreground">{t.emailHelp}</p>
-              <Field label={t.email} error={emailProblem ?? undefined}>
+              <Field label={t.email} required error={emailProblem ?? undefined}>
                 {props => <TextInput {...props} type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="min-h-12 text-base" />}
               </Field>
               <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || !email.trim()}>{!ready ? t.loading : busy ? t.sending : t.send}</Button>
@@ -211,14 +211,14 @@ export default function Login() {
           ) : (
             <form onSubmit={verify} method="post" className="mt-5 grid gap-4" noValidate>
               <p className="text-sm text-muted-foreground">{t.codeHelp} <bdi dir="ltr" className="font-medium text-foreground">{email}</bdi></p>
-              <Field label={t.code}>
+              <Field label={t.code} required>
                 {props => <TextInput {...props} inputMode="numeric" autoComplete="one-time-code" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="min-h-12 text-center text-2xl tracking-[0.4em]" />}
               </Field>
               <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || code.length < CODE_MIN_LENGTH}>{!ready ? t.loading : busy ? t.verifying : t.verify}</Button>
               <p className="text-xs text-muted-foreground">{t.latestOnly}</p>
-              <div className="flex justify-between gap-2 text-sm">
-                <Button variant="ghost" size="sm" className="text-primary" onClick={() => { setStep("email"); setErrorKey(null); }}>{t.changeEmail}</Button>
-                <Button variant="ghost" size="sm" className="text-primary" disabled={!ready || busy || cooldown > 0} onClick={() => requestCode()}>{cooldown > 0 ? t.resendIn(cooldown) : t.resend}</Button>
+              <div className="flex flex-wrap justify-between gap-2 text-sm">
+                <Button variant="ghost" className="-ms-4 min-h-11 text-primary" onClick={() => { setStep("email"); setErrorKey(null); }}>{t.changeEmail}</Button>
+                <Button variant="ghost" className="-me-4 min-h-11 text-primary" disabled={!ready || busy || cooldown > 0} onClick={() => requestCode()}>{cooldown > 0 ? t.resendIn(cooldown) : t.resend}</Button>
               </div>
             </form>
           )}
