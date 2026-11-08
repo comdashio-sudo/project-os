@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { discardImportAttempt, rollbackImport } from "./importAttempts";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
 import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
@@ -222,6 +223,9 @@ export const appRouter = router({
     createUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), context: importContextSchema.optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => createImportUpload({ userId: ctx.user.id, ...input })),
     registerUpload: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: uploadModuleSchema, fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), uploadKey: z.string().min(1).max(1024), context: importContextSchema.optional(), duplicateMode: importDuplicateModeSchema.optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).refine(value => Object.keys(value).length <= 6, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional() }).superRefine(importFormatRule)).mutation(({ ctx, input }) => registerImportUpload({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getImportProgress({ userId: ctx.user.id, ...input })),
+    // The import log lists attempts. An attempt that wrote nothing can be deleted; a confirmed import can be rolled back by a project manager (only what it created).
+    discard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => discardImportAttempt({ userId: ctx.user.id, ...input })),
+    rollback: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => rollbackImport({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
   }),
   // Smart import («ارفع أي ملف»): the original goes to Storage, the platform works out what it is, the person corrects and approves, the existing importer takes over.

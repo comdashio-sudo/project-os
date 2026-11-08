@@ -1,4 +1,5 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
+import { PageHeader, PageMain } from "@/components/pageFrame";
 import { formatDate } from "@/components/ds/format";
 import { CheckedForm } from "@/components/CheckedForm";
 import { MetricCard, formatNumber } from "@/components/ds";
@@ -131,7 +132,7 @@ export default function ProjectControls() {
 
   const operational = pickLanguage(language, { ar: { title: "التقاط EVM محسوب", note: "تحسب PV من الأنشطة المجدولة حتى التاريخ المحدد، وEV من أحدث تقدم مُرسل لكل بند WBS، وAC من قيود التكلفة الفعلية المُرحّلة، وBAC من بنود الميزانية الحالية.", capture: "حساب وحفظ لقطة تشغيلية", sources: "مصادر اللقطة", activities: "أنشطة مجدولة", budgets: "بنود الميزانية", actualCosts: "قيود تكلفة فعلية", progress: "تقدم WBS", period: "تاريخ القطع" }, en: { title: "Calculated EVM capture", note: "PV is derived from scheduled activities through the selected date, EV from the latest submitted progress for each WBS item, AC from posted actual-cost entries, and BAC from current budget lines.", capture: "Calculate and save operational snapshot", sources: "Snapshot sources", activities: "Scheduled activities", budgets: "Budget lines", actualCosts: "Posted actual-cost entries", progress: "WBS progress", period: "Cut-off date" }, ur: { title: "Calculated EVM capture", note: "PV is derived from scheduled activities through the selected date, EV from the latest submitted progress for each WBS item, AC from posted actual-cost entries, and BAC from current budget lines.", capture: "Calculate and save operational snapshot", sources: "Snapshot sources", activities: "Scheduled activities", budgets: "Budget lines", actualCosts: "Posted actual-cost entries", progress: "WBS progress", period: "Cut-off date" } });
 
-  if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <main className="p-2 text-destructive">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</main>;
+  if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <PageMain className="p-2 text-destructive">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</PageMain>;
 
   const fallbackData = { project: { code: projectId, name: t.title }, wbs: [], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null };
   const baseData = {
@@ -182,11 +183,11 @@ export default function ProjectControls() {
 
   return (
     <ProjectUploadContext.Provider value={openUpload}>
-    <main className="flex min-w-0 flex-col gap-5 text-foreground [&>*]:min-w-0">
+    <PageMain className="flex min-w-0 flex-col gap-5 text-foreground [&>*]:min-w-0">
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
-        <header className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-card p-5 md:p-6">
+        <section className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-card p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 basis-64">
               <p dir="ltr" className="text-start text-xs font-semibold text-muted-foreground">{data.project.code}</p>
@@ -196,12 +197,14 @@ export default function ProjectControls() {
             {/* the smart-import screen (Agent 1); until it has a route, the page's own data-imports group (client/src/lib/uploadAnyFile.ts) */}
             <button type="button" onClick={openUpload} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button>
           </div>
+          <PageHeader className="print:hidden">
           <nav aria-label={pickLanguage(language, { ar: "صفحات المشروع", en: "Project pages", ur: "پروجیکٹ کے صفحات" })} className="flex flex-wrap gap-2 print:hidden">
             {([["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
               <Link key={path} href={`/projects/${tenantId}/${projectId}/${path}`} className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-input px-3 md:min-h-10 text-sm font-medium text-foreground hover:bg-muted">{label}</Link>
             ))}
           </nav>
-        </header>
+          </PageHeader>
+        </section>
         {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={openUpload} onManual={() => jumpToManagerLane("manager-schedule")} /> : null}
 
         <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="flex flex-wrap gap-2 print:hidden">
@@ -309,7 +312,7 @@ export default function ProjectControls() {
           </SectionErrorBoundary>
         </div>
         </div>
-    </main>
+    </PageMain>
     </ProjectUploadContext.Provider>
   );
 }

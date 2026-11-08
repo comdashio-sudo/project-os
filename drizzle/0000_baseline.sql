@@ -2719,7 +2719,7 @@ CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_result
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
 CREATE INDEX "data_import_sources_tenant_project_idx" ON "data_import_sources" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" <> 'failed';--> statement-breakpoint
+CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" IN ('confirmed', 'importing', 'completed');--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_comments_project_number_unique" ON "design_comments" USING btree ("project_id","comment_number");--> statement-breakpoint
 CREATE INDEX "design_comments_tenant_project_status_idx" ON "design_comments" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint

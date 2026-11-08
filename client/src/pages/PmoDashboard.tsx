@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { formatNumber } from "@/components/ds/format";
 import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -83,7 +84,7 @@ export default function PmoDashboard() {
   const issueEscalationMutation = trpc.pmo.transitionIssueEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
   const actionEscalationMutation = trpc.pmo.transitionActionEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
 
-  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <main className="min-h-screen bg-background p-8 text-danger-soft-foreground">{getLocalizedProjectError(setupQuery.error, isArabic)}</main>;
+  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <PageMain className="min-h-screen bg-background p-8 text-danger-soft-foreground">{getLocalizedProjectError(setupQuery.error, isArabic)}</PageMain>;
   const data = {
     portfolios: setupQuery.data?.portfolios ?? [], programs: setupQuery.data?.programs ?? [], projects: setupQuery.data?.projects ?? [],
     risks: risksQuery.data?.risks ?? [], issues: issuesQuery.data?.issues ?? [], actions: actionsQuery.data?.actions ?? [],
@@ -132,13 +133,13 @@ export default function PmoDashboard() {
   const submitProjectLink = (event: FormEvent) => { event.preventDefault(); projectLinkMutation.mutate({ tenantId, projectId: projectLinkForm.projectId, ...(projectLinkForm.programId ? { programId: projectLinkForm.programId } : {}), ...(projectLinkForm.portfolioId ? { portfolioId: projectLinkForm.portfolioId } : {}) }); };
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b bg-card">
+    <PageMain className="min-h-screen bg-background text-foreground">
+      <PageHeader className="border-b bg-card">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link>
+          <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></OutsideShell>
           <div className="flex gap-3"><span className="text-sm text-muted-foreground">{t.level}</span></div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">
         
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_setup" state={setupQuery.error ? "error" : null} />
@@ -279,7 +280,7 @@ export default function PmoDashboard() {
         {(issueEscalationMutation.error || actionEscalationMutation.error) && <p role="alert" className="mt-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(issueEscalationMutation.error ?? actionEscalationMutation.error, isArabic)}</p>}
         {(issueEscalationMutation.isSuccess || actionEscalationMutation.isSuccess) && <p role="status" className="mt-4 text-sm text-success-soft-foreground">{t.escalationSuccess}</p>}
       </div>
-    </main>
+    </PageMain>
   );
 }
 

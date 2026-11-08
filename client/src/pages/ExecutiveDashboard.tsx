@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { formatAmount } from "@/components/ds/format";
 import { ListSelect, Option } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -122,7 +123,7 @@ export default function ExecutiveDashboard() {
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
        projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
-    return <main className="min-h-screen bg-background p-8 text-danger-soft-foreground">{getLocalizedProjectError(metricsQuery.error, isArabic)}</main>;
+    return <PageMain className="min-h-screen bg-background p-8 text-danger-soft-foreground">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
   }
   const data = {
     totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
@@ -173,21 +174,21 @@ export default function ExecutiveDashboard() {
         projects: "پروجیکٹس",
       } });
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b bg-card">
+    <PageMain className="min-h-screen bg-background text-foreground">
+      <PageHeader className="border-b bg-card">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <Link
+          <OutsideShell><Link
             href="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             {t.back}
-          </Link>
+          </Link></OutsideShell>
           <div className="flex gap-3">
             <span className="text-sm text-muted-foreground">{t.level}</span>
           </div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">
         
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_metrics" state={metricsQuery.error ? "error" : null} />
@@ -439,7 +440,7 @@ export default function ExecutiveDashboard() {
         </Card>
         </details>
       </div>
-    </main>
+    </PageMain>
   );
 }
 function Metric({

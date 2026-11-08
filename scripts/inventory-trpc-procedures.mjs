@@ -44,6 +44,7 @@ const integrationSources = await Promise.all([
 
   readFile(new URL("../server/masterPlanVision.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/importJobs.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/importAttempts.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/userLanguage.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/smartImport.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/smartMatrix.database.test.ts", import.meta.url), "utf8"),

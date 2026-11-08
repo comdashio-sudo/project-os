@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { PageMain, PageHeader } from "@/components/pageFrame";
 import { Link, useParams } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -24,8 +25,8 @@ export default function UserGuide() {
   // Steps are shown by cadence (daily first), numbered in the order the reader meets them.
   const ordered = GUIDE_CADENCES.flatMap((cadence: GuideCadence) => section.steps.flatMap((step, index) => (step.cadence === cadence ? [{ step, index }] : [])));
   return (
-    <main className="min-h-screen bg-background text-foreground" dir={isRtl ? "rtl" : "ltr"}>
-      <header className="border-b bg-card"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></header>
+    <PageMain className="min-h-screen bg-background text-foreground" dir={isRtl ? "rtl" : "ltr"}>
+      <PageHeader className="border-b bg-card"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></PageHeader>
       <div className="mx-auto max-w-5xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
         <p className="mt-2 text-muted-foreground">{t.sub}</p>
@@ -59,6 +60,6 @@ export default function UserGuide() {
           })}
         </section>
       </div>
-    </main>
+    </PageMain>
   );
 }

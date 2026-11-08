@@ -1,4 +1,5 @@
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { ALL, LabelledSelect } from "@/components/LabelledSelect";
@@ -305,7 +306,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
 
 const PERIODS = [["default", undefined], ["d7", 7], ["d30", 30], ["d90", 90], ["d365", 365], ["everything", 36500]] as const;
 
-/** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <main>, so the page keeps its single main landmark. */
+/** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <PageMain>, so the page keeps its single main landmark. */
 export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }) {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
@@ -330,14 +331,14 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   return (
     <Shell embedded={embedded} isArabic={isArabic} isRtl={isRtl}>
       <div className="mx-auto max-w-7xl space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <PageHeader className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && <div className="flex gap-2">
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
-        </header>
+        </PageHeader>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && (
           <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border print:hidden">
@@ -362,7 +363,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
 function Shell({ embedded, isArabic, isRtl = isArabic, children }: { embedded: boolean; isArabic: boolean; isRtl?: boolean; children: React.ReactNode }) {
   return embedded
     ? <div className="px-0 py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>{children}</div>
-    : <main className="py-2 text-foreground print:bg-card" dir={isRtl ? "rtl" : "ltr"}>{children}</main>;
+    : <PageMain className="py-2 text-foreground print:bg-card" dir={isRtl ? "rtl" : "ltr"}>{children}</PageMain>;
 }
 
 export default function ProjectPmc() {

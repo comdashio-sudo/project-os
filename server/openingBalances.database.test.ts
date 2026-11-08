@@ -113,14 +113,18 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("opening balances through
     await expect(callerFor(users.reader, "opn-reader").dataImports.analyze(file)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
   });
 
-  it("tells a person who uploads the very same file twice that it is a duplicate, and leaves the first upload alone", async () => {
+  it("refuses the very same file only once it was CONFIRMED (owner order 2026-10-27), and leaves the first upload alone", async () => {
     const keeper = callerFor(users.keeper, "opn-keeper");
-    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "same.csv", sourceFormat: "csv" as const, base64: csv("WH-01,STL,777,12.5") };
+    const file = { ...scope, moduleCode: "openingBalances" as const, fileName: "same.csv", sourceFormat: "csv" as const, base64: csv("WH-01,STL,777,12.5"), duplicateMode: "skip_duplicates" as const }; // earlier tests already opened this pair: skip, so the confirmation completes
     const first = await keeper.dataImports.analyze(file);
     const countImports = async () => { const [rows] = await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]); return Number(rows[0].n); };
+    // an unconfirmed analysis wrote nothing, so the same file may be sent again
+    const early = await keeper.dataImports.analyze({ ...file, fileName: "same-early.csv" });
+    expect(early.id).not.toBe(first.id);
+    await keeper.dataImports.confirm({ ...scope, importId: first.id });
+    expect((await keeper.dataImports.detail({ ...scope, importId: first.id })).status).toBe("completed");
     const before = await countImports();
     await expect(keeper.dataImports.analyze({ ...file, fileName: "same-again.csv" })).rejects.toThrow("PROJECT_OS_IMPORT_DUPLICATE_DETECTED");
     expect(await countImports()).toBe(before); // the repeat created nothing
-    expect((await keeper.dataImports.detail({ ...scope, importId: first.id })).status).toBe("validated");
   });
 });
