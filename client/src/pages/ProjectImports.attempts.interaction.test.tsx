@@ -67,6 +67,25 @@ describe("the import log shows what each attempt is and what can be done with it
     expect(ledger.queryByRole("button", { name: "Roll back this import" })).toBeNull();
     expect(ledger.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
   });
+
+  // D-4 (#153): a Primavera schedule (p6) and its progress update (p6update) are written «completed», but the server refuses their rollback
+  // (PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED) — so the log offers neither button for them, while a «schedule» import still gets both.
+  it.each(["p6", "p6update"])("offers neither «Roll back» nor «Replace» on a completed %s import (the server refuses its rollback)", moduleCode => {
+    state.mock.list = [row("00000000-0000-4000-8000-0000000000a6", "schedule.xer", "completed", 0, moduleCode)];
+    render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
+    const imported = within(screen.getByTestId("import-attempt-imported"));
+    expect(imported.getByText("Imported")).toBeTruthy();
+    expect(imported.queryByRole("button", { name: "Roll back this import" })).toBeNull();
+    expect(imported.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
+  });
+
+  it("still offers both on a completed «schedule» import (positive control for the p6 case)", () => {
+    state.mock.list = [row("00000000-0000-4000-8000-0000000000a7", "activities.xlsx", "completed", 0, "schedule")];
+    render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
+    const imported = within(screen.getByTestId("import-attempt-imported"));
+    expect(imported.getByRole("button", { name: "Roll back this import" })).toBeTruthy();
+    expect(imported.getByRole("button", { name: "Replace with a newer version" })).toBeTruthy();
+  });
 });
 
 describe("the attempt rows follow the design system (design review of #157)", () => {

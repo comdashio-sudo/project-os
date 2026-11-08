@@ -18,12 +18,14 @@ import { registerImportUpload } from "./importJobs";
 import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./matrixImport";
 import { analyzeConsultantImport, confirmConsultantImport, type ConsultantPlan } from "./consultantImport";
 import { analyzeSiteLegacyImport, confirmSiteLegacyImport, type SiteLegacyPlan } from "./siteLegacyImport";
+import { analyzeP6Import, confirmP6Import, type P6Plan } from "./p6Import";
+import { analyzeScheduleUpdate, confirmScheduleUpdate, type ScheduleUpdatePlan } from "./p6Update";
 import { readTableWithAi, smartReadingQuote } from "./smartReading";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageGetSignedUrl, storageHead, storagePut, storageRead } from "./storage";
 import { logError } from "./_core/logger";
 
 type Identity = { userId: number; tenantId: string; projectId: string };
-const EXTENSIONS: Record<string, string> = { xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", xer: "text/plain", pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+const EXTENSIONS: Record<string, string> = { xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", xer: "text/plain", pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
 const safeName = (name: string) => name.normalize("NFKC").replace(/[^A-Za-z0-9._\-؀-ۿݐ-ݿ]+/g, "_").replace(/^[._]+/, "").slice(0, 120) || "file";
 const smartPrefix = (input: Identity) => `imports/${input.tenantId}/${input.projectId}/smart/`;
 const extensionOf = (fileName: string) => fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
@@ -80,6 +82,10 @@ export type SmartAnalysis = {
   /** work order 22: the consultant's export (what changed since the last one) and the site's old workbook (what the one-time import would bring) */
   consultantPlan?: ConsultantPlan;
   siteLegacyPlan?: SiteLegacyPlan;
+  /** a Primavera P6 export: what importing it in full would change (WBS, activities, relationships, resources, assignments, codes, calendars), counted by the database in a transaction that was rolled back */
+  p6Plan?: P6Plan;
+  /** a progress update (activity id + actual start / finish): what it would change in the project's schedule, counted against its own rows */
+  scheduleUpdatePlan?: ScheduleUpdatePlan;
   /** present for a PDF / image: whether the AI reading is on, what it would cost, what is left this month */
   smartReading?: Awaited<ReturnType<typeof smartReadingQuote>>;
 };
@@ -96,6 +102,14 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   }
   let result = await understand(bytes, { fileName: input.fileName, sheet: input.sheet, kind: input.kind, forced: input.forced });
   let profile: SmartAnalysis["profile"] = null;
+  if (result.kind === "scheduleUpdate") {
+    const scheduleUpdatePlan = await analyzeScheduleUpdate({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes });
+    return { understanding: strip(result), profile: null, scheduleUpdatePlan };
+  }
+  if (result.kind === "xer") {
+    const p6Plan = await analyzeP6Import({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes });
+    return { understanding: strip(result), profile: null, p6Plan };
+  }
   if (result.kind === "unitMatrix") {
     // the report's own structure is the map: nothing to correct column by column. The plan is counted by the database, in a transaction that is rolled back.
     const matrixPlan = await analyzeMatrixImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes });
@@ -116,13 +130,18 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   return { understanding: strip(result), profile };
 }
 
-export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; consultantPlan?: ConsultantPlan; siteLegacyPlan?: SiteLegacyPlan };
+export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; consultantPlan?: ConsultantPlan; siteLegacyPlan?: SiteLegacyPlan; p6Counts?: P6Plan["counts"]; scheduleUpdate?: Pick<ScheduleUpdatePlan, "updated" | "started" | "finished" | "moved" | "unknown" | "unchanged"> };
 
 /** Step 3: the person approved. The rows go to the existing importer in its own template; the original file is kept and linked to the import. */
 export async function confirmSmartImport(input: Identity & { uploadKey: string; fileName: string; kind: KindCode; sheet?: string; forced: Record<number, string | null>; approvedHash?: string; profileName?: string; profileId?: string | null; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate" }): Promise<SmartConfirmation> {
   const db = await database();
   const bytes = await takeSmartUpload(input);
   const format = detectFormat(bytes, input.fileName);
+  if (input.kind === "scheduleUpdate") {
+    if (format !== "xlsx" && format !== "xls") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
+    const done = await confirmScheduleUpdate({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
+    return { importId: done.importId, status: "completed", module: "p6update", rowsSent: done.plan.updated, rowsExcluded: done.plan.unknown, excluded: [], notes: [], profileId: null, scheduleUpdate: { updated: done.plan.updated, started: done.plan.started, finished: done.plan.finished, moved: done.plan.moved, unknown: done.plan.unknown, unchanged: done.plan.unchanged } };
+  }
   if (input.kind === "unitMatrix") {
     if (format !== "xlsx") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
     const plan = await confirmMatrixImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
@@ -156,12 +175,9 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
   let mapping: ColumnMap = {}; let mergedFilled = 0; let sheetName: string | null = input.sheet ?? null; let headers: string[] = [];
 
   if (format === "xer") {
-    // a Primavera export is already the schedule importer's own format: it goes through untouched, from the original object
-    module = "schedule";
-    const pendingKey = `imports/${input.tenantId}/${input.projectId}/pending/${randomUUID()}/${safeName(input.fileName)}`;
-    const stored = await storagePut(pendingKey, bytes, "text/plain"); // the store adds its own suffix to the key: the key it returns is the one to register
-    registered = await registerImportUpload({ ...base, moduleCode: "schedule", fileName: input.fileName, sourceFormat: "xer", uploadKey: stored.key });
-    input = { ...input, kind: "xer" };
+    // a Primavera export is read whole (the WBS tree, activities, relationships, resources, assignments, codes, calendars) and written in one transaction
+    const plan = await confirmP6Import({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
+    return { importId: plan.importId!, status: "completed", module: "p6", rowsSent: plan.summary.activities, rowsExcluded: 0, excluded: [], notes: plan.warnings, profileId: null, p6Counts: plan.counts };
   } else if (format === "pdf" || format === "image" || format === "unknown") {
     throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
   } else {

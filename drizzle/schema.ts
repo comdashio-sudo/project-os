@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -1652,6 +1653,16 @@ export const activities = pgTable(
     plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }),
     actualStartAt: timestamp("actual_start_at", { withTimezone: true }),
     actualFinishAt: timestamp("actual_finish_at", { withTimezone: true }),
+    // From a Primavera P6 import (work order 20): the source system's id, the kind of activity, its calendar, its durations, completion and float. Null for an activity entered by hand.
+    externalId: varchar("external_id", { length: 40 }),
+    taskType: varchar("task_type", { length: 24 }),
+    calendarId: varchar("calendar_id", { length: 36 }),
+    durationHours: numeric("duration_hours", { precision: 10, scale: 2 }),
+    remainingHours: numeric("remaining_hours", { precision: 10, scale: 2 }),
+    percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+    totalFloatHours: numeric("total_float_hours", { precision: 10, scale: 2 }),
+    constraintType: varchar("constraint_type", { length: 24 }),
+    constraintDate: timestamp("constraint_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -1882,7 +1893,7 @@ export const projectHealthSnapshots = pgTable(
   table => [uniqueIndex("project_health_period_unique").on(table.projectId, table.periodAt), index("project_health_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
-export const dataImportsSourceFormatEnum = pgEnum("data_imports_source_format", ["xlsx", "csv", "xer"]);
+export const dataImportsSourceFormatEnum = pgEnum("data_imports_source_format", ["xlsx", "csv", "xer", "xls"]);
 export const dataImportsStatusEnum = pgEnum("data_imports_status", ["uploaded", "analyzing", "validated", "confirmed", "importing", "completed", "failed", "cancelled"]);
 export const dataImportsDuplicateModeEnum = pgEnum("data_imports_duplicate_mode", ["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
 export const dataImports = pgTable(
@@ -3006,6 +3017,125 @@ export const smartReadingUsage = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("smart_reading_usage_tenant_month_unique").on(table.tenantId, table.month)],
+);
+
+// ---- Primavera P6 import (work order 20): what a schedule holds besides its activities.
+export const scheduleCalendars = pgTable(
+  "schedule_calendars",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    externalId: varchar("external_id", { length: 40 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    calendarType: varchar("calendar_type", { length: 40 }),
+    isDefault: boolean("is_default").default(false).notNull(),
+    hoursPerDay: numeric("hours_per_day", { precision: 6, scale: 2 }).default("8").notNull(),
+    hoursPerWeek: numeric("hours_per_week", { precision: 6, scale: 2 }).default("40").notNull(),
+    // the calendar's own definition as the source system wrote it (working days, exceptions): kept whole, not interpreted
+    definition: text("definition"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("schedule_calendars_project_external_unique").on(table.projectId, table.externalId)],
+);
+
+export const activityRelationships = pgTable(
+  "activity_relationships",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    predecessorActivityId: varchar("predecessor_activity_id", { length: 36 }).notNull().references(() => activities.id),
+    successorActivityId: varchar("successor_activity_id", { length: 36 }).notNull().references(() => activities.id),
+    relationType: varchar("relation_type", { length: 2 }).notNull(),
+    lagHours: numeric("lag_hours", { precision: 10, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("activity_relationships_pair_unique").on(table.projectId, table.predecessorActivityId, table.successorActivityId, table.relationType),
+    index("activity_relationships_successor_idx").on(table.projectId, table.successorActivityId),
+    check("activity_relationships_type_check", sql`${table.relationType} IN ('FS', 'SS', 'FF', 'SF')`),
+    check("activity_relationships_not_self_check", sql`${table.predecessorActivityId} <> ${table.successorActivityId}`),
+  ],
+);
+
+export const activityCodeTypes = pgTable(
+  "activity_code_types",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    externalId: varchar("external_id", { length: 40 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    scope: varchar("scope", { length: 40 }),
+    sequence: integer("sequence").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("activity_code_types_project_external_unique").on(table.projectId, table.externalId)],
+);
+
+export const activityCodeValues = pgTable(
+  "activity_code_values",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    codeTypeId: varchar("code_type_id", { length: 36 }).notNull().references(() => activityCodeTypes.id),
+    parentId: varchar("parent_id", { length: 36 }),
+    externalId: varchar("external_id", { length: 40 }).notNull(),
+    shortName: varchar("short_name", { length: 80 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    sequence: integer("sequence").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("activity_code_values_project_external_unique").on(table.projectId, table.externalId), index("activity_code_values_type_idx").on(table.projectId, table.codeTypeId)],
+);
+
+export const activityCodeAssignments = pgTable(
+  "activity_code_assignments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    activityId: varchar("activity_id", { length: 36 }).notNull().references(() => activities.id),
+    codeTypeId: varchar("code_type_id", { length: 36 }).notNull(),
+    codeValueId: varchar("code_value_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("activity_code_assignments_activity_type_unique").on(table.activityId, table.codeTypeId), index("activity_code_assignments_value_idx").on(table.projectId, table.codeValueId),
+    foreignKey({ columns: [table.codeTypeId], foreignColumns: [activityCodeTypes.id], name: "act_code_assign_type_fk" }),
+    foreignKey({ columns: [table.codeValueId], foreignColumns: [activityCodeValues.id], name: "act_code_assign_value_fk" }),
+  ],
+);
+
+export const activityResourceAssignments = pgTable(
+  "activity_resource_assignments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    activityId: varchar("activity_id", { length: 36 }).notNull().references(() => activities.id),
+    resourceId: varchar("resource_id", { length: 36 }).notNull(),
+    externalId: varchar("external_id", { length: 40 }).notNull(),
+    plannedUnits: numeric("planned_units", { precision: 14, scale: 2 }).default("0").notNull(),
+    actualUnits: numeric("actual_units", { precision: 14, scale: 2 }).default("0").notNull(),
+    remainingUnits: numeric("remaining_units", { precision: 14, scale: 2 }).default("0").notNull(),
+    plannedCost: numeric("planned_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    actualCost: numeric("actual_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    remainingCost: numeric("remaining_cost", { precision: 18, scale: 2 }).default("0").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("activity_resource_assignments_project_external_unique").on(table.projectId, table.externalId), index("activity_resource_assignments_activity_idx").on(table.projectId, table.activityId),
+    foreignKey({ columns: [table.resourceId], foreignColumns: [projectResources.id], name: "act_resource_assign_resource_fk" }),
+  ],
 );
 
 // ------------------------------------------------------------------------------------------------------------------------------------

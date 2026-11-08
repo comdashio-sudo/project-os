@@ -184,10 +184,10 @@ export async function runImportAnalysis(job: JobIdentity, options: { resume?: bo
     const bytes = await storageRead(record.fileKey);
     if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
     stage = "parsing"; await touch(db, job.importId, stage, 30);
-    if (isExternalModule(record.moduleCode)) { await analyseExternal(db, job, { ...record, moduleCode: record.moduleCode }, bytes, touch); return; }
+    if (isExternalModule(record.moduleCode)) { await analyseExternal(db, job, { ...record, sourceFormat: record.sourceFormat as Format, moduleCode: record.moduleCode }, bytes, touch); return; }
     const override = record.mappingJson ? JSON.parse(record.mappingJson) as Record<string, string> : undefined;
     if (!IMPORT_MODULES.includes(record.moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
-    const analysis = await analyzeImportFile({ moduleCode: record.moduleCode as ImportModuleCode, format: record.sourceFormat, bytes, mappingOverride: override });
+    const analysis = await analyzeImportFile({ moduleCode: record.moduleCode as ImportModuleCode, format: record.sourceFormat as "xlsx" | "csv" | "xer", bytes, mappingOverride: override });
     stage = "validating"; await touch(db, job.importId, stage, 60);
     await addOpeningBalanceReferenceErrors(db, { tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, analysis });
     stage = "writing"; await touch(db, job.importId, stage, 80);

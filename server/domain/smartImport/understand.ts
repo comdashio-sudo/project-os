@@ -3,16 +3,18 @@ import { inferDateOrder, parseDate, type DateOrder } from "./dates";
 import { KINDS, KIND_CODES, type FieldType, type KindCode, type KindDefinition, type TableKindCode } from "./kinds";
 import { detectConsultantExport } from "./consultantExport";
 import { isSiteWorkbook } from "./siteWorkbook";
+import { detectScheduleUpdate } from "./scheduleUpdate";
 import { detectMatrix, reconcile, validateMatrix, weightPercents, type MatchReport, type MatrixIssue, type MatrixModel } from "./matrix";
 import { AUTO_THRESHOLD, isAuto, mapColumns, type ColumnMatch } from "./mapper";
 import { parseNumber } from "./numbers";
 import { readGrid, type Cell, type SheetGrid } from "./sheetReader";
+import { isOle2 } from "./xlsReader";
 import { tabulate, type Table } from "./table";
 import { normalizeUnit } from "./units";
 
 // "This is what I understood": the whole reading of one file, with nothing written anywhere. Free and deterministic (no model). The same function serves the preview, the saved profiles
 // (their column map is applied as `forced`) and the tests that measure how many columns are matched without help.
-export type FileFormat = "xlsx" | "csv" | "xer" | "pdf" | "image" | "unknown";
+export type FileFormat = "xlsx" | "xls" | "csv" | "xer" | "pdf" | "image" | "unknown";
 
 export function detectFormat(bytes: Uint8Array, fileName: string): FileFormat {
   const b = Buffer.from(bytes.subarray(0, 4096));
@@ -21,6 +23,7 @@ export function detectFormat(bytes: Uint8Array, fileName: string): FileFormat {
   if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "pdf";
   if ((b[0] === 0x89 && b[1] === 0x50) || (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a) || (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0x00)) return "image";
   if (b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) return name.endsWith(".docx") || name.endsWith(".pptx") ? "unknown" : "xlsx";
+  if (isOle2(b)) return name.endsWith(".doc") || name.endsWith(".ppt") || name.endsWith(".msg") ? "unknown" : "xls"; // the legacy Excel container
   if (name.endsWith(".csv") || name.endsWith(".txt") || name.endsWith(".tsv")) return "csv";
   return "unknown";
 }
@@ -35,6 +38,8 @@ export type Understanding = {
   columns: ColumnMatch[]; fields: Array<{ key: string; required: boolean; type: FieldType; label: { ar: string; en: string } }>;
   /** a unit-completion matrix: what was read from it and how it compares with the platform's own calculation (kind === "unitMatrix") */
   matrix?: MatrixSummary;
+  /** a progress update (actual start / finish by activity id): what it holds; what it would change is counted against the project's schedule by the server */
+  scheduleUpdate?: { sheet: string; headerRow: number; rows: number; withStart: number; withFinish: number; ignoredSheets: string[]; badDates: number };
   autoMatchedShare: number; sample: NormalizedRow[]; rows?: NormalizedRow[]; flagged: FlaggedRow[]; hijriDates: number; warnings: string[];
 };
 
@@ -129,6 +134,12 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
   // work order 22: the consultant's weekly export and the site's old workbook, by their structure
   for (const sheet of grid.sheets) if (detectConsultantExport(sheet).ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "consultantExport", kindConfidence: 0.97, sheet: sheet.name, table: null };
   if (isSiteWorkbook(grid.sheets)) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "siteWorkbook", kindConfidence: 0.95, sheet: null, table: null };
+  const update = detectScheduleUpdate(grid.sheets);
+  if (update.ok) {
+    const m = update.model;
+    return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "scheduleUpdate", kindConfidence: 0.97, sheet: m.sheet, candidates: [{ sheet: m.sheet, kind: "scheduleUpdate", score: 0.97, rows: m.rows.length }],
+      scheduleUpdate: { sheet: m.sheet, headerRow: m.headerRow, rows: m.rows.length, withStart: m.rows.filter(r => r.actualStart).length, withFinish: m.rows.filter(r => r.actualFinish).length, ignoredSheets: m.ignoredSheets, badDates: m.badDates.length }, warnings: m.badDates.length ? ["UPDATE_DATES_UNREADABLE"] : [] };
+  }
   const tables = grid.sheets.map(sheet => ({ sheet, table: tabulate(sheet) })).filter((item): item is { sheet: SheetGrid; table: Table } => item.table !== null && item.table.dataRows.length > 0);
   const result: Understanding = { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(sheet => sheet.name) };
   if (!tables.length) return { ...result, warnings: ["NO_TABLE_FOUND"] };
