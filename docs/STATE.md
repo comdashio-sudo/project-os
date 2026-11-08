@@ -1568,3 +1568,27 @@
 | `pnpm test:db` | `UNVERIFIED` (فشل غير منسوب) | تشغيل أول: 540 ناجحًا و2 فاشلان؛ تشغيل ثانٍ: 541 و1 (`email.notifications` حسب ساعة الرياض، و`predeploy.integration`). الفرق لا يمس `server/` ولا `drizzle/` ولا `shared/` (`git diff --stat origin/main -- server drizzle shared` فارغ) |
 
 النطاق: الإطار وطبقات الصفحات فقط. لم يُعَد تصميم محتوى الصفحات (D-3): ألوان قديمة داخل البطاقات، وتداخل أرقام بطاقات سجل المشاريع عند 1280، وتواريخ هجرية بأرقام هندية في بطاقات ضوابط المشروع (D-26) — رُئيت في اللقطات ولم تُصلح هنا. محوّل المشروع يعرض `projects.list` كما هو حتى D-19 (G-143). لم تُفحص الأردية ولا الوضع الداكن بالمتصفح.
+
+## D-37: أصول الهوية بالتصميم A (2026-11-08)
+
+استُبدلت أصول `client/public/brand` في أماكنها بالاتجاه A (رمز Symbol a من `client/src/components/ds/Logo.tsx`) بالقيم الحرفية من `client/src/design/directions.css`: الفاتح `#4338ca`/`#ffffff`/`#2ed3c6` والكلمة `#0c1023`، والداكن `#9a97f7`/`#0a0e1e`/`#2ed3c6` والكلمة `#e6eaf6`. «Dashio» وحدها في الأفقي، مسارات لا `<text>` (Inter Variable بوزن 650 وتباعد ‎-0.02em، مولَّدة بـ`scripts/brand/wordmark-paths.py`). PNG ‏16/32/48/192/512 و`appicon-maskable-512.png` و`favicon.ico` من `scripts/brand/render-icons.mjs` (Chromium). `manifest.webmanifest`: ‏theme_color ‏`#4338ca` وbackground_color ‏`#f6f7fb` وأيقونة `purpose: maskable`. `client/index.html`: وسما theme-color بـ`media` للفاتح (`#4338ca`) والداكن (`#0a0e1e`) ورابط `favicon.ico`. نص `BrandMark` البديل من `ds/strings.ts` (ar/en/ur). لم يُلمس AppShell ولا ProductShell.
+
+| البند | الحالة | الدليل |
+| --- | --- | --- |
+| الأصول والربط | `PROVEN` (اختبار، 2026-11-08) | `pnpm exec vitest run server/testing/brandAssets.test.ts` ← 8/8: أبعاد كل PNG من IHDR، وICO بثلاث صور، وكل مرجع في index.html وmanifest وBrandMark موجود، وألوان كل SVG = رموز A في directions.css، ولا `<text>` ولا خط ولا متغير CSS ولا `#4A46E8` (مع حالة سالبة)، وmanifest وtheme-color |
+| البوابات المحلية | `PROVEN` (أمر، 2026-11-08) | `pnpm check` ← خروج 0 (740 مخالفة قديمة، لا جديد)؛ `pnpm build` ← خروج 0 والأصول في `dist/public/brand`؛ `pnpm test` ← 2777 ناجحًا و0 فاشل (بعد تعديل `EvmCalculator.test.tsx` إلى `/Dashio/` لأن النص البديل صار مترجمًا)؛ `pnpm check:secrets` ← 0 |
+| `pnpm test:db` والرحلات | `UNVERIFIED` (لم تُشغَّل) | الفرق لا يمس `server/` (سوى اختبار ثابت) ولا `drizzle/` ولا `shared/` |
+| الشكل | `UNVERIFIED` (ينتظر مراجعة التصميم واعتماد المالك من اللقطات) | لقطات الفاتح والداكن والمقاسات على فرع `screens/d-37` |
+
+حدّان: هامش الحماية (نصف ارتفاع الرمز) قاعدة استعمال وليس حشوًا داخل viewBox، حتى لا يصغر الشعار في الأماكن القائمة (`h-7`). و`BrandMark` لا يبدّل نسخة الداكن تلقائيًا: التطبيق بلا وضع داكن مفعّل، والشريط العلوي يستعمل `ds/Logo` الذي يتبع الوضع بالمتغيرات أصلًا.
+
+### D-57 + D-35: الإطلاق الآلي لم يُطلق شيئًا منذ 428d1aa (2026-11-08)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| D-57 سبب فشل التشغيلين 42482981857 (`aead060`) و42489722563 (`f9ed5ee`): ليس فحص ancestor ولا checkout ضحلًا (الـcheckout `fetch-depth: 0` وخطوة «What would ship» نجحت فيهما)، بل خطوة «Refuse to start…»: `##[error]the repository VARIABLE SUPABASE_ANON_KEY is not set` | `PROVEN` (سجل) | `gh run view <id> --log-failed`؛ نص «not an ancestor» في السجل هو صدى نص السكربت لا خطأ |
+| D-57 سبب «نجاح» 42491210830 (`5d0a7c8`) بـ`deploy=false` مع 209 ملفات كود وترحيلة 0016: `echo … \| grep -vE … \| grep -q .` تحت `pipefail`؛ `grep -q` يخرج عند أول سطر فيأخذ الكاتب EPIPE (السجل: `grep: write error: Broken pipe`)، فيفشل الأنبوب و`!` يقلبه إلى «لا شيء للنشر» | `PROVEN` (سجل + إعادة إنتاج) | إعادة الإنتاج محليًا بالسكربت القديم و30000 مسار كود ← `deploy=false` 5/5 مع الرسالة نفسها |
+| D-57 الإصلاح: القرار في `scripts/ci/release-scope.sh` (`grep -v` يقرأ كل المدخل، بلا `grep -q`)، والسير يستدعيه | `PROVEN` (اختبار) | `server/testing/supabasePublicConfig.test.ts` «release scope»: 30000 مسار كود ← `deploy=true` ولو مع `trap '' PIPE`؛ توثيق فقط ← `false`؛ فحص ساكن: `fetch-depth: 0` ولا `\| grep -q` في الخطوة |
+| D-35 السير يقرأ `url` و`publishableKey` من `config/supabase.public.json` بـ`jq`، ولا `vars.SUPABASE_ANON_KEY` في أي سير؛ يرفض مفتاحًا لا يبدأ بـ`sb_publishable_` | `PROVEN` (اختبار) | الاختبار نفسه: 7/7 ناجحة على الفرع، و3 منها تفشل على سير `main` القديم (دليل سالب) |
+| D-35 قيمة المفتاح العام في الملف | `BLOCKED_BY_OWNER` | `get_publishable_keys` للمشروع dzfxgxccnlyhcjgqstgn ← «You do not have permission»؛ لم تُختلق قيمة، و`publishableKey` فارغ فيتوقف الإطلاق برسالة تسمّي الملف. الخطوات: `docs/OWNER_ACTIONS.md` البند 13 |
+| معيار D-57 «0016 مطبقة و/healthz ok» | `OPEN` | يُتحقق بعد الدمج وملء المفتاح، بأول تشغيل تلقائي على `main` (لا تشغيل يدوي) |
