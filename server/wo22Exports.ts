@@ -12,33 +12,52 @@ import { pmcGate, siteToday, type Scope } from "./wo22Shared";
 
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 const SITE_WORD: Record<string, string> = { NOT_STARTED: "Not Started", IN_PROGRESS: "On Progress", DONE: "Done", INSPECTION_REQUESTED: "Request Inspection", QC_APPROVED: "QC Approval" };
-const RESULT: Record<string, string> = { site_done_not_received: "منتهي في الموقع ولم يُسلَّم للاستشاري", received_not_done: "مستلَم من الاستشاري ولم يُحدَّث في الموقع" };
-export const COMPARISON_COLUMNS = ["المنطقة", "البلوك", "الفيلا", "النموذج", "القسم", "رقم WIR", "البند (AppSheet)", "Activity (الاستشاري)", "حالة AppSheet", "تاريخ Done", "عند الاستشاري", "النتيجة", "ملاحظة (عمر الفرق)", "ملاحظة الموقع"];
+export type ExportLanguage = "ar" | "en" | "ur";
+/** The differences file speaks the screen's language: Arabic (the old file's own headers, also for Urdu, as before) or English. Status words from AppSheet stay as AppSheet writes them. */
+const WORDS = {
+  ar: {
+    columns: ["المنطقة", "البلوك", "الفيلا", "النموذج", "القسم", "رقم WIR", "البند (AppSheet)", "Activity (الاستشاري)", "حالة AppSheet", "تاريخ Done", "عند الاستشاري", "النتيجة", "ملاحظة (عمر الفرق)", "ملاحظة الموقع"],
+    result: { site_done_not_received: "منتهي في الموقع ولم يُسلَّم للاستشاري", received_not_done: "مستلَم من الاستشاري ولم يُحدَّث في الموقع" } as Record<string, string>,
+    received: "مستلَم", notReceived: "غير مستلَم", age: (days: number) => `منذ ${days} يومًا`,
+    summarySheet: "ملخص", summary: ["القسم", "قورن", "منتهٍ عند الطرفين", "لم يبدأ عند الطرفين"], total: "الإجمالي", rightToLeft: true,
+  },
+  en: {
+    columns: ["Zone", "Block", "Villa", "Type", "Section", "WIR", "Item (AppSheet)", "Activity (consultant)", "AppSheet status", "Done on", "Consultant", "Result", "Note (age of the difference)", "Site note"],
+    result: { site_done_not_received: "Finished on site, not handed to the consultant", received_not_done: "Received by the consultant, not updated on site" } as Record<string, string>,
+    received: "Received", notReceived: "Not received", age: (days: number) => `${days} days ago`,
+    summarySheet: "Summary", summary: ["Section", "Compared", "Done on both", "Not started on both"], total: "Total", rightToLeft: false,
+  },
+};
+const wordsFor = (language?: ExportLanguage) => (language === "en" ? WORDS.en : WORDS.ar);
+export const COMPARISON_COLUMNS = WORDS.ar.columns;
+export const COMPARISON_COLUMNS_EN = WORDS.en.columns;
 const sheetName = (value: string, used: Set<string>) => { let name = (value || "—").replace(/[\\/?*[\]:]/g, " ").slice(0, 28).trim() || "—"; for (let n = 2; used.has(name); n++) name = `${name.slice(0, 25)} ${n}`; used.add(name); return name; };
 const toBase64 = async (wb: ExcelJS.Workbook) => Buffer.from(await wb.xlsx.writeBuffer()).toString("base64");
 
-export function comparisonRowValues(row: ComparisonRow) {
+export function comparisonRowValues(row: ComparisonRow, language?: ExportLanguage) {
+  const words = wordsFor(language);
   return [row.zone, row.block, Number(row.villa) || row.villa, row.modelCode, row.section, row.wir ?? "", row.siteActivity, row.consultantActivity,
-    (row.siteStatus ?? "").split(" · ").map(status => SITE_WORD[status] ?? status).join(" · "), row.doneOn ?? "", row.consultantStatus === "NOT_RECEIVED" ? "غير مستلَم" : "مستلَم",
-    row.kind ? RESULT[row.kind] : "", row.ageDays === null ? "" : `منذ ${row.ageDays} يومًا`, row.note ?? ""];
+    (row.siteStatus ?? "").split(" · ").map(status => SITE_WORD[status] ?? status).join(" · "), row.doneOn ?? "", row.consultantStatus === "NOT_RECEIVED" ? words.notReceived : words.received,
+    row.kind ? words.result[row.kind] : "", row.ageDays === null ? "" : words.age(row.ageDays), row.note ?? ""];
 }
 
-export async function exportComparisonWorkbook(input: Scope) {
+export async function exportComparisonWorkbook(input: Scope & { language?: ExportLanguage }) {
   const { rows, summary } = await pmcComparisonAll(input);
+  const words = wordsFor(input.language);
   const wb = new ExcelJS.Workbook(); const used = new Set<string>();
-  const head = wb.addWorksheet(sheetName("ملخص", used), { views: [{ rightToLeft: true }] });
-  head.addRow(["القسم", "قورن", "منتهٍ عند الطرفين", "لم يبدأ عند الطرفين", RESULT.site_done_not_received, RESULT.received_not_done]);
+  const head = wb.addWorksheet(sheetName(words.summarySheet, used), { views: [{ rightToLeft: words.rightToLeft }] });
+  head.addRow([...words.summary, words.result.site_done_not_received, words.result.received_not_done]);
   for (const item of summary) head.addRow([item.section, item.compared, item.bothDone, item.neither, item.siteDoneNotReceived, item.receivedNotDone]);
-  head.addRow(["الإجمالي", summary.reduce((s, i) => s + i.compared, 0), summary.reduce((s, i) => s + i.bothDone, 0), summary.reduce((s, i) => s + i.neither, 0), summary.reduce((s, i) => s + i.siteDoneNotReceived, 0), summary.reduce((s, i) => s + i.receivedNotDone, 0)]);
+  head.addRow([words.total, summary.reduce((s, i) => s + i.compared, 0), summary.reduce((s, i) => s + i.bothDone, 0), summary.reduce((s, i) => s + i.neither, 0), summary.reduce((s, i) => s + i.siteDoneNotReceived, 0), summary.reduce((s, i) => s + i.receivedNotDone, 0)]);
   head.getRow(1).font = { bold: true };
   for (const section of summary.map(item => item.section)) {
-    const ws = wb.addWorksheet(sheetName(section, used), { views: [{ rightToLeft: true }] });
-    ws.addRow(COMPARISON_COLUMNS); ws.getRow(1).font = { bold: true };
-    for (const row of rows.filter(item => item.section === section)) ws.addRow(comparisonRowValues(row));
+    const ws = wb.addWorksheet(sheetName(section, used), { views: [{ rightToLeft: words.rightToLeft }] });
+    ws.addRow(words.columns); ws.getRow(1).font = { bold: true };
+    for (const row of rows.filter(item => item.section === section)) ws.addRow(comparisonRowValues(row, input.language));
     ws.columns.forEach(column => { column.width = 18; });
   }
   const db = await pmcGate(input, "project.pmc.read");
-  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ export: "pmc_site_consultant_comparison", rows: rows.length }) });
+  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_export_generated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ export: "pmc_site_consultant_comparison", rows: rows.length, language: input.language === "en" ? "en" : "ar" }) });
   return { fileName: `site-consultant-comparison-${siteToday()}.xlsx`, base64: await toBase64(wb), rows: rows.length };
 }
 

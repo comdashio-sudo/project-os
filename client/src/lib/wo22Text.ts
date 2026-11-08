@@ -55,6 +55,7 @@ const ar = {
   noDifferencesLine: "غيّر المرشحات أو امسحها لرؤية كل الفروقات.", clearFilters: "امسح المرشحات",
   openMatching: "افتح تبويب «المطابقة»", percentagesTitle: "نسب الإنجاز من المصادر الثلاثة",
   currency: "ر.س",
+  importSiteFile: "استورد ملف الموقع", noDifferencesAll: "الموقع والاستشاري متطابقان في كل ما قورن. حدّث إنجاز الموقع لتظهر الفروقات الجديدة هنا.",
 };
 type Text = typeof ar;
 
@@ -114,6 +115,7 @@ const en: Text = {
   noDifferencesLine: "Change or clear the filters to see every difference.", clearFilters: "Clear the filters",
   openMatching: "Open the Matching tab", percentagesTitle: "Progress from the three sources",
   currency: "SAR",
+  importSiteFile: "Import the site workbook", noDifferencesAll: "The site and the consultant agree on everything compared. Update the site's progress for new differences to show here.",
 };
 
 const ur: Text = {
@@ -142,6 +144,7 @@ const ur: Text = {
   noDifferencesLine: "تمام فرق دیکھنے کے لیے فلٹر بدلیں یا صاف کریں۔", clearFilters: "فلٹر صاف کریں",
   openMatching: "مطابقت کا ٹیب کھولیں", percentagesTitle: "تینوں ذرائع سے پیش رفت",
   currency: "ریال",
+  importSiteFile: "سائٹ کی فائل درآمد کریں", noDifferencesAll: "موازنہ کی گئی ہر چیز میں سائٹ اور مشیر متفق ہیں۔ نئے فرق یہاں دیکھنے کے لیے سائٹ کی پیش رفت اپ ڈیٹ کریں۔",
 };
 
 export const wo22Text = { ar, en, ur };

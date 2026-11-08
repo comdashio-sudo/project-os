@@ -311,7 +311,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const [tab, setTab] = useState<Tab>("latestUpdates");
+  // «?tab=import» opens the import directly (the S-curve's empty state links here)
+  const [tab, setTab] = useState<Tab>(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return (TABS as readonly string[]).includes(asked ?? "") ? asked as Tab : "latestUpdates"; });
   const [filters, setFilters] = useState<Filters>({});
   const bodyRef = useRef<HTMLElement>(null);
   const [pdfBusy, setPdfBusy] = useState(false);

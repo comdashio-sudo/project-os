@@ -3,8 +3,9 @@
 // the planned-against-actual S-curve, and the two Excel exports (the comparison with the old file's columns, and the monthly report in the shape sent to the consultant).
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Checkbox, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, formatNumber, formatPercent, notify } from "@/components/ds";
+import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Checkbox, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, formatNumber, formatPercent, notify } from "@/components/ds";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
+import { PageMain } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -45,16 +46,16 @@ export default function PmcSiteConsultant() {
   const [tab, setTab] = useState(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return asked && ["compare", "matching", "curve", "exports"].includes(asked) ? asked : "compare"; });
   const scope = { tenantId, projectId };
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
-      <Toaster />
+    // inside the product frame the frame owns the one <main> (and the one toast host, in App): the page is a plain block there
+    <PageMain className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
       <PageIntro title={t.title} summary={t.summary} actions={<Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="secondary">{t.goToUpdate}</Button></Link>} />
       <SourcePercentages {...scope} onOpenMatching={() => setTab("matching")} />
-      <Segmented label={t.title} value={tab} onValueChange={setTab} options={[{ value: "compare", label: t.tabs.compare }, { value: "matching", label: t.tabs.matching }, { value: "curve", label: t.tabs.curve }, { value: "exports", label: t.tabs.exports }]} />
+      <Segmented label={t.title} layout="grid" columns={4} value={tab} onValueChange={setTab} options={[{ value: "compare", label: t.tabs.compare }, { value: "matching", label: t.tabs.matching }, { value: "curve", label: t.tabs.curve }, { value: "exports", label: t.tabs.exports }]} />
       {tab === "compare" && <Comparison scope={scope} t={t} />}
       {tab === "matching" && <Matching scope={scope} t={t} />}
       {tab === "curve" && <Curve scope={scope} t={t} />}
       {tab === "exports" && <Exports scope={scope} t={t} />}
-    </main>
+    </PageMain>
   );
 }
 
@@ -127,7 +128,7 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
           </CardBody>
         )}
         {query.isLoading ? <CardBody><SkeletonRows rows={6} /></CardBody> : (
-          <DataTable caption={t.listTitle} rowKey={row => keyOf(row)} rows={rows.map(row => ({ ...row }))} empty={<EmptyState title={t.noDifferences} line={filtered ? t.noDifferencesLine : undefined} action={filtered ? <Button variant="secondary" onClick={clearFilters}>{t.clearFilters}</Button> : undefined} />} columns={[
+          <DataTable caption={t.listTitle} rowKey={row => keyOf(row)} rows={rows.map(row => ({ ...row }))} empty={<EmptyState title={t.noDifferences} line={filtered ? t.noDifferencesLine : t.noDifferencesAll} action={filtered ? <Button variant="secondary" onClick={clearFilters}>{t.clearFilters}</Button> : <Link href={`/m/${scope.tenantId}/${scope.projectId}/site-update`}><Button variant="secondary">{t.goToUpdate}</Button></Link>} />} columns={[
             ...(mayAct ? [{ key: "pick", header: "", width: "3rem", render: (row: (typeof rows)[number]) => <Checkbox aria-label={`${row.villa} ${row.siteActivity}`} checked={selected.has(keyOf(row))} onCheckedChange={() => toggle(keyOf(row))} /> }] : []),
             { key: "zone", header: t.columns.zone },
             { key: "block", header: t.columns.block },
@@ -229,7 +230,7 @@ function Curve({ scope, t }: { scope: Scope; t: Wo22Text }) {
   if (query.isLoading) return <SkeletonRows rows={6} />;
   if (query.error) return <SourceNotice query={query} isArabic={language === "ar"} title={t.curveTitle} />;
   const points = query.data?.points ?? [];
-  if (!points.length || points.every(point => point.plannedCumulative === null)) return <EmptyState title={t.noPlan} />;
+  if (!points.length || points.every(point => point.plannedCumulative === null)) return <EmptyState title={t.noPlan} action={<Link href={`/projects/${scope.tenantId}/${scope.projectId}/pmc?tab=import`}><Button variant="secondary">{t.importSiteFile}</Button></Link>} />;
   const width = 720; const height = 260;
   const deviation = query.data?.deviationToDate ?? null;
   return (
@@ -239,19 +240,24 @@ function Curve({ scope, t }: { scope: Scope; t: Wo22Text }) {
         {deviation !== null && <Badge tone={deviation < -0.02 ? "danger" : deviation < 0 ? "warning" : "success"}>{t.deviation}: <span dir="ltr">{`${deviation > 0 ? "+" : ""}${formatPercent(deviation * 100)}`}</span></Badge>}
       </CardHeader>
       <CardBody className="flex flex-col gap-4">
-        <svg viewBox={`-52 -8 ${width + 64} ${height + 36}`} role="img" aria-label={t.curveTitle} className="h-64 w-full" style={{ direction: "ltr" }} data-testid="s-curve">
-          {[0, 0.5, 1].map(share => (
-            <g key={share}>
-              <line x1={0} y1={height - share * height} x2={width} y2={height - share * height} className="stroke-border" strokeWidth={share === 0 ? 1 : 0.5} />
-              <text x={-8} y={height - share * height} dy="0.35em" textAnchor="end" className="fill-muted-foreground text-[12px]" data-testid={`axis-y-${share * 100}`}>{formatPercent(share * 100, 0)}</text>
-            </g>
-          ))}
-          <line x1={0} y1={0} x2={0} y2={height} className="stroke-border" strokeWidth={1} />
-          <text x={0} y={height + 22} textAnchor="start" className="fill-muted-foreground text-[12px]" data-testid="axis-x-first">{points[0].month.slice(0, 7)}</text>
-          {points.length > 1 && <text x={width} y={height + 22} textAnchor="end" className="fill-muted-foreground text-[12px]" data-testid="axis-x-last">{points[points.length - 1].month.slice(0, 7)}</text>}
-          <path d={curvePath(points.map(point => point.plannedCumulative), width, height)} fill="none" className="stroke-foreground" strokeWidth={2} strokeDasharray="6 4" />
-          <path d={curvePath(points.map(point => point.actualCumulative), width, height)} fill="none" className="stroke-primary" strokeWidth={3} />
-        </svg>
+        {/* The axis labels are HTML beside the drawing, not SVG text: the drawing stretches to the card's width (390px or 1280px) while the labels keep the page's 12px. */}
+        <figure className="m-0 flex flex-col gap-1" dir="ltr" data-testid="s-curve">
+          <div className="flex gap-2">
+            <div className="relative w-10 shrink-0 text-end text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+              {[1, 0.5, 0].map(share => <span key={share} className="absolute end-0 -translate-y-1/2 leading-none" style={{ top: `${(1 - share) * 100}%` }} data-testid={`axis-y-${share * 100}`}>{formatPercent(share * 100, 0)}</span>)}
+            </div>
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={t.curveTitle} className="h-56 min-w-0 flex-1 overflow-visible sm:h-64">
+              {[0, 0.5, 1].map(share => <line key={share} x1={0} y1={height - share * height} x2={width} y2={height - share * height} className="stroke-border" strokeWidth={share === 0 ? 1 : 0.5} vectorEffect="non-scaling-stroke" />)}
+              <line x1={0} y1={0} x2={0} y2={height} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+              <path d={curvePath(points.map(point => point.plannedCumulative), width, height)} fill="none" className="stroke-foreground" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+              <path d={curvePath(points.map(point => point.actualCumulative), width, height)} fill="none" className="stroke-primary" strokeWidth={3} vectorEffect="non-scaling-stroke" />
+            </svg>
+          </div>
+          <div className="flex justify-between gap-2 ps-12 text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+            <span data-testid="axis-x-first">{points[0].month.slice(0, 7)}</span>
+            {points.length > 1 && <span data-testid="axis-x-last">{points[points.length - 1].month.slice(0, 7)}</span>}
+          </div>
+        </figure>
         <div className="flex flex-wrap gap-4 text-sm"><span className="inline-flex items-center gap-2"><span className="inline-block h-0.5 w-6 border-t-2 border-dashed border-foreground" />{t.planned}</span><span className="inline-flex items-center gap-2"><span className="inline-block h-1 w-6 bg-primary" />{t.actual}</span></div>
         <DataTable caption={t.curveTitle} rowKey={row => String(row.month)} rows={points.map(point => ({ ...point }))} columns={[
           { key: "month", header: t.month, render: row => <span dir="ltr">{row.month.slice(0, 7)}</span> },
@@ -278,12 +284,12 @@ function Exports({ scope, t }: { scope: Scope; t: Wo22Text }) {
       <SourceNotice query={earned} isArabic={language === "ar"} title={t.earnedValue} className="lg:col-span-2" />
       <Card>
         <CardHeader><CardTitle>{t.exportComparison}</CardTitle><p className="text-sm text-muted-foreground">{t.exportComparisonLine}</p></CardHeader>
-        <CardFooter><Button loading={comparison.isPending} onClick={() => comparison.mutate(scope)}>{t.download}</Button></CardFooter>
+        <CardFooter><Button loading={comparison.isPending} onClick={() => comparison.mutate({ ...scope, language })}>{t.download}</Button></CardFooter>
       </Card>
       <Card>
         <CardHeader><CardTitle>{t.exportMonthly}</CardTitle><p className="text-sm text-muted-foreground">{t.exportMonthlyLine}</p></CardHeader>
         <CardBody className="flex flex-col gap-3">
-          <Segmented label={t.exportMonthly} value={source} onValueChange={value => setSource(value as "site" | "monthly")} options={[{ value: "site", label: t.fromSite }, { value: "monthly", label: t.fromMonthly }]} />
+          <Segmented label={t.exportMonthly} layout="grid" columns={2} value={source} onValueChange={value => setSource(value as "site" | "monthly")} options={[{ value: "site", label: t.fromSite }, { value: "monthly", label: t.fromMonthly }]} />
           <Field label={t.reportDate}>{props => <TextInput {...props} type="date" dir="ltr" value={reportDate} onChange={event => setReportDate(event.target.value)} />}</Field>
         </CardBody>
         <CardFooter><Button loading={monthly.isPending} onClick={() => monthly.mutate({ ...scope, source, ...(reportDate ? { reportDate } : {}) })}>{t.download}</Button></CardFooter>

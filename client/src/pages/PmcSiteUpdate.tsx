@@ -2,7 +2,8 @@
 // The server refuses the whole entry before writing anything when one villa is wrong, and says which; the entry is saved under the signed-in account, never a typed e-mail.
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, notify } from "@/components/ds";
+import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, notify } from "@/components/ds";
+import { PageMain } from "@/components/pageFrame";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -67,8 +68,7 @@ export default function PmcSiteUpdate() {
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4">
-      <Toaster />
+    <PageMain className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4">
       <PageIntro title={t.update.title} summary={t.update.summary} />
       <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>
@@ -102,6 +102,6 @@ export default function PmcSiteUpdate() {
           <CardBody><ul className="flex flex-col gap-2 text-sm">{recent.map((item, index) => <li key={index}><span className="font-medium">{item.activity}</span> — {t.statuses[item.status]} · <span dir="ltr">{item.date}</span> · <span dir="ltr">{item.villas.join(", ")}</span></li>)}</ul></CardBody>
         </Card>
       )}
-    </main>
+    </PageMain>
   );
 }

@@ -4,7 +4,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true }));
+const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, curve: null as unknown }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => state.canAct }));
@@ -22,7 +22,8 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
     activities: { useQuery: h.ok([{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }]) },
     update: { useMutation: (options: { onError?: (error: unknown) => void }) => ({ isPending: false, mutate: (input: unknown) => { state.update(input); if (state.updateError) options.onError?.(state.updateError); } }) },
     percentages: { useQuery: h.ok({ project: h.shares, byZone: [{ key: "Z1", ...h.shares }], byBlock: [{ key: "B1", ...h.shares }], byUnit: [], readiness: { siteActivities: 1, confirmedLinks: 1, consultantColumns: 1, unlinkedColumns: 0 } }) },
-    comparison: { useQuery: h.ok({ summary: [{ section: "Civil", compared: 4, bothDone: 1, neither: 1, siteDoneNotReceived: 1, receivedNotDone: 1 }], notCompared: 0, totals: { siteDoneNotReceived: 1, receivedNotDone: 1 }, total: 2, rows: [h.row("268", "site_done_not_received"), h.row("270", "received_not_done")], readiness: {} }) },
+    comparison: { useQuery: () => ({ isLoading: false, error: null, data: state.noDifferences ? { summary: [], notCompared: 0, totals: { siteDoneNotReceived: 0, receivedNotDone: 0 }, total: 0, rows: [], readiness: {} } : { summary: [{ section: "Civil", compared: 4, bothDone: 1, neither: 1, siteDoneNotReceived: 1, receivedNotDone: 1 }], notCompared: 0, totals: { siteDoneNotReceived: 1, receivedNotDone: 1 }, total: 2, rows: [h.row("268", "site_done_not_received"), h.row("270", "received_not_done")], readiness: {} } }) },
+    curve: { useQuery: () => ({ isLoading: false, error: null, data: state.curve }) },
     act: { useMutation: () => ({ isPending: false, variables: undefined, mutate: state.act }) },
     saveNote: { useMutation: () => ({ isPending: false, mutate: state.saveNote }) },
   },
@@ -31,7 +32,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 import PmcSiteUpdate, { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 import PmcSiteConsultant, { curvePath, itemsForAction } from "./PmcSiteConsultant";
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; state.noDifferences = false; state.curve = null; });
 
 describe("site update from the phone", () => {
   it("reads the refusal details and the site's day", () => {
@@ -114,5 +115,47 @@ describe("site ↔ consultant comparison", () => {
     render(<PmcSiteConsultant />);
     expect(screen.queryByRole("button", { name: "Create inspection request" })).toBeNull();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+});
+
+describe("site ↔ consultant screen at a phone's width (design review of #215)", () => {
+  it("draws the four tabs and the zone/block switch as grids of 44px choices", () => {
+    render(<PmcSiteConsultant />);
+    const tabs = screen.getByRole("radiogroup", { name: "Site ↔ consultant ↔ monthly report" });
+    expect(tabs.className).toContain("grid-cols-2");
+    expect(tabs.className).toContain("sm:grid-cols-4");
+    expect(within(tabs).getAllByRole("radio")).toHaveLength(4);
+    for (const radio of within(tabs).getAllByRole("radio")) expect(radio.className).toContain("min-h-11");
+    const levels = screen.getByRole("radiogroup", { name: "By zone" });
+    expect(within(levels).getAllByRole("radio")).toHaveLength(2);
+    for (const radio of within(levels).getAllByRole("radio")) expect(radio.className).toContain("min-h-11");
+  });
+
+  it("with no differences and no filter, says why and offers the site update as the next step", () => {
+    state.noDifferences = true;
+    render(<PmcSiteConsultant />);
+    expect(screen.getByText(/agree on everything compared/)).toBeTruthy();
+    const list = screen.getByRole("table", { name: "Differences" });
+    expect(within(list).getByRole("link", { name: "Update site progress" }).getAttribute("href")).toBe("/m/t/p/site-update");
+  });
+
+  it("the S-curve without a plan links to the import, and with a plan writes its axis labels as page text", () => {
+    state.curve = { points: [], deviationToDate: null };
+    render(<PmcSiteConsultant />);
+    fireEvent.click(screen.getByRole("radio", { name: "S-curve" }));
+    expect(screen.getByRole("link", { name: "Import the site workbook" }).getAttribute("href")).toBe("/projects/t/p/pmc?tab=import");
+    cleanup();
+    state.curve = { points: [{ month: "2026-01-31", plannedCumulative: 0.1, actualCumulative: 0.05, deviation: -0.05 }, { month: "2026-06-30", plannedCumulative: 1, actualCumulative: null, deviation: null }], deviationToDate: -0.05 };
+    render(<PmcSiteConsultant />);
+    fireEvent.click(screen.getByRole("radio", { name: "S-curve" }));
+    for (const id of ["axis-y-0", "axis-y-50", "axis-y-100", "axis-x-first", "axis-x-last"]) expect(screen.getByTestId(id).tagName).toBe("SPAN");
+    expect(screen.getByTestId("axis-y-100").textContent).toBe("100%");
+    expect(screen.getByTestId("axis-x-last").textContent).toBe("2026-06");
+  });
+
+  it("renders no <main> of its own when the page sits in the product frame", async () => {
+    const { InShellProvider } = await import("@/components/pageFrame");
+    const { container } = render(<InShellProvider><PmcSiteConsultant /></InShellProvider>);
+    expect(container.querySelector("main")).toBeNull();
   });
 });

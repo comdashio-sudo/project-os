@@ -57,7 +57,7 @@ export function SourcePercentages({ tenantId, projectId, levels = true, onOpenMa
       <div className="flex flex-wrap gap-2">{diffs.map(diff => <Badge key={diff.key} tone={differenceTone(diff.value)}>{diff.label}: <span className="tabular-nums" dir="ltr">{signed(diff.value)}</span></Badge>)}</div>
       {levels && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between gap-2"><CardTitle>{level === "zone" ? t.byZone : t.byBlock}</CardTitle><Segmented label={t.byZone} value={level} onValueChange={value => setLevel(value as "zone" | "block")} options={[{ value: "zone", label: t.byZone }, { value: "block", label: t.byBlock }]} /></CardHeader>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2"><CardTitle>{level === "zone" ? t.byZone : t.byBlock}</CardTitle><Segmented label={t.byZone} layout="grid" columns={2} value={level} onValueChange={value => setLevel(value as "zone" | "block")} options={[{ value: "zone", label: t.byZone }, { value: "block", label: t.byBlock }]} /></CardHeader>
           <DataTable caption={level === "zone" ? t.byZone : t.byBlock} rowKey={row => String(row.key)} rows={rows} columns={[
             { key: "key", header: level === "zone" ? t.columns.zone : t.columns.block },
             { key: "units", header: t.units, numeric: true },

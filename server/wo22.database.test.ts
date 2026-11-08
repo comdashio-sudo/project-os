@@ -8,7 +8,7 @@ import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 import { readGrid } from "./domain/smartImport/sheetReader";
 import { detectMatrix } from "./domain/smartImport/matrix";
 import { buildWo22ConsultantExport, buildWo22MonthlyReport, buildWo22SiteWorkbook, isSiteDone, WO22_CATALOG, WO22_SITE, WO22_VILLAS, wo22Truth, type Wo22Truth } from "./domain/smartImport/wo22Fixture";
-import { COMPARISON_COLUMNS } from "./wo22Exports";
+import { COMPARISON_COLUMNS, COMPARISON_COLUMNS_EN } from "./wo22Exports";
 import { siteToday } from "./wo22Shared";
 
 // Work order 22, end to end on a real database: the monthly report (with its WIR row) builds the villas and the catalogue; the consultant's export gives the consultant's state
@@ -273,8 +273,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     expect(wb.worksheets[0].name).toBe("ملخص");
     const section = wb.worksheets[1];
     expect((section.getRow(1).values as unknown[]).slice(1)).toEqual(COMPARISON_COLUMNS);
+    expect(section.views[0]?.rightToLeft).toBe(true);
     const all = await manager().pmcSite.comparison({ ...scope, limit: 1 });
     expect(wb.worksheets.slice(1).reduce((sum, ws) => sum + ws.rowCount - 1, 0)).toBe(all.totals.siteDoneNotReceived + all.totals.receivedNotDone);
+    // the English screen gets the same file with English headers, read left to right; the rows are the same
+    const english = await manager().pmcSite.exportComparison({ ...scope, language: "en" });
+    const wbEn = new ExcelJS.Workbook(); await wbEn.xlsx.load(Buffer.from(english.base64, "base64"));
+    expect(wbEn.worksheets[0].name).toBe("Summary");
+    expect((wbEn.worksheets[0].getRow(1).values as unknown[])[1]).toBe("Section");
+    expect((wbEn.worksheets[1].getRow(1).values as unknown[]).slice(1)).toEqual(COMPARISON_COLUMNS_EN);
+    expect(wbEn.worksheets[1].views[0]?.rightToLeft).toBe(false);
+    expect(wbEn.worksheets.slice(1).reduce((sum, ws) => sum + ws.rowCount - 1, 0)).toBe(all.totals.siteDoneNotReceived + all.totals.receivedNotDone);
+    expect(String((wbEn.worksheets[1].getRow(2).values as unknown[])[12])).toMatch(/^(Finished on site|Received by the consultant)/);
+    expect(english.rows).toBe(comparison.rows);
     for (const source of ["monthly", "site"] as const) {
       const exported = await manager().pmcSite.exportMonthlyReport({ ...scope, source, reportDate: truth.reportDate });
       const grid = await readGrid(Buffer.from(exported.base64, "base64"), "xlsx"); if (!grid.ok) throw new Error(grid.code);
