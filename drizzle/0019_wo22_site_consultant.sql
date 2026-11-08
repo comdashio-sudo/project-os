@@ -1,5 +1,6 @@
 -- Work order 22 (the 390-villa project): the site <-> the consultant <-> the monthly report. Expand-only: new tables, nullable columns, one loosened unique index.
--- Rollback: DROP the eleven pmc_site_*/pmc_consultant_*/pmc_cell_notes/pmc_contractors/pmc_plan_months tables and the two types; the added columns are nullable and unread by older code.
+-- Rollback: DROP the ten pmc_site_*/pmc_consultant_*/pmc_cell_notes/pmc_contractors/pmc_plan_months tables and the two types; the added columns are nullable and unread by older code.
+-- Rollback of the widened index: recreating the narrower site_daily_reports_project_date_preparer_unique (project_id, report_date, prepared_by_user_id) FAILS once two contractors' reports exist for the same day and preparer; those rows must be merged or removed first (a decision for the owner, never done by the rollback itself).
 SET LOCAL lock_timeout = '5s';
 --> statement-breakpoint
 DO $$ BEGIN CREATE TYPE "public"."pmc_consultant_status" AS ENUM('NOT_RECEIVED', 'RECEIVED', 'APPROVED', 'REJECTED', 'CODE_A', 'CODE_B', 'CODE_C', 'CODE_D'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;

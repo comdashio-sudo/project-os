@@ -1,6 +1,7 @@
 // Work order 22: the three percentages (site, consultant, monthly report) and the differences between them, for the project and by zone or block.
 // One read (pmcSite.percentages); shown in the PMC page, the site ↔ consultant screen and the levels.
-import { Badge, Card, CardBody, CardHeader, CardTitle, DataTable, Segmented, SkeletonRows, formatPercent, type BadgeTone } from "@/components/ds";
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, DataTable, Segmented, SkeletonRows, formatPercent, type BadgeTone } from "@/components/ds";
+import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
@@ -14,13 +15,14 @@ type Shares = { units: number; site: number; consultant: number; monthly: number
 export function differenceTone(points: number): BadgeTone { const size = Math.abs(points); return size < 0.5 ? "neutral" : size < 2 ? "info" : "warning"; }
 const signed = (points: number) => `${points > 0 ? "+" : ""}${formatPercent(points)}`;
 
-export function SourcePercentages({ tenantId, projectId, levels = true }: { tenantId: string; projectId: string; levels?: boolean }) {
+/** `onOpenMatching`: on the comparison screen the readiness hints switch to its Matching tab; elsewhere they link to that tab. */
+export function SourcePercentages({ tenantId, projectId, levels = true, onOpenMatching }: { tenantId: string; projectId: string; levels?: boolean; onOpenMatching?: () => void }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, wo22Text);
   const query = trpc.pmcSite.percentages.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
   const [level, setLevel] = useState<"zone" | "block">("zone");
   if (query.isLoading) return <SkeletonRows rows={2} />;
-  if (query.error) return <SourceNotice query={query} isArabic={language === "ar"} title={t.sources.site} />;
+  if (query.error) return <SourceNotice query={query} isArabic={language === "ar"} title={t.percentagesTitle} />;
   if (!query.data) return null;
   const { project, byZone, byBlock, readiness } = query.data;
   const kpis: Array<{ key: string; label: string; value: number }> = [
@@ -36,8 +38,17 @@ export function SourcePercentages({ tenantId, projectId, levels = true }: { tena
   const rows = (level === "zone" ? byZone : byBlock).map((row: Shares & { key: string }) => ({ ...row }));
   return (
     <div className="flex flex-col gap-4" data-testid="source-percentages">
-      {readiness.siteActivities > 0 && readiness.confirmedLinks === 0 && <p className="text-sm text-muted-foreground">{t.readinessLinks}</p>}
-      {readiness.unlinkedColumns > 0 && <p className="text-sm text-muted-foreground">{t.readinessColumns(readiness.unlinkedColumns)}</p>}
+      {((readiness.siteActivities > 0 && readiness.confirmedLinks === 0) || readiness.unlinkedColumns > 0) && (
+        <div role="note" className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-muted p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            {readiness.siteActivities > 0 && readiness.confirmedLinks === 0 && <p>{t.readinessLinks}</p>}
+            {readiness.unlinkedColumns > 0 && <p>{t.readinessColumns(readiness.unlinkedColumns)}</p>}
+          </div>
+          {onOpenMatching
+            ? <Button variant="secondary" onClick={onOpenMatching}>{t.openMatching}</Button>
+            : <Link href={`/projects/${tenantId}/${projectId}/site-consultant?tab=matching`}><Button variant="secondary">{t.openMatching}</Button></Link>}
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {kpis.map(kpi => (
           <Card key={kpi.key} as="div"><CardBody className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{kpi.label}</span><span className="text-2xl font-semibold tabular-nums" data-testid={`percent-${kpi.key}`}>{formatPercent(kpi.value)}</span></CardBody></Card>

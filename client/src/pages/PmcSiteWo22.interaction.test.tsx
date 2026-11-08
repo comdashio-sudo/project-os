@@ -49,6 +49,15 @@ describe("site update from the phone", () => {
     expect((save as HTMLButtonElement).disabled).toBe(true);
   });
 
+
+  it("draws the five statuses as a grid of 44px choices, not one squeezed strip", () => {
+    render(<PmcSiteUpdate />);
+    const group = screen.getByRole("radiogroup", { name: "Status" });
+    expect(group.className).toContain("grid");
+    expect(within(group).getAllByRole("radio")).toHaveLength(5);
+    for (const radio of within(group).getAllByRole("radio")) expect(radio.className).toContain("min-h-11");
+  });
+
   it("opens on a typed list of villas and the status Done", () => {
     render(<PmcSiteUpdate />);
     expect(screen.getByLabelText(/^Villa numbers/)).toBeTruthy();
@@ -89,6 +98,15 @@ describe("site ↔ consultant comparison", () => {
     fireEvent.change(note, { target: { value: "waiting for the subcontractor" } });
     fireEvent.blur(note);
     expect(state.saveNote).toHaveBeenCalledWith(expect.objectContaining({ unitId: "00000000-0000-4000-8000-000000000008", activityCode: "A1", note: "waiting for the subcontractor" }));
+  });
+
+  it("selects a row through the 44px ds checkbox, and the bulk buttons are full-size", () => {
+    render(<PmcSiteConsultant />);
+    const box = screen.getByRole("checkbox", { name: "268 Walls" });
+    expect(box.closest("label")?.className).toContain("min-h-11");
+    fireEvent.click(box);
+    expect(screen.getByText("1 selected")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create inspection request" }).className).toContain("min-h-11");
   });
 
   it("without the update permission there is no selection and no action", () => {

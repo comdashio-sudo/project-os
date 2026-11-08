@@ -70,21 +70,21 @@ export default function PmcSiteUpdate() {
     <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4">
       <Toaster />
       <PageIntro title={t.update.title} summary={t.update.summary} />
-      <WriteGate permission="project.pmc.update" projectId={projectId}>
+      <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>
           <CardBody className="flex flex-col gap-4">
             <SourceNotice query={activities} isArabic={language === "ar"} title={t.update.activity} />
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
                 <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
-                <Field label={t.update.activity} required>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityId} onValueChange={setActivityId} placeholder={t.update.activity} />}</Field>
+                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityId} onValueChange={setActivityId} placeholder={t.update.activity} disabled={activities.data?.length === 0} />}</Field>
               </>
             )}
             <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }]} />
             {mode === "list" && <Field label={t.update.villas} hint={t.update.villasHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={villas} onChange={event => setVillas(event.target.value)} />}</Field>}
             {mode === "range" && <Field label={t.update.range} hint={t.update.rangeHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={range} onChange={event => setRange(event.target.value)} />}</Field>}
             {mode === "block" && <Field label={t.update.block} required>{props => <TextInput {...props} dir="ltr" value={block} onChange={event => setBlock(event.target.value)} />}</Field>}
-            <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} options={STATUSES.map(value => ({ value, label: t.statuses[value] }))} />
+            <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} layout="grid" options={STATUSES.map(value => ({ value, label: t.statuses[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
             {issues.length > 0 && (
               <div role="alert" className="rounded-md border border-destructive p-3 text-sm">

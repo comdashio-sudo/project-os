@@ -62,7 +62,7 @@ async function run(tx: Tx, input: Scope, model: ConsultantModel, fileHash: strin
     if (stored) {
       const link = stored.activityCode ? {} : autoCode ? { activityCode: autoCode, linkMethod: "wir", linkedAt: now } : {};
       if (!stored.activityCode && autoCode) plan.linkedByWir += 1;
-      const updated = await tx.update(pmcConsultantColumns).set({ ...fields, ...link }).where(and(eq(pmcConsultantColumns.id, stored.id), eq(pmcConsultantColumns.tenantId, input.tenantId))).returning({ id: pmcConsultantColumns.id, activityCode: pmcConsultantColumns.activityCode });
+      const updated = await tx.update(pmcConsultantColumns).set({ ...fields, ...link }).where(and(eq(pmcConsultantColumns.id, stored.id), eq(pmcConsultantColumns.tenantId, input.tenantId), eq(pmcConsultantColumns.projectId, input.projectId))).returning({ id: pmcConsultantColumns.id, activityCode: pmcConsultantColumns.activityCode });
       if (updated.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
       columnId.push(stored.id);
       if (!updated[0].activityCode) plan.unlinked.push({ key: column.key, wir: column.wir, activity: column.activity, location: column.location, section: column.section, suggestions: [] });
@@ -88,7 +88,7 @@ async function run(tx: Tx, input: Scope, model: ConsultantModel, fileHash: strin
   plan.units = knownUnits.length;
   const held = new Map<string, { id: string; status: string; firstReceivedOn: string | null }>();
   for (const batch of chunks(knownUnits.map(item => item.unitId), 200)) {
-    const rows = await tx.select({ id: pmcConsultantCells.id, unitId: pmcConsultantCells.unitId, columnId: pmcConsultantCells.columnId, status: pmcConsultantCells.status, firstReceivedOn: pmcConsultantCells.firstReceivedOn }).from(pmcConsultantCells).where(and(eq(pmcConsultantCells.tenantId, input.tenantId), inArray(pmcConsultantCells.unitId, batch)));
+    const rows = await tx.select({ id: pmcConsultantCells.id, unitId: pmcConsultantCells.unitId, columnId: pmcConsultantCells.columnId, status: pmcConsultantCells.status, firstReceivedOn: pmcConsultantCells.firstReceivedOn }).from(pmcConsultantCells).where(and(eq(pmcConsultantCells.tenantId, input.tenantId), eq(pmcConsultantCells.projectId, input.projectId), inArray(pmcConsultantCells.unitId, batch)));
     for (const row of rows) held.set(`${row.unitId}|${row.columnId}`, row);
   }
   const inserts: Array<typeof pmcConsultantCells.$inferInsert> = []; const updates: Array<{ id: string; status: "RECEIVED" | "NOT_RECEIVED"; firstReceivedOn: string | null }> = [];
@@ -120,13 +120,15 @@ async function run(tx: Tx, input: Scope, model: ConsultantModel, fileHash: strin
   if (plan.unlinked.length) plan.warnings.push("CONSULTANT_COLUMNS_TO_MATCH");
 
   for (const batch of chunks(inserts, 1000)) await tx.insert(pmcConsultantCells).values(batch);
-  for (const batch of chunks(updates, 100)) await Promise.all(batch.map(update => tx.update(pmcConsultantCells).set({ status: update.status, firstReceivedOn: update.firstReceivedOn, statusOn: observedOn, updatedAt: now }).where(and(eq(pmcConsultantCells.id, update.id), eq(pmcConsultantCells.tenantId, input.tenantId))).returning({ id: pmcConsultantCells.id }).then(rows => { if (rows.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" }); })));
+  for (const batch of chunks(updates, 100)) await Promise.all(batch.map(update => tx.update(pmcConsultantCells).set({ status: update.status, firstReceivedOn: update.firstReceivedOn, statusOn: observedOn, updatedAt: now }).where(and(eq(pmcConsultantCells.id, update.id), eq(pmcConsultantCells.tenantId, input.tenantId), eq(pmcConsultantCells.projectId, input.projectId))).returning({ id: pmcConsultantCells.id }).then(rows => { if (rows.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" }); })));
   plan.canConfirm = plan.units > 0;
   if (!commit || !source) throw new Rollback(plan);
 
   const importId = randomUUID();
   for (const batch of chunks(events, 1000)) await tx.insert(pmcConsultantCellEvents).values(batch.map(event => ({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, cellId: event.cellId, fromStatus: event.from as never, toStatus: event.to, observedOn, importId })));
-  if (updates.length || inserts.length) for (const batch of chunks(knownUnits.map(item => item.unitId), 300)) await tx.update(pmcConsultantCells).set({ lastImportId: importId }).where(and(eq(pmcConsultantCells.tenantId, input.tenantId), inArray(pmcConsultantCells.unitId, batch)));
+  // only the cells this import created or changed carry its id (an unchanged cell keeps the import that last touched it)
+  const changedIds = [...inserts.map(cell => cell.id as string), ...updates.map(update => update.id)];
+  for (const batch of chunks(changedIds, 500)) await tx.update(pmcConsultantCells).set({ lastImportId: importId }).where(and(eq(pmcConsultantCells.tenantId, input.tenantId), eq(pmcConsultantCells.projectId, input.projectId), inArray(pmcConsultantCells.id, batch)));
   await tx.insert(dataImports).values({
     id: importId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "pmcConsultant", templateCode: "pmcConsultant_v1", sourceFormat: "xlsx", fileName: source.name, fileKey: source.key, fileHash, status: "completed",
     totalRows: model.units.length, validRows: plan.units, invalidRows: plan.unknownVillas.length, createdRows: inserts.length, updatedRows: updates.length, skippedRows: plan.unchanged,

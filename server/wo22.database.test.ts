@@ -16,11 +16,13 @@ import { siteToday } from "./wo22Shared";
 // difference, the three percentages differ as the sources do, and an action on a difference changes the numbers. SYNTHETIC files only (domain/smartImport/wo22Fixture.ts).
 const T = "7b000000-0000-4000-8000-0000000000a1";
 const P = "7b000000-0000-4000-8000-0000000000a2";
+/** Another company, whose own manager holds every PMC permission there — and none in T. */
+const T2 = "7b000000-0000-4000-8000-0000000000b1";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;
 let s3: FakeS3;
 let truth: Wo22Truth;
-const users = { manager: 0, engineer: 0, reader: 0 };
+const users = { manager: 0, engineer: 0, reader: 0, outsider: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@wo22.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] } as TrpcContext);
 const scope = { tenantId: T, projectId: P };
 const n = async (sql: string, params: unknown[] = []) => Number(((await connection.query<any[]>(sql, params))[0] as Array<{ n: number }>)[0].n);
@@ -37,10 +39,15 @@ async function clear() {
     "pmc_inspection_steps", "pmc_inspection_request_units", "pmc_inspection_requests", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_baselines", "pmc_status_factors", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [T]);
   await connection.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId = ?)", [T]);
   await connection.query("DELETE FROM tenant_licenses WHERE tenantId = ?", [T]);
-  await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId = ?", [T]);
-  await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [T]);
-  await connection.query("DELETE FROM roles WHERE tenantId = ?", [T]);
-  await connection.query("DELETE FROM memberships WHERE tenantId = ?", [T]);
+  for (const tenant of [T, T2]) {
+    await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId = ?", [tenant]);
+    await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [tenant]);
+    await connection.query("DELETE FROM roles WHERE tenantId = ?", [tenant]);
+    await connection.query("DELETE FROM memberships WHERE tenantId = ?", [tenant]);
+  }
+  await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T2]);
+  await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T2]);
+  await connection.query("DELETE FROM companies WHERE id = ?", [T2]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM projects WHERE id = ?", [P]);
@@ -64,9 +71,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     Object.assign(ENV, { storageS3Endpoint: s3.endpoint, storageS3Region: "local", storageS3AccessKeyId: "AKIALOCALTEST", storageS3SecretAccessKey: "local-test-only-secret", storageBucket: s3.bucket });
     connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
     await clear();
-    await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('w22-manager','Manager','w22-manager@wo22.example.test','user'),('w22-engineer','Engineer','w22-engineer@wo22.example.test','user'),('w22-reader','Reader','w22-reader@wo22.example.test','user')");
+    await connection.query("INSERT INTO users (openId, name, email, role) VALUES ('w22-manager','Manager','w22-manager@wo22.example.test','user'),('w22-engineer','Engineer','w22-engineer@wo22.example.test','user'),('w22-reader','Reader','w22-reader@wo22.example.test','user'),('w22-outsider','Outsider','w22-outsider@wo22.example.test','user')");
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'w22-%'");
-    for (const key of ["manager", "engineer", "reader"] as const) users[key] = rows.find(r => r.openId === `w22-${key}`)!.id;
+    for (const key of ["manager", "engineer", "reader", "outsider"] as const) users[key] = rows.find(r => r.openId === `w22-${key}`)!.id;
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'WO22 Tenant', 'wo22-tenant')", [T]);
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'W22', 'Synthetic villas', 'villas', 'SAR', 'active')", [P, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('w22-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
@@ -79,6 +86,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'w22-r-reader', id FROM permissions WHERE code IN ('project.read','project.pmc.read')");
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('w22-m-manager', ?, ?, 'active'), ('w22-m-engineer', ?, ?, 'active'), ('w22-m-reader', ?, ?, 'active')", [T, users.manager, T, users.engineer, T, users.reader]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('w22-mr-manager','w22-m-manager','w22-r-manager','company'),('w22-mr-engineer','w22-m-engineer','w22-r-engineer','company'),('w22-mr-reader','w22-m-reader','w22-r-reader','company')");
+    // the other company: its manager is a full PMC manager there
+    await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'WO22 Other Tenant', 'wo22-other-tenant')", [T2]);
+    await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('w22-sub-2', ?, 'ALL-IN-ONE', 'active', NOW())", [T2]);
+    await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('w22-ent-2', ?, 'w22-sub-2', 'PROJECT', true, NOW())", [T2]);
+    await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('w22-r-outsider', ?, 'W22_MANAGER','Manager','PROJECT')", [T2]);
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'w22-r-outsider', id FROM permissions WHERE code IN ('project.read','project.wbs.manage','project.pmc.read','project.pmc.update','project.pmc.manage','project.budget.manage')");
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('w22-m-outsider', ?, ?, 'active')", [T2, users.outsider]);
+    await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('w22-mr-outsider','w22-m-outsider','w22-r-outsider','company')");
   }, 120_000);
   afterAll(async () => { await clear(); await connection.end(); await s3.close(); });
 
@@ -181,11 +196,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     const activity = (await engineer.pmcSite.activities(scope))[5];
     const before = await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ?", [T]);
     const today = siteToday();
+    const audited = () => n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'pmc.site_status_updated'", [T]);
+    const auditBefore = await audited();
     const range = await engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, range: "268-272", status: "IN_PROGRESS", date: today });
+    expect(await audited()).toBe(auditBefore + 1); // one audit row per write, in the write's own transaction
+    expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'pmc.site_status_updated' AND metadata LIKE ?", [T, `%${range.batchId}%`])).toBe(1);
     expect(range.villas).toEqual(["268", "270", "272"]);
     expect(range.updated + range.unchanged).toBe(3);
     const block = await engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, blockCode: "B02", status: "DONE", date: today });
     expect(block.villas).toHaveLength(15);
+    expect(await audited()).toBe(auditBefore + 2);
     expect(await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ? AND batchId = ?", [T, block.batchId])).toBe(block.updated);
     expect(await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ? AND enteredByUserId = ?", [T, users.engineer])).toBe(range.updated + block.updated); // the person's own account, not an e-mail typed in
     const counted = await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ?", [T]);
@@ -194,14 +214,27 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
       engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268", "99999"], status: "DONE", date: today }).catch(error => error.cause?.issues),
       engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268"], status: "DONE", date: tomorrow }).catch(error => error.cause?.issues),
       engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, status: "DONE", date: today }).catch(error => error.cause?.issues),
+      engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268"], range: "268-272", blockCode: "B02", status: "DONE", date: today }).catch(error => error.cause?.issues),
+      engineer.pmcSite.update({ ...scope, siteActivityId: activity.id, range: "268-272", blockCode: "B02", status: "DONE", date: today }).catch(error => error.cause?.issues),
     ]);
     expect(refusals[0]).toEqual([{ code: "SITE_VILLA_UNKNOWN", villa: "99999" }]);
     expect(refusals[1]).toEqual([{ code: "SITE_DATE_IN_FUTURE", detail: tomorrow }]);
     expect(refusals[2]).toEqual([{ code: "SITE_FIELD_MISSING", detail: "villas" }]);
+    expect(refusals[3]).toEqual([{ code: "SITE_TARGET_AMBIGUOUS" }]); // more than one way of choosing the villas: refused, never «the last one wins»
+    expect(refusals[4]).toEqual([{ code: "SITE_TARGET_AMBIGUOUS" }]);
+    expect(await audited()).toBe(auditBefore + 2); // no audit row for a refusal either
     expect(await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ?", [T])).toBe(counted); // nothing written by any refusal
     expect(counted).toBeGreaterThan(before);
     // a reader may look but not write
-    expect(await code(callerFor(users.reader, "w22-reader").pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268"], status: "DONE", date: today }))).toMatch(/PERMISSION|FORBIDDEN|DENIED/);
+    expect(await code(callerFor(users.reader, "w22-reader").pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268"], status: "DONE", date: today }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    // another company's manager, full PMC rights in their own company: refused here, on a read and on a write, and on this project named under their own company
+    const outsider = callerFor(users.outsider, "w22-outsider");
+    expect(await code(outsider.pmcSite.comparison({ ...scope, limit: 1 }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(await code(outsider.pmcSite.update({ ...scope, siteActivityId: activity.id, villas: ["268"], status: "DONE", date: today }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(await code(outsider.pmcSite.percentages({ tenantId: T2, projectId: P }))).not.toBe("no error");
+    expect(await code(outsider.pmcSite.update({ tenantId: T2, projectId: P, siteActivityId: activity.id, villas: ["268"], status: "DONE", date: today }))).not.toBe("no error");
+    expect(await n("SELECT COUNT(*) AS n FROM pmc_site_cell_events WHERE tenantId = ?", [T])).toBe(counted);
+    expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ?", [T2])).toBe(0);
     const history = await engineer.pmcSite.history({ ...scope, unitId: (await connection.query<any[]>("SELECT id FROM pmc_units WHERE tenantId = ? AND villaLabel = '268'", [T]))[0][0].id, siteActivityId: activity.id });
     expect(history[0]).toMatchObject({ toStatus: "IN_PROGRESS", source: "site", enteredByUserId: users.engineer });
   }, 120_000);
@@ -210,16 +243,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     const before = await manager().pmcSite.comparison({ ...scope, kind: "received_not_done", limit: 5 });
     const items = before.rows.map(row => ({ unitId: row.unitId, activityCode: row.activityCode }));
     const sitePercentBefore = (await manager().pmcSite.percentages(scope)).project.site;
+    const actAudits = (action: string) => n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = ?", [T, action]);
+    const siteAuditsBefore = await actAudits("pmc.differences_site_updated");
     const updated = await manager().pmcSite.act({ ...scope, action: "update_site", items });
+    expect(await actAudits("pmc.differences_site_updated")).toBe(siteAuditsBefore + 1);
     expect(updated.updated).toBeGreaterThanOrEqual(5);
     const after = await manager().pmcSite.comparison({ ...scope, limit: 1 });
     expect(after.totals.receivedNotDone).toBe(before.totals.receivedNotDone - 5);
     expect((await manager().pmcSite.percentages(scope)).project.site).toBeGreaterThan(sitePercentBefore);
     // the same items again: no longer that difference — refused whole
     expect(await code(manager().pmcSite.act({ ...scope, action: "update_site", items }))).toBe("PROJECT_OS_PMC_DIFFERENCE_CHANGED");
+    expect(await actAudits("pmc.differences_site_updated")).toBe(siteAuditsBefore + 1); // the refusal wrote no audit row
     const doneNotReceived = await manager().pmcSite.comparison({ ...scope, kind: "site_done_not_received", limit: 4 });
     const requested = await manager().pmcSite.act({ ...scope, action: "create_inspection", items: doneNotReceived.rows.map(row => ({ unitId: row.unitId, activityCode: row.activityCode })) });
     expect(requested.requests.length).toBeGreaterThan(0);
+    expect(await actAudits("pmc.differences_inspection_requested")).toBe(1);
     expect(requested.requests.reduce((sum, request) => sum + request.units, 0)).toBe(4);
     expect(await n("SELECT COUNT(*) AS n FROM pmc_inspection_requests WHERE tenantId = ?", [T])).toBe(requested.requests.length);
     // a note on a difference is kept and shown
@@ -257,7 +295,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("work order 22: site ↔ 
     expect(value.total.earnedValue).toBeLessThan(value.total.contractValue);
     expect(await manager().pmcSite.canSeeFinancials(scope)).toBe(true);
     expect(await callerFor(users.engineer, "w22-engineer").pmcSite.canSeeFinancials(scope)).toBe(false);
-    expect(await code(callerFor(users.engineer, "w22-engineer").pmcSite.earnedValue(scope))).not.toBe("no error");
+    expect(await code(callerFor(users.engineer, "w22-engineer").pmcSite.earnedValue(scope))).toBe("PROJECT_OS_PERMISSION_DENIED");
     const curve = await manager().pmcSite.curve(scope);
     expect(curve.points).toHaveLength(24);
     expect(curve.points[curve.points.length - 1].plannedCumulative).toBeCloseTo(1, 6);

@@ -46,8 +46,15 @@ const ar = {
     SITE_RANGE_EMPTY: (_v?: string, detail?: string) => `لا توجد فلل في النطاق «${detail ?? ""}».`,
     SITE_BLOCK_UNKNOWN: (_v?: string, detail?: string) => `البلوك «${detail ?? ""}» غير موجود.`,
     SITE_ACTIVITY_UNKNOWN: () => "النشاط غير موجود.",
+    SITE_TARGET_AMBIGUOUS: () => "اختر طريقة واحدة لتحديد الفلل: أرقامًا أو نطاقًا أو بلوكًا كاملًا، لا أكثر.",
   } as Record<string, (villa?: string, detail?: string) => string>,
   goToComparison: "المقارنة: الموقع ↔ الاستشاري", goToUpdate: "تحديث إنجاز الموقع",
+  noUpdatePermission: "لا تملك صلاحية تحديث إنجاز الموقع في هذا المشروع. اطلبها من مدير المشروع.",
+  noManagePermission: "لا تملك صلاحية تأكيد المطابقة في هذا المشروع. اطلبها من مدير المشروع.",
+  noActivities: "لا توجد أنشطة موقع بعد: يستورد مدير المشروع سجل الموقع أولًا.",
+  noDifferencesLine: "غيّر المرشحات أو امسحها لرؤية كل الفروقات.", clearFilters: "امسح المرشحات",
+  openMatching: "افتح تبويب «المطابقة»", percentagesTitle: "نسب الإنجاز من المصادر الثلاثة",
+  currency: "ر.س",
 };
 type Text = typeof ar;
 
@@ -98,8 +105,15 @@ const en: Text = {
     SITE_RANGE_EMPTY: (_v?: string, detail?: string) => `No villas in the range "${detail ?? ""}".`,
     SITE_BLOCK_UNKNOWN: (_v?: string, detail?: string) => `Block "${detail ?? ""}" does not exist.`,
     SITE_ACTIVITY_UNKNOWN: () => "The activity does not exist.",
+    SITE_TARGET_AMBIGUOUS: () => "Choose one way to pick the villas: numbers, a range or a whole block, not more than one.",
   },
   goToComparison: "Comparison: site ↔ consultant", goToUpdate: "Update site progress",
+  noUpdatePermission: "You do not have permission to update site progress in this project. Ask the project manager for it.",
+  noManagePermission: "You do not have permission to confirm the matching in this project. Ask the project manager for it.",
+  noActivities: "No site activities yet: the project manager imports the site workbook first.",
+  noDifferencesLine: "Change or clear the filters to see every difference.", clearFilters: "Clear the filters",
+  openMatching: "Open the Matching tab", percentagesTitle: "Progress from the three sources",
+  currency: "SAR",
 };
 
 const ur: Text = {
@@ -119,8 +133,15 @@ const ur: Text = {
     ...en.issues,
     SITE_VILLA_UNKNOWN: (villa?: string) => `ولا ${villa ?? ""} پروجیکٹ میں نہیں ہے۔`,
     SITE_DATE_IN_FUTURE: (_v?: string, detail?: string) => `تاریخ ${detail ?? ""} مستقبل میں ہے۔`,
+    SITE_TARGET_AMBIGUOUS: () => "ولاز چننے کا ایک طریقہ منتخب کریں: نمبر، رینج یا پورا بلاک، ایک سے زیادہ نہیں۔",
   },
   goToComparison: "موازنہ: سائٹ ↔ مشیر", goToUpdate: "سائٹ کی پیش رفت اپ ڈیٹ کریں",
+  noUpdatePermission: "آپ کو اس پروجیکٹ میں سائٹ کی پیش رفت اپ ڈیٹ کرنے کی اجازت نہیں ہے۔ پروجیکٹ مینیجر سے طلب کریں۔",
+  noManagePermission: "آپ کو اس پروجیکٹ میں مطابقت کی تصدیق کی اجازت نہیں ہے۔ پروجیکٹ مینیجر سے طلب کریں۔",
+  noActivities: "ابھی سائٹ کی کوئی سرگرمی نہیں: پروجیکٹ مینیجر پہلے سائٹ ورک بک درآمد کرے۔",
+  noDifferencesLine: "تمام فرق دیکھنے کے لیے فلٹر بدلیں یا صاف کریں۔", clearFilters: "فلٹر صاف کریں",
+  openMatching: "مطابقت کا ٹیب کھولیں", percentagesTitle: "تینوں ذرائع سے پیش رفت",
+  currency: "ریال",
 };
 
 export const wo22Text = { ar, en, ur };

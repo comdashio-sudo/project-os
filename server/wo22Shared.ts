@@ -23,7 +23,11 @@ export type Db = Awaited<ReturnType<typeof pmcGate>>;
 /** Does this person hold the permission? (for showing or leaving out a financial column; never a substitute for the gate on a write) */
 export async function holds(input: Scope, permission: string) {
   try { await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission, featureCode: "PMC", scope: { type: "project", id: input.projectId } }); return true; }
-  catch { return false; }
+  catch (error) {
+    // only «you do not hold it» means false; a database or infrastructure failure is rethrown, never read as «no permission»
+    if (error instanceof TRPCError && error.code === "FORBIDDEN") return false;
+    throw error;
+  }
 }
 
 /** The calendar day on site (Saudi Arabia, UTC+3, no daylight saving): «a date in the future» is judged against this, not against the server's UTC midnight. */

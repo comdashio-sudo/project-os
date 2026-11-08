@@ -3,7 +3,7 @@
 // the planned-against-actual S-curve, and the two Excel exports (the comparison with the old file's columns, and the monthly report in the shape sent to the consultant).
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, formatNumber, formatPercent, notify } from "@/components/ds";
+import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Checkbox, DataTable, EmptyState, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, Toaster, formatNumber, formatPercent, notify } from "@/components/ds";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -17,6 +17,8 @@ import { siteTodayInBrowser } from "./PmcSiteUpdate";
 type Scope = { tenantId: string; projectId: string };
 type Kind = "site_done_not_received" | "received_not_done";
 const PAGE = 200;
+/** Said where a manage-only button would have been, instead of hiding it in silence. */
+const MANAGE_REASON = { ar: wo22Text.ar.noManagePermission, en: wo22Text.en.noManagePermission, ur: wo22Text.ur.noManagePermission };
 /** The ds Select cannot hold an empty value, so «all» has its own. */
 const ALL = "__all";
 const fromSelect = (value: string) => (value === ALL ? "" : value);
@@ -39,13 +41,14 @@ export default function PmcSiteConsultant() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { language } = useLanguage();
   const t = pickLanguage(language, wo22Text);
-  const [tab, setTab] = useState("compare");
+  // «?tab=matching» opens the Matching tab directly (the readiness hints elsewhere link here)
+  const [tab, setTab] = useState(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return asked && ["compare", "matching", "curve", "exports"].includes(asked) ? asked : "compare"; });
   const scope = { tenantId, projectId };
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
       <Toaster />
       <PageIntro title={t.title} summary={t.summary} actions={<Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="secondary">{t.goToUpdate}</Button></Link>} />
-      <SourcePercentages {...scope} />
+      <SourcePercentages {...scope} onOpenMatching={() => setTab("matching")} />
       <Segmented label={t.title} value={tab} onValueChange={setTab} options={[{ value: "compare", label: t.tabs.compare }, { value: "matching", label: t.tabs.matching }, { value: "curve", label: t.tabs.curve }, { value: "exports", label: t.tabs.exports }]} />
       {tab === "compare" && <Comparison scope={scope} t={t} />}
       {tab === "matching" && <Matching scope={scope} t={t} />}
@@ -82,6 +85,8 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
   const toggle = (key: string) => setSelected(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const run = (action: "create_inspection" | "update_site") => { const items = itemsForAction(rows, selected, action); if (items.length) act.mutate({ ...scope, action, items, ...(action === "update_site" ? { date: siteTodayInBrowser() } : {}) }); else notify.info(t.actionOnlyKind); };
   const selectedRows = rows.filter(row => selected.has(keyOf(row)));
+  const filtered = Boolean(kind || zone || block || section || villa.trim());
+  const clearFilters = () => { setKind(""); setZone(""); setBlock(""); setSection(""); setVilla(""); setLimit(PAGE); };
   const canInspect = selectedRows.some(row => row.kind === "site_done_not_received");
   const canUpdate = selectedRows.some(row => row.kind === "received_not_done");
 
@@ -115,15 +120,15 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
         {mayAct && (
           <CardBody className="flex flex-wrap items-center gap-2 border-t border-border">
             <span className="text-sm text-muted-foreground" aria-live="polite">{t.selected(selected.size)}</span>
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(rows.map(keyOf)))}>{t.selectAll}</Button>
-            <Button size="sm" variant="ghost" disabled={!selected.size} onClick={() => setSelected(new Set())}>{t.clearSelection}</Button>
-            <Button size="sm" disabled={!canInspect} loading={act.isPending && act.variables?.action === "create_inspection"} onClick={() => run("create_inspection")}>{t.createInspection}</Button>
-            <Button size="sm" variant="secondary" disabled={!canUpdate} loading={act.isPending && act.variables?.action === "update_site"} onClick={() => run("update_site")}>{t.updateSite}</Button>
+            <Button variant="ghost" onClick={() => setSelected(new Set(rows.map(keyOf)))}>{t.selectAll}</Button>
+            <Button variant="ghost" disabled={!selected.size} onClick={() => setSelected(new Set())}>{t.clearSelection}</Button>
+            <Button disabled={!canInspect} loading={act.isPending && act.variables?.action === "create_inspection"} onClick={() => run("create_inspection")}>{t.createInspection}</Button>
+            <Button variant="secondary" disabled={!canUpdate} loading={act.isPending && act.variables?.action === "update_site"} onClick={() => run("update_site")}>{t.updateSite}</Button>
           </CardBody>
         )}
         {query.isLoading ? <CardBody><SkeletonRows rows={6} /></CardBody> : (
-          <DataTable caption={t.listTitle} rowKey={row => keyOf(row)} rows={rows.map(row => ({ ...row }))} empty={<EmptyState title={t.noDifferences} />} columns={[
-            ...(mayAct ? [{ key: "pick", header: "", width: "2.5rem", render: (row: (typeof rows)[number]) => <input type="checkbox" aria-label={`${row.villa} ${row.siteActivity}`} checked={selected.has(keyOf(row))} onChange={() => toggle(keyOf(row))} className="size-4" /> }] : []),
+          <DataTable caption={t.listTitle} rowKey={row => keyOf(row)} rows={rows.map(row => ({ ...row }))} empty={<EmptyState title={t.noDifferences} line={filtered ? t.noDifferencesLine : undefined} action={filtered ? <Button variant="secondary" onClick={clearFilters}>{t.clearFilters}</Button> : undefined} />} columns={[
+            ...(mayAct ? [{ key: "pick", header: "", width: "3rem", render: (row: (typeof rows)[number]) => <Checkbox aria-label={`${row.villa} ${row.siteActivity}`} checked={selected.has(keyOf(row))} onCheckedChange={() => toggle(keyOf(row))} /> }] : []),
             { key: "zone", header: t.columns.zone },
             { key: "block", header: t.columns.block },
             { key: "villa", header: t.columns.villa, render: row => <span dir="ltr">{row.villa}</span> },
@@ -147,7 +152,7 @@ function Comparison({ scope, t }: { scope: Scope; t: Wo22Text }) {
         {query.data && (
           <CardFooter className="justify-between">
             <span className="text-sm text-muted-foreground">{t.shown(rows.length, query.data.total)}</span>
-            {rows.length < query.data.total && <Button variant="secondary" size="sm" onClick={() => setLimit(value => Math.min(value + PAGE, 2000))}>{t.showMore}</Button>}
+            {rows.length < query.data.total && <Button variant="secondary" onClick={() => setLimit(value => Math.min(value + PAGE, 2000))}>{t.showMore}</Button>}
           </CardFooter>
         )}
       </Card>
@@ -184,7 +189,7 @@ function Matching({ scope, t }: { scope: Scope; t: Wo22Text }) {
             { key: "state", header: "", render: row => row.links.length ? <Badge tone={row.links.every(item => item.confirmed) ? "success" : "info"}>{row.links.every(item => item.confirmed) ? t.confirmed : t.suggested}</Badge> : null },
           ]} />
         )}
-        <WriteGate permission="project.pmc.manage" projectId={scope.projectId}>
+        <WriteGate permission="project.pmc.manage" projectId={scope.projectId} reason={MANAGE_REASON}>
           <CardFooter><Button disabled={!suggested.length} loading={confirm.isPending} onClick={() => confirm.mutate({ ...scope, links: suggested.map(item => ({ siteActivityId: item.id, activityCodes: item.links.map(linkItem => linkItem.activityCode) })) })}>{t.confirmAll} ({formatNumber(suggested.length)})</Button></CardFooter>
         </WriteGate>
       </Card>
@@ -201,7 +206,7 @@ function Matching({ scope, t }: { scope: Scope; t: Wo22Text }) {
           </CardBody>
         )}
         {unlinked.length > 0 && (
-          <WriteGate permission="project.pmc.manage" projectId={scope.projectId}>
+          <WriteGate permission="project.pmc.manage" projectId={scope.projectId} reason={MANAGE_REASON}>
             <CardFooter><Button disabled={!Object.values(choices).some(Boolean)} loading={link.isPending} onClick={() => link.mutate({ ...scope, links: Object.entries(choices).filter(([, code]) => code).map(([columnId, activityCode]) => ({ columnId, activityCode })) })}>{t.saveLinks}</Button></CardFooter>
           </WriteGate>
         )}
@@ -234,13 +239,20 @@ function Curve({ scope, t }: { scope: Scope; t: Wo22Text }) {
         {deviation !== null && <Badge tone={deviation < -0.02 ? "danger" : deviation < 0 ? "warning" : "success"}>{t.deviation}: <span dir="ltr">{`${deviation > 0 ? "+" : ""}${formatPercent(deviation * 100)}`}</span></Badge>}
       </CardHeader>
       <CardBody className="flex flex-col gap-4">
-        <svg viewBox={`-4 -4 ${width + 8} ${height + 8}`} role="img" aria-label={t.curveTitle} className="h-64 w-full" style={{ direction: "ltr" }} data-testid="s-curve">
-          <line x1={0} y1={height} x2={width} y2={height} className="stroke-border" strokeWidth={1} />
+        <svg viewBox={`-52 -8 ${width + 64} ${height + 36}`} role="img" aria-label={t.curveTitle} className="h-64 w-full" style={{ direction: "ltr" }} data-testid="s-curve">
+          {[0, 0.5, 1].map(share => (
+            <g key={share}>
+              <line x1={0} y1={height - share * height} x2={width} y2={height - share * height} className="stroke-border" strokeWidth={share === 0 ? 1 : 0.5} />
+              <text x={-8} y={height - share * height} dy="0.35em" textAnchor="end" className="fill-muted-foreground text-[12px]" data-testid={`axis-y-${share * 100}`}>{formatPercent(share * 100, 0)}</text>
+            </g>
+          ))}
           <line x1={0} y1={0} x2={0} y2={height} className="stroke-border" strokeWidth={1} />
-          <path d={curvePath(points.map(point => point.plannedCumulative), width, height)} fill="none" className="stroke-muted-foreground" strokeWidth={2} strokeDasharray="6 4" />
+          <text x={0} y={height + 22} textAnchor="start" className="fill-muted-foreground text-[12px]" data-testid="axis-x-first">{points[0].month.slice(0, 7)}</text>
+          {points.length > 1 && <text x={width} y={height + 22} textAnchor="end" className="fill-muted-foreground text-[12px]" data-testid="axis-x-last">{points[points.length - 1].month.slice(0, 7)}</text>}
+          <path d={curvePath(points.map(point => point.plannedCumulative), width, height)} fill="none" className="stroke-foreground" strokeWidth={2} strokeDasharray="6 4" />
           <path d={curvePath(points.map(point => point.actualCumulative), width, height)} fill="none" className="stroke-primary" strokeWidth={3} />
         </svg>
-        <div className="flex flex-wrap gap-4 text-sm"><span className="inline-flex items-center gap-2"><span className="inline-block h-0.5 w-6 border-t-2 border-dashed border-muted-foreground" />{t.planned}</span><span className="inline-flex items-center gap-2"><span className="inline-block h-1 w-6 bg-primary" />{t.actual}</span></div>
+        <div className="flex flex-wrap gap-4 text-sm"><span className="inline-flex items-center gap-2"><span className="inline-block h-0.5 w-6 border-t-2 border-dashed border-foreground" />{t.planned}</span><span className="inline-flex items-center gap-2"><span className="inline-block h-1 w-6 bg-primary" />{t.actual}</span></div>
         <DataTable caption={t.curveTitle} rowKey={row => String(row.month)} rows={points.map(point => ({ ...point }))} columns={[
           { key: "month", header: t.month, render: row => <span dir="ltr">{row.month.slice(0, 7)}</span> },
           { key: "plannedCumulative", header: t.planned, numeric: true, render: row => row.plannedCumulative === null ? "" : formatPercent(row.plannedCumulative * 100) },
@@ -280,8 +292,8 @@ function Exports({ scope, t }: { scope: Scope; t: Wo22Text }) {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>{t.earnedValue}</CardTitle><p className="text-sm text-muted-foreground">{t.earnedLine}</p></CardHeader>
           <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div><div className="text-sm text-muted-foreground">{t.contractValue}</div><div className="text-xl font-semibold tabular-nums" dir="ltr">{formatNumber(earned.data.total.contractValue, 2)} SAR</div></div>
-            <div><div className="text-sm text-muted-foreground">{t.earnedValue}</div><div className="text-xl font-semibold tabular-nums" dir="ltr">{formatNumber(earned.data.total.earnedValue, 2)} SAR</div></div>
+            <div><div className="text-sm text-muted-foreground">{t.contractValue}</div><div className="text-xl font-semibold tabular-nums" dir="ltr">{formatNumber(earned.data.total.contractValue, 2)} {t.currency}</div></div>
+            <div><div className="text-sm text-muted-foreground">{t.earnedValue}</div><div className="text-xl font-semibold tabular-nums" dir="ltr">{formatNumber(earned.data.total.earnedValue, 2)} {t.currency}</div></div>
           </CardBody>
         </Card>
       )}

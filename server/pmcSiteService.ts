@@ -89,6 +89,7 @@ export async function updateSiteStatus(input: SiteUpdateInput) {
   else if (input.date > siteToday()) issues.push({ code: "SITE_DATE_IN_FUTURE", detail: input.date });
   const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0].reduce((a, b) => a + b, 0);
   if (chosen === 0) issues.push({ code: "SITE_FIELD_MISSING", detail: "villas" });
+  else if (chosen > 1) issues.push({ code: "SITE_TARGET_AMBIGUOUS" }); // villas, a range and a block together: refused, never «the last one wins»
   if (issues.length) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_UPDATE_INVALID", issues);
 
   const [activity] = await db.select({ id: pmcSiteActivities.id, name: pmcSiteActivities.name, modelCodesJson: pmcSiteActivities.modelCodesJson }).from(pmcSiteActivities).where(and(mine(pmcSiteActivities, input), eq(pmcSiteActivities.id, input.siteActivityId))).limit(1);
@@ -115,14 +116,18 @@ export async function updateSiteStatus(input: SiteUpdateInput) {
   if (issues.length || !targets.length) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_UPDATE_INVALID", issues.length ? issues : [{ code: "SITE_FIELD_MISSING", detail: "villas" }]);
 
   const batchId = randomUUID();
-  const result = await db.transaction(tx => writeSiteStatus(tx, input, targets.map(unit => unit.id), input.siteActivityId, input.status, input.date, { batchId, source: input.batchSource ?? "site", userId: input.userId, label: null }));
-  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.site_status_updated", entityType: "pmc_site_activity", entityId: input.siteActivityId, metadata: JSON.stringify({ projectId: input.projectId, status: input.status, date: input.date, villas: targets.length, updated: result.updated, unchanged: result.unchanged, batchId }) });
+  // the audit row is written inside the same transaction as the cells: both land or neither does
+  const result = await db.transaction(async tx => {
+    const written = await writeSiteStatus(tx, input, targets.map(unit => unit.id), input.siteActivityId, input.status, input.date, { batchId, source: input.batchSource ?? "site", userId: input.userId, label: null });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.site_status_updated", entityType: "pmc_site_activity", entityId: input.siteActivityId, metadata: JSON.stringify({ projectId: input.projectId, status: input.status, date: input.date, villas: targets.length, updated: written.updated, unchanged: written.unchanged, batchId }) });
+    return written;
+  });
   return { ...result, villas: targets.map(unit => villaKey(unit.villaLabel ?? unit.unitNumber)), batchId };
 }
 
 /** The write itself, shared by the site's update, the actions on a difference and the one-time import: a row per villa, an event per change, nothing for a cell already there. */
 export async function writeSiteStatus(tx: Tx, input: Scope, unitIds: string[], siteActivityId: string, status: SiteStatus, date: string, by: { batchId: string; source: string; userId: number | null; label: string | null }) {
-  const existing = await tx.select({ id: pmcSiteCells.id, unitId: pmcSiteCells.unitId, status: pmcSiteCells.status, statusOn: pmcSiteCells.statusOn }).from(pmcSiteCells).where(and(eq(pmcSiteCells.tenantId, input.tenantId), eq(pmcSiteCells.siteActivityId, siteActivityId), inArray(pmcSiteCells.unitId, unitIds)));
+  const existing = await tx.select({ id: pmcSiteCells.id, unitId: pmcSiteCells.unitId, status: pmcSiteCells.status, statusOn: pmcSiteCells.statusOn }).from(pmcSiteCells).where(and(eq(pmcSiteCells.tenantId, input.tenantId), eq(pmcSiteCells.projectId, input.projectId), eq(pmcSiteCells.siteActivityId, siteActivityId), inArray(pmcSiteCells.unitId, unitIds)));
   const byUnit = new Map(existing.map(cell => [cell.unitId, cell]));
   const now = new Date(); let updated = 0; let unchanged = 0;
   const events: Array<typeof pmcSiteCellEvents.$inferInsert> = [];
@@ -133,7 +138,7 @@ export async function writeSiteStatus(tx: Tx, input: Scope, unitIds: string[], s
     const id = cell?.id ?? randomUUID();
     if (!cell) inserts.push({ id, tenantId: input.tenantId, projectId: input.projectId, unitId, siteActivityId, status, statusOn: date, [DATE_COLUMN[status]]: date, updatedByUserId: by.userId, updatedByLabel: by.label });
     else {
-      const rows = await tx.update(pmcSiteCells).set({ status, statusOn: date, [DATE_COLUMN[status]]: date, updatedByUserId: by.userId, updatedByLabel: by.label, updatedAt: now }).where(and(eq(pmcSiteCells.id, cell.id), eq(pmcSiteCells.tenantId, input.tenantId))).returning({ id: pmcSiteCells.id });
+      const rows = await tx.update(pmcSiteCells).set({ status, statusOn: date, [DATE_COLUMN[status]]: date, updatedByUserId: by.userId, updatedByLabel: by.label, updatedAt: now }).where(and(eq(pmcSiteCells.id, cell.id), eq(pmcSiteCells.tenantId, input.tenantId), eq(pmcSiteCells.projectId, input.projectId))).returning({ id: pmcSiteCells.id });
       if (rows.length !== 1) throw refuse("CONFLICT", "PROJECT_OS_SITE_UPDATE_INVALID"); // rows = 0 is never taken for success
     }
     events.push({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, cellId: id, fromStatus: cell?.status ?? null, toStatus: status, statusOn: date, enteredByUserId: by.userId, enteredByLabel: by.label, source: by.source, batchId: by.batchId });
@@ -323,6 +328,13 @@ export async function actOnDifferences(input: Scope & { action: "create_inspecti
   if (stale.length) throw refuse("CONFLICT", "PROJECT_OS_PMC_DIFFERENCE_CHANGED", stale.slice(0, 20).map(entry => entry.item));
   const batchId = randomUUID(); const unitById = new Map(state.units.map(unit => [unit.id, unit]));
   const outcome = await db.transaction(async tx => {
+    const done = await differencesWrite(tx);
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: input.action === "create_inspection" ? "pmc.differences_inspection_requested" : "pmc.differences_site_updated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ items: input.items.length, siteCellsUpdated: done.updated, requests: done.requests.length, batchId }) });
+    return done;
+  });
+  return { action: input.action, items: input.items.length, ...outcome };
+
+  async function differencesWrite(tx: Tx) {
     if (input.action === "update_site") {
       let updated = 0;
       for (const { item, row } of chosen) for (const siteActivityId of state.siteFor.get(item.activityCode) ?? []) {
@@ -358,9 +370,7 @@ export async function actOnDifferences(input: Scope & { action: "create_inspecti
       }
     }
     return { updated, requests };
-  });
-  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: input.action === "create_inspection" ? "pmc.differences_inspection_requested" : "pmc.differences_site_updated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ items: input.items.length, siteCellsUpdated: outcome.updated, requests: outcome.requests.length, batchId }) });
-  return { action: input.action, items: input.items.length, ...outcome };
+  }
 }
 
 // ------------------------------------------------------------------ riyals and the S-curve
