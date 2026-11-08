@@ -10,3 +10,9 @@ The servers ran with MFA_ENFORCEMENT=off for every shot except mfa-*.
 Production client build of eb3989a; no server and no database: every API reply is a fixed synthetic fake (*.example.test).
 Login (email, code step, wrong-code error) and two-step verification (setup, setup with wrong code, verify with wrong code), 390 and 1280, Arabic, English and Urdu.
 report.json per shot: dir, horizontal scroll (none), buttons/links under 44px (none on 390; 40px on 1280 is the ds desktop size), alert text (Urdu errors are in Urdu).
+
+## d-3/part-2/5fcd35e/ — D-3 (2/8) workspace and project page
+
+before-* = client build of main 8f333b9; after-* = client build of 5fcd35e. No server and no database: every tRPC reply is a fixed synthetic fake (Demo Builders Co., Demo Tower, *.example.test); queries without a fixture answer NOT_FOUND, so lower sections may show their own error state.
+Workspace (/) and project page (/projects/:t/:p/controls), 390 and 1280, Arabic, English and Urdu, full page.
+before-report.json / after-report.json per shot: dir, horizontal scroll, main count, buttons/links under 44px inside main on 390, Arabic-Indic digits in the page text.
