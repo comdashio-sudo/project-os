@@ -26,6 +26,7 @@ async function clear() {
     await connection.query("DELETE r FROM data_import_row_results r INNER JOIN data_imports i ON i.id = r.importId WHERE i.tenantId = ?", [tenant]);
     await connection.query("DELETE e FROM data_import_errors e INNER JOIN data_imports i ON i.id = e.importId WHERE i.tenantId = ?", [tenant]);
     await connection.query("DELETE FROM data_imports WHERE tenantId = ?", [tenant]);
+    await connection.query("DELETE FROM progress_entries WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE FROM activities WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE FROM wbs_items WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId = ?", [tenant]);
@@ -136,8 +137,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     const imported = (await importer.dataImports.list(scope)).find(row => row.fileName === "good.xer")!;
     expect(await code(importer.dataImports.discard({ ...scope, importId: imported.id }))).toBe("PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED");
     expect((await rowOf(imported.id)).status).toBe("completed");
-    // another company's person cannot reach it at all
-    expect(await code(callerFor(users.stranger, "iat-stranger").dataImports.discard({ ...scope, importId: imported.id }))).toBeTruthy();
+    // another company's person cannot reach it at all: the named refusal, and the row is still there
+    expect(await code(callerFor(users.stranger, "iat-stranger").dataImports.discard({ ...scope, importId: imported.id }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect((await rowOf(imported.id)).status).toBe("completed");
   }, 60_000);
 
   it("rollback needs the project manager, deletes exactly what the import created, and frees the file for a fresh import", async () => {
@@ -161,6 +163,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     const [audit] = await connection.query<{ action: string; metadata: string }[]>("SELECT action, metadata FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_rolled_back'", [T, imported.id]);
     expect(audit).toHaveLength(1);
     expect(await code(manager.dataImports.rollback({ ...scope, importId: imported.id }))).toBe("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
+    // an undone import is history: it is never deleted, by the importer or by the manager, and its rollback record stays
+    for (const caller of [importer, manager]) expect(await code(caller.dataImports.discard({ ...scope, importId: imported.id }))).toBe("PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED");
+    expect(JSON.parse((await rowOf(imported.id)).summaryJson).rolledBack.deleted).toMatchObject({ activities: good.activities, wbsItems: good.wbs });
     // the hash is free again: the same file imports again
     const again = await upload(importer, file("good-after-rollback.xer", good.bytes));
     expect((await pollUntilDone(importer, again.registered.id)).view.status).toBe("validated");
@@ -169,7 +174,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     expect(await count("activities")).toBe(good.activities);
   }, 120_000);
 
-  it("rollback refuses an import that changed rows which already existed, and one whose rows something else now uses", async () => {
+  it("rollback refuses an import that changed rows which already existed", async () => {
     const importer = callerFor(users.importer, "iat-importer");
     const manager = callerFor(users.manager, "iat-manager");
     // a larger file with the same codes, imported over the first one in upsert mode: it updates what existed and creates the rest
@@ -182,5 +187,23 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     expect(await code(manager.dataImports.rollback({ ...scope, importId: over.registered.id }))).toBe("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES");
     expect(await count("activities")).toBe(before); // refused whole: nothing deleted
     expect((await rowOf(over.registered.id)).status).toBe("completed");
+  }, 120_000);
+
+  it("rollback refuses, whole, an import whose created rows something else now depends on (foreign key)", async () => {
+    const manager = callerFor(users.manager, "iat-manager");
+    // "good-after-rollback.xer" only CREATED rows; a progress entry now points at one of its activities
+    const createdOnly = (await manager.dataImports.list(scope)).find(row => row.fileName === "good-after-rollback.xer")!;
+    expect((await rowOf(createdOnly.id)).status).toBe("completed");
+    const [[target]] = await connection.query<{ entityId: string }[]>("SELECT entityId FROM data_import_row_results WHERE importId = ? AND action = 'created' AND rowKey LIKE 'activity:%' LIMIT 1", [createdOnly.id]);
+    await connection.query("INSERT INTO progress_entries (id, tenantId, projectId, activityId, progressPercent, status, measuredAt) VALUES ('iat-progress', ?, ?, ?, 10, 'draft', NOW())", [T, P, target.entityId]);
+    const activitiesBefore = await count("activities");
+    const wbsBefore = await count("wbs_items");
+    expect(await code(manager.dataImports.rollback({ ...scope, importId: createdOnly.id }))).toBe("PROJECT_OS_IMPORT_ROLLBACK_IN_USE");
+    // the whole transaction was undone: not one row deleted, the import still completed, no rollback audit row
+    expect(await count("activities")).toBe(activitiesBefore);
+    expect(await count("wbs_items")).toBe(wbsBefore);
+    expect((await rowOf(createdOnly.id)).status).toBe("completed");
+    const [audit] = await connection.query<{ action: string }[]>("SELECT action FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_rolled_back'", [T, createdOnly.id]);
+    expect(audit).toHaveLength(0);
   }, 120_000);
 });

@@ -54,4 +54,15 @@ describe("the import log shows what each attempt is and what can be done with it
     await user.click(imported.getByRole("button", { name: "Replace with a newer version" }));
     expect(screen.getByTestId("replace-note").textContent).toContain("differences are shown before anything is written");
   });
+
+  it("never offers «Delete this attempt» on a rolled-back import (it is history), nor «Roll back» on a module that cannot be rolled back", () => {
+    state.mock.list = [row("00000000-0000-4000-8000-0000000000a4", "undone.xlsx", "cancelled", 0), row("00000000-0000-4000-8000-0000000000a5", "stock.csv", "completed", 0, "openingBalances")];
+    render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
+    const undone = within(screen.getByTestId("import-attempt-undone"));
+    expect(undone.getByText("Rolled back")).toBeTruthy();
+    expect(undone.queryByRole("button", { name: "Delete this attempt" })).toBeNull();
+    const ledger = within(screen.getByTestId("import-attempt-imported"));
+    expect(ledger.queryByRole("button", { name: "Roll back this import" })).toBeNull();
+    expect(ledger.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
+  });
 });

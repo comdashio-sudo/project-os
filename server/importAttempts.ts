@@ -7,13 +7,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { activities, auditLogs, budgetLines, contracts, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, materialMasters, wbsItems } from "../drizzle/schema";
 import { isForeignKeyViolation } from "./_core/database";
+import { logError } from "./_core/logger";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot, importPermissionFor } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
-import { attemptState, canDiscardAttempt, canRollbackAttempt } from "../shared/importAttempts";
+import { attemptState, canDiscardAttempt, canRollbackAttempt, canRollbackModule } from "../shared/importAttempts";
 import { storageDelete } from "./storage";
 
-/** Modules whose created rows can be taken back. Opening stock is a ledger of stock movements: it is never erased by an undo. */
-export const ROLLBACK_MODULES = ["wbs", "budget", "contracts", "materials", "schedule"] as const;
+export { ROLLBACK_MODULES } from "../shared/importAttempts";
 const ROLLBACK_PERMISSION = "project.manage";
 
 type Scope = { userId: number; tenantId: string; projectId: string; importId: string };
@@ -34,7 +34,8 @@ async function load(input: Scope, permission: string | readonly string[]) {
 
 export async function discardImportAttempt(input: Scope) {
   const { db, record, state } = await load(input, importPermissionFor("any"));
-  if (!canDiscardAttempt(state) && state !== "undone") throw fail("PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED");
+  // only an attempt that wrote nothing is deleted. An undone import is history (what it wrote, what the rollback took back, by whom): it stays.
+  if (!canDiscardAttempt(state)) throw fail("PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED");
   try {
     await db.transaction(async tx => {
       await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, record.id));
@@ -48,7 +49,7 @@ export async function discardImportAttempt(input: Scope) {
     if (isForeignKeyViolation(error)) throw fail("PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED", "CONFLICT");
     throw error;
   }
-  await storageDelete(record.fileKey).catch(() => undefined); // the file goes after the row: an orphan object is swept, a row without its file would be a broken record
+  await storageDelete(record.fileKey).catch(error => logError("import.discard_file_delete_failed", error, { importId: record.id })); // the file goes after the row: an orphan object is swept, a row without its file would be a broken record
   return { id: record.id, discarded: true as const };
 }
 
@@ -56,7 +57,7 @@ export async function rollbackImport(input: Scope) {
   const { db, record, state } = await load(input, ROLLBACK_PERMISSION);
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: ROLLBACK_PERMISSION, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   if (!canRollbackAttempt(state)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
-  if (!(ROLLBACK_MODULES as readonly string[]).includes(record.moduleCode)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
+  if (!canRollbackModule(record.moduleCode)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
   const results = await db.select({ action: dataImportRowResults.action, rowKey: dataImportRowResults.rowKey, entityId: dataImportRowResults.entityId }).from(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
   if (results.some(row => row.action === "updated")) throw fail("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES", "CONFLICT");
   const created = results.filter(row => row.action === "created" && row.entityId);

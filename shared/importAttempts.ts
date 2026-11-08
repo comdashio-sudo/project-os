@@ -19,3 +19,6 @@ export function attemptState(row: { status: string; errorCount: number }): Attem
 /** A rejected or unconfirmed attempt wrote nothing and can be deleted; an imported one can only be rolled back. */
 export const canDiscardAttempt = (state: AttemptState) => state === "rejected" || state === "awaiting";
 export const canRollbackAttempt = (state: AttemptState) => state === "imported";
+/** Modules whose created rows can be taken back (and so replaced). Opening stock is a ledger of stock movements: it is never erased by an undo. One list for the server and the screen. */
+export const ROLLBACK_MODULES = ["wbs", "budget", "contracts", "materials", "schedule"] as const;
+export const canRollbackModule = (moduleCode: string) => (ROLLBACK_MODULES as readonly string[]).includes(moduleCode);

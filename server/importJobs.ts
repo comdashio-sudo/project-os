@@ -86,7 +86,7 @@ export async function registerImportUpload(input: { userId: number; tenantId: st
   if (bytes.length !== head.size) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   const fileHash = createHash("sha256").update(bytes).digest("hex");
   // a file that was already CONFIRMED is refused here, readably; a refused or unconfirmed attempt of it never blocks (the unique index only guards the confirmed ones)
-  try { await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash }); } catch (error) { await storageDelete(input.uploadKey).catch(() => undefined); throw error; }
+  try { await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash }); } catch (error) { await storageDelete(input.uploadKey).catch(cleanup => logError("import.duplicate_upload_delete_failed", cleanup, { uploadKey: input.uploadKey })); throw error; }
   const id = randomUUID();
   try {
     await db.insert(dataImports).values({

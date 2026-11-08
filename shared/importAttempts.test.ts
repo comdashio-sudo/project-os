@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attemptState, canDiscardAttempt, canRollbackAttempt } from "./importAttempts";
+import { attemptState, canDiscardAttempt, canRollbackAttempt, canRollbackModule } from "./importAttempts";
 
 describe("what an import attempt means", () => {
   it.each([
@@ -17,5 +17,10 @@ describe("what an import attempt means", () => {
     for (const state of ["rejected", "awaiting"] as const) { expect(canDiscardAttempt(state)).toBe(true); expect(canRollbackAttempt(state)).toBe(false); }
     expect(canDiscardAttempt("imported")).toBe(false); expect(canRollbackAttempt("imported")).toBe(true);
     for (const state of ["processing", "undone"] as const) { expect(canDiscardAttempt(state)).toBe(false); expect(canRollbackAttempt(state)).toBe(false); }
+  });
+
+  it("rolls back the modules whose created rows are listed, never the opening-stock ledger or an unknown one", () => {
+    for (const code of ["wbs", "budget", "contracts", "materials", "schedule"]) expect(canRollbackModule(code)).toBe(true);
+    for (const code of ["openingBalances", "p6", "p6update", ""]) expect(canRollbackModule(code)).toBe(false);
   });
 });
