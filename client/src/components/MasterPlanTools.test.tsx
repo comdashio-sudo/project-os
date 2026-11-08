@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MasterPlanCanvas, MasterPlanEntityTools, MasterPlanVersionTools, SnapshotShareToggle, type ToolsEntity } from "./MasterPlanTools";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const hoisted = vi.hoisted(() => ({ state: { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>> }, mutation: (name: string) => ({ useMutation: () => ({ mutate: hoisted.state.calls[name] ?? (hoisted.state.calls[name] = vi.fn()), isPending: false, error: null }) }) }));
 const { state } = hoisted;
@@ -107,5 +108,15 @@ describe("SnapshotShareToggle", () => {
     expect(screen.getByText("مشاركة من زميل")).toBeTruthy();
     rerender(<SnapshotShareToggle tenantId="t" projectId="p" snapshot={{ id: "s1", createdByUserId: 7, sharedWithProject: false }} currentUserId={9} onChanged={vi.fn()} />);
     expect(screen.queryByText("مشاركة من زميل")).toBeNull();
+  });
+});
+
+describe("MasterPlanTools forms check themselves in the page's language (D-63)", () => {
+  it("an empty rotation, or an empty position, sends nothing and says so under the field", async () => {
+    render(<MasterPlanVersionTools tenantId="t" projectId="p" version={{ id: "v1", rotationDegrees: 0, mapWidthMeters: null, mapHeightMeters: null }} onSaved={vi.fn()} />);
+    const rotation = screen.getByLabelText("زاوية التدوير (درجة)") as HTMLInputElement;
+    fireEvent.change(rotation, { target: { value: "" } });
+    state.calls.setVersionGeometry ??= vi.fn();
+    expect(expectEmptySubmitRefused(rotation.form!, "ar", state.calls.setVersionGeometry)).toBe(rotation);
   });
 });

@@ -66,6 +66,26 @@ export function formFieldErrors(form: HTMLFormElement, language: Language): Reco
   return errors;
 }
 
+/**
+ * The same checks for every field of a form, with or without an id: each problem with its element, in document order. CheckedForm
+ * (client/src/components/CheckedForm.tsx) uses it to stop a submit, mark the fields and say what is wrong in the person's language.
+ */
+export function formFieldProblems(form: HTMLFormElement, language: Language): Array<{ element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement; message: string }> {
+  const problems: Array<{ element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement; message: string }> = [];
+  for (const element of Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(FIELD_ELEMENTS))) {
+    if (element.disabled) continue;
+    // a required file that was not chosen: the browser would refuse it in English
+    if (element instanceof HTMLInputElement && element.type === "file") {
+      if (element.required && !element.files?.length) problems.push({ element, message: fieldMessage("PROJECT_OS_FIELD_REQUIRED", language) });
+      continue;
+    }
+    if (element instanceof HTMLInputElement && UNCHECKED_INPUT_TYPES.includes(element.type)) continue;
+    const message = fieldProblem(element, language);
+    if (message) problems.push({ element, message });
+  }
+  return problems;
+}
+
 function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, language: Language): string | null {
   const value = element.value;
   if (element.required) {

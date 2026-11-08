@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectContracts } from "./ProjectContracts";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ contractError: null as unknown, commitmentError: null as unknown, contractMutate: vi.fn(), commitmentMutate: vi.fn() }));
 
@@ -74,5 +75,13 @@ describe("ProjectContracts failed-submission retention", () => {
     await user.type(screen.getByLabelText("Counterparty"), "Ministry Client");
     await user.click(screen.getByRole("button", { name: "Record contract" }));
     expect(state.contractMutate).toHaveBeenLastCalledWith(expect.objectContaining({ counterparty: "Ministry Client", counterpartyKind: "client", supplierId: undefined }));
+  });
+});
+
+describe("ProjectContracts forms check themselves in the page's language (D-63)", () => {
+  it("an empty contract records nothing and says so in English under its first field", () => {
+    cleanup(); state.contractMutate.mockReset();
+    render(<ProjectContracts tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(screen.getByRole("button", { name: "Record contract" }).closest("form")!, "en", state.contractMutate);
   });
 });
