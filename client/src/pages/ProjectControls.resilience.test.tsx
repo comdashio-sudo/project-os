@@ -5,13 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
 
-const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false }));
+const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[] }));
 
-vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
+vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
+// the page's own permission reads (upload, + Add); WriteGate keeps its real behaviour (no provider = allowed)
+vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (permission: string | readonly string[]) => !(Array.isArray(permission) ? permission : [permission]).every(code => state.denied.includes(code)) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => { if (state.contractsRenderFailure) throw new Error("deliberate project contracts render failure"); return null; } }));
 vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => <p>Documents panel alive</p> }));
@@ -52,7 +54,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 describe("ProjectControls section resilience", () => {
-  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.withHealth = false; state.contractsRenderFailure = false; });
+  afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); /* the PMC tab writes #pmc into the address, and the next render would open on it */ state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.withHealth = false; state.denied = []; state.contractsRenderFailure = false; });
 
   it("inside the product frame draws no top bar or main of its own: the frame keeps the one banner and the one main (review of #156, item 2)", () => {
     const { container } = render(<InShellProvider><ProjectControls /></InShellProvider>);
@@ -173,6 +175,44 @@ describe("ProjectControls section resilience", () => {
     expect(surface.className).toContain("bg-muted");
     expect(surface.className).toContain("text-foreground");
     expect(document.querySelector("main .bg-accent.text-muted-foreground, main .bg-accent .text-muted-foreground")).toBeNull();
+  });
+
+  it("an empty project opens on the start card, and its empty sections offer + Add and Upload file", () => {
+    state.performancePartial = true;
+    state.scheduleEmpty = true;
+    render(<ProjectControls />);
+    expect(screen.getByRole("heading", { name: "Start your project" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Upload the P6 programme" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add by hand" })).toBeTruthy();
+    const emptyOf = (title: string) => screen.getAllByLabelText(title).find(node => node.textContent?.includes("No data is available")) as HTMLElement;
+    const schedule = emptyOf("Schedule and WBS");
+    expect(within(schedule).getByRole("button", { name: "Add" })).toBeTruthy();
+    expect(within(schedule).getByRole("button", { name: "Upload file" })).toBeTruthy();
+    const records = emptyOf("Cost and progress records");
+    expect(within(records).getByRole("button", { name: "Add" })).toBeTruthy();
+  });
+
+  it("no upload button for a person who may not import, and no + Add / Add by hand for one who may not write (D-1: no button the server refuses)", async () => {
+    const { anyImportPermission } = await import("@shared/importPermissions");
+    state.performancePartial = true;
+    state.scheduleEmpty = true;
+    state.denied = [...anyImportPermission, "project.wbs.manage", "project.schedule.manage", "project.budget.manage", "project.cost.enter", "project.progress.manage"];
+    render(<ProjectControls />);
+    expect(screen.getByRole("heading", { name: "Start your project" })).toBeTruthy(); // the card still says how a project begins
+    for (const name of ["Upload any file", "Upload the P6 programme", "Upload the progress report", "Upload file", "Add by hand", "Add"]) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("the start card's upload from the PMC tab also returns to the overview and opens the data-imports group (#217 kept)", () => {
+    state.performancePartial = true;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    render(<ProjectControls />);
+    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload the P6 programme" }));
+    frames.forEach(callback => callback(0));
+    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
+    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
+    raf.mockRestore();
   });
 
   it("shows the formula and the date beside each manager indicator (G-106)", () => {

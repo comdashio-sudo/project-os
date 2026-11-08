@@ -43,9 +43,12 @@ import { DashboardSectionReporter } from "@/components/DashboardSectionReporter"
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
 import { Activity, ArrowLeft, Banknote, FileUp, CalendarDays, Calculator, CheckCircle2, ClipboardList, FileCheck2, HeartPulse, PackageCheck, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
+import { ProjectStart } from "@/components/ProjectStart";
+import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
+import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
-import { WriteGate } from "@/lib/permissions";
+import { WriteGate, useCan } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -114,6 +117,12 @@ export default function ProjectControls() {
   const [view, setView] = useState<"overview" | "pmc">(typeof window !== "undefined" && window.location.hash === "#pmc" ? "pmc" : "overview");
   React.useEffect(() => { const onChange = () => { if (window.location.hash === "#pmc") setView("pmc"); }; window.addEventListener("hashchange", onChange); return () => window.removeEventListener("hashchange", onChange); }, []);
   const [healthPeriod, setHealthPeriod] = useState(today);
+  // D-1: no button the server refuses. "Upload" only for a person who may import something (the gate ProjectImports uses), "+ Add" / "Add by hand"
+  // only for one who may write the section's records.
+  const canImport = useCan(anyImportPermission, projectId);
+  const canWriteSchedule = useCan(["project.wbs.manage", "project.schedule.manage"], projectId);
+  const canWriteRecords = useCan(["project.budget.manage", "project.cost.enter", "project.progress.manage"], projectId);
+  const [, navigate] = useLocation();
 
   const t = pickLanguage(language, { ar: {
         registry: "سجل المشاريع", level: "المستوى 3 · تسليم المشروع", loading: "جارٍ تحميل ضوابط المشروع…", project: "المشروع", title: "لوحة تسليم المشروع", subtitle: "سجل البيانات التشغيلية أولاً، ثم احفظ لقطة EVM موثقة وقابلة للتدقيق.", wbs: "هيكل تجزئة العمل", activities: "الأنشطة والجدولة", budget: "الميزانية", cost: "التكلفة الفعلية", progress: "التقدم", snapshot: "لقطة EVM", health: "صحة المشروع", healthNote: "تستخدم اللقطة أحدث EVM والمخاطر عالية التعرض والإجراءات وطلبات المعلومات وحالات عدم المطابقة المتأخرة. لا توجد بعد مصادر للموافقات، ولذلك تدخل بقيم صفرية معلنة.", captureHealth: "حساب وحفظ لقطة الصحة", healthPending: "جارٍ حساب الصحة…", healthExceptions: "استثناءات الصحة وخطط التعافي", score: "الدرجة", confidence: "الثقة", highRisks: "مخاطر عالية", overdueActions: "إجراءات متأخرة", overdueRfis: "طلبات معلومات متأخرة", overdueNcrs: "حالات عدم مطابقة متأخرة", noHealth: "لا توجد لقطة صحة محفوظة حتى الآن.", code: "الرمز", name: "الاسم", planned: "القيمة المخططة", start: "البداية المخططة", finish: "النهاية المخططة", addWbs: "إضافة بند WBS", addActivity: "جدولة نشاط", activityLink: "ربط WBS (اختياري)", noActivities: "لا توجد أنشطة مجدولة حتى الآن.", notStarted: "لم يبدأ", inProgress: "قيد التنفيذ", completed: "مكتمل", blocked: "متعثر", costCode: "رمز التكلفة", original: "الميزانية الأصلية", current: "الميزانية الحالية", link: "ربط WBS", projectLevel: "على مستوى المشروع", addBudget: "تسجيل بند الميزانية", amount: "القيمة", date: "التاريخ", addCost: "تسجيل تكلفة فعلية", percent: "نسبة الإنجاز", addProgress: "تسجيل التقدم", pv: "PV القيمة المخططة", ev: "EV القيمة المكتسبة", ac: "AC التكلفة الفعلية", bac: "BAC الميزانية عند الإتمام", save: "حفظ لقطة EVM", latest: "أحدث لقطة", noSnapshot: "لا توجد لقطة EVM محفوظة حتى الآن.", emptyWbs: "أضف بند WBS أولًا لربط الميزانيات والتكاليف والتقدم.", entries: "القيود المسجلة", noEntries: "لا توجد قيود تشغيلية حتى الآن.", submitting: "جارٍ الحفظ…", actual: "فعلي", recorded: "مسجل", captureNote: "تدخل قيم لقطة EVM يدويًا في هذه الدفعة. لا تدّعي الواجهة أنها محسوبة من سجلات التشغيل قبل اكتمال محرك التجميع.", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC", contractsAndDocuments: "العقود والمستندات والمطالبات", siteDelivery: "سجل الموقع والجودة", planningAndData: "التخطيط وملفات البيانات", supportAndOversight: "المتابعة والذكاء والإشعارات",
@@ -164,11 +173,21 @@ export default function ProjectControls() {
   const healthConfidenceLabel = (confidence: string) => ({ low: pickLanguage(language, { ar: "منخفضة", en: "Low", ur: "کم" }), medium: pickLanguage(language, { ar: "متوسطة", en: "Medium", ur: "متوسط" }), high: pickLanguage(language, { ar: "مرتفعة", en: "High", ur: "زیادہ" }) }[confidence] ?? confidence);
   const dateLabel = (value: Date | string | null) => value ? formatDate(value, language) : "—";
   // The fallback target lives in the overview tab; from the PMC tab, switch to it first and jump once it is drawn.
-  const uploadHref = uploadAnyFileHref(tenantId, projectId);
-  const openUploadFallback = () => { if (view === "pmc") { setView("overview"); requestAnimationFrame(() => jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP)); } else jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP); };
+  // The page's one upload ("Upload any file", the start card, "Upload file" on a section): the smart-import screen once it has a route
+  // (client/src/lib/uploadAnyFile.ts), the data-imports group until then. That group lives in the overview tab, so from the PMC tab the page
+  // switches to it first and jumps once it is drawn (#217).
+  const openUpload = () => {
+    const href = uploadAnyFileHref(tenantId, projectId);
+    if (href) { navigate(href); return; }
+    if (view === "pmc") { setView("overview"); requestAnimationFrame(() => jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP)); } else jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP);
+  };
+  const upload = canImport ? openUpload : undefined;
+  const addSchedule = canWriteSchedule ? () => jumpToManagerLane("manager-schedule") : undefined;
+  const addRecords = canWriteRecords ? () => jumpToManagerLane("manager-schedule") : undefined;
   const jumpToManagerLane = (id: string) => { const target = document.getElementById(id); if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
+    <ProjectUploadContext.Provider value={upload ?? null}>
     <PageMain className="flex min-w-0 flex-col gap-5 text-foreground [&>*]:min-w-0">
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_schedule" state={scheduleQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
@@ -181,9 +200,7 @@ export default function ProjectControls() {
               <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{t.subtitle}</p>
             </div>
             {/* the smart-import screen (Agent 1); until it has a route, the page's own data-imports group (client/src/lib/uploadAnyFile.ts) */}
-            {uploadHref
-              ? <Link href={uploadHref} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</Link>
-              : <button type="button" onClick={openUploadFallback} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button>}
+            {upload ? <button type="button" onClick={upload} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button> : null}
           </div>
           <PageHeader className="print:hidden">
           <nav aria-label={pickLanguage(language, { ar: "صفحات المشروع", en: "Project pages", ur: "پروجیکٹ کے صفحات" })} className="flex flex-wrap gap-2 print:hidden">
@@ -193,6 +210,7 @@ export default function ProjectControls() {
           </nav>
           </PageHeader>
         </section>
+        {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={upload} onManual={canWriteSchedule || canWriteRecords ? () => jumpToManagerLane("manager-schedule") : undefined} /> : null}
 
         <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="flex flex-wrap gap-2 print:hidden">
           {([["overview", pickLanguage(language, { ar: "نظرة عامة وأدوات الضبط", en: "Overview and control tools", ur: "جائزہ اور کنٹرول کے ٹولز" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "PMC project control", ur: "PMC پروجیکٹ کنٹرول" })]] as const).map(([key, label]) => (
@@ -220,10 +238,10 @@ export default function ProjectControls() {
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="loading" /></div>}
         {scheduleQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(scheduleQuery.error, isArabic)} onRetry={() => void scheduleQuery.refetch()} /></div>}
-        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" /></div>}
+        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={addSchedule} />} /></div>}
         {financialsQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="loading" /></div>}
         {financialsQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(financialsQuery.error, isArabic)} onRetry={() => void financialsQuery.refetch()} /></div>}
-        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" /></div>}
+        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={addRecords} />} /></div>}
         {performanceQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="loading" /></div>}
         {performanceQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="error" error={performanceQuery.error} onRetry={() => void performanceQuery.refetch()} /></div>}
         {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="empty" /></div>}
@@ -290,6 +308,7 @@ export default function ProjectControls() {
         </div>
         </div>
     </PageMain>
+    </ProjectUploadContext.Provider>
   );
 }
 
