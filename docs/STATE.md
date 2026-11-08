@@ -1554,3 +1554,14 @@
 | الشكل | `UNVERIFIED` (ينتظر مراجعة التصميم واعتماد المالك من اللقطات) | لقطات الفاتح والداكن والمقاسات على فرع `screens/d-37` |
 
 حدّان: هامش الحماية (نصف ارتفاع الرمز) قاعدة استعمال وليس حشوًا داخل viewBox، حتى لا يصغر الشعار في الأماكن القائمة (`h-7`). و`BrandMark` لا يبدّل نسخة الداكن تلقائيًا: التطبيق بلا وضع داكن مفعّل، والشريط العلوي يستعمل `ds/Logo` الذي يتبع الوضع بالمتغيرات أصلًا.
+
+### D-57 + D-35: الإطلاق الآلي لم يُطلق شيئًا منذ 428d1aa (2026-11-08)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| D-57 سبب فشل التشغيلين 42482981857 (`aead060`) و42489722563 (`f9ed5ee`): ليس فحص ancestor ولا checkout ضحلًا (الـcheckout `fetch-depth: 0` وخطوة «What would ship» نجحت فيهما)، بل خطوة «Refuse to start…»: `##[error]the repository VARIABLE SUPABASE_ANON_KEY is not set` | `PROVEN` (سجل) | `gh run view <id> --log-failed`؛ نص «not an ancestor» في السجل هو صدى نص السكربت لا خطأ |
+| D-57 سبب «نجاح» 42491210830 (`5d0a7c8`) بـ`deploy=false` مع 209 ملفات كود وترحيلة 0016: `echo … \| grep -vE … \| grep -q .` تحت `pipefail`؛ `grep -q` يخرج عند أول سطر فيأخذ الكاتب EPIPE (السجل: `grep: write error: Broken pipe`)، فيفشل الأنبوب و`!` يقلبه إلى «لا شيء للنشر» | `PROVEN` (سجل + إعادة إنتاج) | إعادة الإنتاج محليًا بالسكربت القديم و30000 مسار كود ← `deploy=false` 5/5 مع الرسالة نفسها |
+| D-57 الإصلاح: القرار في `scripts/ci/release-scope.sh` (`grep -v` يقرأ كل المدخل، بلا `grep -q`)، والسير يستدعيه | `PROVEN` (اختبار) | `server/testing/supabasePublicConfig.test.ts` «release scope»: 30000 مسار كود ← `deploy=true` ولو مع `trap '' PIPE`؛ توثيق فقط ← `false`؛ فحص ساكن: `fetch-depth: 0` ولا `\| grep -q` في الخطوة |
+| D-35 السير يقرأ `url` و`publishableKey` من `config/supabase.public.json` بـ`jq`، ولا `vars.SUPABASE_ANON_KEY` في أي سير؛ يرفض مفتاحًا لا يبدأ بـ`sb_publishable_` | `PROVEN` (اختبار) | الاختبار نفسه: 7/7 ناجحة على الفرع، و3 منها تفشل على سير `main` القديم (دليل سالب) |
+| D-35 قيمة المفتاح العام في الملف | `BLOCKED_BY_OWNER` | `get_publishable_keys` للمشروع dzfxgxccnlyhcjgqstgn ← «You do not have permission»؛ لم تُختلق قيمة، و`publishableKey` فارغ فيتوقف الإطلاق برسالة تسمّي الملف. الخطوات: `docs/OWNER_ACTIONS.md` البند 13 |
+| معيار D-57 «0016 مطبقة و/healthz ok» | `OPEN` | يُتحقق بعد الدمج وملء المفتاح، بأول تشغيل تلقائي على `main` (لا تشغيل يدوي) |
