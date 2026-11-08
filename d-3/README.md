@@ -21,3 +21,9 @@ before-report.json / after-report.json per shot: dir, horizontal scroll, main co
 
 after-* = client build of ef1439b; before-* = main 8f333b9 (unchanged since 5fcd35e, copied). Same fixed fake tRPC replies, no server, no database.
 Fixes visible here: health/EVM results on a muted surface with full-contrast text and the overdue HSE line inside the health card; one column (no empty "Schedule & cost updates" panel at 1280); cut-off date full width under its label at 390 and 1280; company and project names in <bdi> (the full stop stays at the end in ar/ur).
+
+## d-3/part-3/3453191/ — D-3 (3/8) PMC, level dashboards and phone screens
+
+before-* = client build of main 08b037e; after-* = client build of 3453191. No server and no database: tRPC replies are fixed synthetic fakes (level data from client/src/test/levelFixtures.ts; *.example.test style names); queries without a fixture answer NOT_FOUND, so a section may show its own error state (e.g. warehouses on level 3).
+Pages: PMC tab (pmc), level 1 company (level-company), level 3 project (level-project), quick site entry (field), quick issue (issue), daily report (report); 390 and 1280; Arabic, English and Urdu; full page.
+before-report.json / after-report.json: dir, horizontal scroll, main count, buttons/links under 44px inside main on 390, Arabic-Indic digits.
