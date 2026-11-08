@@ -6,7 +6,7 @@
 
 ## الإطلاق الآلي بعد كل دمج (27 أكتوبر 2026) — بعده لا يلزم زر Bootstrap إلا لتغيير إعدادات Supabase أو Vercel
 
-ملف `.github/workflows/migrate-production.yml` يعمل وحده عند كل push إلى `main`، ويكفيه سرٌّ واحد هو `SUPABASE_DB_PASSWORD` (لا `SUPABASE_ACCESS_TOKEN` ولا `VERCEL_TOKEN` ولا Deploy Hook). الترتيب هو الأمان:
+ملف `.github/workflows/migrate-production.yml` يعمل وحده بعد أن يخضرّ تشغيل CI على `main` للدمج نفسه (لا عند الدفع مباشرة: الفحوص الثقيلة تسبق الترحيل والترقية، تحديث 27 أكتوبر)، ويكفيه سرٌّ واحد هو `SUPABASE_DB_PASSWORD` (لا `SUPABASE_ACCESS_TOKEN` ولا `VERCEL_TOKEN` ولا Deploy Hook). الترتيب هو الأمان:
 1. فحص أن الترحيلات **متوافقة للخلف** (`scripts/ci/check-migration-compat.mjs`، ويعمل في CI أيضًا).
 2. تطبيق الترحيلات على قاعدة الإنتاج ثم `verify-db-security` (نتيجتهما في ملخص التشغيل).
 3. بناء النسخة المرشّحة في المشغّل وتشغيلها على القاعدة بعد الترحيل بحساب التطبيق المقيَّد: `/healthz` يرجع 200، ورمز دخول خاطئ يرجع 4xx لا 5xx، و`/api/readyz` لا يذكر ترحيلة معلّقة.

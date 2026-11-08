@@ -18,6 +18,11 @@ on:
 permissions:
   contents: read
 
+# one setup at a time; a setup cut off half-way would leave the project half-configured, so a second request waits instead of cancelling it
+concurrency:
+  group: supabase-setup
+  cancel-in-progress: false
+
 jobs:
   setup:
     name: ${{ inputs.action }}

@@ -3,8 +3,10 @@ name: Odoo connector
 # Work order 12, item 10: a REAL Odoo Community 17 runs in a container next to a throw-away PostgreSQL, and the connector is exercised against it in both
 # directions (server/odoo.connector.database.test.ts). Everything below belongs to this run alone; the Odoo administrator password is the image's own default
 # for a database initialised without demo data.
+# Heavy (a real Odoo container): it runs once on main after a merge that touches the connector or the schema, and on demand, never on a pull request (owner's decision, 2026-10-27).
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - "server/integrations/**"
       - "server/odoo.connector.database.test.ts"
