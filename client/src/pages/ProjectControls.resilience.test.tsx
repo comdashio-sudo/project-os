@@ -5,13 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
 
-const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false }));
+const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
 
-vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
+vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
+// the page's own permission reads (upload, + Add); WriteGate keeps its real behaviour (no provider = allowed)
+vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (permission: string | readonly string[]) => !(Array.isArray(permission) ? permission : [permission]).every(code => state.denied.includes(code)) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => { if (state.contractsRenderFailure) throw new Error("deliberate project contracts render failure"); return null; } }));
 vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => <p>Documents panel alive</p> }));
@@ -44,7 +46,7 @@ vi.mock("@/lib/trpc", () => {
       getControls: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { project: { code: "P-01", name: "Delivery evidence" }, wbs: [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null } }) },
       getControlsSchedule: { useQuery: () => ({ isLoading: state.scheduleLoading, error: state.scheduleError, refetch: vi.fn(), data: state.scheduleError || state.scheduleLoading ? undefined : { project: { code: "P-01", name: "Delivery evidence" }, wbs: state.scheduleEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [] } }) },
       getControlsFinancials: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { wbs: state.financialsEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], budgets: [], costs: [], progress: [] } }) },
-      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0, periodAt: new Date("2026-09-30T00:00:00.000Z") }, latestHealth: state.withHealth ? { status: "amber", overallScore: 72, confidence: "medium", periodAt: new Date("2026-09-30T00:00:00.000Z"), exceptions: "[]", drivers: JSON.stringify({ overdueHseCount: 2 }) } : null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
+      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performanceRefused ? { message: "Role scope does not cover the requested resource.", data: { code: "FORBIDDEN" } } : state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0, periodAt: new Date("2026-09-30T00:00:00.000Z") }, latestHealth: state.withHealth ? { status: "amber", overallScore: 72, confidence: "medium", periodAt: new Date("2026-09-30T00:00:00.000Z"), exceptions: "[]", drivers: JSON.stringify({ overdueHseCount: 2 }) } : null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
     },
     directUploads: { create: { useMutation: mutation } }, // attachments upload straight to storage (G-139)
     wbs: { create: { useMutation: mutation } }, activities: { create: { useMutation: mutation } }, budgets: { create: { useMutation: mutation } }, costs: { createActual: { useMutation: mutation } }, progress: { create: { useMutation: mutation } }, controls: { saveEvmSnapshot: { useMutation: mutation }, captureOperationalEvmSnapshot: { useMutation: mutation }, captureProjectHealthSnapshot: { useMutation: mutation } },
@@ -52,7 +54,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 describe("ProjectControls section resilience", () => {
-  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.withHealth = false; state.contractsRenderFailure = false; });
+  afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); /* the PMC tab writes #pmc into the address, and the next render would open on it */ state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.withHealth = false; state.denied = []; state.performanceRefused = false; state.contractsRenderFailure = false; });
 
   it("inside the product frame draws no top bar or main of its own: the frame keeps the one banner and the one main (review of #156, item 2)", () => {
     const { container } = render(<InShellProvider><ProjectControls /></InShellProvider>);
@@ -96,8 +98,8 @@ describe("ProjectControls section resilience", () => {
     state.performanceEmpty = true;
     render(<ProjectControls />);
     expect(within(screen.getAllByLabelText("Schedule and WBS")[0]).getByText("Loading this section…")).toBeTruthy();
-    expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
-    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
+    expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No budget, cost or progress recorded yet. Add a line or upload a file.")).toBeTruthy();
+    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Project delivery board" })).toBeTruthy();
   });
 
@@ -106,7 +108,7 @@ describe("ProjectControls section resilience", () => {
     state.performanceEmpty = true;
     state.scheduleError = { message: "schedule unavailable" };
     render(<ProjectControls />);
-    expect(screen.getAllByText("No data is available for this section in the current access scope.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/recorded yet/).length).toBeGreaterThan(0);
     expect(screen.getByText("safe error")).toBeTruthy();
   });
 
@@ -173,6 +175,91 @@ describe("ProjectControls section resilience", () => {
     expect(surface.className).toContain("bg-muted");
     expect(surface.className).toContain("text-foreground");
     expect(document.querySelector("main .bg-accent.text-muted-foreground, main .bg-accent .text-muted-foreground")).toBeNull();
+  });
+
+  it("an empty project opens on the start card, and its empty sections offer + Add and Upload file", () => {
+    state.performancePartial = true;
+    state.scheduleEmpty = true;
+    render(<ProjectControls />);
+    expect(screen.getByRole("heading", { name: "Start your project" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Upload the P6 programme" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add by hand" })).toBeTruthy();
+    const emptyOf = (title: string) => screen.getAllByLabelText(title).find(node => node.textContent?.includes("recorded yet")) as HTMLElement;
+    const schedule = emptyOf("Schedule and WBS");
+    expect(within(schedule).getByRole("button", { name: "Add" })).toBeTruthy();
+    expect(within(schedule).getByRole("button", { name: "Upload file" })).toBeTruthy();
+    const records = emptyOf("Cost and progress records");
+    expect(within(records).getByRole("button", { name: "Add" })).toBeTruthy();
+  });
+
+  it("no upload button for a person who may not import, and no + Add / Add by hand for one who may not write (D-1: no button the server refuses)", async () => {
+    const { anyImportPermission } = await import("@shared/importPermissions");
+    state.performancePartial = true;
+    state.scheduleEmpty = true;
+    state.denied = [...anyImportPermission, "project.wbs.manage", "project.schedule.manage", "project.budget.manage", "project.cost.enter", "project.progress.manage"];
+    render(<ProjectControls />);
+    expect(screen.getByRole("heading", { name: "Start your project" })).toBeTruthy(); // the card still says how a project begins
+    for (const name of ["Upload any file", "Upload the P6 programme", "Upload the progress report", "Upload file", "Add by hand", "Add"]) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("the start card's upload from the PMC tab also returns to the overview and opens the data-imports group (#217 kept)", () => {
+    state.performancePartial = true;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    render(<ProjectControls />);
+    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload the P6 programme" }));
+    frames.forEach(callback => callback(0));
+    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
+    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
+    raf.mockRestore();
+  });
+
+  it("an empty project says the section is empty and what to do; \"not in your access scope\" stays for a real refusal", () => {
+    state.performanceEmpty = true;
+    state.scheduleEmpty = true;
+    render(<ProjectControls />);
+    expect(document.body.textContent).toContain("No schedule recorded yet. Add an activity or upload the programme.");
+    expect(document.body.textContent).toContain("No performance snapshot yet");
+    expect(document.body.textContent).not.toContain("current access scope");
+    cleanup();
+    state.performanceEmpty = false;
+    state.performanceRefused = true;
+    render(<ProjectControls />);
+    const refused = screen.getAllByLabelText("Project performance data").find(node => node.getAttribute("class")?.includes("bg-red-50")) as HTMLElement;
+    expect(refused).toBeTruthy();
+    expect(refused.textContent).not.toContain("No performance snapshot yet");
+    expect(refused.textContent).not.toContain("recorded yet");
+  });
+
+  it("without + Add or upload the empty section says only what is missing, with no empty action row", () => {
+    const denied = ["project.wbs.manage", "project.schedule.manage", "project.budget.manage", "project.cost.enter", "project.progress.manage"];
+    return import("@shared/importPermissions").then(({ anyImportPermission }) => {
+      state.performancePartial = true;
+      state.scheduleEmpty = true;
+      state.denied = [...anyImportPermission, ...denied];
+      render(<ProjectControls />);
+      const schedule = screen.getAllByLabelText("Schedule and WBS").find(node => node.textContent?.includes("recorded yet")) as HTMLElement;
+      expect(schedule.textContent).toContain("No schedule recorded yet.");
+      expect(schedule.textContent).not.toContain("Add an activity");
+      expect(schedule.querySelector("[data-section-actions], div[hidden]")).toBeNull();
+    });
+  });
+
+  it("\"Add by hand\" from the PMC tab returns to the overview, opens the schedule group and focuses its first field", () => {
+    state.performancePartial = true;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    render(<ProjectControls />);
+    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add by hand" }));
+    frames.forEach(callback => callback(0));
+    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
+    const group = document.getElementById("manager-schedule") as HTMLDetailsElement;
+    expect(group.open).toBe(true);
+    expect(group.contains(document.activeElement)).toBe(true);
+    expect((document.activeElement as HTMLElement).tagName).toMatch(/INPUT|BUTTON|TEXTAREA/);
+    raf.mockRestore();
   });
 
   it("shows the formula and the date beside each manager indicator (G-106)", () => {
