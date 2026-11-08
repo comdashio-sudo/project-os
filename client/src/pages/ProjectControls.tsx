@@ -172,18 +172,31 @@ export default function ProjectControls() {
   const healthStatusLabel = (status: string) => ({ green: pickLanguage(language, { ar: "أخضر", en: "Green", ur: "سبز" }), amber: pickLanguage(language, { ar: "كهرماني", en: "Amber", ur: "نارنجی" }), red: pickLanguage(language, { ar: "أحمر", en: "Red", ur: "سرخ" }) }[status] ?? status);
   const healthConfidenceLabel = (confidence: string) => ({ low: pickLanguage(language, { ar: "منخفضة", en: "Low", ur: "کم" }), medium: pickLanguage(language, { ar: "متوسطة", en: "Medium", ur: "متوسط" }), high: pickLanguage(language, { ar: "مرتفعة", en: "High", ur: "زیادہ" }) }[confidence] ?? confidence);
   const dateLabel = (value: Date | string | null) => value ? formatDate(value, language) : "—";
-  // The fallback target lives in the overview tab; from the PMC tab, switch to it first and jump once it is drawn.
+  // Every upload and add button reaches a group that lives in the overview tab. From the PMC tab the page switches to the overview first and
+  // jumps once it is drawn (#217); an add button then puts the focus on the group's first field, as "+ Add" does inside a section.
+  const goToOverviewLane = (id: string, focusFirstField = false) => {
+    const go = () => {
+      jumpToManagerLane(id);
+      if (focusFirstField) document.getElementById(id)?.querySelector<HTMLElement>('form input:not([type="hidden"]):not([disabled]), form textarea:not([disabled]), form [role="combobox"]:not([disabled])')?.focus();
+    };
+    if (view === "pmc") { setView("overview"); requestAnimationFrame(go); } else go();
+  };
   // The page's one upload ("Upload any file", the start card, "Upload file" on a section): the smart-import screen once it has a route
-  // (client/src/lib/uploadAnyFile.ts), the data-imports group until then. That group lives in the overview tab, so from the PMC tab the page
-  // switches to it first and jumps once it is drawn (#217).
+  // (client/src/lib/uploadAnyFile.ts), the data-imports group until then.
   const openUpload = () => {
     const href = uploadAnyFileHref(tenantId, projectId);
     if (href) { navigate(href); return; }
-    if (view === "pmc") { setView("overview"); requestAnimationFrame(() => jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP)); } else jumpToManagerLane(UPLOAD_ANY_FILE_FALLBACK_GROUP);
+    goToOverviewLane(UPLOAD_ANY_FILE_FALLBACK_GROUP);
   };
   const upload = canImport ? openUpload : undefined;
-  const addSchedule = canWriteSchedule ? () => jumpToManagerLane("manager-schedule") : undefined;
-  const addRecords = canWriteRecords ? () => jumpToManagerLane("manager-schedule") : undefined;
+  const addSchedule = canWriteSchedule ? () => goToOverviewLane("manager-schedule", true) : undefined;
+  const addRecords = canWriteRecords ? () => goToOverviewLane("manager-schedule", true) : undefined;
+  // an empty section says what is missing and, when the person can act, what to do; "not in your access scope" is for a real refusal only
+  const emptyText = pickLanguage(language, {
+    ar: { schedule: "لم تُسجَّل جدولة بعد.", scheduleAct: "أضف نشاطًا أو ارفع البرنامج الزمني.", records: "لم تُسجَّل ميزانية ولا تكلفة ولا إنجاز بعد.", recordsAct: "أضف بندًا أو ارفع ملفًا.", performance: "لا توجد لقطة أداء بعد: تُحسب بعد تسجيل الجدولة والميزانية والإنجاز." },
+    en: { schedule: "No schedule recorded yet.", scheduleAct: "Add an activity or upload the programme.", records: "No budget, cost or progress recorded yet.", recordsAct: "Add a line or upload a file.", performance: "No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded." },
+    ur: { schedule: "ابھی کوئی شیڈول درج نہیں ہوا۔", scheduleAct: "کوئی سرگرمی شامل کریں یا پروگرام اپ لوڈ کریں۔", records: "ابھی کوئی بجٹ، لاگت یا پیش رفت درج نہیں ہوئی۔", recordsAct: "کوئی سطر شامل کریں یا فائل اپ لوڈ کریں۔", performance: "ابھی کارکردگی کا کوئی اسنیپ شاٹ نہیں: یہ شیڈول، بجٹ اور پیش رفت درج ہونے کے بعد نکالا جاتا ہے۔" },
+  });
   const jumpToManagerLane = (id: string) => { const target = document.getElementById(id); if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
@@ -210,7 +223,7 @@ export default function ProjectControls() {
           </nav>
           </PageHeader>
         </section>
-        {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={upload} onManual={canWriteSchedule || canWriteRecords ? () => jumpToManagerLane("manager-schedule") : undefined} /> : null}
+        {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={upload} onManual={canWriteSchedule || canWriteRecords ? () => goToOverviewLane("manager-schedule", true) : undefined} /> : null}
 
         <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="flex flex-wrap gap-2 print:hidden">
           {([["overview", pickLanguage(language, { ar: "نظرة عامة وأدوات الضبط", en: "Overview and control tools", ur: "جائزہ اور کنٹرول کے ٹولز" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "PMC project control", ur: "PMC پروجیکٹ کنٹرول" })]] as const).map(([key, label]) => (
@@ -238,13 +251,13 @@ export default function ProjectControls() {
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="loading" /></div>}
         {scheduleQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(scheduleQuery.error, isArabic)} onRetry={() => void scheduleQuery.refetch()} /></div>}
-        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={addSchedule} />} /></div>}
+        {scheduleQuery.data && !data.wbs.length && !data.activities.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="empty" detail={addSchedule || upload ? `${emptyText.schedule} ${emptyText.scheduleAct}` : emptyText.schedule} actions={addSchedule || upload ? <SectionActions onAdd={addSchedule} /> : undefined} /></div>}
         {financialsQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="loading" /></div>}
         {financialsQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(financialsQuery.error, isArabic)} onRetry={() => void financialsQuery.refetch()} /></div>}
-        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" actions={<SectionActions onAdd={addRecords} />} /></div>}
+        {financialsQuery.data && !data.budgets.length && !data.costs.length && !data.progress.length && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "سجلات التكلفة والتقدم", en: "Cost and progress records", ur: "لاگت اور پیش رفت کے ریکارڈ" })} isArabic={isArabic} kind="empty" detail={addRecords || upload ? `${emptyText.records} ${emptyText.recordsAct}` : emptyText.records} actions={addRecords || upload ? <SectionActions onAdd={addRecords} /> : undefined} /></div>}
         {performanceQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="loading" /></div>}
         {performanceQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="error" error={performanceQuery.error} onRetry={() => void performanceQuery.refetch()} /></div>}
-        {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="empty" /></div>}
+        {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="empty" detail={emptyText.performance} /></div>}
         {performanceQuery.data && (latestEvm || latestHealth || cashFlow) && (!latestEvm || !latestHealth) && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="partial" detail={pickLanguage(language, { ar: `المتاح: ${cashFlow ? "التدفق النقدي" : "جزء من الأداء"}. الناقص: ${!latestEvm ? "لقطة EVM" : ""}${!latestEvm && !latestHealth ? " و" : ""}${!latestHealth ? "لقطة الصحة" : ""}.`, en: `Available: ${cashFlow ? "cash flow" : "part of the performance data"}. Missing: ${!latestEvm ? "EVM snapshot" : ""}${!latestEvm && !latestHealth ? " and " : ""}${!latestHealth ? "health snapshot" : ""}.`, ur: `دستیاب: ${cashFlow ? "نقد بہاؤ" : "کارکردگی کے ڈیٹا کا ایک حصہ"}۔ غائب: ${!latestEvm ? "EVM اسنیپ شاٹ" : ""}${!latestEvm && !latestHealth ? " اور " : ""}${!latestHealth ? "صحت کا اسنیپ شاٹ" : ""}۔` })} /></div>}
 
         <div className="grid gap-6">
