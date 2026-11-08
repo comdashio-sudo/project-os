@@ -5,6 +5,7 @@ import { ENV } from "./_core/env";
 import { appRouter } from "./routers";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 import { readFileSync } from "node:fs";
+import ExcelJS from "exceljs";
 import { join } from "node:path";
 import { buildP6Xer } from "./domain/smartImport/p6Fixture";
 import { analyzeScheduleUpdate, confirmScheduleUpdate } from "./p6Update";
@@ -161,4 +162,40 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ? AND status = 'completed' AND percentComplete = 100", [T, PB])).toBe(120);
     expect(await activitySnapshot(connection, { tenantId: T, projectId: P })).toEqual(beforeA); // A: not one date, status or timestamp moved
   }, 180_000);
+  // ---- D-4 (#153), engineering review @ 441821c, item 1: a start the file moves on a COMPLETED activity (its finish unchanged) moves the date only — the activity stays completed
+  it("a completed activity whose actual start moves (finish unchanged) keeps «completed» and its finish; one not finished becomes in progress; a start moved past the recorded finish is refused", async () => {
+    // project B holds the update applied by the previous test: 120 completed, 19 in progress
+    const pick = async (where: string) => (await one<{ id: string; code: string; actualStartAt: Date; actualFinishAt: Date | null }>(`SELECT id, code, actualStartAt, actualFinishAt FROM activities WHERE tenantId = ? AND projectId = ? AND ${where} ORDER BY code LIMIT 1`, [T, PB]))[0];
+    const done = await pick("status = 'completed' AND actualFinishAt IS NOT NULL AND actualStartAt < actualFinishAt - INTERVAL '1 day'");
+    const tooLate = await pick(`status = 'completed' AND actualFinishAt IS NOT NULL AND code <> '${done.code}'`);
+    const going = await pick("status = 'in_progress' AND actualFinishAt IS NULL");
+    const iso = (date: Date) => date.toISOString().slice(0, 10);
+    const plusDays = (date: Date, days: number) => iso(new Date(date.getTime() + days * 86_400_000));
+    const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("TASK");
+    sheet.addRow(["Activity ID", "(*)Start", "(*)Finish"]);
+    sheet.addRow([done.code, plusDays(done.actualStartAt, 1), iso(done.actualFinishAt!)]); // start moves one day, finish = the stored finish
+    sheet.addRow([tooLate.code, plusDays(tooLate.actualFinishAt!, 3), ""]); // start moved past the finish already recorded
+    sheet.addRow([going.code, plusDays(going.actualStartAt, 1), ""]); // not finished: start moves, stays in progress
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    const before = await one<{ code: string; status: string; actualStartAt: Date; actualFinishAt: Date | null; percentComplete: string }>(`SELECT code, status, actualStartAt, actualFinishAt, percentComplete FROM activities WHERE tenantId = ? AND projectId = ? AND code IN (?, ?, ?) ORDER BY code`, [T, PB, done.code, tooLate.code, going.code]);
+
+    const plan = await analyzeScheduleUpdate({ userId: users.manager, tenantId: T, projectId: PB, bytes });
+    expect(plan).toMatchObject({ updated: 2, moved: 2, started: 0, finished: 0, canConfirm: true });
+    expect(plan.issues).toEqual([{ code: "SCHEDULE_UPDATE_FINISH_BEFORE_START", row: 3, detail: tooLate.code }]);
+    await confirmScheduleUpdate({ userId: users.manager, tenantId: T, projectId: PB, bytes, approvedHash: plan.fileHash, source: { key: "d4-start-only.xlsx", name: "d4-start-only.xlsx" } });
+
+    const after = new Map((await one<{ code: string; status: string; actualStartAt: Date; actualFinishAt: Date | null; percentComplete: string }>(`SELECT code, status, actualStartAt, actualFinishAt, percentComplete FROM activities WHERE tenantId = ? AND projectId = ? AND code IN (?, ?, ?)`, [T, PB, done.code, tooLate.code, going.code])).map(row => [row.code, row]));
+    const was = new Map(before.map(row => [row.code, row]));
+    // positive: the completed activity keeps its status, its finish and 100 %, and only its start moves
+    expect(after.get(done.code)).toMatchObject({ status: "completed", percentComplete: was.get(done.code)!.percentComplete });
+    expect(iso(after.get(done.code)!.actualStartAt)).toBe(plusDays(done.actualStartAt, 1));
+    expect(iso(after.get(done.code)!.actualFinishAt!)).toBe(iso(done.actualFinishAt!));
+    // the activity with no actual finish still goes «in progress»
+    expect(after.get(going.code)).toMatchObject({ status: "in_progress", actualFinishAt: null });
+    expect(iso(after.get(going.code)!.actualStartAt)).toBe(plusDays(going.actualStartAt, 1));
+    // negative: the start moved past the recorded finish is not written at all
+    expect(after.get(tooLate.code)).toEqual(was.get(tooLate.code));
+    // and nowhere in the project is there an activity «in progress» beside an actual finish
+    expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND actualFinishAt IS NOT NULL AND status <> 'completed'", [T])).toBe(0);
+  }, 120_000);
 });

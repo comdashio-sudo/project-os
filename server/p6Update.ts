@@ -56,8 +56,10 @@ async function plan(db: Reader, input: Scope, model: ScheduleUpdateModel, fileHa
     seen.add(row.code);
     const activity = byCode.get(row.code);
     if (!activity) { unknownCodes.push(row.code); continue; }
-    if (row.actualStart && row.actualFinish && row.actualFinish < row.actualStart) { issues.push({ code: "SCHEDULE_UPDATE_FINISH_BEFORE_START", row: row.row, detail: row.code }); continue; }
     const startFrom = day(activity.actualStartAt); const finishFrom = day(activity.actualFinishAt);
+    // checked against the dates the activity would END UP with: a start the file moves past the finish already recorded is the same contradiction as one inside the file
+    const endStart = row.actualStart ?? startFrom; const endFinish = row.actualFinish ?? finishFrom;
+    if (endStart && endFinish && endFinish < endStart) { issues.push({ code: "SCHEDULE_UPDATE_FINISH_BEFORE_START", row: row.row, detail: row.code }); continue; }
     const startChanges = row.actualStart !== null && row.actualStart !== startFrom; const finishChanges = row.actualFinish !== null && row.actualFinish !== finishFrom;
     if (!startChanges && !finishChanges) { unchanged += 1; continue; }
     if (startChanges) { if (startFrom === null) started += 1; else moved += 1; }
@@ -88,8 +90,11 @@ export async function confirmScheduleUpdate(input: Scope & { bytes: Uint8Array; 
     const scope = { tenantId: input.tenantId, projectId: input.projectId };
     const startOnly = changes.filter(change => change.actualStart && !change.actualFinish);
     const finishing = changes.filter(change => change.actualFinish);
+    // a start that moves on an activity that already has an actual finish moves the date ONLY: the activity stays completed (status «in progress» beside an actual finish would contradict the record)
     await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, status: activities.status, updatedAt: activities.updatedAt }, scope,
-      rows: startOnly.map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), status: "in_progress", updatedAt: now } })) });
+      rows: startOnly.filter(change => change.finishFrom === null).map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), status: "in_progress", updatedAt: now } })) });
+    await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, updatedAt: activities.updatedAt }, scope,
+      rows: startOnly.filter(change => change.finishFrom !== null).map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), updatedAt: now } })) });
     await bulkUpdate(tx, { table: activities, columns: { actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt }, scope,
       rows: finishing.filter(change => !change.actualStart).map(change => ({ id: change.id, values: { actualFinishAt: at(change.actualFinish), status: "completed", percentComplete: "100", remainingHours: "0", updatedAt: now } })) });
     await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt }, scope,
