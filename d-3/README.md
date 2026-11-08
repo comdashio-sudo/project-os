@@ -42,3 +42,9 @@ controls-empty-* = an empty project (PRJ-002 "New Villas": no activities, budget
 ## d-3/part-4/c938bb1/ — review fixes for #224
 
 before-* = main 935516d; after-* = c938bb1. Same fixed synthetic replies. The empty project (controls-empty-*) now says each section is empty and what to do ("No schedule recorded yet. Add an activity or upload the programme."), not "not in your access scope".
+
+## d-3/part-5a/c72fb2d/ — D-3 (5a/8) CheckedForm on D-63's forms
+
+before-* = client build of main 7dcb6ec; after-* = client build of c72fb2d. Fixed synthetic tRPC replies; each shot submits one empty form, then captures the viewport around it.
+Forms: the unit-number box of the field screens (report-unit), the contract form (contracts) and the supplier/material-request form (procurement) on the project page. 390 and 1280; Arabic, English and Urdu.
+Before: the browser's own bubble, in English whatever the page language. After: a summary at the top and each message under its field in the page's language. *-report.json: checkedErrors = messages under fields, horizontal scroll.
