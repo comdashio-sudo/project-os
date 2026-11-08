@@ -38,6 +38,9 @@ describe("ProjectFpac (real profitability)", () => {
     state.report = { data: undefined, isLoading: false, error: new Error("boom") };
     render(<ProjectFpac tenantId="t" projectId="p" />);
     expect(screen.getByRole("alert").textContent).toContain("could not complete");
+    // the failed card names its section, so the reader knows which one failed
+    expect(screen.getByRole("region", { name: "Project profitability" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Could not load: Project profitability");
     fireEvent.click(screen.getByText("Retry"));
     expect(state.refetch).toHaveBeenCalledTimes(1);
   });

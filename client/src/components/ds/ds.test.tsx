@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatBytes, formatDate, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
+import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
 beforeAll(() => {
@@ -160,5 +160,37 @@ describe("format: Western digits and a dot, in every language", () => {
   it("dates in Arabic, English and Urdu use 0-9 only", () => {
     for (const language of ["ar", "en", "ur"] as const) expect(formatDate("2026-10-25T00:00:00Z", language), language).not.toMatch(/[٠-٩۰-۹]/);
     expect(formatDate("2026-10-25T00:00:00Z", "ar")).toMatch(/25/);
+  });
+});
+
+describe("formatAmount and formatShortDate", () => {
+  it("formatAmount groups, keeps at most the given decimals and pads none", () => {
+    expect(formatAmount(71740953.269)).toBe("71,740,953.27"); expect(formatAmount(1200)).toBe("1,200"); expect(formatAmount(-57446.81)).toBe("-57,446.81"); expect(formatAmount(40.1234, 3)).toBe("40.123");
+  });
+  it("formatShortDate is day/month/year in Western digits and the Gregorian calendar in every language", () => {
+    const day = new Date("2026-10-24T00:00:00.000Z");
+    for (const language of ["ar", "en", "ur"] as const) {
+      const shown = formatShortDate(day, language);
+      expect(shown).not.toMatch(/[\u0660-\u0669\u06F0-\u06F9]|هـ/);
+      expect(shown.replace(/[^0-9/]/g, "")).toBe("24/10/2026");
+    }
+  });
+});
+
+describe("TableScroll", () => {
+  it("is a named, focusable frame that says it scrolls only when the table is wider than it", () => {
+    const widths = { scrollWidth: 0, clientWidth: 0 };
+    const scroll = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(() => widths.scrollWidth);
+    const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => widths.clientWidth);
+    widths.scrollWidth = 640; widths.clientWidth = 358;
+    inApp(<TableScroll label="Projects"><table><tbody><tr><th>A</th><td>-57,446.81 SAR</td></tr></tbody></table></TableScroll>);
+    const frame = screen.getByRole("region", { name: "Projects" });
+    expect(frame.getAttribute("tabindex")).toBe("0");
+    expect(screen.getByText("Swipe the table sideways to see every column")).toBeTruthy();
+    cleanup();
+    widths.scrollWidth = 600; widths.clientWidth = 600;
+    inApp(<TableScroll label="Projects"><table><tbody><tr><td>1</td></tr></tbody></table></TableScroll>);
+    expect(screen.queryByText("Swipe the table sideways to see every column")).toBeNull();
+    scroll.mockRestore(); client.mockRestore();
   });
 });
