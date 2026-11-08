@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
+import { parseDatabaseUrlOrExit } from "./lib/pgErrorReport.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -21,7 +22,7 @@ if (!url) {
 
 const migrationsDir = new URL("../drizzle", import.meta.url).pathname;
 const ca = (process.env.DATABASE_SSL_CA ?? "").replace(/\\n/g, "\n").trim();
-const client = new pg.Client({ connectionString: url, ssl: ["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname) || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(ca ? { ca } : {}) } });
+const client = new pg.Client({ connectionString: url, ssl: ["localhost", "127.0.0.1", "::1"].includes(parseDatabaseUrlOrExit(url, { script: "migrate" }).hostname) || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(ca ? { ca } : {}) } });
 await client.connect();
 try {
   const { rows: [{ name }] } = await client.query("SELECT current_database() AS name");

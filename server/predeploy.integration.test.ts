@@ -71,6 +71,21 @@ describe.skipIf(!enabled)("predeploy: migrations, then the restricted role, then
     expect(provision().status).toBe(0);
   }, 180_000);
 
+  it("a database error in the proof is reported with its stage, SQLSTATE and message, never the password (D-69: the release log said only \"error\")", () => {
+    // a role that does not exist: refused at login whatever the server's authentication method (trust on a local 127.0.0.1 accepts any password)
+    const wrong = new URL(appUrl!); wrong.username = "project_os_app_missing_role"; wrong.password = "wrong-password-for-this-test";
+    const run = spawnSync(process.execPath, ["--import", "tsx", "scripts/verify-db-security.mjs"], { encoding: "utf8", env: { ...process.env, AUDIT_APP_DATABASE_URL: wrong.toString() } });
+    expect(run.status).toBe(1);
+    const report = JSON.parse(run.stderr.trim().split("\n").at(-1)!);
+    expect(report).toMatchObject({ verifyDbSecurity: "ERROR", stage: "connect" });
+    expect(["28000", "28P01"]).toContain(report.code);
+    expect(report.message).toMatch(/project_os_app_missing_role|password authentication failed/);
+    expect(run.stdout + run.stderr).not.toContain("wrong-password-for-this-test");
+    expect(run.stdout + run.stderr).not.toContain(appPassword);
+    // positive control, same database: the right password is approved
+    expect(verify().status).toBe(0);
+  }, 60_000);
+
   it("a migration failure stops the deploy before any protection step is reported", () => {
     const bad = new URL(ownerUrl!); bad.password = "wrong-password-for-this-test";
     const run = predeploy({ DATABASE_URL: bad.toString(), PROJECT_OS_APP_DB_PASSWORD: appPassword });
