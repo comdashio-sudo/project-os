@@ -132,3 +132,14 @@
 1. Supabase ← مشروع **dashio** ← **Project Settings** ← **API Keys** ← تبويب **Publishable and secret API keys** ← انسخ **Publishable key** (يبدأ بـ`sb_publishable_`). **لا تنسخ secret ولا service_role.**
 2. GitHub ← المستودع ← الملف `config/supabase.public.json` ← أيقونة القلم ← الصق المفتاح بين علامتي التنصيص في `"publishableKey": ""` ← **Commit changes** ← اختر «Create a new branch» ثم افتح طلب دمج (أو أرسل المفتاح لوكيل له صلاحية قراءة على مشروع dashio ليفعل ذلك).
 3. بعد دمجه يضيف الإطلاق التلقائي على `main` فحص «رمز خاطئ يُرد 4xx» إلى فحوصه.
+
+## 14. مفتاح التخزين S3 (BLOCKED_BY_OWNER — خطوة واحدة، 8 نوفمبر 2026، D-55 يعيد O-7 إليك)
+
+**ما جُرِّب:** طُلب (D-55) أن يعمل رفع صور الموقع وملفات المخطط والشعارات بالمفاتيح الموجودة في Vercel دون مفتاح S3. ثبت بالوثائق أنه غير ممكن دون فتح الملفات: كل طريق بالمفتاح العام تحكمه حماية الصفوف على `storage.objects`، والتخزين يرفض أي رفع بلا سياسة، والسياسة اللازمة لدور `anon` أو `authenticated` تعمل لكل من يحمل المفتاح العام — وهو في كل متصفح. الدليل والمراجع في `docs/STATE.md` «D-55». لم يتغير أي كود.
+
+**ما بقي عليك (خطوة واحدة، والقيمة لا تمر بأي محادثة):**
+1. Supabase ← مشروع **dashio** ← **Project Settings** ← **Storage** ← **S3 Connection** ← **New access key** ← وصف مثل `dashio-vercel` ← **Create**.
+2. انسخ **Access key ID** ثم **Secret access key** (السر يظهر مرة واحدة فقط).
+3. Vercel ← مشروع **dashio** ← **Settings** ← **Environment Variables** ← **Add**: الاسم `STORAGE_S3_ACCESS_KEY_ID` والقيمة الأولى، البيئة **Production** ← Save. ثم بالطريقة نفسها `STORAGE_S3_SECRET_ACCESS_KEY` والقيمة الثانية (علّم **Sensitive**).
+4. Vercel ← **Deployments** ← آخر نشر إنتاج ← **⋯** ← **Redeploy**.
+5. التحقق: ادخل ← مشروع ← المستندات ← ارفع ملفًا أصغر من 3 MB ← يظهر وينزل. إن فشل الرفع فتحقق أن الاسمين مطابقان حرفيًا وأن البيئة Production (سجلات Vercel تقول `Storage config missing` مع اسم المتغير الغائب).
