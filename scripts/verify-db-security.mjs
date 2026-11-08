@@ -9,22 +9,24 @@
 import pg from "pg";
 import { buildRestrictedAppDatabaseUrl } from "../server/domain/auditAccountIdentity.ts";
 import { evaluateAuditGrantVerification } from "../server/domain/auditGrantVerification.ts";
-import { describeDatabaseError } from "./lib/pgErrorReport.mjs";
+import { describeDatabaseError, secretsFromEnvironment } from "./lib/pgErrorReport.mjs";
 
-const databaseUrl = process.env.AUDIT_APP_DATABASE_URL ?? (process.env.DATABASE_URL && process.env.PROJECT_OS_APP_DB_PASSWORD ? buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD) : undefined);
-if (!databaseUrl) {
-  console.error("AUDIT_APP_DATABASE_URL, or DATABASE_URL with PROJECT_OS_APP_DB_PASSWORD, is required.");
-  process.exit(2);
-}
-
-const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(databaseUrl).hostname);
-const client = new pg.Client({ connectionString: databaseUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, "\n").trim() } : {}) } });
 const codeOf = error => error?.code ?? "UNKNOWN";
 // The stage that was running when something threw; a failure prints it with PostgreSQL's own fields (code, message, detail, hint, where) as ONE
-// JSON line on stderr, so the release log says why (D-69: an uncaught DatabaseError reached the log as the single word "error").
+// JSON line on stderr, so the release log says why (D-69: an uncaught DatabaseError reached the log as the single word "error"). The secrets are
+// read without a URL parser, and the URL itself is parsed INSIDE the try: a malformed URL makes `new URL` throw a TypeError whose `input` is the
+// whole connection string, password included, and Node prints that verbatim when it is uncaught (QA on #226).
+const secrets = secretsFromEnvironment(process.env);
 let stage = "connect";
-const secrets = [process.env.PROJECT_OS_APP_DB_PASSWORD, (() => { try { return decodeURIComponent(new URL(databaseUrl).password); } catch { return ""; } })()].filter(Boolean);
+let client;
 try {
+  const databaseUrl = process.env.AUDIT_APP_DATABASE_URL ?? (process.env.DATABASE_URL && process.env.PROJECT_OS_APP_DB_PASSWORD ? buildRestrictedAppDatabaseUrl(process.env.DATABASE_URL, process.env.PROJECT_OS_APP_DB_PASSWORD) : undefined);
+  if (!databaseUrl) {
+    console.error("AUDIT_APP_DATABASE_URL, or DATABASE_URL with PROJECT_OS_APP_DB_PASSWORD, is required.");
+    process.exit(2);
+  }
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(databaseUrl).hostname);
+  client = new pg.Client({ connectionString: databaseUrl, ssl: local || process.env.DATABASE_SSL === "off" ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_VERIFY !== "off", ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, "\n").trim() } : {}) } });
   await client.connect();
   stage = "identify the connected role";
   const who = (await client.query("SELECT current_user AS name, current_database() AS database")).rows[0];
@@ -104,5 +106,5 @@ try {
   console.error(JSON.stringify({ verifyDbSecurity: "ERROR", ...describeDatabaseError(error, { stage, secrets }) }));
   process.exitCode = 1;
 } finally {
-  await client.end().catch(() => undefined);
+  await client?.end().catch(() => undefined);
 }

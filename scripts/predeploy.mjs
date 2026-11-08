@@ -8,7 +8,10 @@
 // Without that password the site would run as the owner role (the first deployment): a loud warning, not a failure.
 // Prints names and counts, never a URL or a password.
 import { spawnSync } from "node:child_process";
-import { failureDetail } from "./lib/pgErrorReport.mjs";
+import { failureDetail, secretsFromEnvironment } from "./lib/pgErrorReport.mjs";
+
+// the owner's password (DATABASE_URL) as well as the application role's: provisioning connects as the owner, and its error must not print either
+const secrets = secretsFromEnvironment(process.env);
 
 // a proof that ran to the end and said no prints its checks on stdout, not stderr: name them, so the reason is never empty
 const checksOf = stdout => { try { return { checks: JSON.parse(stdout).checks }; } catch { return "verify-db-security printed no reason"; } };
@@ -21,9 +24,9 @@ if (!process.env.PROJECT_OS_APP_DB_PASSWORD) {
   process.exit(0);
 }
 const provisioned = spawnSync(process.execPath, ["scripts/provision-app-role.mjs"], { encoding: "utf8", env: process.env });
-if (provisioned.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: failureDetail(provisioned.stderr, [process.env.PROJECT_OS_APP_DB_PASSWORD]) || "provisioning failed" })); process.exit(1); }
+if (provisioned.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: failureDetail(provisioned.stderr, secrets) || "provisioning failed" })); process.exit(1); }
 const report = JSON.parse(provisioned.stdout);
 const verified = spawnSync(process.execPath, ["--import", "tsx", "scripts/verify-db-security.mjs"], { encoding: "utf8", env: process.env });
 process.stdout.write(verified.stdout ?? "");
-if (verified.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: "verify-db-security did not approve the application role", detail: failureDetail(verified.stderr, [process.env.PROJECT_OS_APP_DB_PASSWORD]) || checksOf(verified.stdout) })); process.exit(1); }
+if (verified.status !== 0) { console.error(JSON.stringify({ auditProtection: "FAILED", reason: "verify-db-security did not approve the application role", detail: failureDetail(verified.stderr, secrets) || checksOf(verified.stdout) })); process.exit(1); }
 console.log(JSON.stringify({ auditProtection: "provisioned", role: report.role, tables: report.tablesConfigured, restrictedRoleSees: JSON.parse(verified.stdout).tables }));
