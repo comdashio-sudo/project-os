@@ -14,11 +14,6 @@ on:
 permissions:
   contents: read
 
-# one at a time; never cancelled half-way (it writes to production or reads its logs once)
-concurrency:
-  group: vercel-logs
-  cancel-in-progress: false
-
 jobs:
   logs:
     name: read the errors

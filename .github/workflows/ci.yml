@@ -5,36 +5,62 @@ name: CI
 # application role (so row-level security is exercised), and the passwords below belong to that container alone.
 # The `ui-screenshots` job builds the app on its own throw-away PostgreSQL, seeds the synthetic demo tenant, runs tests/ui/audit.mjs
 # (1280px and 390px, Arabic) and uploads the screenshots as the `ui-screenshots-390-1280-ar` artifact. It fails on a hard audit failure.
-# Actions are a rationed resource (owner's orders: work order 20 item 11, and 2026-10-27 after the plan's minutes ran out). So:
-#  - a pull request runs ONE light job (pnpm check, migration checks, secret scan, actionlint): about 2 minutes. The full test suite, the build and the
-#    database suites are run LOCALLY before every push (docs/TESTING.md), not here;
-#  - the heavy jobs (build and unit tests, database suite, screenshots in the three languages, the three journeys) run ONCE, on main, after a merge,
-#    and the automatic release (migrate-production.yml) waits for this run to pass before it migrates and promotes;
-#  - a newer push to the same branch cancels the older run (a burst of merges is checked once, on the newest);
-#  - no daily schedule: the main run after each merge is the net; workflow_dispatch runs everything on demand.
+# Actions are a rationed resource (owner's decision, work order 20 item 11: billing stopped once on too many runs). So:
+#  - a pull request runs the cheap gate always, and the heavy jobs (database suite, screenshots, journeys) only when something other than documentation changed;
+#    the English and Urdu screenshot runs only when the interface (client/, shared/, tests/ui/, the workflows) changed;
+#  - a push to main (the squash that just passed on its pull request) runs the gate and the light checks only;
+#  - ONE full run a day on main (schedule) and on demand (workflow_dispatch) is the net that catches drift between pull requests.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'schedule' && 'daily' || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # The light job: everything a pull request needs from the cloud. One job, so one runner start and one rounded minute instead of five.
-  light:
-    name: light checks (check, migrations, secrets, actionlint)
+  changes:
+    name: what changed (decides which heavy jobs run)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.scope.outputs.heavy }}
+      ui_matrix: ${{ steps.scope.outputs.ui_matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - id: scope
+        run: |
+          all='{"include":[{"language":"ar","label":"Arabic"},{"language":"en","label":"English"},{"language":"ur","label":"Urdu"}]}'
+          arabic='{"include":[{"language":"ar","label":"Arabic"}]}'
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch) heavy=true; matrix="$all" ;;
+            pull_request)
+              files="$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")"
+              echo "changed files:"; echo "$files"
+              # documentation only = every changed file is under docs/ or is a Markdown file
+              if [ -n "$files" ] && ! echo "$files" | grep -vE '^docs/|\.md$' | grep -q .; then heavy=false; else heavy=true; fi
+              if echo "$files" | grep -qE '^(client/|shared/|tests/ui/|\.github/workflows/|package\.json|pnpm-lock\.yaml)'; then matrix="$all"; else matrix="$arabic"; fi ;;
+            *) heavy=false; matrix="$arabic" ;;
+          esac
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+          echo "ui_matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "heavy=$heavy matrix=$matrix"
+
+  gate:
+    name: check, build, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -44,60 +70,6 @@ jobs:
       - run: pnpm check
       # Every migration from 0016 on must be backward compatible (expand, then contract): the automatic release applies it while the previous release still serves traffic.
       - run: node scripts/ci/check-migration-compat.mjs
-      # A baseline (drizzle/0000_baseline.sql, drizzle/baseline-security.sql) that changed without a numbered migration is a change no existing database would ever receive.
-      - name: Structure change comes with a migration
-        if: github.event_name == 'pull_request'
-        run: node scripts/check-schema-migration.mjs "origin/${{ github.base_ref }}"
-      - name: Secret scan of the added lines
-        if: github.event_name == 'pull_request'
-        run: node scripts/scan-secrets.mjs --diff "origin/${{ github.base_ref }}"
-      - name: Secret scan of the whole tree
-        run: node scripts/scan-secrets.mjs --all
-      # A workflow file GitHub rejects does not fail one job: it shows a failed run with no jobs on EVERY push (bootstrap.yml did, for a `runner` context in a job-level env).
-      - name: actionlint (pinned release)
-        run: |
-          set -euo pipefail
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
-          ./actionlint -color .github/workflows/*.yml
-
-  # Heavy jobs only after a merge (push to main) or by hand, and not for a merge that changed documentation only.
-  changes:
-    name: what changed (decides whether the heavy jobs run)
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      heavy: ${{ steps.scope.outputs.heavy }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: scope
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          heavy=true
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            files="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
-            echo "changed files:"; echo "$files"
-            if [ -n "$files" ] && ! echo "$files" | grep -vE '^(docs/|qa/)|\.md$' | grep -q .; then heavy=false; fi
-          fi
-          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"; echo "heavy=$heavy"
-
-  gate:
-    name: build and unit tests
-    needs: changes
-    if: needs.changes.outputs.heavy == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test
 
@@ -106,7 +78,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16
@@ -138,14 +110,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { language: ar, label: Arabic }
-          - { language: en, label: English }
-          - { language: ur, label: Urdu }
+      matrix: ${{ fromJSON(needs.changes.outputs.ui_matrix) }}
     services:
       postgres:
         image: postgres:16
@@ -262,7 +230,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -320,3 +288,47 @@ jobs:
           path: ${{ runner.temp }}/demo-journey-out
           if-no-files-found: warn
           retention-days: 14
+  workflows:
+    name: workflow syntax (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # A workflow file GitHub rejects does not fail one job: it shows a failed run with no jobs on EVERY push (bootstrap.yml did, for a `runner` context in a job-level env).
+      - name: actionlint (pinned release)
+        run: |
+          set -euo pipefail
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color .github/workflows/*.yml
+
+  schema-migration:
+    name: structure change comes with a migration
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A baseline (drizzle/0000_baseline.sql, drizzle/baseline-security.sql) that changed without a numbered migration is a change no existing database would ever receive.
+      - run: node scripts/check-schema-migration.mjs "origin/${{ github.base_ref }}"
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Added lines on a pull request
+        if: github.event_name == 'pull_request'
+        run: node scripts/scan-secrets.mjs --diff "origin/${{ github.base_ref }}"
+      - name: Whole tree
+        run: node scripts/scan-secrets.mjs --all

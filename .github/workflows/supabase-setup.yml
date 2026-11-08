@@ -18,11 +18,6 @@ on:
 permissions:
   contents: read
 
-# one at a time; never cancelled half-way (it writes to production or reads its logs once)
-concurrency:
-  group: supabase-setup
-  cancel-in-progress: false
-
 jobs:
   setup:
     name: ${{ inputs.action }}

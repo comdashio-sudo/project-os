@@ -20,7 +20,6 @@
     "build:vercel": "node --import tsx scripts/build-vercel.mjs",
     "auth:local": "node scripts/gotrue-local.mjs",
     "test:db": "node scripts/run-integration-database-test.mjs",
-    "verify:local": "node scripts/verify-local.mjs",
     "check:secrets": "node scripts/scan-secrets.mjs --all",
     "check:keyboard": "node --import tsx scripts/check-keyboard.mjs",
     "check:pdf-export": "node --import tsx scripts/check-pdf-export.mjs",
