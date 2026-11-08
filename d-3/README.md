@@ -27,3 +27,8 @@ Fixes visible here: health/EVM results on a muted surface with full-contrast tex
 before-* = client build of main 08b037e; after-* = client build of 3453191. No server and no database: tRPC replies are fixed synthetic fakes (level data from client/src/test/levelFixtures.ts; *.example.test style names); queries without a fixture answer NOT_FOUND, so a section may show its own error state (e.g. warehouses on level 3).
 Pages: PMC tab (pmc), level 1 company (level-company), level 3 project (level-project), quick site entry (field), quick issue (issue), daily report (report); 390 and 1280; Arabic, English and Urdu; full page.
 before-report.json / after-report.json: dir, horizontal scroll, main count, buttons/links under 44px inside main on 390, Arabic-Indic digits.
+
+## d-3/part-3/2cc1c61/ — review fixes for #222
+
+before-* = client build of main b0e5b91; after-* = client build of 2cc1c61 (main merged in). Same fixed fake tRPC replies (freshness now uses the server's real source names: status, requests, baseline).
+Visible fixes: wide tables scroll inside their frame with a hint and an edge fade (PMC, level 1, level 3); unit range reads "1 – 4"; data freshness translated with correct plurals; the level-3 profitability error card carries its section title with a 44px retry.

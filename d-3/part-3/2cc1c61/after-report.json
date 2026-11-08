@@ -1,0 +1,371 @@
+[
+  {
+    "file": "after-pmc-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [
+      "BUTTON:تصدير إلى Excel:32",
+      "BUTTON:تصدير إلى Excel:32"
+    ],
+    "easternDigits": false
+  },
+  {
+    "file": "after-pmc-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-pmc-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [
+      "BUTTON:Export to Excel:32",
+      "BUTTON:Export to Excel:32"
+    ],
+    "easternDigits": false
+  },
+  {
+    "file": "after-pmc-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-pmc-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [
+      "BUTTON:Excel میں برآمد کریں:32",
+      "BUTTON:Excel میں برآمد کریں:32"
+    ],
+    "easternDigits": false
+  },
+  {
+    "file": "after-pmc-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-company-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-level-project-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 1,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-field-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-issue-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "after-report-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  }
+]
