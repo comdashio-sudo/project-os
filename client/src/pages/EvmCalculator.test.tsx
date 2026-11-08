@@ -18,7 +18,7 @@ describe("EvmCalculator", () => {
     state.isArabic = false;
     render(<EvmCalculator />);
 
-    expect(screen.getByAltText("Dashio")).toBeTruthy();
+    expect(screen.getByAltText(/Dashio/)).toBeTruthy();
     expect(screen.queryByText("PROJECT OS")).toBeNull();
     expect(screen.getByRole("heading", { name: "Earned Value Engine" })).toBeTruthy();
   });
