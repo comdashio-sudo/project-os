@@ -28,7 +28,7 @@ export type MatrixPlan = {
   errors: Array<PmcImportError | (MatrixIssue & { rowNumber: number })>;
   steps: { locations: PmcImportReport | null; catalog: PmcImportReport | null; status: PmcImportReport | null };
   /** what this report changes, counted by the database: «N activities completed in M villas» */
-  changes: { newZones: number; newBlocks: number; newUnits: number; newDefinitions: number; completing: number; unitsTouched: number; unchangedCells: number; erpCodesToSet: number; regressed: number };
+  changes: { newZones: number; newBlocks: number; newUnits: number; newDefinitions: number; completing: number; unitsTouched: number; unchangedCells: number; erpCodesToSet: number; regressed: number; wirNumbers?: number; villaNumbersSet?: number };
   canConfirm: boolean;
 };
 
@@ -60,7 +60,7 @@ async function run(tx: Tx, input: Scope, model: MatrixModel, fileHash: string, s
   await locations.apply(tx);
 
   // the ERP code: the unit's foreign key to the other system
-  const stored = await tx.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, externalCode: pmcUnits.externalCode }).from(pmcUnits).where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId)));
+  const stored = await tx.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, externalCode: pmcUnits.externalCode, villaLabel: pmcUnits.villaLabel }).from(pmcUnits).where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId)));
   const byNumber = new Map(stored.map(unit => [unit.unitNumber, unit]));
   const toSet = model.units.filter(unit => unit.oracleCode && byNumber.get(unit.serial) && byNumber.get(unit.serial)!.externalCode !== unit.oracleCode);
   for (const unit of toSet) {
@@ -80,6 +80,19 @@ async function run(tx: Tx, input: Scope, model: MatrixModel, fileHash: string, s
   if (catalog.report.errorCount || !catalog.apply) { plan.errors.push(...catalog.report.errors); throw new Rollback(plan); }
   await catalog.apply(tx);
 
+  // work order 22: the WIR number of each activity (the key the consultant's export shares), on every model's copy of it, and the villa number on each unit
+  const wirOf = model.activities.filter(activity => activity.wir);
+  for (const batch of chunks(wirOf)) await Promise.all(batch.map(activity => tx.update(pmcActivityDefinitions).set({ wirCode: activity.wir!.slice(0, 40) }).where(and(eq(pmcActivityDefinitions.tenantId, input.tenantId), eq(pmcActivityDefinitions.projectId, input.projectId), eq(pmcActivityDefinitions.code, activity.code)))));
+  const freshUnits = await tx.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel }).from(pmcUnits).where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId)));
+  const freshByNumber = new Map(freshUnits.map(unit => [unit.unitNumber, unit]));
+  const toLabel = model.units.filter(unit => unit.villaLabel && freshByNumber.get(unit.serial) && freshByNumber.get(unit.serial)!.villaLabel !== unit.villaLabel);
+  try {
+    for (const batch of chunks(toLabel)) await Promise.all(batch.map(unit => tx.update(pmcUnits).set({ villaLabel: unit.villaLabel }).where(eq(pmcUnits.id, freshByNumber.get(unit.serial)!.id)).returning({ id: pmcUnits.id }).then(updated => { if (updated.length !== 1) throw new Error("MATRIX_VILLA_LABEL_NOT_SET"); })));
+  } catch (error) {
+    if ((error as { code?: string; cause?: { code?: string } })?.code === "23505" || (error as { cause?: { code?: string } })?.cause?.code === "23505") { plan.errors.push({ rowNumber: 0, code: "MATRIX_VILLA_NUMBER_DUPLICATE" }); throw new Rollback(plan); }
+    throw error;
+  }
+
   const status = await prepareRows(db, { ...stepInput, kind: "status" }, { headers: [], rows: rows.status, errors: [] }, fileHash);
   plan.steps.status = status.report;
   if (status.report.errorCount || !status.apply) { plan.errors.push(...status.report.errors); throw new Rollback(plan); }
@@ -97,6 +110,7 @@ async function run(tx: Tx, input: Scope, model: MatrixModel, fileHash: string, s
   plan.changes = {
     newZones: locDetails.zones ?? 0, newBlocks: locDetails.blocks ?? 0, newUnits: plan.steps.locations.counts.create, newDefinitions: plan.steps.catalog.counts.create,
     completing: details.completing ?? 0, unitsTouched: details.units ?? 0, unchangedCells: plan.steps.status.counts.unchanged, erpCodesToSet: toSet.length, regressed,
+    wirNumbers: wirOf.length, villaNumbersSet: toLabel.length,
   };
   plan.canConfirm = true;
 

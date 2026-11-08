@@ -25,6 +25,15 @@ export const REQUIRED_SCHEMA = [
   { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_resource_assignments" },
   { migration: "0017_wo20_p6_schedule", kind: "column", table: "activities", column: "external_id" },
   { migration: "0018_wo20_import_format_xls", kind: "enum-value", table: "data_imports_source_format", column: "xls" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_site_activities" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_site_cells" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_consultant_columns" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_consultant_cells" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_cell_notes" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_plan_months" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "pmc_units", column: "villa_label" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "pmc_activity_definitions", column: "wir_code" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "site_daily_reports", column: "contractor_id" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

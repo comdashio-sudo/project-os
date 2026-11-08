@@ -7,14 +7,18 @@ import { parseDate } from "./dates";
 import { parseNumber } from "./numbers";
 import type { Cell, SheetGrid } from "./sheetReader";
 
-export type MatrixActivity = { index: number; column: number; code: string; name: string; groupCode: string; groupName: string; divisionCode: string; divisionName: string; weight: number };
+export type MatrixActivity = { index: number; column: number; code: string; name: string; groupCode: string; groupName: string; divisionCode: string; divisionName: string; weight: number; wir: string | null };
 export type MatrixUnit = {
   row: number; serial: number; oracleCode: string | null; plot: string | null; project: string | null; stage: string | null; zone: string; block: string; modelCode: string; villaCode: string | null;
+  /** the villa number as the site and the consultant write it (work order 22): the digits of the villa code, else the plot */
+  villaLabel: string | null;
   reportedPercent: number | null; complete: boolean[];
   reportedDivisionPercent: Record<string, number | null>; reportedBlockPercent: number | null; reportedZonePercent: number | null;
 };
 export type MatrixModel = {
   sheet: string; reportDate: string | null; weightsRow: number; headerRows: [number, number, number];
+  /** the row of WIR numbers under the header (work order 22), and the total column the weights row carries (its weight is the sum of the others) */
+  wirRow: number | null; totalColumn: number | null;
   activities: MatrixActivity[]; units: MatrixUnit[];
   divisions: Array<{ code: string; name: string; groupCode: string; weightText: number | null; weightSum: number }>;
   /** what the spreadsheet computed itself: columns that are NOT written, only compared */
@@ -36,6 +40,12 @@ const IDENTITY: Array<{ key: "serial" | "oracle" | "plot" | "project" | "stage" 
   { key: "model", test: /(رمز النموذج|النموذج|model|type)/ }, { key: "percent", test: /(نسبه الانجاز|progress|completion)/ }, { key: "serial", test: /^(م|no\.?|#|serial|مسلسل|التسلسل)$/ },
 ];
 
+/** «V-0268», «268», «فيلا 268» → «268»: the villa number the other sources write; the plot when the code holds no number. */
+export function villaLabelOf(villaCode: string, plot: string): string | null {
+  const digits = (value: string) => { const match = value.match(/\d+/g); return match ? String(Number(match[match.length - 1])) : null; };
+  return digits(villaCode) ?? digits(plot);
+}
+
 export type MatrixDetection = { ok: true; model: MatrixModel } | { ok: false; reason: string };
 
 /** Looks for the matrix shape in a sheet. `ok: false` carries the reason, so "why was it not recognised" has an answer. */
@@ -43,15 +53,26 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
   const rows = grid.rows;
   if (rows.length < 12 || (rows[0]?.length ?? 0) < 30) return { ok: false, reason: "TOO_SMALL" };
   // 1. the weights row: many numbers in (0, 1] that add up to about 1
-  let weightsRow = -1;
+  // A report may carry a TOTAL column in the same row (its weight is the sum of all the others, so the row adds up to ~2.0): that column is found and set aside.
+  let weightsRow = -1; let totalColumn = -1;
   for (let r = 0; r < Math.min(15, rows.length - 4); r++) {
     const values = rows[r].filter(isWeight) as number[];
     const sum = values.reduce((a, b) => a + b, 0);
-    if (values.length >= 20 && sum >= 0.5 && sum <= 1.5 && values.length >= rows[r].filter(cell => typeof cell === "number").length * 0.9) { weightsRow = r; break; }
+    if (values.length < 20 || values.length < rows[r].filter(cell => typeof cell === "number").length * 0.9) continue;
+    if (sum >= 0.5 && sum <= 1.5) { weightsRow = r; break; }
+    if (sum > 1.5 && sum <= 2.5) {
+      const total = rows[r].findIndex(cell => isWeight(cell) && Math.abs((cell as number) - (sum - (cell as number))) <= 0.01);
+      if (total >= 0) { weightsRow = r; totalColumn = total; break; }
+    }
   }
   if (weightsRow < 0) return { ok: false, reason: "NO_WEIGHTS_ROW" };
-  const h1 = weightsRow + 1; const h2 = weightsRow + 2; const h3 = weightsRow + 3; const first = weightsRow + 4;
-  const activityColumns = rows[weightsRow].flatMap((cell, c) => (isWeight(cell) ? [c] : []));
+  const h1 = weightsRow + 1; const h2 = weightsRow + 2; const h3 = weightsRow + 3;
+  const activityColumns = rows[weightsRow].flatMap((cell, c) => (isWeight(cell) && c !== totalColumn ? [c] : []));
+  // the row of inspection request (WIR) numbers right under the header, when the report has one: most activity cells read like «WIR-0105»
+  const wirLike = (cell: Cell | undefined) => /^\s*(wir|ir|rfi)?[\s#-]*[a-z]{0,4}[\s#-]*\d{1,6}\b/i.test(text(cell)) && !/^[01]$/.test(text(cell));
+  const wirCandidate = rows[h3 + 1] ?? [];
+  const hasWirRow = activityColumns.filter(c => wirLike(wirCandidate[c])).length >= activityColumns.length * 0.8;
+  const first = hasWirRow ? weightsRow + 5 : weightsRow + 4;
   const named = activityColumns.filter(c => text(rows[h3][c]) !== "").length;
   if (named < activityColumns.length * 0.9) return { ok: false, reason: "NO_ACTIVITY_NAMES" };
   const firstActivity = activityColumns[0];
@@ -107,7 +128,7 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
     for (let n = 2; usedCodes.has(code); n++) code = `${divisionCode}-${hash6(`${label}|${name}`)}-${n}`;
     usedCodes.add(code);
     const phase = phases[c] || "—";
-    return { index, column: c + 1, code, name, groupCode: `G${String(phaseOrder.indexOf(phase) + 1).padStart(2, "0")}`, groupName: phase, divisionCode, divisionName: label.split("\n")[0] || label, weight: rows[weightsRow][c] as number };
+    return { index, column: c + 1, code, name, groupCode: `G${String(phaseOrder.indexOf(phase) + 1).padStart(2, "0")}`, groupName: phase, divisionCode, divisionName: label.split("\n")[0] || label, weight: rows[weightsRow][c] as number, wir: hasWirRow ? text(wirCandidate[c]) || null : null };
   });
 
   // division weights written as text in the row above the weights: «Division 02=47.5%»
@@ -122,7 +143,7 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
   const after = rows[h3].length;
   let villaPercent: number | null = null; let blockPercent: number | null = null; let zonePercent: number | null = null;
   for (let c = 0; c < after; c++) {
-    if (activityColumns.includes(c)) continue;
+    if (activityColumns.includes(c) || c === totalColumn) continue;
     const label = headerOf(c);
     if (c > activityColumns[activityColumns.length - 1] && /نسبه الفيل/.test(label)) villaPercent = c;
     if (c > activityColumns[activityColumns.length - 1] && /نسبه البلوك/.test(label)) blockPercent = c;
@@ -142,7 +163,9 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
     return {
       row: r + 1, serial: Number.isFinite(serial) ? Math.round(serial) : NaN, oracleCode: text(row[found.get("oracle") ?? -1]) || null, plot: text(row[found.get("plot") ?? -1]) || null,
       project: text(row[found.get("project") ?? -1]) || null, stage: text(row[found.get("stage") ?? -1]) || null, zone: text(row[found.get("zone")!]), block: text(row[found.get("block")!]), modelCode: text(row[model]),
-      villaCode: villaColumn !== undefined ? text(row[villaColumn]) || null : null, reportedPercent: numberAt(row, villaPercent ?? found.get("percent")),
+      villaCode: villaColumn !== undefined ? text(row[villaColumn]) || null : null,
+      villaLabel: villaLabelOf(villaColumn !== undefined ? text(row[villaColumn]) : "", text(row[found.get("plot") ?? -1])),
+      reportedPercent: numberAt(row, villaPercent ?? found.get("percent")),
       complete: activityColumns.map(c => row[c] === 1 || row[c] === "1"),
       reportedDivisionPercent: Object.fromEntries(divisionColumns.map(d => [d.code, numberAt(row, d.column - 1)])), reportedBlockPercent: numberAt(row, blockPercent), reportedZonePercent: numberAt(row, zonePercent),
     };
@@ -155,6 +178,9 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
     for (let k = c + 1; k <= c + 6 && !reportDate; k++) { const parsed = parseDate(rows[r][k] as never); if (parsed) reportDate = parsed.iso; }
   });
 
+  // no label: the first date written in the first row (the report the owner described keeps it in V1)
+  if (!reportDate) for (const cell of rows[0] ?? []) { if (reportDate) break; if (cell instanceof Date || (typeof cell === "string" && /\d{4}-\d{2}-\d{2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/.test(cell))) { const parsed = parseDate(cell as never); if (parsed) reportDate = parsed.iso; } }
+
   const warnings: string[] = [];
   if (unexpected.length) warnings.push("UNEXPECTED_ACTIVITY_CELLS");
   if (!reportDate) warnings.push("REPORT_DATE_MISSING");
@@ -163,7 +189,7 @@ export function detectMatrix(grid: SheetGrid): MatrixDetection {
   return {
     ok: true,
     model: {
-      sheet: grid.name, reportDate, weightsRow: weightsRow + 1, headerRows: [h1 + 1, h2 + 1, h3 + 1], activities, units, divisions,
+      sheet: grid.name, reportDate, weightsRow: weightsRow + 1, headerRows: [h1 + 1, h2 + 1, h3 + 1], wirRow: hasWirRow ? h3 + 2 : null, totalColumn: totalColumn >= 0 ? totalColumn + 1 : null, activities, units, divisions,
       computedColumns: { villaPercent: villaPercent === null ? null : villaPercent + 1, identityPercent: found.has("percent") ? found.get("percent")! + 1 : null, division: divisionColumns, blockPercent: blockPercent === null ? null : blockPercent + 1, zonePercent: zonePercent === null ? null : zonePercent + 1 },
       ignored: { totalsRow, pivotRow, computedColumnCount }, unexpectedCells: unexpected, warnings,
     },

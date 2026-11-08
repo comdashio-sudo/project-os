@@ -31,6 +31,8 @@ const t = initTRPC.context<TrpcContext>().create({
         ...safeData,
         projectError,
         ...(issue ? { field: issue.path.map(String).join(".") } : {}),
+        // a refusal that names what was wrong item by item (e.g. which villa, which date) carries the list: codes and the villa or field they concern, never data from another tenant
+        ...(Array.isArray((error.cause as { issues?: unknown } | undefined)?.issues) ? { issues: ((error.cause as unknown as { issues: Array<{ code: string; villa?: string; detail?: string }> }).issues).slice(0, 50).map(item => ({ code: String(item.code), ...(item.villa ? { villa: String(item.villa) } : {}), ...(item.detail ? { detail: String(item.detail).slice(0, 120) } : {}) })) } : {}),
       },
     };
   },

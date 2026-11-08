@@ -16,6 +16,8 @@ import { WriteGate } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
 import { pickLanguage } from "@/lib/language";
+import { wo22Text } from "@/lib/wo22Text";
+import { SourcePercentages } from "@/components/pmc/SourcePercentages";
 
 const text = {
   ar: {
@@ -309,7 +311,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const [tab, setTab] = useState<Tab>("latestUpdates");
+  // «?tab=import» opens the import directly (the S-curve's empty state links here)
+  const [tab, setTab] = useState<Tab>(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return (TABS as readonly string[]).includes(asked ?? "") ? asked as Tab : "latestUpdates"; });
   const [filters, setFilters] = useState<Filters>({});
   const bodyRef = useRef<HTMLElement>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -337,6 +340,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
         </PageHeader>
+        {/* Work order 22: the three percentages and the two site screens */}
+        <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
           <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
