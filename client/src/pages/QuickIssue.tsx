@@ -1,3 +1,4 @@
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Select } from "@/components/ds";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -103,6 +104,7 @@ export default function QuickIssue() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/m/${tenantId}/${projectId}`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>

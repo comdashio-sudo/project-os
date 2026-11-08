@@ -1,3 +1,4 @@
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { ListSelect, Option } from "@/components/ds";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export default function SetupWizard() {
 
   return (
     <main className="min-h-screen bg-background text-foreground" dir={isRtl ? "rtl" : "ltr"}>
-      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></div></header>
+      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></header>
       <div className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
         <p className="mt-2 max-w-3xl leading-7 text-muted-foreground">{t.sub}</p>

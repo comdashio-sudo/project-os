@@ -1,3 +1,4 @@
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Select, formatNumber } from "@/components/ds";
 import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
@@ -374,6 +375,7 @@ export default function FieldEntry() {
   const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
   return (
     <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
