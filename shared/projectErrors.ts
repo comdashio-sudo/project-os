@@ -1391,6 +1391,36 @@ export const projectErrorMessages = {
     en: "Choose at least one difference.",
     ur: "کم از کم ایک فرق منتخب کریں۔",
   },
+  PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED: {
+    ar: "لا يمكن حذف هذه المحاولة: هي مستورَدة فعلًا أو قيد المعالجة. للمستورَد استعمل «تراجع عن هذا الاستيراد».",
+    en: "This attempt cannot be deleted: it was already imported or is being processed. For an imported one use \"Roll back this import\".",
+    ur: "اس کوشش کو حذف نہیں کیا جا سکتا: یہ درآمد ہو چکی ہے یا عمل میں ہے۔ درآمد شدہ کے لیے \"اس درآمد کو واپس کریں\" استعمال کریں۔",
+  },
+  PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED: {
+    ar: "التراجع ممكن فقط عن استيراد مُكتمل لم يُتراجع عنه من قبل.",
+    en: "Only a completed import that has not been rolled back can be rolled back.",
+    ur: "صرف مکمل درآمد کو واپس کیا جا سکتا ہے جسے پہلے واپس نہ کیا گیا ہو۔",
+  },
+  PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED: {
+    ar: "لا يمكن التراجع عن هذا النوع من الاستيراد (الأرصدة الافتتاحية سجل حركات مخزون لا يُمحى).",
+    en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
+    ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
+  },
+  PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
+    ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",
+    en: "This import changed rows that already existed and their previous values were not kept, so they cannot be restored. Import the correct version over it instead.",
+    ur: "اس درآمد نے پہلے سے موجود قطاریں بدلی تھیں اور ان کی پچھلی قدریں محفوظ نہیں، اس لیے بحال نہیں ہو سکتیں۔ واپسی کے بجائے درست نسخہ اوپر درآمد کریں۔",
+  },
+  PROJECT_OS_IMPORT_ROLLBACK_IN_USE: {
+    ar: "لا يمكن التراجع: عناصر أنشأها هذا الاستيراد صارت مستعملة في مكان آخر (ولم يُحذف شيء).",
+    en: "Cannot roll back: items this import created are now used elsewhere (nothing was deleted).",
+    ur: "واپسی ممکن نہیں: اس درآمد کی بنائی ہوئی چیزیں اب کہیں اور استعمال ہو رہی ہیں (کچھ حذف نہیں ہوا)۔",
+  },
+  PROJECT_OS_IMPORT_ROLLBACK_INCOMPLETE_RECORD: {
+    ar: "سجل هذا الاستيراد لا يطابق البيانات الحالية (صف أنشأه غير موجود)، فلم يُحذف شيء.",
+    en: "This import's record no longer matches the data (a row it created is gone), so nothing was deleted.",
+    ur: "اس درآمد کا ریکارڈ موجودہ ڈیٹا سے مطابقت نہیں رکھتا، اس لیے کچھ حذف نہیں ہوا۔",
+  },
   PROJECT_OS_UPLOAD_TYPE_INVALID: {
     ar: "نوع الملف غير مقبول لهذا الرفع.",
     en: "This file type is not accepted for this upload.",

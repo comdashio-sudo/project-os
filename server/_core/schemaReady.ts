@@ -15,15 +15,17 @@ export const REQUIRED_SCHEMA = [
   { migration: "0013_wo20_smart_import", kind: "table", table: "smart_reading_usage" },
   { migration: "0014_wo20_unit_external_code", kind: "column", table: "pmc_units", column: "external_code" },
   { migration: "0015_wo16_user_language", kind: "table", table: "user_language_preferences" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_site_activities" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_site_cells" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_consultant_columns" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_consultant_cells" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_cell_notes" },
-  { migration: "0016_wo22_site_consultant", kind: "table", table: "pmc_plan_months" },
-  { migration: "0016_wo22_site_consultant", kind: "column", table: "pmc_units", column: "villa_label" },
-  { migration: "0016_wo22_site_consultant", kind: "column", table: "pmc_activity_definitions", column: "wir_code" },
-  { migration: "0016_wo22_site_consultant", kind: "column", table: "site_daily_reports", column: "contractor_id" },
+  // 0016 narrows the "same file twice" rule to confirmed imports (the index's WHERE clause names the three confirmed statuses)
+  { migration: "0016_wo20_import_duplicate_confirmed_only", kind: "unique-index-confirmed-only", table: "data_imports", column: "data_imports_tenant_file_hash_unique" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_site_activities" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_site_cells" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_consultant_columns" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_consultant_cells" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_cell_notes" },
+  { migration: "0019_wo22_site_consultant", kind: "table", table: "pmc_plan_months" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "pmc_units", column: "villa_label" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "pmc_activity_definitions", column: "wir_code" },
+  { migration: "0019_wo22_site_consultant", kind: "column", table: "site_daily_reports", column: "contractor_id" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -52,6 +54,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
     for (const item of REQUIRED_SCHEMA) {
       const present = item.kind === "table"
         ? (await db.execute(sql`SELECT to_regclass(${`public.${item.table}`}) IS NOT NULL AS present`)).rows[0]?.present
+        : item.kind === "unique-index-confirmed-only"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
         : item.kind === "immutable-column-locked"
         ? (await db.execute(sql`SELECT (current_user <> 'project_os_app') OR NOT has_column_privilege(current_user, ${`public.${item.table}`}, ${item.column}, 'UPDATE') AS present`)).rows[0]?.present
         : (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${item.table} AND column_name = ${item.column}) AS present`)).rows[0]?.present;

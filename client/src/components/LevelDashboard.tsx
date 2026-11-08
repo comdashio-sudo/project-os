@@ -1,7 +1,7 @@
 import React from "react";
+import { PageMain } from "@/components/pageFrame";
 import { ArrowDown } from "lucide-react";
 import { Link } from "wouter";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useOptionalLanguage } from "@/contexts/optionalLanguage";
@@ -11,7 +11,6 @@ import { LEVEL_IDS, LEVEL_NAMES, levelBelow, levelHref, type LevelId } from "@/l
 // The one layout the four level dashboards share (work order 13, item 6): where the person is (level n of 4), the one-click link to the
 // level below, and the screen's own sections. The navigation bar is the server's own (`navigation.get`) for the matching context.
 
-const navContext: Record<LevelId, "executive" | "pmo" | "project"> = { company: "executive", portfolio: "pmo", project: "project", warehouse: "project" };
 
 const copy = {
   ar: { level: "المستوى", of: "من", down: (name: string) => `انتقل إلى مستوى: ${name}`, lowest: "أدنى مستوى: لا مستوى تحته.", label: "المستويات", chooseProject: "انتقل إلى مشروع", chooseLabel: "المشاريع في هذا المستوى" },
@@ -40,11 +39,11 @@ export function LevelDashboard({ level, tenantId, projectId, title, belowHref, b
   const names = LEVEL_NAMES[level];
   const below = levelBelow(level);
   const href = belowHref !== undefined ? belowHref : below ? levelHref(tenantId, below, projectId) : null;
-  return <main dir={isRtl ? "rtl" : "ltr"} lang={language} data-level={level} className="min-h-screen bg-[#f7f8fc] px-4 py-6 text-slate-900 sm:px-8">
+  return <PageMain dir={isRtl ? "rtl" : "ltr"} lang={language} data-level={level} className="min-h-screen bg-[#f7f8fc] px-4 py-6 text-slate-900 sm:px-8">
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex justify-end"><LanguageToggle /></div>
-      <EnterpriseNavigation tenantId={tenantId} projectId={projectId} context={navContext[level]} />
-      <header className="space-y-3">
+      
+      <section className="space-y-3">
         <p className="text-xs font-semibold tracking-wide text-[#0e6b70]" data-level-position>{`${t.level} ${LEVEL_IDS.indexOf(level) + 1} ${t.of} ${LEVEL_IDS.length} · ${names[language]}`}</p>
         <h1 className="text-2xl font-semibold">{title}</h1>
         {belowLinks && belowLinks.length > 0 && below
@@ -60,10 +59,10 @@ export function LevelDashboard({ level, tenantId, projectId, title, belowHref, b
               <span>{t.down(LEVEL_NAMES[below][language])}</span>
             </Link>
           : below === null ? <p className="text-sm text-slate-600" data-level-lowest="">{t.lowest}</p> : null}
-      </header>
+      </section>
       {children}
     </div>
-  </main>;
+  </PageMain>;
 }
 
 export function LevelSection({ id, title, children, action }: { id: string; title: string; children: React.ReactNode; action?: React.ReactNode }) {

@@ -10,7 +10,7 @@ const dictionary = {
     learnMore: "اعرف المزيد", close: "إغلاق", loading: "جارٍ التحميل", stepOf: "الخطوة", of: "من", done: "مكتملة", current: "الحالية",
     empty: "لا يوجد شيء هنا بعد", menu: "القائمة", collapse: "طي القائمة", expand: "توسيع القائمة", userMenu: "قائمة المستخدم", signOut: "تسجيل الخروج",
     company: "الشركة", project: "المشروع", language: "اللغة", theme: "المظهر", light: "فاتح", dark: "داكن", home: "الرئيسية", navigation: "التنقل الرئيسي",
-    breadcrumb: "مسار التنقل", required: "مطلوب", optional: "اختياري", cancel: "إلغاء", confirm: "تأكيد", notifications: "الإشعارات", rowsEmpty: "لا توجد صفوف",
+    breadcrumb: "مسار التنقل", required: "مطلوب", optional: "اختياري", cancel: "إلغاء", confirm: "تأكيد", notifications: "الإشعارات", rowsEmpty: "لا توجد صفوف", brandLogo: "شعار Dashio",
   },
   en: {
     dropTitle: "Drag the file here and drop it", dropOr: "or", dropChoose: "Choose a file", dropReplace: "Replace the file", dropRemove: "Remove", dropActive: "Drop the file now",
@@ -19,7 +19,7 @@ const dictionary = {
     learnMore: "Learn more", close: "Close", loading: "Loading", stepOf: "Step", of: "of", done: "Done", current: "Current",
     empty: "Nothing here yet", menu: "Menu", collapse: "Collapse the menu", expand: "Expand the menu", userMenu: "User menu", signOut: "Sign out",
     company: "Company", project: "Project", language: "Language", theme: "Appearance", light: "Light", dark: "Dark", home: "Home", navigation: "Main navigation",
-    breadcrumb: "Breadcrumb", required: "Required", optional: "Optional", cancel: "Cancel", confirm: "Confirm", notifications: "Notifications", rowsEmpty: "No rows",
+    breadcrumb: "Breadcrumb", required: "Required", optional: "Optional", cancel: "Cancel", confirm: "Confirm", notifications: "Notifications", rowsEmpty: "No rows", brandLogo: "Dashio logo",
   },
   ur: {
     dropTitle: "فائل یہاں کھینچ کر چھوڑیں", dropOr: "یا", dropChoose: "فائل منتخب کریں", dropReplace: "فائل بدلیں", dropRemove: "ہٹائیں", dropActive: "اب فائل چھوڑ دیں",
@@ -28,7 +28,7 @@ const dictionary = {
     learnMore: "مزید جانیں", close: "بند کریں", loading: "لوڈ ہو رہا ہے", stepOf: "مرحلہ", of: "از", done: "مکمل", current: "موجودہ",
     empty: "یہاں ابھی کچھ نہیں", menu: "مینو", collapse: "مینو سمیٹیں", expand: "مینو پھیلائیں", userMenu: "صارف مینو", signOut: "سائن آؤٹ",
     company: "کمپنی", project: "پروجیکٹ", language: "زبان", theme: "ظاہری شکل", light: "روشن", dark: "گہرا", home: "ہوم", navigation: "مرکزی نیویگیشن",
-    breadcrumb: "راستہ", required: "ضروری", optional: "اختیاری", cancel: "منسوخ", confirm: "تصدیق", notifications: "اطلاعات", rowsEmpty: "کوئی صف نہیں",
+    breadcrumb: "راستہ", required: "ضروری", optional: "اختیاری", cancel: "منسوخ", confirm: "تصدیق", notifications: "اطلاعات", rowsEmpty: "کوئی صف نہیں", brandLogo: "Dashio کا لوگو",
   },
 };
 

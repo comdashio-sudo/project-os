@@ -1,4 +1,5 @@
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -305,7 +306,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
 
 const PERIODS = [["default", undefined], ["d7", 7], ["d30", 30], ["d90", 90], ["d365", 365], ["everything", 36500]] as const;
 
-/** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <main>, so the page keeps its single main landmark. */
+/** The whole PMC workspace. `embedded` (inside the project controls page, G-051) renders a plain block instead of a full-page <PageMain>, so the page keeps its single main landmark. */
 export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }) {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
@@ -330,14 +331,14 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   return (
     <Shell embedded={embedded} isArabic={isArabic} isRtl={isRtl}>
       <div className="mx-auto max-w-7xl space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div>{!embedded && <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>}{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
+        <PageHeader className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div>{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && <div className="flex gap-2">
             <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
-        </header>
+        </PageHeader>
         {/* Work order 22: the three percentages and the two site screens */}
         <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
@@ -364,7 +365,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
 function Shell({ embedded, isArabic, isRtl = isArabic, children }: { embedded: boolean; isArabic: boolean; isRtl?: boolean; children: React.ReactNode }) {
   return embedded
     ? <div className="px-0 py-2 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>{children}</div>
-    : <main className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isRtl ? "rtl" : "ltr"}>{children}</main>;
+    : <PageMain className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isRtl ? "rtl" : "ltr"}>{children}</PageMain>;
 }
 
 export default function ProjectPmc() {
