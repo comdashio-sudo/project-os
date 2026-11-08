@@ -1,0 +1,22 @@
+[
+  {
+    "file": "after-login-code-error-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "الرمز غير صحيح أو انتهت صلاحيته.",
+    "describedBy": true,
+    "beforeButtons": true
+  },
+  {
+    "file": "after-login-code-error-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "کوڈ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔",
+    "describedBy": true,
+    "beforeButtons": true
+  }
+]
