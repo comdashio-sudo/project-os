@@ -32,3 +32,9 @@ before-report.json / after-report.json: dir, horizontal scroll, main count, butt
 
 before-* = client build of main b0e5b91; after-* = client build of 2cc1c61 (main merged in). Same fixed fake tRPC replies (freshness now uses the server's real source names: status, requests, baseline).
 Visible fixes: wide tables scroll inside their frame with a hint and an edge fade (PMC, level 1, level 3); unit range reads "1 – 4"; data freshness translated with correct plurals; the level-3 profitability error card carries its section title with a 44px retry.
+
+## d-3/part-4/306de4e/ — D-3 (4/8) start card and "+ Add" / "Upload file"
+
+before-* = client build of main 935516d; after-* = client build of 306de4e. No server and no database: fixed synthetic tRPC replies.
+controls-empty-* = an empty project (PRJ-002 "New Villas": no activities, budget or progress) — the start card, its steps bar, and the empty sections with + Add / Upload file. controls-* = a project with data (no start card: activities, budget and progress recorded... the fixture has activities and budget and progress, so the card is hidden).
+390 and 1280, Arabic, English and Urdu, full page. *-report.json: horizontal scroll, main count, buttons under 44px on 390 (34 inherited, unchanged), Arabic-Indic digits.
