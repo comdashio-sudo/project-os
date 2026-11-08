@@ -1627,3 +1627,14 @@
 | (ب) الطريقان بلا مفتاح S3: مفتاح anon وحده (دور `anon`)، أو جلسة S3 (معرّف المشروع + anon + رمز JWT للمستخدم، دور `authenticated`). كلاهما تحكمه RLS على `storage.objects`، و«Storage does not allow any uploads to buckets without RLS policies» | `SOURCE_VERIFIED` | وثائق Supabase عبر `search_docs` (2026-11-08): `guides/storage/s3/authentication` (مفاتيح S3 وحدها «bypass RLS» وللخادم؛ جلسة S3 «RLS policies on the Storage Schema are respected»، و`publishableKey` «not yet supported» فيها)، و`guides/storage/security/access-control`. |
 | (ج) ما يلزم لذلك: سياسة على `storage.objects` لدور `anon` أو `authenticated`، وفحص الشركة فيها يحتاج قراءة جداول التطبيق (منحة SELECT أو EXECUTE على دالة DEFINER لذلك الدور) | `SOURCE_VERIFIED` | المفتاح العام في كل متصفح، وأي حامل له يحصل على JWT `authenticated` من GoTrue؛ فالسياسة تفتح الملفات لغير شركتها. CLAUDE.md §4: المستودع لا يمنح صلاحيات. وفوق ذلك الخادم لا يحتفظ بأي JWT للمستخدم: يُنهي جلسة GoTrue فور التحقق (`server/_core/auth/supabaseAuth.ts:65-66`). |
 | القرار: لا تنفيذ؛ مفتاح S3 يبقى في `docs/GO_LIVE.md` (مع السبب) وخطوة واحدة في `docs/OWNER_ACTIONS.md` §14؛ O-7 يعود للمالك | `BLOCKED_BY_OWNER` | لم يُلمس `server/storage.ts` ولا مستدعوه ولا `scripts/backup` ولا `scripts/setup-storage.mjs`. |
+
+### D-10: مصفوفة الأدوار — إغلاق بالدليل (2026-11-08، الوكيل 1، على `main` @ `2945838`)
+
+خطة إغلاق معتمدة، بلا كود: المهمة منفّذة منذ #128 (`64221fd`). لم يُلمس `server/domain/operationalRoles.ts` ولا `server/domain/roleMatrix.ts` ولا `scripts/lib/roleFixture.mjs`.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| الاختبار يطابق الكود والجدول | `PROVEN` (أمر) | `pnpm exec vitest run server/domain/roleMatrix.test.ts` ← 72/72 ناجحًا، 2026-11-08، `2945838`. والتحقق السالب (حذف صلاحية من قالب يُسقط الاختبار) مسجّل في قسم #128 أعلاه |
+| الجدول المولَّد مطابق للملف | `PROVEN` (أمر) | `pnpm exec tsx scripts/write-role-matrix.ts` ثم `git status --short` ← فارغ (لا فرق في `docs/ROLE_MATRIX.md`)، 2026-11-08، `2945838` |
+| العدد: الأمر ذكر 16 دورًا، والجدول 18 صفًا (المالك + 17 قالبًا) | `SOURCE_VERIFIED` | السبب في `docs/ROLE_MATRIX.md` §1؛ يُقبل كما هو بحسب الخطة |
+| حدّ معلن: الأعمدة تغطي دوال الخادم المسمّاة في `roleMatrix.ts` كما كانت يوم #128، ولا تشمل ما أضافه D-1 (المحاولات والتراجع) وD-4 (P6) وD-5 (الموقع والاستشاري) | `OPEN` | نطاق D-21 بعد دمج D-5، ولا يُوسَّع هنا |
