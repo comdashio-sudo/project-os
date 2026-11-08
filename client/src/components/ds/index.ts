@@ -3,6 +3,7 @@ export * from "./AppShell";
 export * from "./Badge";
 export * from "./Breadcrumbs";
 export * from "./Button";
+export * from "./CameraCapture";
 export * from "./Card";
 export * from "./DataTable";
 export * from "./Feedback";

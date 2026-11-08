@@ -9,6 +9,11 @@ export function formatNumber(value: number, decimals = 0): string {
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: true }).format(value);
 }
 
+/** 71740953.269 -> "71,740,953.27", 1200 -> "1,200": an amount, grouped, with at most `maxDecimals` decimals and no padding zeros. */
+export function formatAmount(value: number, maxDecimals = 2): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: maxDecimals, useGrouping: true }).format(value);
+}
+
 /** 62 -> "62.00%". A percentage always carries its sign, with a fixed number of decimals for its kind (progress 2, a row's share 4, a count's share 1). */
 export function formatPercent(value: number, decimals = 2): string {
   return `${formatNumber(value, decimals)}%`;
@@ -28,4 +33,10 @@ export function formatBytes(bytes: number): string {
 export function formatDate(value: Date | string, language: Language): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat(LOCALE[language], { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+/** 2026-10-24 -> "24/10/2026": the short numeric date of the field screens, Western digits and the Gregorian calendar in every language. */
+export function formatShortDate(value: Date, language: Language): string {
+  const locale = language === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : language === "ur" ? "ur-PK-u-nu-latn" : "en-GB";
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(value);
 }

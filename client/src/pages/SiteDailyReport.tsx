@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { CameraCapture, Select } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -12,6 +13,8 @@ import { useParams } from "wouter";
 // The daily site report on the phone (work order 14, item 1). The site engineer writes it in four short parts — the day, the people and equipment, the work done per
 // unit and activity, the photos — and sends it; the project manager sees what approving would move, then approves or sends it back with a reason. Nothing here
 // computes progress: the server moves the cells when the report is approved, and says which lines it left alone and why.
+// "None" in a list: the custom list (Radix) cannot hold an empty value, so it carries this one and the screen reads it as empty.
+const NONE = "__none";
 const text = {
   ar: {
     title: "التقرير اليومي", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
@@ -156,7 +159,7 @@ export default function SiteDailyReport() {
     const unit = line.lineType === "work" ? unitOf(line.unitNumber) : undefined;
     const choices = unit ? activities.filter(activity => activity.modelCode === unit.modelCode) : activities;
     return (
-      <li key={line.key} className="space-y-2 rounded-xl border bg-white p-3" data-line={line.lineType}>
+      <li key={line.key} className="space-y-2 rounded-xl border bg-card p-3" data-line={line.lineType}>
         {line.lineType !== "work" ? (
           <>
             <label className="block text-sm font-medium">{line.lineType === "labour" ? t.trade : t.machine}
@@ -166,22 +169,19 @@ export default function SiteDailyReport() {
               {line.lineType === "labour" && <label className="block text-sm font-medium">{t.hours}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" min="0" max="24" step="any" value={line.hours} disabled={locked} onChange={event => update(line.key, { hours: event.target.value })} /></label>}
             </div>
             <label className="block text-sm font-medium">{t.forActivity}
-              <select className={`${fieldInput} mt-1`} value={line.activityId} disabled={locked} onChange={event => update(line.key, { activityId: event.target.value })}>
-                <option value="">{t.none}</option>{activities.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}{activities.some(other => other.id !== activity.id && other.code === activity.code) ? ` (${activity.modelCode})` : ""}</option>)}
-              </select></label>
+              <Select className="mt-1" value={line.activityId || NONE} disabled={locked} onValueChange={value => update(line.key, { activityId: value === NONE ? "" : value })}
+                options={[{ value: NONE, label: t.none }, ...activities.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}${activities.some(other => other.id !== activity.id && other.code === activity.code) ? ` (${activity.modelCode})` : ""}` }))]} /></label>
           </>
         ) : (
           <>
             <label className="block text-sm font-medium">{t.unit}<input className={`${fieldInput} mt-1`} type="number" inputMode="numeric" min="1" step="1" value={line.unitNumber} disabled={locked} onChange={event => update(line.key, { unitNumber: event.target.value, activityId: "" })} /></label>
-            {line.unitNumber.trim() && !unit && <p role="alert" className="text-sm text-red-700">{t.unitUnknown}</p>}
+            {line.unitNumber.trim() && !unit && <p role="alert" className="text-sm text-danger-soft-foreground">{t.unitUnknown}</p>}
             <label className="block text-sm font-medium">{t.activity}
-              <select className={`${fieldInput} mt-1`} value={line.activityId} disabled={locked || !unit} onChange={event => update(line.key, { activityId: event.target.value })}>
-                <option value="">{t.pickActivity}</option>{choices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}
-              </select></label>
+              <Select className="mt-1" value={line.activityId || undefined} placeholder={t.pickActivity} disabled={locked || !unit} onValueChange={value => update(line.key, { activityId: value })}
+                options={choices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))} /></label>
             <label className="block text-sm font-medium">{t.status}
-              <select className={`${fieldInput} mt-1`} value={line.reportedStatus} disabled={locked} onChange={event => update(line.key, { reportedStatus: event.target.value as Status })}>
-                <option value="IN_PROGRESS">{t.inProgress}</option><option value="UNDER_REVIEW">{t.underReview}</option><option value="COMPLETE">{t.complete}</option>
-              </select></label>
+              <Select className="mt-1" value={line.reportedStatus} disabled={locked} onValueChange={value => update(line.key, { reportedStatus: value as Status })}
+                options={[{ value: "IN_PROGRESS", label: t.inProgress }, { value: "UNDER_REVIEW", label: t.underReview }, { value: "COMPLETE", label: t.complete }]} /></label>
           </>
         )}
         <label className="block text-sm font-medium">{t.notes}<input className={`${fieldInput} mt-1`} value={line.description} disabled={locked} onChange={event => update(line.key, { description: event.target.value })} /></label>
@@ -197,40 +197,38 @@ export default function SiteDailyReport() {
     </section>
   );
 
-  if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   const loadError = options.error ?? list.error;
-  if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   return (
     <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         <div className="space-y-4">
-          {reportId && <div className="flex items-center justify-between"><span className="text-sm text-slate-600">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
-          {rejectedNote && <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
-          {locked && <p role="note" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">{t.locked}</p>}
+          {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
+          {rejectedNote && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
+          {locked && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
           <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
           <div className="grid grid-cols-2 gap-2">
             <label className="block text-sm font-medium">{t.weather}
-              <select className={`${fieldInput} mt-1`} value={weather} disabled={locked} onChange={event => setWeather(event.target.value)}>
-                <option value="">—</option>{WEATHER.map(value => <option key={value} value={value}>{weatherName[value]}</option>)}
-              </select></label>
+              <Select className="mt-1" value={weather || NONE} disabled={locked} onValueChange={value => setWeather(value === NONE ? "" : value)}
+                options={[{ value: NONE, label: "—" }, ...WEATHER.map(value => ({ value, label: weatherName[value] }))]} /></label>
             <label className="block text-sm font-medium">{t.temperature}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" step="any" value={temperature} disabled={locked} onChange={event => setTemperature(event.target.value)} /></label>
           </div>
-          <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-white p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
-          <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-white p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
+          <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-card p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
+          <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
           {group("labour", t.labour, t.addLabour)}
           {group("equipment", t.equipment, t.addEquipment)}
           {group("work", t.work, t.addWork)}
           <section className="space-y-2" aria-label={t.photos}>
             <h2 className="text-base font-semibold">{t.photos}</h2>
-            {!reportId && <p className="text-sm text-slate-500">{t.photoNeedsSave}</p>}
-            {reportId && !locked && <label className={`${tap} flex cursor-pointer items-center justify-center rounded-xl border bg-white px-3 text-base font-semibold text-[#0e6b70]`}>{t.takePhoto}
-              <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={upload.busy || attach.isPending} onChange={event => { void addPhoto(event.target.files?.[0]); event.target.value = ""; }} /></label>}
-            {photoMessage && <p role="status" className="text-sm text-emerald-700">{photoMessage}</p>}
-            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-slate-500">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-slate-500">{t.noPhotos}</p>)}
+            {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
+            {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending} onFile={file => { void addPhoto(file); }} />}
+            {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
+            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
           </section>
-          {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-          {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
+          {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
+          {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
           {!locked && (
             <div className="grid grid-cols-2 gap-2">
               <Button type="button" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending} onClick={() => { setMessage(null); save.mutate(body()); }}>{save.isPending ? t.saving : t.save}</Button>
@@ -242,11 +240,11 @@ export default function SiteDailyReport() {
 
       <section className="space-y-2" aria-label={t.recent}>
         <h2 className="text-base font-semibold">{t.recent}</h2>
-        {reports.length === 0 && <p className="text-sm text-slate-500">{t.noReports}</p>}
+        {reports.length === 0 && <p className="text-sm text-muted-foreground">{t.noReports}</p>}
         <ul className="space-y-2">
           {reports.slice(0, 15).map(report => (
-            <li key={report.id} className="flex items-center justify-between gap-2 rounded-xl border bg-white p-3" data-report-status={report.status}>
-              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}</span><span className="block text-xs text-slate-600">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
+            <li key={report.id} className="flex items-center justify-between gap-2 rounded-xl border bg-card p-3" data-report-status={report.status}>
+              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}</span><span className="block text-xs text-muted-foreground">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
               <Button type="button" variant="outline" className={tap} onClick={() => { void openReport(report.id); }}>{canWrite && (report.status === "draft" || report.status === "rejected") ? t.edit : t.view}</Button>
             </li>
           ))}
@@ -277,20 +275,20 @@ function ReviewPanel({ scope, waiting, t, language, isArabic, onDone }: { scope:
   return (
     <section className="space-y-2" aria-label={t.review}>
       <h2 className="text-base font-semibold">{t.review}</h2>
-      <p className="text-sm text-slate-600">{t.reviewHint}</p>
-      {done && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{done}</p>}
-      {review.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(review.error, isArabic)}</p>}
-      {waiting.length === 0 && <p className="text-sm text-slate-500">{t.nothingToReview}</p>}
+      <p className="text-sm text-muted-foreground">{t.reviewHint}</p>
+      {done && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{done}</p>}
+      {review.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {waiting.length === 0 && <p className="text-sm text-muted-foreground">{t.nothingToReview}</p>}
       <ul className="space-y-3">
         {waiting.map(report => (
-          <li key={report.id} className="space-y-2 rounded-xl border bg-white p-3" data-review={report.id}>
+          <li key={report.id} className="space-y-2 rounded-xl border bg-card p-3" data-review={report.id}>
             <p className="text-sm font-semibold">{showDate(report.reportDate, language)}</p>
             <Button type="button" variant="outline" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve", dryRun: true })}>{t.preview}</Button>
             {preview?.id === report.id && (
-              <div className="space-y-1 rounded-lg bg-slate-50 p-2 text-sm" data-preview>
+              <div className="space-y-1 rounded-lg bg-muted p-2 text-sm" data-preview>
                 {preview.applied.length === 0 ? <p>{t.noMoves}</p> : <><p className="font-semibold">{t.willMove}</p><ul>{preview.applied.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}: {cell.from ?? "—"} → {cell.to}</li>)}</ul></>}
                 {preview.skipped.length > 0 && <><p className="font-semibold">{t.willSkip}</p><ul>{preview.skipped.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
-                {preview.gate && preview.gate.notAccepted.length > 0 && <><p className="font-semibold text-amber-800">{t.blocked} ({preview.gate.mode})</p><ul>{preview.gate.notAccepted.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
+                {preview.gate && preview.gate.notAccepted.length > 0 && <><p className="font-semibold text-warning-soft-foreground">{t.blocked} ({preview.gate.mode})</p><ul>{preview.gate.notAccepted.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">

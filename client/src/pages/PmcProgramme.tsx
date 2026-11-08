@@ -53,8 +53,8 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
     observer.observe(element);
     return () => observer.disconnect();
   }, [ready]);
-  if (query.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
-  if (!query.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><button type="button" className="mt-2 min-h-[44px] rounded-lg border px-4" onClick={() => query.refetch()}>{t.retry}</button></div>;
+  if (query.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>;
+  if (!query.data) return <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(query.error, isArabic)}</p><button type="button" className="mt-2 min-h-[44px] rounded-lg border px-4" onClick={() => query.refetch()}>{t.retry}</button></div>;
   const { months, hasBaseline, cards, cellsWithoutHistory, actualToDate, progressFromCells } = query.data;
   // The export matches the table row for row; with no months the button is shown disabled, not hidden.
   const columns: ExportColumn<(typeof months)[number]>[] = [
@@ -66,28 +66,28 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
     { header: t.actualMonth, value: row => fraction(row.actualInMonth), kind: "percent" },
   ];
   const exportButton = <ExportExcelButton fileName="pmc-programme" sheetName={t.sheet} title={t.table} rows={months} columns={columns} />;
-  if (!months.length) return <div className="space-y-4"><div className="flex justify-end">{exportButton}</div><p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{t.empty}</p></div>;
+  if (!months.length) return <div className="space-y-4"><div className="flex justify-end">{exportButton}</div><p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{t.empty}</p></div>;
   const money = (amount: number | null) => (amount === null ? "—" : formatMoney(amount, cards.currency, isArabic));
   const chartData = months.map(m => ({ month: m.month.slice(0, 7), planned: m.planned, actual: m.actual }));
   const card = (key: string, label: string, amount: number | null, percent: number | null, hint?: string) => (
     <div key={key} className="rounded-xl border p-3" data-testid={`card-${key}`}>
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold">{money(amount)}</p>
-      <p className="text-sm text-slate-600">{percent === null ? (hint ?? "—") : formatPercent(percent, isArabic)}</p>
+      <p className="text-sm text-muted-foreground">{percent === null ? (hint ?? "—") : formatPercent(percent, isArabic)}</p>
     </div>
   );
 
   return (
     <div className="space-y-4" data-testid="programme">
-      {!hasBaseline && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.noBaseline}</p>}
-      {cellsWithoutHistory > 0 && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.noHistory(cellsWithoutHistory, formatPercent(actualToDate, isArabic), formatPercent(progressFromCells, isArabic))}</p>}
+      {!hasBaseline && <p role="status" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noBaseline}</p>}
+      {cellsWithoutHistory > 0 && <p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noHistory(cellsWithoutHistory, formatPercent(actualToDate, isArabic), formatPercent(progressFromCells, isArabic))}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {card("contract", t.contract, cards.contractValue, null)}
         {card("paid", t.paid, cards.paid.amount, cards.paid.percent)}
         {card("confirmed", t.confirmed, cards.confirmed.amount, cards.confirmed.percent)}
         {card("target", t.target, cards.target.amount, cards.target.amount === null ? null : cards.target.percent, t.needs)}
       </div>
-      <p className="text-xs text-slate-500">{t.basis} {t.target}: {t.targetHint}.</p>
+      <p className="text-xs text-muted-foreground">{t.basis} {t.target}: {t.targetHint}.</p>
       <div ref={box}>
         <p className="mb-2 text-sm font-semibold">{t.chart}</p>
         <div style={{ direction: "ltr" }}>
@@ -97,8 +97,8 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
           <YAxis domain={[0, 100]} unit="%" width={56} />
           <Tooltip />
           <Legend content={<ChartLegend />} />
-          {hasBaseline && <Line type="linear" dataKey="planned" name={t.planned} stroke="#64748b" strokeDasharray="6 4" dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />}
-          <Line type="linear" dataKey="actual" name={t.actual} stroke="#0e6b70" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />
+          {hasBaseline && <Line type="linear" dataKey="planned" name={t.planned} stroke="var(--muted-foreground)" strokeDasharray="6 4" dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />}
+          <Line type="linear" dataKey="actual" name={t.actual} stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />
         </LineChart>
         </div>
       </div>
@@ -111,7 +111,7 @@ export function PmcProgramme({ tenantId, projectId }: { tenantId: string; projec
               <td className="p-2">{m.month.slice(0, 7)}</td>
               <td className="p-2">{formatPercent(m.planned, isArabic)}</td>
               <td className="p-2">{formatPercent(m.actual, isArabic)}</td>
-              <td className={`p-2 ${m.variance !== null && m.variance < 0 ? "text-red-700" : ""}`}>{formatPercent(m.variance, isArabic)}</td>
+              <td className={`p-2 ${m.variance !== null && m.variance < 0 ? "text-danger-soft-foreground" : ""}`}>{formatPercent(m.variance, isArabic)}</td>
               <td className="p-2">{formatPercent(m.plannedInMonth, isArabic)}</td>
               <td className="p-2">{formatPercent(m.actualInMonth, isArabic)}</td>
             </tr>

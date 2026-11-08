@@ -2,6 +2,7 @@ import { DirectImportRunner, type DirectImportView } from "@/components/DirectIm
 import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
+import { ALL, LabelledSelect } from "@/components/LabelledSelect";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { ErrorState } from "@/components/ScreenStates";
@@ -67,20 +68,20 @@ type T = typeof text.en;
 const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "import"] as const;
 type Tab = (typeof TABS)[number];
 type Filters = { zone?: string; block?: string; unitFrom?: number; unitTo?: number; group?: string; stage?: string; activity?: string; contractor?: string; consultant?: string; since?: Date };
-const field = "min-h-[44px] rounded-lg border bg-white px-2 text-sm";
+const field = "min-h-[44px] rounded-lg border border-input bg-card px-2 text-sm";
 
 function Table({ headers, rows }: { headers: string[]; rows: Array<Array<React.ReactNode>> }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[32rem] text-sm">
-        <thead><tr className="text-xs text-slate-500">{headers.map(h => <th key={h} className="py-1 pe-3 text-start font-medium">{h}</th>)}</tr></thead>
+        <thead><tr className="text-xs text-muted-foreground">{headers.map(h => <th key={h} className="py-1 pe-3 text-start font-medium">{h}</th>)}</tr></thead>
         <tbody>{rows.map((row, i) => <tr key={i} className="border-t">{row.map((cell, j) => <td key={j} className="whitespace-nowrap py-1.5 pe-3">{cell}</td>)}</tr>)}</tbody>
       </table>
     </div>
   );
 }
 
-const heat = (percent: number) => ({ backgroundColor: `rgba(14, 107, 112, ${Math.min(1, percent / 100) * 0.6})` });
+const heat = (percent: number) => ({ backgroundColor: `color-mix(in srgb, var(--primary) ${Math.round(Math.min(1, percent / 100) * 60)}%, transparent)` });
 const ageText = (t: T, days: number | null) => (days === null ? t.never : days === 0 ? t.today : t.daysAgo(days));
 
 /** The column helpers, bound to one row type. Passed to a `columns` callback so the row type is known before the lambdas are typed. */
@@ -142,12 +143,12 @@ function Frame<D>({ query, t, isArabic, isEmpty, children, onOptions }: { query:
   const { language } = useLanguage();
   const options = query.data?.options;
   useEffect(() => { if (options) onOptions?.(options); }, [options]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (query.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
+  if (query.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>;
   if (!query.data) return <ErrorState isArabic={isArabic} error={query.error} title={pickLanguage(language, { ar: "تعذّر تحميل ضبط المشروع PMC", en: "The PMC workspace could not be loaded", ur: "PMC ورک اسپیس لوڈ نہیں ہو سکا" })} onRetry={() => query.refetch()} retryLabel={t.retry} />;
   return (
     <div className="space-y-4">
-      <p className="flex flex-wrap gap-2 text-xs text-slate-600" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-slate-100 px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? f.source}: {ageText(t, f.ageDays)}</span>)}</p>
-      {isEmpty(query.data.data) ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{t.noData}</p> : children(query.data.data)}
+      <p className="flex flex-wrap gap-2 text-xs text-muted-foreground" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-muted px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? f.source}: {ageText(t, f.ageDays)}</span>)}</p>
+      {isEmpty(query.data.data) ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{t.noData}</p> : children(query.data.data)}
     </div>
   );
 }
@@ -253,7 +254,7 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
   if (tab === "pending") {
     const q = trpc.pmc.pendingAtVerifier.useQuery(input);
     return <Frame {...common} query={q} isEmpty={d => d.total === 0}>{d => (<>
-      <p className="flex flex-wrap gap-2 text-sm"><b>{t.buckets}:</b>{d.buckets.map(b => <span key={b.label} className="rounded-full bg-slate-100 px-2 py-0.5">{b.label}: {b.count}</span>)}</p>
+      <p className="flex flex-wrap gap-2 text-sm"><b>{t.buckets}:</b>{d.buckets.map(b => <span key={b.label} className="rounded-full bg-muted px-2 py-0.5">{b.label}: {b.count}</span>)}</p>
       <DataTable exportAs={exp("rows", t.unit)} rows={d.rows} columns={h => [
         h.number(t.unit, r => r.unitNumber), h.text(t.activity, r => `${r.activityCode} · ${r.activityName}`), h.text(t.verification, r => r.verificationStatus),
         h.text(t.engineer, r => r.engineer, r => r.engineer ?? t.unassigned), h.date(t.since, r => r.since), h.number(t.age, r => r.ageDays),
@@ -264,7 +265,7 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
   return <Frame {...common} query={q} isEmpty={d => d.stages.length === 0}>{d => (
     <div className="space-y-4">{d.stages.map(s => (
       <div key={s.stageCode}>
-        <DataTable heading={<>{s.stageName} <span className="text-xs font-normal text-slate-500">({s.total})</span></>} exportAs={exp(`stage-${s.stageCode}`, s.stageName)} rows={s.byStatus} columns={h => [
+        <DataTable heading={<>{s.stageName} <span className="text-xs font-normal text-muted-foreground">({s.total})</span></>} exportAs={exp(`stage-${s.stageCode}`, s.stageName)} rows={s.byStatus} columns={h => [
           h.text(t.status, b => t.statuses[b.status]), h.number(t.count, b => b.count), h.number(t.weight, b => b.weightPoints), h.percent(t.percent, b => b.percent, true),
         ]} />
         <p className="mt-1 text-sm">{t.late}: {s.lateActivities.length === 0 ? t.noLate : s.lateActivities.map(a => `${a.activityCode} (${t.actual} ${a.actualPercent}% / ${t.planned} ${a.plannedPercent}%)`).join(" · ")}</p>
@@ -282,20 +283,20 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
     return (
       <div className="space-y-3" data-testid="import-report">
         <h3 className="font-semibold">{t.report}</h3>
-        <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-emerald-50 px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-amber-50 px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{t.errorsFound}: {report.errorCount}</span></p>
+        <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-muted px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-success-soft px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-warning-soft px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-muted px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-danger-soft text-danger-soft-foreground" : "bg-muted"}`}>{t.errorsFound}: {report.errorCount}</span></p>
         {report.errors.length > 0 && <DataTable exportAs={{ file: "pmc-import-rejected-rows", sheet: t.errorsFound, title: `${t.title} · ${t.errorsFound}` }} rows={report.errors} columns={h => [
           { header: t.row, kind: "number", value: e => e.rowNumber || null, cell: e => e.rowNumber || "—" },
           h.text(t.reason, e => [e.code, e.field, e.detail].filter(Boolean).join(" · ")),
         ]} />}
-        {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.alreadyUpToDate}</p>}
+        {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.alreadyUpToDate}</p>}
       </div>
     );
   };
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-600">{t.nothingSaved}</p>
+      <p className="text-sm text-muted-foreground">{t.nothingSaved}</p>
       <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="space-y-3">
-        <label className="text-sm">{t.importKind}<select aria-label={t.importKind} className={`${field} mt-1 block`} value={kind} onChange={event => setKind(event.target.value as typeof kind)}>{Object.entries(t.importKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <LabelledSelect label={t.importKind} className="text-sm" value={kind} onValueChange={value => setKind(value as typeof kind)} options={Object.entries(t.importKinds).map(([value, label]) => ({ value, label }))} />
         <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
       </div></WriteGate>
     </div>
@@ -324,7 +325,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   });
   const screenOfTab: Record<Exclude<Tab, "import" | "sitePlan" | "programme">, "latestUpdates" | "approvals" | "inspections" | "activities" | "zones" | "weekly" | "monthly" | "pending" | "stages"> = { latestUpdates: "latestUpdates", approvals: "approvals", inspections: "inspections", activities: "activities", zones: "zones", weekly: "weekly", monthly: "monthly", pending: "pending", stages: "stages" };
   const select = (key: keyof Filters, label: string, values: string[]) => (
-    <label className="text-xs">{label}<select aria-label={label} className={`${field} mt-1 block`} value={(filters[key] as string | undefined) ?? ""} onChange={event => setFilters({ ...filters, [key]: event.target.value || undefined })}><option value="">{t.filters.all}</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
+    <LabelledSelect label={label} value={(filters[key] as string | undefined) ?? ALL} onValueChange={value => setFilters({ ...filters, [key]: value === ALL ? undefined : value })} options={[{ value: ALL, label: t.filters.all }, ...values.map(v => ({ value: v, label: v }))]} />
   );
   return (
     <Shell embedded={embedded} isArabic={isArabic} isRtl={isRtl}>
@@ -337,17 +338,17 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
         </PageHeader>
-        <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${tab === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "bg-white"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
+        <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && (
-          <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:hidden">
+          <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
             <label className="text-xs">{t.filters.unitFrom}<input aria-label={t.filters.unitFrom} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitFrom ?? ""} onChange={event => setFilters({ ...filters, unitFrom: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
             <label className="text-xs">{t.filters.unitTo}<input aria-label={t.filters.unitTo} type="number" min="0" className={`${field} mt-1 block w-24`} value={filters.unitTo ?? ""} onChange={event => setFilters({ ...filters, unitTo: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
-            <label className="text-xs">{t.filters.period}<select aria-label={t.filters.period} className={`${field} mt-1 block`} value={period} onChange={event => setPeriod(event.target.value as typeof period)}>{PERIODS.map(([key]) => <option key={key} value={key}>{key === "default" ? t.filters.default : t.filters[key as "d7" | "d30" | "d90" | "d365" | "everything"]}</option>)}</select></label>
+            <LabelledSelect label={t.filters.period} value={period} onValueChange={value => setPeriod(value as typeof period)} options={PERIODS.map(([key]) => ({ value: key, label: key === "default" ? t.filters.default : t.filters[key as "d7" | "d30" | "d90" | "d365" | "everything"] }))} />
           </section>
         )}
-        {pdfError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 print:hidden">{t.pdfFailed}</p>}
-        <section ref={bodyRef} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        {pdfError && <p role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-soft-foreground print:hidden">{t.pdfFailed}</p>}
+        <section ref={bodyRef} className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border">
           {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
           <SectionErrorBoundary key={tab} title={pickLanguage(language, { ar: "هذه الشاشة", en: "This screen", ur: "یہ اسکرین" })} isArabic={isArabic}>
             {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
@@ -360,8 +361,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
 
 function Shell({ embedded, isArabic, isRtl = isArabic, children }: { embedded: boolean; isArabic: boolean; isRtl?: boolean; children: React.ReactNode }) {
   return embedded
-    ? <div className="px-0 py-2 text-slate-900" dir={isRtl ? "rtl" : "ltr"}>{children}</div>
-    : <PageMain className="min-h-screen bg-[#f7f8fc] px-4 py-5 text-slate-900 print:bg-white" dir={isRtl ? "rtl" : "ltr"}>{children}</PageMain>;
+    ? <div className="px-0 py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>{children}</div>
+    : <PageMain className="py-2 text-foreground print:bg-card" dir={isRtl ? "rtl" : "ltr"}>{children}</PageMain>;
 }
 
 export default function ProjectPmc() {

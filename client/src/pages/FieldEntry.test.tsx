@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
   teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null,
 }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
@@ -38,6 +39,11 @@ const load = (data: unknown = context) => { state.query = { data, isLoading: fal
 afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.me = { id: 7 }; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
+  it("outside the product frame keeps its own language switch", () => {
+    load();
+    expect(screen.getByRole("group", { name: "Interface language" })).toBeTruthy();
+  });
+
   it("logs progress in three taps: pick the item, choose the percentage, save", () => {
     load();
     fireEvent.click(screen.getByText("1 · Foundations")); // tap 1

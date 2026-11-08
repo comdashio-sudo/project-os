@@ -30,7 +30,8 @@ function* walk(dir) {
   for (const name of readdirSync(path.join(root, dir))) {
     const relative = `${dir}/${name}`;
     const stat = statSync(path.join(root, relative));
-    if (stat.isDirectory()) { if (name !== "node_modules") yield* walk(relative); }
+    // client/src/test holds test fixtures and stand-ins (e.g. a native select standing in for the Radix list in jsdom); they never ship, so they are not screens
+    if (stat.isDirectory()) { if (name !== "node_modules" && relative !== "client/src/test") yield* walk(relative); }
     else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) yield relative;
   }
 }
