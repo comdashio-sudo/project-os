@@ -27,8 +27,8 @@ vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: 
 // The custom list (Radix) needs pointer APIs jsdom lacks; a native stand-in keeps the same contract (value, options, placeholder, the field's id for its label).
 vi.mock("@/components/ds", async importOriginal => ({
   ...(await importOriginal<typeof import("@/components/ds")>()),
-  Select: ({ id, value, onValueChange, options, placeholder }: { id?: string; value?: string; onValueChange: (value: string) => void; options: Array<{ value: string; label: string }>; placeholder?: string }) =>
-    <select id={id} value={value} onChange={event => onValueChange(event.target.value)}><option value="">{placeholder}</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>,
+  Select: ({ id, value, onValueChange, options, placeholder, "aria-required": ariaRequired }: { id?: string; value?: string; onValueChange: (value: string) => void; options: Array<{ value: string; label: string }>; placeholder?: string; "aria-required"?: boolean }) =>
+    <select id={id} aria-required={ariaRequired || undefined} value={value} onChange={event => onValueChange(event.target.value)}><option value="">{placeholder}</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>,
 }));
 vi.mock("@/components/MfaGate", () => ({ MfaGate: ({ children }: { children: React.ReactNode }) => <>{children}</> })); // the second-step gate has its own test (MfaGate.test.tsx)
 vi.mock("@/lib/trpc", () => ({
@@ -44,9 +44,9 @@ vi.mock("@/lib/trpc", () => ({
 afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "admin"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
 
 describe("Home self-service", () => {
-  it("marks the company's legal name, short name and seats as required, with a star beside each label", () => {
+  it("marks the company's legal name, short name, plan and seats as required, with a star beside each label", () => {
     render(<Home />);
-    for (const label of [/^Legal name/, /^Workspace slug/, /^Seats/]) expect(screen.getByLabelText(label).getAttribute("aria-required")).toBe("true");
+    for (const label of [/^Legal name/, /^Workspace slug/, /^Plan/, /^Seats/]) expect(screen.getByLabelText(label).getAttribute("aria-required")).toBe("true");
     expect(screen.getAllByLabelText("Required")).toHaveLength(4);
   });
   it("submits the server-catalog plan with company and seat boundaries", async () => {

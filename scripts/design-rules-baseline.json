@@ -172,9 +172,6 @@
   "raw-select": 7,
   "hardcoded-colour": 2
  },
- "client/src/pages/ProjectControls.tsx": {
-  "number-format": 1
- },
  "client/src/pages/ProjectDataExport.tsx": {
   "hardcoded-colour": 2
  },

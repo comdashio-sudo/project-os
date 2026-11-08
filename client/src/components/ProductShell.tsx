@@ -74,12 +74,16 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     icon: MODULE_ICONS[item.id] ?? LayoutPanelTop,
     href: item.href,
   }));
-  // The module the person is in: on a project's own pages that is "Project controls"; elsewhere the LONGEST link the address starts with
-  // (the registry's /projects/:tenantId is a prefix of every project address, so the first match would always be the registry).
-  const onProject = Boolean(projectId) && location.startsWith(`/projects/${tenantId}/${projectId}`);
+  // The module the person is in: the LONGEST link the address equals or starts with followed by "/" (so /p1 never matches /p10). The registry's
+  // /projects/:tenantId is a prefix of every project address, so on a project page whose longest match is the registry (or nothing), the
+  // module is "Project controls"; a project page with its own module (e.g. my-performance) keeps it.
+  const projectBase = projectId ? `/projects/${tenantId}/${projectId}` : undefined;
+  const onProject = Boolean(projectBase) && (location === projectBase || location.startsWith(`${projectBase}/`));
   const controlsId = (navigation.data ?? []).find(item => item.labelKey === "navigation.projectControls")?.id;
+  const registryHref = `/projects/${tenantId}`;
   const matching = nav.filter(item => item.href && (location === item.href || location.startsWith(`${item.href}/`))).sort((a, b) => (b.href?.length ?? 0) - (a.href?.length ?? 0));
-  const active = (onProject && controlsId ? nav.find(item => item.id === controlsId) : undefined) ?? matching[0];
+  const longest = matching[0];
+  const active = onProject && controlsId && (!longest || longest.href === registryHref) ? nav.find(item => item.id === controlsId) ?? longest : longest;
   const isArabic = language === "ar";
   // A failed source says so above the page: an empty side menu or switcher must not look like "nothing here" (G-100).
   const notices = (
