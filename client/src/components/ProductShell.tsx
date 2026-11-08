@@ -74,7 +74,12 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     icon: MODULE_ICONS[item.id] ?? LayoutPanelTop,
     href: item.href,
   }));
-  const active = nav.find(item => item.href && location === item.href) ?? nav.find(item => item.href && location.startsWith(item.href));
+  // The module the person is in: on a project's own pages that is "Project controls"; elsewhere the LONGEST link the address starts with
+  // (the registry's /projects/:tenantId is a prefix of every project address, so the first match would always be the registry).
+  const onProject = Boolean(projectId) && location.startsWith(`/projects/${tenantId}/${projectId}`);
+  const controlsId = (navigation.data ?? []).find(item => item.labelKey === "navigation.projectControls")?.id;
+  const matching = nav.filter(item => item.href && (location === item.href || location.startsWith(`${item.href}/`))).sort((a, b) => (b.href?.length ?? 0) - (a.href?.length ?? 0));
+  const active = (onProject && controlsId ? nav.find(item => item.id === controlsId) : undefined) ?? matching[0];
   const isArabic = language === "ar";
   // A failed source says so above the page: an empty side menu or switcher must not look like "nothing here" (G-100).
   const notices = (
@@ -85,6 +90,9 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     </>
   );
   const crumbs: Crumb[] = [{ label: pickLanguage(language, WORKSPACE), href: "/" }];
+  // a project screen names its project between the workspace and the module
+  const currentProject = projectId ? (projects.data ?? []).find(item => item.id === projectId) : undefined;
+  if (currentProject) crumbs.push({ label: `${currentProject.code} · ${currentProject.name}`, href: `/projects/${tenantId}/${projectId}/controls` });
   if (active) crumbs.push({ label: active.label });
 
   const companies = (tenants.data ?? []).map(item => ({ value: item.tenantId, label: item.legalName }));

@@ -71,6 +71,22 @@ describe("ProductShell", () => {
   });
 });
 
+describe("project page in the frame", () => {
+  it("names the project in the breadcrumb and marks Project controls, not the registry, as the current module", () => {
+    state.location = "/projects/t1/p1/controls";
+    state.projects = [{ id: "p1", code: "P-1", name: "One" }];
+    state.nav = [{ id: "project-registry", labelKey: "navigation.projectRegistry", href: "/projects/t1" }, { id: "project-controls", labelKey: "navigation.projectControls", href: "/projects/t1/p1/controls" }];
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const projectCrumb = within(crumbs).getByRole("link", { name: "P-1 · One" });
+    expect(projectCrumb.getAttribute("href")).toBe("/projects/t1/p1/controls");
+    expect(projectCrumb.className).toContain("min-h-11");
+    const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(navigation).getByRole("link", { name: "Project controls" }).getAttribute("aria-current")).toBe("page");
+    expect(within(navigation).getByRole("link", { name: "Project registry" }).getAttribute("aria-current")).toBeNull();
+  });
+});
+
 describe("project switcher", () => {
   it("opens a page that exists: from a company page it goes to the chosen project's controls", () => {
     expect(projectSwitchHref("/pmo/t1", "t1", undefined, "p2")).toBe("/projects/t1/p2/controls");
