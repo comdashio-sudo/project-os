@@ -1,4 +1,4 @@
-import { Select } from "@/components/ds";
+import { Select, formatAmount } from "@/components/ds";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -113,7 +113,7 @@ export default function QuickIssue() {
         {data && data.activities.length === 0 && <p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noActivities}</p>}
         {data && done && (
           <div className="space-y-3">
-            <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{t.saved}: {done.summary}<br />{t.cost}: {done.cost}</p>
+            <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{t.saved}: {done.summary}<br />{t.cost}: <bdi>{formatAmount(done.cost)}</bdi></p>
             <Button className={`${tap} w-full text-base`} onClick={again}>{t.more}</Button>
           </div>
         )}
@@ -139,7 +139,7 @@ export default function QuickIssue() {
                 <ul className="space-y-2">
                   {(found.data ?? []).map(item => (
                     <li key={item.id}><button type="button" className={`${tap} w-full rounded-xl border bg-card p-3 text-start`} onClick={() => choose(item)}>
-                      <span className="block text-base font-semibold">{item.code}</span><span className="block text-sm text-muted-foreground">{item.description}</span><span className="block text-xs text-muted-foreground">{t.onHand}: {item.onHand} {item.unit}</span>
+                      <span className="block text-base font-semibold">{item.code}</span><span className="block text-sm text-muted-foreground">{item.description}</span><span className="block text-xs text-muted-foreground">{t.onHand}: <bdi>{formatAmount(item.onHand, 3)} {item.unit}</bdi></span>
                     </button></li>
                   ))}
                 </ul>
@@ -148,7 +148,7 @@ export default function QuickIssue() {
             {chosen && (
               <div className="space-y-3">
                 <div className="flex items-start justify-between rounded-xl border bg-card p-3">
-                  <div><p className="text-base font-semibold">{chosen.code}</p><p className="text-sm text-muted-foreground">{chosen.description}</p><p className="text-xs text-muted-foreground">{t.onHand}: {chosen.onHand} {chosen.unit}</p></div>
+                  <div><p className="text-base font-semibold">{chosen.code}</p><p className="text-sm text-muted-foreground">{chosen.description}</p><p className="text-xs text-muted-foreground">{t.onHand}: <bdi>{formatAmount(chosen.onHand, 3)} {chosen.unit}</bdi></p></div>
                   <Button type="button" variant="outline" className={tap} onClick={again}>×</Button>
                 </div>
                 <label className="block text-sm font-medium" htmlFor="qi-quantity">{t.quantity} ({chosen.unit})</label>

@@ -17,6 +17,7 @@ export * from "./PageIntro";
 export * from "./Segmented";
 export * from "./Select";
 export * from "./Stepper";
+export * from "./TableScroll";
 export * from "./direction";
 export * from "./format";
 export * from "./strings";

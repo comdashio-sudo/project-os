@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates"
 import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
 import { kpiValues, levelHref, type ProjectKpi, type ScopeLevels } from "@/lib/levels";
 import { Figure } from "@/pages/LevelCompany";
+import { TableScroll } from "@/components/ds/TableScroll";
 
 // Level 2, projects management (portfolio): the projects the caller's own PMO assignment covers, from `scopes.portfolio`. It compares
 // the projects, and shows what waits for the consultant and what waits for quality. Each project opens its own level with one click.
@@ -74,7 +75,7 @@ export default function LevelPortfolio() {
       </dl>
     </LevelSection>
     <LevelSection id="portfolio-comparison" title={t.comparison}>
-      <div className="overflow-x-auto">
+      <TableScroll label={t.comparison}>
         <table className="w-full min-w-[640px] text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr>
@@ -104,7 +105,7 @@ export default function LevelPortfolio() {
             })}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
     </LevelSection>
     <LevelSection id="portfolio-consultant" title={t.consultantTitle}>
       {consultantRows.length === 0 ? <p className="text-sm text-muted-foreground">{t.nothingWaiting}</p> : <ul className="space-y-2 text-sm">

@@ -2,7 +2,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import ProjectPmc, { ProjectPmcWorkspace } from "./ProjectPmc";
+import ProjectPmc, { PMC_TEXT, ProjectPmcWorkspace, ageText } from "./ProjectPmc";
 import { exportElementToPdf } from "@/lib/pdfExport";
 import { buildTableWorkbook } from "@/lib/excelExport";
 
@@ -26,7 +26,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: s
 
 const h = vi.hoisted(() => {
   const options = { zones: ["Z1", "Z2"], blocks: ["B1"], groups: ["CIV"], stages: ["INT"], activities: ["WALLS"] };
-  const freshness = [{ source: "status", lastAt: new Date(), ageDays: 3 }, { source: "baseline", lastAt: null, ageDays: null }];
+  const freshness = [{ source: "status", lastAt: new Date(), ageDays: 3 }, { source: "baseline", lastAt: null, ageDays: null }, { source: "requests", lastAt: new Date(), ageDays: 1 }, { source: "internal_key", lastAt: new Date(), ageDays: 2 }];
   const screenQuery = (data: unknown, emptyData: unknown) => (input: unknown) => {
     state.inputs.push(input);
     if (state.loading) return { isLoading: true, error: null, data: undefined, refetch: () => undefined };
@@ -66,6 +66,10 @@ describe("ProjectPmc screens", () => {
     expect(screen.getAllByText("40%", { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByTestId("freshness").textContent).toContain("Activity status: 3 days ago");
     expect(screen.getByTestId("freshness").textContent).toContain("Baseline: never updated");
+    // one day is singular, and a source the screen has no name for never shows its internal key
+    expect(screen.getByTestId("freshness").textContent).toContain("Requests: 1 day ago");
+    expect(screen.getByTestId("freshness").textContent).toContain("Other source: 2 days ago");
+    expect(screen.getByTestId("freshness").textContent).not.toContain("internal_key");
     open("Approvals"); expect(screen.getByText("IR-1")).toBeTruthy(); expect(screen.getByText("Replies per consultant")).toBeTruthy();
     open("Inspections"); expect(screen.getByText("Waiting for consultant")).toBeTruthy(); expect(screen.getByText("PAINT · Paint")).toBeTruthy();
     open("Activities"); expect(screen.getByText("WALLS · Walls")).toBeTruthy();
@@ -117,7 +121,7 @@ describe("ProjectPmc screens", () => {
     expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
     expect(screen.getByText("ضبط المشروع PMC")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "آخر التحديثات" })).toBeTruthy();
-    expect(screen.getByTestId("freshness").textContent).toContain("قبل 3 يومًا");
+    expect(screen.getByTestId("freshness").textContent).toContain("قبل 3 أيام");
   });
 });
 
@@ -357,5 +361,19 @@ describe("ProjectPmc Excel export, table by table", () => {
     expect(result.headers).toEqual(result.tableHeaders);
     expect(result.exportedRows).toBe(2);
     expect(result.bodyRows).toBe(2);
+  });
+});
+
+describe("PMC data freshness: the age of a source in each language", () => {
+  it("counts days with the right plural in Arabic, English and Urdu, and names every source the server sends", () => {
+    expect([1, 2, 3, 10, 11].map(n => ageText(PMC_TEXT.ar, n))).toEqual(["قبل يوم واحد", "قبل يومين", "قبل 3 أيام", "قبل 10 أيام", "قبل 11 يومًا"]);
+    expect([1, 2].map(n => ageText(PMC_TEXT.en, n))).toEqual(["1 day ago", "2 days ago"]);
+    expect([1, 5].map(n => ageText(PMC_TEXT.ur, n))).toEqual(["1 دن پہلے", "5 دن پہلے"]);
+    for (const language of ["ar", "en", "ur"] as const) {
+      expect(ageText(PMC_TEXT[language], 0)).toBe(PMC_TEXT[language].today);
+      // the five sources server/pmcScreensService.ts reports
+      for (const source of ["locations", "catalog", "status", "requests", "baseline"] as const) expect(PMC_TEXT[language].sources[source]).toBeTruthy();
+    }
+    expect(PMC_TEXT.ur.freshness).toBe("ڈیٹا کی تازگی");
   });
 });

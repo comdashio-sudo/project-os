@@ -19,13 +19,14 @@ import type { ExportColumn } from "@/lib/excelExport";
 import { pickLanguage } from "@/lib/language";
 import { wo22Text } from "@/lib/wo22Text";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
+import { TableScroll } from "@/components/ds/TableScroll";
 
-const text = {
+export const PMC_TEXT = {
   ar: {
     title: "ضبط المشروع PMC", back: "العودة إلى ضوابط المشروع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", noData: "لا توجد بيانات", export: "تصدير Excel", pdf: "PDF", print: "طباعة", pdfFailed: "تعذّر بناء ملف PDF. اطبع من المتصفح بدلًا منه.",
     tabs: { latestUpdates: "آخر التحديثات", approvals: "الاعتمادات", sitePlan: "المخطط", programme: "البرنامج الزمني", inspections: "الفحوصات", activities: "الأنشطة", zones: "المناطق", weekly: "الأسبوعي", monthly: "الشهري", pending: "المعلّق", stages: "المراحل", import: "الاستيراد" },
     filters: { zone: "المنطقة", block: "البلوك", unitFrom: "من وحدة", unitTo: "إلى وحدة", group: "المجموعة", stage: "المرحلة", activity: "النشاط", period: "الفترة", all: "الكل", default: "الافتراضية", d7: "آخر 7 أيام", d30: "آخر 30 يومًا", d90: "آخر 90 يومًا", d365: "آخر 12 شهرًا", everything: "كل الفترة", contractor: "المقاول", consultant: "الاستشاري" },
-    freshness: "حداثة البيانات", sources: { locations: "المواقع", catalog: "الكتالوج", status: "حالة الأنشطة", requests: "الطلبات", baseline: "خط الأساس" }, never: "لا تحديث بعد", today: "اليوم", daysAgo: (n: number) => `قبل ${n} يومًا`,
+    freshness: "حداثة البيانات", sources: { locations: "المواقع", catalog: "الكتالوج", status: "حالة الأنشطة", requests: "الطلبات", baseline: "خط الأساس" }, otherSource: "مصدر آخر", never: "لا تحديث بعد", today: "اليوم", daysAgo: (n: number) => (n === 1 ? "قبل يوم واحد" : n === 2 ? "قبل يومين" : n <= 10 ? `قبل ${n} أيام` : `قبل ${n} يومًا`),
     engineer: "المهندس", updates: "التحديثات", activeDays: "أيام نشطة", unitRange: "نطاق الوحدات", added: "النسبة المضافة", byGroup: "حسب المجموعة", total: "الإجمالي",
     request: "الطلب", activity: "النشاط", date: "التاريخ", contractor: "المقاول", consultant: "الاستشاري", reply: "الرد", units: "الوحدات", pendingReply: "معلّق", perConsultant: "الردود لكل استشاري", perDay: "الردود حسب اليوم", perActivity: "الردود حسب النشاط",
     stage: "الموقف", count: "العدد", percent: "النسبة", heldBy: "عند من الطلب", stalled: "أكثر الأنشطة تعطلًا", open: "مفتوح", oldestDays: "أقدم (أيام)",
@@ -40,7 +41,7 @@ const text = {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
     tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
-    freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
+    freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, otherSource: "Other source", never: "never updated", today: "today", daysAgo: (n: number) => (n === 1 ? "1 day ago" : `${n} days ago`),
     engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
     request: "Request", activity: "Activity", date: "Date", contractor: "Contractor", consultant: "Consultant", reply: "Reply", units: "Units", pendingReply: "pending", perConsultant: "Replies per consultant", perDay: "Replies per day", perActivity: "Replies per activity",
     stage: "Stage", count: "Count", percent: "Percent", heldBy: "Held by", stalled: "Most stalled activities", open: "Open", oldestDays: "Oldest (days)",
@@ -54,7 +55,7 @@ const text = {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
     tabs: { latestUpdates: "Latest updates", approvals: "Approvals", sitePlan: "Site plan", programme: "Programme", inspections: "Inspections", activities: "Activities", zones: "Zones", weekly: "Weekly", monthly: "Monthly", pending: "Pending", stages: "Stages", import: "Import" },
     filters: { zone: "Zone", block: "Block", unitFrom: "From unit", unitTo: "To unit", group: "Group", stage: "Stage", activity: "Activity", period: "Period", all: "All", default: "Default", d7: "Last 7 days", d30: "Last 30 days", d90: "Last 90 days", d365: "Last 12 months", everything: "All time", contractor: "Contractor", consultant: "Consultant" },
-    freshness: "Data freshness", sources: { locations: "Locations", catalog: "Catalogue", status: "Activity status", requests: "Requests", baseline: "Baseline" }, never: "never updated", today: "today", daysAgo: (n: number) => `${n} days ago`,
+    freshness: "ڈیٹا کی تازگی", sources: { locations: "مقامات", catalog: "کیٹلاگ", status: "سرگرمیوں کی حالت", requests: "درخواستیں", baseline: "بنیادی منصوبہ" }, otherSource: "دیگر ماخذ", never: "ابھی تک اپ ڈیٹ نہیں ہوا", today: "آج", daysAgo: (n: number) => `${n} دن پہلے`,
     engineer: "Engineer", updates: "Updates", activeDays: "Active days", unitRange: "Unit range", added: "Percent added", byGroup: "By group", total: "Total",
     request: "Request", activity: "Activity", date: "Date", contractor: "Contractor", consultant: "Consultant", reply: "Reply", units: "Units", pendingReply: "pending", perConsultant: "Replies per consultant", perDay: "Replies per day", perActivity: "Replies per activity",
     stage: "Stage", count: "Count", percent: "Percent", heldBy: "Held by", stalled: "Most stalled activities", open: "Open", oldestDays: "Oldest (days)",
@@ -66,25 +67,26 @@ const text = {
     importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
   },
 };
+const text = PMC_TEXT;
 type T = typeof text.en;
 const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "import"] as const;
 type Tab = (typeof TABS)[number];
 type Filters = { zone?: string; block?: string; unitFrom?: number; unitTo?: number; group?: string; stage?: string; activity?: string; contractor?: string; consultant?: string; since?: Date };
 const field = "min-h-[44px] rounded-lg border border-input bg-card px-2 text-sm";
 
-function Table({ headers, rows }: { headers: string[]; rows: Array<Array<React.ReactNode>> }) {
+function Table({ label, headers, rows }: { label: string; headers: string[]; rows: Array<Array<React.ReactNode>> }) {
   return (
-    <div className="overflow-x-auto">
+    <TableScroll label={label}>
       <table className="w-full min-w-[32rem] text-sm">
         <thead><tr className="text-xs text-muted-foreground">{headers.map(h => <th key={h} className="py-1 pe-3 text-start font-medium">{h}</th>)}</tr></thead>
         <tbody>{rows.map((row, i) => <tr key={i} className="border-t">{row.map((cell, j) => <td key={j} className="whitespace-nowrap py-1.5 pe-3">{cell}</td>)}</tr>)}</tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }
 
 const heat = (percent: number) => ({ backgroundColor: `color-mix(in srgb, var(--primary) ${Math.round(Math.min(1, percent / 100) * 60)}%, transparent)` });
-const ageText = (t: T, days: number | null) => (days === null ? t.never : days === 0 ? t.today : t.daysAgo(days));
+export const ageText = (t: T, days: number | null) => (days === null ? t.never : days === 0 ? t.today : t.daysAgo(days));
 
 /** The column helpers, bound to one row type. Passed to a `columns` callback so the row type is known before the lambdas are typed. */
 type Cols<Row> = {
@@ -106,7 +108,7 @@ function DataTable<Row>({ heading, exportAs, columns, rows, exportRows }: { head
         {heading ? <h3 className="font-semibold">{heading}</h3> : <span />}
         <ExportExcelButton fileName={exportAs.file} sheetName={exportAs.sheet} title={exportAs.title} columns={list} rows={exportRows ?? rows} />
       </div>
-      <Table headers={list.map(column => column.header)} rows={rows.map(row => list.map(column => column.cell(row)))} />
+      <Table label={typeof heading === "string" ? heading : exportAs.sheet} headers={list.map(column => column.header)} rows={rows.map(row => list.map(column => column.cell(row)))} />
     </div>
   );
 }
@@ -149,7 +151,7 @@ function Frame<D>({ query, t, isArabic, isEmpty, children, onOptions }: { query:
   if (!query.data) return <ErrorState isArabic={isArabic} error={query.error} title={pickLanguage(language, { ar: "تعذّر تحميل ضبط المشروع PMC", en: "The PMC workspace could not be loaded", ur: "PMC ورک اسپیس لوڈ نہیں ہو سکا" })} onRetry={() => query.refetch()} retryLabel={t.retry} />;
   return (
     <div className="space-y-4">
-      <p className="flex flex-wrap gap-2 text-xs text-muted-foreground" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-muted px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? f.source}: {ageText(t, f.ageDays)}</span>)}</p>
+      <p className="flex flex-wrap gap-2 text-xs text-muted-foreground" data-testid="freshness"><b>{t.freshness}:</b>{query.data.freshness.map(f => <span key={f.source} className="rounded-full bg-muted px-2 py-0.5">{t.sources[f.source as keyof T["sources"]] ?? t.otherSource}: {ageText(t, f.ageDays)}</span>)}</p>
       {isEmpty(query.data.data) ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{t.noData}</p> : children(query.data.data)}
     </div>
   );
@@ -177,7 +179,7 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
     return <Frame {...common} query={q} isEmpty={d => d.engineers.length === 0}>{d => (<>
       <DataTable exportAs={exp("engineers", t.engineer)} rows={d.engineers} columns={h => [
         h.text(t.engineer, e => e.name), h.number(t.updates, e => e.updates), h.number(t.activeDays, e => e.activeDays),
-        h.text(t.unitRange, e => `${e.unitFrom} – ${e.unitTo}`), h.percent(t.added, e => e.addedProjectPercent),
+        h.text(t.unitRange, e => `${e.unitFrom} – ${e.unitTo}`, e => <bdi dir="ltr">{`${e.unitFrom} – ${e.unitTo}`}</bdi>), h.percent(t.added, e => e.addedProjectPercent),
       ]} />
       <p className="text-sm">{t.total}: <b>{d.totals.updates}</b> · {t.added}: <b>{d.totals.addedProjectPercent}%</b></p>
       <DataTable heading={t.byGroup} exportAs={exp("by-group", t.byGroup)} rows={d.engineers.flatMap(e => e.byGroup.map(g => ({ engineer: e.name, group: g })))} columns={h => [

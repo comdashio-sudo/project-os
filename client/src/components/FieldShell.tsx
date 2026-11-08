@@ -26,7 +26,7 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   const tabs = [["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
-      {tabs.map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-white" : "border bg-card text-foreground"}`}>{label}</Link>)}
+      {tabs.map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}
       <form className="flex items-center gap-1" onSubmit={event => { event.preventDefault(); if (unit.trim()) navigate(`${base}/unit/${encodeURIComponent(unit.trim())}`); }}>
         <input aria-label={t.unitNumber} placeholder={t.unitNumber} inputMode="numeric" className={`${tap} w-28 rounded-xl border bg-card px-3 text-sm`} value={unit} onChange={event => setUnit(event.target.value)} />
         <button type="submit" className={`${tap} rounded-xl border bg-card px-3 text-sm font-semibold`}>{t.unit}</button>

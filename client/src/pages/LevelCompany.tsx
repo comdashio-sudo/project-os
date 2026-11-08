@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates"
 import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
 import { SourceNotice } from "@/components/SectionResilience";
 import { kpiValues, levelHref, type ProjectKpi, type ScopeLevels } from "@/lib/levels";
+import { TableScroll } from "@/components/ds/TableScroll";
 
 // Level 1, the company and the board (view only): every project on one page, read from `scopes.company`. It composes the server's figures;
 // it computes no money of its own. A person without company scope is answered with the no-permission sentence, never a 403.
@@ -96,7 +97,8 @@ export function Figure({ label, value }: { label: string; value: string }) {
 }
 
 function ProjectTable({ rows, currency, isArabic, t, tenantId }: { rows: ProjectKpi[]; currency: string | null; isArabic: boolean; t: typeof text.ar; tenantId: string }) {
-  return <div className="overflow-x-auto">
+  return <div>
+    <TableScroll label={t.allProjects}>
     <table className="w-full min-w-[640px] text-sm">
       <thead className="text-start text-xs text-muted-foreground">
         <tr>
@@ -126,6 +128,7 @@ function ProjectTable({ rows, currency, isArabic, t, tenantId }: { rows: Project
         })}
       </tbody>
     </table>
+    </TableScroll>
     {currency === null && <p className="mt-2 text-xs text-muted-foreground">{t.multiCurrency}</p>}
   </div>;
 }
