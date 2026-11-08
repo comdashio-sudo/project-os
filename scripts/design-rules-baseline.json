@@ -93,7 +93,7 @@
   "number-format": 2
  },
  "client/src/pages/Home.tsx": {
-  "hardcoded-colour": 8
+  "hardcoded-colour": 6
  },
  "client/src/pages/IntegrationSettings.tsx": {
   "raw-select": 13,
@@ -171,10 +171,6 @@
  "client/src/pages/ProjectContracts.tsx": {
   "raw-select": 7,
   "hardcoded-colour": 2
- },
- "client/src/pages/ProjectControls.tsx": {
-  "hardcoded-colour": 28,
-  "number-format": 1
  },
  "client/src/pages/ProjectDataExport.tsx": {
   "hardcoded-colour": 2

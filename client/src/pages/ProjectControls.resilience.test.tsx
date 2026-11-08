@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
 
-const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false }));
+const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
@@ -35,6 +35,7 @@ vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () =>
 vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
 vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null }));
+vi.mock("./ProjectPmc", () => ({ ProjectPmcWorkspace: () => <p>PMC workspace</p> }));
 
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
@@ -43,7 +44,7 @@ vi.mock("@/lib/trpc", () => {
       getControls: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { project: { code: "P-01", name: "Delivery evidence" }, wbs: [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null } }) },
       getControlsSchedule: { useQuery: () => ({ isLoading: state.scheduleLoading, error: state.scheduleError, refetch: vi.fn(), data: state.scheduleError || state.scheduleLoading ? undefined : { project: { code: "P-01", name: "Delivery evidence" }, wbs: state.scheduleEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [] } }) },
       getControlsFinancials: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { wbs: state.financialsEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], budgets: [], costs: [], progress: [] } }) },
-      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0, periodAt: new Date("2026-09-30T00:00:00.000Z") }, latestHealth: null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
+      getControlsPerformance: { useQuery: () => ({ isLoading: false, error: state.performancePartial || state.performanceEmpty ? null : { message: "performance unavailable" }, data: state.performancePartial ? { latestEvm: { cpi: 1, spi: 1, eac: 100, vac: 0, periodAt: new Date("2026-09-30T00:00:00.000Z") }, latestHealth: state.withHealth ? { status: "amber", overallScore: 72, confidence: "medium", periodAt: new Date("2026-09-30T00:00:00.000Z"), exceptions: "[]", drivers: JSON.stringify({ overdueHseCount: 2 }) } : null, cashFlow: null } : state.performanceEmpty ? { latestEvm: null, latestHealth: null, cashFlow: null } : undefined, refetch: vi.fn() }) },
     },
     directUploads: { create: { useMutation: mutation } }, // attachments upload straight to storage (G-139)
     wbs: { create: { useMutation: mutation } }, activities: { create: { useMutation: mutation } }, budgets: { create: { useMutation: mutation } }, costs: { createActual: { useMutation: mutation } }, progress: { create: { useMutation: mutation } }, controls: { saveEvmSnapshot: { useMutation: mutation }, captureOperationalEvmSnapshot: { useMutation: mutation }, captureProjectHealthSnapshot: { useMutation: mutation } },
@@ -51,7 +52,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 describe("ProjectControls section resilience", () => {
-  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.contractsRenderFailure = false; });
+  afterEach(() => { cleanup(); state.scheduleError = null; state.performancePartial = false; state.performanceEmpty = false; state.scheduleLoading = false; state.scheduleEmpty = false; state.financialsEmpty = false; state.withHealth = false; state.contractsRenderFailure = false; });
 
   it("inside the product frame draws no top bar or main of its own: the frame keeps the one banner and the one main (review of #156, item 2)", () => {
     const { container } = render(<InShellProvider><ProjectControls /></InShellProvider>);
@@ -145,15 +146,46 @@ describe("ProjectControls section resilience", () => {
     consoleError.mockRestore();
   });
 
+  it("\"Upload any file\" works from the PMC tab: it returns to the overview and opens the data-imports group", () => {
+    state.performancePartial = true;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    render(<ProjectControls />);
+    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
+    expect(screen.getByText("PMC workspace")).toBeTruthy();
+    const imports = document.getElementById("manager-assurance") as HTMLDetailsElement;
+    expect(imports.closest("[hidden]")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Upload any file" }));
+    frames.forEach(callback => callback(0));
+    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
+    expect(imports.closest("[hidden]")).toBeNull();
+    expect(imports.open).toBe(true);
+    raf.mockRestore();
+  });
+
+  it("puts the health results on a muted surface with full-contrast text, the overdue HSE count inside the health card", () => {
+    state.performancePartial = true;
+    state.withHealth = true;
+    render(<ProjectControls />);
+    const hse = screen.getByText(/Overdue HSE observations/);
+    expect(hse.closest("section")?.textContent).toContain("Project health");
+    const surface = hse.closest("div") as HTMLElement;
+    expect(surface.className).toContain("bg-muted");
+    expect(surface.className).toContain("text-foreground");
+    expect(document.querySelector("main .bg-accent.text-muted-foreground, main .bg-accent .text-muted-foreground")).toBeNull();
+  });
+
   it("shows the formula and the date beside each manager indicator (G-106)", () => {
     state.performancePartial = true;
     render(<ProjectControls />);
     const lines = screen.getAllByTestId("indicator-basis").map(node => node.textContent ?? "");
     expect(lines).toHaveLength(5);
     expect(lines[0]).toContain("no snapshot saved yet"); // health: no snapshot in this fixture
-    expect(lines[1]).toContain("CPI = EV ÷ AC"); expect(lines[1]).toContain("as of 30/09/2026"); // EVM: its snapshot date
+    expect(lines[1]).toContain("CPI = EV ÷ AC"); expect(lines[1]).toContain("as of Sep 30, 2026"); // EVM: its snapshot date
     expect(lines[2]).toContain("Remaining = planned budget"); expect(lines[2]).toContain("as of now");
     expect(lines[3]).toContain("blocked"); expect(lines[4]).toContain("WBS");
     expect(lines.every(line => line.startsWith("Formula: ") && line.includes("Source: "))).toBe(true);
+    // work order 21: the face shows the number and its status; each formula is folded behind "How is it calculated?"
+    for (const node of screen.getAllByTestId("indicator-basis")) expect(node.closest("details")?.querySelector("summary")?.textContent).toBe("How is it calculated?");
   });
 });

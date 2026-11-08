@@ -70,6 +70,11 @@ describe("Select (custom list, not the browser's)", () => {
     await act(async () => { fireEvent.click(option); });
     expect(onChange).toHaveBeenCalledWith("b");
   });
+
+  it("inside a required Field the list says so to a screen reader (aria-required on its combobox)", () => {
+    inApp(<Field label="Plan" required>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} aria-required={props["aria-required"]} onValueChange={vi.fn()} options={[{ value: "a", label: "A" }]} />}</Field>);
+    expect(screen.getByRole("combobox").getAttribute("aria-required")).toBe("true");
+  });
 });
 
 describe("FileDropzone", () => {
