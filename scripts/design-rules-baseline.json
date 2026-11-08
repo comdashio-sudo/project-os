@@ -119,9 +119,6 @@
   "raw-select": 4,
   "hardcoded-colour": 4
  },
- "client/src/pages/Login.tsx": {
-  "hardcoded-colour": 3
- },
  "client/src/pages/MyPerformance.tsx": {
   "number-format": 1
  },
