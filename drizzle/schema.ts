@@ -10,6 +10,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
   uniqueIndex,
   varchar,
@@ -3358,3 +3359,57 @@ export const pmcPlanMonths = pgTable(
   table => [uniqueIndex("pmc_plan_months_project_month_unique").on(table.projectId, table.month), index("pmc_plan_months_tenant_project_idx").on(table.tenantId, table.projectId)],
 );
 
+
+// Work order 23, P-17 (D-42 a): what a project carries beyond its code and name — where it is, the contract, the three parties with their logos, the working week and hours, and
+// the prefix its reports are numbered with. One row per project. A logo is a storage key under uploads/{tenant}/{project}/logo/ (never a URL); it is shown by a signed link.
+export const projectProfiles = pgTable(
+  "project_profiles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    location: varchar("location", { length: 255 }),
+    contractNumber: varchar("contract_number", { length: 80 }),
+    clientName: varchar("client_name", { length: 255 }),
+    consultantName: varchar("consultant_name", { length: 255 }),
+    contractorName: varchar("contractor_name", { length: 255 }),
+    clientLogoKey: varchar("client_logo_key", { length: 512 }),
+    consultantLogoKey: varchar("consultant_logo_key", { length: 512 }),
+    contractorLogoKey: varchar("contractor_logo_key", { length: 512 }),
+    // the working days as ascending distinct digits, 0 = Sunday … 6 = Saturday («01234» = Sunday to Thursday)
+    workDays: varchar("work_days", { length: 7 }).default("01234").notNull(),
+    workStart: time("work_start"),
+    workEnd: time("work_end"),
+    reportPrefix: varchar("report_prefix", { length: 16 }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_profiles_tenant_project_unique").on(table.tenantId, table.projectId),
+    check("project_profiles_work_days_check", sql`${table.workDays} ~ '^0?1?2?3?4?5?6?$' AND ${table.workDays} <> ''`),
+    check("project_profiles_work_hours_check", sql`(${table.workStart} IS NULL) = (${table.workEnd} IS NULL) AND (${table.workStart} IS NULL OR ${table.workStart} < ${table.workEnd})`),
+    check("project_profiles_report_prefix_check", sql`${table.reportPrefix} IS NULL OR ${table.reportPrefix} ~ '^[A-Z0-9][A-Z0-9-]{0,15}$'`),
+  ],
+);
+
+// The companies taking part in a project: one main contractor (at most one active, held by the partial unique index, not by a check in code) and any number of subcontractors.
+// Separate from pmc_contractors (the consultant tracker's contractor list from 0019); unifying the two is G-210 in docs/GAP_LIST.md.
+export const projectCompanies = pgTable(
+  "project_companies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    name: varchar("name", { length: 255 }).notNull(),
+    role: varchar("role", { length: 8 }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_companies_role_check", sql`${table.role} IN ('main', 'sub')`),
+    uniqueIndex("project_companies_one_active_main").on(table.projectId).where(sql`${table.role} = 'main' AND ${table.active}`),
+    index("project_companies_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);

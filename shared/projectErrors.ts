@@ -81,6 +81,36 @@ export const projectErrorMessages = {
     en: "The requested project is not available in this workspace.",
     ur: "مطلوبہ پروجیکٹ اس ورک اسپیس میں دستیاب نہیں ہے۔",
   },
+  PROJECT_OS_PROJECT_PROFILE_INVALID: {
+    ar: "بيانات المشروع غير صالحة: تحقّق من أيام العمل، وأن بداية الدوام قبل نهايته، وأن بادئة الترقيم أحرف لاتينية كبيرة وأرقام وشرطات.",
+    en: "The project details are not valid: check the working days, that the start of the working day is before its end, and that the report prefix uses capital letters, digits and hyphens.",
+    ur: "پروجیکٹ کی تفصیلات درست نہیں ہیں: کام کے دن چیک کریں، یہ کہ کام کا آغاز اختتام سے پہلے ہو، اور رپورٹ کا سابقہ بڑے لاطینی حروف، ہندسوں اور ڈیش پر مشتمل ہو۔",
+  },
+  PROJECT_OS_PROJECT_MAIN_CONTRACTOR_EXISTS: {
+    ar: "للمشروع مقاول رئيسي فعّال بالفعل. أوقف المقاول الحالي أو سجّل هذه الشركة مقاول باطن.",
+    en: "The project already has an active main contractor. Deactivate the current one or add this company as a subcontractor.",
+    ur: "اس پروجیکٹ کا ایک فعال مرکزی ٹھیکیدار پہلے سے موجود ہے۔ موجودہ کو غیر فعال کریں یا اس کمپنی کو ذیلی ٹھیکیدار کے طور پر شامل کریں۔",
+  },
+  PROJECT_OS_PROJECT_COMPANY_NOT_FOUND: {
+    ar: "الشركة المطلوبة غير مسجّلة في هذا المشروع.",
+    en: "The requested company is not registered on this project.",
+    ur: "مطلوبہ کمپنی اس پروجیکٹ میں درج نہیں ہے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_TYPE_INVALID: {
+    ar: "الشعار يجب أن يكون صورة PNG أو JPEG أو SVG.",
+    en: "The logo must be a PNG, JPEG or SVG image.",
+    ur: "لوگو PNG، JPEG یا SVG تصویر ہونا چاہیے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_TOO_LARGE: {
+    ar: "حجم الشعار يتجاوز 2 ميغابايت.",
+    en: "The logo is larger than 2 MB.",
+    ur: "لوگو کا سائز 2 MB سے زیادہ ہے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_UNSAFE: {
+    ar: "ملف SVG يحتوي على شيفرة أو روابط تنفيذية، فلا يُقبل شعارًا. احفظه من جديد صورةً بسيطة أو استعمل PNG.",
+    en: "The SVG file contains script or active links, so it is not accepted as a logo. Save it again as a plain image, or use PNG.",
+    ur: "SVG فائل میں اسکرپٹ یا فعال روابط ہیں، اس لیے اسے لوگو کے طور پر قبول نہیں کیا جاتا۔ اسے سادہ تصویر کے طور پر دوبارہ محفوظ کریں یا PNG استعمال کریں۔",
+  },
   PROJECT_OS_WBS_SCOPE_MISMATCH: {
     ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
     en: "The selected WBS item does not belong to the requested project.",
