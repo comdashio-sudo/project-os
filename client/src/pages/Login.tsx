@@ -211,7 +211,8 @@ export default function Login() {
           ) : (
             <form onSubmit={verify} method="post" className="mt-5 grid gap-4" noValidate>
               <p className="text-sm text-muted-foreground">{t.codeHelp} <bdi dir="ltr" className="font-medium text-foreground">{email}</bdi></p>
-              <Field label={t.code} required>
+              {/* the code step's error (wrong code, rate limit, code already sent) sits beside the code field, before the two text buttons, tied by aria-describedby */}
+              <Field label={t.code} required error={errorText ?? undefined}>
                 {props => <TextInput {...props} inputMode="numeric" autoComplete="one-time-code" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="min-h-12 text-center text-2xl tracking-[0.4em]" />}
               </Field>
               <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || code.length < CODE_MIN_LENGTH}>{!ready ? t.loading : busy ? t.verifying : t.verify}</Button>
@@ -222,7 +223,7 @@ export default function Login() {
               </div>
             </form>
           )}
-          {errorText ? <p role="alert" className="mt-4 rounded-[var(--radius)] bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground">{errorText}</p> : null}
+          {errorText && step === "email" ? <p role="alert" className="mt-4 rounded-[var(--radius)] bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground">{errorText}</p> : null}
           {googleEnabled && step === "email" ? (
             <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`} className="mt-5 flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-input px-4 text-sm font-medium hover:bg-muted">{t.google}</a>
           ) : null}

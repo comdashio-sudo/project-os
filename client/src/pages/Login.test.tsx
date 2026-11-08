@@ -214,4 +214,25 @@ describe("login page", () => {
       expect(button.className.split(" ")).not.toContain("min-h-9");
     }
   });
+  it("D-3 QA: a wrong code is the code field's own error — tied by aria-describedby and aria-invalid, and before the two text buttons in the DOM", async () => {
+    stubFetch({ "/api/auth/config": { ok: true, body: {} }, "/api/auth/email/request": { ok: true }, "/api/auth/email/verify": { ok: false, status: 401, body: { code: "PROJECT_OS_AUTH_CODE_INVALID" } } });
+    const user = userEvent.setup();
+    render(<Login />);
+    await user.type(screen.getByLabelText(/^E-mail address/), "engineer@example.test");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    const input = await screen.findByLabelText(/^Sign-in code/);
+    await user.type(input, "123456");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    const error = alerts[0];
+    expect(error.textContent).toBe("The code is wrong or has expired.");
+    expect(error.id).not.toBe("");
+    expect((input.getAttribute("aria-describedby") ?? "").split(" ")).toContain(error.id);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    for (const name of ["Use another e-mail", /^Send a new code/]) {
+      const button = screen.getByRole("button", { name });
+      expect(error.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
 });
