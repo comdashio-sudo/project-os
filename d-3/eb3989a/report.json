@@ -1,0 +1,341 @@
+[
+  {
+    "file": "after-login-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "الرمز غير صحيح أو انتهت صلاحيته."
+  },
+  {
+    "file": "after-mfa-setup-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل."
+  },
+  {
+    "file": "after-mfa-verify-error-ar-390.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل."
+  },
+  {
+    "file": "after-login-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "تغيير البريد:40",
+      "إعادة الإرسال بعد 60 ثانية:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "تغيير البريد:40",
+      "إعادة الإرسال بعد 60 ثانية:40"
+    ],
+    "alert": "الرمز غير صحيح أو انتهت صلاحيته."
+  },
+  {
+    "file": "after-mfa-setup-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "أظهر المفتاح للإدخال اليدوي:40",
+      "تأكيد وتفعيل:40",
+      "تسجيل الخروج:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "أظهر المفتاح للإدخال اليدوي:40",
+      "تأكيد وتفعيل:40",
+      "تسجيل الخروج:40"
+    ],
+    "alert": "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل."
+  },
+  {
+    "file": "after-mfa-verify-error-ar-1280.png",
+    "lang": "ar",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "متابعة:40",
+      "تسجيل الخروج:40"
+    ],
+    "alert": "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل."
+  },
+  {
+    "file": "after-login-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": "The code is wrong or has expired."
+  },
+  {
+    "file": "after-mfa-setup-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used."
+  },
+  {
+    "file": "after-mfa-verify-error-en-390.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used."
+  },
+  {
+    "file": "after-login-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [
+      "Use another e-mail:40",
+      "Send a new code in 60 s:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [
+      "Use another e-mail:40",
+      "Send a new code in 60 s:40"
+    ],
+    "alert": "The code is wrong or has expired."
+  },
+  {
+    "file": "after-mfa-setup-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [
+      "Show the key to type it in:40",
+      "Confirm and switch on:40",
+      "Sign out:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [
+      "Show the key to type it in:40",
+      "Confirm and switch on:40",
+      "Sign out:40"
+    ],
+    "alert": "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used."
+  },
+  {
+    "file": "after-mfa-verify-error-en-1280.png",
+    "lang": "en",
+    "dir": "ltr",
+    "sideScroll": false,
+    "small": [
+      "Continue:40",
+      "Sign out:40"
+    ],
+    "alert": "That code is wrong or was already used. Enter the current code from the app, or a recovery code that has not been used."
+  },
+  {
+    "file": "after-login-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "کوڈ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔"
+  },
+  {
+    "file": "after-mfa-setup-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔"
+  },
+  {
+    "file": "after-mfa-verify-error-ur-390.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔"
+  },
+  {
+    "file": "after-login-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "کوئی اور ای میل استعمال کریں:40",
+      "60 سیکنڈ بعد نیا کوڈ بھیجیں:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-login-code-error-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "کوئی اور ای میل استعمال کریں:40",
+      "60 سیکنڈ بعد نیا کوڈ بھیجیں:40"
+    ],
+    "alert": "کوڈ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔"
+  },
+  {
+    "file": "after-mfa-setup-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "ہاتھ سے درج کرنے کے لیے کلید د:40",
+      "تصدیق کریں اور فعال کریں:40",
+      "سائن آؤٹ:40"
+    ],
+    "alert": null
+  },
+  {
+    "file": "after-mfa-setup-error-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "ہاتھ سے درج کرنے کے لیے کلید د:40",
+      "تصدیق کریں اور فعال کریں:40",
+      "سائن آؤٹ:40"
+    ],
+    "alert": "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔"
+  },
+  {
+    "file": "after-mfa-verify-error-ur-1280.png",
+    "lang": "ur",
+    "dir": "rtl",
+    "sideScroll": false,
+    "small": [
+      "جاری رکھیں:40",
+      "سائن آؤٹ:40"
+    ],
+    "alert": "کوڈ غلط ہے یا پہلے استعمال ہو چکا ہے۔ ایپ کا موجودہ کوڈ یا ایسا ریکوری کوڈ درج کریں جو استعمال نہیں ہوا۔"
+  }
+]
