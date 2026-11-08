@@ -1,0 +1,482 @@
+[
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 390,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "before",
+  "lang": "ar",
+  "width": 1280,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 390,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "before",
+  "lang": "en",
+  "width": 1280,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 390,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "after",
+  "lang": "ar",
+  "width": 1280,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 390,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "login",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/login"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "workspace",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "controls",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/controls"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "pmc",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/projects/x/x/pmc"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "level",
+  "banners": 1,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/levels/x/projects/x"
+ },
+ {
+  "label": "after",
+  "lang": "en",
+  "width": 1280,
+  "name": "field",
+  "banners": 0,
+  "mains": 1,
+  "hscroll": false,
+  "path": "/m/x/x"
+ }
+]
