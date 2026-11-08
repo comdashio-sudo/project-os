@@ -58,6 +58,33 @@ describe("the log rows offer confirm and delete only to someone the server lets 
   });
 });
 
+describe("an external import (PMC, master plan, ledgers) is confirmed from its own screen, not from the log (ENG review of #157 at 419049d)", () => {
+  // The server confirms these through authorizeExternalImport, which also needs the plan feature and (HR ledgers) the company-level HR permission;
+  // the client reads neither, so the log does not offer a button whose answer it cannot know.
+  const external = ["pmc.locations", "pmc.status", "masterPlanMapping", "masterPlanSpatial", "costs", "purchaseOrders", "employees", "timeEntries"];
+  const externalRows = () => external.map((code, index) => row(`00000000-0000-4000-8000-0000000001${String(index).padStart(2, "0")}`, `${code}.xlsx`, "validated", 0, code));
+
+  it("a WBS manager does not see «Confirm import» on a validated pmc.* row, and still sees it on the WBS row", () => {
+    state.mock.list = [row(ids.awaiting, "wbs.xlsx", "validated", 0), row("00000000-0000-4000-8000-0000000000c1", "locations.xlsx", "validated", 0, "pmc.locations")];
+    state.permission = summary(["project.read", "project.wbs.manage"]);
+    render(page());
+    const [wbs, pmc] = screen.getAllByTestId("import-attempt-awaiting");
+    expect(within(wbs).getByRole("button", { name: "Confirm import" })).toBeTruthy();
+    expect(within(pmc).queryByRole("button", { name: "Confirm import" })).toBeNull();
+  });
+
+  it("nobody sees «Confirm import» on an external row, not even a holder of every permission those imports use", () => {
+    state.mock.list = [row(ids.awaiting, "wbs.xlsx", "validated", 0), ...externalRows()];
+    state.permission = summary(["project.read", "project.wbs.manage", "project.pmc.manage", "project.write", "project.cost.enter", "project.procurement.manage", "project.hr.manage", "project.manage"]);
+    render(page());
+    const rows = screen.getAllByTestId("import-attempt-awaiting");
+    expect(rows).toHaveLength(1 + external.length);
+    expect(screen.getAllByRole("button", { name: "Confirm import" })).toHaveLength(1); // the WBS row's only
+    expect(within(rows[0]).getByRole("button", { name: "Confirm import" })).toBeTruthy();
+    for (const external of rows.slice(1)) expect(within(external).getByRole("button", { name: "View results" })).toBeTruthy(); // the row is still there to read
+  });
+});
+
 describe("a confirmed row stops saying «Processing» without a reload", () => {
   it("reads the log again when the running job finishes, and not while it is still running", async () => {
     state.permission = summary(["project.wbs.manage"]);
