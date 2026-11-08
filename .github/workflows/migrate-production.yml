@@ -6,8 +6,9 @@ name: Migrate and promote production
 #   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
 #   4. only then is the `production` branch fast-forwarded to this commit, which is what makes Vercel build production (Vercel: Settings -> Git -> Production Branch = production; main is a Preview only).
 # Any failure stops the run before the next step: nothing is promoted, the site keeps serving the previous release.
-# Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variables (Settings -> Secrets and variables -> Actions -> Variables):
-# SUPABASE_ANON_KEY (the project's PUBLIC anon key, needed to run the sign-in check), SUPABASE_POOLER_HOST (optional: pins the session-pooler host; otherwise it is found by trying).
+# Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variable (optional): SUPABASE_POOLER_HOST (pins the
+# session-pooler host; otherwise it is found by trying). The project URL and its PUBLIC publishable key (sb_publishable_, needed for the sign-in check) are read from
+# config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused here and by server/testing/supabasePublicConfig.test.ts.
 # It starts when CI on main has FINISHED GREEN for the commit (workflow_run), not on the push itself: the heavy checks (unit tests, database suite,
 # screenshots, the three journeys) run once on main and nothing is migrated or promoted before they pass (owner's decision, 2026-10-27). A CI run cancelled
 # by a newer merge releases nothing; the newer commit's run does. By hand (workflow_dispatch) it releases main's newest commit.
@@ -48,6 +49,7 @@ jobs:
           set -euo pipefail
           sha="$(git rev-parse HEAD)"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          # the checkout above is full history (fetch-depth: 0); production is fetched again so the ancestry check and the diff see its current tip
           if git ls-remote --exit-code --heads origin production >/dev/null 2>&1; then
             git fetch -q origin production
             base="origin/production"
@@ -56,11 +58,12 @@ jobs:
           else
             changed="(no production branch yet)"
           fi
-          if [ -n "$changed" ] && ! echo "$changed" | grep -vE '^(docs/|qa/|\.github/)|\.md$' | grep -q .; then
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          # the decision is a script with tests (scripts/ci/release-scope.sh): a pipeline into `grep -q` here once read a 209-file code diff as "nothing to ship" (D-57)
+          decision="$(printf '%s\n' "$changed" | bash scripts/ci/release-scope.sh)"
+          echo "$decision" >> "$GITHUB_OUTPUT"
+          echo "changed paths: $(printf '%s\n' "$changed" | grep -c . || true); $decision"
+          if [ "$decision" = "deploy=false" ]; then
             echo "### Nothing to ship" >> "$GITHUB_STEP_SUMMARY"; echo "Only documentation or workflow files differ from production; no migration, no deployment." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: pnpm/action-setup@v4
         if: steps.scope.outputs.deploy == 'true'
@@ -72,11 +75,19 @@ jobs:
       - name: Install
         if: steps.scope.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile
-      - name: Refuse to start without the one secret
+      - name: Refuse to start without the one secret and the public Supabase config
         if: steps.scope.outputs.deploy == 'true'
         run: |
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
-          [ -n "${{ vars.SUPABASE_ANON_KEY }}" ] || { echo "::error::the repository VARIABLE SUPABASE_ANON_KEY is not set: without it the sign-in check cannot run, and nothing is promoted without that check (docs/GO_LIVE.md)"; exit 1; }
+          cfg=config/supabase.public.json
+          url="$(jq -r '.url // ""' "$cfg")"
+          key="$(jq -r '.publishableKey // ""' "$cfg")"
+          case "$url" in https://*.supabase.co) ;; *) echo "::error::$cfg has no https://<ref>.supabase.co url"; exit 1 ;; esac
+          case "$key" in
+            sb_publishable_?*) ;;
+            "") echo "::error::$cfg has no publishableKey: without it the sign-in check cannot run, and nothing is promoted without that check (docs/GO_LIVE.md)"; exit 1 ;;
+            *) echo "::error::$cfg publishableKey is not an sb_publishable_ key; only the public key belongs there (never sb_secret_ or service_role)"; exit 1 ;;
+          esac
       - name: 1. Migrations are backward compatible
         if: steps.scope.outputs.deploy == 'true'
         run: node scripts/ci/check-migration-compat.mjs
@@ -101,7 +112,6 @@ jobs:
           NODE_ENV: production
           PORT: "3920"
           DATABASE_POOL_MAX: "2"
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           EMAIL_NOTIFICATIONS_ENABLED: "false"
         run: |
           set -euo pipefail
@@ -109,7 +119,10 @@ jobs:
           export DATABASE_URL="$RELEASE_GATE_DATABASE_URL"
           jwt="$(openssl rand -hex 32)"
           export JWT_SECRET="$jwt"
-          export SUPABASE_URL="https://dzfxgxccnlyhcjgqstgn.supabase.co"
+          # the public URL and publishable key from the repository (D-35); the server sends the key in the apikey header only
+          SUPABASE_URL="$(jq -r '.url' config/supabase.public.json)"
+          SUPABASE_ANON_KEY="$(jq -r '.publishableKey' config/supabase.public.json)"
+          export SUPABASE_URL SUPABASE_ANON_KEY
           node dist/index.js > "$RUNNER_TEMP/server.log" 2>&1 &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
