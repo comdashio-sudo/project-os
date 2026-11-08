@@ -1501,6 +1501,11 @@ export const projectErrorMessages = {
     en: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
     ur: "A unit already has a different Oracle code than the file's; the linking code is never changed silently.",
   },
+  PROJECT_OS_SCHEDULE_UPDATE_NOT_RECOGNISED: {
+    ar: "لم يُتعرَّف على تحديث أنشطة في هذا الملف: يلزم عمود «Activity ID» وعمود «(*)Start» أو «(*)Finish».",
+    en: "No activity update was recognised in this file: it needs an «Activity ID» column and a «(*)Start» or «(*)Finish» column.",
+    ur: "No activity update was recognised in this file: it needs an «Activity ID» column and a «(*)Start» or «(*)Finish» column.",
+  },
   PROJECT_OS_IMPORT_JOB_FAILED: {
     ar: "تعذّر إكمال المعالجة لسبب غير متوقع. لم يُحفظ شيء؛ أعد المحاولة، وإن تكرر فتواصل مع الدعم.",
     en: "Processing could not finish because of an unexpected problem. Nothing was saved; try again, and contact support if it repeats.",

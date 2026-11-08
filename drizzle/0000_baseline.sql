@@ -23,7 +23,7 @@ CREATE TYPE "public"."cost_entries_status" AS ENUM('draft', 'posted', 'void');--
 CREATE TYPE "public"."data_import_errors_severity" AS ENUM('error', 'warning');--> statement-breakpoint
 CREATE TYPE "public"."data_import_row_results_action" AS ENUM('created', 'updated', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."data_imports_duplicate_mode" AS ENUM('create_only', 'update_existing', 'upsert', 'skip_duplicates', 'fail_on_duplicate');--> statement-breakpoint
-CREATE TYPE "public"."data_imports_source_format" AS ENUM('xlsx', 'csv', 'xer');--> statement-breakpoint
+CREATE TYPE "public"."data_imports_source_format" AS ENUM('xlsx', 'csv', 'xer', 'xls');--> statement-breakpoint
 CREATE TYPE "public"."data_imports_status" AS ENUM('uploaded', 'analyzing', 'validated', 'confirmed', 'importing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."decisions_status" AS ENUM('draft', 'submitted', 'approved', 'rejected', 'implemented');--> statement-breakpoint
 CREATE TYPE "public"."design_comments_severity" AS ENUM('minor', 'major', 'critical');--> statement-breakpoint
@@ -158,6 +158,83 @@ CREATE TABLE "activities" (
 	"planned_finish_at" timestamp with time zone,
 	"actual_start_at" timestamp with time zone,
 	"actual_finish_at" timestamp with time zone,
+	"external_id" varchar(40),
+	"task_type" varchar(24),
+	"calendar_id" varchar(36),
+	"duration_hours" numeric(10, 2),
+	"remaining_hours" numeric(10, 2),
+	"percent_complete" numeric(5, 2),
+	"total_float_hours" numeric(10, 2),
+	"constraint_type" varchar(24),
+	"constraint_date" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_code_assignments" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"activity_id" varchar(36) NOT NULL,
+	"code_type_id" varchar(36) NOT NULL,
+	"code_value_id" varchar(36) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_code_types" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"external_id" varchar(40) NOT NULL,
+	"name" varchar(120) NOT NULL,
+	"scope" varchar(40),
+	"sequence" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_code_values" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"code_type_id" varchar(36) NOT NULL,
+	"parent_id" varchar(36),
+	"external_id" varchar(40) NOT NULL,
+	"short_name" varchar(80) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"sequence" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_relationships" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"predecessor_activity_id" varchar(36) NOT NULL,
+	"successor_activity_id" varchar(36) NOT NULL,
+	"relation_type" varchar(2) NOT NULL,
+	"lag_hours" numeric(10, 2) DEFAULT '0' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "activity_relationships_type_check" CHECK ("activity_relationships"."relation_type" IN ('FS', 'SS', 'FF', 'SF')),
+	CONSTRAINT "activity_relationships_not_self_check" CHECK ("activity_relationships"."predecessor_activity_id" <> "activity_relationships"."successor_activity_id")
+);
+--> statement-breakpoint
+CREATE TABLE "activity_resource_assignments" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"activity_id" varchar(36) NOT NULL,
+	"resource_id" varchar(36) NOT NULL,
+	"external_id" varchar(40) NOT NULL,
+	"planned_units" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"actual_units" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"remaining_units" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"planned_cost" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"actual_cost" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"remaining_cost" numeric(18, 2) DEFAULT '0' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -1770,6 +1847,21 @@ CREATE TABLE "salary_structures" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "schedule_calendars" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"external_id" varchar(40) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"calendar_type" varchar(40),
+	"is_default" boolean DEFAULT false NOT NULL,
+	"hours_per_day" numeric(6, 2) DEFAULT '8' NOT NULL,
+	"hours_per_week" numeric(6, 2) DEFAULT '40' NOT NULL,
+	"definition" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "scheduled_jobs" (
 	"id" varchar(64) PRIMARY KEY NOT NULL,
 	"purpose" "scheduled_jobs_purpose" NOT NULL,
@@ -2227,6 +2319,24 @@ ALTER TABLE "actions" ADD CONSTRAINT "actions_owner_membership_id_memberships_id
 ALTER TABLE "activities" ADD CONSTRAINT "activities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activities" ADD CONSTRAINT "activities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activities" ADD CONSTRAINT "activities_wbs_item_id_wbs_items_id_fk" FOREIGN KEY ("wbs_item_id") REFERENCES "public"."wbs_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_assignments" ADD CONSTRAINT "activity_code_assignments_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_assignments" ADD CONSTRAINT "activity_code_assignments_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_assignments" ADD CONSTRAINT "activity_code_assignments_activity_id_activities_id_fk" FOREIGN KEY ("activity_id") REFERENCES "public"."activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_assignments" ADD CONSTRAINT "act_code_assign_type_fk" FOREIGN KEY ("code_type_id") REFERENCES "public"."activity_code_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_assignments" ADD CONSTRAINT "act_code_assign_value_fk" FOREIGN KEY ("code_value_id") REFERENCES "public"."activity_code_values"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_types" ADD CONSTRAINT "activity_code_types_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_types" ADD CONSTRAINT "activity_code_types_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_values" ADD CONSTRAINT "activity_code_values_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_values" ADD CONSTRAINT "activity_code_values_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_code_values" ADD CONSTRAINT "activity_code_values_code_type_id_activity_code_types_id_fk" FOREIGN KEY ("code_type_id") REFERENCES "public"."activity_code_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_relationships" ADD CONSTRAINT "activity_relationships_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_relationships" ADD CONSTRAINT "activity_relationships_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_relationships" ADD CONSTRAINT "activity_relationships_predecessor_activity_id_activities_id_fk" FOREIGN KEY ("predecessor_activity_id") REFERENCES "public"."activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_relationships" ADD CONSTRAINT "activity_relationships_successor_activity_id_activities_id_fk" FOREIGN KEY ("successor_activity_id") REFERENCES "public"."activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_resource_assignments" ADD CONSTRAINT "activity_resource_assignments_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_resource_assignments" ADD CONSTRAINT "activity_resource_assignments_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_resource_assignments" ADD CONSTRAINT "activity_resource_assignments_activity_id_activities_id_fk" FOREIGN KEY ("activity_id") REFERENCES "public"."activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_resource_assignments" ADD CONSTRAINT "act_resource_assign_resource_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."project_resources"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_rate_windows" ADD CONSTRAINT "api_rate_windows_key_id_api_keys_id_fk" FOREIGN KEY ("key_id") REFERENCES "public"."api_keys"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2586,6 +2696,8 @@ ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_companies_id_fk" FOREIGN KEY
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "self_service_signup_attempts" ADD CONSTRAINT "self_service_signup_attempts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2683,6 +2795,15 @@ ALTER TABLE "webhook_endpoints" ADD CONSTRAINT "webhook_endpoints_created_by_use
 CREATE INDEX "actions_tenant_project_due_idx" ON "actions" USING btree ("tenant_id","project_id","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "activities_project_code_unique" ON "activities" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "activities_tenant_project_idx" ON "activities" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_code_assignments_activity_type_unique" ON "activity_code_assignments" USING btree ("activity_id","code_type_id");--> statement-breakpoint
+CREATE INDEX "activity_code_assignments_value_idx" ON "activity_code_assignments" USING btree ("project_id","code_value_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_code_types_project_external_unique" ON "activity_code_types" USING btree ("project_id","external_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_code_values_project_external_unique" ON "activity_code_values" USING btree ("project_id","external_id");--> statement-breakpoint
+CREATE INDEX "activity_code_values_type_idx" ON "activity_code_values" USING btree ("project_id","code_type_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_relationships_pair_unique" ON "activity_relationships" USING btree ("project_id","predecessor_activity_id","successor_activity_id","relation_type");--> statement-breakpoint
+CREATE INDEX "activity_relationships_successor_idx" ON "activity_relationships" USING btree ("project_id","successor_activity_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "activity_resource_assignments_project_external_unique" ON "activity_resource_assignments" USING btree ("project_id","external_id");--> statement-breakpoint
+CREATE INDEX "activity_resource_assignments_activity_idx" ON "activity_resource_assignments" USING btree ("project_id","activity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "api_keys_prefix_unique" ON "api_keys" USING btree ("key_prefix");--> statement-breakpoint
 CREATE INDEX "api_keys_tenant_idx" ON "api_keys" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "audit_logs_tenant_entity_idx" ON "audit_logs" USING btree ("tenant_id","entity_type","entity_id");--> statement-breakpoint
@@ -2901,6 +3022,7 @@ CREATE INDEX "role_template_removals_tenant_status_idx" ON "role_template_remova
 CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint
+CREATE UNIQUE INDEX "schedule_calendars_project_external_unique" ON "schedule_calendars" USING btree ("project_id","external_id");--> statement-breakpoint
 CREATE INDEX "scheduled_jobs_task_uid_idx" ON "scheduled_jobs" USING btree ("schedule_cron_task_uid");--> statement-breakpoint
 CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint
@@ -3257,6 +3379,21 @@ END $$;
 CREATE TRIGGER pmc_cell_qc_guard BEFORE INSERT OR UPDATE OF status ON pmc_unit_activity_progress FOR EACH ROW EXECUTE FUNCTION project_os_qc_completion_guard();
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_cell_qc_accepted(varchar, varchar), project_os_qc_completion_guard() FROM PUBLIC;
+--> statement-breakpoint
+-- D-4 (#153): a schedule link joins two activities of ITS OWN project. The foreign keys only say each end exists; this says both ends are in the row's project and company,
+-- so no path (the P6 import, a later screen, a hand-written INSERT) can tie project A's activity to project B's. Runs as the caller, under row-level security: an end the caller
+-- cannot see is not found, and the row is refused (fail closed).
+CREATE FUNCTION project_os_activity_relationship_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM activities a WHERE a.id IN (NEW.predecessor_activity_id, NEW.successor_activity_id) AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id) <> 2 THEN
+    RAISE EXCEPTION 'ACTIVITY_RELATIONSHIP_CROSS_PROJECT: both activities must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER activity_relationships_same_project BEFORE INSERT OR UPDATE OF predecessor_activity_id, successor_activity_id, project_id, tenant_id ON activity_relationships FOR EACH ROW EXECUTE FUNCTION project_os_activity_relationship_same_project();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_activity_relationship_same_project() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
 --> statement-breakpoint

@@ -1,12 +1,13 @@
 import ExcelJS from "exceljs";
 import { MAX_IMPORT_ROWS, readSpreadsheetSafely } from "../excelWorkbook";
+import { readXls } from "./xlsReader";
 
 // Reads ANY workbook or CSV into plain grids, without asking the file to look like our template: every sheet, the merged cells filled the way Excel SHOWS them (vertical merges only —
 // a horizontal merge must not copy a title into six columns), and CSV in UTF-8 or Windows-1256. Free, deterministic, no model.
 export const MATRIX_MAX_COLUMNS = 300;
 export type Cell = string | number | Date | null;
 export type SheetGrid = { name: string; rows: Cell[][]; mergedFilled: number; mergeRanges: number };
-export type GridResult = { ok: true; sheets: SheetGrid[]; encoding: "utf-8" | "windows-1256" | "xlsx" } | { ok: false; code: string };
+export type GridResult = { ok: true; sheets: SheetGrid[]; encoding: "utf-8" | "windows-1256" | "xlsx" | "xls" } | { ok: false; code: string };
 
 const columnNumber = (letters: string) => letters.split("").reduce((sum, ch) => sum * 26 + (ch.charCodeAt(0) - 64), 0);
 function parseRange(range: string): { top: number; left: number; bottom: number; right: number } | null {
@@ -80,7 +81,8 @@ export function parseCsv(text: string): Cell[][] {
   return rows;
 }
 
-export async function readGrid(bytes: Uint8Array, format: "xlsx" | "csv"): Promise<GridResult> {
+export async function readGrid(bytes: Uint8Array, format: "xlsx" | "csv" | "xls"): Promise<GridResult> {
+  if (format === "xls") { const legacy = readXls(bytes); return legacy.ok ? { ok: true, encoding: "xls", sheets: legacy.sheets } : { ok: false, code: legacy.code }; }
   if (format === "csv") {
     const { text, encoding } = decodeCsv(bytes);
     return { ok: true, encoding, sheets: [{ name: "CSV", rows: parseCsv(text), mergedFilled: 0, mergeRanges: 0 }] };

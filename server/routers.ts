@@ -88,7 +88,7 @@ const importModuleSchema = z.enum(["wbs", "budget", "contracts", "materials", "s
 const uploadModuleSchema = z.union([importModuleSchema, z.enum(EXTERNAL_MODULES)]);
 const importContextSchema = z.object({ masterPlanVersionId: z.string().uuid().optional() }).strict();
 const importDuplicateModeSchema = z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]);
-const smartKindSchema = z.enum(["xer", "unitMatrix", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
+const smartKindSchema = z.enum(["xer", "unitMatrix", "scheduleUpdate", "boq", "schedule", "materials", "budget", "contracts", "valuation", "dailyReport"]);
 const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max(64).nullable()).transform(value => Object.fromEntries(Object.entries(value).map(([key, field]) => [Number(key), field])) as Record<number, string | null>).refine(value => Object.keys(value).length <= 80, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" });
 /** Which file formats a module accepts: a schedule is xlsx or XER, every other module xlsx or csv. */
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
