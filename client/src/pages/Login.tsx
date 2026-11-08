@@ -1,6 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { BrandMark } from "@/components/BrandMark";
+import { Button, Card, DirectionProvider, Field, Logo, TextInput } from "@/components/ds";
 import { safeNext } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import React from "react";
@@ -196,37 +194,40 @@ export default function Login() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-[#f4f6f8] p-5">
-      <div className="absolute end-4 top-4"><LanguageToggle showNote /></div>
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <BrandMark className="mx-auto mb-5 h-9 w-auto max-w-full" />
-        <h1 className="text-center text-xl font-semibold">{t.title}</h1>
-        {step === "email" ? (
-          <form onSubmit={requestCode} method="post" className="mt-5 space-y-4" noValidate>
-            <p className="text-sm text-slate-600">{t.emailHelp}</p>
-            <label className="block text-sm font-medium" htmlFor="login-email">{t.email}</label>
-            <Input id="login-email" type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="h-12 text-base" required aria-invalid={!!emailProblem} aria-describedby={emailProblem ? "login-email-error" : undefined} />
-            {emailProblem ? <p id="login-email-error" role="alert" className="text-sm text-red-700">{emailProblem}</p> : null}
-            <Button type="submit" className="h-12 w-full text-base" disabled={!ready || busy || !email.trim()}>{!ready ? t.loading : busy ? t.sending : t.send}</Button>
-          </form>
-        ) : (
-          <form onSubmit={verify} method="post" className="mt-5 space-y-4" noValidate>
-            <p className="text-sm text-slate-600">{t.codeHelp} <bdi dir="ltr" className="font-medium">{email}</bdi></p>
-            <label className="block text-sm font-medium" htmlFor="login-code">{t.code}</label>
-            <Input id="login-code" inputMode="numeric" autoComplete="one-time-code" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="h-12 text-center text-2xl tracking-[0.4em]" required />
-            <Button type="submit" className="h-12 w-full text-base" disabled={!ready || busy || code.length < CODE_MIN_LENGTH}>{!ready ? t.loading : busy ? t.verifying : t.verify}</Button>
-            <p className="text-xs text-slate-600">{t.latestOnly}</p>
-            <div className="flex justify-between text-sm">
-              <button type="button" className="text-[#0e6b70] underline" onClick={() => { setStep("email"); setErrorKey(null); }}>{t.changeEmail}</button>
-              <button type="button" className="text-[#0e6b70] underline disabled:opacity-50" disabled={!ready || busy || cooldown > 0} onClick={() => requestCode()}>{cooldown > 0 ? t.resendIn(cooldown) : t.resend}</button>
-            </div>
-          </form>
-        )}
-        {errorText ? <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorText}</p> : null}
-        {googleEnabled && step === "email" ? (
-          <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`} className="mt-5 block rounded-md border border-slate-300 px-4 py-3 text-center text-sm font-medium hover:bg-slate-50">{t.google}</a>
-        ) : null}
-      </div>
-    </main>
+    <DirectionProvider direction="a">
+      <main className="relative flex min-h-screen items-center justify-center bg-background p-5 text-foreground">
+        <div className="absolute end-4 top-4"><LanguageToggle showNote /></div>
+        <Card className="w-full max-w-sm p-6">
+          <div className="mb-5 flex justify-center"><Logo /></div>
+          <h1 className="text-center text-xl font-semibold">{t.title}</h1>
+          {step === "email" ? (
+            <form onSubmit={requestCode} method="post" className="mt-5 grid gap-4" noValidate>
+              <p className="text-sm text-muted-foreground">{t.emailHelp}</p>
+              <Field label={t.email} error={emailProblem ?? undefined}>
+                {props => <TextInput {...props} type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="min-h-12 text-base" />}
+              </Field>
+              <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || !email.trim()}>{!ready ? t.loading : busy ? t.sending : t.send}</Button>
+            </form>
+          ) : (
+            <form onSubmit={verify} method="post" className="mt-5 grid gap-4" noValidate>
+              <p className="text-sm text-muted-foreground">{t.codeHelp} <bdi dir="ltr" className="font-medium text-foreground">{email}</bdi></p>
+              <Field label={t.code}>
+                {props => <TextInput {...props} inputMode="numeric" autoComplete="one-time-code" maxLength={CODE_MAX_LENGTH} dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} className="min-h-12 text-center text-2xl tracking-[0.4em]" />}
+              </Field>
+              <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || code.length < CODE_MIN_LENGTH}>{!ready ? t.loading : busy ? t.verifying : t.verify}</Button>
+              <p className="text-xs text-muted-foreground">{t.latestOnly}</p>
+              <div className="flex justify-between gap-2 text-sm">
+                <Button variant="ghost" size="sm" className="text-primary" onClick={() => { setStep("email"); setErrorKey(null); }}>{t.changeEmail}</Button>
+                <Button variant="ghost" size="sm" className="text-primary" disabled={!ready || busy || cooldown > 0} onClick={() => requestCode()}>{cooldown > 0 ? t.resendIn(cooldown) : t.resend}</Button>
+              </div>
+            </form>
+          )}
+          {errorText ? <p role="alert" className="mt-4 rounded-[var(--radius)] bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground">{errorText}</p> : null}
+          {googleEnabled && step === "email" ? (
+            <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`} className="mt-5 flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-input px-4 text-sm font-medium hover:bg-muted">{t.google}</a>
+          ) : null}
+        </Card>
+      </main>
+    </DirectionProvider>
   );
 }
