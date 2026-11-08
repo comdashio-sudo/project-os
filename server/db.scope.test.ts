@@ -4,6 +4,7 @@ const databaseDouble = vi.hoisted(() => ({
   select: vi.fn(),
   transaction: vi.fn(),
 }));
+pairGrantSelects(databaseDouble.select);
 
 vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => databaseDouble),
@@ -11,6 +12,7 @@ vi.mock("drizzle-orm/node-postgres", () => ({
 
 import { createBudgetLine, createCostEntry, createProgressEntry, createWbsItem } from "./db";
 import { operationalPermissionCatalog } from "./domain/operationalRoles";
+import { pairGrantSelects } from "./testing/grantPairs";
 
 // The fully authorised user of these doubles is the tenant owner: the generic write permission plus every operational one.
 const ownerPermissionRows = [{ code: "project.write" }, ...operationalPermissionCatalog.map(permission => ({ code: permission.code }))];

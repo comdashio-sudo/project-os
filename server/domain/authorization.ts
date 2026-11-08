@@ -14,13 +14,34 @@ export const packageProducts: Record<SubscriptionPackageCode, readonly ProductCo
 export type MembershipStatus = "invited" | "active" | "suspended" | "revoked";
 export type ScopeType = "company" | "portfolio" | "program" | "project";
 
+export type AccessGrant = { code: string; scopeType: ScopeType; scopeId: string | null };
+
 export type TenantAccessSnapshot = {
   tenantId: string;
   membershipStatus: MembershipStatus | null;
   entitledProducts: readonly ProductCode[];
+  /**
+   * The permission codes of EVERY assignment, pooled, and the scopes of every assignment, pooled. For display (the access summary) and for the
+   * separation-of-duties rule only: never a basis for a decision, because pooling loses which scope a permission was granted on (G-142, D-18).
+   * Decide with `holdsPermission` (or `assertTenantAccess`), which reads `grants`. server/domain/accessGrants.static.test.ts enforces this.
+   */
   permissionCodes: readonly string[];
   scopes: readonly { scopeType: ScopeType; scopeId: string | null }[];
+  /** One entry per (assignment, permission it carries): the permission and the scope it was granted on travel together. */
+  grants: readonly AccessGrant[];
 };
+
+/** Does one grant's scope cover the requested scope? A company-wide grant covers everything; any other covers exactly its own scope. */
+const grantCovers = (grant: Pick<AccessGrant, "scopeType" | "scopeId">, requested: { type: ScopeType; id?: string }) => grant.scopeType === "company" || (grant.scopeType === requested.type && grant.scopeId === requested.id);
+
+/**
+ * True only when ONE assignment carries one of the permissions AND covers the scope (G-142, D-18). A viewer on project A who manages project B
+ * does not manage A. Without a scope the question is «on any assignment at all», as it always was for an unscoped check.
+ */
+export function holdsPermission(snapshot: Pick<TenantAccessSnapshot, "grants">, permission: string | readonly string[], scope?: { type: ScopeType; id?: string }): boolean {
+  const accepted = typeof permission === "string" ? [permission] : permission;
+  return snapshot.grants.some(grant => accepted.includes(grant.code) && (!scope || grantCovers(grant, scope)));
+}
 
 export function productsForPackage(packageCode: SubscriptionPackageCode): readonly ProductCode[] {
   return packageProducts[packageCode];
@@ -39,11 +60,8 @@ export function assertTenantAccess(
   if (!snapshot.entitledProducts.includes(request.product)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
   }
-  const accepted = typeof request.permission === "string" ? [request.permission] : request.permission;
-  if (!accepted.some(code => snapshot.permissionCodes.includes(code))) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
-  }
-  if (request.scope && !hasScopeAccess(snapshot.scopes, request.scope)) {
+  // the permission and the scope must come from the same assignment (G-142, D-18)
+  if (!holdsPermission(snapshot, request.permission, request.scope)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
   }
 }
