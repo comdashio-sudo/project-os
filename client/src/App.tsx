@@ -42,8 +42,9 @@ import IntegrationSettings from "./pages/IntegrationSettings";
 import RequireAuth from "./components/RequireAuth";
 import { PermissionProvider } from "./lib/permissions";
 import { RouteBoundary } from "./components/RouteBoundary";
+import { ProductShell, isFramedPath } from "./components/ProductShell";
 import { Suspense, lazy, type ComponentType } from "react";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 
 // The design preview (work order 19) is its own chunk: the fonts and the component library it loads are not part of the main bundle.
 const DesignPreview = lazy(() => import("./pages/DesignPreview"));
@@ -52,8 +53,10 @@ const lazyPage = (Page: ComponentType) => function LazyRoute() { return <Suspens
 
 function withAuth(Component: ComponentType<any>) {
   return function AuthenticatedRoute(props: any) {
+    const [location] = useLocation();
     // every company route carries :tenantId; the provider asks the server once what this person may do there (client/src/lib/permissions.tsx)
-    return <RequireAuth><PermissionProvider tenantId={props.params?.tenantId}><RouteBoundary><Component {...props} /></RouteBoundary></PermissionProvider></RequireAuth>;
+    // the company routes sit in the one product frame, except the phone screens and the setup wizard (isFramedPath)
+    return <RequireAuth><PermissionProvider tenantId={props.params?.tenantId}><RouteBoundary>{props.params?.tenantId && isFramedPath(location) ? <ProductShell tenantId={props.params.tenantId} projectId={props.params?.projectId}><Component {...props} /></ProductShell> : <Component {...props} />}</RouteBoundary></PermissionProvider></RequireAuth>;
   };
 }
 

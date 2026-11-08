@@ -2840,7 +2840,7 @@ CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_result
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
 CREATE INDEX "data_import_sources_tenant_project_idx" ON "data_import_sources" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" <> 'failed';--> statement-breakpoint
+CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" IN ('confirmed', 'importing', 'completed');--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_comments_project_number_unique" ON "design_comments" USING btree ("project_id","comment_number");--> statement-breakpoint
 CREATE INDEX "design_comments_tenant_project_status_idx" ON "design_comments" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
@@ -3379,6 +3379,21 @@ END $$;
 CREATE TRIGGER pmc_cell_qc_guard BEFORE INSERT OR UPDATE OF status ON pmc_unit_activity_progress FOR EACH ROW EXECUTE FUNCTION project_os_qc_completion_guard();
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_cell_qc_accepted(varchar, varchar), project_os_qc_completion_guard() FROM PUBLIC;
+--> statement-breakpoint
+-- D-4 (#153): a schedule link joins two activities of ITS OWN project. The foreign keys only say each end exists; this says both ends are in the row's project and company,
+-- so no path (the P6 import, a later screen, a hand-written INSERT) can tie project A's activity to project B's. Runs as the caller, under row-level security: an end the caller
+-- cannot see is not found, and the row is refused (fail closed).
+CREATE FUNCTION project_os_activity_relationship_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM activities a WHERE a.id IN (NEW.predecessor_activity_id, NEW.successor_activity_id) AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id) <> 2 THEN
+    RAISE EXCEPTION 'ACTIVITY_RELATIONSHIP_CROSS_PROJECT: both activities must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER activity_relationships_same_project BEFORE INSERT OR UPDATE OF predecessor_activity_id, successor_activity_id, project_id, tenant_id ON activity_relationships FOR EACH ROW EXECUTE FUNCTION project_os_activity_relationship_same_project();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_activity_relationship_same_project() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
 --> statement-breakpoint

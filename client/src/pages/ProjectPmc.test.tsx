@@ -221,10 +221,10 @@ describe("ProjectPmc as a tab inside the controls page (G-051) and the PDF butto
     expect(screen.getByRole("heading", { level: 2, name: "Project control (PMC)" })).toBeTruthy();
     expect(screen.getAllByRole("tab").length).toBeGreaterThan(5); // the whole workspace is there, not a stub
   });
-  it("standalone page keeps its own main landmark, back link and h1", () => {
+  it("standalone page keeps its own main landmark and h1; the shell breadcrumb replaces the duplicate back link", () => {
     const { container } = render(<ProjectPmc />);
     expect(container.querySelectorAll("main")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: /Back to project controls/ }).getAttribute("href")).toBe("/projects/t/p/controls");
+    expect(screen.queryByRole("link", { name: /Back to project controls/ })).toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
   });
   it("PDF builds a real file from the screen body and names the screen in the file name; print stays beside it", async () => {

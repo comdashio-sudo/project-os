@@ -1,4 +1,5 @@
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { EnterpriseNavigation } from "@/components/EnterpriseNavigation";
 import { GovernedProjectControlLink } from "@/components/GovernedProjectControlLink";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -82,7 +82,7 @@ export default function PmoDashboard() {
   const issueEscalationMutation = trpc.pmo.transitionIssueEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
   const actionEscalationMutation = trpc.pmo.transitionActionEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
 
-  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <main className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(setupQuery.error, isArabic)}</main>;
+  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <PageMain className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(setupQuery.error, isArabic)}</PageMain>;
   const data = {
     portfolios: setupQuery.data?.portfolios ?? [], programs: setupQuery.data?.programs ?? [], projects: setupQuery.data?.projects ?? [],
     risks: risksQuery.data?.risks ?? [], issues: issuesQuery.data?.issues ?? [], actions: actionsQuery.data?.actions ?? [],
@@ -131,15 +131,15 @@ export default function PmoDashboard() {
   const submitProjectLink = (event: FormEvent) => { event.preventDefault(); projectLinkMutation.mutate({ tenantId, projectId: projectLinkForm.projectId, ...(projectLinkForm.programId ? { programId: projectLinkForm.programId } : {}), ...(projectLinkForm.portfolioId ? { portfolioId: projectLinkForm.portfolioId } : {}) }); };
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b bg-white">
+    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link>
+          <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link></OutsideShell>
           <div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
-      </header>
+      </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <EnterpriseNavigation tenantId={tenantId} context="pmo" />
+        
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_setup" state={setupQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_risks" state={risksQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_issues" state={issuesQuery.error ? "error" : null} />
@@ -278,7 +278,7 @@ export default function PmoDashboard() {
         {(issueEscalationMutation.error || actionEscalationMutation.error) && <p role="alert" className="mt-4 text-sm text-red-700">{getLocalizedProjectError(issueEscalationMutation.error ?? actionEscalationMutation.error, isArabic)}</p>}
         {(issueEscalationMutation.isSuccess || actionEscalationMutation.isSuccess) && <p role="status" className="mt-4 text-sm text-emerald-700">{t.escalationSuccess}</p>}
       </div>
-    </main>
+    </PageMain>
   );
 }
 

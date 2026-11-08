@@ -297,6 +297,21 @@ CREATE TRIGGER pmc_cell_qc_guard BEFORE INSERT OR UPDATE OF status ON pmc_unit_a
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_cell_qc_accepted(varchar, varchar), project_os_qc_completion_guard() FROM PUBLIC;
 --> statement-breakpoint
+-- D-4 (#153): a schedule link joins two activities of ITS OWN project. The foreign keys only say each end exists; this says both ends are in the row's project and company,
+-- so no path (the P6 import, a later screen, a hand-written INSERT) can tie project A's activity to project B's. Runs as the caller, under row-level security: an end the caller
+-- cannot see is not found, and the row is refused (fail closed).
+CREATE FUNCTION project_os_activity_relationship_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM activities a WHERE a.id IN (NEW.predecessor_activity_id, NEW.successor_activity_id) AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id) <> 2 THEN
+    RAISE EXCEPTION 'ACTIVITY_RELATIONSHIP_CROSS_PROJECT: both activities must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER activity_relationships_same_project BEFORE INSERT OR UPDATE OF predecessor_activity_id, successor_activity_id, project_id, tenant_id ON activity_relationships FOR EACH ROW EXECUTE FUNCTION project_os_activity_relationship_same_project();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_activity_relationship_same_project() FROM PUBLIC;
+--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_apply_conventions(), project_os_analyze(text[]), project_os_set_updated_at(), project_os_audit_logs_refuse() FROM PUBLIC;

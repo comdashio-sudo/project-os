@@ -2,7 +2,7 @@
 -- and resource assignments with their units and costs — plus the source system's own fields on activities (id, type, calendar, durations, completion, float, constraint).
 -- All six tables carry tenant_id (and project_id): the convention sweep gives them row-level security and grants. Idempotent (a fresh database applies the baseline, which already holds all of this, then this file).
 -- The new activities columns are mutable: the sweep grants UPDATE on every column except the immutable ones, so nothing to grant here.
--- Rollback: DROP TABLE activity_resource_assignments, activity_code_assignments, activity_code_values, activity_code_types, activity_relationships, schedule_calendars; ALTER TABLE activities DROP COLUMN ... (the nine added below). No other table is touched.
+-- Rollback: DROP TRIGGER activity_relationships_same_project ON activity_relationships; DROP FUNCTION project_os_activity_relationship_same_project(); DROP TABLE activity_resource_assignments, activity_code_assignments, activity_code_values, activity_code_types, activity_relationships, schedule_calendars; ALTER TABLE activities DROP COLUMN ... (the nine added below). No other table is touched.
 SET LOCAL lock_timeout = '5s';
 --> statement-breakpoint
 ALTER TABLE "activities" ADD COLUMN IF NOT EXISTS "external_id" varchar(40);
@@ -165,3 +165,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS "activity_resource_assignments_project_externa
 CREATE INDEX IF NOT EXISTS "activity_resource_assignments_activity_idx" ON "activity_resource_assignments" USING btree ("project_id","activity_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "schedule_calendars_project_external_unique" ON "schedule_calendars" USING btree ("project_id","external_id");
+--> statement-breakpoint
+-- D-4 (#153): both ends of a schedule link are activities of the row's own project (the foreign keys only say they exist). Same body as drizzle/baseline-security.sql.
+CREATE OR REPLACE FUNCTION project_os_activity_relationship_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM activities a WHERE a.id IN (NEW.predecessor_activity_id, NEW.successor_activity_id) AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id) <> 2 THEN
+    RAISE EXCEPTION 'ACTIVITY_RELATIONSHIP_CROSS_PROJECT: both activities must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE OR REPLACE TRIGGER activity_relationships_same_project BEFORE INSERT OR UPDATE OF predecessor_activity_id, successor_activity_id, project_id, tenant_id ON activity_relationships FOR EACH ROW EXECUTE FUNCTION project_os_activity_relationship_same_project();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_activity_relationship_same_project() FROM PUBLIC;
+--> statement-breakpoint
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'activity_relationships_same_project' AND tgrelid = 'public.activity_relationships'::regclass AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'activity_relationships_same_project trigger is missing';
+  END IF;
+END $$;

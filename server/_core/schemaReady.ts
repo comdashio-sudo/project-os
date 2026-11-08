@@ -15,14 +15,16 @@ export const REQUIRED_SCHEMA = [
   { migration: "0013_wo20_smart_import", kind: "table", table: "smart_reading_usage" },
   { migration: "0014_wo20_unit_external_code", kind: "column", table: "pmc_units", column: "external_code" },
   { migration: "0015_wo16_user_language", kind: "table", table: "user_language_preferences" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "schedule_calendars" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "activity_relationships" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "activity_code_types" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "activity_code_values" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "activity_code_assignments" },
-  { migration: "0016_wo20_p6_schedule", kind: "table", table: "activity_resource_assignments" },
-  { migration: "0016_wo20_p6_schedule", kind: "column", table: "activities", column: "external_id" },
-  { migration: "0017_wo20_import_format_xls", kind: "enum-value", table: "data_imports_source_format", column: "xls" },
+  // 0016 narrows the "same file twice" rule to confirmed imports (the index's WHERE clause names the three confirmed statuses)
+  { migration: "0016_wo20_import_duplicate_confirmed_only", kind: "unique-index-confirmed-only", table: "data_imports", column: "data_imports_tenant_file_hash_unique" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "schedule_calendars" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_relationships" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_code_types" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_code_values" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_code_assignments" },
+  { migration: "0017_wo20_p6_schedule", kind: "table", table: "activity_resource_assignments" },
+  { migration: "0017_wo20_p6_schedule", kind: "column", table: "activities", column: "external_id" },
+  { migration: "0018_wo20_import_format_xls", kind: "enum-value", table: "data_imports_source_format", column: "xls" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -53,6 +55,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
         ? (await db.execute(sql`SELECT to_regclass(${`public.${item.table}`}) IS NOT NULL AS present`)).rows[0]?.present
         : item.kind === "enum-value"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = ${item.table} AND e.enumlabel = ${item.column}) AS present`)).rows[0]?.present
+        : item.kind === "unique-index-confirmed-only"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
         : item.kind === "immutable-column-locked"
         ? (await db.execute(sql`SELECT (current_user <> 'project_os_app') OR NOT has_column_privilege(current_user, ${`public.${item.table}`}, ${item.column}, 'UPDATE') AS present`)).rows[0]?.present
         : (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${item.table} AND column_name = ${item.column}) AS present`)).rows[0]?.present;

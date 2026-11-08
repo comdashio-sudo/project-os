@@ -1,5 +1,5 @@
 {
-  "id": "df394447-9e07-447e-88fc-0818585becb9",
+  "id": "1427bbe8-9671-482e-b50c-2914af2c470c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4631,7 +4631,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"data_imports\".\"status\" <> 'failed'",
+          "where": "\"data_imports\".\"status\" IN ('confirmed', 'importing', 'completed')",
           "concurrently": false,
           "method": "btree",
           "with": {}
