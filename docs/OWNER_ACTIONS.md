@@ -143,3 +143,14 @@
 3. Vercel ← مشروع **dashio** ← **Settings** ← **Environment Variables** ← **Add**: الاسم `STORAGE_S3_ACCESS_KEY_ID` والقيمة الأولى، البيئة **Production** ← Save. ثم بالطريقة نفسها `STORAGE_S3_SECRET_ACCESS_KEY` والقيمة الثانية (علّم **Sensitive**).
 4. Vercel ← **Deployments** ← آخر نشر إنتاج ← **⋯** ← **Redeploy**.
 5. التحقق: ادخل ← مشروع ← المستندات ← ارفع ملفًا أصغر من 3 MB ← يظهر وينزل. إن فشل الرفع فتحقق أن الاسمين مطابقان حرفيًا وأن البيئة Production (سجلات Vercel تقول `Storage config missing` مع اسم المتغير الغائب).
+
+## 15. مضيف مجمّع الاتصال للإطلاق (مشروط — لا شيء عليك الآن، 9 نوفمبر 2026، D-69)
+
+**ما حدث:** خطوة الإطلاق 2 رُفضت بـ`28P01` («password authentication failed for user "project_os_app"») في التشغيل 42532475589. كلمة مرور الدور **ليست** السبب الذي يحتاجك: سكربت التجهيز يضبطها في كل تشغيل من سر `SUPABASE_DB_PASSWORD` نفسه ثم يدخل بها بعد ثوانٍ، فإعادة ضبطها يدويًا لا تغيّر شيئًا. الفرق الوحيد عن سير `bootstrap` الذي أثبت الدور ثلاث مرات: الإطلاق يختار مضيف المجمّع بالتجربة (أول مضيف يقبل المالك)، و`bootstrap` يقرؤه من Supabase. منذ D-69 (ب) يجرّب الإطلاق المالك **ودور التطبيق** على كل مضيف ويختار الذي يقبلهما معًا، ويطبع في سجل خطوة «Database connection» سطرًا فيه `appRoleSignsIn` ونتيجة كل مضيف.
+
+**عليك فقط إن طبع ذلك السطر `"appRoleSignsIn":false` ثم فشلت الخطوة 2 مرة أخرى بـ`28P01`:**
+1. Supabase ← مشروع **dashio** ← زر **Connect** أعلى الصفحة ← تبويب **Connection String** ← **Session pooler**.
+2. انسخ من الرابط الجزء الذي بين `@` و`:5432` فقط (مثل `aws-…-ap-southeast-1.pooler.supabase.com`). هذا عنوان لا سر.
+3. GitHub ← المستودع **project-os** ← **Settings** ← **Secrets and variables** ← **Actions** ← تبويب **Variables** ← **New repository variable**: الاسم `SUPABASE_POOLER_HOST` والقيمة ما نسخته ← **Add variable**.
+4. GitHub ← **Actions** ← **Migrate and promote production** ← **Run workflow** ← `main`.
+5. لا تغيّر سر `SUPABASE_DB_PASSWORD` ولا كلمة مرور `project_os_app` في Supabase: كلاهما يُشتق ويُضبط آليًا.

@@ -175,6 +175,27 @@ export function connectionUrls(input: { ref: string; poolerHost: string; databas
  */
 export const POOLER_HOST_CANDIDATES: readonly string[] = ["aws-0-ap-southeast-1.pooler.supabase.com", "aws-1-ap-southeast-1.pooler.supabase.com"];
 
+export type PoolerLogin = (host: string, role: "owner" | "app") => Promise<string>; // "ok" or an SQLSTATE / short reason, never a password
+
+/**
+ * Which candidate the release talks to (D-69, run 42532475589). The owner's login alone is not enough: the release then signs in as the restricted
+ * role, and a host that accepts `postgres.<ref>` but refuses `project_os_app.<ref>` with 28P01 stopped every release at step 2 while the bootstrap
+ * (whose host comes from the Management API) proved the same role on its host. So every candidate is tried as the owner AND as the application
+ * role (with the derived password the previous run set), and the first host where both sign in wins; with none, the first host where the owner
+ * signs in (the very first run, before the role has a password). Each attempt is reported by host, role and code -- never a password.
+ */
+export async function choosePoolerHost(candidates: readonly string[], login: PoolerLogin) {
+  const tried: Array<{ host: string; owner: string; app: string }> = [];
+  for (const host of candidates) {
+    const owner = await login(host, "owner");
+    const app = owner === "ok" ? await login(host, "app") : "not tried";
+    tried.push({ host, owner, app });
+  }
+  const both = tried.find(entry => entry.owner === "ok" && entry.app === "ok");
+  const ownerOnly = tried.find(entry => entry.owner === "ok");
+  return { host: (both ?? ownerOnly)?.host ?? "", appRoleProven: Boolean(both), tried };
+}
+
 /** The S3 endpoint is public information of the project; the access keys are not (see GO_LIVE: the one manual step). */
 export function storageEndpoint(ref: string) { return `https://${ref}.storage.supabase.co/storage/v1/s3`; }
 
