@@ -104,3 +104,11 @@ describe("dates, times and local date-times keep their min and max under noValid
     expect(formFieldProblems(formOf('<input id="d" type="date" min="2026-11-10" value="" />'), "en")).toEqual([]);
   });
 });
+
+describe("times with seconds on one side only (review note on #232)", () => {
+  it("17:00:30 is after a 17:00 maximum, and 2026-11-10T17:00 is within a max given with seconds", async () => {
+    const { formFieldProblems } = await import("./formValidation");
+    const form = formOf('<input id="late" type="time" max="17:00" value="17:00:30" /><input id="ok" type="datetime-local" max="2026-11-10T17:00:00" value="2026-11-10T17:00" />');
+    expect(formFieldProblems(form, "en").map(problem => problem.element.id)).toEqual(["late"]);
+  });
+});
