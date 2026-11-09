@@ -91,6 +91,15 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     // NEGATIVE: a member without tenant.manage can neither read nor change it, and nothing changes
     await expect(asPerson(company.people.site as Person, false).tenant.securitySettings({ tenantId: company.tenantId })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(asPerson(company.people.pm as Person, false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // NEGATIVE (review of #238): tenant.manage held at PROJECT scope does not reach the company switch — refused, nothing changes, no audit row
+    const projectAdminRole = await admin.tenant.createRole({ tenantId: company.tenantId, code: "MFA_PROJECT_ADMIN", name: "Project-scoped administrator", productCode: "EXECUTIVE", permissionCodes: ["tenant.manage"] });
+    const [[siteMembership]] = await owner.query<{ id: string }[]>("SELECT id FROM memberships WHERE tenantId = ? AND userId = ?", [company.tenantId, (company.people.site as Person).id]);
+    await admin.tenant.assignMembershipRole({ tenantId: company.tenantId, membershipId: siteMembership.id, roleId: projectAdminRole.id, scopeType: "project", scopeId: company.projectId });
+    const auditsBefore = Number((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.two_step_requirement_changed'", [company.tenantId]))[0][0].n);
+    await expect(asPerson(company.people.site as Person, false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(asPerson(company.people.site as Person, false).tenant.securitySettings({ tenantId: company.tenantId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(Number((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.two_step_requirement_changed'", [company.tenantId]))[0][0].n)).toBe(auditsBefore);
+    expect(Boolean((await owner.query<{ r: boolean }[]>("SELECT requireTwoStep AS r FROM companies WHERE id = ?", [company.tenantId]))[0][0].r)).toBe(false);
     // NEGATIVE: not for a company the caller does not belong to
     await expect(admin.tenant.setRequireTwoStep({ tenantId: crypto.randomUUID(), requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });

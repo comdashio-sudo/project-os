@@ -48,15 +48,15 @@ export function OwnTwoStepCard() {
         <p role="status" className="text-sm font-medium">{on ? t.stateOn : t.stateOff}</p>
         {companyRequired ? <p className="text-sm text-muted-foreground">{t.company}</p> : null}
         {recoveryCodes ? (
-          <div className="space-y-2"><p className="text-sm">{t.recovery}</p><ul dir="ltr" className="grid grid-cols-2 gap-2 font-mono text-sm">{recoveryCodes.map(item => <li key={item} className="rounded-md border bg-muted px-3 py-2">{item}</li>)}</ul><Button type="button" onClick={() => setRecoveryCodes(null)}>{t.done}</Button></div>
+          <div className="space-y-2"><p className="text-sm">{t.recovery}</p><ul dir="ltr" className="grid grid-cols-2 gap-2 font-mono text-sm">{recoveryCodes.map(item => <li key={item} className="rounded-md border bg-muted px-3 py-2">{item}</li>)}</ul><Button className="min-h-11" type="button" onClick={() => setRecoveryCodes(null)}>{t.done}</Button></div>
         ) : mode === "idle" ? (
-          selfRequired && !companyRequired ? <Button type="button" variant="outline" onClick={() => { setCode(""); setMode("off"); }}>{t.turnOff}</Button>
-            : !on ? <Button type="button" onClick={start}>{t.turnOn}</Button> : null
+          selfRequired && !companyRequired ? <Button className="min-h-11" type="button" variant="outline" onClick={() => { setCode(""); setMode("off"); }}>{t.turnOff}</Button>
+            : !on ? <Button className="min-h-11" type="button" onClick={start}>{t.turnOn}</Button> : null
         ) : (
           <form className="space-y-3" onSubmit={submit}>
             {mode === "enrol" ? <><p className="text-sm text-muted-foreground">{t.scan}</p>{qr ? <img src={qr} alt={t.qrAlt} width={192} height={192} className="rounded-md border bg-white" /> : null}{begin.data ? <a href={begin.data.otpauthUri} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">{t.openApp}</a> : null}</> : null}
             <div className="space-y-1.5"><Label htmlFor="own-two-step-code">{t.code}</Label><Input id="own-two-step-code" dir="ltr" autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} /></div>
-            <div className="flex flex-wrap gap-2"><Button type="submit" disabled={code.trim().length < 6 || confirm.isPending || setOwn.isPending || (mode === "enrol" && !begin.data)}>{t.confirm}</Button><Button type="button" variant="ghost" onClick={() => { setMode("idle"); setCode(""); }}>{t.cancel}</Button></div>
+            <div className="flex flex-wrap gap-2"><Button className="min-h-11" type="submit" disabled={code.trim().length < 6 || confirm.isPending || setOwn.isPending || (mode === "enrol" && !begin.data)}>{t.confirm}</Button><Button className="min-h-11" type="button" variant="ghost" onClick={() => { setMode("idle"); setCode(""); }}>{t.cancel}</Button></div>
           </form>
         )}
         {error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(error, language)}</p> : null}

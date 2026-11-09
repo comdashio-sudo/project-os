@@ -21,9 +21,27 @@ describe("TwoStepRequirementCard (D-81)", () => {
     render(<TwoStepRequirementCard tenantId="00000000-0000-4000-8000-000000000001" />);
     const box = screen.getByRole("checkbox") as HTMLInputElement;
     expect(box.checked).toBe(false);
-    expect(screen.getByRole("status").textContent).toContain("e-mail code alone");
+    expect(screen.getByText("Off")).toBeTruthy(); // the state is a badge
     await user.click(box);
+    // it touches every member: nothing is sent until the administrator confirms
+    expect(state.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog").textContent).toContain("Every member of the company");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull(); expect(state.mutate).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("checkbox"));
+    const confirm = screen.getByRole("button", { name: "Yes, require it" });
+    expect(confirm.className).toContain("min-h-11"); // 44px on 390
+    await user.click(confirm);
     expect(state.mutate).toHaveBeenCalledWith({ tenantId: "00000000-0000-4000-8000-000000000001", requireTwoStep: true });
+  });
+
+  it("switching it off needs no confirmation", async () => {
+    state.query = { data: { requireTwoStep: true }, isLoading: false, isError: false };
+    const user = userEvent.setup();
+    render(<TwoStepRequirementCard tenantId="00000000-0000-4000-8000-000000000001" />);
+    expect(screen.getByText("On")).toBeTruthy();
+    await user.click(screen.getByRole("checkbox"));
+    expect(state.mutate).toHaveBeenCalledWith({ tenantId: "00000000-0000-4000-8000-000000000001", requireTwoStep: false });
   });
 
   it("NEGATIVE: renders nothing when the server refuses the read (not the company's administrator)", () => {
