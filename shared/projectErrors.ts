@@ -482,9 +482,19 @@ export const projectErrorMessages = {
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
   PROJECT_OS_MFA_REQUIRED: {
-    ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
-    en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
-    ur: "آپ کے اکاؤنٹ کو دو مرحلوں کی تصدیق درکار ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+    ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
+    en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
+    ur: "آپ کی کمپنی دو مرحلوں کی تصدیق لازمی کرتی ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+  },
+  PROJECT_OS_MFA_SETTING_NOT_READY: {
+    ar: "قاعدة البيانات لم تُحدَّث بعد لهذا الإعداد. اطلب من مالك المنصة تطبيق آخر ترحيلة ثم أعد المحاولة.",
+    en: "The database has not been updated for this setting yet. Ask the platform owner to apply the latest migration, then try again.",
+    ur: "اس ترتیب کے لیے ڈیٹا بیس ابھی اپ ڈیٹ نہیں ہوا۔ پلیٹ فارم کے مالک سے تازہ ترین مائیگریشن لاگو کرنے کو کہیں، پھر دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_REQUIRED_BY_COMPANY: {
+    ar: "لا يمكن إيقاف التحقق بخطوتين: شركة أنت عضو فيها تشترطه. يوقفه مدير تلك الشركة من إعداداتها.",
+    en: "Two-step verification cannot be switched off: a company you belong to requires it. That company's administrator can switch it off in its settings.",
+    ur: "دو مرحلوں کی تصدیق بند نہیں کی جا سکتی: آپ جس کمپنی کے رکن ہیں وہ اسے لازمی کرتی ہے۔ اس کمپنی کا منتظم اسے اس کی ترتیبات سے بند کر سکتا ہے۔",
   },
   PROJECT_OS_MFA_CODE_INVALID: {
     ar: "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل.",

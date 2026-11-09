@@ -225,6 +225,8 @@ vi.mock("@/lib/trpc", () => ({
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
       roleTemplateRemovals: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      securitySettings: { useQuery: () => ({ data: undefined, isLoading: false, isError: true }) },
+      setRequireTwoStep: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       decideRoleTemplateRemovals: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },
