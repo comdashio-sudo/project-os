@@ -1,0 +1,62 @@
+[
+  {
+    "file": "before-report-ar-390.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "before-report-ar-1280.png",
+    "dir": "rtl",
+    "lang": "ar",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "before-report-en-390.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "before-report-en-1280.png",
+    "dir": "ltr",
+    "lang": "en",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "before-report-ur-390.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  },
+  {
+    "file": "before-report-ur-1280.png",
+    "dir": "rtl",
+    "lang": "ur",
+    "horizontalScroll": false,
+    "mains": 1,
+    "banners": 0,
+    "small": [],
+    "easternDigits": false
+  }
+]
