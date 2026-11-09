@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, siteDailyReportEquipment, siteDailyReportLabour, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
+import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import type { PmcUnitActivityStatus } from "./domain/pmc";
@@ -38,6 +39,18 @@ async function authorize(input: Scope, permission: string | readonly string[]) {
   return db;
 }
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+/**
+ * One report per preparer, project and day (and contractor, from work order 22): the unique index decides. The check before the transaction answers the usual case;
+ * two saves or copies at the same moment both pass it, and the one that loses the race meets the index — said here as «a report for this day exists», not a 500.
+ */
+async function oneReportPerDay<T>(write: Promise<T>): Promise<T> {
+  try { return await write; } catch (error) {
+    if (violates(error, "site_daily_reports_project_date_preparer_unique")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_EXISTS");
+    throw error;
+  }
+}
+// the reports written here have no contractor (a work-order-22 import does): the save, the copy and its «already there» check all look at those only
+const ownDayReports = (input: Scope) => and(mine(siteDailyReports, input), eq(siteDailyReports.preparedByUserId, input.userId), sql`${siteDailyReports.contractorId} IS NULL`);
 // the calendar day on site (UTC+3): «a date in the future» is judged against this (D-45 a), not the server's UTC midnight
 const today = () => siteToday();
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -98,10 +111,10 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
   await validateLines(db, input, input.lines);
   await validateResources(db, input, input.labour ?? [], input.equipment ?? []);
-  const [existing] = await db.select().from(siteDailyReports).where(and(mine(siteDailyReports, input), eq(siteDailyReports.reportDate, input.reportDate), eq(siteDailyReports.preparedByUserId, input.userId))).limit(1);
+  const [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
   if (existing && (existing.status === "submitted" || existing.status === "approved")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
   const id = existing?.id ?? crypto.randomUUID();
-  await db.transaction(async tx => {
+  await oneReportPerDay(db.transaction(async tx => {
     const header = { weather: input.weather?.trim() || null, temperatureC: input.temperatureC === undefined ? null : String(input.temperatureC), wind: input.wind?.trim() || null, workHours: input.workHours === undefined ? null : String(input.workHours), summary: input.summary?.trim() || null, obstacles: input.obstacles?.trim() || null };
     if (existing) {
       await tx.update(siteDailyReports).set({ ...header, status: "draft", reviewNote: null, ...(existing.reportNumber ? {} : { reportNumber: await nextReportNumber(tx, input) }) }).where(eq(siteDailyReports.id, id));
@@ -119,7 +132,7 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
       plannedQuantity: line.plannedQuantity === undefined ? null : String(line.plannedQuantity), actualQuantity: line.actualQuantity === undefined ? null : String(line.actualQuantity),
     })));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: existing ? "site_report.updated" : "site_report.created", entityType: "site_daily_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: input.reportDate, lines: input.lines.length, labour: input.labour?.length ?? 0, equipment: input.equipment?.length ?? 0 }) });
-  });
+  }));
   const [{ reportNumber }] = await db.select({ reportNumber: siteDailyReports.reportNumber }).from(siteDailyReports).where(eq(siteDailyReports.id, id));
   return { id, reportNumber, status: "draft" as const, lines: input.lines.length };
 }
@@ -310,7 +323,7 @@ export async function copySiteDailyReportFromYesterday(input: Scope & { reportDa
   const db = await authorize(input, "project.field.manage");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.reportDate) || Number.isNaN(Date.parse(input.reportDate))) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
-  const mineAndPreparer = and(mine(siteDailyReports, input), eq(siteDailyReports.preparedByUserId, input.userId), sql`${siteDailyReports.contractorId} IS NULL`);
+  const mineAndPreparer = ownDayReports(input);
   const [exists] = await db.select({ id: siteDailyReports.id }).from(siteDailyReports).where(and(mineAndPreparer, eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
   if (exists) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_EXISTS");
   const [source] = await db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate }).from(siteDailyReports).where(and(mineAndPreparer, sql`${siteDailyReports.reportDate} < ${input.reportDate}`)).orderBy(desc(siteDailyReports.reportDate)).limit(1);
@@ -320,12 +333,12 @@ export async function copySiteDailyReportFromYesterday(input: Scope & { reportDa
     db.select({ equipmentId: siteDailyReportEquipment.equipmentId, count: siteDailyReportEquipment.count, hours: siteDailyReportEquipment.hours }).from(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, source.id))),
   ]);
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await oneReportPerDay(db.transaction(async tx => {
     await tx.insert(siteDailyReports).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportDate: input.reportDate, reportNumber: await nextReportNumber(tx, input), preparedByUserId: input.userId });
     if (labour.length) await tx.insert(siteDailyReportLabour).values(labourRows(input, id, labour as ReportLabourInput[]));
     if (equipment.length) await tx.insert(siteDailyReportEquipment).values(equipmentRows(input, id, equipment));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.copied", entityType: "site_daily_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: input.reportDate, from: source.id, fromDate: source.reportDate, labour: labour.length, equipment: equipment.length }) });
-  });
+  }));
   const [{ reportNumber }] = await db.select({ reportNumber: siteDailyReports.reportNumber }).from(siteDailyReports).where(eq(siteDailyReports.id, id));
   return { id, reportNumber, from: source.id, labour: labour.length, equipment: equipment.length };
 }
