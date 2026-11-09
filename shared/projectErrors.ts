@@ -516,6 +516,17 @@ export const projectErrorMessages = {
     en: "Postponing is for the platform owner only.",
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
+  // D-82: password sign-in (the screen in D-83 says these beside the field)
+  PROJECT_OS_AUTH_CREDENTIALS_INVALID: {
+    ar: "البريد أو كلمة المرور غير صحيحة.",
+    en: "The e-mail address or the password is wrong.",
+    ur: "ای میل یا پاس ورڈ غلط ہے۔",
+  },
+  PROJECT_OS_AUTH_PASSWORD_WEAK: {
+    ar: "كلمة المرور قصيرة أو ضعيفة: 8 أحرف على الأقل.",
+    en: "The password is too short or too weak: at least 8 characters.",
+    ur: "پاس ورڈ چھوٹا یا کمزور ہے: کم از کم 8 حروف۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
