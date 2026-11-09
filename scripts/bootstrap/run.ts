@@ -11,7 +11,7 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } 
 import { join } from "node:path";
 import { runPreflight, renderPreflight, type Finding } from "./preflight.ts";
 import { EXPECTED_PLANS, checkPlatformOwner, plantCatalog } from "./catalog.ts";
-import { POOLER_HOST_CANDIDATES, GuardError, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
+import { POOLER_HOST_CANDIDATES, GuardError, choosePoolerHost, ManualStep, discoverVercelTeam, TEMPLATE_TIER_INSTRUCTION, SUPABASE_PROJECT_REF, checkHealth, connectionUrls, deriveAppRolePassword, downloadCa, normalizeOwnerEmail, productionEnv, storageEndpoint, supabaseApi, vercelApi, type Fetch } from "./lib.ts";
 
 type Step = { name: string; status: "ok" | "manual" | "failed"; note?: string };
 type State = { steps: Step[]; url?: string; health?: string; manual: string[]; preflight?: Finding[] };
@@ -90,16 +90,20 @@ async function directPhase() {
   const pinned = optional("SUPABASE_POOLER_HOST");
   if (pinned && !/^[a-z0-9.-]+\.pooler\.supabase\.com$/.test(pinned)) throw new GuardError("SUPABASE_POOLER_HOST يجب أن يكون عنوانًا ينتهي بـ pooler.supabase.com.");
   const { default: pg } = await import("pg");
-  let host = pinned;
+  const login = async (candidate: string, role: "owner" | "app") => {
+    const user = role === "owner" ? `postgres.${SUPABASE_PROJECT_REF}` : `project_os_app.${SUPABASE_PROJECT_REF}`;
+    const client = new pg.Client({ host: candidate, port: 5432, user, password: role === "owner" ? databasePassword : appRolePassword, database: "postgres", ssl: { rejectUnauthorized: true, ca }, connectionTimeoutMillis: 15_000 });
+    try { await client.connect(); await client.query("SELECT 1"); return "ok"; }
+    catch (error) { const e = error as { code?: string; message?: string }; return e.code ?? String(e.message ?? "error").replace(/[^\w .:-]/g, "").slice(0, 60); }
+    finally { await client.end().catch(() => undefined); }
+  };
+  // The pinned host is used as given, and still probed, so the log says whether the restricted role signs in there.
+  const choice = await choosePoolerHost(pinned ? [pinned] : POOLER_HOST_CANDIDATES, login);
+  console.log(JSON.stringify({ poolerHost: choice.host || null, pinned: Boolean(pinned), appRoleSignsIn: choice.appRoleProven, tried: choice.tried }));
+  const host = pinned || choice.host;
   if (!host) {
-    const refused: string[] = [];
-    for (const candidate of POOLER_HOST_CANDIDATES) {
-      const client = new pg.Client({ host: candidate, port: 5432, user: `postgres.${SUPABASE_PROJECT_REF}`, password: databasePassword, database: "postgres", ssl: { rejectUnauthorized: true, ca }, connectionTimeoutMillis: 15_000 });
-      try { await client.connect(); await client.query("SELECT 1"); host = candidate; break; }
-      catch (error) { refused.push(`${candidate}: ${String((error as Error).message).slice(0, 80)}`); }
-      finally { await client.end().catch(() => undefined); }
-    }
-    if (!host) throw new GuardError(`لم يقبل أي مضيف مجمّع اتصال المشروع (${refused.join(" | ")}). تأكد من SUPABASE_DB_PASSWORD، أو ضع عنوان المجمّع في متغير المستودع SUPABASE_POOLER_HOST (Supabase ← Connect ← Session pooler).`);
+    const refused = choice.tried.map(entry => `${entry.host}: ${entry.owner}`);
+    throw new GuardError(`لم يقبل أي مضيف مجمّع اتصال المشروع (${refused.join(" | ")}). تأكد من SUPABASE_DB_PASSWORD، أو ضع عنوان المجمّع في متغير المستودع SUPABASE_POOLER_HOST (Supabase ← Connect ← Session pooler).`);
   }
   const urls = connectionUrls({ ref: SUPABASE_PROJECT_REF, poolerHost: host, databasePassword, appRolePassword });
   mask(urls.adminSession);
