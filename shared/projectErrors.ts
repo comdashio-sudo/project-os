@@ -1606,6 +1606,46 @@ export const projectErrorMessages = {
     en: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
     ur: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
   },
+  TRACKER_VILLA_MISSING: {
+    ar: "صف في ملف المتابعة بلا رقم فيلا. لم يُكتب شيء.",
+    en: "A row of the tracker has no villa number. Nothing was written.",
+    ur: "ٹریکر کی ایک قطار میں ولا نمبر نہیں ہے۔ کچھ محفوظ نہیں ہوا۔",
+  },
+  TRACKER_VILLA_DUPLICATE: {
+    ar: "رقم الفيلا مكرر في ملف المتابعة. لكل فيلا صف واحد.",
+    en: "The villa number appears twice in the tracker. Each villa has one row.",
+    ur: "ٹریکر میں ولا نمبر دو بار آیا ہے۔ ہر ولا کی ایک ہی قطار ہوتی ہے۔",
+  },
+  TRACKER_STATUS_UNKNOWN: {
+    ar: "حالة غير مفهومة في خلية نشاط. المقبول: Completed أو On going أو فارغ.",
+    en: "An activity cell holds a status that is not understood. Accepted: Completed, On going or empty.",
+    ur: "سرگرمی کے خانے میں ناقابلِ فہم حالت ہے۔ قابلِ قبول: Completed، On going یا خالی۔",
+  },
+  TRACKER_SERIAL_TAKEN: {
+    ar: "الرقم التسلسلي لفيلا جديدة مستعمل لفيلا أخرى في المشروع.",
+    en: "The serial number of a new villa is already used by another villa on the project.",
+    ur: "نئے ولا کا سیریل نمبر پروجیکٹ میں کسی اور ولا کے لیے استعمال ہو چکا ہے۔",
+  },
+  TRACKER_MODEL_UNKNOWN: {
+    ar: "نموذج الفيلا غير معروف في كتالوج أنشطة المشروع. استورد التقرير الشهري (المصفوفة) أولًا.",
+    en: "The villa's model is not in the project's activity catalogue. Import the monthly report (the matrix) first.",
+    ur: "ولا کا ماڈل پروجیکٹ کی سرگرمیوں کی فہرست میں نہیں ہے۔ پہلے ماہانہ رپورٹ (میٹرکس) درآمد کریں۔",
+  },
+  TRACKER_ACTIVITY_NOT_IN_CATALOGUE: {
+    ar: "عمود نشاط في ملف المتابعة لا يطابق اسم أي نشاط لهذا النموذج في الكتالوج.",
+    en: "An activity column of the tracker matches no activity name of this model in the catalogue.",
+    ur: "ٹریکر کا ایک سرگرمی کالم فہرست میں اس ماڈل کی کسی سرگرمی کے نام سے نہیں ملتا۔",
+  },
+  EQUIPMENT_COUNT_WITH_PLATE: {
+    ar: "صف برقم لوحة أو مقاس يمثّل معدة واحدة، فلا يكون عدده أكبر من 1.",
+    en: "A row with a plate or size is one machine, so its count cannot be above 1.",
+    ur: "پلیٹ یا سائز والی قطار ایک مشین ہے، اس لیے اس کی تعداد 1 سے زیادہ نہیں ہو سکتی۔",
+  },
+  PROJECT_OS_EQUIPMENT_IMPORT_NOT_RECOGNISED: {
+    ar: "لم يُعثر على عمود «النوع» في الملف. الأعمدة: النوع، العدد، الطراز، اللوحة أو المقاس.",
+    en: "No «Type» column was found in the file. The columns are: Type, Count, Model, Plate or size.",
+    ur: "فائل میں «Type» کالم نہیں ملا۔ کالم یہ ہیں: Type، Count، Model، Plate or size۔",
+  },
   MATRIX_WEIGHTS_NOT_100: {
     ar: "أوزان الأنشطة لا يبلغ مجموعها 100%. صحّح الصف الذي يحمل الأوزان في الملف ثم أعد الرفع.",
     en: "The activity weights do not total 100%. Correct the weights row in the file and upload again.",
