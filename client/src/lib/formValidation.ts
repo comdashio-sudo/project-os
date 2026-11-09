@@ -86,6 +86,33 @@ export function formFieldProblems(form: HTMLFormElement, language: Language): Ar
   return problems;
 }
 
+const DECIMAL = /^-?\d+(\.\d+)?$/;
+// trailing zeros are not decimals that matter ("2.50" has one)
+const decimalsOf = (text: string) => (text.includes(".") ? text.replace(/0+$/, "").length - text.indexOf(".") - 1 : 0);
+/** "71740953.27" at 2 decimals -> 7174095327: the decimal text moved into a whole number by its digits, never through a float multiplication. */
+function scaled(text: string, decimals: number): number {
+  const negative = text.startsWith("-");
+  const [whole, fraction = ""] = (negative ? text.slice(1) : text).split(".");
+  const digits = Number(`${whole}${fraction.replace(/0+$/, "").padEnd(decimals, "0")}`);
+  return negative ? -digits : digits;
+}
+
+/**
+ * Whether a typed number sits on the field's step (default 1, "any" for none), counted from min (or 0). All in whole numbers: the value,
+ * the step and min are scaled by the largest number of decimals among them (from their text), so 71740953.27 on a 0.01 step is exact.
+ * A value too large to scale exactly is not refused here (the server checks it).
+ */
+export function onStep(value: string, stepText: string, minText: string): boolean {
+  const step = stepText === "" ? "1" : stepText.trim();
+  if (step.toLowerCase() === "any" || !DECIMAL.test(step) || Number(step) <= 0 || !DECIMAL.test(value)) return true;
+  const min = minText !== "" && DECIMAL.test(minText.trim()) ? minText.trim() : "0";
+  const decimals = Math.max(decimalsOf(step), decimalsOf(min));
+  if (decimalsOf(value) > decimals) return false;
+  const [v, s, m] = [scaled(value, decimals), scaled(step, decimals), scaled(min, decimals)];
+  if (![v, s, m].every(Number.isSafeInteger) || !Number.isSafeInteger(v - m)) return true;
+  return (v - m) % s === 0;
+}
+
 function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, language: Language): string | null {
   const value = element.value;
   if (element.required) {
@@ -103,13 +130,8 @@ function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAr
     const belowMin = element.min !== "" && number < Number(element.min);
     const aboveMax = element.max !== "" && number > Number(element.max);
     if (belowMin || aboveMax) return fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language);
-    // the step the browser no longer checks (noValidate): counted from min (or 0), with a tolerance for decimal steps such as 0.01
-    const step = element.step === "" ? 1 : element.step === "any" ? null : Number(element.step);
-    if (step && Number.isFinite(step) && step > 0) {
-      const base = element.min !== "" ? Number(element.min) : 0;
-      const steps = (number - base) / step;
-      if (Math.abs(steps - Math.round(steps)) > 1e-7) return fieldMessage("PROJECT_OS_FIELD_STEP_MISMATCH", language);
-    }
+    // the step the browser no longer checks (noValidate), counted from min (or 0)
+    if (!onStep(value.trim(), element.step, element.min)) return fieldMessage("PROJECT_OS_FIELD_STEP_MISMATCH", language);
     return null;
   }
   if (element.type === "date") return dateFieldError(value, language);
