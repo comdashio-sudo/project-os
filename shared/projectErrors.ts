@@ -111,6 +111,16 @@ export const projectErrorMessages = {
     en: "The SVG file contains script or active links, so it is not accepted as a logo. Save it again as a plain image, or use PNG.",
     ur: "SVG فائل میں اسکرپٹ یا فعال روابط ہیں، اس لیے اسے لوگو کے طور پر قبول نہیں کیا جاتا۔ اسے سادہ تصویر کے طور پر دوبارہ محفوظ کریں یا PNG استعمال کریں۔",
   },
+  PROJECT_OS_PROJECT_PROFILE_CONFLICT: {
+    ar: "حفظ شخص آخر هذه البيانات في اللحظة نفسها. أعد تحميل الصفحة ثم احفظ من جديد.",
+    en: "Someone else saved this at the same moment. Reload the page and save again.",
+    ur: "کسی اور نے اسی لمحے یہ محفوظ کیا۔ صفحہ دوبارہ لوڈ کریں اور پھر محفوظ کریں۔",
+  },
+  PROJECT_OS_PROJECT_APPROVER_NOT_ON_PROJECT: {
+    ar: "لا يمكن إسناد خطوة الاعتماد إلى شخص بلا دور في هذا المشروع. أضِفه إلى المشروع بدور أولًا.",
+    en: "An approval step cannot be given to someone with no role on this project. Add them to the project with a role first.",
+    ur: "منظوری کا مرحلہ ایسے شخص کو نہیں دیا جا سکتا جس کا اس پروجیکٹ میں کوئی کردار نہ ہو۔ پہلے انہیں کسی کردار کے ساتھ پروجیکٹ میں شامل کریں۔",
+  },
   PROJECT_OS_WBS_SCOPE_MISMATCH: {
     ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
     en: "The selected WBS item does not belong to the requested project.",

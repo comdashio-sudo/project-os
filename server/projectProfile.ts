@@ -21,7 +21,7 @@ export const LOGO_PARTIES = ["client", "consultant", "contractor"] as const;
 export type LogoParty = (typeof LOGO_PARTIES)[number];
 const LOGO_COLUMN = { client: "clientLogoKey", consultant: "consultantLogoKey", contractor: "contractorLogoKey" } as const;
 
-async function gate(input: Scope, permission: readonly string[]) {
+export async function projectGate(input: Scope, permission: readonly string[]) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -33,7 +33,7 @@ async function gate(input: Scope, permission: readonly string[]) {
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 const invalid = (detail: string) => new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PROJECT_PROFILE_INVALID", cause: { issues: [{ code: detail }] } });
 /** A unique violation (23505) of the named index, wherever drizzle put the driver's error. */
-function violates(error: unknown, constraint: string) {
+export function violates(error: unknown, constraint: string) {
   for (let current: unknown = error, depth = 0; current && depth < 4; depth++, current = (current as { cause?: unknown }).cause) {
     const { code, constraint: name } = current as { code?: string; constraint?: string };
     if (code === "23505" && (!name || name === constraint)) return true;
@@ -48,14 +48,43 @@ export function logoKind(bytes: Buffer): "png" | "jpeg" | "svg" | null {
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
   const head = bytes.subarray(0, 4096).toString("utf8").replace(/^﻿/, "").trimStart();
-  if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return "svg";
+  // the XML declaration is «<?xml» followed by a space; any other processing instruction or comment before the root still makes it an SVG (so it is refused as unsafe, not as an unknown type)
+  if (/^(<\?xml\s[^>]*>\s*)?((<!--[\s\S]*?-->|<\?[\s\S]*?\?>)\s*)*(<!DOCTYPE svg[^[>]*(\[[\s\S]*?\])?\s*>\s*)?<svg[\s>]/i.test(head)) return "svg";
   return null;
 }
-/** An SVG is shown as an image, but opened on its own it is a document: script, event handlers, javascript: links and embedded HTML are refused, not cleaned. */
-export const svgIsUnsafe = (text: string) => /<\s*script\b|\son[a-z]+\s*=|javascript\s*:|<\s*foreignObject\b|<\s*(iframe|embed|object)\b/i.test(text);
+/**
+ * An SVG is shown as an image, but opened on its own it is a document that can run script. Chasing patterns lost twice (#223: character references; #227: a
+ * namespace prefix and a TAB inside «javascript:»), so the rule is now an allow-nothing-unusual rule: a plain logo needs none of what is refused here, and anything
+ * refused is refused whole, never cleaned.
+ *   - any DOCTYPE (internal subset or external PUBLIC/SYSTEM), any entity declaration, any character reference (&#…);
+ *   - any processing instruction but the leading <?xml …?> declaration; a default namespace (xmlns="…") other than SVG's; an animation of an on… attribute;
+ *   - any element with a namespace prefix (<s:script>, <svg:script>, <h:script>, <s:foreignObject>), and any prefixed attribute except xlink:href, xml:space and the
+ *     xmlns:xlink declaration that xlink:href needs;
+ *   - the words script, foreignobject, iframe and embed ANYWHERE (case-insensitive), and an <object> element;
+ *   - an on… event attribute after any whitespace, slash or quote;
+ *   - javascript:, vbscript: and data: once every whitespace and control character (\s, \x00-\x1F) is removed — a browser drops TAB, LF and CR inside a URL.
+ * A second line of defence (serving SVG as an attachment, or with CSP script-src 'none') is the owner's step in docs/GAP_LIST.md (G-211); storage.ts is not touched here.
+ */
+const ALLOWED_PREFIXED_ATTRIBUTES = new Set(["xlink:href", "xml:space", "xmlns:xlink"]);
+export function svgIsUnsafe(text: string): boolean {
+  if (/<!DOCTYPE|<!ENTITY|&#/i.test(text)) return true;
+  // the only processing instruction allowed is the XML declaration at the very start (<?xml-stylesheet … ?> can apply an XSLT; review of #227)
+  if (/<\?/.test(text.replace(/^\uFEFF?\s*<\?xml\s[^?]*\?>/, ""))) return true;
+  // a default namespace other than SVG's turns the content into another vocabulary (XHTML: meta refresh, a password form; review of #227)
+  if (Array.from(text.matchAll(/[\s"'/]xmlns\s*=\s*["']([^"']*)["']/gi), match => match[1].trim()).some(value => value !== "http://www.w3.org/2000/svg")) return true;
+  // an animation that sets an event attribute (<set attributeName="onclick" to="…">)
+  if (/attributeName\s*=\s*["']\s*on/i.test(text)) return true;
+  if (/<\s*\/?\s*[a-z_][\w.-]*:/i.test(text)) return true;
+  const prefixed = Array.from(text.matchAll(/[\s"'/]([a-z_][\w.-]*:[\w.-]+)\s*=/gi), match => match[1].toLowerCase());
+  if (prefixed.some(name => !ALLOWED_PREFIXED_ATTRIBUTES.has(name))) return true;
+  if (/script|foreignobject|iframe|embed/i.test(text) || /<\s*object\b/i.test(text)) return true;
+  if (/[\s"'/]on[a-z]+\s*=/i.test(text)) return true;
+  const squeezed = text.replace(/[\s\x00-\x1F]+/g, "").toLowerCase();
+  return /javascript:|vbscript:|data:/.test(squeezed);
+}
 
 async function takeLogo(input: Scope, uploadKey: string) {
-  const taken = await takeDirectUpload({ tenantId: input.tenantId, projectId: input.projectId, purpose: "logo", uploadKey });
+  const taken = await takeDirectUpload({ tenantId: input.tenantId, projectId: input.projectId, purpose: "logo", uploadKey, maxBytes: MAX_LOGO_BYTES, tooLarge: "PROJECT_OS_PROJECT_LOGO_TOO_LARGE" });
   const refuse = async (message: string) => { await taken.discard(); return new TRPCError({ code: "BAD_REQUEST", message }); };
   if (taken.bytes.length > MAX_LOGO_BYTES) throw await refuse("PROJECT_OS_PROJECT_LOGO_TOO_LARGE");
   const kind = logoKind(taken.bytes);
@@ -91,7 +120,7 @@ export function profileIssue(input: Pick<ProjectProfileInput, "workDays" | "work
 }
 
 export async function getProjectProfile(input: Scope) {
-  const db = await gate(input, READ);
+  const db = await projectGate(input, READ);
   const [row] = await db.select().from(projectProfiles).where(mine(projectProfiles, input)).limit(1);
   const logo = async (key: string | null | undefined) => (key ? { key, url: await storageGetSignedUrl(key).catch(() => null) } : null);
   return {
@@ -106,7 +135,7 @@ export async function getProjectProfile(input: Scope) {
 }
 
 export async function saveProjectProfile(input: ProjectProfileInput) {
-  const db = await gate(input, WRITE);
+  const db = await projectGate(input, WRITE);
   const issue = profileIssue(input);
   if (issue) throw invalid(issue);
   const [current] = await db.select().from(projectProfiles).where(mine(projectProfiles, input)).limit(1);
@@ -129,7 +158,12 @@ export async function saveProjectProfile(input: ProjectProfileInput) {
       else await tx.insert(projectProfiles).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, ...values });
       await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.profile_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ created: !current, logos: Object.fromEntries(LOGO_PARTIES.map(party => [party, input.logos?.[party] === undefined ? "kept" : input.logos[party] === null ? "removed" : "replaced"])) }) });
     });
-  } catch (error) { await Promise.all(Object.values(stored).map(key => storageDelete(key).catch(() => undefined))); throw error; }
+  } catch (error) {
+    await Promise.all(Object.values(stored).map(key => storageDelete(key).catch(() => undefined)));
+    // two first saves at the same moment: the unique (tenant, project) index lets one in; the other gets a translated «saved by someone else, try again», not a raw 500
+    if (violates(error, "project_profiles_tenant_project_unique")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_PROJECT_PROFILE_CONFLICT" });
+    throw error;
+  }
   // the logos this save replaced or removed are no longer referenced
   for (const party of LOGO_PARTIES) { const old = current?.[LOGO_COLUMN[party]]; if (old && input.logos?.[party] !== undefined) await storageDelete(old).catch(() => undefined); }
   return getProjectProfile(input);
@@ -140,14 +174,14 @@ export async function saveProjectProfile(input: ProjectProfileInput) {
 export type ProjectCompanyRole = "main" | "sub";
 
 export async function listProjectCompanies(input: Scope) {
-  const db = await gate(input, READ);
+  const db = await projectGate(input, READ);
   return db.select({ id: projectCompanies.id, name: projectCompanies.name, role: projectCompanies.role, active: projectCompanies.active, createdAt: projectCompanies.createdAt })
     .from(projectCompanies).where(mine(projectCompanies, input)).orderBy(asc(projectCompanies.role), asc(projectCompanies.name)) as Promise<Array<{ id: string; name: string; role: ProjectCompanyRole; active: boolean; createdAt: Date }>>;
 }
 
 /** Adds a company (no id) or renames / re-roles one (id). A second active main contractor is refused by the database's partial unique index. */
 export async function saveProjectCompany(input: Scope & { id?: string; name: string; role: ProjectCompanyRole }) {
-  const db = await gate(input, WRITE);
+  const db = await projectGate(input, WRITE);
   const name = input.name.trim();
   if (!name) throw invalid("COMPANY_NAME_MISSING");
   const id = input.id ?? randomUUID();
@@ -168,7 +202,7 @@ export async function saveProjectCompany(input: Scope & { id?: string; name: str
 
 /** A company is never deleted (reports will name it); it is made inactive, which also frees the main-contractor place. */
 export async function deactivateProjectCompany(input: Scope & { id: string }) {
-  const db = await gate(input, WRITE);
+  const db = await projectGate(input, WRITE);
   await db.transaction(async tx => {
     const updated = await tx.update(projectCompanies).set({ active: false, updatedAt: new Date() }).where(and(mine(projectCompanies, input), eq(projectCompanies.id, input.id))).returning({ id: projectCompanies.id });
     if (!updated.length) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_COMPANY_NOT_FOUND" });

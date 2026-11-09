@@ -52,6 +52,7 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/smartP6Update.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/accessGrants.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/projectProfile.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/projectApprovers.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));
