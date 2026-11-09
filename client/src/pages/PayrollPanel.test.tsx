@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PayrollPanel } from "./PayrollPanel";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({
   isArabic: false,
@@ -128,5 +129,17 @@ describe("PayrollPanel", () => {
     expect(save.disabled).toBe(false);
     fireEvent.click(save);
     expect(state.adjust).toHaveBeenCalledWith({ tenantId: "tenant-1", allocationId: "share-1", newAmount: 8000, reason: "Crew moved to the roof" });
+  });
+});
+
+describe("PayrollPanel salary-structure form checks itself in the page's language (D-63)", () => {
+  it("an empty structure saves nothing and says so in Arabic under the first empty field", () => {
+    cleanup();
+    state.isArabic = true;
+    state.capabilities = { canManageStructure: true, canRunPayroll: false, canApprovePayroll: false, canReadSensitivePayroll: true };
+    render(<PayrollPanel tenantId="tenant-1" />);
+    const form = document.querySelector<HTMLInputElement>('input[inputmode="decimal"][required]')!.form!;
+    expectEmptySubmitRefused(form, "ar", state.save);
+    state.isArabic = false;
   });
 });

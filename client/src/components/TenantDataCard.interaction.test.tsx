@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TenantDataCard } from "./TenantDataCard";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({
   preview: { data: undefined as unknown, error: null as unknown, isLoading: false, refetch: vi.fn() },
@@ -92,5 +93,15 @@ describe("TenantDataCard", () => {
     render(<TenantDataCard tenantId="t1" />);
     expect(screen.getByText("اكتمل الحذف")).toBeTruthy();
     expect(screen.getByText(/التحقق: نجح/)).toBeTruthy();
+  });
+});
+
+describe("TenantDataCard deletion form checks itself in the page's language (D-63)", () => {
+  it("submitted with no company name it deletes nothing and says so in Arabic under the name", () => {
+    state.preview = { ...state.preview, data: preview({ exportFresh: true }) };
+    state.request = { ...state.request, data: asked };
+    render(<TenantDataCard tenantId="t1" />);
+    const name = screen.getByLabelText("اسم الشركة") as HTMLInputElement;
+    expect(expectEmptySubmitRefused(name.form!, "ar", state.confirm.mutate)).toBe(name);
   });
 });
