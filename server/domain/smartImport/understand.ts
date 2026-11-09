@@ -5,6 +5,7 @@ import { detectConsultantExport } from "./consultantExport";
 import { isSiteWorkbook } from "./siteWorkbook";
 import { detectScheduleUpdate } from "./scheduleUpdate";
 import { detectMatrix, reconcile, validateMatrix, weightPercents, type MatchReport, type MatrixIssue, type MatrixModel } from "./matrix";
+import { detectTracker, validateTracker, type TrackerModel } from "./tracker";
 import { AUTO_THRESHOLD, isAuto, mapColumns, type ColumnMatch } from "./mapper";
 import { parseNumber } from "./numbers";
 import { readGrid, type Cell, type SheetGrid } from "./sheetReader";
@@ -44,6 +45,8 @@ export type Understanding = {
 };
 
 export type MatrixSummary = {
+  /** D-44 (b): «tracker» is the site's unit tracker (statuses in words, no weights: the catalogue's own weights apply); absent = the weighted matrix */
+  shape?: "tracker";
   sheet: string; reportDate: string | null; units: number; activities: number; models: string[]; zones: string[]; blocks: number; groups: number; divisions: number;
   weightsTotalPercent: number; weightRoundingAdjustment: number; issues: MatrixIssue[]; match: MatchReport; ignored: MatrixModel["ignored"]; warnings: string[];
   oracleCodes: number; completeCells: number; sample: Array<{ serial: number; oracleCode: string | null; zone: string; block: string; modelCode: string; reportedPercent: number | null }>;
@@ -56,6 +59,18 @@ export function summariseMatrix(model: MatrixModel): MatrixSummary {
     weightsTotalPercent: Math.round(total * 100 * 1e6) / 1e6, weightRoundingAdjustment: weightPercents(model).adjustment, issues: validateMatrix(model), match: reconcile(model), ignored: model.ignored, warnings: model.warnings,
     oracleCodes: model.units.filter(u => u.oracleCode).length, completeCells: model.units.reduce((sum, u) => sum + u.complete.filter(Boolean).length, 0),
     sample: model.units.slice(0, 6).map(u => ({ serial: u.serial, oracleCode: u.oracleCode, zone: u.zone, block: u.block, modelCode: u.modelCode, reportedPercent: u.reportedPercent })),
+  };
+}
+
+/** D-44 (b): the tracker in the matrix's summary shape. No weights and no sheet percentages to compare: those fields are zero and the match is empty, said by `shape`. */
+export function summariseTracker(model: TrackerModel): MatrixSummary {
+  const none = { compared: 0, matched: 0, mismatches: [] };
+  return {
+    shape: "tracker", sheet: model.sheet, reportDate: null, units: model.units.length, activities: model.activities.length, models: Array.from(new Set(model.units.map(u => u.modelCode))), zones: Array.from(new Set(model.units.map(u => u.stage))),
+    blocks: new Set(model.units.map(u => `${u.stage}-${u.block}`)).size, groups: 0, divisions: 0, weightsTotalPercent: 0, weightRoundingAdjustment: 0, issues: validateTracker(model),
+    match: { tolerance: 0, units: none, divisions: none, blocks: none, zones: none, unitMatchShare: 0 } as MatchReport, ignored: { totalsRow: null, pivotRow: null, computedColumnCount: 0 }, warnings: model.unknownCells.length ? ["UNEXPECTED_ACTIVITY_CELLS"] : [],
+    oracleCodes: 0, completeCells: model.units.reduce((sum, u) => sum + u.statuses.filter(s => s === "COMPLETE").length, 0),
+    sample: model.units.slice(0, 6).map(u => ({ serial: u.serial, oracleCode: null, zone: u.stage, block: u.block, modelCode: u.modelCode, reportedPercent: null })),
   };
 }
 
@@ -134,6 +149,11 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
   // work order 22: the consultant's weekly export and the site's old workbook, by their structure
   for (const sheet of grid.sheets) if (detectConsultantExport(sheet).ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "consultantExport", kindConfidence: 0.97, sheet: sheet.name, table: null };
   if (isSiteWorkbook(grid.sheets)) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "siteWorkbook", kindConfidence: 0.95, sheet: null, table: null };
+  // D-44 (b): the site's unit tracker (after the consultant export and the old site workbook, which it must never swallow)
+  for (const sheet of grid.sheets) {
+    const tracker = detectTracker(sheet);
+    if (tracker.ok) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "unitMatrix", kindConfidence: 0.95, sheet: sheet.name, matrix: summariseTracker(tracker.model), table: null, candidates: [{ sheet: sheet.name, kind: "unitMatrix", score: 0.95, rows: tracker.model.units.length }], warnings: [] };
+  }
   const update = detectScheduleUpdate(grid.sheets);
   if (update.ok) {
     const m = update.model;
