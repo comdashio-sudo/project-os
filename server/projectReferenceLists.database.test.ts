@@ -90,6 +90,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project reference lists 
     expect(await code(callers.manager.projects.labourRoles.setActive({ tenantId, projectId: A, id: "a5000000-0000-4000-8000-0000000000ff", active: true }))).toBe("PROJECT_OS_LABOUR_ROLE_NOT_FOUND");
     expect(await code(callers.engineer.projects.labourRoles.save({ tenantId, projectId: A, name: "Engineer's role", category: "direct" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callers.engineer.projects.labourRoles.seedDefaults({ tenantId, projectId: A, language: "ar" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    const [target] = (await connection.query<{ id: string; active: number }[]>("SELECT id, active FROM project_labour_roles WHERE tenantId = ? AND projectId = ? AND defaultKey = 'tiler'", [tenantId, A]))[0];
+    expect(await code(callers.engineer.projects.labourRoles.setActive({ tenantId, projectId: A, id: target.id, active: false }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect((await connection.query<{ active: number }[]>("SELECT active FROM project_labour_roles WHERE id = ?", [target.id]))[0][0].active).toBe(target.active);
     expect(await count("SELECT COUNT(*) AS n FROM project_labour_roles WHERE tenantId = ?", [tenantId])).toBe(rows);
     expect(await audits("project.labour_role%")).toBe(before);
     await expect(connection.query("INSERT INTO project_labour_roles (id, tenantId, projectId, name, category) VALUES (UUID(), ?, ?, 'Odd', 'casual')", [tenantId, A])).rejects.toThrow(/project_labour_roles_category_check/);
