@@ -7,6 +7,10 @@ import { useCan, WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
+import { CheckedForm } from "@/components/CheckedForm";
+import { SourceNotice } from "@/components/SectionResilience";
+import { LockedNote, ReportSection } from "@/components/dailyReport/ReportSection";
+import { formatWeekday } from "@/components/ds";
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 
@@ -17,6 +21,7 @@ import { useParams } from "wouter";
 const NONE = "__none";
 const text = {
   ar: {
+    header: "الرأس", weekday: "اليوم", windHours: "الرياح وساعات العمل", inspections: "الفحوصات (WIR/RFI)", materials: "المواد المستلمة", hse: "السلامة (HSE)", tomorrow: "خطة الغد", approval: "الاعتماد", pickRole: "اختر الدور", pickEquipment: "اختر المعدة", noRoles: "لا أدوار عمالة في قائمة المشروع بعد.", seedRoles: "انسخ القائمة الافتراضية", seeded: "أُضيفت الأدوار الافتراضية", noEquipment: "لا معدات في سجل المشروع بعد.", askManager: "يضيفها مدير المشروع.", workers: (n: number) => `المجموع: ${n === 1 ? "عامل واحد" : n === 2 ? "عاملان" : n >= 3 && n <= 10 ? `${n} عمال` : `${n} عاملًا`}`, units: (n: number) => `المجموع: ${n}`, lineCount: (n: number) => `${n} سطر`, matrix: "مصفوفة الشركات والأدوار ونسخ الأمس", statusNow: "حالة التقرير", chain: "سلسلة أعدّه ← راجعه ← اعتمده", 
     title: "التقرير اليومي", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     day: "يوم العمل", weather: "الطقس", temperature: "الحرارة (°م)", summary: "ملخص اليوم", obstacles: "العوائق",
     weatherClear: "صافٍ", weatherCloudy: "غائم", weatherRain: "مطر", weatherDust: "غبار", weatherHot: "حرارة شديدة", weatherWindy: "رياح",
@@ -33,6 +38,7 @@ const text = {
     noPermission: "دورك لا يتيح كتابة التقرير اليومي.", noReview: "اعتماد التقارير لمدير المشروع.", otherReports: "تقارير الآخرين",
   },
   en: {
+    header: "Header", weekday: "Day", windHours: "Wind and working hours", inspections: "Inspections (WIR/RFI)", materials: "Materials received", hse: "Safety (HSE)", tomorrow: "Plan for tomorrow", approval: "Approval", pickRole: "Pick the role", pickEquipment: "Pick the equipment", noRoles: "The project has no labour roles yet.", seedRoles: "Copy the default list", seeded: "Default roles added", noEquipment: "The project has no equipment yet.", askManager: "The project manager adds them.", workers: (n: number) => `Total: ${n} workers`, units: (n: number) => `Total: ${n}`, lineCount: (n: number) => `${n} lines`, matrix: "Company × role matrix and copy from yesterday", statusNow: "Report status", chain: "Prepared → reviewed → approved chain", 
     title: "Daily report", back: "Back to quick entry", loading: "Loading…", retry: "Retry",
     day: "Work day", weather: "Weather", temperature: "Temperature (°C)", summary: "Summary of the day", obstacles: "Obstacles",
     weatherClear: "Clear", weatherCloudy: "Cloudy", weatherRain: "Rain", weatherDust: "Dust", weatherHot: "Extreme heat", weatherWindy: "Windy",
@@ -49,6 +55,7 @@ const text = {
     noPermission: "Your role does not allow writing the daily report.", noReview: "Approving reports belongs to the project manager.", otherReports: "Other people's reports",
   },
   ur: {
+    header: "سرخی", weekday: "دن", windHours: "ہوا اور کام کے اوقات", inspections: "معائنے (WIR/RFI)", materials: "موصول شدہ مواد", hse: "حفاظت (HSE)", tomorrow: "کل کا منصوبہ", approval: "منظوری", pickRole: "کردار منتخب کریں", pickEquipment: "سازوسامان منتخب کریں", noRoles: "پروجیکٹ میں ابھی مزدوروں کے کردار نہیں۔", seedRoles: "پہلے سے طے شدہ فہرست نقل کریں", seeded: "پہلے سے طے شدہ کردار شامل ہو گئے", noEquipment: "پروجیکٹ میں ابھی کوئی سازوسامان نہیں۔", askManager: "پروجیکٹ مینیجر انہیں شامل کرتا ہے۔", workers: (n: number) => `کل: ${n} مزدور`, units: (n: number) => `کل: ${n}`, lineCount: (n: number) => `${n} سطریں`, matrix: "کمپنی × کردار میٹرکس اور کل سے نقل", statusNow: "رپورٹ کی حالت", chain: "تیار ← جائزہ ← منظوری کا سلسلہ", 
     title: "روزانہ رپورٹ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش",
     day: "کام کا دن", weather: "موسم", temperature: "درجۂ حرارت (°C)", summary: "دن کا خلاصہ", obstacles: "رکاوٹیں",
     weatherClear: "صاف", weatherCloudy: "ابر آلود", weatherRain: "بارش", weatherDust: "گرد و غبار", weatherHot: "شدید گرمی", weatherWindy: "تیز ہوا",
@@ -85,6 +92,10 @@ export default function SiteDailyReport() {
   const list = trpc.siteReports.list.useQuery(scope, { enabled });
   const canWrite = useCan("project.field.manage", projectId);
   const canReview = useCan("project.manage", projectId);
+  // D-44 (a), #233: the labour roles and the equipment the report chooses from (active ones only); the project manager can seed the default roles
+  const roles = trpc.projects.labourRoles.list.useQuery(scope, { enabled });
+  const machines = trpc.projects.equipment.list.useQuery(scope, { enabled });
+  const seedRoles = trpc.projects.labourRoles.seedDefaults.useMutation({ onSuccess: () => { setMessage(t.seeded); void roles.refetch(); } });
 
   const [reportId, setReportId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
@@ -155,6 +166,10 @@ export default function SiteDailyReport() {
   };
 
   const section = (lineType: Line["lineType"]) => lines.filter(line => line.lineType === lineType);
+  const roleNames = (roles.data ?? []).filter(role => role.active).map(role => role.name);
+  const machineNames = (machines.data ?? []).filter(item => item.active).map(item => [item.equipmentType, item.model, item.plateOrSize].filter(Boolean).join(" · "));
+  // live totals for what can be counted now (the figure the server approves is its own)
+  const total = (lineType: "labour" | "equipment") => section(lineType).reduce((sum, line) => sum + (num(line.quantity) ?? 0), 0);
   const lineBox = (line: Line) => {
     const unit = line.lineType === "work" ? unitOf(line.unitNumber) : undefined;
     const choices = unit ? activities.filter(activity => activity.modelCode === unit.modelCode) : activities;
@@ -163,7 +178,8 @@ export default function SiteDailyReport() {
         {line.lineType !== "work" ? (
           <>
             <label className="block text-sm font-medium">{line.lineType === "labour" ? t.trade : t.machine}
-              <input className={`${fieldInput} mt-1`} value={line.label} disabled={locked} onChange={event => update(line.key, { label: event.target.value })} /></label>
+              <Select className="mt-1" value={line.label || undefined} placeholder={line.lineType === "labour" ? t.pickRole : t.pickEquipment} disabled={locked} onValueChange={value => update(line.key, { label: value })}
+                options={(line.lineType === "labour" ? roleNames : machineNames).concat(line.label ? [line.label] : []).filter((name, index, all) => all.indexOf(name) === index).map(name => ({ value: name, label: name }))} /></label>
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-sm font-medium">{t.count}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" min="0" step="any" value={line.quantity} disabled={locked} onChange={event => update(line.key, { quantity: event.target.value })} /></label>
               {line.lineType === "labour" && <label className="block text-sm font-medium">{t.hours}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" min="0" max="24" step="any" value={line.hours} disabled={locked} onChange={event => update(line.key, { hours: event.target.value })} /></label>}
@@ -189,53 +205,83 @@ export default function SiteDailyReport() {
       </li>
     );
   };
-  const group = (lineType: Line["lineType"], heading: string, addLabel: string) => (
-    <section className="space-y-2" aria-label={heading}>
-      <h2 className="text-base font-semibold">{heading}</h2>
-      <ul className="space-y-2">{section(lineType).map(lineBox)}</ul>
-      {!locked && <Button type="button" variant="outline" className={`${tap} w-full`} onClick={() => setLines(current => [...current, blank(lineType)])}>{addLabel}</Button>}
-    </section>
-  );
+  const group = (lineType: Line["lineType"], heading: string, addLabel: string) => {
+    const choices = lineType === "labour" ? roleNames : lineType === "equipment" ? machineNames : null;
+    const source = lineType === "labour" ? roles : machines;
+    // a list that failed to load is not an empty list: SourceNotice says so, and the empty state with its seed button stays away
+    const empty = choices !== null && choices.length === 0 && !source.isLoading && !source.error;
+    return (
+      <div className="space-y-2" aria-label={heading} role="group">
+        {lineType === "labour" ? <SourceNotice query={roles} isArabic={isArabic} title={heading} /> : lineType === "equipment" ? <SourceNotice query={machines} isArabic={isArabic} title={heading} /> : null}
+        {empty && <div role="status" className="space-y-2 rounded-lg bg-muted p-3 text-sm"><p>{lineType === "labour" ? t.noRoles : t.noEquipment}</p>
+          {lineType === "labour" && canReview ? <Button type="button" variant="outline" className={tap} disabled={seedRoles.isPending} onClick={() => seedRoles.mutate({ ...scope, language })}>{t.seedRoles}</Button> : <p className="text-muted-foreground">{t.askManager}</p>}</div>}
+        <ul className="space-y-2">{section(lineType).map(lineBox)}</ul>
+        {!locked && !empty && <Button type="button" variant="outline" className={`${tap} w-full`} onClick={() => setLines(current => [...current, blank(lineType)])}>{addLabel}</Button>}
+      </div>
+    );
+  };
 
   if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   const loadError = options.error ?? list.error;
   if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   return (
-    <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
+    <FieldShell wide tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
-        <div className="space-y-4">
+        {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
+        {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
+        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate(body()); }}>
           {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
           {rejectedNote && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
           {locked && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
-          <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block text-sm font-medium">{t.weather}
-              <Select className="mt-1" value={weather || NONE} disabled={locked} onValueChange={value => setWeather(value === NONE ? "" : value)}
-                options={[{ value: NONE, label: "—" }, ...WEATHER.map(value => ({ value, label: weatherName[value] }))]} /></label>
-            <label className="block text-sm font-medium">{t.temperature}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" step="any" value={temperature} disabled={locked} onChange={event => setTemperature(event.target.value)} /></label>
-          </div>
-          <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-card p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
-          <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
-          {group("labour", t.labour, t.addLabour)}
-          {group("equipment", t.equipment, t.addEquipment)}
-          {group("work", t.work, t.addWork)}
-          <section className="space-y-2" aria-label={t.photos}>
-            <h2 className="text-base font-semibold">{t.photos}</h2>
+          {/* two independent columns on a desk (the sections flow down the first, then the second), so a long section never leaves a hole beside a short one */}
+          <div className="space-y-3 lg:columns-2 lg:gap-3 lg:space-y-0 [&>*]:break-inside-avoid lg:[&>*]:mb-3">
+            <ReportSection number={0} title={t.header} summary={showDate(date, language)}>
+              <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
+              <p className="text-sm"><span className="text-muted-foreground">{t.weekday}: </span>{formatWeekday(date, language)}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-sm font-medium">{t.weather}
+                  <Select className="mt-1" value={weather || NONE} disabled={locked} onValueChange={value => setWeather(value === NONE ? "" : value)}
+                    options={[{ value: NONE, label: "—" }, ...WEATHER.map(value => ({ value, label: weatherName[value] }))]} /></label>
+                <label className="block text-sm font-medium">{t.temperature}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" step="any" value={temperature} disabled={locked} onChange={event => setTemperature(event.target.value)} /></label>
+              </div>
+              <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-card p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
+              <p className="text-sm font-medium">{t.windHours}</p><LockedNote />
+            </ReportSection>
+            <ReportSection number={1} title={t.labour} summary={t.workers(total("labour"))}>
+              {group("labour", t.labour, t.addLabour)}
+              <p className="text-sm font-medium">{t.matrix}</p><LockedNote />
+            </ReportSection>
+            <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}</ReportSection>
+            <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
+            <ReportSection number={4} title={t.inspections} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={5} title={t.materials} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={6} title={t.hse} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={7} title={t.obstacles}>
+              <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
+            </ReportSection>
+            <ReportSection number={8} title={t.tomorrow} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={9} title={t.photos}>
             {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
             {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending} onFile={file => { void addPhoto(file); }} />}
             {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
             {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
-          </section>
+            </ReportSection>
+            <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={false}>
+              <p className="text-sm"><span className="text-muted-foreground">{t.statusNow}: </span>{reportId ? (locked ? t.pending : t.draft) : t.newReport}</p>
+              <p className="text-sm font-medium">{t.chain}</p><LockedNote />
+            </ReportSection>
+          </div>
           {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
           {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
           {!locked && (
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending} onClick={() => { setMessage(null); save.mutate(body()); }}>{save.isPending ? t.saving : t.save}</Button>
+            // the save bar stays in reach of the thumb while the site engineer scrolls the sections
+            <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:static lg:border-0 lg:p-0 lg:shadow-none">
+              <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
               <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
             </div>
           )}
-        </div>
+        </CheckedForm>
       </WriteGate>
 
       <section className="space-y-2" aria-label={t.recent}>
