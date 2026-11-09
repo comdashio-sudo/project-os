@@ -17,7 +17,7 @@ name: Migrate and promote production
 #      only after production is verified, and a failed deployment is retried by the next run.
 # Any failure stops the run before the next step. A failure before the promotion in 5 changes nothing on the site; a failure after it rolls it back. The .vercel/ folder (vercel pull writes the production
 # environment there) is deleted by the last step, whatever happened.
-# Secrets: SUPABASE_DB_PASSWORD and VERCEL_TOKEN (checked with vercel whoami before any migration; it is passed to the CLI through the environment, never on a command line, never printed),
+# Secrets: SUPABASE_DB_PASSWORD and VERCEL_TOKEN (checked with vercel whoami AND a throw-away vercel pull of the project before any migration; it is passed to the CLI through the environment, never on a command line, never printed),
 # optional VERCEL_AUTOMATION_BYPASS_SECRET. Variables (optional): SUPABASE_POOLER_HOST (pins the session-pooler host; otherwise it is found by trying), VERCEL_TEAM_ID, VERCEL_PROJECT_ID
 # and PRODUCTION_URL (defaults below, the same as post-deploy.yml). The project URL and its PUBLIC publishable key (sb_publishable_, optional since D-69: it adds the sign-in check) are
 # read from config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused by scripts/ci/public-config-check.sh and by
@@ -112,6 +112,19 @@ jobs:
             exit 1
           fi
           echo "Vercel token accepted (vercel whoami)"
+          # whoami only proves the token is alive. Step 4b also needs it to READ the project (team VERCEL_ORG_ID, project VERCEL_PROJECT_ID): run 42606597331 passed whoami,
+          # migrated, then failed in 4b with "Could not retrieve Project Settings" (the API answered 403 for the project). So the very command 4b starts with is tried here,
+          # in a throw-away folder that is deleted at once, before anything is migrated.
+          probe="$RUNNER_TEMP/vercel-project-probe"
+          mkdir -p "$probe"
+          if ! pulled="$(vercel pull --yes --environment=production --cwd "$probe" 2>&1)"; then
+            rm -rf "$probe"
+            echo "::error title=VERCEL_TOKEN cannot read the Vercel project::vercel pull for project $VERCEL_PROJECT_ID (team $VERCEL_ORG_ID) failed, so nothing was migrated or deployed. The token must be created with access to that team (docs/OWNER_ACTIONS.md, VERCEL_TOKEN scope). The CLI said:"
+            printf '%s\n' "$pulled" | grep -v '^[[:space:]]*$' | tail -n 5 | cut -c1-300
+            exit 1
+          fi
+          rm -rf "$probe"
+          echo "Vercel project $VERCEL_PROJECT_ID readable with this token (vercel pull, discarded)"
           # url required; publishableKey empty = has_key=false (step 3 runs without the sign-in check); anything but sb_publishable_ fails (D-69)
           bash scripts/ci/public-config-check.sh config/supabase.public.json >> "$GITHUB_OUTPUT"
       - name: 1. Migrations are backward compatible

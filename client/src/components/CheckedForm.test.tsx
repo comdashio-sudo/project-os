@@ -101,6 +101,18 @@ describe("CheckedForm: long forms, the step, and fields that leave", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("in a grid of two columns a wrong field and its message take the whole row, one under the other, until it is right", () => {
+    render(<CheckedForm style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}><input aria-label="Number" required /><input aria-label="Title" required /><button type="submit">Send</button></CheckedForm>);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const number = screen.getByLabelText("Number");
+    const note = number.nextElementSibling as HTMLElement;
+    expect(note.hasAttribute("data-checked-error")).toBe(true);
+    expect(number.style.gridColumn).toBe("1 / -1");
+    expect(note.style.gridColumn).toBe("1 / -1");
+    fireEvent.input(number, { target: { value: "N-1" } });
+    expect(number.style.gridColumn).toBe("");
+  });
+
   it("a wrong field that leaves the form takes its message with it", () => {
     const Conditional = () => { const [shown, setShown] = React.useState(true); return <CheckedForm><button type="button" onClick={() => setShown(false)}>Hide</button>{shown ? <input aria-label="Extra" required /> : null}<input aria-label="Kept" defaultValue="x" /><button type="submit">Send</button></CheckedForm>; };
     render(<Conditional />);
@@ -112,10 +124,12 @@ describe("CheckedForm: long forms, the step, and fields that leave", () => {
   });
 });
 
-// D-63's nine forms (the list grows with D-64 and D-65): none may go back to a bare <form> that leaves the checking to the browser
-const D63_FILES = ["components/MasterPlanTools.tsx", "components/TenantDataCard.tsx", "components/FieldShell.tsx", "components/AIChatBox.tsx", "pages/SupportOwnerPanel.tsx", "pages/PayrollPanel.tsx", "pages/ProjectContracts.tsx", "pages/ProjectProcurement.tsx", "pages/ProjectPurchaseOrders.tsx"];
+// D-63's nine forms and D-64's ten (the list grows with D-65): none may go back to a bare <form> that leaves the checking to the browser
+const CHECKED_FILES = ["components/MasterPlanTools.tsx", "components/TenantDataCard.tsx", "components/FieldShell.tsx", "components/AIChatBox.tsx", "pages/SupportOwnerPanel.tsx", "pages/PayrollPanel.tsx", "pages/ProjectContracts.tsx", "pages/ProjectProcurement.tsx", "pages/ProjectPurchaseOrders.tsx",
+  // D-64
+  "pages/ProjectGoodsReceipts.tsx", "pages/ProjectClaims.tsx", "pages/ProjectTenders.tsx", "pages/CommercialChain.tsx", "pages/ProjectChanges.tsx", "pages/ProjectWarehouses.tsx", "pages/ProjectResources.tsx", "pages/ProjectWorkforce.tsx", "pages/ProjectNcrs.tsx", "pages/ProjectRfis.tsx"];
 describe("no bare <form> in the files moved to CheckedForm", () => {
-  it.each(D63_FILES)("%s", file => {
+  it.each(CHECKED_FILES)("%s", file => {
     const source = readFileSync(`client/src/${file}`, "utf8");
     for (const tag of source.match(/<form\b[^>]*>/g) ?? []) expect(tag).toContain("noValidate");
     expect(source).toContain("<CheckedForm");

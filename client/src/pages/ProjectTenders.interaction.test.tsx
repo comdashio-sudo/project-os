@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ProjectTenders } from "./ProjectTenders";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
@@ -142,5 +143,13 @@ describe("ProjectTenders Excel export", () => {
     expect(value("المورد", 2)).toBe("Supplier E");
     expect(columns.find(column => column.header === "فوق الأدنى")!.kind).toBe("percent");
     expect(columns.find(column => column.header === "السعر")!.kind).toBe("money");
+  });
+});
+
+describe("ProjectTenders package form checks itself in the page's language (D-64)", () => {
+  it("an empty tender package creates nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.arabic = true; state.calls.createPackage = vi.fn();
+    render(<ProjectTenders tenantId="t1" projectId="p1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.calls.createPackage);
   });
 });
