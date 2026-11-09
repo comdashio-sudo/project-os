@@ -10,8 +10,9 @@ import { analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile } from
 import { PMC_IMPORT_KINDS, type PmcImportKind } from "./domain/pmcImport";
 import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
 import { auditEmployeeRecordsRead, authorizeLedgerModule, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
+import { applyEquipmentImport, planEquipmentImport, readEquipmentRows } from "./equipmentImport";
 
-export const EXTERNAL_MODULES = [...PMC_IMPORT_KINDS.map(kind => `pmc.${kind}` as const), "masterPlanMapping", "masterPlanSpatial", ...LEDGER_MODULES] as const;
+export const EXTERNAL_MODULES = [...PMC_IMPORT_KINDS.map(kind => `pmc.${kind}` as const), "masterPlanMapping", "masterPlanSpatial", ...LEDGER_MODULES, "equipment"] as const;
 export type ExternalModule = (typeof EXTERNAL_MODULES)[number];
 export const isExternalModule = (code: string): code is ExternalModule => (EXTERNAL_MODULES as readonly string[]).includes(code);
 /** Only spreadsheets: an XER file is the schedule importer's. */
@@ -31,7 +32,7 @@ export type ExternalAnalysis = {
 const pmcKindOf = (moduleCode: ExternalModule): PmcImportKind | null => (moduleCode.startsWith("pmc.") ? (moduleCode.slice(4) as PmcImportKind) : null);
 
 /** The same permission and plan feature the module's own (in-request) procedure checks, so a person can upload for a module exactly when they could have imported it before. */
-const gate = (moduleCode: ExternalModule) => (isLedgerModule(moduleCode) ? { permission: ledgerImportPermission[moduleCode], featureCode: "DATA_IMPORT" } : pmcKindOf(moduleCode) ? { permission: "project.pmc.manage", featureCode: "PMC" } : moduleCode === "masterPlanMapping" ? { permission: "project.write", featureCode: "MASTER_PLAN" } : { permission: "project.write", featureCode: "MASTER_PLAN_ENTITIES" });
+const gate = (moduleCode: ExternalModule) => (moduleCode === "equipment" ? { permission: "project.manage", featureCode: "DATA_IMPORT" } : isLedgerModule(moduleCode) ? { permission: ledgerImportPermission[moduleCode], featureCode: "DATA_IMPORT" } : pmcKindOf(moduleCode) ? { permission: "project.pmc.manage", featureCode: "PMC" } : moduleCode === "masterPlanMapping" ? { permission: "project.write", featureCode: "MASTER_PLAN" } : { permission: "project.write", featureCode: "MASTER_PLAN_ENTITIES" });
 
 export async function authorizeExternalImport(input: ExternalScope & { moduleCode: ExternalModule; context?: ExternalContext }) {
   const db = await getDb();
@@ -40,7 +41,7 @@ export async function authorizeExternalImport(input: ExternalScope & { moduleCod
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission, featureCode, scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   if (isLedgerModule(input.moduleCode)) await authorizeLedgerModule(input, input.moduleCode); // the HR modules also need the company-level HR permission, as the HR screens do
-  else if (!pmcKindOf(input.moduleCode)) {
+  else if (!pmcKindOf(input.moduleCode) && input.moduleCode !== "equipment") {
     const versionId = input.context?.masterPlanVersionId;
     if (!versionId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_CONTEXT_REQUIRED" });
     const [version] = await db.select({ id: masterPlanVersions.id }).from(masterPlanVersions).where(and(eq(masterPlanVersions.id, versionId), eq(masterPlanVersions.tenantId, input.tenantId), eq(masterPlanVersions.projectId, input.projectId))).limit(1);
@@ -62,6 +63,13 @@ export async function analyzeExternalImport(input: ExternalScope & { moduleCode:
     const badRows = new Set(errors.map(error => error.rowNumber).filter(row => row > 0)).size;
     const count = (kind: string) => plan.entries.filter(item => item.kind === kind).length;
     return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - badRows), errors, report: { ledger: { new: count("new"), modified: count("modified"), unchanged: count("unchanged"), conflict: conflicts.length, rejected: plan.errors.length, missing: plan.missing.length, hash: ledgerPlanHash(plan) } }, canConfirm: plan.apply !== null };
+  }
+  if (input.moduleCode === "equipment") {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    const plan = await planEquipmentImport(db, input, await readEquipmentRows(input.bytes, input.format));
+    const invalidRows = new Set(plan.errors.map(error => error.rowNumber).filter(row => row > 0)).size;
+    return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - invalidRows), errors: plan.errors, report: { equipment: { create: plan.creates.length, update: plan.updates.length, unchanged: plan.unchanged } }, canConfirm: !plan.errors.length && plan.creates.length + plan.updates.length > 0 };
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {
@@ -87,6 +95,11 @@ export async function applyExternalImport(input: ExternalScope & { moduleCode: E
     if (!plan.apply) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOTHING_TO_CONFIRM" });
     const done = await plan.apply({ importId: input.importId, db });
     return { ...done.counts, results: done.results };
+  }
+  if (input.moduleCode === "equipment") {
+    const db = await getDb();
+    if (!db) throw new Error("Database connection is not available");
+    return applyEquipmentImport(db, input, await readEquipmentRows(input.bytes, input.format));
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {
