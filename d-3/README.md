@@ -63,3 +63,7 @@ Before: the browser's English bubble. After: the one-line count and each message
 
 after-* = 1393878; before-* = main e0c484b (copied from 7e7bbfe). Same forms (NCR, RFI, change request), 390 and 1280, ar/en/ur.
 Visible fixes at 1280: in the two-column forms a wrong field and its message take the whole row, one under the other; a register that could not load shows its card, title, "Could not load: ..." and the shared error surface in the page's language; the change request's number fields have visible labels.
+
+## d-3/part-5c/68ccbf0/ — D-3 (5c/8) D-65's forms behind CheckedForm
+
+before-* = client build of main e0c484b; after-* = client build of 68ccbf0 (on #232's branch). Each shot submits one empty form on the project page (WBS in ProjectControls, HSE observation, document) and captures the viewport around it. 390 and 1280; Arabic, English and Urdu.
