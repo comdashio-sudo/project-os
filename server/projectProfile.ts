@@ -51,10 +51,29 @@ export function logoKind(bytes: Buffer): "png" | "jpeg" | "svg" | null {
   if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^[>]*(\[[\s\S]*?\])?\s*>\s*)?<svg[\s>]/i.test(head)) return "svg";
   return null;
 }
-/** An SVG is shown as an image, but opened on its own it is a document: script, event handlers, javascript: links and embedded HTML are refused, not cleaned. */
-// A character reference (&#58; &#x61;) can spell «javascript:» past any pattern, and an entity declaration can expand into anything: both are refused outright
-// (a logo needs neither; review of #223).
-export const svgIsUnsafe = (text: string) => /<\s*script\b|\son[a-z]+\s*=|javascript\s*:|<\s*foreignObject\b|<\s*(iframe|embed|object)\b|&#|<!ENTITY/i.test(text);
+/**
+ * An SVG is shown as an image, but opened on its own it is a document that can run script. Chasing patterns lost twice (#223: character references; #227: a
+ * namespace prefix and a TAB inside «javascript:»), so the rule is now an allow-nothing-unusual rule: a plain logo needs none of what is refused here, and anything
+ * refused is refused whole, never cleaned.
+ *   - any DOCTYPE (internal subset or external PUBLIC/SYSTEM), any entity declaration, any character reference (&#…);
+ *   - any element with a namespace prefix (<s:script>, <svg:script>, <h:script>, <s:foreignObject>), and any prefixed attribute except xlink:href, xml:space and the
+ *     xmlns:xlink declaration that xlink:href needs;
+ *   - the words script, foreignobject, iframe and embed ANYWHERE (case-insensitive), and an <object> element;
+ *   - an on… event attribute after any whitespace, slash or quote;
+ *   - javascript:, vbscript: and data: once every whitespace and control character (\s, \x00-\x1F) is removed — a browser drops TAB, LF and CR inside a URL.
+ * A second line of defence (serving SVG as an attachment, or with CSP script-src 'none') is the owner's step in docs/GAP_LIST.md (G-211); storage.ts is not touched here.
+ */
+const ALLOWED_PREFIXED_ATTRIBUTES = new Set(["xlink:href", "xml:space", "xmlns:xlink"]);
+export function svgIsUnsafe(text: string): boolean {
+  if (/<!DOCTYPE|<!ENTITY|&#/i.test(text)) return true;
+  if (/<\s*\/?\s*[a-z_][\w.-]*:/i.test(text)) return true;
+  const prefixed = Array.from(text.matchAll(/[\s"'/]([a-z_][\w.-]*:[\w.-]+)\s*=/gi), match => match[1].toLowerCase());
+  if (prefixed.some(name => !ALLOWED_PREFIXED_ATTRIBUTES.has(name))) return true;
+  if (/script|foreignobject|iframe|embed/i.test(text) || /<\s*object\b/i.test(text)) return true;
+  if (/[\s"'/]on[a-z]+\s*=/i.test(text)) return true;
+  const squeezed = text.replace(/[\s\x00-\x1F]+/g, "").toLowerCase();
+  return /javascript:|vbscript:|data:/.test(squeezed);
+}
 
 async function takeLogo(input: Scope, uploadKey: string) {
   const taken = await takeDirectUpload({ tenantId: input.tenantId, projectId: input.projectId, purpose: "logo", uploadKey, maxBytes: MAX_LOGO_BYTES, tooLarge: "PROJECT_OS_PROJECT_LOGO_TOO_LARGE" });

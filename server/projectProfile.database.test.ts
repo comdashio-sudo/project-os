@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import * as storage from "./storage";
+import { CLEAN_SVG, UNSAFE_SVGS } from "./testing/svgSamples";
 
 // Work order 23, P-17 (D-42 a) on a real database, through the real router, as the restricted application role: the project profile with its logos and the companies on the
 // project. Positive and negative paths, the two CHECK/UNIQUE rules held by the database itself, and isolation between companies and between projects of one company.
@@ -14,7 +15,6 @@ const isUrl = (value: string | undefined) => { try { const url = new URL(value ?
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pp.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const code = (promise: Promise<unknown>) => promise.then(() => "no error", (error: { message?: string }) => error.message ?? "error");
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a0a6a1a20000000049454e44ae426082", "hex");
-const SVG = Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#0a7"/></svg>');
 const SVG_SCRIPT = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 const SVG_ENCODED = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><a href="jav&#x61;script:alert(1)"><rect width="1" height="1"/></a></svg>');
 const SVG_ENCODED_COLON = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript&#58;alert(1)"><rect width="1" height="1"/></a></svg>');
@@ -83,7 +83,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project profile and comp
     const empty = await callers.manager.projects.profile.get({ tenantId, projectId: projectA });
     expect(empty).toMatchObject({ clientName: null, workDays: [0, 1, 2, 3, 4], logos: { client: null, consultant: null, contractor: null } });
     const client = await uploadLogo("manager", PNG);
-    const consultant = await uploadLogo("manager", SVG, "image/svg+xml");
+    const consultant = await uploadLogo("manager", Buffer.from(CLEAN_SVG), "image/svg+xml"); // a plain logo: gradient, xlink:href to a local id, xml:space
     const saved = await callers.manager.projects.profile.save({ ...profile(), logos: { client: { uploadKey: client }, consultant: { uploadKey: consultant } } });
     expect(saved).toMatchObject({ location: "Synthetic district, plot 7", contractNumber: "CN-0001", clientName: "Example Client Co.", workDays: [0, 1, 2, 3, 4], workStart: "07:00", workEnd: "17:00", reportPrefix: "PRJ-A" });
     expect(saved.logos.client?.key).toMatch(new RegExp(`^uploads/${tenantId}/${projectA}/logo/.+\\.png$`));
@@ -146,6 +146,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project profile and comp
     const foreign = await uploadLogo("otherOwner", PNG, "image/png", projectC, otherTenantId);
     const sibling = await uploadLogo("owner", PNG, "image/png", projectB);
     for (const uploadKey of [foreign, sibling]) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey } } }))).toBe("PROJECT_OS_IMPORT_UPLOAD_KEY_INVALID");
+    // every bypass of the reviews of #223 and #227, through the router (review of #227: namespace prefixes, TAB/LF/CR inside javascript:, any DOCTYPE)
+    for (const [name, svg] of UNSAFE_SVGS) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", Buffer.from(svg), "image/svg+xml") } } })), name).toBe("PROJECT_OS_PROJECT_LOGO_UNSAFE");
     for (const [bytes, type] of [[SVG_SCRIPT, "image/svg+xml"], [SVG_HANDLER, "image/svg+xml"], [SVG_ENCODED, "image/svg+xml"], [SVG_ENCODED_COLON, "image/svg+xml"], [SVG_ENTITY, "image/svg+xml"]] as const) expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", bytes, type) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_UNSAFE");
     expect(await code(callers.manager.projects.profile.save({ ...profile(), logos: { contractor: { uploadKey: await uploadLogo("manager", Buffer.from("GIF89a not a logo")) } } }))).toBe("PROJECT_OS_PROJECT_LOGO_TYPE_INVALID");
     const big = Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024)]);

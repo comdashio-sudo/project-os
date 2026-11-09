@@ -1712,6 +1712,7 @@
 | (5) الصيغة | `WRITTEN` | «`PROVEN` (أمر)» ← «`PROVEN`» في قسم D-42 (أ)، و«15/15» ← «14/14» (العدد الحقيقي) |
 | الأوامر والأعداد (2026-11-09، على `15fd42b`، ثم بعد دمج `main` @ `5392548` (D-18): `pnpm test` ← 2944، والملفات الأربعة projectApprovers وprojectProfile وaccessGrants وtenantData 28/28 على قاعدة جديدة) | `PROVEN` | `pnpm check` 0 · `pnpm build` 0 · `pnpm check:secrets` ← 0 · `pnpm db:baseline:check` مطابق · `pnpm test` ← 2923 ناجحًا · `pnpm test:db` ← 582 ناجحًا، 1 فاشل (`predeploy`، البيئي المعروف)، 19 متخطى، على خادم PostgreSQL محلي خاص (5434) · `coverage:trpc` 372 إجراءً، الثلاثة الجديدة مصنّفة، وغير المصنّف 78 كما على `main` |
 | حدّ معلن | `OPEN` | لا يُشترط لخطوة «اعتمده» صلاحية بعينها (يكفي دور على المشروع)؛ ربطها بصلاحية مسمّاة قرار للمالك قبل أن تستعملها شاشة التقرير. والواجهة في D-43 |
+
 ### D-21: مصفوفة الأدوار بعد D-1 وD-4 وD-5 وD-42 (أ) وG-142، وحارس التغطية، والبروفة بالقوالب السبعة عشر (2026-11-09، الوكيل 1، من `main` @ `5392548`)
 
 وصف لا تغيير: لم يُلمس `operationalRoles.ts` ولا أي فحص صلاحية في الخادم. الترحيلة: لا شيء.
@@ -1728,3 +1729,13 @@
 | رحلة `scripts/e2e-roles.mjs` في المتصفح | `UNVERIFIED` | تتوقف عند التجهيز (`roleFixture.mjs:65`، `tenant.administration`) بـ`PROJECT_OS_MFA_REQUIRED` قبل أي خطوة دور، **وعلى `main` @ `935516d` بالخطأ نفسه** (مسجّل في D-18). لا رحلة فشلت بسبب تضييق G-142، ولم يُوسَّع أي تكليف في البروفة |
 | الأعداد (2026-11-09، على `5392548`) | `PROVEN` | `pnpm test` ← 2969 ناجحًا · `pnpm test:db` ← 580 ناجحًا، 1 فاشل (`predeploy`، البيئي المعروف)، 19 متخطى، على خادم PostgreSQL محلي خاص (5434) · `pnpm check` 0 · `pnpm build` 0 · `pnpm check:secrets` ← 0 |
 | حدّ معلن | `OPEN` | سلسلة الاعتماد (`projectApprovers.ts`، #227) لم تُدرج في المصفوفة بعد؛ تُضاف في طلب لاحق بعد دمجها. حارس التغطية سيُسقط #227 إن أضاف رمزًا بلا عمود (لا يضيف) |
+
+#### D-42 (ب): فحص شعار SVG بقاعدة صارمة بعد مراجعة #227 (ENG: CHANGES، QA: FAIL @ `0e36093`)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `svgIsUnsafe` صار قاعدة «لا شيء غير مألوف» بدل ملاحقة الأنماط. يُرفض: أي `<!DOCTYPE` أو `<!ENTITY` أو `&#`؛ أي عنصر ببادئة نطاق؛ أي سمة ببادئة عدا `xlink:href` و`xml:space` وتصريح `xmlns:xlink`؛ الكلمات `script` و`foreignobject` و`iframe` و`embed` في أي موضع، وعنصر `<object>`؛ `on…=` بعد أي مسافة أو `/` أو علامة تنصيص؛ و`javascript:` و`vbscript:` و`data:` بعد حذف كل المسافات والمحارف غير المطبوعة | `PROVEN` | `server/projectProfile.test.ts` 31/31: 15 حالة سالبة (`<s:script>`، `<svg:script>`، `<h:script>`، `<s:foreignObject>`، `java⇥script:` و`java↵script:` و`java␍script:`، `<animate values>` بـTAB، DOCTYPE بمجموعة داخلية بلا ENTITY، DOCTYPE خارجي PUBLIC، `onload` بعد سطر جديد، `da ta:`، `vb script:`، سمة `ev:event`، `<object>`) وحالة موجبة لشعار نظيف (تدرّج `objectBoundingBox`، `xlink:href="#id"`، `xml:space`). العينات في `server/testing/svgSamples.ts` |
+| عبر الموجّه | `PROVEN` | `server/projectProfile.database.test.ts` 7/7 بحساب `project_os_app`: الحالات الخمس عشرة كلها ← `PROJECT_OS_PROJECT_LOGO_UNSAFE`، والشعار النظيف يُحفظ ويُعرض |
+| قرار في التفسير | `WRITTEN` | «object» يُرفض **عنصرًا** لا كلمةً، لأن `gradientUnits="objectBoundingBox"` شائع في الشعارات النظيفة. وسُمح بتصريح `xmlns:xlink` لأن `xlink:href` لا يعمل بدونه |
+| دفاع إضافي للمالك | `BLOCKED_BY_OWNER` | G-211 في `docs/GAP_LIST.md`: خدمة SVG بـ`Content-Disposition: attachment` أو CSP `script-src 'none'` (خارج هذا الطلب، `storage.ts` ممنوع اللمس) |
+| الأعداد (2026-11-09، بعد دمج `main` @ `7b66e5a`) | `PROVEN` | `pnpm test` ← 3005 ناجحًا · `pnpm test:db` ← 587 ناجحًا، 1 فاشل (`predeploy`، البيئي المعروف)، 19 متخطى، على خادم محلي خاص (5434) · `pnpm check` 0 · `pnpm build` 0 · `pnpm check:secrets` ← 0 · `db:baseline:check` مطابق |
