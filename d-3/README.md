@@ -48,3 +48,8 @@ before-* = main 935516d; after-* = c938bb1. Same fixed synthetic replies. The em
 before-* = client build of main 7dcb6ec; after-* = client build of c72fb2d. Fixed synthetic tRPC replies; each shot submits one empty form, then captures the viewport around it.
 Forms: the unit-number box of the field screens (report-unit), the contract form (contracts) and the supplier/material-request form (procurement) on the project page. 390 and 1280; Arabic, English and Urdu.
 Before: the browser's own bubble, in English whatever the page language. After: a summary at the top and each message under its field in the page's language. *-report.json: checkedErrors = messages under fields, horizontal scroll.
+
+## d-3/part-5a/377f6d1/ — review fixes for #228
+
+after-* = client build of 377f6d1; before-* = main 7dcb6ec (copied from c72fb2d). Same forms and fixed synthetic replies.
+Visible fixes: the summary is one line counting the wrong fields; each message sits close under its field with more room before the next one.
