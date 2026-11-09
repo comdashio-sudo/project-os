@@ -2,6 +2,7 @@
 // entity in the parent tree and editing its geometry (G-136), and the entity's alerts with jumps to the sections that hold its WBS item and
 // activity (G-137). The rules and arithmetic are shared/masterPlanTools.ts; every write is shown only to someone who may make it, and the
 // server judges every call anyway.
+import { CheckedForm } from "@/components/CheckedForm";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,10 +29,10 @@ export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }
   if (!version) return null;
   const t = pickLanguage(language, { ar: { title: "تدوير الخطة ومعايرتها", note: "يدوّر الخلفية فقط، لا الكيانات. أدخل العرض والطول الحقيقيين لمنطقة الخطة بالأمتار لتظهر أبعاد كل كيان بالمتر.", rotation: "زاوية التدوير (درجة)", left: "تدوير 90° لليسار", right: "تدوير 90° لليمين", width: "عرض منطقة الخطة (م)", height: "طول منطقة الخطة (م)", save: "حفظ التدوير والمعايرة" }, en: { title: "Rotate and calibrate the plan", note: "Turns the background only, not the entities. Enter the real width and length of the plan area in metres so each entity's size shows in metres.", rotation: "Rotation (degrees)", left: "Rotate 90° left", right: "Rotate 90° right", width: "Plan area width (m)", height: "Plan area length (m)", save: "Save rotation and calibration" }, ur: { title: "پلان کو گھمائیں اور درست کریں", note: "صرف پس منظر گھماتا ہے، اکائیاں نہیں۔ پلان کے رقبے کی اصل چوڑائی اور لمبائی میٹر میں لکھیں تاکہ ہر اکائی کا سائز میٹر میں دکھائی دے۔", rotation: "گردش (ڈگری)", left: "90° بائیں گھمائیں", right: "90° دائیں گھمائیں", width: "پلان کے رقبے کی چوڑائی (میٹر)", height: "پلان کے رقبے کی لمبائی (میٹر)", save: "گردش اور درستگی محفوظ کریں" } });
   const turn = (by: number) => setRotation(String(normalizeRotation(Number(rotation || 0) + by)));
-  return <WriteGate permission="project.write" projectId={projectId}><form className="mt-3 rounded-xl border border-dashed border-[#74d0c1] bg-[#f4fbfa] p-3" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, projectId, masterPlanVersionId: version.id, rotationDegrees: Number(rotation || 0), mapWidthMeters: width ? Number(width) : null, mapHeightMeters: height ? Number(height) : null }); }}>
+  return <WriteGate permission="project.write" projectId={projectId}><CheckedForm className="mt-3 rounded-xl border border-dashed border-[#74d0c1] bg-[#f4fbfa] p-3" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, projectId, masterPlanVersionId: version.id, rotationDegrees: Number(rotation || 0), mapWidthMeters: width ? Number(width) : null, mapHeightMeters: height ? Number(height) : null }); }}>
     <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-slate-500">{t.note}</p>
     <div className="mt-2 flex flex-wrap items-end gap-2">
-      <Label className="min-w-28 flex-1 text-xs">{t.rotation}<Input className="mt-1" aria-label={t.rotation} type="number" step="1" value={rotation} onChange={event => setRotation(event.target.value)} /></Label>
+      <Label className="min-w-28 flex-1 text-xs">{t.rotation}<Input className="mt-1" aria-label={t.rotation} type="number" step="1" required value={rotation} onChange={event => setRotation(event.target.value)} /></Label>
       <Button type="button" variant="outline" size="sm" aria-label={t.left} onClick={() => turn(-90)}><RotateCcw className="h-4 w-4" /></Button>
       <Button type="button" variant="outline" size="sm" aria-label={t.right} onClick={() => turn(90)}><RotateCw className="h-4 w-4" /></Button>
       <Label className="min-w-28 flex-1 text-xs">{t.width}<Input className="mt-1" aria-label={t.width} type="number" min="0" step="0.01" value={width} onChange={event => setWidth(event.target.value)} /></Label>
@@ -39,7 +40,7 @@ export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }
     </div>
     {save.error ? <p role="alert" className="mt-2 text-xs text-red-700">{getLocalizedProjectError(save.error, language)}</p> : null}
     <Button className="mt-3" disabled={save.isPending}>{t.save}</Button>
-  </form></WriteGate>;
+  </CheckedForm></WriteGate>;
 }
 
 // ---------------------------------------------------------------- the canvas surface for large plans
@@ -90,15 +91,15 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
       <p className="mt-2 flex flex-wrap items-center gap-2"><span className="text-slate-500">{t.jumps}:</span>{SECTION_LINKS.map(link => <a key={link.id} href={`#${link.id}`} className="font-semibold text-[#0e6b70] underline">{pickLanguage(language, link)}</a>)}</p>
     </section>
     <WriteGate permission="project.write" projectId={projectId}>
-      <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, parentEntityId: parent || null }); }}>
+      <CheckedForm className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, parentEntityId: parent || null }); }}>
         <Label className="min-w-48 flex-1">{t.parentTitle}<select aria-label={t.parentTitle} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" value={parent} onChange={event => setParent(event.target.value)}><option value="">{t.noParent}</option>{candidates.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></Label>
         <Button size="sm" disabled={update.isPending || parent === (entity.parentEntityId ?? "")}>{t.saveParent}</Button>
-      </form>
-      <form className="grid grid-cols-2 gap-2 md:grid-cols-5" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, geometry: { x: Number(draft.x), y: Number(draft.y), width: Number(draft.width), height: Number(draft.height) } }); }}>
+      </CheckedForm>
+      <CheckedForm className="grid grid-cols-2 gap-2 md:grid-cols-5" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, geometry: { x: Number(draft.x), y: Number(draft.y), width: Number(draft.width), height: Number(draft.height) } }); }}>
         <p className="col-span-full font-semibold">{t.geometryTitle}</p>
-        {([["x", t.x], ["y", t.y], ["width", t.w], ["height", t.h]] as const).map(([key, label]) => <Label key={key}>{label}<Input className="mt-1" aria-label={label} type="number" step="0.1" value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></Label>)}
+        {([["x", t.x], ["y", t.y], ["width", t.w], ["height", t.h]] as const).map(([key, label]) => <Label key={key}>{label}<Input className="mt-1" aria-label={label} type="number" step="0.1" required value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></Label>)}
         <Button size="sm" className="self-end" disabled={update.isPending}>{t.saveGeometry}</Button>
-      </form>
+      </CheckedForm>
       {update.error ? <p role="alert" className="text-red-700">{getLocalizedProjectError(update.error, language)}</p> : null}
     </WriteGate>
   </div>;

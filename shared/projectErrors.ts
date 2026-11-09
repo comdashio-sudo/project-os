@@ -631,6 +631,11 @@ export const projectErrorMessages = {
     en: "The value is outside the allowed range.",
     ur: "قدر اجازت شدہ حد سے باہر ہے۔",
   },
+  PROJECT_OS_FIELD_STEP_MISMATCH: {
+    ar: "القيمة لا تطابق خطوة الحقل (مثلًا عدد صحيح حيث لا تُقبل الكسور).",
+    en: "The value does not fit the field's step (for example a whole number where fractions are not allowed).",
+    ur: "قدر خانے کے مرحلے سے میل نہیں کھاتی (مثلاً جہاں کسر قبول نہیں وہاں پورا عدد)۔",
+  },
   PROJECT_OS_FIELD_DATE_INVALID: {
     ar: "أدخل تاريخًا صحيحًا.",
     en: "Enter a valid date.",

@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -67,6 +68,15 @@ describe("ProjectPurchaseOrders", () => {
     expect(screen.getByRole("button", { name: "تحديث الحالة: مرسل" })).toBeTruthy();
     expect(screen.getByLabelText("العقد")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تحديث الحالة: مستلم" })).toBeTruthy();
+    state.arabic = false;
+  });
+});
+
+describe("ProjectPurchaseOrders form checks itself in the page's language (D-63)", () => {
+  it("an empty purchase order saves nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.create.mockClear(); state.arabic = true;
+    render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.create);
     state.arabic = false;
   });
 });

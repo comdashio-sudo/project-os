@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectProcurement } from "./ProjectProcurement";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, error: null as unknown, supplier: vi.fn(), requisition: vi.fn(), transition: vi.fn(), linkPurchaseOrder: vi.fn(), refetch: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -24,4 +25,15 @@ describe("ProjectProcurement interaction", () => {
   });
   it("renders a localized procurement error", () => { state.error = {}; render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />); expect(screen.getByRole("alert").textContent).toBe("Localized procurement error"); });
   it("renders the governed material-request context in Arabic without sensitive compensation data", () => { state.arabic = true; render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />); expect(screen.getByText("الموردون وطلبات المواد")).toBeTruthy(); expect(screen.getByLabelText("حزمة العمل WBS")).toBeTruthy(); expect(screen.getByText(/المصروف: 2/)).toBeTruthy(); expect(screen.queryByText(/راتب|salary/i)).toBeNull(); });
+});
+
+describe("ProjectProcurement forms check themselves in the page's language (D-63)", () => {
+  it("an empty supplier and an empty material request send nothing and say so in Arabic under the first field", () => {
+    cleanup(); state.arabic = true; state.supplier.mockReset(); state.requisition.mockReset();
+    render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />);
+    const [supplierForm, requestForm] = Array.from(document.querySelectorAll("form"));
+    expectEmptySubmitRefused(supplierForm, "ar", state.supplier);
+    expectEmptySubmitRefused(requestForm, "ar", state.requisition);
+    state.arabic = false;
+  });
 });
