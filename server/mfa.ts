@@ -9,7 +9,8 @@ import { sessionStore } from "./_core/sessionStore";
 import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, matchTotp, normalizeRecoveryCode, openSecret, otpauthUri, sealSecret } from "./_core/totp";
 import { logError } from "./_core/logger";
 import { isSchemaBehind, schemaReadiness } from "./_core/schemaReady";
-import { assertTenantManager, getDb } from "./db";
+import { getDb, getTenantAccessSnapshot } from "./db";
+import { assertTenantAccess } from "./domain/authorization";
 
 /** Five wrong codes lock the second step for fifteen minutes (a six-digit code is guessable otherwise). */
 export const MFA_MAX_FAILURES = 5;
@@ -56,9 +57,19 @@ export async function isMfaRequired(user: Pick<User, "id" | "role">, now = Date.
   return value;
 }
 
+/**
+ * The company's whole membership is touched by this switch, so it takes tenant.manage held AT COMPANY SCOPE (one assignment carrying both, G-142):
+ * an administrator of one project — tenant.manage scoped to that project — cannot impose it on everyone (review of #238).
+ */
+async function assertCompanyManager(userId: number, tenantId: string): Promise<void> {
+  const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
+  if (!snapshot) throw refuse("FORBIDDEN", "PROJECT_OS_TENANT_ACCESS_DENIED");
+  assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage", scope: { type: "company" } });
+}
+
 /** A company's own security choice (D-81): whether its members must pass two-step verification. Off unless the company switched it on. Read and changed by tenant.manage only. */
 export async function getCompanySecurity(input: { userId: number; tenantId: string }): Promise<{ requireTwoStep: boolean }> {
-  await assertTenantManager(input.userId, input.tenantId);
+  await assertCompanyManager(input.userId, input.tenantId);
   if (!(await schemaReadiness()).ready) return { requireTwoStep: false };
   const [row] = await (await database()).select({ requireTwoStep: companies.requireTwoStep }).from(companies).where(eq(companies.id, input.tenantId)).limit(1);
   if (!row) throw refuse("FORBIDDEN", "PROJECT_OS_TENANT_ACCESS_DENIED");
@@ -67,7 +78,7 @@ export async function getCompanySecurity(input: { userId: number; tenantId: stri
 
 /** Switches the company's requirement on or off, with its audit row in the same transaction. The change reaches every member on the next request (the cache is cleared). */
 export async function setCompanyRequireTwoStep(input: { userId: number; tenantId: string; requireTwoStep: boolean }): Promise<{ requireTwoStep: boolean }> {
-  await assertTenantManager(input.userId, input.tenantId);
+  await assertCompanyManager(input.userId, input.tenantId);
   if (!(await schemaReadiness()).ready) throw refuse("CONFLICT", "PROJECT_OS_MFA_SETTING_NOT_READY");
   const db = await database();
   await db.transaction(async tx => {
