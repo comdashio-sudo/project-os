@@ -229,11 +229,13 @@ export default function SiteDailyReport() {
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
-        <CheckedForm className="space-y-3" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate(body()); }}>
+        {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
+        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate(body()); }}>
           {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
           {rejectedNote && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
           {locked && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
-          <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+          {/* two independent columns on a desk (the sections flow down the first, then the second), so a long section never leaves a hole beside a short one */}
+          <div className="space-y-3 lg:columns-2 lg:gap-3 lg:space-y-0 [&>*]:break-inside-avoid lg:[&>*]:mb-3">
             <ReportSection number={0} title={t.header} summary={showDate(date, language)}>
               <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
               <p className="text-sm"><span className="text-muted-foreground">{t.weekday}: </span>{formatWeekday(date, language)}</p>
@@ -265,7 +267,7 @@ export default function SiteDailyReport() {
             {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
             {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
             </ReportSection>
-            <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport}>
+            <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={false}>
               <p className="text-sm"><span className="text-muted-foreground">{t.statusNow}: </span>{reportId ? (locked ? t.pending : t.draft) : t.newReport}</p>
               <p className="text-sm font-medium">{t.chain}</p><LockedNote />
             </ReportSection>
@@ -274,7 +276,7 @@ export default function SiteDailyReport() {
           {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
           {!locked && (
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections
-            <div className="sticky bottom-0 z-10 -mx-1 grid grid-cols-2 gap-2 border-t bg-background p-1 pb-2 lg:static lg:border-0">
+            <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:static lg:border-0 lg:p-0 lg:shadow-none">
               <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
               <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
             </div>

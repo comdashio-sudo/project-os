@@ -43,5 +43,8 @@ export function formatShortDate(value: Date, language: Language): string {
 
 /** "2026-11-09" -> "Monday" / "الاثنين" / "پیر": the weekday of a calendar day (read as UTC, so the day never shifts with the device's zone). */
 export function formatWeekday(isoDay: string, language: Language): string {
-  return new Intl.DateTimeFormat(LOCALE[language], { weekday: "long", timeZone: "UTC" }).format(new Date(`${isoDay}T00:00:00Z`));
+  // a cleared or half-typed date field gives "" or a day that does not exist: a dash, never a thrown RangeError that takes the screen down
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(isoDay) ? new Date(`${isoDay}T00:00:00Z`) : null;
+  if (!day || Number.isNaN(day.getTime())) return "—";
+  return new Intl.DateTimeFormat(LOCALE[language], { weekday: "long", timeZone: "UTC" }).format(day);
 }

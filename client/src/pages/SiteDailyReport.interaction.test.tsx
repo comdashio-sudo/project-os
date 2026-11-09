@@ -46,7 +46,7 @@ vi.mock("@/lib/trpc", () => {
 
 beforeEach(() => { h.language = "en"; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
   h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
-  h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
+  h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }, { id: "e-old", equipmentType: "Crane", model: "C-9", plateOrSize: "50 t", active: false }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
 const type = (label: string | RegExp, value: string, index = 0) => fireEvent.change(screen.getAllByLabelText(label)[index]!, { target: { value } });
 
@@ -206,5 +206,27 @@ describe("SiteDailyReport — a role list that failed to load (D-46, part 1)", (
     expect(screen.getByRole("alert", { name: "Labour" }).textContent).toContain("Could not load: Labour");
     expect(screen.queryByText("Copy the default list")).toBeNull();
     expect(screen.queryByText("The project has no labour roles yet.")).toBeNull();
+  });
+});
+
+describe("SiteDailyReport — review of #237", () => {
+  it("offers only active equipment: a retired crane is not a choice", () => {
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Add equipment"));
+    const machine = document.querySelector<HTMLSelectElement>('[data-report-section="2"] [data-line="equipment"] select')!;
+    expect(Array.from(machine.options).map(option => option.value)).toEqual(["", "Mixer"]);
+    expect(Array.from(machine.options).some(option => option.value.includes("Crane"))).toBe(false);
+  });
+
+  it("a cleared work-day field shows a dash for the weekday and the screen stays up", () => {
+    render(<SiteDailyReport />);
+    fireEvent.change(screen.getByLabelText("Work day"), { target: { value: "" } });
+    expect(document.querySelector('[data-report-section="0"]')?.textContent).toContain("Day: —");
+    expect(screen.getByText("Save draft")).toBeTruthy();
+  });
+
+  it("the approval section, all locked for now, starts closed", () => {
+    render(<SiteDailyReport />);
+    expect((document.querySelector('[data-report-section="10"]') as HTMLDetailsElement).open).toBe(false);
   });
 });

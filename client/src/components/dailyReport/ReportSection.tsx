@@ -3,7 +3,7 @@ import { ChevronDown, Lock } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 
-// One numbered part of the daily report (specification §3, sections 0 to 10). Open by default so a phone shows the whole report in order;
+// One numbered part of the daily report. The numbers are the specification's own (sheet «المواصفات», row «3) اليومي — الإدخال»: «0) الرأس … 10) الاعتماد»), so they start at 0. Open by default so a phone shows the whole report in order;
 // the number stays beside the title so the planning engineer and the site engineer speak of "section 3" alike.
 export function ReportSection({ number, title, summary, children, defaultOpen = true }: { number: number; title: string; summary?: string; children: React.ReactNode; defaultOpen?: boolean }) {
   return (
