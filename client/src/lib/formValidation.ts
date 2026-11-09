@@ -119,9 +119,13 @@ export function onStep(value: string, stepText: string, minText: string): boolea
  * another shape, or of another length, is left to the server.
  */
 function outOfTextRange(value: string, element: HTMLInputElement): boolean {
-  const comparable = (bound: string) => bound !== "" && bound.length === value.length;
-  if (comparable(element.min) && value < element.min) return true;
-  if (comparable(element.max) && value > element.max) return true;
+  // a time or local date-time may carry seconds on one side only ("17:00" against "17:00:30"): both are read with seconds
+  const minutesOnly = element.type === "time" ? 5 : element.type === "datetime-local" ? 16 : 0;
+  const normal = (text: string) => (minutesOnly && text.length === minutesOnly ? `${text}:00` : text);
+  const typed = normal(value);
+  const comparable = (bound: string) => bound !== "" && normal(bound).length === typed.length;
+  if (comparable(element.min) && typed < normal(element.min)) return true;
+  if (comparable(element.max) && typed > normal(element.max)) return true;
   return false;
 }
 
