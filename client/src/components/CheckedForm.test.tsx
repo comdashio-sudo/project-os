@@ -112,10 +112,12 @@ describe("CheckedForm: long forms, the step, and fields that leave", () => {
   });
 });
 
-// D-63's nine forms (the list grows with D-64 and D-65): none may go back to a bare <form> that leaves the checking to the browser
-const D63_FILES = ["components/MasterPlanTools.tsx", "components/TenantDataCard.tsx", "components/FieldShell.tsx", "components/AIChatBox.tsx", "pages/SupportOwnerPanel.tsx", "pages/PayrollPanel.tsx", "pages/ProjectContracts.tsx", "pages/ProjectProcurement.tsx", "pages/ProjectPurchaseOrders.tsx"];
+// D-63's nine forms and D-64's ten (the list grows with D-65): none may go back to a bare <form> that leaves the checking to the browser
+const CHECKED_FILES = ["components/MasterPlanTools.tsx", "components/TenantDataCard.tsx", "components/FieldShell.tsx", "components/AIChatBox.tsx", "pages/SupportOwnerPanel.tsx", "pages/PayrollPanel.tsx", "pages/ProjectContracts.tsx", "pages/ProjectProcurement.tsx", "pages/ProjectPurchaseOrders.tsx",
+  // D-64
+  "pages/ProjectGoodsReceipts.tsx", "pages/ProjectClaims.tsx", "pages/ProjectTenders.tsx", "pages/CommercialChain.tsx", "pages/ProjectChanges.tsx", "pages/ProjectWarehouses.tsx", "pages/ProjectResources.tsx", "pages/ProjectWorkforce.tsx", "pages/ProjectNcrs.tsx", "pages/ProjectRfis.tsx"];
 describe("no bare <form> in the files moved to CheckedForm", () => {
-  it.each(D63_FILES)("%s", file => {
+  it.each(CHECKED_FILES)("%s", file => {
     const source = readFileSync(`client/src/${file}`, "utf8");
     for (const tag of source.match(/<form\b[^>]*>/g) ?? []) expect(tag).toContain("noValidate");
     expect(source).toContain("<CheckedForm");

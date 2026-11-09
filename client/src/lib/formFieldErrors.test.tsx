@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { formFieldErrors } from "./formValidation";
+import { getProjectError } from "@shared/projectErrors";
 
 // The form is built from markup, as the screens are; the checks read the values the person would have typed.
 function formOf(markup: string): HTMLFormElement {
@@ -66,5 +67,26 @@ describe("onStep: the step checked in whole numbers (no float tolerance)", () =>
       const text = `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
       expect(onStep(text, "0.01", ""), text).toBe(true);
     }
+  });
+});
+
+describe("onStep: signs, a fractional min, and exponent text (review notes on #228)", () => {
+  it("counts negative values and minus zero from min like positive ones", async () => {
+    const { onStep } = await import("./formValidation");
+    expect(onStep("-2", "1", "")).toBe(true);
+    expect(onStep("-1.5", "1", "")).toBe(false);
+    expect(onStep("-0", "1", "")).toBe(true);
+    expect(onStep("-0.00", "0.01", "")).toBe(true);
+    expect(onStep("-12.34", "0.01", "-100")).toBe(true);
+  });
+  it("a fractional min moves the steps: 0.25 + n × 0.5", async () => {
+    const { onStep } = await import("./formValidation");
+    expect(onStep("0.75", "0.5", "0.25")).toBe(true);
+    expect(onStep("1", "0.5", "0.25")).toBe(false);
+  });
+  it("exponent text such as 1e3 is not judged by the step (the number check refuses it first)", async () => {
+    const { onStep, numberFieldError } = await import("./formValidation");
+    expect(onStep("1e3", "1", "")).toBe(true);
+    expect(numberFieldError("1e3", "en")).toBe(getProjectError("PROJECT_OS_FIELD_NUMBER_INVALID").messages.en);
   });
 });

@@ -3,8 +3,9 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectWorkforce } from "./ProjectWorkforce";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ isArabic: false, attendanceTransition: vi.fn(), timeTransition: vi.fn(), excludePerformance: vi.fn(), objectionTransition: vi.fn() }));
+const state = vi.hoisted(() => ({ isArabic: false, attendanceTransition: vi.fn(), timeTransition: vi.fn(), excludePerformance: vi.fn(), objectionTransition: vi.fn(), createAssignment: vi.fn() }));
 const query = (data: unknown) => ({ data, error: null, isLoading: false, refetch: vi.fn() });
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
@@ -14,7 +15,7 @@ vi.mock("@/lib/trpc", () => ({
     assignments: {
       options: { useQuery: () => query({ employees: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", jobTitle: "Planner" }], resources: [{ id: "resource-1", resourceCode: "LAB-01", name: "Labor", unitCost: "150.00" }], wbs: [{ id: "wbs-1", code: "WBS-01", name: "Work package" }], activities: [{ id: "activity-1", wbsItemId: "wbs-1", code: "ACT-01", name: "Activity" }] }) },
       list: { useQuery: () => query([{ id: "assignment-1", employeeId: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", resourceCode: "LAB-01", plannedHours: "8.00" }]) },
-      create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
+      create: { useMutation: () => ({ mutate: state.createAssignment, isPending: false, error: null }) },
       timeEntries: { list: { useQuery: () => query([{ id: "time-1", assignmentId: "assignment-1", employeeId: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", workDate: new Date("2026-09-07T00:00:00Z"), actualHours: "8.00", reportedProgressPercent: "25.00", status: "submitted" }]) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, transition: { useMutation: () => ({ mutate: state.timeTransition, isPending: false, error: null }) } },
     },
     employees: { attendance: { list: { useQuery: () => query([{ id: "attendance-1", employeeId: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", attendanceDate: new Date("2026-09-07T00:00:00Z"), attendanceStatus: "present", status: "draft" }]) }, create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, transition: { useMutation: () => ({ mutate: state.attendanceTransition, isPending: false, error: null }) } } },
@@ -50,5 +51,14 @@ describe("ProjectWorkforce", () => {
     expect(screen.getByText("سجل الحضور")).toBeTruthy();
     expect(screen.getByText("سجل ساعات العمل")).toBeTruthy();
     expect(screen.getByText("مؤشرات الفريق التشغيلية")).toBeTruthy();
+  });
+});
+
+describe("ProjectWorkforce assignment form checks itself in the page's language (D-64)", () => {
+  it("an empty assignment creates nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.isArabic = true; state.createAssignment.mockReset();
+    render(<ProjectWorkforce tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.createAssignment);
+    state.isArabic = false;
   });
 });
