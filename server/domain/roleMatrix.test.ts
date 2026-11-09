@@ -140,6 +140,11 @@ describe("role matrix: docs/ROLE_MATRIX.md is exactly what the code produces", (
     expect(cellFor(setup, matrixRoles.find(role => role.code === "PROJECT_MANAGER")!.permissions)).toBe("edit");
     expect(cellFor(setup, matrixRoles.find(role => role.code === "SITE_ENGINEER")!.permissions)).toBe("none");
   });
+  it("the site engineer sees the reference lists (the daily report is filled from them) and does not edit them; the project manager edits them (D-44 a)", () => {
+    const lists = matrixColumns.find(column => column.id === "referenceLists")!;
+    expect(cellFor(lists, matrixRoles.find(role => role.code === "SITE_ENGINEER")!.permissions)).toBe("see");
+    expect(cellFor(lists, matrixRoles.find(role => role.code === "PROJECT_MANAGER")!.permissions)).toBe("edit");
+  });
   it("every cell is one of the four words", () => {
     for (const role of matrixRoles) for (const column of matrixColumns) expect(["see", "edit", "approve", "none"]).toContain(cellFor(column, role.permissions));
   });
