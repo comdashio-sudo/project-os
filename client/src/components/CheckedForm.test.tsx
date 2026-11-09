@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getProjectError } from "@shared/projectErrors";
 import { CheckedForm, LONG_FORM_FIELDS } from "./CheckedForm";
@@ -124,14 +124,21 @@ describe("CheckedForm: long forms, the step, and fields that leave", () => {
   });
 });
 
-// D-63's nine forms and D-64's ten (the list grows with D-65): none may go back to a bare <form> that leaves the checking to the browser
-const CHECKED_FILES = ["components/MasterPlanTools.tsx", "components/TenantDataCard.tsx", "components/FieldShell.tsx", "components/AIChatBox.tsx", "pages/SupportOwnerPanel.tsx", "pages/PayrollPanel.tsx", "pages/ProjectContracts.tsx", "pages/ProjectProcurement.tsx", "pages/ProjectPurchaseOrders.tsx",
-  // D-64
-  "pages/ProjectGoodsReceipts.tsx", "pages/ProjectClaims.tsx", "pages/ProjectTenders.tsx", "pages/CommercialChain.tsx", "pages/ProjectChanges.tsx", "pages/ProjectWarehouses.tsx", "pages/ProjectResources.tsx", "pages/ProjectWorkforce.tsx", "pages/ProjectNcrs.tsx", "pages/ProjectRfis.tsx"];
-describe("no bare <form> in the files moved to CheckedForm", () => {
-  it.each(CHECKED_FILES)("%s", file => {
-    const source = readFileSync(`client/src/${file}`, "utf8");
-    for (const tag of source.match(/<form\b[^>]*>/g) ?? []) expect(tag).toContain("noValidate");
-    expect(source).toContain("<CheckedForm");
+// D-63, D-64 and D-65 put every form of the client behind CheckedForm or its own noValidate check. The scan covers client/src whole; a
+// form left to the browser must be named here with its reason.
+const BARE_FORM_EXCEPTIONS: Record<string, string> = {
+  "client/src/components/MfaGate.tsx": "the two-step code checks itself and says so beside the field (D-3 part 1, #216)",
+};
+describe("no form in client/src is left to the browser's checks", () => {
+  const files = readdirSync("client/src", { recursive: true, encoding: "utf8" }).filter(file => file.endsWith(".tsx") && !file.includes(".test."));
+  it.each(files)("client/src/%s", file => {
+    const path = `client/src/${file}`;
+    if (BARE_FORM_EXCEPTIONS[path]) return;
+    const source = readFileSync(path, "utf8");
+    // the tag runs to its first ">" that is not the arrow of an inline handler ("=>")
+    for (const start of source.split("<form").slice(1)) expect(start.slice(0, start.search(/[^=]>/) + 2), path).toContain("noValidate");
+  });
+  it("the scan reaches the forms of D-63, D-64 and D-65", () => {
+    for (const file of ["components/MasterPlanTools.tsx", "pages/ProjectNcrs.tsx", "pages/ProjectControls.tsx", "pages/TenantAdministration.tsx", "pages/UserProfile.tsx"]) expect(files).toContain(file);
   });
 });

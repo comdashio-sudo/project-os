@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PermissionProvider } from "@/lib/permissions";
 import TenantAdministration from "./TenantAdministration";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({
   administration: { isLoading: false, error: { message: "forbidden" } as unknown, data: undefined as unknown },
@@ -100,5 +101,15 @@ describe("TenantAdministration membership and revocation controls follow tenant.
     render(page());
     expect(screen.getByLabelText("Select an active or suspended member")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Revoke role assignment" })).toBeTruthy();
+  });
+});
+
+describe("TenantAdministration checks its forms in the page's language (D-65)", () => {
+  it("its forms stop an empty submit and say so in English under the first field", () => {
+    cleanup();
+    render(<TenantAdministration />);
+    const forms = Array.from(document.querySelectorAll<HTMLFormElement>("form")).filter(node => node.querySelector("[required]"));
+    expect(forms.length).toBeGreaterThan(0);
+    expectEmptySubmitRefused(forms[0], "en", vi.fn());
   });
 });
