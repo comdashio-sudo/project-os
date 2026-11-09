@@ -116,6 +116,41 @@ export const projectErrorMessages = {
     en: "Someone else saved this at the same moment. Reload the page and save again.",
     ur: "کسی اور نے اسی لمحے یہ محفوظ کیا۔ صفحہ دوبارہ لوڈ کریں اور پھر محفوظ کریں۔",
   },
+  PROJECT_OS_REFERENCE_NAME_MISSING: {
+    ar: "الاسم مطلوب. اكتب اسم الدور أو نوع المعدة ثم احفظ.",
+    en: "A name is required. Enter the role name or the equipment type, then save.",
+    ur: "نام ضروری ہے۔ کردار کا نام یا مشینری کی قسم لکھیں، پھر محفوظ کریں۔",
+  },
+  PROJECT_OS_LABOUR_ROLE_EXISTS: {
+    ar: "في هذا المشروع دور عمالة بالاسم نفسه. اختر اسمًا آخر أو عدّل الدور الموجود.",
+    en: "This project already has a labour role with the same name. Choose another name or edit the existing role.",
+    ur: "اس پروجیکٹ میں اسی نام کا مزدور کردار پہلے سے موجود ہے۔ کوئی اور نام چنیں یا موجودہ کردار میں ترمیم کریں۔",
+  },
+  PROJECT_OS_LABOUR_ROLE_NOT_FOUND: {
+    ar: "دور العمالة المطلوب غير موجود في هذا المشروع.",
+    en: "The requested labour role was not found in this project.",
+    ur: "مطلوبہ مزدور کردار اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_EQUIPMENT_PLATE_EXISTS: {
+    ar: "رقم اللوحة أو المقاس مسجّل لمعدة أخرى في هذا المشروع.",
+    en: "This plate number or size is already registered to another machine on this project.",
+    ur: "یہ پلیٹ نمبر یا سائز اس پروجیکٹ میں کسی اور مشین کے نام درج ہے۔",
+  },
+  PROJECT_OS_EQUIPMENT_NOT_FOUND: {
+    ar: "المعدة المطلوبة غير موجودة في هذا المشروع.",
+    en: "The requested equipment was not found in this project.",
+    ur: "مطلوبہ مشینری اس پروجیکٹ میں نہیں ملی۔",
+  },
+  PROJECT_OS_EQUIPMENT_OWNER_NOT_ON_PROJECT: {
+    ar: "مالك المعدة يجب أن يكون شركة مسجّلة في هذا المشروع. أضف الشركة إلى المشروع أولًا.",
+    en: "The equipment owner must be a company registered on this project. Add the company to the project first.",
+    ur: "مشینری کا مالک اس پروجیکٹ میں درج کمپنی ہونا چاہیے۔ پہلے کمپنی کو پروجیکٹ میں شامل کریں۔",
+  },
+  PROJECT_OS_SITE_ACTIVITY_QUANTITY_REQUIRED: {
+    ar: "النشاط المقيس بالمتر الطولي أو المربع أو بالقطعة يحتاج كميته الكلية، وهي أكبر من صفر.",
+    en: "An activity measured in linear metres, square metres or pieces needs its total quantity, greater than zero.",
+    ur: "میٹر، مربع میٹر یا عدد میں ناپی جانے والی سرگرمی کے لیے کل مقدار ضروری ہے، جو صفر سے زیادہ ہو۔",
+  },
   PROJECT_OS_PROJECT_APPROVER_NOT_ON_PROJECT: {
     ar: "لا يمكن إسناد خطوة الاعتماد إلى شخص بلا دور في هذا المشروع. أضِفه إلى المشروع بدور أولًا.",
     en: "An approval step cannot be given to someone with no role on this project. Add them to the project with a role first.",
