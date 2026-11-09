@@ -15,6 +15,10 @@ export const UNSAFE_SVGS: ReadonlyArray<readonly [string, string]> = [
   ["a data: link with spaces", '<svg xmlns="http://www.w3.org/2000/svg"><a href=" da ta:text/html,x"><rect width="1" height="1"/></a></svg>'],
   ["vbscript:", '<svg xmlns="http://www.w3.org/2000/svg"><a href="vb script:x"><rect width="1" height="1"/></a></svg>'],
   ["an unknown prefixed attribute", '<svg xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" ev:event="load"/>'],
+  ["an xml-stylesheet processing instruction", '<?xml version="1.0"?><?xml-stylesheet type="text/xsl" href="https://evil.example.test/x.xsl"?><svg xmlns="http://www.w3.org/2000/svg"/>'],
+  ["an xml-stylesheet as the first line", '<?xml-stylesheet type="text/xsl" href="x.xsl"?><svg xmlns="http://www.w3.org/2000/svg"/>'],
+  ["a default namespace that is not SVG (XHTML)", '<svg xmlns="http://www.w3.org/2000/svg"><g xmlns="http://www.w3.org/1999/xhtml"><meta http-equiv="refresh" content="0;url=https://evil.example.test"/><form><input type="password"/></form></g></svg>'],
+  ["a set animation of an event attribute", '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"><set attributeName="onclick" to="alert(1)"/></rect></svg>'],
   ["an object element", '<svg xmlns="http://www.w3.org/2000/svg"><object data="x"/></svg>'],
 ];
 /** A plain logo: gradient with objectBoundingBox, a use with xlink:href to a local id, xml:space, the xlink declaration, text and a path. */

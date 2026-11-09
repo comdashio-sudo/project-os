@@ -48,7 +48,8 @@ export function logoKind(bytes: Buffer): "png" | "jpeg" | "svg" | null {
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
   const head = bytes.subarray(0, 4096).toString("utf8").replace(/^﻿/, "").trimStart();
-  if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^[>]*(\[[\s\S]*?\])?\s*>\s*)?<svg[\s>]/i.test(head)) return "svg";
+  // the XML declaration is «<?xml» followed by a space; any other processing instruction or comment before the root still makes it an SVG (so it is refused as unsafe, not as an unknown type)
+  if (/^(<\?xml\s[^>]*>\s*)?((<!--[\s\S]*?-->|<\?[\s\S]*?\?>)\s*)*(<!DOCTYPE svg[^[>]*(\[[\s\S]*?\])?\s*>\s*)?<svg[\s>]/i.test(head)) return "svg";
   return null;
 }
 /**
@@ -56,6 +57,7 @@ export function logoKind(bytes: Buffer): "png" | "jpeg" | "svg" | null {
  * namespace prefix and a TAB inside «javascript:»), so the rule is now an allow-nothing-unusual rule: a plain logo needs none of what is refused here, and anything
  * refused is refused whole, never cleaned.
  *   - any DOCTYPE (internal subset or external PUBLIC/SYSTEM), any entity declaration, any character reference (&#…);
+ *   - any processing instruction but the leading <?xml …?> declaration; a default namespace (xmlns="…") other than SVG's; an animation of an on… attribute;
  *   - any element with a namespace prefix (<s:script>, <svg:script>, <h:script>, <s:foreignObject>), and any prefixed attribute except xlink:href, xml:space and the
  *     xmlns:xlink declaration that xlink:href needs;
  *   - the words script, foreignobject, iframe and embed ANYWHERE (case-insensitive), and an <object> element;
@@ -66,6 +68,12 @@ export function logoKind(bytes: Buffer): "png" | "jpeg" | "svg" | null {
 const ALLOWED_PREFIXED_ATTRIBUTES = new Set(["xlink:href", "xml:space", "xmlns:xlink"]);
 export function svgIsUnsafe(text: string): boolean {
   if (/<!DOCTYPE|<!ENTITY|&#/i.test(text)) return true;
+  // the only processing instruction allowed is the XML declaration at the very start (<?xml-stylesheet … ?> can apply an XSLT; review of #227)
+  if (/<\?/.test(text.replace(/^\uFEFF?\s*<\?xml\s[^?]*\?>/, ""))) return true;
+  // a default namespace other than SVG's turns the content into another vocabulary (XHTML: meta refresh, a password form; review of #227)
+  if (Array.from(text.matchAll(/[\s"'/]xmlns\s*=\s*["']([^"']*)["']/gi), match => match[1].trim()).some(value => value !== "http://www.w3.org/2000/svg")) return true;
+  // an animation that sets an event attribute (<set attributeName="onclick" to="…">)
+  if (/attributeName\s*=\s*["']\s*on/i.test(text)) return true;
   if (/<\s*\/?\s*[a-z_][\w.-]*:/i.test(text)) return true;
   const prefixed = Array.from(text.matchAll(/[\s"'/]([a-z_][\w.-]*:[\w.-]+)\s*=/gi), match => match[1].toLowerCase());
   if (prefixed.some(name => !ALLOWED_PREFIXED_ATTRIBUTES.has(name))) return true;

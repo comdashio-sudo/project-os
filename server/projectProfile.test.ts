@@ -40,5 +40,4 @@ describe("logo content", () => {
     expect(svgIsUnsafe('<svg><rect width="1" height="1" fill="#000"/></svg>')).toBe(false);
     for (const bad of ["<svg><script>x()</script></svg>", '<svg onload="x()"></svg>', '<svg><a href="javascript:x()">a</a></svg>', "<svg><foreignObject><div/></foreignObject></svg>", '<svg><iframe src="x"/></svg>']) expect(svgIsUnsafe(bad)).toBe(true);
   });
-;
 });
