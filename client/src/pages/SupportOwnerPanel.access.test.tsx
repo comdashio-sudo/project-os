@@ -4,9 +4,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PermissionProvider } from "@/lib/permissions";
 import { SupportOwnerPanel } from "./SupportOwnerPanel";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 // The server's canManageSupport (server/db.ts) asks for tenant.manage on claim, ticket transition and article creation.
-const state = vi.hoisted(() => ({ permission: { data: undefined as unknown, error: null as unknown, isLoading: false } }));
+const state = vi.hoisted(() => ({ permission: { data: undefined as unknown, error: null as unknown, isLoading: false }, createArticle: vi.fn() }));
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const TICKET = { id: "22222222-2222-4222-8222-222222222222", subject: "Example ticket", ownerUserId: null, status: "open", escalationStatus: "none", tagsJson: "[]" };
 
@@ -19,7 +20,7 @@ vi.mock("@/lib/trpc", () => {
     accessSummary: { mine: { useQuery: () => state.permission } },
     useUtils: () => ({ support: { tickets: { invalidate: vi.fn() }, knowledge: { list: { invalidate: vi.fn() }, sources: { invalidate: vi.fn() } } } }),
     support: {
-      knowledge: { sources: { useQuery: () => query([]) }, create: { useMutation: mutation } },
+      knowledge: { sources: { useQuery: () => query([]) }, create: { useMutation: () => ({ ...mutation(), mutate: state.createArticle }) } },
       tickets: { useQuery: () => query([TICKET]) },
       claim: { useMutation: mutation },
       transition: { useMutation: mutation },
@@ -65,5 +66,15 @@ describe("SupportOwnerPanel write controls follow tenant.manage", () => {
     expect(screen.getByRole("button", { name: "Assign to me" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save tags" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Publish article" })).toBeTruthy();
+  });
+});
+
+describe("SupportOwnerPanel article form checks itself in the page's language (D-63)", () => {
+  afterEach(cleanup);
+  it("an empty article sends nothing and says so in English under the source list", () => {
+    state.permission = { data: summary(), error: null, isLoading: false };
+    render(panel());
+    const form = screen.getByRole("button", { name: "Publish article" }).closest("form")!;
+    expectEmptySubmitRefused(form, "en", state.createArticle);
   });
 });

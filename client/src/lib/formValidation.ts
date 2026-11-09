@@ -66,6 +66,53 @@ export function formFieldErrors(form: HTMLFormElement, language: Language): Reco
   return errors;
 }
 
+/**
+ * The same checks for every field of a form, with or without an id: each problem with its element, in document order. CheckedForm
+ * (client/src/components/CheckedForm.tsx) uses it to stop a submit, mark the fields and say what is wrong in the person's language.
+ */
+export function formFieldProblems(form: HTMLFormElement, language: Language): Array<{ element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement; message: string }> {
+  const problems: Array<{ element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement; message: string }> = [];
+  for (const element of Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(FIELD_ELEMENTS))) {
+    if (element.disabled) continue;
+    // a required file that was not chosen: the browser would refuse it in English
+    if (element instanceof HTMLInputElement && element.type === "file") {
+      if (element.required && !element.files?.length) problems.push({ element, message: fieldMessage("PROJECT_OS_FIELD_REQUIRED", language) });
+      continue;
+    }
+    if (element instanceof HTMLInputElement && UNCHECKED_INPUT_TYPES.includes(element.type)) continue;
+    const message = fieldProblem(element, language);
+    if (message) problems.push({ element, message });
+  }
+  return problems;
+}
+
+const DECIMAL = /^-?\d+(\.\d+)?$/;
+// trailing zeros are not decimals that matter ("2.50" has one)
+const decimalsOf = (text: string) => (text.includes(".") ? text.replace(/0+$/, "").length - text.indexOf(".") - 1 : 0);
+/** "71740953.27" at 2 decimals -> 7174095327: the decimal text moved into a whole number by its digits, never through a float multiplication. */
+function scaled(text: string, decimals: number): number {
+  const negative = text.startsWith("-");
+  const [whole, fraction = ""] = (negative ? text.slice(1) : text).split(".");
+  const digits = Number(`${whole}${fraction.replace(/0+$/, "").padEnd(decimals, "0")}`);
+  return negative ? -digits : digits;
+}
+
+/**
+ * Whether a typed number sits on the field's step (default 1, "any" for none), counted from min (or 0). All in whole numbers: the value,
+ * the step and min are scaled by the largest number of decimals among them (from their text), so 71740953.27 on a 0.01 step is exact.
+ * A value too large to scale exactly is not refused here (the server checks it).
+ */
+export function onStep(value: string, stepText: string, minText: string): boolean {
+  const step = stepText === "" ? "1" : stepText.trim();
+  if (step.toLowerCase() === "any" || !DECIMAL.test(step) || Number(step) <= 0 || !DECIMAL.test(value)) return true;
+  const min = minText !== "" && DECIMAL.test(minText.trim()) ? minText.trim() : "0";
+  const decimals = Math.max(decimalsOf(step), decimalsOf(min));
+  if (decimalsOf(value) > decimals) return false;
+  const [v, s, m] = [scaled(value, decimals), scaled(step, decimals), scaled(min, decimals)];
+  if (![v, s, m].every(Number.isSafeInteger) || !Number.isSafeInteger(v - m)) return true;
+  return (v - m) % s === 0;
+}
+
 function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, language: Language): string | null {
   const value = element.value;
   if (element.required) {
@@ -82,7 +129,10 @@ function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAr
     const number = Number(value);
     const belowMin = element.min !== "" && number < Number(element.min);
     const aboveMax = element.max !== "" && number > Number(element.max);
-    return belowMin || aboveMax ? fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language) : null;
+    if (belowMin || aboveMax) return fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language);
+    // the step the browser no longer checks (noValidate), counted from min (or 0)
+    if (!onStep(value.trim(), element.step, element.min)) return fieldMessage("PROJECT_OS_FIELD_STEP_MISMATCH", language);
+    return null;
   }
   if (element.type === "date") return dateFieldError(value, language);
   if (element.type === "email") return emailFieldError(value, language);

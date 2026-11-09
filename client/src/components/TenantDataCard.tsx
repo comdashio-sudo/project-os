@@ -1,3 +1,4 @@
+import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -100,14 +101,14 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
           {!data.exportFresh ? <p className="mt-2 text-sm text-red-900">{t.needExport}</p> : !asked ? (
             <div className="mt-3"><Button type="button" variant="destructive" disabled={request.isPending} onClick={() => request.mutate({ tenantId })}>{request.isPending ? t.asking : t.ask}</Button></div>
           ) : (
-            <form className="mt-3 space-y-3" onSubmit={event => { event.preventDefault(); if (canDelete) confirm.mutate({ tenantId, confirmationToken: asked.confirmationToken, typedName, understandsItCannotBeUndone: true }); }}>
+            <CheckedForm className="mt-3 space-y-3" onSubmit={event => { event.preventDefault(); if (canDelete) confirm.mutate({ tenantId, confirmationToken: asked.confirmationToken, typedName, understandsItCannotBeUndone: true }); }}>
               <p className="text-sm text-red-900">{t.warn(asked.totalRows, asked.files, asked.peopleKept)}</p>
-              <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-red-900">{t.typeName(asked.companyName)}</p></div>
+              <div className="space-y-2"><Label htmlFor="delete-company-name">{t.nameLabel}</Label><Input id="delete-company-name" autoComplete="off" required value={typedName} onChange={event => setTypedName(event.target.value)} placeholder={asked.companyName} /><p className="text-xs text-red-900">{t.typeName(asked.companyName)}</p></div>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={understood} onChange={event => setUnderstood(event.target.checked)} className="mt-1" />{t.understand}</label>
               <p className="text-xs text-red-900">{t.expires}</p>
               {confirm.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(confirm.error, language)}</p> : null}
               <Button type="submit" variant="destructive" disabled={!canDelete}>{confirm.isPending ? t.deleting : t.deleteNow}</Button>
-            </form>
+            </CheckedForm>
           )}
           {request.error ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{getLocalizedProjectError(request.error, language)}</p> : null}
         </div>
