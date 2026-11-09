@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CommercialChain from "./CommercialChain";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, createBoq: vi.fn() }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
@@ -48,5 +49,14 @@ describe("CommercialChain", () => {
     action.focus();
     expect(document.activeElement).toBe(action);
     expect(action.tabIndex).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("CommercialChain BOQ form checks itself in the page's language (D-64)", () => {
+  it("an empty BOQ line creates nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.arabic = true; state.createBoq.mockReset();
+    render(<CommercialChain />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.createBoq);
+    state.arabic = false;
   });
 });

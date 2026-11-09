@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectResources } from "./ProjectResources";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn(), allocationMutate: vi.fn() }));
 
@@ -54,5 +55,13 @@ describe("ProjectResources interaction", () => {
     await user.click(screen.getByRole("button", { name: "Update allocation" }));
 
     expect(state.allocationMutate).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", resourceId: "resource-1", allocatedUnits: 8 });
+  });
+});
+
+describe("ProjectResources form checks itself in the page's language (D-64)", () => {
+  it("an empty resource creates nothing and says so in English under its first field", () => {
+    cleanup(); state.error = null; state.mutate.mockReset();
+    render(<ProjectResources tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "en", state.mutate);
   });
 });
