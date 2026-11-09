@@ -15,6 +15,7 @@ import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
+import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, saveSiteDailyReportForTenant, submitSiteDailyReportForTenant } from "./siteReports";
@@ -549,6 +550,22 @@ export const appRouter = router({
     approvers: router({
       get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getReportApprovers({ userId: ctx.user.id, ...input })),
       set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), step: z.enum(APPROVAL_STEPS), membershipId: z.string().uuid().nullable() })).mutation(({ ctx, input }) => setReportApprover({ userId: ctx.user.id, ...input })),
+    }),
+    // D-44 (a), P-35: the reference lists the daily report chooses from (server/projectReferenceLists.ts). Read: project.read, project.field.manage or project.manage; write: project.manage.
+    labourRoles: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listLabourRoles({ userId: ctx.user.id, ...input })),
+      seedDefaults: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), language: z.enum(INTERFACE_LANGUAGES) })).mutation(({ ctx, input }) => seedDefaultLabourRoles({ userId: ctx.user.id, ...input })),
+      save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid().optional(), name: z.string().trim().min(1).max(120), category: z.enum(["direct", "indirect"]), sortOrder: z.number().int().min(0).max(100000).optional() })).mutation(({ ctx, input }) => saveLabourRole({ userId: ctx.user.id, ...input })),
+      setActive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid(), active: z.boolean() })).mutation(({ ctx, input }) => setLabourRoleActive({ userId: ctx.user.id, ...input })),
+    }),
+    equipment: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listEquipment({ userId: ctx.user.id, ...input })),
+      save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid().optional(), equipmentType: z.string().trim().min(1).max(120), model: z.string().trim().max(120).nullable(), plateOrSize: z.string().trim().max(80).nullable(), ownerCompanyId: z.string().uuid().nullable() })).mutation(({ ctx, input }) => saveEquipment({ userId: ctx.user.id, ...input })),
+      setActive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), id: z.string().uuid(), active: z.boolean() })).mutation(({ ctx, input }) => setEquipmentActive({ userId: ctx.user.id, ...input })),
+    }),
+    siteActivities: router({
+      list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listSiteActivityMeasures({ userId: ctx.user.id, ...input })),
+      setMeasure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), siteActivityId: z.string().uuid(), measureUnit: z.enum(MEASURE_UNITS), totalQuantity: z.number().finite().positive().max(1e10).nullable() })).mutation(({ ctx, input }) => setSiteActivityMeasure({ userId: ctx.user.id, ...input })),
     }),
   }),
   contracts: router({

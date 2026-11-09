@@ -3164,10 +3164,16 @@ export const pmcSiteActivities = pgTable(
     // the villa types (models) the activity applies to; empty = every type
     modelCodesJson: text("model_codes_json"),
     sortOrder: integer("sort_order").default(0).notNull(),
+    // D-44 (0022): what the activity is measured in (a villa, linear metres, square metres, pieces) and, for anything but a villa, the whole quantity to be done
+    measureUnit: varchar("measure_unit", { length: 8 }).default("villa").notNull(),
+    totalQuantity: numeric("total_quantity", { precision: 14, scale: 3 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_site_activities_project_code_unique").on(table.projectId, table.code), index("pmc_site_activities_tenant_project_idx").on(table.tenantId, table.projectId)],
+  table => [
+    uniqueIndex("pmc_site_activities_project_code_unique").on(table.projectId, table.code), index("pmc_site_activities_tenant_project_idx").on(table.tenantId, table.projectId),
+    check("pmc_site_activities_measure_check", sql`${table.measureUnit} IN ('villa', 'lm', 'm2', 'piece') AND (${table.totalQuantity} IS NULL OR ${table.totalQuantity} > 0) AND (${table.measureUnit} = 'villa' OR ${table.totalQuantity} IS NOT NULL)`),
+  ],
 );
 
 export const pmcSiteActivityLinks = pgTable(
@@ -3414,6 +3420,8 @@ export const projectCompanies = pgTable(
     check("project_companies_role_check", sql`${table.role} IN ('main', 'sub')`),
     uniqueIndex("project_companies_one_active_main").on(table.projectId).where(sql`${table.role} = 'main' AND ${table.active}`),
     index("project_companies_tenant_project_idx").on(table.tenantId, table.projectId),
+    // D-44 (0022): what project_equipment's owner refers to, so an owner from another project or company is impossible
+    unique("project_companies_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
   ],
 );
 
@@ -3436,5 +3444,51 @@ export const projectReportApprovers = pgTable(
     uniqueIndex("project_report_approvers_project_step_unique").on(table.tenantId, table.projectId, table.step),
     foreignKey({ name: "project_report_approvers_membership_tenant_fk", columns: [table.membershipId, table.tenantId], foreignColumns: [memberships.id, memberships.tenantId] }),
     index("project_report_approvers_membership_idx").on(table.membershipId),
+  ],
+);
+
+// D-44 (a), P-35: the project's reference lists the daily report chooses from. Labour roles (direct = the trades on the work, indirect = staff and support), copied from
+// shared/defaultLabourRoles.ts by an idempotent procedure (default_key marks a copied row, so copying again adds nothing even after a rename) and edited after.
+export const projectLabourRoles = pgTable(
+  "project_labour_roles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    name: varchar("name", { length: 120 }).notNull(),
+    category: varchar("category", { length: 8 }).notNull(),
+    defaultKey: varchar("default_key", { length: 64 }),
+    active: boolean("active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_labour_roles_category_check", sql`${table.category} IN ('direct', 'indirect')`),
+    uniqueIndex("project_labour_roles_project_name_unique").on(table.projectId, sql`lower(${table.name})`),
+    uniqueIndex("project_labour_roles_project_default_unique").on(table.projectId, table.defaultKey).where(sql`${table.defaultKey} IS NOT NULL`),
+    index("project_labour_roles_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+// The equipment on the project. The owner is one of the companies on the SAME project (composite foreign key, not a check in code); a plate or size is unique per project.
+export const projectEquipment = pgTable(
+  "project_equipment",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    equipmentType: varchar("equipment_type", { length: 120 }).notNull(),
+    model: varchar("model", { length: 120 }),
+    plateOrSize: varchar("plate_or_size", { length: 80 }),
+    ownerCompanyId: varchar("owner_company_id", { length: 36 }),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "project_equipment_owner_same_project_fk", columns: [table.ownerCompanyId, table.tenantId, table.projectId], foreignColumns: [projectCompanies.id, projectCompanies.tenantId, projectCompanies.projectId] }),
+    uniqueIndex("project_equipment_project_plate_unique").on(table.projectId, sql`lower(${table.plateOrSize})`).where(sql`${table.plateOrSize} IS NOT NULL`),
+    index("project_equipment_tenant_project_idx").on(table.tenantId, table.projectId),
   ],
 );

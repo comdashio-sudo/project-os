@@ -105,8 +105,9 @@
 
 ## 11. الإنتاج يُنشر من فرع `production` فقط (BLOCKED_BY_OWNER — ثلاث نقرات، 26 أكتوبر 2026)
 سبب القرار: دمجٌ إلى `main` كان يصير إنتاجًا فورًا، فكسر الدخول يوم 26 أكتوبر (الشيفرة سبقت ترحيلات القاعدة). بعد هذه الخطوات: `main` ← معاينة (Preview) فقط، والإنتاج لا يتحرك إلا بزر.
-1. **Vercel ← مشروع dashio ← Settings ← Git ← Production Branch** ← اكتب `production` ← Save. (إلى أن تفعل هذا يبقى `main` هو الإنتاج.)
-2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). يلزم للتراجع الآلي ولقراءة سجلات الأخطاء. (لا تلصقه في المحادثة.)
+**تحديث D-78 (9 نوفمبر 2026): الخطوة 1 لم تعد لازمة بعد أول نشر ناجح بالسير.** `migrate-production.yml` ينشر الإنتاج بنفسه بـ Vercel CLI بعد الترحيلات والفحص (`docs/GO_LIVE.md` «الإطلاق الآلي»)، فلا يحتاج إعداد Production Branch. إلى أن يُثبت أول تشغيل حقيقي ذلك تبقى الخطوة 1 هنا مرجعًا، ولا تنفّذها: إن صارت `production` فسيُبنى كل إصدار مرتين.
+1. ~~**Vercel ← مشروع dashio ← Settings ← Git ← Production Branch** ← اكتب `production` ← Save.~~ (O-5؛ يُستغنى عنها بـ D-78 بعد أول نشر ناجح.)
+2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). **صار لازمًا للنشر نفسه (D-78)**، وللتراجع الآلي ولقراءة سجلات الأخطاء. السير يفحصه بـ`vercel whoami` قبل أي ترحيلة؛ إن قال التشغيل «VERCEL_TOKEN rejected» فأنشئ رمزًا جديدًا وضعه مكانه. (لا تلصقه في المحادثة، ولا تحذفه.)
 3. اختياري للمعاينات المحمية: سرّ `VERCEL_AUTOMATION_BYPASS_SECRET` (Vercel ← Settings ← Deployment Protection ← Protection Bypass for Automation).
 **الترقية:** GitHub ← Actions ← **Promote to production** ← Run workflow. يجد معاينة آخر دمج، ويشغّل عليها فحص ما بعد النشر، وإن نجح يحرّك `production` إلى ذلك الدمج (بلا force-push). بعد بناء الإنتاج يفحصه **Post-deploy check** تلقائيًا، وإن فشل يتراجع إلى النشر السابق ويفتح بلاغًا في GitHub.
 **ترحيلات القاعدة (تحديث 27 أكتوبر):** تُطبَّق الآن آليًا بعد أن يخضرّ CI على `main` لكل دمج، بـ`migrate-production.yml` ثم يُقدَّم فرع `production` وحده بعد نجاح الفحص (التفاصيل وما تحتاجه: `docs/GO_LIVE.md` «الإطلاق الآلي»). زر **Promote to production** يبقى للترقية اليدوية.
@@ -154,3 +155,24 @@
 3. GitHub ← المستودع **project-os** ← **Settings** ← **Secrets and variables** ← **Actions** ← تبويب **Variables** ← **New repository variable**: الاسم `SUPABASE_POOLER_HOST` والقيمة ما نسخته ← **Add variable**.
 4. GitHub ← **Actions** ← **Migrate and promote production** ← **Run workflow** ← `main`.
 5. لا تغيّر سر `SUPABASE_DB_PASSWORD` ولا كلمة مرور `project_os_app` في Supabase: كلاهما يُشتق ويُضبط آليًا.
+
+## 16. مفتاح Vercel لا يقرأ مشروع dashio (BLOCKED_BY_OWNER — خطوة واحدة، 9 نوفمبر 2026، D-78)
+
+**ما حدث:** أول تشغيل إطلاق بعد D-78 (التشغيل 42606597331، `main` @ `b5b57db`) طبّق الترحيلات ونجح فحصها، ثم وقف في الخطوة 4b قبل أي نشر، والموقع على نسخته السابقة. رسالة Vercel CLI 65.2.0:
+«Error: Could not retrieve Project Settings. To link your Project, remove the `.vercel` directory and deploy again.»
+
+**السبب:**
+- في مصدر الأداة تُكتب هذه الرسالة حين تردّ واجهة Vercel بـ **403** (`forbidden` أو `team_unauthorized`) على قراءة المشروع.
+- المفتاح نفسه حيّ: نجح `vercel whoami` في التشغيل ذاته. لكنه لا يملك صلاحية على فريق المشروع.
+- المعرّفان صحيحان: `team_DDgIiaktQp5KcMWBYSnBPxEf` و`prj_z9rRP8H1AzWS5ElYIZMtJn12sgZM` هما ما يعلنه بوت Vercel نفسه في تعليقه على الطلب #231 (المشروع `dashio` في فريق `comdashio-sudos-projects`).
+- والمستودع لا يملك طريقًا لتوسيع صلاحية مفتاح، فهذه خطوة عليك.
+
+**ما عليك (والقيمة لا تمر بأي محادثة):**
+1. Vercel ← صورتك أعلى اليمين ← **Account Settings** ← **Tokens** ← **Create Token**.
+2. الاسم مثل `github-release`، و**Scope**: اختر الفريق **comdashio-sudo's projects** (الذي فيه مشروع dashio)، لا حسابًا آخر. **Expiration**: أطول مدة تقبلها. ثم **Create** وانسخ المفتاح.
+3. GitHub ← المستودع **project-os** ← **Settings** ← **Secrets and variables** ← **Actions** ← السر **VERCEL_TOKEN** ← **Update** ← الصق ← **Update secret**. لا تحذف السر.
+4. GitHub ← **Actions** ← **Migrate and promote production** ← **Run workflow** ← `main`.
+
+**ما ستراه:**
+- إن بقي المفتاح بلا صلاحية، يقف التشغيل الآن **قبل أي ترحيلة** برسالة «VERCEL_TOKEN cannot read the Vercel project». منذ إصلاح `fix(release)` تجرّب خطوة «Refuse to start» الأمر `vercel pull` نفسه في مجلد يُحذف فورًا.
+- وإن نجح، يمرّ التشغيل إلى النشر.
