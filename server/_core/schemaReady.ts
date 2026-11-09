@@ -37,6 +37,9 @@ export const REQUIRED_SCHEMA = [
   { migration: "0020_wo23_project_profile", kind: "table", table: "project_profiles" },
   { migration: "0020_wo23_project_profile", kind: "table", table: "project_companies" },
   { migration: "0021_wo23_report_approvers", kind: "table", table: "project_report_approvers" },
+  { migration: "0022_reports_reference_lists", kind: "table", table: "project_labour_roles" },
+  { migration: "0022_reports_reference_lists", kind: "table", table: "project_equipment" },
+  { migration: "0022_reports_reference_lists", kind: "column", table: "pmc_site_activities", column: "measure_unit" },
   { migration: "0023_d81_company_require_two_step", kind: "column", table: "companies", column: "require_two_step" },
   { migration: "0023_d81_company_require_two_step", kind: "column", table: "user_mfa", column: "required_by_self" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id

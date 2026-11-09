@@ -67,7 +67,7 @@ describe("config/supabase.public.json (D-35)", () => {
     expect(releaseWorkflow).toContain(`SUPABASE_URL="$(jq -r '.url' config/supabase.public.json)"`);
     expect(releaseWorkflow).toContain(`SUPABASE_ANON_KEY="$(jq -r '.publishableKey' config/supabase.public.json)"`);
     expect(releaseWorkflow).not.toMatch(/export SUPABASE_URL="https:/);
-    const step3 = releaseWorkflow.slice(releaseWorkflow.indexOf("- name: 3."), releaseWorkflow.indexOf("- name: 4."));
+    const step3 = releaseWorkflow.slice(releaseWorkflow.indexOf("- name: 3."), releaseWorkflow.indexOf("- name: 4b."));
     // the key is exported only inside the has_key=true branch; the empty case passes --without-sign-in and never exports an empty key
     expect(step3).toMatch(/if \[ "\$\{\{ steps\.config\.outputs\.has_key \}\}" = "true" \]; then\s+SUPABASE_ANON_KEY=[^\n]+\n\s+export SUPABASE_ANON_KEY\n\s+else\s+gate_args=\(--without-sign-in\)/);
     expect(step3).toContain(`post-deploy-check.mjs "http://127.0.0.1:3920" "\${gate_args[@]}"`);

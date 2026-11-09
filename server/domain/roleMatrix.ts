@@ -26,6 +26,7 @@ const TENDER = "server/tenderService.ts";
 const PMC = "server/pmcService.ts";
 const SITE = "server/pmcSiteService.ts";
 const PROFILE = "server/projectProfile.ts";
+const LISTS = "server/projectReferenceLists.ts";
 
 export const matrixColumns: readonly MatrixColumn[] = [
   { id: "projects", title: "المشاريع والضوابط", kind: "screen", actions: [
@@ -36,6 +37,13 @@ export const matrixColumns: readonly MatrixColumn[] = [
     { tier: "see", sources: [s(PROFILE, "getProjectProfile", "project.read", "project.manage"), s(PROFILE, "listProjectCompanies", "project.read", "project.manage")] },
     { tier: "edit", sources: [s(PROFILE, "saveProjectProfile", "project.manage"), s(PROFILE, "saveProjectCompany", "project.manage"), s(PROFILE, "deactivateProjectCompany", "project.manage")] },
   ], note: "بيانات المشروع وشعاراته والشركات المشاركة (D-42 أ). سلسلة الاعتماد (D-42 ب، #227) تُضاف بعد دمجها." },
+  { id: "referenceLists", title: "القوائم المرجعية", kind: "screen", actions: [
+    { tier: "see", sources: [s(LISTS, "listLabourRoles", "project.read", "project.field.manage", "project.manage"), s(LISTS, "listEquipment", "project.read", "project.field.manage", "project.manage"), s(LISTS, "listSiteActivityMeasures", "project.read", "project.field.manage", "project.manage")] },
+    { tier: "edit", sources: [
+      s(LISTS, "seedDefaultLabourRoles", "project.manage"), s(LISTS, "saveLabourRole", "project.manage"), s(LISTS, "setLabourRoleActive", "project.manage"),
+      s(LISTS, "saveEquipment", "project.manage"), s(LISTS, "setEquipmentActive", "project.manage"), s(LISTS, "setSiteActivityMeasure", "project.manage"),
+    ] },
+  ], note: "أدوار العمالة والمعدات ووحدة النشاط وكميته الكلية (D-44 أ). مهندس الموقع يقرؤها لأنه يملأ منها التقرير اليومي." },
   { id: "executive", title: "لوحة التنفيذي", kind: "screen", actions: [
     { tier: "see", sources: [s(DB, "computeExecutiveDashboard", "executive.read")] },
   ] },

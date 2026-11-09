@@ -105,8 +105,9 @@
 
 ## 11. الإنتاج يُنشر من فرع `production` فقط (BLOCKED_BY_OWNER — ثلاث نقرات، 26 أكتوبر 2026)
 سبب القرار: دمجٌ إلى `main` كان يصير إنتاجًا فورًا، فكسر الدخول يوم 26 أكتوبر (الشيفرة سبقت ترحيلات القاعدة). بعد هذه الخطوات: `main` ← معاينة (Preview) فقط، والإنتاج لا يتحرك إلا بزر.
-1. **Vercel ← مشروع dashio ← Settings ← Git ← Production Branch** ← اكتب `production` ← Save. (إلى أن تفعل هذا يبقى `main` هو الإنتاج.)
-2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). يلزم للتراجع الآلي ولقراءة سجلات الأخطاء. (لا تلصقه في المحادثة.)
+**تحديث D-78 (9 نوفمبر 2026): الخطوة 1 لم تعد لازمة بعد أول نشر ناجح بالسير.** `migrate-production.yml` ينشر الإنتاج بنفسه بـ Vercel CLI بعد الترحيلات والفحص (`docs/GO_LIVE.md` «الإطلاق الآلي»)، فلا يحتاج إعداد Production Branch. إلى أن يُثبت أول تشغيل حقيقي ذلك تبقى الخطوة 1 هنا مرجعًا، ولا تنفّذها: إن صارت `production` فسيُبنى كل إصدار مرتين.
+1. ~~**Vercel ← مشروع dashio ← Settings ← Git ← Production Branch** ← اكتب `production` ← Save.~~ (O-5؛ يُستغنى عنها بـ D-78 بعد أول نشر ناجح.)
+2. **GitHub ← Settings ← Secrets and variables ← Actions ← New repository secret** ← الاسم `VERCEL_TOKEN` ← القيمة: رمز من Vercel ← Account Settings ← Tokens (نطاق الفريق dashio). **صار لازمًا للنشر نفسه (D-78)**، وللتراجع الآلي ولقراءة سجلات الأخطاء. السير يفحصه بـ`vercel whoami` قبل أي ترحيلة؛ إن قال التشغيل «VERCEL_TOKEN rejected» فأنشئ رمزًا جديدًا وضعه مكانه. (لا تلصقه في المحادثة، ولا تحذفه.)
 3. اختياري للمعاينات المحمية: سرّ `VERCEL_AUTOMATION_BYPASS_SECRET` (Vercel ← Settings ← Deployment Protection ← Protection Bypass for Automation).
 **الترقية:** GitHub ← Actions ← **Promote to production** ← Run workflow. يجد معاينة آخر دمج، ويشغّل عليها فحص ما بعد النشر، وإن نجح يحرّك `production` إلى ذلك الدمج (بلا force-push). بعد بناء الإنتاج يفحصه **Post-deploy check** تلقائيًا، وإن فشل يتراجع إلى النشر السابق ويفتح بلاغًا في GitHub.
 **ترحيلات القاعدة (تحديث 27 أكتوبر):** تُطبَّق الآن آليًا بعد أن يخضرّ CI على `main` لكل دمج، بـ`migrate-production.yml` ثم يُقدَّم فرع `production` وحده بعد نجاح الفحص (التفاصيل وما تحتاجه: `docs/GO_LIVE.md` «الإطلاق الآلي»). زر **Promote to production** يبقى للترقية اليدوية.
