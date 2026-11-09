@@ -58,3 +58,8 @@ Visible fixes: the summary is one line counting the wrong fields; each message s
 
 before-* = client build of main e0c484b; after-* = client build of 7e7bbfe. Fixed synthetic replies; each shot submits one empty form on the project page (NCR, RFI, change request) and captures the viewport around it. 390 and 1280; Arabic, English and Urdu.
 Before: the browser's English bubble. After: the one-line count and each message under its field in the page's language.
+
+## d-3/part-5b/1393878/ — review fixes for #232
+
+after-* = 1393878; before-* = main e0c484b (copied from 7e7bbfe). Same forms (NCR, RFI, change request), 390 and 1280, ar/en/ur.
+Visible fixes at 1280: in the two-column forms a wrong field and its message take the whole row, one under the other; a register that could not load shows its card, title, "Could not load: ..." and the shared error surface in the page's language; the change request's number fields have visible labels.
