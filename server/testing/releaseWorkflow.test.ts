@@ -131,6 +131,14 @@ export function releaseProblems(text: string, otherWorkflows: Record<string, str
   const whoami = firstIndex(steps, step => /\bvercel whoami\b/.test(step.text));
   const migrate = firstIndex(steps, named("2. "));
   if (whoami < 0 || migrate < 0 || whoami > migrate) problems.push("vercel whoami does not run before step 2 (the migrations)");
+  // run 42606597331: whoami passed, the project was not readable, 4b failed after the migrations. The token's access to the project is proven before them too.
+  const projectProbe = firstIndex(steps, step => /vercel pull --yes --environment=production --cwd "\$probe"/.test(step.text));
+  if (projectProbe < 0 || migrate < 0 || projectProbe > migrate || projectProbe === deployIndex) problems.push("no throw-away vercel pull proves the token can read the project before step 2");
+  else {
+    const probeStep = steps[projectProbe].text;
+    if (!/if ! pulled="\$\(vercel pull [^\n]*\)"; then\n(?:[^\n]*\n){0,4}?\s*exit 1/.test(probeStep)) problems.push("a failed project probe does not stop the run");
+    if ((probeStep.match(/rm -rf "\$probe"/g) ?? []).length < 2) problems.push("the project probe's folder is not deleted on both paths");
+  }
   // step 5: check the deployment (inspect, then post-deploy-check on its own address), vercel promote, ask until the production address serves it, check again,
   // and roll back on any failure after the promotion
   const verify = firstIndex(steps, named("5. "));
@@ -231,6 +239,13 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
     ["no vercel promote", () => mutate("5. ", /\n[^\n]*vercel promote[^\n]*/, ""), "does not run vercel promote"],
     ["a fixed sleep instead of asking for the id", () => mutate("5. ", /( *)served=""\n[\s\S]*?\n *done\n/, '$1sleep 20\n$1served="$new_id"\n'), "waits a fixed time"],
   ])("refuses: %s", (_label, make, expected) => {
+    expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
+  });
+
+  it.each([
+    ["no project probe before the migrations", () => mutate("Refuse to start", /\n *if ! pulled="\$\(vercel pull[\s\S]*?\n *fi\n/, "\n"), "no throw-away vercel pull"],
+    ["a failed project probe only warns", () => mutate("Refuse to start", /(cut -c1-300\n)( *)exit 1\n( *fi\n *rm -rf "\$probe"\n *echo "Vercel project)/, "$1$3"), "does not stop the run"],
+  ])("refuses (run 42606597331): %s", (_label, make, expected) => {
     expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
   });
 
