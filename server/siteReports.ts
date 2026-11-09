@@ -5,7 +5,7 @@
 // obeys the company's quality policy like any other path to COMPLETE.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, siteDailyReportEquipment, siteDailyReportLabour, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, consultantSubmittals, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportTomorrow, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
@@ -26,7 +26,14 @@ export type ReportLineInput = { lineType: "labour" | "equipment" | "work"; label
 /** D-45 (a): one cell of the labour matrix (a company on the project × a labour role × a shift → headcount) and one machine of the project's equipment list. */
 export type ReportLabourInput = { companyId: string; labourRoleId: string; shift: "day" | "night"; headcount: number };
 export type ReportEquipmentInput = { equipmentId: string; count: number; hours?: number };
-export type ReportInput = { reportDate: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
+/** D-45 (b): the report's other sections — materials received, HSE events, obstacles, the plan for tomorrow. Each list is replaced whole on every save. */
+export const HSE_KINDS = ["meeting", "incident", "near_miss", "violation", "corrective_action"] as const;
+export type ReportMaterialInput = { material: string; quantity: number; unit: string; supplier?: string; consultantSubmittalId?: string };
+export type ReportHseInput = { kind: (typeof HSE_KINDS)[number]; description: string; peopleCount?: number; actionTaken?: string };
+export type ReportObstacleInput = { issue: string; impact?: string; responsible?: string; action?: string; dueDate?: string };
+export type ReportTomorrowInput = { area?: string; activity: string; quantity?: number; unit?: string; resources?: string };
+type Sections = { materials?: ReportMaterialInput[]; hse?: ReportHseInput[]; obstacleItems?: ReportObstacleInput[]; tomorrow?: ReportTomorrowInput[] };
+export type ReportInput = Sections & { reportDate: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
 
 async function authorize(input: Scope, permission: string | readonly string[]) {
   const db = await getDb();
@@ -69,6 +76,25 @@ async function validateResources(db: Db, input: Scope, labour: ReportLabourInput
   ]);
   if (companies.length !== ids(labour.map(row => row.companyId)).length || roles.length !== ids(labour.map(row => row.labourRoleId)).length || machines.length !== ids(equipment.map(row => row.equipmentId)).length) throw refuse("NOT_FOUND", "PROJECT_OS_SITE_REPORT_REFERENCE_NOT_FOUND");
 }
+/** A calendar date that exists («2026-02-30» does not, though Date.parse rolls it over). */
+const realDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+/** A material may name the consultant's approval of it: a submittal of THIS project (the composite foreign key holds the same). */
+async function validateSections(db: Db, input: Scope, sections: Sections) {
+  const submittals = Array.from(new Set((sections.materials ?? []).flatMap(row => (row.consultantSubmittalId ? [row.consultantSubmittalId] : []))));
+  if (submittals.length && (await db.select({ id: consultantSubmittals.id }).from(consultantSubmittals).where(and(mine(consultantSubmittals, input), inArray(consultantSubmittals.id, submittals)))).length !== submittals.length) throw refuse("NOT_FOUND", "PROJECT_OS_SITE_REPORT_REFERENCE_NOT_FOUND");
+  if ((sections.obstacleItems ?? []).some(row => row.dueDate !== undefined && !realDate(row.dueDate))) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_LINE_INVALID");
+}
+const text = (value: string | undefined) => value?.trim() || null;
+const amount = (value: number | undefined) => (value === undefined ? null : String(value));
+/** Replaces the four section lists of a report inside the save's transaction. */
+async function writeSections(tx: Tx, input: Scope, reportId: string, sections: Sections, replace: boolean) {
+  const base = (index: number) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId, sortOrder: index });
+  if (replace) for (const table of [siteDailyReportMaterials, siteDailyReportHse, siteDailyReportObstacles, siteDailyReportTomorrow]) await tx.delete(table).where(and(mine(table, input), eq(table.reportId, reportId)));
+  if (sections.materials?.length) await tx.insert(siteDailyReportMaterials).values(sections.materials.map((row, i) => ({ ...base(i), material: row.material.trim(), quantity: String(row.quantity), unit: row.unit.trim(), supplier: text(row.supplier), consultantSubmittalId: row.consultantSubmittalId ?? null })));
+  if (sections.hse?.length) await tx.insert(siteDailyReportHse).values(sections.hse.map((row, i) => ({ ...base(i), kind: row.kind, description: row.description.trim(), peopleCount: row.peopleCount ?? null, actionTaken: text(row.actionTaken) })));
+  if (sections.obstacleItems?.length) await tx.insert(siteDailyReportObstacles).values(sections.obstacleItems.map((row, i) => ({ ...base(i), issue: row.issue.trim(), impact: text(row.impact), responsible: text(row.responsible), action: text(row.action), dueDate: row.dueDate ?? null })));
+  if (sections.tomorrow?.length) await tx.insert(siteDailyReportTomorrow).values(sections.tomorrow.map((row, i) => ({ ...base(i), area: text(row.area), activity: row.activity.trim(), quantity: amount(row.quantity), unit: text(row.unit), resources: text(row.resources) })));
+}
 const labourRows = (input: Scope, reportId: string, labour: ReportLabourInput[]) => labour.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId, ...row }));
 const equipmentRows = (input: Scope, reportId: string, equipment: Array<{ equipmentId: string; count: number; hours?: number | string | null }>) => equipment.map(row => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId, equipmentId: row.equipmentId, count: row.count, hours: row.hours === undefined || row.hours === null ? null : String(row.hours) }));
 
@@ -94,10 +120,11 @@ async function validateLines(db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
 
 export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   const db = await authorize(input, "project.field.manage");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.reportDate) || Number.isNaN(Date.parse(input.reportDate))) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
+  if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
   await validateLines(db, input, input.lines);
   await validateResources(db, input, input.labour ?? [], input.equipment ?? []);
+  await validateSections(db, input, input);
   const [existing] = await db.select().from(siteDailyReports).where(and(mine(siteDailyReports, input), eq(siteDailyReports.reportDate, input.reportDate), eq(siteDailyReports.preparedByUserId, input.userId))).limit(1);
   if (existing && (existing.status === "submitted" || existing.status === "approved")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
   const id = existing?.id ?? crypto.randomUUID();
@@ -113,12 +140,13 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
     }
     if (input.labour?.length) await tx.insert(siteDailyReportLabour).values(labourRows(input, id, input.labour));
     if (input.equipment?.length) await tx.insert(siteDailyReportEquipment).values(equipmentRows(input, id, input.equipment));
+    await writeSections(tx, input, id, input, Boolean(existing));
     if (input.lines.length) await tx.insert(siteDailyReportLines).values(input.lines.map((line, index) => ({
       id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId: id, lineType: line.lineType, pmcActivityDefinitionId: line.pmcActivityDefinitionId ?? null, pmcUnitId: line.pmcUnitId ?? null,
       label: line.label?.trim() || null, quantity: line.quantity === undefined ? null : String(line.quantity), hours: line.hours === undefined ? null : String(line.hours), description: line.description?.trim() || null, reportedStatus: line.reportedStatus ?? null, sortOrder: index,
       plannedQuantity: line.plannedQuantity === undefined ? null : String(line.plannedQuantity), actualQuantity: line.actualQuantity === undefined ? null : String(line.actualQuantity),
     })));
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: existing ? "site_report.updated" : "site_report.created", entityType: "site_daily_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: input.reportDate, lines: input.lines.length, labour: input.labour?.length ?? 0, equipment: input.equipment?.length ?? 0 }) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: existing ? "site_report.updated" : "site_report.created", entityType: "site_daily_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: input.reportDate, lines: input.lines.length, labour: input.labour?.length ?? 0, equipment: input.equipment?.length ?? 0, materials: input.materials?.length ?? 0, hse: input.hse?.length ?? 0, obstacles: input.obstacleItems?.length ?? 0, tomorrow: input.tomorrow?.length ?? 0 }) });
   });
   const [{ reportNumber }] = await db.select({ reportNumber: siteDailyReports.reportNumber }).from(siteDailyReports).where(eq(siteDailyReports.id, id));
   return { id, reportNumber, status: "draft" as const, lines: input.lines.length };
@@ -258,6 +286,9 @@ export async function listSiteDailyReportsForTenant(input: Scope & { status?: "d
 export async function getSiteDailyReportForTenant(input: Scope & { reportId: string }) {
   const db = await authorize(input, READ_PERMISSIONS);
   const report = await ownReport(db, input);
+  const section = <T extends typeof siteDailyReportMaterials | typeof siteDailyReportHse | typeof siteDailyReportObstacles | typeof siteDailyReportTomorrow>(table: T) => db.select().from(table as never).where(and(mine(table, input), eq(table.reportId, report.id))).orderBy(asc(table.sortOrder));
+  const [materials, hse, obstacleItems, tomorrow] = await Promise.all([section(siteDailyReportMaterials), section(siteDailyReportHse), section(siteDailyReportObstacles), section(siteDailyReportTomorrow)]) as [
+    Array<typeof siteDailyReportMaterials.$inferSelect>, Array<typeof siteDailyReportHse.$inferSelect>, Array<typeof siteDailyReportObstacles.$inferSelect>, Array<typeof siteDailyReportTomorrow.$inferSelect>];
   const [lines, photos, labour, equipment, cumulative] = await Promise.all([
     db.select().from(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, report.id)).orderBy(asc(siteDailyReportLines.sortOrder)),
     db.select().from(siteDailyReportPhotos).where(eq(siteDailyReportPhotos.reportId, report.id)).orderBy(asc(siteDailyReportPhotos.createdAt)),
@@ -276,8 +307,11 @@ export async function getSiteDailyReportForTenant(input: Scope & { reportId: str
     report: { ...report, workHours: numeric(report.workHours) },
     labour,
     equipment: equipment.map(row => ({ ...row, hours: numeric(row.hours) })),
+    materials: materials.map(row => ({ ...row, quantity: Number(row.quantity) })),
+    hse, obstacleItems, tomorrow: tomorrow.map(row => ({ ...row, quantity: numeric(row.quantity) })),
     // computed, never stored: the report's totals and the cumulative man-days
     totals: {
+      hse: Object.fromEntries(HSE_KINDS.map(kind => [kind, hse.filter(row => row.kind === kind).length])) as Record<(typeof HSE_KINDS)[number], number>,
       labour: { total: sum(labour), direct: sum(labour.filter(row => row.category === "direct")), indirect: sum(labour.filter(row => row.category === "indirect")), day: sum(labour.filter(row => row.shift === "day")), night: sum(labour.filter(row => row.shift === "night")),
         byCompany: Array.from(new Map(labour.map(row => [row.companyId, { companyId: row.companyId, companyName: row.companyName, headcount: sum(labour.filter(other => other.companyId === row.companyId)) }])).values()) },
       equipment: { count: equipment.reduce((total, row) => total + row.count, 0), hours: equipment.reduce((total, row) => total + row.count * Number(row.hours ?? 0), 0) },
@@ -308,7 +342,7 @@ export async function listFieldOptionsForTenant(input: Scope) {
  */
 export async function copySiteDailyReportFromYesterday(input: Scope & { reportDate: string }) {
   const db = await authorize(input, "project.field.manage");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.reportDate) || Number.isNaN(Date.parse(input.reportDate))) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
+  if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
   const mineAndPreparer = and(mine(siteDailyReports, input), eq(siteDailyReports.preparedByUserId, input.userId), sql`${siteDailyReports.contractorId} IS NULL`);
   const [exists] = await db.select({ id: siteDailyReports.id }).from(siteDailyReports).where(and(mineAndPreparer, eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
@@ -320,12 +354,17 @@ export async function copySiteDailyReportFromYesterday(input: Scope & { reportDa
     db.select({ equipmentId: siteDailyReportEquipment.equipmentId, count: siteDailyReportEquipment.count, hours: siteDailyReportEquipment.hours }).from(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, source.id))),
   ]);
   const id = crypto.randomUUID();
+  let carried = 0;
   await db.transaction(async tx => {
     await tx.insert(siteDailyReports).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportDate: input.reportDate, reportNumber: await nextReportNumber(tx, input), preparedByUserId: input.userId });
     if (labour.length) await tx.insert(siteDailyReportLabour).values(labourRows(input, id, labour as ReportLabourInput[]));
     if (equipment.length) await tx.insert(siteDailyReportEquipment).values(equipmentRows(input, id, equipment));
+    // D-45 (b): yesterday's plan for tomorrow is today's starting plan, carried into today's «tomorrow» list to be edited
+    const plan = await tx.select().from(siteDailyReportTomorrow).where(and(mine(siteDailyReportTomorrow, input), eq(siteDailyReportTomorrow.reportId, source.id))).orderBy(asc(siteDailyReportTomorrow.sortOrder));
+    carried = plan.length;
+    if (plan.length) await writeSections(tx, input, id, { tomorrow: plan.map(row => ({ area: row.area ?? undefined, activity: row.activity, quantity: row.quantity === null ? undefined : Number(row.quantity), unit: row.unit ?? undefined, resources: row.resources ?? undefined })) }, false);
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.copied", entityType: "site_daily_report", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: input.reportDate, from: source.id, fromDate: source.reportDate, labour: labour.length, equipment: equipment.length }) });
   });
   const [{ reportNumber }] = await db.select({ reportNumber: siteDailyReports.reportNumber }).from(siteDailyReports).where(eq(siteDailyReports.id, id));
-  return { id, reportNumber, from: source.id, labour: labour.length, equipment: equipment.length };
+  return { id, reportNumber, from: source.id, labour: labour.length, equipment: equipment.length, tomorrow: carried };
 }

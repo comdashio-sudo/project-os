@@ -1790,3 +1790,15 @@
 | العزل | `PROVEN` | شركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`؛ مدير أ ومهندسه على ب ← `PERMISSION_DENIED`؛ المشروع ب يرقّم من عدّاده (`DR-0001`) ولا يقرأ تقرير أ (`…_NOT_FOUND`) |
 | الأعداد (2026-11-09) | `PROVEN` | `pnpm test:db` ← 599 ناجحًا، 0 فاشل، 19 متخطى (خادم خاص 5435) · `pnpm test` ← 3085 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 · `coverage:trpc`: `siteReports.copyFromYesterday` مُشار إليه، وغير المصنّفة 75 بدل 78 (الاختبار يشير إلى save/get/list) |
 | تغيير سلوك | `WRITTEN` | «المستقبل» صار يُقاس بيوم الموقع (`siteToday`، UTC+3) لا بمنتصف ليل UTC، في الحفظ أيضًا |
+
+### D-45 (ب) P-39 (1): المواد المستلمة وHSE والمعوقات وخطة الغد (2026-11-09، الوكيل 3، مبني على فرع #239 `d-45a-daily-report` @ `804ce32`)
+
+الترحيلة `drizzle/0024_daily_report_sections.sql` فوق 0023 (يُعاد الترقيم مع ما قبلها). توسيع فقط: `lock_timeout '5s'`، وكتلة `DO` ترفض الإكمال إن غاب أحد المفاتيح الخمسة بالمشروع نفسه أو CHECK نوع HSE، والرجوع في رأسها. أربعة جداول (`site_daily_report_materials` · `_hse` · `_obstacles` · `_tomorrow`)، وكلها مربوطة بتقرير من المشروع نفسه بمفتاح مركّب، والمادة بموافقة استشاري (`consultant_submittals`) من المشروع نفسه.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `siteReports.save` يقبل `materials` و`hse` (meeting · incident · near_miss · violation · corrective_action) و`obstacleItems` و`tomorrow`، وتُستبدل كاملة في كل حفظ؛ `siteReports.get` يُرجعها بترتيبها مع `totals.hse` لكل نوع (محسوبة)؛ `copyFromYesterday` يحمل خطة الغد من آخر تقرير إلى قائمة الغد في المسودة الجديدة | `PROVEN` | `server/dailyReportSections.database.test.ts` 4/4 بحساب `project_os_app`: الأقسام الأربعة تُقرأ كما حُفظت (8 صفوف)، والحفظ الثاني بلا HSE ← 5 صفوف؛ النسخ ← خطة الغد مطابقة حرفيًا، وصفر مواد وHSE ومعوقات |
+| سالب | `PROVEN` | موافقة استشاري من المشروع ب ← `PROJECT_OS_SITE_REPORT_REFERENCE_NOT_FOUND`؛ تاريخ استحقاق غير موجود (2026-02-30) ← `…_LINE_INVALID`؛ كمية سالبة ونوع HSE مجهول ← رفض المدخل؛ قارئ ← `PERMISSION_DENIED`؛ صفر صفوف. القاعدة نفسها: `site_daily_report_materials_submittal_fk` و`site_daily_report_tomorrow_report_fk` و`site_daily_report_hse_kind_check` |
+| مسار شقيق | `PROVEN` | تاريخ التقرير نفسه كان يُقبل `2026-02-30` (`Date.parse` يحوّله إلى 2 مارس) في الحفظ والنسخ؛ صار يُرفض `PROJECT_OS_SITE_REPORT_DATE_INVALID` بالدالة نفسها `realDate`، واختباره في الملف نفسه |
+| الأعداد (2026-11-09) | `PROVEN` | `pnpm test:db` ← 603 ناجحًا، 0 فاشل، 19 متخطى (خادم خاص 5435) · `pnpm test` ← 3095 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 |
+| العزل | `PROVEN` | شركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`؛ مهندس أ على ب ← `PERMISSION_DENIED`؛ صفر صفوف في ب |

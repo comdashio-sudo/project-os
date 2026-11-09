@@ -444,7 +444,8 @@ CREATE TABLE "consultant_submittals" (
 	"sent_by_user_id" integer,
 	"replied_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "consultant_submittals_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "contracts" (
@@ -2133,6 +2134,20 @@ CREATE TABLE "site_daily_report_equipment" (
 	CONSTRAINT "site_daily_report_equipment_values_check" CHECK ("site_daily_report_equipment"."count" > 0 AND ("site_daily_report_equipment"."hours" IS NULL OR ("site_daily_report_equipment"."hours" >= 0 AND "site_daily_report_equipment"."hours" <= 24)))
 );
 --> statement-breakpoint
+CREATE TABLE "site_daily_report_hse" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"kind" varchar(20) NOT NULL,
+	"description" text NOT NULL,
+	"people_count" integer,
+	"action_taken" text,
+	CONSTRAINT "site_daily_report_hse_kind_check" CHECK ("site_daily_report_hse"."kind" IN ('meeting', 'incident', 'near_miss', 'violation', 'corrective_action') AND ("site_daily_report_hse"."people_count" IS NULL OR "site_daily_report_hse"."people_count" >= 0))
+);
+--> statement-breakpoint
 CREATE TABLE "site_daily_report_labour" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -2168,6 +2183,35 @@ CREATE TABLE "site_daily_report_lines" (
 	CONSTRAINT "site_daily_report_lines_quantities_check" CHECK (("site_daily_report_lines"."planned_quantity" IS NULL OR "site_daily_report_lines"."planned_quantity" >= 0) AND ("site_daily_report_lines"."actual_quantity" IS NULL OR "site_daily_report_lines"."actual_quantity" >= 0))
 );
 --> statement-breakpoint
+CREATE TABLE "site_daily_report_materials" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"material" varchar(160) NOT NULL,
+	"quantity" numeric(14, 3) NOT NULL,
+	"unit" varchar(24) NOT NULL,
+	"supplier" varchar(160),
+	"consultant_submittal_id" varchar(36),
+	CONSTRAINT "site_daily_report_materials_quantity_check" CHECK ("site_daily_report_materials"."quantity" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_obstacles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"issue" text NOT NULL,
+	"impact" text,
+	"responsible" varchar(160),
+	"action" text,
+	"due_date" date
+);
+--> statement-breakpoint
 CREATE TABLE "site_daily_report_photos" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -2180,6 +2224,21 @@ CREATE TABLE "site_daily_report_photos" (
 	"caption" varchar(255),
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_tomorrow" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"area" varchar(160),
+	"activity" varchar(255) NOT NULL,
+	"quantity" numeric(14, 3),
+	"unit" varchar(24),
+	"resources" text,
+	CONSTRAINT "site_daily_report_tomorrow_quantity_check" CHECK ("site_daily_report_tomorrow"."quantity" IS NULL OR "site_daily_report_tomorrow"."quantity" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "site_daily_reports" (
@@ -3037,6 +3096,9 @@ ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equi
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_item_fk" FOREIGN KEY ("equipment_id","tenant_id","project_id") REFERENCES "public"."project_equipment"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3045,10 +3107,20 @@ ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_report_id_site_daily_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."site_daily_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_submittal_fk" FOREIGN KEY ("consultant_submittal_id","tenant_id","project_id") REFERENCES "public"."consultant_submittals"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_report_id_site_daily_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."site_daily_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_user_id_users_id_fk" FOREIGN KEY ("prepared_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3403,12 +3475,16 @@ CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btre
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_equipment_item_unique" ON "site_daily_report_equipment" USING btree ("report_id","equipment_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_equipment_tenant_project_idx" ON "site_daily_report_equipment" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_hse_report_idx" ON "site_daily_report_hse" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_labour_cell_unique" ON "site_daily_report_labour" USING btree ("report_id","company_id","labour_role_id","shift");--> statement-breakpoint
 CREATE INDEX "site_daily_report_labour_tenant_project_idx" ON "site_daily_report_labour" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_lines_report_idx" ON "site_daily_report_lines" USING btree ("report_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_lines_cell_idx" ON "site_daily_report_lines" USING btree ("pmc_unit_id","pmc_activity_definition_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_materials_report_idx" ON "site_daily_report_materials" USING btree ("report_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_obstacles_report_idx" ON "site_daily_report_obstacles" USING btree ("report_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_photos_report_idx" ON "site_daily_report_photos" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_photos_key_unique" ON "site_daily_report_photos" USING btree ("storage_key");--> statement-breakpoint
+CREATE INDEX "site_daily_report_tomorrow_report_idx" ON "site_daily_report_tomorrow" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id",coalesce("contractor_id", ''));--> statement-breakpoint
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_number_unique" ON "site_daily_reports" USING btree ("project_id","report_number") WHERE "site_daily_reports"."report_number" IS NOT NULL;--> statement-breakpoint
