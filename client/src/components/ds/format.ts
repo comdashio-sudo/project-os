@@ -40,3 +40,8 @@ export function formatShortDate(value: Date, language: Language): string {
   const locale = language === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : language === "ur" ? "ur-PK-u-nu-latn" : "en-GB";
   return new Intl.DateTimeFormat(locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(value);
 }
+
+/** "2026-11-09" -> "Monday" / "الاثنين" / "پیر": the weekday of a calendar day (read as UTC, so the day never shifts with the device's zone). */
+export function formatWeekday(isoDay: string, language: Language): string {
+  return new Intl.DateTimeFormat(LOCALE[language], { weekday: "long", timeZone: "UTC" }).format(new Date(`${isoDay}T00:00:00Z`));
+}

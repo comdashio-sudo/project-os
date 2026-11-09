@@ -6,7 +6,8 @@ import SiteDailyReport from "./SiteDailyReport";
 
 const h = vi.hoisted(() => ({
   language: "en" as "ar" | "en" | "ur", canWrite: true, canReview: true,
-  save: vi.fn(), submit: vi.fn(), review: vi.fn(), attach: vi.fn(), upload: vi.fn(),
+  save: vi.fn(), submit: vi.fn(), review: vi.fn(), attach: vi.fn(), upload: vi.fn(), seed: vi.fn(),
+  roles: [] as Array<{ id: string; name: string; category: string; active: boolean }>, rolesError: null as unknown, machines: [] as Array<{ id: string; equipmentType: string; model: string | null; plateOrSize: string | null; active: boolean }>,
   reports: [] as Array<{ id: string; reportDate: string; status: string; weather: string | null }>,
   detail: { report: { reportDate: "2026-10-20", weather: "clear", temperatureC: 30, summary: "Walls", obstacles: null, status: "rejected", reviewNote: "Add the count" }, lines: [] as unknown[], photos: [] as unknown[] },
   dryRun: { applied: [{ unitId: "u12", activityDefinitionId: "a-walls", from: null, to: "IN_PROGRESS" }], skipped: [{ unitId: "u13", activityDefinitionId: "a-walls" }], gate: { mode: "warn", notAccepted: [{ unitId: "u12", activityDefinitionId: "a-walls" }] } },
@@ -28,6 +29,11 @@ vi.mock("@/lib/trpc", () => {
     mutateAsync: async (input: unknown) => { h.attach(input); config.onSuccess?.({}, input); return {}; }, isPending: false, error: null,
   }) });
   return { trpc: {
+    // #233: the project's reference lists the report picks from
+    projects: {
+      labourRoles: { list: { useQuery: () => ({ data: h.rolesError ? undefined : h.roles, isLoading: false, error: h.rolesError, refetch: vi.fn() }) }, seedDefaults: { useMutation: () => ({ mutate: h.seed, isPending: false, error: null }) } },
+      equipment: { list: { useQuery: () => ({ data: h.machines, isLoading: false, error: null, refetch: vi.fn() }) } },
+    },
     useUtils: () => ({ siteReports: { list: { invalidate: vi.fn() }, get: { fetch: async () => h.detail } } }),
     siteReports: {
       options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) },
@@ -38,7 +44,9 @@ vi.mock("@/lib/trpc", () => {
   } };
 });
 
-beforeEach(() => { h.language = "en"; h.canWrite = true; h.canReview = true; h.reports = []; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
+beforeEach(() => { h.language = "en"; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
+  h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
+  h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
 const type = (label: string | RegExp, value: string, index = 0) => fireEvent.change(screen.getAllByLabelText(label)[index]!, { target: { value } });
 
@@ -151,5 +159,52 @@ describe("SiteDailyReport — three languages", () => {
     const { container } = render(<SiteDailyReport />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(title);
     expect(container.querySelector("main")!.getAttribute("dir")).toBe(dir);
+  });
+});
+
+describe("SiteDailyReport — the frame of sections 0 to 10 (D-46, part 1)", () => {
+  it("draws the eleven sections in order, the ones waiting for the server closed and without a field", () => {
+    render(<SiteDailyReport />);
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-report-section]"));
+    expect(sections.map(node => node.dataset.reportSection)).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    for (const number of ["4", "5", "6", "8"]) {
+      const locked = document.querySelector<HTMLElement>(`[data-report-section="${number}"]`)!;
+      expect(locked.querySelector("[data-locked-section]")?.textContent).toBe("Turns on after the server update. This section sends nothing yet.");
+      expect(locked.querySelectorAll("input, select, textarea")).toHaveLength(0);
+    }
+  });
+
+  it("offers only the project's active labour roles and equipment, and the save sends the same input as before", () => {
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Add labour"));
+    const trade = screen.getByLabelText("Trade") as HTMLSelectElement;
+    expect(Array.from(trade.options).map(option => option.value)).toEqual(["", "Masons"]);
+    fireEvent.change(trade, { target: { value: "Masons" } }); type("Count", "6");
+    expect(document.querySelector('[data-report-section="1"] summary')?.textContent).toContain("Total: 6 workers");
+    fireEvent.click(screen.getByText("Save draft"));
+    expect(Object.keys(h.save.mock.calls[0]![0]).sort()).toEqual(["lines", "obstacles", "projectId", "reportDate", "summary", "temperatureC", "tenantId", "weather"]);
+    expect(h.save.mock.calls[0]![0].lines).toEqual([expect.objectContaining({ lineType: "labour", label: "Masons", quantity: 6 })]);
+  });
+
+  it("an empty role list offers the default list to the project manager only", () => {
+    h.roles = [];
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Copy the default list"));
+    expect(h.seed).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", language: "en" });
+    expect(screen.queryByText("Add labour")).toBeNull();
+    cleanup(); h.canReview = false;
+    render(<SiteDailyReport />);
+    expect(screen.queryByText("Copy the default list")).toBeNull();
+    expect(screen.getByText("The project manager adds them.")).toBeTruthy();
+  });
+});
+
+describe("SiteDailyReport — a role list that failed to load (D-46, part 1)", () => {
+  it("says it could not load, and does not pass for an empty list with a seed button", () => {
+    h.rolesError = { message: "boom" };
+    render(<SiteDailyReport />);
+    expect(screen.getByRole("alert", { name: "Labour" }).textContent).toContain("Could not load: Labour");
+    expect(screen.queryByText("Copy the default list")).toBeNull();
+    expect(screen.queryByText("The project has no labour roles yet.")).toBeNull();
   });
 });
