@@ -53,3 +53,8 @@ Before: the browser's own bubble, in English whatever the page language. After: 
 
 after-* = client build of 377f6d1; before-* = main 7dcb6ec (copied from c72fb2d). Same forms and fixed synthetic replies.
 Visible fixes: the summary is one line counting the wrong fields; each message sits close under its field with more room before the next one.
+
+## d-3/part-5b/7e7bbfe/ — D-3 (5b/8) D-64's forms behind CheckedForm
+
+before-* = client build of main e0c484b; after-* = client build of 7e7bbfe. Fixed synthetic replies; each shot submits one empty form on the project page (NCR, RFI, change request) and captures the viewport around it. 390 and 1280; Arabic, English and Urdu.
+Before: the browser's English bubble. After: the one-line count and each message under its field in the page's language.
