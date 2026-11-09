@@ -102,7 +102,15 @@ function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAr
     const number = Number(value);
     const belowMin = element.min !== "" && number < Number(element.min);
     const aboveMax = element.max !== "" && number > Number(element.max);
-    return belowMin || aboveMax ? fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language) : null;
+    if (belowMin || aboveMax) return fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language);
+    // the step the browser no longer checks (noValidate): counted from min (or 0), with a tolerance for decimal steps such as 0.01
+    const step = element.step === "" ? 1 : element.step === "any" ? null : Number(element.step);
+    if (step && Number.isFinite(step) && step > 0) {
+      const base = element.min !== "" ? Number(element.min) : 0;
+      const steps = (number - base) / step;
+      if (Math.abs(steps - Math.round(steps)) > 1e-7) return fieldMessage("PROJECT_OS_FIELD_STEP_MISMATCH", language);
+    }
+    return null;
   }
   if (element.type === "date") return dateFieldError(value, language);
   if (element.type === "email") return emailFieldError(value, language);
