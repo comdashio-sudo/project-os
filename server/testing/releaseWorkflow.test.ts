@@ -37,6 +37,60 @@ function condition(step: Step): string {
 const firstIndex = (steps: Step[], test: (step: Step) => boolean) => steps.findIndex(test);
 const named = (prefix: string) => (step: Step) => step.name.startsWith(prefix);
 
+/** The body of a shell function `name() { … }` in a step (up to its closing brace at the same indentation). */
+function shellFunction(text: string, name: string): string {
+  const match = new RegExp(`^( *)${name}\\(\\) \\{\\n([\\s\\S]*?)^\\1\\}`, "m").exec(text);
+  return match?.[2] ?? "";
+}
+
+/** Step 5's rules (QA and engineering review on #231). */
+function verifyProblems(step: Step): string[] {
+  const problems: string[] = [];
+  const text = step.text;
+  if (/always\(\)|failure\(\)|cancelled\(\)/.test(condition(step))) problems.push("step 5 runs after a failed deployment");
+  // a failing check must reach its handler: GitHub's default shell is `bash -e`, which ends the step on the failing pipeline itself
+  const shell = /^ {8}shell: (.*)$/m.exec(text)?.[1] ?? "";
+  const errexitOff = (shell !== "" && !/(^|\s)-[a-z]*e/.test(shell.replace(/--\w+/g, ""))) || /^\s*set \+e\b/m.test(text);
+  if (!errexitOff) problems.push("step 5 runs under bash -e (the default shell): a failed check ends the step before the rollback");
+  if (/^\s*set -[a-z]*e/m.test(text)) problems.push("step 5 turns errexit on");
+  if (!/^\s*set -[a-z]*o pipefail\b/m.test(text)) problems.push("step 5 has no set -o pipefail");
+  const fail = shellFunction(text, "fail");
+  const rollBack = shellFunction(text, "roll_back");
+  if (!/^\s*exit 1\s*$/m.test(fail)) problems.push("fail() does not exit 1");
+  if (!/vercel rollback "\$PREVIOUS"/.test(rollBack) || !/^\s*exit 1\s*$/m.test(rollBack)) problems.push("roll_back() does not run vercel rollback and exit 1");
+  const lines = text.split("\n");
+  const at = (pattern: RegExp) => lines.findIndex(line => pattern.test(line));
+  const inspect = at(/vercel inspect "\$DEPLOY_URL" --wait/);
+  const deploymentCheck = at(/post-deploy-check\.mjs "\$DEPLOY_URL"/);
+  const promote = at(/vercel promote "\$new_id" --yes \|\| roll_back /);
+  const loop = at(/^\s*(while|until) /);
+  const productionCheck = at(/post-deploy-check\.mjs "\$PRODUCTION_URL"/);
+  if (inspect < 0) problems.push("step 5 does not wait for the deployment with vercel inspect");
+  if (deploymentCheck < 0) problems.push("step 5 does not check the deployment's own address before the promotion");
+  if (promote < 0) problems.push("step 5 does not run vercel promote (with roll_back on its failure)");
+  if (loop < 0 || !lines.slice(loop).some(line => /vercel inspect "\$\{PRODUCTION_URL#https:\/\/\}"/.test(line)) || !/"\$served" != "\$new_id"\s*\]; then roll_back /.test(text)) {
+    problems.push("step 5 does not ask until the production address serves the new deployment id (roll_back otherwise)");
+  }
+  if (productionCheck < 0) problems.push("step 5 does not check the production address after the promotion");
+  if (!(inspect < deploymentCheck && deploymentCheck < promote && promote < loop && loop < productionCheck)) problems.push("step 5 is not in the order inspect, check the deployment, promote, wait for the domain, check production");
+  // every check is followed by its handler: fail before the promotion, roll_back after it
+  for (const [index, handler] of [[deploymentCheck, "fail"], [productionCheck, "roll_back"]] as const) {
+    if (index < 0) continue;
+    const after = lines.slice(index + 1, index + 10).join("\n");
+    if (!/PIPESTATUS\[0\]/.test(after) || !new RegExp(`\\b${handler} "`).test(after)) problems.push(`the check on line ${index + 1} of step 5 is not followed by PIPESTATUS and ${handler}`);
+  }
+  // before the promotion production is untouched, so those failures stop (fail), they do not roll back
+  if (!/vercel inspect "\$DEPLOY_URL"[^\n]*\|\| fail "/.test(text) || !/then fail "\$DEPLOY_URL is id=/.test(text)) problems.push("a failure before the promotion does not stop with fail");
+  // a fixed wait is a guess: every sleep sits inside the loop that asks which deployment serves
+  let depth = 0;
+  for (const line of lines) {
+    if (/^\s*(while|until|for) .*; do\s*$/.test(line)) depth += 1;
+    else if (/^\s*done\b/.test(line)) depth -= 1;
+    else if (/^\s*sleep \d/.test(line) && depth === 0) problems.push(`step 5 waits a fixed time: ${line.trim()}`);
+  }
+  return problems;
+}
+
 /** Every rule of the D-78 plan that this workflow text breaks. Empty = the text is safe. */
 export function releaseProblems(text: string, otherWorkflows: Record<string, string> = {}): string[] {
   const problems: string[] = [];
@@ -54,6 +108,16 @@ export function releaseProblems(text: string, otherWorkflows: Record<string, str
   if (!/vercel pull --yes --environment=production/.test(deploy.text) || !/vercel build --prod/.test(deploy.text) || !/vercel deploy --prebuilt --prod/.test(deploy.text)) {
     problems.push("the deployment step is not vercel pull --environment=production, vercel build --prod, vercel deploy --prebuilt --prod");
   }
+  // the new deployment must not take the production domains by itself: it is checked first, then promoted (step 5)
+  if (!/vercel deploy --prebuilt --prod --skip-domain\b/.test(deploy.text)) problems.push("vercel deploy runs without --skip-domain (production would serve the deployment before it is checked)");
+  // (b2) a failed command before the deployment must fail its step: a `| tee` without pipefail, or `|| true` on a node/pnpm command, would let the deployment run
+  steps.slice(0, deployIndex).forEach(step => {
+    const lines = step.text.split("\n");
+    lines.forEach((line, index) => {
+      if (/\|\s*tee\b/.test(line) && !lines.slice(0, index).some(before => /^\s*set -[a-z]*o pipefail\b|^\s*set -o pipefail\b/.test(before))) problems.push(`"${step.name}" pipes into tee without set -o pipefail before it`);
+      if (/\b(node|pnpm)\b/.test(line) && /\|\|\s*(true|:)\b|;\s*true\s*$/.test(line)) problems.push(`"${step.name}" ignores a failure: ${line.trim()}`);
+    });
+  });
   const order = ["vercel pull", "vercel build", "vercel deploy"].map(command => deploy.text.indexOf(command));
   if (!(order[0] < order[1] && order[1] < order[2])) problems.push("the deployment step does not run pull, then build, then deploy");
   // (b) no step before the deployment (nor the job) may continue on error: a failed migration would then not stop the deployment
@@ -67,15 +131,11 @@ export function releaseProblems(text: string, otherWorkflows: Record<string, str
   const whoami = firstIndex(steps, step => /\bvercel whoami\b/.test(step.text));
   const migrate = firstIndex(steps, named("2. "));
   if (whoami < 0 || migrate < 0 || whoami > migrate) problems.push("vercel whoami does not run before step 2 (the migrations)");
-  // step 5 verifies with vercel inspect and the post-deploy check, and rolls back on failure; the production branch moves only after it
+  // step 5: check the deployment (inspect, then post-deploy-check on its own address), vercel promote, ask until the production address serves it, check again,
+  // and roll back on any failure after the promotion
   const verify = firstIndex(steps, named("5. "));
   if (verify <= deployIndex) problems.push("step 5 (verify) does not come after the deployment");
-  else {
-    const verifyText = steps[verify].text;
-    for (const needed of ["vercel inspect", "scripts/ci/post-deploy-check.mjs", "vercel rollback"]) if (!verifyText.includes(needed)) problems.push(`step 5 does not run ${needed}`);
-    if (/always\(\)|failure\(\)|cancelled\(\)/.test(condition(steps[verify]))) problems.push("step 5 runs after a failed deployment");
-  }
-  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
+  else problems.push(...verifyProblems(steps[verify]));  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
   if (promote >= 0 && promote < verify) problems.push("the production branch moves before production is verified");
   // the pulled environment is deleted by a last, unconditional step and never uploaded
   const last = steps[steps.length - 1];
@@ -105,7 +165,7 @@ function moveStep(text: string, moving: string, before: string): string {
   const steps = workflowSteps(text);
   const block = steps.find(named(moving))!.text;
   const target = steps.find(named(before))!.text;
-  return text.replace(block, "").replace(target, block + target);
+  return text.replace(block, "").replace(target, () => block + target);
 }
 
 describe("release workflow: production is deployed by the Vercel CLI only after the migrations (D-78)", () => {
@@ -132,14 +192,14 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
 
   it("mutation 2: continue-on-error on step 2 is refused", () => {
     const step2 = workflowSteps(releaseText).find(named("2. "))!.text;
-    const mutated = releaseText.replace(step2, step2.replace(/\n {8}if: /, "\n        continue-on-error: true\n        if: "));
+    const mutated = releaseText.replace(step2, () => step2.replace(/\n {8}if: /, "\n        continue-on-error: true\n        if: "));
     expect(mutated).not.toBe(releaseText);
     expect(releaseProblems(mutated)).toEqual(expect.arrayContaining([expect.stringContaining("continue-on-error before the deployment")]));
   });
 
   it("mutation 3: if: always() on the deployment is refused", () => {
     const deploy = workflowSteps(releaseText).find(named("4b. "))!.text;
-    const mutated = releaseText.replace(deploy, deploy.replace(/\n {8}if: .*\n/, "\n        if: always()\n"));
+    const mutated = releaseText.replace(deploy, () => deploy.replace(/\n {8}if: .*\n/, "\n        if: always()\n"));
     expect(mutated).not.toBe(releaseText);
     expect(releaseProblems(mutated)).toEqual(expect.arrayContaining([expect.stringContaining("it would run after a failure")]));
   });
@@ -150,6 +210,28 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
     const jobEnv = releaseText.replace("      GH_TOKEN: ${{ github.token }}\n", "      GH_TOKEN: ${{ github.token }}\n      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}\n");
     expect(releaseProblems(jobEnv)).toEqual(expect.arrayContaining([expect.stringContaining("job's env")]));
     expect(releaseProblems(releaseText, { "other.yml": "run: npx vercel deploy --prod" })).toEqual(["other.yml also runs \"vercel deploy\" or --prod"]);
+  });
+
+  // QA and engineering review on #231: each mutation below once passed the test; now each is refused
+  const step = (prefix: string) => workflowSteps(releaseText).find(named(prefix))!.text;
+  const mutate = (prefix: string, from: string | RegExp, to: string) => {
+    const block = step(prefix);
+    const changed = block.replace(from, to);
+    expect(changed, `${prefix} ${String(from)}`).not.toBe(block);
+    return releaseText.replace(block, () => changed);
+  };
+  it.each([
+    ["|| true after the migrations in step 2", () => mutate("2. ", /(predeploy\.mjs[^\n]*)/, "$1 || true"), "ignores a failure"],
+    ["no set -o pipefail in step 2", () => mutate("2. ", /\n\s*set -o pipefail\n/, "\n"), "without set -o pipefail"],
+    ["step 5 under the default bash -e", () => mutate("5. ", /\n {8}shell: [^\n]*/, ""), "runs under bash -e"],
+    ["the production check no longer rolls back", () => mutate("5. ", 'then roll_back "the post-deploy check of $PRODUCTION_URL failed"', 'then true'), "followed by PIPESTATUS and roll_back"],
+    ["the deployment check no longer stops the run", () => mutate("5. ", 'fail "the post-deploy check of $DEPLOY_URL failed"', 'true'), "followed by PIPESTATUS and fail"],
+    ["roll_back() does not exit 1", () => mutate("5. ", /(Instant Rollback"\n {12}fi\n) {12}exit 1\n/, "$1"), "roll_back() does not"],
+    ["no --skip-domain", () => mutate("4b. ", " --skip-domain >", " >"), "without --skip-domain"],
+    ["no vercel promote", () => mutate("5. ", /\n[^\n]*vercel promote[^\n]*/, ""), "does not run vercel promote"],
+    ["a fixed sleep instead of asking for the id", () => mutate("5. ", /( *)served=""\n[\s\S]*?\n *done\n/, '$1sleep 20\n$1served="$new_id"\n'), "waits a fixed time"],
+  ])("refuses: %s", (_label, make, expected) => {
+    expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
   });
 
   it("the cleanup of .vercel/ stays the last, unconditional step", () => {
