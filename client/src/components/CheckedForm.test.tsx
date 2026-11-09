@@ -101,6 +101,18 @@ describe("CheckedForm: long forms, the step, and fields that leave", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("in a grid of two columns a wrong field and its message take the whole row, one under the other, until it is right", () => {
+    render(<CheckedForm style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}><input aria-label="Number" required /><input aria-label="Title" required /><button type="submit">Send</button></CheckedForm>);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const number = screen.getByLabelText("Number");
+    const note = number.nextElementSibling as HTMLElement;
+    expect(note.hasAttribute("data-checked-error")).toBe(true);
+    expect(number.style.gridColumn).toBe("1 / -1");
+    expect(note.style.gridColumn).toBe("1 / -1");
+    fireEvent.input(number, { target: { value: "N-1" } });
+    expect(number.style.gridColumn).toBe("");
+  });
+
   it("a wrong field that leaves the form takes its message with it", () => {
     const Conditional = () => { const [shown, setShown] = React.useState(true); return <CheckedForm><button type="button" onClick={() => setShown(false)}>Hide</button>{shown ? <input aria-label="Extra" required /> : null}<input aria-label="Kept" defaultValue="x" /><button type="submit">Send</button></CheckedForm>; };
     render(<Conditional />);

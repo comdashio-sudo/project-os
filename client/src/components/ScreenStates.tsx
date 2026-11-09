@@ -103,3 +103,15 @@ export function NoPermission({ isArabic, error, title }: { isArabic: boolean; er
     </div>
   </section>;
 }
+
+/**
+ * A register that could not load, in the page's frame: its card, its own title, "Could not load: <title>" and the shared error surface with
+ * a retry, in the page's language. Never a bare line of red text between the cards (D-3 design review of #222 and #232).
+ */
+export function SectionFailed({ title, error, isArabic, onRetry, retrying = false }: { title: string; error: unknown; isArabic: boolean; onRetry?: () => unknown; retrying?: boolean }) {
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  return <section aria-label={title} className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
+    <h2 className="mb-3 font-semibold">{title}</h2>
+    <ErrorState isArabic={isArabic} error={error} title={pickLanguage(lang, { ar: `تعذّر تحميل: ${title}`, en: `Could not load: ${title}`, ur: `لوڈ نہیں ہو سکا: ${title}` })} onRetry={onRetry} retrying={retrying} />
+  </section>;
+}

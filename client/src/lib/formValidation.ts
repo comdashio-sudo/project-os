@@ -113,6 +113,18 @@ export function onStep(value: string, stepText: string, minText: string): boolea
   return (v - m) % s === 0;
 }
 
+/**
+ * min / max of a date ("2026-11-10"), a time ("08:30") or a local date-time ("2026-11-10T08:30"), which noValidate no longer has the browser
+ * check (an assignment's end before its start, D-64). These shapes are fixed-width and zero-padded, so they compare as text; a bound in
+ * another shape, or of another length, is left to the server.
+ */
+function outOfTextRange(value: string, element: HTMLInputElement): boolean {
+  const comparable = (bound: string) => bound !== "" && bound.length === value.length;
+  if (comparable(element.min) && value < element.min) return true;
+  if (comparable(element.max) && value > element.max) return true;
+  return false;
+}
+
 function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, language: Language): string | null {
   const value = element.value;
   if (element.required) {
@@ -134,7 +146,15 @@ function fieldProblem(element: HTMLInputElement | HTMLSelectElement | HTMLTextAr
     if (!onStep(value.trim(), element.step, element.min)) return fieldMessage("PROJECT_OS_FIELD_STEP_MISMATCH", language);
     return null;
   }
-  if (element.type === "date") return dateFieldError(value, language);
+  if (element.type === "date") {
+    const invalid = dateFieldError(value, language);
+    if (invalid || !value.trim()) return invalid;
+    return outOfTextRange(value, element) ? fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language) : null;
+  }
+  // a time or a local date-time: the browser keeps it in one fixed shape, so its bounds compare as text
+  if ((element.type === "time" || element.type === "datetime-local") && value.trim()) {
+    return outOfTextRange(value, element) ? fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language) : null;
+  }
   if (element.type === "email") return emailFieldError(value, language);
   return null;
 }

@@ -90,3 +90,17 @@ describe("onStep: signs, a fractional min, and exponent text (review notes on #2
     expect(numberFieldError("1e3", "en")).toBe(getProjectError("PROJECT_OS_FIELD_NUMBER_INVALID").messages.en);
   });
 });
+
+describe("dates, times and local date-times keep their min and max under noValidate (D-64)", () => {
+  it("an end before the start, a time before opening and a date-time after the cut-off are refused in the page's language", async () => {
+    const { formFieldProblems } = await import("./formValidation");
+    const form = formOf('<input id="finish" type="date" min="2026-11-10" value="2026-11-01" /><input id="opens" type="time" min="08:00" value="07:30" /><input id="cut" type="datetime-local" max="2026-11-10T17:00" value="2026-11-10T18:00" /><input id="ok" type="date" min="2026-11-10" max="2026-12-31" value="2026-11-10" />');
+    const problems = formFieldProblems(form, "ur");
+    expect(problems.map(problem => problem.element.id)).toEqual(["finish", "opens", "cut"]);
+    for (const problem of problems) expect(problem.message).toBe(getProjectError("PROJECT_OS_FIELD_OUT_OF_RANGE").messages.ur);
+  });
+  it("an empty optional date is not judged by its bounds", async () => {
+    const { formFieldProblems } = await import("./formValidation");
+    expect(formFieldProblems(formOf('<input id="d" type="date" min="2026-11-10" value="" />'), "en")).toEqual([]);
+  });
+});

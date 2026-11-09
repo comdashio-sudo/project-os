@@ -62,3 +62,19 @@ describe("ProjectWorkforce assignment form checks itself in the page's language 
     state.isArabic = false;
   });
 });
+
+describe("ProjectWorkforce assignment window (D-64 review: min under noValidate)", () => {
+  it("an assignment that ends before it starts is refused under the finish field, and nothing is sent", () => {
+    cleanup(); state.isArabic = false; state.createAssignment.mockReset();
+    render(<ProjectWorkforce tenantId="tenant-1" projectId="project-1" />);
+    const start = screen.getByLabelText("Assignment start") as HTMLInputElement;
+    const finish = screen.getByLabelText("Assignment finish") as HTMLInputElement;
+    fireEvent.change(start, { target: { value: "2026-11-10" } });
+    fireEvent.change(finish, { target: { value: "2026-11-01" } });
+    fireEvent.submit(finish.form!);
+    expect(state.createAssignment).not.toHaveBeenCalled();
+    expect(finish.getAttribute("aria-invalid")).toBe("true");
+    const note = document.getElementById(finish.getAttribute("aria-describedby")!.split(" ").find(id => id.endsWith("-checked-error"))!);
+    expect(note?.textContent).toBe("The value is outside the allowed range.");
+  });
+});
