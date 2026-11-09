@@ -237,7 +237,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     await expect(callerFor(userId, ids.plain, "user", false, fresh).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
     // NEGATIVE: off with a wrong code is refused and he stays held
     const later = Date.now() + 60_000;
-    await expect(callerFor(userId, ids.plain, "user", true, sid).mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ message: "PROJECT_OS_MFA_CODE_INVALID" });
+    const verifiedSelf = callerFor(userId, ids.plain, "user", true, sid);
+    await expect(verifiedSelf.mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ message: "PROJECT_OS_MFA_CODE_INVALID" });
     expect(await isMfaRequired({ id: userId, role: "user" })).toBe(true);
     await owner.query("UPDATE user_mfa SET failures = 0, lockedUntil = NULL WHERE userId = ?", [userId]);
     // off with a current code: the first factor alone again, the authenticator is kept
@@ -250,7 +251,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
 
   it("NEGATIVE: a member cannot switch it off for himself while his company requires it", async () => {
     const person = company.people.site as Person;
-    await expect(asPerson(person, true).mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ code: "CONFLICT", message: "PROJECT_OS_MFA_REQUIRED_BY_COMPANY" });
+    const member = asPerson(person, true);
+    await expect(member.mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ code: "CONFLICT", message: "PROJECT_OS_MFA_REQUIRED_BY_COMPANY" });
     expect(await isMfaRequired({ id: person.id, role: "user" })).toBe(true);
   });
 
