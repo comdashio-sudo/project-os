@@ -115,6 +115,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ?", [tenantId])).toBe(5);
   });
 
+  it("five copies or five saves of the same day at the same moment: one report, the others get «a report for this day exists», never a server error; no gap in the numbers", async () => {
+    const copies = await Promise.all(Array.from({ length: 5 }, () => code(callers.engineer2.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-04" }))));
+    expect(copies.filter(result => result === "no error")).toHaveLength(1);
+    expect(copies.filter(result => result === "PROJECT_OS_SITE_REPORT_EXISTS")).toHaveLength(4);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-11-04'", [tenantId, ids.engineer2])).toBe(1);
+    const saves = await Promise.all(Array.from({ length: 5 }, (_v, i) => code(callers.engineer2.siteReports.save({ ...at(), reportDate: "2026-10-25", workHours: i + 1, lines: [], labour: [labour()[0]] }))));
+    expect(saves.every(result => result === "no error" || result === "PROJECT_OS_SITE_REPORT_EXISTS"), saves.join(", ")).toBe(true);
+    expect(saves).toContain("no error");
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-10-25'", [tenantId, ids.engineer2])).toBe(1);
+    // the losers' counter bumps were rolled back with them: the counter equals the number of numbered reports, and the numbers run 1..n without a hole
+    const numbered = await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND projectId = ? AND reportNumber IS NOT NULL", [tenantId, A]);
+    expect(await count("SELECT lastNumber AS n FROM project_report_counters WHERE tenantId = ? AND projectId = ? AND kind = 'daily'", [tenantId, A])).toBe(numbered);
+    expect(await count("SELECT MAX(SUBSTRING(reportNumber FROM 5)::int) AS n FROM site_daily_reports WHERE tenantId = ? AND projectId = ?", [tenantId, A])).toBe(numbered);
+  });
+
   it("refused, with nothing written: a future date, a villa that does not exist, a role of another project, a labour cell twice, and a reader without field permission", async () => {
     const tomorrow = new Date(Date.parse(`${siteToday()}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     const reports = await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ?", [tenantId]);
