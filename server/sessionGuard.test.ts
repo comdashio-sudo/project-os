@@ -26,6 +26,8 @@ const OPEN_ROUTES: Record<string, string> = {
   "/api/auth/email/verify": "exchanges the code for a session; attempt-limited per address",
   "/api/auth/google/start": "starts the optional Google sign-in",
   "/api/auth/google/callback": "completes the optional Google sign-in (state-checked)",
+  "/api/storage/file/:token": "D-79: a file from the database storage by a link this server signed (15 minutes, one key) for a caller that passed its checks — as an S3 presigned URL",
+  "/api/storage/upload/:token": "D-79: a direct upload into the database storage by a link this server signed (15 minutes, one key of one company), within the 5 MB and company limits",
   "/openapi.json": "the integration API's public description, under /api/v1",
 };
 const SESSION_ROUTES = ["/api/tenant-export/:tenantId"]; // authenticate with the session cookie themselves (and the second-step gate)

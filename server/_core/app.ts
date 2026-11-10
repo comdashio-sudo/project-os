@@ -6,6 +6,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { appRouter } from "../routers";
 import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 import { tenantExportHandler } from "../tenantExportRoute";
+import { registerDatabaseStorageRoutes } from "../dbStorage";
 import { scheduledDailyHandler } from "../scheduledDaily";
 import { scheduledImportJobsHandler } from "../scheduledImportJobs";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
@@ -78,6 +79,7 @@ export function createApp(options: AppOptions) {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   (options.registerAuth ?? registerDefaultAuthRoutes)(app);
   app.get("/api/tenant-export/:tenantId", tenantExportHandler);
+  registerDatabaseStorageRoutes(app); // D-79: signed links into the database storage (answer 403 to any token this server did not sign)
   // Scheduled jobs: Vercel Cron calls with GET and `Authorization: Bearer $CRON_SECRET`; an operator (or any other scheduler) may POST the same header.
   // Each handler refuses anything without the secret, and with CRON_SECRET unset it refuses everything.
   for (const [path, reason, handler] of [

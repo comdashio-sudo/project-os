@@ -516,6 +516,27 @@ export const projectErrorMessages = {
     en: "Postponing is for the platform owner only.",
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
+  // D-79: storage inside the database
+  PROJECT_OS_STORAGE_FILE_TOO_LARGE: {
+    ar: "الملف أكبر من 5 ميغابايت، وهو الحد الحالي للتخزين. صغّر الملف أو قسّمه ثم أعد الرفع.",
+    en: "The file is larger than 5 MB, the current storage limit. Make it smaller or split it, then upload again.",
+    ur: "فائل 5 میگابائٹ سے بڑی ہے، جو موجودہ اسٹوریج کی حد ہے۔ فائل چھوٹی کریں یا تقسیم کریں، پھر دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_STORAGE_QUOTA_EXCEEDED: {
+    ar: "امتلأت مساحة ملفات الشركة (100 ميغابايت). احذف ملفات لم تعد تلزم، أو اطلب من مالك المنصة تفعيل التخزين الخارجي.",
+    en: "The company's file space is full (100 MB). Remove files you no longer need, or ask the platform owner to switch on external storage.",
+    ur: "کمپنی کی فائلوں کی جگہ بھر گئی ہے (100 میگابائٹ)۔ غیر ضروری فائلیں حذف کریں، یا پلیٹ فارم کے مالک سے بیرونی اسٹوریج فعال کرنے کو کہیں۔",
+  },
+  PROJECT_OS_STORAGE_NOT_FOUND: {
+    ar: "الملف غير موجود: ربما حُذف. افتح الصفحة من جديد.",
+    en: "The file is not there: it may have been removed. Open the page again.",
+    ur: "فائل موجود نہیں: شاید حذف ہو گئی ہو۔ صفحہ دوبارہ کھولیں۔",
+  },
+  PROJECT_OS_STORAGE_LINK_INVALID: {
+    ar: "رابط الملف غير صالح أو انتهت مدته. افتح الصفحة من جديد.",
+    en: "The file link is invalid or has expired. Open the page again.",
+    ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",

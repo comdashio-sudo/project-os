@@ -1,4 +1,4 @@
-// Object storage on Supabase Storage through its S3-compatible API.
+// Object storage on Supabase Storage through its S3-compatible API — or, while the S3 variables are absent, inside the database (D-79, see storageMode).
 //
 // Files are stored by key; the database keeps the key, never a URL. A download
 // is a short-lived signed URL minted for a caller that already passed the
@@ -7,6 +7,8 @@ import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 import { ENV } from "./_core/env";
+import { logWarn } from "./_core/logger";
+import { createDatabaseStorage } from "./dbStorage";
 
 export const SIGNED_URL_TTL_SECONDS = 900;
 /** The largest file a user may upload for import. It travels straight from the browser to Storage (not through a function, whose request body stops at 4.5 MB). */
@@ -157,8 +159,21 @@ export function createS3Storage(configuration: StorageConfiguration = storageCon
   });
 }
 
+/**
+ * D-79: S3 when all five S3 variables are set; otherwise the files live in the database (server/dbStorage.ts), with the same functions below — so the product
+ * works with no new variable, and setting the S3 ones later moves new files there. Which one, and what is missing, is said once in the log (names, never values).
+ */
+export type StorageMode = "s3" | "database";
+export function storageMode(env: Parameters<typeof storageConfiguration>[0] = ENV): StorageMode {
+  try { storageConfiguration(env); return "s3"; } catch { return "database"; }
+}
 let defaultStorage: ReturnType<typeof createS3Storage> | null = null;
-const storage = () => (defaultStorage ??= createS3Storage());
+const storage = () => {
+  if (defaultStorage) return defaultStorage;
+  if (storageMode() === "s3") return (defaultStorage = createS3Storage());
+  try { storageConfiguration(); } catch (error) { logWarn("storage.database_mode", { reason: (error as Error).message }); }
+  return (defaultStorage = createDatabaseStorage());
+};
 
 export const storagePut = (relKey: string, data: StorageBody, contentType?: string) => storage().storagePut(relKey, data, contentType);
 export const storageGet = (relKey: string) => storage().storageGet(relKey);
