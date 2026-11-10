@@ -24,6 +24,7 @@ import { PortfolioProfitability } from "./PortfolioProfitability";
 import { enumLabel } from "@/lib/labels";
 import { WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
+import { CheckedForm } from "@/components/CheckedForm";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
 
@@ -371,7 +372,7 @@ export default function ExecutiveDashboard() {
             {!data.projects.length && (
               <p className="mb-4 text-sm text-amber-700">{t.noProjects}</p>
             )}
-            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "آپ کے پاس انتظامی فیصلے درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔" }}><form className="grid gap-4" onSubmit={submit}>
+            <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "آپ کے پاس انتظامی فیصلے درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔" }}><CheckedForm className="grid gap-4" onSubmit={submit}>
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}
@@ -434,7 +435,7 @@ export default function ExecutiveDashboard() {
                   <p className="mt-3 text-sm text-emerald-700">{t.success}</p>
                 )}
               </div>
-            </form></WriteGate>
+            </CheckedForm></WriteGate>
           </CardContent>
         </Card>
         </details>

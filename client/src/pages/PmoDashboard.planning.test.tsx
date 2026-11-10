@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false }));
 
@@ -117,5 +118,14 @@ describe("PmoDashboard planning control center", () => {
     expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
     consoleError.mockRestore();
+  });
+});
+
+describe("PmoDashboard checks its forms in the page's language (D-65)", () => {
+  it("its forms stop an empty submit and say so in English under the first field", () => {
+    render(<PmoDashboard />);
+    const forms = Array.from(document.querySelectorAll<HTMLFormElement>("form")).filter(node => node.querySelector("[required]"));
+    expect(forms.length).toBeGreaterThan(0);
+    expectEmptySubmitRefused(forms[0], "en", vi.fn());
   });
 });
