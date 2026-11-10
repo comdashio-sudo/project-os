@@ -57,6 +57,8 @@ function clearField(element: Field) {
   const rest = (element.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(token => token && token !== errorId);
   if (rest.length) element.setAttribute("aria-describedby", rest.join(" ")); else element.removeAttribute("aria-describedby");
   element.ownerDocument.getElementById(errorId)?.remove();
+  const spanned = element.ownerDocument.querySelector<HTMLElement>(`[data-checked-span="${errorId}"]`);
+  if (spanned) { spanned.style.gridColumn = ""; spanned.removeAttribute("data-checked-span"); }
 }
 
 /** Marks a field and writes its message right under it. */
@@ -81,9 +83,15 @@ function markField(element: Field, message: string) {
     if (row && view && !row.matches("form") && row.closest("form")) {
       const style = view.getComputedStyle(row);
       const rowOfFlex = style.display.includes("flex") && style.flexDirection.startsWith("row") && style.flexWrap === "nowrap";
-      // a small grid of a value and its unit (not the form's own layout grid, which is the form itself or holds whole fields)
-      const rowOfGrid = style.display.includes("grid") && style.gridTemplateColumns.trim().split(/\s+/).length > 1 && row.children.length <= 3;
-      if (rowOfFlex || rowOfGrid) anchor = row;
+      if (rowOfFlex) anchor = row;
+    }
+    // In a grid of several columns the field and its message would be two cells: the message would land in the next column, or a row
+    // apart from its field. While it is wrong, the field and its message each take the whole row instead, one under the other.
+    const cell = anchor.parentElement;
+    if (cell && view && view.getComputedStyle(cell).display.includes("grid") && view.getComputedStyle(cell).gridTemplateColumns.trim().split(/\s+/).length > 1) {
+      (anchor as HTMLElement).style.gridColumn = "1 / -1";
+      (anchor as HTMLElement).setAttribute("data-checked-span", errorId);
+      note.style.gridColumn = "1 / -1";
     }
     anchor.insertAdjacentElement("afterend", note);
   }

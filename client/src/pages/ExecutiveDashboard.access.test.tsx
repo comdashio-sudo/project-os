@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ExecutiveDashboard from "./ExecutiveDashboard";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({
   error: { message: "forbidden" } as unknown,
@@ -107,5 +108,17 @@ describe("ExecutiveDashboard access", () => {
     expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
     expect(screen.getByText("Approve recovery")).toBeTruthy();
     consoleError.mockRestore();
+  });
+});
+
+describe("ExecutiveDashboard checks its forms in the page's language (D-65)", () => {
+  it("its forms stop an empty submit and say so in English under the first field", () => {
+    cleanup();
+    state.error = null;
+    state.data = { totals: { budget: 100, actual: 60, forecast: 90 }, projects: [{ id: "project-1", code: "EX-01", name: "Executive evidence", status: "active", health: { status: "green" }, forecastCost: 90, remainingBudget: 40, totalExposure: 0 }], decisions: [] };
+    render(<ExecutiveDashboard />);
+    const forms = Array.from(document.querySelectorAll<HTMLFormElement>("form")).filter(node => node.querySelector("[required]"));
+    expect(forms.length).toBeGreaterThan(0);
+    expectEmptySubmitRefused(forms[0], "en", vi.fn());
   });
 });

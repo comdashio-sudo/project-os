@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectFieldReports } from "./ProjectFieldReports";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -37,5 +38,13 @@ describe("ProjectFieldReports", () => {
     expect(screen.getByLabelText("رقم التقرير")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تحديث الحالة: مرسل" })).toBeTruthy();
     state.arabic = false;
+  });
+});
+
+describe("ProjectFieldReports checks its forms in the page's language (D-65)", () => {
+  it("an empty field report records nothing and says so in English under its first field", () => {
+    cleanup(); state.arabic = false; state.create.mockReset();
+    render(<ProjectFieldReports tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "en", state.create);
   });
 });
