@@ -1,0 +1,1 @@
+D-46 part 2: sections 5-8 of the daily report. The before is d-46/part-1/067707b (sections locked). after-report-*: new report; -filled: a saved draft opened with materials, HSE, obstacles and tomorrow; -materials: section 5 in the viewport. Mocked tRPC replies, no server or database.

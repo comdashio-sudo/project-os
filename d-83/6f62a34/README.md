@@ -1,0 +1,1 @@
+D-83 sign-in with two methods. before-* = main 5fe9e8b (code only); after-* = 6f62a34: login-code (default tab), login-password-error (wrong pair beside the password field), forgot-weak (code + new password, short password refused). 390 and 1280, ar/en/ur, mocked /api/auth replies, no server or database.
