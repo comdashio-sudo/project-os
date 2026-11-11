@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { ProjectTenders } from "./ProjectTenders";
 import { buildTableWorkbook } from "@/lib/excelExport";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
+import { TYPING_TEST } from "@/test/typing";
 
 vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
@@ -30,7 +32,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { tenders: {
   createPackage: hoisted.mutation("createPackage"), invite: hoisted.mutation("invite"), transitionPackage: hoisted.mutation("transitionPackage"), enterBid: hoisted.mutation("enterBid"), withdrawBid: hoisted.mutation("withdrawBid"), disqualifyBid: hoisted.mutation("disqualifyBid"), addAdjustment: hoisted.mutation("addAdjustment"), removeAdjustment: hoisted.mutation("removeAdjustment"), award: hoisted.mutation("award"),
 } } }));
 
-describe("ProjectTenders", () => {
+describe("ProjectTenders", TYPING_TEST, () => {
   beforeEach(() => { state.arabic = true; state.calls = {}; state.packageStatus = "closed"; state.comparable = 3; }); afterEach(cleanup);
   const openPackage = async () => { const user = userEvent.setup(); render(<ProjectTenders tenantId="t1" projectId="p1" />); await user.click(screen.getByRole("button", { name: "فتح الحزمة" })); return user; };
 
@@ -92,7 +94,7 @@ describe("ProjectTenders", () => {
   });
 });
 
-describe("ProjectTenders Excel export", () => {
+describe("ProjectTenders Excel export", EXPORT_TEST, () => {
   let anchorClick: MockInstance;
   beforeEach(() => {
     state.arabic = true; state.calls = {}; state.packageStatus = "closed"; state.comparable = 3;
@@ -107,10 +109,10 @@ describe("ProjectTenders Excel export", () => {
     await openPackage();
     const table = screen.getByRole("table");
     fireEvent.click(within(table.closest("section") as HTMLElement).getByRole("button", { name: "تصدير إلى Excel" }));
-    await waitFor(() => expect(buildTableWorkbook).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(buildTableWorkbook).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     // The writer (exceljs, then jszip) keeps working after it has been CALLED. A test that returns here lets jsdom be torn down under it, and the late
     // `Cannot read properties of undefined (reading 'nodebuffer')` is reported as an unhandled rejection that fails the whole run. Wait for the download.
-    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     return { table, input: vi.mocked(buildTableWorkbook).mock.calls[0]![0] };
   };
 

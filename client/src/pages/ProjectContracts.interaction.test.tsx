@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectContracts } from "./ProjectContracts";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ contractError: null as unknown, commitmentError: null as unknown, contractMutate: vi.fn(), commitmentMutate: vi.fn() }));
 
@@ -21,7 +22,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-describe("ProjectContracts failed-submission retention", () => {
+describe("ProjectContracts failed-submission retention", TYPING_TEST, () => {
   beforeEach(() => { cleanup(); state.contractError = null; state.commitmentError = null; state.contractMutate.mockReset(); state.commitmentMutate.mockReset(); });
 
   it("keeps contract fields visible after a failed contract submission", async () => {
@@ -78,7 +79,7 @@ describe("ProjectContracts failed-submission retention", () => {
   });
 });
 
-describe("ProjectContracts forms check themselves in the page's language (D-63)", () => {
+describe("ProjectContracts forms check themselves in the page's language (D-63)", TYPING_TEST, () => {
   it("an empty contract records nothing and says so in English under its first field", () => {
     cleanup(); state.contractMutate.mockReset();
     render(<ProjectContracts tenantId="tenant-1" projectId="project-1" />);
