@@ -71,6 +71,7 @@
 | `STORAGE_S3_ENDPOINT` · `STORAGE_S3_REGION` | ← **Project Settings ← Storage ← S3 Connection** ← **Endpoint** و**Region** | Vercel |
 | `STORAGE_S3_ACCESS_KEY_ID` · `STORAGE_S3_SECRET_ACCESS_KEY` | نفس الصفحة ← **New access key** ← انسخ **Access key ID** و**Secret access key** (السر يظهر مرة واحدة) | Vercel |
 | `STORAGE_BUCKET` | القيمة الثابتة `project-os-files` (ينشئها زر `storage`) | Vercel |
+| `STORAGE_MODE` | اختياري: `database` يُبقي الملفات في قاعدة البيانات صراحةً (D-79). بلا متغيرات S3 الخمسة كلها يُستعمل وضع القاعدة تلقائيًا، وضبط بعضها فقط يُرفض باسم الناقص | Vercel |
 | `JWT_SECRET` | تُولِّده (48 حرفًا) | Vercel |
 | `CRON_SECRET` | تُولِّده (32 حرفًا فأكثر)؛ Vercel يرسله بنفسه مع المهمة المجدولة | Vercel |
 | `INTEGRATION_SECRET_KEY` | تُولِّده (48 حرفًا) | Vercel — يختم أسرار Webhooks وكلمات مرور الربط بأنظمة الشركة؛ إن تغيّر أُدخلت كلمات الربط من جديد (لا شيء آخر يتأثر). بدونه يُستعمل `JWT_SECRET` |
