@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SiteDailyReport from "./SiteDailyReport";
 
 const h = vi.hoisted(() => ({
-  language: "en" as "ar" | "en" | "ur", canWrite: true, canReview: true,
+  language: "en" as "ar" | "en" | "ur", submittalsError: null as unknown, canWrite: true, canReview: true,
   save: vi.fn(), submit: vi.fn(), review: vi.fn(), attach: vi.fn(), upload: vi.fn(), seed: vi.fn(),
   roles: [] as Array<{ id: string; name: string; category: string; active: boolean }>, rolesError: null as unknown, machines: [] as Array<{ id: string; equipmentType: string; model: string | null; plateOrSize: string | null; active: boolean }>,
   reports: [] as Array<{ id: string; reportDate: string; status: string; weather: string | null }>,
@@ -35,7 +35,7 @@ vi.mock("@/lib/trpc", () => {
       equipment: { list: { useQuery: () => ({ data: h.machines, isLoading: false, error: null, refetch: vi.fn() }) } },
     },
     useUtils: () => ({ siteReports: { list: { invalidate: vi.fn() }, get: { fetch: async () => h.detail } } }),
-    submittals: { list: { useQuery: (input: { submittalType?: string }) => ({ data: input.submittalType === "material_approval" ? [{ id: "00000000-0000-4000-8000-0000000000aa", submittalNumber: "MA-007", title: "Blocks" }] : [], isLoading: false, error: null }) } },
+    submittals: { list: { useQuery: (input: { submittalType?: string }) => (h.submittalsError ? { data: undefined, isLoading: false, error: h.submittalsError, isError: true, status: "error", refetch: vi.fn() } : { data: input.submittalType === "material_approval" ? [{ id: "00000000-0000-4000-8000-0000000000aa", submittalNumber: "MA-007", title: "Blocks" }] : [], isLoading: false, error: null, refetch: vi.fn() }) } },
     siteReports: {
       options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) },
       list: { useQuery: () => ({ data: h.reports, isLoading: false, error: null, refetch: vi.fn() }) },
@@ -45,7 +45,7 @@ vi.mock("@/lib/trpc", () => {
   } };
 });
 
-beforeEach(() => { h.language = "en"; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
+beforeEach(() => { h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
   h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
   h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }, { id: "e-old", equipmentType: "Crane", model: "C-9", plateOrSize: "50 t", active: false }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
@@ -264,6 +264,14 @@ describe("SiteDailyReport — materials, HSE, obstacles and tomorrow (D-46, part
     expect(sent.hse).toEqual([{ kind: "near_miss", description: "Unsecured ladder", peopleCount: 2, actionTaken: "Ladder tied off" }]);
     expect(sent.obstacleItems).toEqual([{ issue: "Water supply cut", impact: undefined, responsible: "Utilities", action: undefined, dueDate: "2026-11-10" }]);
     expect(sent.tomorrow).toEqual([{ area: undefined, activity: "Plaster block B1", quantity: 40, unit: "m2", resources: undefined }]);
+  });
+
+  it("a list of approvals that failed to load says so in section 5; a material can still be recorded with no approval", () => {
+    h.submittalsError = { message: "boom" };
+    render(<SiteDailyReport />);
+    expect(part(5).getByRole("alert", { name: "Consultant approval" }).textContent).toContain("Could not load: Consultant approval");
+    fireEvent.click(part(5).getByText("Add material"));
+    expect(Array.from(document.querySelector<HTMLSelectElement>('[data-report-section="5"] [data-section-row] select')!.options).map(option => option.textContent)).toEqual(["No approval"]);
   });
 
   it("a removed row is not sent, and an empty section is sent as an empty list (the server replaces each list whole)", () => {

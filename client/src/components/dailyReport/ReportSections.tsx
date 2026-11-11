@@ -62,7 +62,7 @@ export function sectionsFrom(full: { materials?: Stored[]; hse?: Stored[]; obsta
 
 const text = {
   ar: {
-    material: "المادة", quantity: "الكمية", unit: "الوحدة", supplier: "المورّد", approval: "اعتماد الاستشاري", noApproval: "بلا اعتماد", addMaterial: "أضف مادة",
+    material: "المادة", quantity: "الكمية", unit: "الوحدة", supplier: "المورد", approval: "اعتماد الاستشاري", noApproval: "بلا اعتماد", addMaterial: "أضف مادة",
     kind: "النوع", description: "الوصف", people: "عدد الأشخاص", actionTaken: "الإجراء المتخذ", addHse: "أضف حدث سلامة",
     kinds: { meeting: "اجتماع توعية", incident: "حادث", near_miss: "حادث وشيك", violation: "مخالفة", corrective_action: "إجراء تصحيحي" },
     issue: "العائق", impact: "الأثر", responsible: "المسؤول", action: "الإجراء", dueDate: "تاريخ الاستحقاق", addObstacle: "أضف عائقًا", freeText: "ملاحظات عامة",

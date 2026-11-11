@@ -96,7 +96,7 @@ export default function SiteDailyReport() {
   // D-44 (a), #233: the labour roles and the equipment the report chooses from (active ones only); the project manager can seed the default roles
   const roles = trpc.projects.labourRoles.list.useQuery(scope, { enabled });
   const machines = trpc.projects.equipment.list.useQuery(scope, { enabled });
-  // the consultant's material approvals a received material may name (optional; a list that fails leaves the choice at «no approval»)
+  // the consultant's material approvals a received material may name (optional; a list that fails says so in section 5 and leaves the choice at «no approval»)
   const submittals = trpc.submittals.list.useQuery({ ...scope, submittalType: "material_approval" }, { enabled });
   const seedRoles = trpc.projects.labourRoles.seedDefaults.useMutation({ onSuccess: () => { setMessage(t.seeded); void roles.refetch(); } });
 
@@ -265,6 +265,8 @@ export default function SiteDailyReport() {
             <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
             <ReportSection number={4} title={t.inspections} defaultOpen={false}><LockedNote /></ReportSection>
             <ReportSection number={5} title={t.materials} summary={t.lineCount(sections.materials.length)}>
+              {/* a list of approvals that failed to load says so; the choice stays at «no approval» meanwhile */}
+              <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
               <MaterialsSection title={t.materials} rows={sections.materials} onChange={put("materials")} locked={locked} submittals={submittals.data ?? []} />
             </ReportSection>
             <ReportSection number={6} title={t.hse} summary={hseSummary(sections.hse, sectionText) || t.lineCount(0)}><HseSection title={t.hse} rows={sections.hse} onChange={put("hse")} locked={locked} /></ReportSection>
