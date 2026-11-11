@@ -53,6 +53,7 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/accessGrants.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/projectProfile.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/projectApprovers.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/pmcEditor.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/projectReferenceLists.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/smartTracker.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/equipmentImport.database.test.ts", import.meta.url), "utf8"),

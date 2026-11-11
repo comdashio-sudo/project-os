@@ -1876,6 +1876,36 @@ export const projectErrorMessages = {
     en: "The status factors are invalid: they must not decrease as the status advances and must be between 0 and 1.",
     ur: "حیثیت کے عوامل درست نہیں: حیثیت آگے بڑھنے کے ساتھ کم نہیں ہو سکتے اور 0 اور 1 کے درمیان ہونے چاہئیں۔",
   },
+  PROJECT_OS_PMC_BLOCK_NOT_FOUND: {
+    ar: "البلوك غير موجود في هذا المشروع.",
+    en: "The block was not found in this project.",
+    ur: "یہ بلاک اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_PMC_MODEL_NOT_FOUND: {
+    ar: "النموذج غير موجود: لا أنشطة معرّفة له في هذا المشروع.",
+    en: "The model was not found: no activities are defined for it in this project.",
+    ur: "ماڈل نہیں ملا: اس پروجیکٹ میں اس کی کوئی سرگرمی متعین نہیں۔",
+  },
+  PROJECT_OS_PMC_UNIT_RANGE_INVALID: {
+    ar: "نطاق الوحدات غير صالح: يجب أن يبدأ من 1 فأكثر، وألا تكون نهايته قبل بدايته، وألا يتجاوز 500 وحدة في المرة.",
+    en: "The unit range is invalid: it must start at 1 or more, not end before it starts, and cover at most 500 units at a time.",
+    ur: "یونٹس کی حد درست نہیں: یہ 1 یا اس سے زیادہ سے شروع ہو، شروع سے پہلے ختم نہ ہو، اور ایک بار میں زیادہ سے زیادہ 500 یونٹس ہوں۔",
+  },
+  PROJECT_OS_PMC_UNITS_EXIST: {
+    ar: "بعض أرقام هذا النطاق موجودة في المشروع؛ لم تُنشأ أي وحدة. اختر نطاقًا لا يتداخل معها.",
+    en: "Some numbers in this range already exist in the project; no unit was created. Choose a range that does not overlap them.",
+    ur: "اس حد کے کچھ نمبر پروجیکٹ میں پہلے سے موجود ہیں؛ کوئی یونٹ نہیں بنا۔ ایسی حد منتخب کریں جو ان سے نہ ٹکرائے۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_INCOMPLETE: {
+    ar: "يجب إرسال وزن كل نشاط من أنشطة النموذج، ولا شيء من غيره.",
+    en: "Send a weight for every activity of the model, and nothing else.",
+    ur: "ماڈل کی ہر سرگرمی کا وزن بھیجیں، اور اس کے سوا کچھ نہیں۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_NOT_100: {
+    ar: "مجموع أوزان أنشطة النموذج يجب أن يكون 100% تمامًا؛ لم يُحفظ شيء.",
+    en: "The model's activity weights must total exactly 100%; nothing was saved.",
+    ur: "ماڈل کی سرگرمیوں کے وزن کا مجموعہ ٹھیک 100% ہونا چاہیے؛ کچھ محفوظ نہیں ہوا۔",
+  },
   PROJECT_OS_PMC_UNIT_NOT_FOUND: {
     ar: "الوحدة غير موجودة.",
     en: "The unit was not found.",
