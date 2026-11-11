@@ -1,5 +1,5 @@
 {
-  "id": "73cd57d4-d49a-4946-8913-7f6f8f3833a5",
+  "id": "d3204e62-a69e-4423-8c76-4c1fdaeb1929",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3436,7 +3436,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "consultant_submittals_id_tenant_project_unique": {
+          "name": "consultant_submittals_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -20325,7 +20335,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "project_equipment_id_tenant_project_unique": {
+          "name": "project_equipment_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -20640,7 +20660,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "project_labour_roles_id_tenant_project_unique": {
+          "name": "project_labour_roles_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "project_labour_roles_category_check": {
@@ -21195,6 +21225,123 @@
         "project_report_approvers_step_check": {
           "name": "project_report_approvers_step_check",
           "value": "\"project_report_approvers\".\"step\" IN ('prepare', 'review', 'approve')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_report_counters": {
+      "name": "project_report_counters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_number": {
+          "name": "last_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_report_counters_project_kind_unique": {
+          "name": "project_report_counters_project_kind_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_report_counters_tenant_id_companies_id_fk": {
+          "name": "project_report_counters_tenant_id_companies_id_fk",
+          "tableFrom": "project_report_counters",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_report_counters_project_id_projects_id_fk": {
+          "name": "project_report_counters_project_id_projects_id_fk",
+          "tableFrom": "project_report_counters",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_report_counters_kind_check": {
+          "name": "project_report_counters_kind_check",
+          "value": "\"project_report_counters\".\"kind\" IN ('daily')"
         }
       },
       "isRLSEnabled": false
@@ -23584,6 +23731,527 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.site_daily_report_equipment": {
+      "name": "site_daily_report_equipment",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "equipment_id": {
+          "name": "equipment_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hours": {
+          "name": "hours",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "site_daily_report_equipment_item_unique": {
+          "name": "site_daily_report_equipment_item_unique",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "equipment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "site_daily_report_equipment_tenant_project_idx": {
+          "name": "site_daily_report_equipment_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_equipment_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_equipment_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_equipment",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_equipment_project_id_projects_id_fk": {
+          "name": "site_daily_report_equipment_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_equipment",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_equipment_report_fk": {
+          "name": "site_daily_report_equipment_report_fk",
+          "tableFrom": "site_daily_report_equipment",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_equipment_item_fk": {
+          "name": "site_daily_report_equipment_item_fk",
+          "tableFrom": "site_daily_report_equipment",
+          "tableTo": "project_equipment",
+          "columnsFrom": [
+            "equipment_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_equipment_values_check": {
+          "name": "site_daily_report_equipment_values_check",
+          "value": "\"site_daily_report_equipment\".\"count\" > 0 AND (\"site_daily_report_equipment\".\"hours\" IS NULL OR (\"site_daily_report_equipment\".\"hours\" >= 0 AND \"site_daily_report_equipment\".\"hours\" <= 24))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_daily_report_hse": {
+      "name": "site_daily_report_hse",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "people_count": {
+          "name": "people_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_taken": {
+          "name": "action_taken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "site_daily_report_hse_report_idx": {
+          "name": "site_daily_report_hse_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_hse_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_hse_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_hse",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_hse_project_id_projects_id_fk": {
+          "name": "site_daily_report_hse_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_hse",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_hse_report_fk": {
+          "name": "site_daily_report_hse_report_fk",
+          "tableFrom": "site_daily_report_hse",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_hse_kind_check": {
+          "name": "site_daily_report_hse_kind_check",
+          "value": "\"site_daily_report_hse\".\"kind\" IN ('meeting', 'incident', 'near_miss', 'violation', 'corrective_action') AND (\"site_daily_report_hse\".\"people_count\" IS NULL OR \"site_daily_report_hse\".\"people_count\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_daily_report_labour": {
+      "name": "site_daily_report_labour",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labour_role_id": {
+          "name": "labour_role_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift": {
+          "name": "shift",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "headcount": {
+          "name": "headcount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "site_daily_report_labour_cell_unique": {
+          "name": "site_daily_report_labour_cell_unique",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "labour_role_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "site_daily_report_labour_tenant_project_idx": {
+          "name": "site_daily_report_labour_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_labour_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_labour_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_labour",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_labour_project_id_projects_id_fk": {
+          "name": "site_daily_report_labour_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_labour",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_labour_report_fk": {
+          "name": "site_daily_report_labour_report_fk",
+          "tableFrom": "site_daily_report_labour",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_labour_company_fk": {
+          "name": "site_daily_report_labour_company_fk",
+          "tableFrom": "site_daily_report_labour",
+          "tableTo": "project_companies",
+          "columnsFrom": [
+            "company_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_labour_role_fk": {
+          "name": "site_daily_report_labour_role_fk",
+          "tableFrom": "site_daily_report_labour",
+          "tableTo": "project_labour_roles",
+          "columnsFrom": [
+            "labour_role_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_labour_shift_check": {
+          "name": "site_daily_report_labour_shift_check",
+          "value": "\"site_daily_report_labour\".\"shift\" IN ('day', 'night')"
+        },
+        "site_daily_report_labour_headcount_check": {
+          "name": "site_daily_report_labour_headcount_check",
+          "value": "\"site_daily_report_labour\".\"headcount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.site_daily_report_lines": {
       "name": "site_daily_report_lines",
       "schema": "",
@@ -23665,6 +24333,18 @@
           "name": "reported_status",
           "type": "pmc_unit_activity_progress_status",
           "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "planned_quantity": {
+          "name": "planned_quantity",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actual_quantity": {
+          "name": "actual_quantity",
+          "type": "numeric(14, 3)",
           "primaryKey": false,
           "notNull": false
         },
@@ -23757,6 +24437,315 @@
           ],
           "columnsTo": [
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_lines_quantities_check": {
+          "name": "site_daily_report_lines_quantities_check",
+          "value": "(\"site_daily_report_lines\".\"planned_quantity\" IS NULL OR \"site_daily_report_lines\".\"planned_quantity\" >= 0) AND (\"site_daily_report_lines\".\"actual_quantity\" IS NULL OR \"site_daily_report_lines\".\"actual_quantity\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_daily_report_materials": {
+      "name": "site_daily_report_materials",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "material": {
+          "name": "material",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "supplier": {
+          "name": "supplier",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consultant_submittal_id": {
+          "name": "consultant_submittal_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "site_daily_report_materials_report_idx": {
+          "name": "site_daily_report_materials_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_materials_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_materials_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_materials",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_materials_project_id_projects_id_fk": {
+          "name": "site_daily_report_materials_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_materials",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_materials_report_fk": {
+          "name": "site_daily_report_materials_report_fk",
+          "tableFrom": "site_daily_report_materials",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_materials_submittal_fk": {
+          "name": "site_daily_report_materials_submittal_fk",
+          "tableFrom": "site_daily_report_materials",
+          "tableTo": "consultant_submittals",
+          "columnsFrom": [
+            "consultant_submittal_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_materials_quantity_check": {
+          "name": "site_daily_report_materials_quantity_check",
+          "value": "\"site_daily_report_materials\".\"quantity\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_daily_report_obstacles": {
+      "name": "site_daily_report_obstacles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "issue": {
+          "name": "issue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "impact": {
+          "name": "impact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsible": {
+          "name": "responsible",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "site_daily_report_obstacles_report_idx": {
+          "name": "site_daily_report_obstacles_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_obstacles_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_obstacles_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_obstacles",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_obstacles_project_id_projects_id_fk": {
+          "name": "site_daily_report_obstacles_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_obstacles",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_obstacles_report_fk": {
+          "name": "site_daily_report_obstacles_report_fk",
+          "tableFrom": "site_daily_report_obstacles",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -23932,6 +24921,152 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.site_daily_report_tomorrow": {
+      "name": "site_daily_report_tomorrow",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "area": {
+          "name": "area",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activity": {
+          "name": "activity",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit": {
+          "name": "unit",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resources": {
+          "name": "resources",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "site_daily_report_tomorrow_report_idx": {
+          "name": "site_daily_report_tomorrow_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_tomorrow_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_tomorrow_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_tomorrow",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_tomorrow_project_id_projects_id_fk": {
+          "name": "site_daily_report_tomorrow_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_tomorrow",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_tomorrow_report_fk": {
+          "name": "site_daily_report_tomorrow_report_fk",
+          "tableFrom": "site_daily_report_tomorrow",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_tomorrow_quantity_check": {
+          "name": "site_daily_report_tomorrow_quantity_check",
+          "value": "\"site_daily_report_tomorrow\".\"quantity\" IS NULL OR \"site_daily_report_tomorrow\".\"quantity\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.site_daily_reports": {
       "name": "site_daily_reports",
       "schema": "",
@@ -24070,6 +25205,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "report_number": {
+          "name": "report_number",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wind": {
+          "name": "wind",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_hours": {
+          "name": "work_hours",
+          "type": "numeric(4, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -24145,6 +25298,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "site_daily_reports_project_number_unique": {
+          "name": "site_daily_reports_project_number_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "report_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"site_daily_reports\".\"report_number\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -24202,9 +25377,24 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "site_daily_reports_id_tenant_project_unique": {
+          "name": "site_daily_reports_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "site_daily_reports_work_hours_check": {
+          "name": "site_daily_reports_work_hours_check",
+          "value": "\"site_daily_reports\".\"work_hours\" IS NULL OR (\"site_daily_reports\".\"work_hours\" >= 0 AND \"site_daily_reports\".\"work_hours\" <= 24)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.smart_reading_usage": {
