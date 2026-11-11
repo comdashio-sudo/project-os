@@ -19,7 +19,7 @@ const UNIT_B = "a9000000-0000-4000-8000-0000000000b1";
 const DEF_A = "a9000000-0000-4000-8000-0000000000d1";
 const DAY = "2026-11-03";
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-const KEYS = ["owner", "preparer", "engineer2", "reviewer", "approver", "otherManager", "otherOwner"] as const;
+const KEYS = ["owner", "preparer", "engineer2", "reviewer", "readOnlyReviewer", "approver", "otherManager", "otherOwner"] as const;
 const ids = {} as Record<(typeof KEYS)[number], number>;
 const callers = {} as Record<(typeof KEYS)[number], ReturnType<typeof callerFor>>;
 let connection: fixtureDb.Connection;
@@ -55,7 +55,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's inspe
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'DAP-A', 'Approval A', 'villas', 'SAR', 'active'), (?, ?, 'DAP-B', 'Approval B', 'villas', 'SAR', 'active')", [A, tenantId, B, tenantId]);
     const manager = await callers.owner.tenant.createRole({ tenantId, code: "DAP_MANAGER", name: "Project manager", productCode: "PROJECT", permissionCodes: ["project.read", "project.manage"] });
     const field = await callers.owner.tenant.createRole({ tenantId, code: "DAP_FIELD", name: "Site engineer", productCode: "PROJECT", permissionCodes: ["project.field.manage"] });
-    const qc = await callers.owner.tenant.createRole({ tenantId, code: "DAP_QC", name: "QA/QC", productCode: "PROJECT", permissionCodes: ["project.read"] });
+    // the reviewer writes the review step, so holds a write permission on the field; a reader named as reviewer is refused
+    const qc = await callers.owner.tenant.createRole({ tenantId, code: "DAP_QC", name: "QA/QC", productCode: "PROJECT", permissionCodes: ["project.read", "project.field.manage"] });
+    const reader = await callers.owner.tenant.createRole({ tenantId, code: "DAP_READER", name: "Reader", productCode: "PROJECT", permissionCodes: ["project.read"] });
+    await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.readOnlyReviewer, roleId: reader.id, scopeType: "project", scopeId: A });
     for (const key of ["preparer", "engineer2"] as const) await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids[key], roleId: field.id, scopeType: "project", scopeId: A });
     await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.reviewer, roleId: qc.id, scopeType: "project", scopeId: A });
     for (const key of ["approver", "otherManager"] as const) await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids[key], roleId: manager.id, scopeType: "project", scopeId: A });
@@ -118,6 +121,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's inspe
     expect(await callers.reviewer.siteReports.check({ ...at(), reportId, decision: "return", note: "Add the villa number" })).toMatchObject({ status: "rejected" });
     await callers.preparer.siteReports.save({ ...at(), reportDate: DAY, summary: "Day with inspections, villa 1", lines: [{ lineType: "work", pmcUnitId: UNIT_A, pmcActivityDefinitionId: DEF_A, reportedStatus: "IN_PROGRESS", description: "Block work villa 1" }] });
     await callers.preparer.siteReports.submit({ ...at(), reportId });
+    // a reviewer with read access only, named on the step, cannot write it: nothing changes
+    const [members] = await connection.query<{ id: string; userId: number }[]>("SELECT id, userId FROM memberships WHERE tenantId = ?", [tenantId]);
+    const memberOf = (key: (typeof KEYS)[number]) => members.find(row => row.userId === ids[key])!.id;
+    await callers.owner.projects.approvers.set({ ...at(), step: "review", membershipId: memberOf("readOnlyReviewer") });
+    expect(await code(callers.readOnlyReviewer.siteReports.check({ ...at(), reportId, decision: "pass" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE id = ? AND status = 'submitted' AND checkedAt IS NULL", [reportId])).toBe(1);
+    await callers.owner.projects.approvers.set({ ...at(), step: "review", membershipId: memberOf("reviewer") });
     await callers.reviewer.siteReports.check({ ...at(), reportId, decision: "pass", note: "Checked on site" });
     expect(await code(callers.reviewer.siteReports.check({ ...at(), reportId, decision: "pass" }))).toBe("PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
     // the approval by someone with project.manage who does not hold the step, then by the one who does

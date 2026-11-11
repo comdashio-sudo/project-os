@@ -16,6 +16,8 @@ export function createFakeCodeProvider(options: FakeCodeProviderOptions = {}) {
   const open = new Map<string, { code: string; issuedAt: number }>();
   const sentAt = new Map<string, number>();
   const sent: Array<{ to: string; code: string; text: string }> = [];
+  /** D-82: the passwords "GoTrue" holds (a test may seed one for an address the app never invited). */
+  const passwords = new Map<string, string>();
   let unavailable = false;
 
   const provider: CodeProvider = {
@@ -36,8 +38,19 @@ export function createFakeCodeProvider(options: FakeCodeProviderOptions = {}) {
       open.delete(email); // single use
       return { email };
     },
+    async signInWithPassword(email, password) {
+      if (unavailable) throw new EmailCodeError("MAIL_UNAVAILABLE");
+      if (passwords.get(email) !== password) throw new EmailCodeError("CREDENTIALS_INVALID");
+      return { email };
+    },
+    async setPasswordWithCode(email, code, password) {
+      await provider.verifyCode(email, code);
+      if (password.length < 6) throw new EmailCodeError("PASSWORD_WEAK"); // GoTrue's own minimum (weak_password)
+      passwords.set(email, password);
+      return { email };
+    },
   };
-  return { provider, sent, setUnavailable: (value: boolean) => { unavailable = value; } };
+  return { provider, sent, passwords, setUnavailable: (value: boolean) => { unavailable = value; } };
 }
 
 /** The same limiter contract the database-backed one keeps, in memory. */

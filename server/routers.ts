@@ -1,3 +1,4 @@
+import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { getReportPeriod } from "./reportPeriods";
 import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
@@ -72,7 +73,7 @@ import { sdk } from "./_core/sdk";
 import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { beginEnrolment, confirmEnrolment, mfaStatus, verifySecondStep } from "./mfa";
+import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
 const scopeSchema = z.object({
@@ -133,7 +134,10 @@ export const appRouter = router({
   mfa: router({
     status: mfaProcedure.query(({ ctx }) => mfaStatus(ctx.user, ctx.mfaVerified, ctx.mfaDeferralSince ?? null)),
     beginEnrolment: mfaProcedure.mutation(({ ctx }) => beginEnrolment(ctx.user)),
-    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12), enrolmentId: z.string().trim().min(8).max(32).optional() })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code, input.enrolmentId)),
+    // turnOn (D-81): enrolling from the profile switches the second step on for this person
+    confirmEnrolment: mfaProcedure.input(z.object({ code: z.string().trim().min(6).max(12), enrolmentId: z.string().trim().min(8).max(32).optional(), turnOn: z.boolean().optional() })).mutation(({ ctx, input }) => confirmEnrolment(ctx.user, ctx.sessionId ?? "", input.code, input.enrolmentId, undefined, input.turnOn ?? false)),
+    // D-81: the person's own on/off, proved by a current code; off is refused while a company he belongs to requires it. protectedProcedure: a session the gate still holds verifies first.
+    setOwn: protectedProcedure.input(z.object({ on: z.boolean(), code: z.string().trim().min(6).max(16) })).mutation(({ ctx, input }) => setOwnTwoStep(ctx.user, ctx.sessionId ?? "", input.on, input.code)),
     // The platform owner's "Later": seven days, once per browser (server/_core/mfaDeferral.ts). A company administrator has no such button.
     postpone: mfaProcedure.mutation(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED" });
@@ -177,6 +181,11 @@ export const appRouter = router({
     summary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProjectSummaryForTenant({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgress({ userId: ctx.user.id, ...input })),
     setUnitActivityStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid(), status: z.enum(PMC_STATUSES), verificationStatusId: z.string().uuid().nullable().optional(), note: z.string().trim().max(1000).optional() })).mutation(({ ctx, input }) => setPmcUnitActivityStatus({ userId: ctx.user.id, ...input })),
+    // D-80 (work order 21): the PMC table editors (server/pmcEditorService.ts). Read: project.pmc.read; write: project.pmc.manage; the PMC licence feature on both.
+    structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
+    createUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), from: z.number().int().min(1), to: z.number().int().min(1) })).mutation(({ ctx, input }) => createPmcUnits({ userId: ctx.user.id, ...input })),
+    saveActivityWeights: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), weights: z.array(z.object({ activityDefinitionId: z.string().uuid(), weightPercent: z.number().min(0).max(100) })).min(1).max(500) })).mutation(({ ctx, input }) => savePmcActivityWeights({ userId: ctx.user.id, ...input })),
+    statusGrid: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid().optional(), from: z.number().int().min(1).optional(), to: z.number().int().min(1).optional() })).query(({ ctx, input }) => getPmcStatusGrid({ userId: ctx.user.id, ...input })),
     statusFactors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStatusFactors({ userId: ctx.user.id, ...input })),
     setStatusFactors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), factors: z.object({ NOT_STARTED: z.number().min(0).max(1), IN_PROGRESS: z.number().min(0).max(1), UNDER_REVIEW: z.number().min(0).max(1), COMPLETE: z.number().min(0).max(1) }).partial() })).mutation(({ ctx, input }) => setPmcStatusFactors({ userId: ctx.user.id, ...input })),
     verificationStatuses: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listPmcVerificationStatuses({ userId: ctx.user.id, ...input })),
@@ -324,6 +333,9 @@ export const appRouter = router({
   tenant: router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
     administration: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantAdministration({ userId: ctx.user.id, ...input })),
+    // D-81: the company's own choice to require two-step verification of its members (off by default; tenant.manage only)
+    securitySettings: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanySecurity({ userId: ctx.user.id, ...input })),
+    setRequireTwoStep: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), requireTwoStep: z.boolean() })).mutation(({ ctx, input }) => setCompanyRequireTwoStep({ userId: ctx.user.id, ...input })),
     roleTemplateRemovals: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["pending", "approved", "declined"]).optional() })).query(({ ctx, input }) => getRoleTemplateRemovals({ userId: ctx.user.id, ...input })),
     decideRoleTemplateRemovals: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ids: z.array(z.string().uuid()).min(1).max(50), decision: z.enum(["approve", "decline"]) })).mutation(({ ctx, input }) => decideRoleTemplateRemovals({ userId: ctx.user.id, ...input })),
     findAssignableUser: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), email: z.string().trim().email().max(320) })).query(({ ctx, input }) => findAssignableTenantUser({ userId: ctx.user.id, ...input })),

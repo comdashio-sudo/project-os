@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { EosLiabilityCard } from "./EosLiabilityCard";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -51,7 +52,7 @@ const headerTexts = () => Array.from(document.querySelectorAll("thead th")).map(
 const bodyRowCount = () => document.querySelectorAll("tbody tr").length;
 const exportedCall = () => vi.mocked(buildTableWorkbook).mock.calls[0][0];
 
-describe("EosLiabilityCard Excel export", () => {
+describe("EosLiabilityCard Excel export", EXPORT_TEST, () => {
   it("puts the export button in the same card as the month table", () => {
     show();
     expect(card()?.contains(exportButton())).toBe(true);
@@ -63,7 +64,7 @@ describe("EosLiabilityCard Excel export", () => {
     h.arabic = arabic;
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     expect(exportedCall().columns.map(column => column.header)).toEqual(headerTexts());
     expect(exportedCall().rows).toHaveLength(bodyRowCount());
     expect(bodyRowCount()).toBe(2);
@@ -73,7 +74,7 @@ describe("EosLiabilityCard Excel export", () => {
   it("exports the raw amounts and the employee count, and leaves the total row out of the data rows", async () => {
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     const { columns, rows } = exportedCall();
     expect(rows.map(row => columns.map(column => column.value(row)))).toEqual([
       ["2026-11", 500.75, 500.75, 2],

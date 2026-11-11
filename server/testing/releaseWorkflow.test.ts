@@ -11,6 +11,9 @@ const workflowsDir = path.join(root, ".github/workflows");
 const releaseFile = "migrate-production.yml";
 const releaseText = readFileSync(path.join(workflowsDir, releaseFile), "utf8");
 const SCOPE_CONDITION = "steps.scope.outputs.deploy == 'true'";
+// D-85: the CLI deployment (4b) and its check (5) run only when scripts/ci/vercel-access.sh found the token able to use the project
+const CLI_CONDITION = `${SCOPE_CONDITION} && steps.config.outputs.cli == 'true'`;
+const accessScript = readFileSync(path.join(root, "scripts/ci/vercel-access.sh"), "utf8");
 
 type Step = { name: string; text: string };
 
@@ -126,24 +129,28 @@ export function releaseProblems(text: string, otherWorkflows: Record<string, str
   // (c) the deployment runs on success only, under the same scope condition as the steps before it
   const deployIf = condition(deploy);
   if (/always\(\)|failure\(\)|cancelled\(\)|success\(\)\s*\|\|/.test(deployIf)) problems.push(`the deployment's condition is "${deployIf}" (it would run after a failure)`);
-  if (deployIf !== SCOPE_CONDITION) problems.push(`the deployment's condition is "${deployIf}", not "${SCOPE_CONDITION}"`);
-  // the token is proven (vercel whoami) before any migration
-  const whoami = firstIndex(steps, step => /\bvercel whoami\b/.test(step.text));
+  if (deployIf !== CLI_CONDITION) problems.push(`the deployment's condition is "${deployIf}", not "${CLI_CONDITION}"`);
+  // the token's access (vercel whoami, then a throw-away vercel pull: run 42606597331) is decided by scripts/ci/vercel-access.sh in the config step, before any migration
+  const access = firstIndex(steps, step => /bash scripts\/ci\/vercel-access\.sh "\$GITHUB_OUTPUT"/.test(step.text));
   const migrate = firstIndex(steps, named("2. "));
-  if (whoami < 0 || migrate < 0 || whoami > migrate) problems.push("vercel whoami does not run before step 2 (the migrations)");
-  // run 42606597331: whoami passed, the project was not readable, 4b failed after the migrations. The token's access to the project is proven before them too.
-  const projectProbe = firstIndex(steps, step => /vercel pull --yes --environment=production --cwd "\$probe"/.test(step.text));
-  if (projectProbe < 0 || migrate < 0 || projectProbe > migrate || projectProbe === deployIndex) problems.push("no throw-away vercel pull proves the token can read the project before step 2");
+  if (access < 0 || migrate < 0 || access > migrate) problems.push("scripts/ci/vercel-access.sh does not run before step 2 (the migrations)");
+  else if (!/^ {8}id: config$/m.test(steps[access].text)) problems.push("the access decision is not in the step with id config (4b and 5 read steps.config.outputs.cli)");
+  // D-85: production advances after the migrations (2, 2b) and the release check (3) — with or without the CLI — and never after a failure
+  const advance = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
+  if (advance < 0) problems.push("no step advances the production branch");
   else {
-    const probeStep = steps[projectProbe].text;
-    if (!/if ! pulled="\$\(vercel pull [^\n]*\)"; then\n(?:[^\n]*\n){0,4}?\s*exit 1/.test(probeStep)) problems.push("a failed project probe does not stop the run");
-    if ((probeStep.match(/rm -rf "\$probe"/g) ?? []).length < 2) problems.push("the project probe's folder is not deleted on both paths");
+    for (const prefix of ["2. ", "2b. ", "3. "]) { const index = firstIndex(steps, named(prefix)); if (index > advance) problems.push(`the production branch moves before step "${prefix.trim()}"`); }
+    if (condition(steps[advance]) !== SCOPE_CONDITION) problems.push(`the production branch's condition is "${condition(steps[advance])}", not "${SCOPE_CONDITION}" (it would move after a failure, or never without the CLI)`);
+    steps.slice(0, advance + 1).forEach(step => { if (/continue-on-error:\s*(true|\$\{\{)/.test(step.text)) problems.push(`"${step.name}" has continue-on-error before the production branch moves`); });
   }
   // step 5: check the deployment (inspect, then post-deploy-check on its own address), vercel promote, ask until the production address serves it, check again,
   // and roll back on any failure after the promotion
   const verify = firstIndex(steps, named("5. "));
   if (verify <= deployIndex) problems.push("step 5 (verify) does not come after the deployment");
-  else problems.push(...verifyProblems(steps[verify]));  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
+  else {
+    problems.push(...verifyProblems(steps[verify]));
+    if (condition(steps[verify]) !== CLI_CONDITION) problems.push(`step 5's condition is "${condition(steps[verify])}", not "${CLI_CONDITION}"`);
+  }  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
   if (promote >= 0 && promote < verify) problems.push("the production branch moves before production is verified");
   // the pulled environment is deleted by a last, unconditional step and never uploaded
   const last = steps[steps.length - 1];
@@ -213,7 +220,8 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
   });
 
   it("a printed token, a token in the job env or another workflow deploying production are refused", () => {
-    const printed = releaseText.replace('echo "Vercel token accepted (vercel whoami)"', 'echo "token $VERCEL_TOKEN"');
+    const printed = releaseText.replace('echo "deployed (not yet serving production): $url"', 'echo "token $VERCEL_TOKEN"');
+    expect(printed).not.toBe(releaseText);
     expect(releaseProblems(printed)).toEqual(expect.arrayContaining([expect.stringContaining("prints VERCEL_TOKEN")]));
     const jobEnv = releaseText.replace("      GH_TOKEN: ${{ github.token }}\n", "      GH_TOKEN: ${{ github.token }}\n      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}\n");
     expect(releaseProblems(jobEnv)).toEqual(expect.arrayContaining([expect.stringContaining("job's env")]));
@@ -242,11 +250,23 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
     expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
   });
 
+  // D-85 (run 42738392972): without the CLI the release still migrates, checks and advances production — and a failure before step 6 still stops it
   it.each([
-    ["no project probe before the migrations", () => mutate("Refuse to start", /\n *if ! pulled="\$\(vercel pull[\s\S]*?\n *fi\n/, "\n"), "no throw-away vercel pull"],
-    ["a failed project probe only warns", () => mutate("Refuse to start", /(cut -c1-300\n)( *)exit 1\n( *fi\n *rm -rf "\$probe"\n *echo "Vercel project)/, "$1$3"), "does not stop the run"],
-  ])("refuses (run 42606597331): %s", (_label, make, expected) => {
+    ["the production branch moves after a failure (if: always())", () => mutate("6. ", /\n {8}if: [^\n]*\n/, "\n        if: always()\n"), "it would move after a failure"],
+    ["the production branch waits for the CLI", () => mutate("6. ", /\n {8}if: [^\n]*\n/, `\n        if: ${CLI_CONDITION}\n`), "never without the CLI"],
+    ["the production branch moved before the release check (3)", () => moveStep(releaseText, "6. ", "3. "), 'moves before step "3."'],
+    ["continue-on-error on the release check (3)", () => mutate("3. ", /\n {8}if: /, "\n        continue-on-error: true\n        if: "), "continue-on-error before the production branch moves"],
+    ["4b runs without the access decision", () => mutate("4b. ", /\n {8}if: [^\n]*\n/, `\n        if: ${SCOPE_CONDITION}\n`), "the deployment's condition"],
+    ["the access decision dropped before the migrations", () => mutate("Refuse to start", /\n[^\n]*bash scripts\/ci\/vercel-access\.sh[^\n]*/, ""), "vercel-access.sh does not run before step 2"],
+  ])("refuses (D-85): %s", (_label, make, expected) => {
     expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
+  });
+
+  it("the access script holds the probe the workflow relied on (whoami, then a throw-away pull, deleted on every path) and never names the token on a command line", () => {
+    expect(accessScript).toMatch(/vercel whoami/);
+    expect(accessScript).toMatch(/vercel pull --yes --environment=production --cwd "\$probe"/);
+    expect((accessScript.match(/rm -rf "\$probe"/g) ?? []).length).toBe(2);
+    expect(accessScript).not.toMatch(/--token\b|(echo|printf)[^\n]*\$\{?VERCEL_TOKEN/);
   });
 
   it("the cleanup of .vercel/ stays the last, unconditional step", () => {
