@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectQualityInspections } from "./ProjectQualityInspections";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -15,7 +16,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { qualityInspections: {
   transitionStatus: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) },
 } } }));
 
-describe("ProjectQualityInspections", () => {
+describe("ProjectQualityInspections", TYPING_TEST, () => {
   it("submits an inspection and exposes the governed next transition", async () => {
     cleanup(); state.create.mockClear(); state.transition.mockClear(); state.arabic = false;
     const user = userEvent.setup();

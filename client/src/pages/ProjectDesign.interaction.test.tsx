@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectDesign } from "./ProjectDesign";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const hoisted = vi.hoisted(() => {
   const state = { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, empty: false };
@@ -24,7 +25,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { design: {
   registerDrawing: hoisted.mutation("registerDrawing"), addRevision: hoisted.mutation("addRevision"), cancelDrawing: hoisted.mutation("cancelDrawing"), approveDrawing: hoisted.mutation("approveDrawing"), createTransmittal: hoisted.mutation("createTransmittal"), transitionTransmittal: hoisted.mutation("transitionTransmittal"), raiseComment: hoisted.mutation("raiseComment"), transitionComment: hoisted.mutation("transitionComment"), createSubmittal: hoisted.mutation("createSubmittal"), transitionSubmittal: hoisted.mutation("transitionSubmittal"),
 } } }));
 
-describe("ProjectDesign", () => {
+describe("ProjectDesign", TYPING_TEST, () => {
   beforeEach(() => { state.arabic = true; state.calls = {}; state.empty = false; }); afterEach(cleanup);
 
   it("shows the design-phase board in Arabic, with the share approved and the consultant replies", () => {
