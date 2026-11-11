@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectClaims } from "./ProjectClaims";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ create: vi.fn(), transition: vi.fn() }));
 
@@ -12,7 +13,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized claim error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { claims: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "claim-1", claimNumber: "CLM-01", title: "Delay claim", description: "An approved extension event requires valuation.", claimedAmount: "100.00", approvedAmount: null, currency: "SAR", status: "under_review" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) }, transitionStatus: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) } } } }));
 
-describe("ProjectClaims workflow", () => {
+describe("ProjectClaims workflow", TYPING_TEST, () => {
   beforeEach(() => { cleanup(); state.create.mockReset(); state.transition.mockReset(); });
 
   it("creates a project-scoped claim and approves it with an explicit bounded amount", async () => {

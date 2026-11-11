@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import BillingRegister from "./BillingRegister";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ issue: vi.fn(), payment: vi.fn() }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1" }) }));
@@ -23,7 +24,7 @@ vi.mock("@/lib/trpc", () => ({
 
 afterEach(() => { cleanup(); state.issue.mockClear(); state.payment.mockClear(); });
 
-describe("BillingRegister", () => {
+describe("BillingRegister", TYPING_TEST, () => {
   it("issues a structured invoice with the displayed VAT calculation", async () => {
     const user = userEvent.setup();
     render(<BillingRegister />);
