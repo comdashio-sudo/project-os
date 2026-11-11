@@ -1906,3 +1906,13 @@
 | مراجعة #243: صلاحية خطوة المراجعة | `PROVEN` | `siteReports.check` يكتب حالة التقرير فصار يتطلب `project.field.manage` أو `project.manage` (كان يكفيه `project.read`)، والسلسلة تحدد من منهم. في `dailyReportApproval.database.test.ts`: مراجع مُسنَد بقراءة فقط ← `PROJECT_OS_PERMISSION_DENIED` والتقرير `submitted` بلا مراجعة؛ ومراجع الاختبار صار يملك `project.field.manage`. طفرة: إعادة البوابة إلى القراءة تُسقط الاختبار |
 | اقتراح للمالك (غير منفّذ) | `OPEN` | قالب `QA_QC_MANAGER` يملك `project.read` و`project.quality.manage` لا `project.field.manage`، فإن أُسند إليه «راجعه» يُرفض. الأقل أثرًا: قبول `project.quality.manage` في هذه البوابة؛ أو صلاحية مخصّصة `project.report.review` تُضاف للقالب. القرار للمالك ومدير الهندسة |
 | حدّ معلن | `OPEN` | خطوة لا يملكها أحد لا تُفرض (مشروع بلا سلسلة يعمل كما قبل). «معتمد» لـRFI = answered أو closed، و«مرفوض» = cancelled |
+
+### D-47 (أ): تصدير ورقة العمالة Excel (2026-11-11، الوكيل 3، مبني على #243 `d-45c-daily-approval` @ `449aa99`، بلا ترحيلة ولا مكتبة جديدة)
+
+قرار المكتبات (المنسّق نيابةً عن المالك، 2026-11-11، الأقل أثرًا): Excel بـ`exceljs` القائمة؛ وWord بـ`docx` (MIT) وPDF بـ`pdfkit` (MIT) مع تشكيل عربي وbidi بمكتبتين حرّتين وخط Noto Naskh Arabic (OFL) في المستودع — في (ب). لا خدمة مدفوعة ولا Chromium.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `siteReports.export({ reportId, format: "xlsx", locale })` (`server/dailyReportExport.ts`): يقرأ عبر `siteReports.get` (البوابة نفسها: `project.read` أو `project.field.manage` أو `project.manage`)، ويكتب الملف في التخزين تحت `tenants/{company}/projects/{project}/exports/daily/…` ويُرجع رابطًا موقّعًا، وصف تدقيق `site_report.exported`. الكتل الخمس: غير المباشرة (لكل شركة نهار/ليل والمجاميع)، المباشرة، ملخص الباطن، ملخص العمالة (مباشر/غير مباشر × نهار/ليل لكل شركة)، تفصيل كل شركة بالأدوار؛ كل مجموع صيغة `SUM` مع قيمتها المحسوبة | `PROVEN` | `server/dailyReportExport.database.test.ts` 3/3 بحساب `project_os_app` (S3 محلي): الملف يُجلب ويُفتح بـexceljs؛ مجموع غير المباشرة = 7 ومباشرة = 47 = `get.totals`؛ ملخص الباطن = مجموع الباطن؛ ملخص العمالة [36، 11، 6، 1، 54]؛ تفصيل كل شركة = مجموعها؛ المجموع صيغة `SUM(…)`؛ الورقة RTL بالعربية وLTR بالإنجليزية |
+| سالب وعزل | `PROVEN` | دور HSE بلا قراءة ← `PROJECT_OS_PERMISSION_DENIED`؛ شركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`؛ مهندس أ على ب ← `PERMISSION_DENIED`؛ تقرير أ من ب ← `PROJECT_OS_SITE_REPORT_NOT_FOUND`؛ صفر صفوف تدقيق |
+| حدّ معلن | `OPEN` | الأردية تأخذ الرؤوس الإنجليزية كقوالب الاستيراد. Word وPDF في (ب) |
