@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTableWorkbook } from "@/lib/excelExport";
 import { ProjectFpac } from "./ProjectFpac";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -56,7 +57,7 @@ const exportButtons = () => screen.queryAllByRole("button", { name: "Export to E
 const headerTexts = (table: HTMLTableElement) => Array.from(table.querySelectorAll("thead th")).map(th => th.textContent ?? "");
 const bodyRows = (table: HTMLTableElement) => table.querySelectorAll("tbody tr:not([data-testid='drill-totals'])").length;
 
-describe("ProjectFpac export", () => {
+describe("ProjectFpac export", EXPORT_TEST, () => {
   it("puts one export button next to each of the two tables, in the same card", () => {
     show(report());
     const [headline, drill] = Array.from(document.querySelectorAll("table"));
@@ -74,7 +75,7 @@ describe("ProjectFpac export", () => {
     show(report());
     const [headline] = Array.from(document.querySelectorAll("table")) as HTMLTableElement[];
     fireEvent.click(exportButtons()[0]);
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.columns.map(column => column.header)).toEqual(headerTexts(headline));
     expect(input.rows.length).toBe(bodyRows(headline));
@@ -93,7 +94,7 @@ describe("ProjectFpac export", () => {
     show(report());
     const [, drill] = Array.from(document.querySelectorAll("table")) as HTMLTableElement[];
     fireEvent.click(exportButtons()[1]);
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     const headers = headerTexts(drill);
     expect(headers.slice(0, -1)).toEqual(["Item", "Planned", "Actual", "Committed (open)", "Forecast", "Variance"]);
@@ -127,7 +128,7 @@ describe("ProjectFpac export", () => {
     show(report());
     const [headline] = Array.from(document.querySelectorAll("table")) as HTMLTableElement[];
     fireEvent.click(screen.getAllByRole("button", { name: "تصدير إلى Excel" })[0]);
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.columns.map(column => column.header)).toEqual(headerTexts(headline));
     expect(input.columns[0].header).toBe("الرقم");
