@@ -89,3 +89,29 @@ describe("verifying a code", () => {
     expect(retryAfterSecondsFrom(undefined)).toBeUndefined();
   });
 });
+
+describe("passwords (D-82)", () => {
+  it("signs in with /token?grant_type=password and closes the provider's session; every refusal is CREDENTIALS_INVALID", async () => {
+    const { provider: p, calls } = provider(url => (url.includes("/token") ? json(200, OK_SESSION) : new Response(null, { status: 204 })));
+    await expect(p.signInWithPassword("engineer@example.test", "a good password")).resolves.toEqual({ email: "engineer@example.test" });
+    expect(calls[0].url).toBe("https://ref0123.supabase.co/auth/v1/token?grant_type=password");
+    expect(calls[0].body).toEqual({ email: "engineer@example.test", password: "a good password" });
+    expect(calls[1].url).toBe("https://ref0123.supabase.co/auth/v1/logout");
+    for (const answer of [json(400, { error_code: "invalid_credentials", msg: "Invalid login credentials" }), json(400, { error_code: "email_not_confirmed" }), json(200, { ...OK_SESSION, user: { ...OK_SESSION.user, email_confirmed_at: null } }), json(200, { ...OK_SESSION, user: { ...OK_SESSION.user, email: "other@example.test" } })])
+      expect((await failure(provider(() => answer.clone()).provider.signInWithPassword("engineer@example.test", "x"))).code).toBe("CREDENTIALS_INVALID");
+    expect((await failure(provider(() => json(429, {})).provider.signInWithPassword("a@example.test", "x"))).code).toBe("RATE_LIMITED");
+    expect((await failure(provider(() => { throw new TypeError("fetch failed"); }).provider.signInWithPassword("a@example.test", "x"))).code).toBe("MAIL_UNAVAILABLE");
+  });
+
+  it("sets a password with a mailed code: /verify, then PUT /user with that session's token, then /logout; weak_password is PASSWORD_WEAK", async () => {
+    const ok = provider(url => (url.endsWith("/verify") ? json(200, OK_SESSION) : url.endsWith("/user") ? json(200, OK_SESSION.user) : new Response(null, { status: 204 })));
+    await expect(ok.provider.setPasswordWithCode("engineer@example.test", "123456", "a good password")).resolves.toEqual({ email: "engineer@example.test" });
+    expect(ok.calls.map(c => [c.init.method, c.url.replace("https://ref0123.supabase.co/auth/v1", "")])).toEqual([["POST", "/verify"], ["PUT", "/user"], ["POST", "/logout"]]);
+    expect(ok.calls[1].body).toEqual({ password: "a good password" });
+    expect((ok.calls[1].init.headers as Record<string, string>).Authorization).toBe("Bearer a.b.c");
+    const weak = provider(url => (url.endsWith("/verify") ? json(200, OK_SESSION) : url.endsWith("/user") ? json(422, { error_code: "weak_password" }) : new Response(null, { status: 204 })));
+    expect((await failure(weak.provider.setPasswordWithCode("engineer@example.test", "123456", "abc"))).code).toBe("PASSWORD_WEAK");
+    expect(weak.calls.at(-1)!.url).toContain("/logout"); // the provider's session is closed even on a refusal
+    expect((await failure(provider(() => json(403, { error_code: "otp_expired" })).provider.setPasswordWithCode("engineer@example.test", "123456", "a good password"))).code).toBe("CODE_INVALID");
+  });
+});
