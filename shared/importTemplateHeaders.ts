@@ -16,3 +16,6 @@ export const importTemplateHeaders: Record<ImportModuleCode, Record<"ar" | "en",
  * English row: an Urdu header would not import. Covered by server/exportLocale.test.ts.
  */
 export const templateHeadersIn = (moduleCode: ImportModuleCode, locale: "ar" | "en" | "ur") => importTemplateHeaders[moduleCode][locale === "ar" ? "ar" : "en"];
+
+/** D-44 (b): the equipment list's columns (an external import, server/equipmentImport.ts). The importer also accepts the aliases listed there. */
+export const equipmentImportHeaders = { ar: ["النوع", "العدد", "الطراز", "اللوحة أو المقاس"], en: ["Type", "Count", "Model", "Plate or size"] } as const;
