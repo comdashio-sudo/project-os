@@ -2770,7 +2770,7 @@ export const consultantSubmittals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("consultant_submittals_number_revision_unique").on(table.projectId, table.submittalNumber, table.revision), index("consultant_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("consultant_submittals_material_idx").on(table.projectId, table.materialId)],
+  table => [uniqueIndex("consultant_submittals_number_revision_unique").on(table.projectId, table.submittalNumber, table.revision), index("consultant_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("consultant_submittals_material_idx").on(table.projectId, table.materialId), unique("consultant_submittals_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId)],
 );
 
 // The reply codes a company uses (A/B/C/D by default) and whether each one counts as an approval.
@@ -3599,4 +3599,44 @@ export const projectReportCounters = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("project_report_counters_project_kind_unique").on(table.tenantId, table.projectId, table.kind), check("project_report_counters_kind_check", sql`${table.kind} IN ('daily')`)],
+);
+
+// D-45 (b), P-39 (1): the daily report's other sections, each a list replaced whole on every save of a report still in the preparer's hands, each tied to a report of the
+// SAME project by a composite foreign key (id, tenant_id, project_id). Materials received (optionally against the consultant's approval of that material, same project),
+// HSE events of the day, obstacles, and the plan for tomorrow.
+const reportChild = () => ({
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+  projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+  reportId: varchar("report_id", { length: 36 }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+const childKeys = (name: string, table: { reportId: never; tenantId: never; projectId: never }) => [
+  foreignKey({ name: `${name}_report_fk`, columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+  index(`${name}_report_idx`).on(table.reportId),
+];
+export const siteDailyReportMaterials = pgTable(
+  "site_daily_report_materials",
+  { ...reportChild(), material: varchar("material", { length: 160 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(), unit: varchar("unit", { length: 24 }).notNull(), supplier: varchar("supplier", { length: 160 }), consultantSubmittalId: varchar("consultant_submittal_id", { length: 36 }) },
+  table => [
+    ...childKeys("site_daily_report_materials", table as never),
+    check("site_daily_report_materials_quantity_check", sql`${table.quantity} > 0`),
+    foreignKey({ name: "site_daily_report_materials_submittal_fk", columns: [table.consultantSubmittalId, table.tenantId, table.projectId], foreignColumns: [consultantSubmittals.id, consultantSubmittals.tenantId, consultantSubmittals.projectId] }),
+  ],
+);
+export const siteDailyReportHse = pgTable(
+  "site_daily_report_hse",
+  { ...reportChild(), kind: varchar("kind", { length: 20 }).notNull(), description: text("description").notNull(), peopleCount: integer("people_count"), actionTaken: text("action_taken") },
+  table => [...childKeys("site_daily_report_hse", table as never), check("site_daily_report_hse_kind_check", sql`${table.kind} IN ('meeting', 'incident', 'near_miss', 'violation', 'corrective_action') AND (${table.peopleCount} IS NULL OR ${table.peopleCount} >= 0)`)],
+);
+export const siteDailyReportObstacles = pgTable(
+  "site_daily_report_obstacles",
+  { ...reportChild(), issue: text("issue").notNull(), impact: text("impact"), responsible: varchar("responsible", { length: 160 }), action: text("action"), dueDate: date("due_date", { mode: "string" }) },
+  table => [...childKeys("site_daily_report_obstacles", table as never)],
+);
+export const siteDailyReportTomorrow = pgTable(
+  "site_daily_report_tomorrow",
+  { ...reportChild(), area: varchar("area", { length: 160 }), activity: varchar("activity", { length: 255 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }), unit: varchar("unit", { length: 24 }), resources: text("resources") },
+  table => [...childKeys("site_daily_report_tomorrow", table as never), check("site_daily_report_tomorrow_quantity_check", sql`${table.quantity} IS NULL OR ${table.quantity} >= 0`)],
 );
