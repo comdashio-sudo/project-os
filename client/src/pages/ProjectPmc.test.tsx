@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import ProjectPmc, { PMC_TEXT, ProjectPmcWorkspace, ageText } from "./ProjectPmc";
 import { exportElementToPdf } from "@/lib/pdfExport";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
@@ -254,7 +255,7 @@ describe("ProjectPmc as a tab inside the controls page (G-051) and the PDF butto
   });
 });
 
-describe("ProjectPmc Excel export, table by table", () => {
+describe("ProjectPmc Excel export, table by table", EXPORT_TEST, () => {
   let anchorClick: MockInstance;
   beforeEach(() => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:pmc"), revokeObjectURL: vi.fn() });
@@ -268,8 +269,8 @@ describe("ProjectPmc Excel export, table by table", () => {
     const button = within(table.closest("div.space-y-2") as HTMLElement).getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement;
     const before = vi.mocked(buildTableWorkbook).mock.calls.length;
     fireEvent.click(button);
-    await waitFor(() => expect(vi.mocked(buildTableWorkbook).mock.calls.length).toBe(before + 1));
-    await waitFor(() => expect(button.disabled).toBe(false));
+    await waitFor(() => expect(vi.mocked(buildTableWorkbook).mock.calls.length).toBe(before + 1), EXPORT_WAIT);
+    await waitFor(() => expect(button.disabled).toBe(false), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[before]![0];
     return {
       input,

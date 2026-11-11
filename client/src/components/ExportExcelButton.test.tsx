@@ -5,6 +5,7 @@ import { buildTableWorkbook } from "@/lib/excelExport";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExportExcelButton } from "./ExportExcelButton";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -18,6 +19,12 @@ function stubObjectUrls() {
   Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
   return { create, revoke };
 }
+
+// D-85: these tests failed only under CPU contention (four runs at once on four cores reproduce it every time; one run alone never does),
+// not because of the date: building the .xlsx (ExcelJS loads on first use) can take longer than waitFor's default 1 s there. So the waits
+// for the download use EXPORT_WAIT (client/src/test/exportWait.ts), and the clock is pinned to midday UTC (the same calendar day in UTC and in Riyadh, +3) so the file name is exact.
+const PINNED = new Date("2026-11-09T12:00:00Z");
+vi.setConfig({ hookTimeout: 30000 }); // the hooks around these tests (render, cleanup) slow down with the rest under contention
 
 type Row = { code: string; amount: number };
 const columns = [
@@ -35,13 +42,16 @@ function renderButton(props: Partial<Parameters<typeof ExportExcelButton<Row>>[0
   );
 }
 
-describe("ExportExcelButton", () => {
+describe("ExportExcelButton", EXPORT_TEST, () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.useFakeTimers({ toFake: ["Date"] }); // only the clock: timers stay real, so waitFor and the download's timers run as in the app
+    vi.setSystemTime(PINNED);
   });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("shows the Arabic label by default and is enabled when there are rows", () => {
@@ -65,11 +75,11 @@ describe("ExportExcelButton", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     renderButton();
     fireEvent.click(screen.getByRole("button", { name: /تصدير إلى Excel/ }));
-    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const blob = (created.mock.calls as unknown as [Blob][])[0][0];
     expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(blob.size).toBeGreaterThan(0);
-    await waitFor(() => expect(revoked).toHaveBeenCalledWith("blob:test"), { timeout: 2500 });
+    await waitFor(() => expect(revoked).toHaveBeenCalledWith("blob:test"), EXPORT_WAIT);
   });
 
   it("names the download with the readable base and the export day", async () => {
@@ -80,8 +90,8 @@ describe("ExportExcelButton", () => {
     });
     renderButton();
     fireEvent.click(screen.getByRole("button", { name: /تصدير إلى Excel/ }));
-    await waitFor(() => expect(download).toHaveLength(1));
-    expect(download[0]).toMatch(/^الميزانية-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    await waitFor(() => expect(download).toHaveLength(1), EXPORT_WAIT);
+    expect(download[0]).toBe("الميزانية-2026-11-09.xlsx");
   });
 
   it("shows a translated error and starts no download when the file cannot be built", async () => {

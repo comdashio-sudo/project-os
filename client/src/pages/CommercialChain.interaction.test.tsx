@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CommercialChain from "./CommercialChain";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ arabic: false, createBoq: vi.fn() }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
@@ -18,10 +19,12 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 } }));
 
 afterEach(() => { cleanup(); state.createBoq.mockClear(); });
-describe("CommercialChain", () => {
-  it("submits a BOQ line with the project boundary", async () => {
+describe("CommercialChain", TYPING_TEST, () => {
+  // D-85: under CPU contention the seven typed fields took 6-8 s against the 5 s default (reproduced with four runs at once); the date
+  // plays no part (the BOQ form has no date). Typing without the per-key delay and a wider timeout keep the same path.
+  it("submits a BOQ line with the project boundary", { timeout: 20000 }, async () => {
     state.arabic = false;
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<CommercialChain />);
     await user.type(screen.getAllByLabelText("Code")[0], "BOQ-02");
     await user.type(screen.getByLabelText("Description"), "Steel");

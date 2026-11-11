@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SetupWizard from "./SetupWizard";
+import { TYPING_TEST } from "@/test/typing";
 
 const hoisted = vi.hoisted(() => {
   const state = { arabic: true, tenantId: "" as string, tenants: [] as Array<Record<string, unknown>>, projects: [] as Array<Record<string, unknown>>, calls: {} as Record<string, ReturnType<typeof vi.fn>>, navigated: [] as string[] };
@@ -29,7 +30,7 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-describe("SetupWizard", () => {
+describe("SetupWizard", TYPING_TEST, () => {
   beforeEach(() => { state.arabic = true; state.tenantId = ""; state.tenants = []; state.projects = []; state.calls = {}; state.navigated = []; window.history.replaceState(null, "", "/"); });
   afterEach(cleanup);
 
