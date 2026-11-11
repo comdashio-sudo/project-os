@@ -101,8 +101,8 @@ CREATE INDEX IF NOT EXISTS "site_daily_report_equipment_tenant_project_idx" ON "
 --> statement-breakpoint
 -- refuse to finish without what the rules stand on: the three same-project keys of a labour row, the machine's, one number per report, one row per labour cell
 DO $$ BEGIN
-  IF to_regclass('public.site_daily_report_labour') IS NULL OR to_regclass('public.site_daily_report_equipment') IS NULL OR to_regclass('public.project_report_counters') IS NULL THEN RAISE EXCEPTION '0023: a daily-report table is missing'; END IF;
-  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('site_daily_report_labour_report_fk', 'site_daily_report_labour_company_fk', 'site_daily_report_labour_role_fk', 'site_daily_report_equipment_report_fk', 'site_daily_report_equipment_item_fk') AND contype = 'f' AND array_length(conkey, 1) = 3) <> 5 THEN RAISE EXCEPTION '0023: a same-project foreign key is missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'site_daily_reports_project_number_unique' AND indexdef LIKE '%UNIQUE%') THEN RAISE EXCEPTION '0023: one number per report is not enforced'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'site_daily_report_labour_cell_unique' AND indexdef LIKE '%UNIQUE%') THEN RAISE EXCEPTION '0023: one row per labour cell is not enforced'; END IF;
+  IF to_regclass('public.site_daily_report_labour') IS NULL OR to_regclass('public.site_daily_report_equipment') IS NULL OR to_regclass('public.project_report_counters') IS NULL THEN RAISE EXCEPTION '0024: a daily-report table is missing'; END IF;
+  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('site_daily_report_labour_report_fk', 'site_daily_report_labour_company_fk', 'site_daily_report_labour_role_fk', 'site_daily_report_equipment_report_fk', 'site_daily_report_equipment_item_fk') AND contype = 'f' AND array_length(conkey, 1) = 3) <> 5 THEN RAISE EXCEPTION '0024: a same-project foreign key is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'site_daily_reports_project_number_unique' AND indexdef LIKE '%UNIQUE%') THEN RAISE EXCEPTION '0024: one number per report is not enforced'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'site_daily_report_labour_cell_unique' AND indexdef LIKE '%UNIQUE%') THEN RAISE EXCEPTION '0024: one row per labour cell is not enforced'; END IF;
 END $$;

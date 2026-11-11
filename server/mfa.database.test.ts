@@ -1,16 +1,18 @@
 import fixtureDb from "./testing/pgCompat";
 import { SESSION_MAX_AGE_MS } from "@shared/const";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 180_000 });
+import { createRoleFixture, ROLE_DEFINITIONS } from "../scripts/lib/roleFixture.mjs";
 import { ENV } from "./_core/env";
 import { sessionStore } from "./_core/sessionStore";
 import { generateTotpSecret, stepAt, totpCode } from "./_core/totp";
-import * as serverDb from "./db";
-import { clearMfaRequiredCache, confirmEnrolment, MFA_LOCK_MS, verifySecondStep } from "./mfa";
+import { clearMfaRequiredCache, confirmEnrolment, isMfaRequired, mfaGateRefusal, MFA_LOCK_MS, verifySecondStep } from "./mfa";
 import { appRouter } from "./routers";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
-// Work order 20, item 2 on a real database (owner's decision 2026-10-25): the platform owner and every company administrator pass a second step (TOTP, RFC 6238).
-// Synthetic addresses only (*.example.test). The enforcement switch is on here; every other suite runs with MFA_ENFORCEMENT=off.
+// Two-step verification on a real database. Work order 20, item 2 built it (TOTP, RFC 6238); D-81 (owner's decision 2026-11-09: «لا أريد الدخول برمزين، فقط رمز دخول واحد يكفي»)
+// made it optional and OFF by default for every role, the platform owner and company administrators included: it is required only of the active members of a company whose
+// administrator switched on companies.require_two_step. Synthetic addresses only (*.example.test). The break-glass switch (MFA_ENFORCEMENT) is ON here, as in every other suite since D-81.
 const cookies: Array<{ name: string; value: string }> = [];
 const callerFor = (userId: number, openId: string, role: "user" | "admin", mfaVerified: boolean, sessionId = "test-session", mfaDeferralSince: number | null = null) =>
   appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@mfa.example.test`, loginMethod: "email", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, sessionId, mfaVerified, mfaDeferralSince, req: { protocol: "https", headers: {} } as never, res: { cookie: (name: string, value: string) => { cookies.push({ name, value }); } } as never } as never);
@@ -26,21 +28,112 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     const { openSecret } = await import("./_core/totp");
     return openSecret(rows[0].secretSealed);
   };
-  const cleanupCompany = async (tenantId: string) => {
-    for (const sql of ["DELETE FROM audit_logs WHERE tenantId = ?", "DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", "DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", "DELETE FROM roles WHERE tenantId = ?", "DELETE FROM memberships WHERE tenantId = ?", "DELETE FROM tenant_entitlements WHERE tenantId = ?", "DELETE FROM tenant_licenses WHERE tenantId = ?", "DELETE FROM subscriptions WHERE tenantId = ?", "DELETE FROM companies WHERE id = ?"]) await owner.query(sql, [tenantId]);
-  };
+
+  // one synthetic company holding every role template (the same fixture e2e-roles uses); the platform owner is made a member of it too, so a company's choice reaches him as well
+  let company: Awaited<ReturnType<typeof createRoleFixture>>;
+  type Person = { id: number; openId: string };
+  const asPerson = (person: Person, mfaVerified: boolean, sessionId = "test-session") => callerFor(person.id, person.openId, "user", mfaVerified, sessionId);
+  const requireFor = async (tenantId: string, value: boolean) => { await owner.query("UPDATE companies SET requireTwoStep = ? WHERE id = ?", [value, tenantId]); clearMfaRequiredCache(); };
 
   beforeAll(async () => {
     owner = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
+    await owner.query("DELETE FROM memberships WHERE userId IN (SELECT id FROM users WHERE openId LIKE 'mfa-%')");
+    await owner.query("DELETE FROM user_mfa WHERE userId IN (SELECT id FROM users WHERE openId LIKE 'mfa-%')");
     await owner.query("DELETE FROM users WHERE openId LIKE 'mfa-%'");
     for (const [key, role] of [["admin", "admin"], ["plain", "user"], ["companyAdmin", "user"]] as const) await owner.query("INSERT INTO users (openId, name, email, role, loginMethod) VALUES (?, ?, ?, ?, 'email')", [ids[key], ids[key], `${ids[key]}@mfa.example.test`, role]);
     const [rows] = await owner.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'mfa-%'");
     for (const row of rows) uid[row.openId] = row.id;
-  }, 60_000);
+    company = await createRoleFixture({ label: "mfa" });
+    await owner.query("INSERT INTO memberships (id, tenantId, userId, status, joinedAt) VALUES (?, ?, ?, 'active', now())", [crypto.randomUUID(), company.tenantId, uid[ids.admin]]);
+  });
   beforeEach(() => { (ENV as { mfaEnforced: boolean }).mfaEnforced = true; clearMfaRequiredCache(); });
-  afterAll(async () => { (ENV as { mfaEnforced: boolean }).mfaEnforced = false; await owner.query("DELETE FROM users WHERE openId LIKE 'mfa-%'"); await owner.end(); });
+  afterAll(async () => {
+    await owner.query("UPDATE companies SET requireTwoStep = false WHERE id = ?", [company?.tenantId ?? ""]);
+    await owner.query("DELETE FROM memberships WHERE userId IN (SELECT id FROM users WHERE openId LIKE 'mfa-%')");
+    await owner.query("DELETE FROM user_mfa WHERE userId IN (SELECT id FROM users WHERE openId LIKE 'mfa-%')");
+    await owner.query("DELETE FROM users WHERE openId LIKE 'mfa-%'"); await owner.end();
+  });
 
-  it("NEGATIVE: the platform owner's session that has not passed the second step is refused every protected call; the mfa procedures stay open", async () => {
+  it("D-81 POSITIVE: by default NOBODY is asked for a second code — every role of a company, the platform owner and an outsider sign in with the first factor alone", async () => {
+    const roles = ROLE_DEFINITIONS.map(role => role.key);
+    expect(roles.length).toBeGreaterThanOrEqual(18);
+    const [[row]] = await owner.query<{ r: boolean }[]>("SELECT requireTwoStep AS r FROM companies WHERE id = ?", [company.tenantId]);
+    expect(Boolean(row.r)).toBe(false); // the column's default: off
+    for (const key of roles) {
+      const person = company.people[key] as Person;
+      expect(await isMfaRequired({ id: person.id, role: "user" }), key).toBe(false);
+      expect(await mfaGateRefusal({ id: person.id, role: "user" }, false), key).toBeNull(); // the HTTP routes (tenant export) ask this
+      expect(await asPerson(person, false).mfa.status(), key).toMatchObject({ required: false, verified: false });
+      await expect(asPerson(person, false).tenant.mine(), key).resolves.toBeDefined();
+    }
+    // the platform owner, a member of the company and holder of users.role = admin, and the company administrator: not asked either
+    expect(await callerFor(uid[ids.admin], ids.admin, "admin", false).mfa.status()).toMatchObject({ required: false });
+    await expect(callerFor(uid[ids.admin], ids.admin, "admin", false).tenant.mine()).resolves.toBeDefined();
+    await expect(asPerson(company.owner as Person, false).tenant.administration({ tenantId: company.tenantId })).resolves.toBeDefined();
+    await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.mine()).resolves.toBeDefined();
+  });
+
+  it("D-81 POSITIVE: a person who enrolled an authenticator app earlier is NOT shown the second screen and NOT refused: a new session works unverified", async () => {
+    const person = company.people.owner as Person; // the company administrator, the role that had to enrol before D-81
+    const sid = await newSession(person.id);
+    const begun = await asPerson(person, false, sid).mfa.beginEnrolment();
+    await asPerson(person, false, sid).mfa.confirmEnrolment({ code: totpCode(begun.secret, stepAt(Date.now())) });
+    const fresh = await newSession(person.id);
+    expect(await verified(fresh)).toBe(false);
+    expect(await asPerson(person, false, fresh).mfa.status()).toMatchObject({ required: false, enrolled: true, verified: false }); // MfaGate lets the children through when required is false
+    await expect(asPerson(person, false, fresh).tenant.administration({ tenantId: company.tenantId })).resolves.toBeDefined();
+    expect(await mfaGateRefusal({ id: person.id, role: "user" }, false)).toBeNull();
+  });
+
+  it("the company setting: read and changed only by its administrator (tenant.manage), with an audit row; refused for other roles and for another company", async () => {
+    const admin = asPerson(company.owner as Person, false);
+    expect(await admin.tenant.securitySettings({ tenantId: company.tenantId })).toEqual({ requireTwoStep: false });
+    // NEGATIVE: a member without tenant.manage can neither read nor change it, and nothing changes
+    await expect(asPerson(company.people.site as Person, false).tenant.securitySettings({ tenantId: company.tenantId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(asPerson(company.people.pm as Person, false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // NEGATIVE (review of #238): tenant.manage held at PROJECT scope does not reach the company switch — refused, nothing changes, no audit row
+    const projectAdminRole = await admin.tenant.createRole({ tenantId: company.tenantId, code: "MFA_PROJECT_ADMIN", name: "Project-scoped administrator", productCode: "EXECUTIVE", permissionCodes: ["tenant.manage"] });
+    const [[siteMembership]] = await owner.query<{ id: string }[]>("SELECT id FROM memberships WHERE tenantId = ? AND userId = ?", [company.tenantId, (company.people.site as Person).id]);
+    await admin.tenant.assignMembershipRole({ tenantId: company.tenantId, membershipId: siteMembership.id, roleId: projectAdminRole.id, scopeType: "project", scopeId: company.projectId });
+    const auditsBefore = Number((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.two_step_requirement_changed'", [company.tenantId]))[0][0].n);
+    await expect(asPerson(company.people.site as Person, false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(asPerson(company.people.site as Person, false).tenant.securitySettings({ tenantId: company.tenantId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(Number((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.two_step_requirement_changed'", [company.tenantId]))[0][0].n)).toBe(auditsBefore);
+    expect(Boolean((await owner.query<{ r: boolean }[]>("SELECT requireTwoStep AS r FROM companies WHERE id = ?", [company.tenantId]))[0][0].r)).toBe(false);
+    // NEGATIVE: not for a company the caller does not belong to
+    await expect(admin.tenant.setRequireTwoStep({ tenantId: crypto.randomUUID(), requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await admin.tenant.securitySettings({ tenantId: company.tenantId })).toEqual({ requireTwoStep: false });
+    const audits = async () => Number((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'tenant.two_step_requirement_changed'", [company.tenantId]))[0][0].n);
+    const before = await audits();
+    expect(await admin.tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: true })).toEqual({ requireTwoStep: true });
+    expect(await audits()).toBe(before + 1);
+    expect(await asPerson(company.owner as Person, true).tenant.securitySettings({ tenantId: company.tenantId })).toEqual({ requireTwoStep: true });
+  });
+
+  it("NEGATIVE: once the company requires it, EVERY member is asked again (MFA_REQUIRED) until the session verifies — and nobody outside the company is", async () => {
+    await requireFor(company.tenantId, true);
+    for (const key of ROLE_DEFINITIONS.map(role => role.key)) {
+      const person = company.people[key] as Person;
+      expect(await isMfaRequired({ id: person.id, role: "user" }), key).toBe(true);
+      await expect(asPerson(person, false).tenant.mine(), key).rejects.toMatchObject({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_REQUIRED" });
+      expect(await asPerson(person, false).mfa.status(), key).toMatchObject({ required: true });
+      expect(await mfaGateRefusal({ id: person.id, role: "user" }, false), key).toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
+      await expect(asPerson(person, true).tenant.mine(), key).resolves.toBeDefined(); // a verified session passes
+    }
+    // the platform owner is a member here, so the company's choice reaches him too
+    await expect(callerFor(uid[ids.admin], ids.admin, "admin", false).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
+    // isolation: a person with no membership in that company is not affected
+    expect(await callerFor(uid[ids.plain], ids.plain, "user", false).mfa.status()).toMatchObject({ required: false });
+    await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.mine()).resolves.toBeDefined();
+    // a suspended member is not held by the company's rule (only active memberships count) — and is refused by the company's own access rules as before
+    const [[membership]] = await owner.query<{ id: string }[]>("SELECT id FROM memberships WHERE tenantId = ? AND userId = ?", [company.tenantId, (company.people.hr as Person).id]);
+    await owner.query("UPDATE memberships SET status = 'suspended' WHERE id = ?", [membership.id]); clearMfaRequiredCache();
+    expect(await isMfaRequired({ id: (company.people.hr as Person).id, role: "user" })).toBe(false);
+    await owner.query("UPDATE memberships SET status = 'active' WHERE id = ?", [membership.id]); clearMfaRequiredCache();
+  });
+
+  it("NEGATIVE: in a company that requires it, the platform owner's session that has not passed the second step is refused every protected call; the mfa procedures stay open", async () => {
     const sid = await newSession(uid[ids.admin]);
     const caller = callerFor(uid[ids.admin], ids.admin, "admin", false, sid);
     await expect(caller.tenant.mine()).rejects.toMatchObject({ code: "FORBIDDEN", message: "PROJECT_OS_MFA_REQUIRED" });
@@ -115,26 +208,6 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     await expect(callerFor(uid[ids.plain], ids.plain, "user", false).tenant.mine()).resolves.toBeDefined();
   });
 
-  it("a company administrator (an active membership holding tenant.manage) is gated too; the person without one is not", async () => {
-    const [plan] = await serverDb.getPublicCommercialPlans();
-    const userId = uid[ids.companyAdmin];
-    (ENV as { mfaEnforced: boolean }).mfaEnforced = false; // creating the company is not what is under test
-    const created = await callerFor(userId, ids.companyAdmin, "user", true).selfService.signup({ legalName: "Mfa Co", slug: `mfa-co-${Date.now()}`, planCode: plan.code, seats: 2 }).catch(async error => {
-      if (error?.message !== "PROJECT_OS_COMPANY_CREATION_OWNER_ONLY") throw error;
-      return callerFor(uid[ids.admin], ids.admin, "admin", true).selfService.signup({ legalName: "Mfa Co", slug: `mfa-co-${Date.now()}`, planCode: plan.code, seats: 2 });
-    });
-    try {
-      if (created) {
-        // whoever signed up is the company's owner; make sure it is the user under test
-        await owner.query("UPDATE memberships SET userId = ? WHERE tenantId = ?", [userId, created.tenantId]);
-      }
-      (ENV as { mfaEnforced: boolean }).mfaEnforced = true; clearMfaRequiredCache();
-      await expect(callerFor(userId, ids.companyAdmin, "user", false).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
-      await expect(callerFor(userId, ids.companyAdmin, "user", true).tenant.mine()).resolves.toBeDefined();
-      expect(await callerFor(uid[ids.plain], ids.plain, "user", false).mfa.status()).toMatchObject({ required: false });
-    } finally { if (created) await cleanupCompany(created.tenantId); }
-  });
-
   it("ONE pending enrolment, however often it is asked for: a reload, a second tab or a second click returns the SAME secret, and the code from the first answer still works (2026-10-26)", async () => {
     const userId = uid[ids.plain];
     await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
@@ -158,6 +231,38 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     await expect(caller.mfa.confirmEnrolment({ code: totpCode(shown.secret, stepAt(Date.now())), enrolmentId: "000000000000" })).rejects.toMatchObject({ message: "PROJECT_OS_MFA_ENROLMENT_CHANGED" });
     expect((await owner.query<{ c: Date | null }[]>("SELECT confirmedAt AS c FROM user_mfa WHERE userId = ?", [userId]))[0][0].c).toBeNull();
     await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+  });
+
+  it("D-81: a person switches it on for himself from the profile (gated from then on), and off again with a current code; a wrong code changes nothing", async () => {
+    const userId = uid[ids.plain];
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+    const sid = await newSession(userId);
+    const caller = callerFor(userId, ids.plain, "user", false, sid);
+    const begun = await caller.mfa.beginEnrolment();
+    await caller.mfa.confirmEnrolment({ code: totpCode(begun.secret, stepAt(Date.now())), enrolmentId: begun.enrolmentId, turnOn: true });
+    expect(await caller.mfa.status()).toMatchObject({ selfRequired: true, companyRequired: false, enrolled: true });
+    // a NEW unverified session of this person is now held: his own choice, not a role
+    const fresh = await newSession(userId);
+    await expect(callerFor(userId, ids.plain, "user", false, fresh).tenant.mine()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_REQUIRED" });
+    // NEGATIVE: off with a wrong code is refused and he stays held
+    const later = Date.now() + 60_000;
+    const verifiedSelf = callerFor(userId, ids.plain, "user", true, sid);
+    await expect(verifiedSelf.mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ message: "PROJECT_OS_MFA_CODE_INVALID" });
+    expect(await isMfaRequired({ id: userId, role: "user" })).toBe(true);
+    await owner.query("UPDATE user_mfa SET failures = 0, lockedUntil = NULL WHERE userId = ?", [userId]);
+    // off with a current code: the first factor alone again, the authenticator is kept
+    const off = await import("./mfa").then(m => m.setOwnTwoStep({ id: userId }, sid, false, totpCode(begun.secret, stepAt(later)), new Date(later)));
+    expect(off).toEqual({ selfRequired: false });
+    await expect(callerFor(userId, ids.plain, "user", false, await newSession(userId)).tenant.mine()).resolves.toBeDefined();
+    expect(await caller.mfa.status()).toMatchObject({ required: false, selfRequired: false, enrolled: true });
+    await owner.query("DELETE FROM user_mfa WHERE userId = ?", [userId]);
+  });
+
+  it("NEGATIVE: a member cannot switch it off for himself while his company requires it", async () => {
+    const person = company.people.site as Person;
+    const member = asPerson(person, true);
+    await expect(member.mfa.setOwn({ on: false, code: "123456" })).rejects.toMatchObject({ code: "CONFLICT", message: "PROJECT_OS_MFA_REQUIRED_BY_COMPANY" });
+    expect(await isMfaRequired({ id: person.id, role: "user" })).toBe(true);
   });
 
   it("the platform owner's 'Later': seven days, once per browser; refused for anyone else; a company administrator's deferral cookie does nothing; after seven days the gate closes again", async () => {
@@ -188,10 +293,18 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("two-step ver
     await expect(callerFor(uid[ids.plain], ids.plain, "user", false).mfa.postpone()).rejects.toMatchObject({ message: "PROJECT_OS_MFA_POSTPONE_NOT_ALLOWED" });
   });
 
-  it("the break-glass switch (MFA_ENFORCEMENT=off) lifts the requirement and nothing else: the secret and codes stay as they were", async () => {
+  it("the break-glass switch (MFA_ENFORCEMENT=off) lifts a company's requirement and nothing else: the secret and codes stay as they were", async () => {
     (ENV as { mfaEnforced: boolean }).mfaEnforced = false;
     await expect(callerFor(uid[ids.admin], ids.admin, "admin", false).tenant.mine()).resolves.toBeDefined();
+    await expect(asPerson(company.people.site as Person, false).tenant.mine()).resolves.toBeDefined();
     expect((await owner.query<{ n: number }[]>("SELECT count(*)::int AS n FROM user_mfa WHERE userId = ?", [uid[ids.admin]]))[0][0].n).toBe(1);
+  });
+
+  it("D-81: the company switches it off again — every member, the enrolled ones included, is back to the first factor alone, on the very next request", async () => {
+    await asPerson(company.owner as Person, true).tenant.setRequireTwoStep({ tenantId: company.tenantId, requireTwoStep: false });
+    for (const key of ROLE_DEFINITIONS.map(role => role.key)) await expect(asPerson(company.people[key] as Person, false).tenant.mine(), key).resolves.toBeDefined();
+    await expect(callerFor(uid[ids.admin], ids.admin, "admin", false).tenant.mine()).resolves.toBeDefined(); // enrolled earlier in this file
+    expect(await callerFor(uid[ids.admin], ids.admin, "admin", false).mfa.status()).toMatchObject({ required: false, enrolled: true });
   });
 
   it("the new table is classified and isolated like the others: row-level security is on and the application role cannot read another table's rows through it", async () => {

@@ -25,6 +25,6 @@ DO $$ BEGIN ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_re
 --> statement-breakpoint
 -- refuse to finish without the same-project key of a photo's unit
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'site_daily_report_photos_unit_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0025: the photo unit key of the same project is missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'site_daily_reports' AND column_name = 'checked_at') THEN RAISE EXCEPTION '0025: checked_at is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'site_daily_report_photos_unit_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0026: the photo unit key of the same project is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'site_daily_reports' AND column_name = 'checked_at') THEN RAISE EXCEPTION '0026: checked_at is missing'; END IF;
 END $$;
