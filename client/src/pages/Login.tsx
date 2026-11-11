@@ -1,12 +1,16 @@
-import { Button, Card, DirectionProvider, Field, Logo, TextInput } from "@/components/ds";
+import { Button, Card, DirectionProvider, Field, Logo, Segmented, TextInput } from "@/components/ds";
 import { safeNext } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import React from "react";
 import { pickLanguage } from "@/lib/language";
 import { emailFieldError } from "@/lib/formValidation";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { SetPassword } from "@/components/auth/SetPassword";
+import { authErrorText, authPost, PASSWORD_MAX } from "@/lib/authRequest";
 
 type Step = "email" | "code";
+/** D-83: two equal ways in (#241): a code by e-mail, or the e-mail and a password; «forgot the password» is a view of its own. */
+type Method = "code" | "password";
 
 const messages = {
   ar: {
@@ -22,23 +26,10 @@ const messages = {
     changeEmail: "تغيير البريد",
     resend: "إعادة إرسال الرمز",
     google: "المتابعة بحساب Google",
+    method: "طريقة الدخول", byCode: "رمز بالبريد", byPassword: "كلمة المرور", password: "كلمة المرور", passwordHelp: "أدخل بريدك وكلمة المرور التي عيّنتها.", signIn: "دخول", signingIn: "جارٍ الدخول…", forgot: "نسيت كلمة المرور؟", forgotTitle: "تعيين كلمة مرور جديدة", forgotHelp: "نرسل رمزًا إلى بريدك، ثم تكتب الرمز وكلمة المرور الجديدة معًا.", back: "العودة إلى الدخول", lockedFor: (m: number) => `محاولات خاطئة كثيرة. أعد المحاولة بعد ${m} دقيقة.`,
         loading: "جارٍ التحميل…",
     latestOnly: "الرمز الأحدث وحده يعمل: كل طلب رمز جديد يلغي السابق.",
     resendIn: (n: number) => `إعادة الإرسال بعد ${n} ثانية`,
-    errors: {
-      PROJECT_OS_AUTH_EMAIL_INVALID: "البريد الإلكتروني غير صحيح.",
-      PROJECT_OS_AUTH_RATE_LIMITED: "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
-      PROJECT_OS_AUTH_MAIL_UNAVAILABLE: "تعذّر إرسال الرمز الآن. أعد المحاولة بعد قليل.",
-      PROJECT_OS_AUTH_CODE_ALREADY_SENT: "أُرسل إليك رمز قبل قليل. أدخل الرمز الذي وصلك؛ طلب رمز جديد يلغي السابق.",
-      PROJECT_OS_AUTH_FAILED: "تعذّر إكمال الطلب بسبب خطأ عندنا، وليس في بريدك. أعد المحاولة بعد قليل.",
-      network: "تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.",
-      PROJECT_OS_AUTH_CODE_INVALID: "الرمز غير صحيح أو انتهت صلاحيته.",
-      google_denied: "أُلغي الدخول بحساب Google.",
-      google_failed: "تعذّر الدخول بحساب Google. جرّب البريد.",
-      google_unverified: "بريد حساب Google غير موثّق.",
-      not_invited: "هذا البريد غير مدعوّ. اطلب دعوة من مدير شركتك أو من مالك المنصة.",
-      default: "حدث خطأ. أعد المحاولة.",
-    },
   },
   en: {
     title: "Sign in",
@@ -53,23 +44,10 @@ const messages = {
     changeEmail: "Use another e-mail",
     resend: "Send a new code",
     google: "Continue with Google",
+    method: "How to sign in", byCode: "Code by e-mail", byPassword: "Password", password: "Password", passwordHelp: "Enter your e-mail and the password you set.", signIn: "Sign in", signingIn: "Signing in…", forgot: "Forgot the password?", forgotTitle: "Set a new password", forgotHelp: "We send a code to your e-mail; then you enter the code and the new password together.", back: "Back to sign-in", lockedFor: (m: number) => `Too many wrong attempts. Try again in ${m} min.`,
         loading: "Loading…",
     latestOnly: "Only the newest code works: every new request cancels the previous one.",
     resendIn: (n: number) => `Send a new code in ${n} s`,
-    errors: {
-      PROJECT_OS_AUTH_EMAIL_INVALID: "That e-mail address is not valid.",
-      PROJECT_OS_AUTH_RATE_LIMITED: "Too many attempts. Wait a little and try again.",
-      PROJECT_OS_AUTH_MAIL_UNAVAILABLE: "The code could not be sent right now. Try again shortly.",
-      PROJECT_OS_AUTH_CODE_ALREADY_SENT: "A code was sent to you a moment ago. Enter the code you received; asking for a new one cancels the previous one.",
-      PROJECT_OS_AUTH_FAILED: "We could not complete the request because of a problem on our side, not with your e-mail. Try again shortly.",
-      network: "Could not reach the server. Check your connection and try again.",
-      PROJECT_OS_AUTH_CODE_INVALID: "The code is wrong or has expired.",
-      google_denied: "Google sign-in was cancelled.",
-      google_failed: "Google sign-in failed. Try your e-mail instead.",
-      google_unverified: "That Google account's e-mail is not verified.",
-      not_invited: "This address has not been invited. Ask your company administrator or the platform owner for an invitation.",
-      default: "Something went wrong. Try again.",
-    },
   },
   ur: {
     title: "لاگ ان",
@@ -84,23 +62,10 @@ const messages = {
     changeEmail: "کوئی اور ای میل استعمال کریں",
     resend: "نیا کوڈ بھیجیں",
     google: "Google کے ساتھ جاری رکھیں",
+    method: "لاگ ان کا طریقہ", byCode: "ای میل پر کوڈ", byPassword: "پاس ورڈ", password: "پاس ورڈ", passwordHelp: "اپنا ای میل اور اپنا مقرر کردہ پاس ورڈ درج کریں۔", signIn: "لاگ ان", signingIn: "لاگ ان ہو رہا ہے…", forgot: "پاس ورڈ بھول گئے؟", forgotTitle: "نیا پاس ورڈ مقرر کریں", forgotHelp: "ہم آپ کے ای میل پر کوڈ بھیجتے ہیں، پھر آپ کوڈ اور نیا پاس ورڈ ایک ساتھ درج کرتے ہیں۔", back: "لاگ ان پر واپس", lockedFor: (m: number) => `بہت زیادہ غلط کوششیں۔ ${m} منٹ بعد دوبارہ کوشش کریں۔`,
         loading: "لوڈ ہو رہا ہے…",
     latestOnly: "صرف تازہ ترین کوڈ کام کرتا ہے: ہر نئی درخواست پچھلے کوڈ کو منسوخ کر دیتی ہے۔",
     resendIn: (n: number) => `${n} سیکنڈ بعد نیا کوڈ بھیجیں`,
-    errors: {
-      PROJECT_OS_AUTH_EMAIL_INVALID: "یہ ای میل ایڈریس درست نہیں ہے۔",
-      PROJECT_OS_AUTH_RATE_LIMITED: "بہت زیادہ کوششیں۔ تھوڑی دیر انتظار کریں، پھر دوبارہ کوشش کریں۔",
-      PROJECT_OS_AUTH_MAIL_UNAVAILABLE: "ابھی کوڈ نہیں بھیجا جا سکا۔ تھوڑی دیر بعد دوبارہ کوشش کریں۔",
-      PROJECT_OS_AUTH_CODE_ALREADY_SENT: "ابھی ابھی آپ کو ایک کوڈ بھیجا گیا تھا۔ جو کوڈ ملا ہے وہی درج کریں؛ نیا کوڈ مانگنے سے پچھلا منسوخ ہو جاتا ہے۔",
-      PROJECT_OS_AUTH_FAILED: "ہماری طرف کی خرابی کی وجہ سے درخواست مکمل نہ ہو سکی، آپ کے ای میل میں کوئی مسئلہ نہیں۔ تھوڑی دیر بعد دوبارہ کوشش کریں۔",
-      network: "سرور سے رابطہ نہ ہو سکا۔ انٹرنیٹ دیکھیں اور دوبارہ کوشش کریں۔",
-      PROJECT_OS_AUTH_CODE_INVALID: "کوڈ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔",
-      google_denied: "Google سے لاگ ان منسوخ کر دیا گیا۔",
-      google_failed: "Google سے لاگ ان ناکام ہوا۔ اس کے بجائے اپنا ای میل آزمائیں۔",
-      google_unverified: "اس Google اکاؤنٹ کا ای میل تصدیق شدہ نہیں ہے۔",
-      not_invited: "اس پتے کو دعوت نہیں ملی۔ اپنی کمپنی کے منتظم یا پلیٹ فارم کے مالک سے دعوت مانگیں۔",
-      default: "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔",
-    },
   },
 }
 
@@ -111,16 +76,6 @@ const RESEND_SECONDS = 60;
 const EMAIL_KEY = "login.email";
 const remembered = () => { try { return window.sessionStorage.getItem(EMAIL_KEY) ?? ""; } catch { return ""; } };
 const remember = (email: string) => { try { window.sessionStorage.setItem(EMAIL_KEY, email); } catch { /* private window: the code step still works in this tab */ } };
-
-async function post(path: string, body: unknown): Promise<{ ok: boolean; code?: string; retryAfterSeconds?: number }> {
-  try {
-    const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-    const data = (await response.json().catch(() => ({}))) as { code?: string; retryAfterSeconds?: number };
-    return { ok: response.ok, code: data.code, retryAfterSeconds: data.retryAfterSeconds };
-  } catch {
-    return { ok: false, code: "network" };
-  }
-}
 
 export default function Login() {
   const { isArabic, language } = useLanguage();
@@ -138,6 +93,13 @@ export default function Login() {
   const [errorKey, setErrorKey] = React.useState<string | null>(params.get("error"));
   const [googleEnabled, setGoogleEnabled] = React.useState(false);
   const [emailProblem, setEmailProblem] = React.useState<string | null>(null);
+  const [method, setMethod] = React.useState<Method>("code");
+  const [forgot, setForgot] = React.useState(false);
+  const [password, setPassword] = React.useState("");
+  const [passwordProblem, setPasswordProblem] = React.useState<string | null>(null);
+  const passwordForm = React.useRef<HTMLFormElement>(null);
+  // the first field that carries a message takes the focus
+  React.useEffect(() => { passwordForm.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, [emailProblem, passwordProblem]);
 
   // The button stays disabled until the page is interactive, so a press can never go to a form nothing is listening to.
   React.useEffect(() => { setReady(true); }, []);
@@ -154,7 +116,26 @@ export default function Login() {
       .catch(() => undefined);
   }, []);
 
-  const errorText = errorKey ? ((t.errors as Record<string, string>)[errorKey] ?? t.errors.default) : null;
+  const errorText = errorKey ? authErrorText(errorKey, language) : null;
+  // the e-mail typed in one method stays when the visitor switches to the other, and so does the password
+  const switchMethod = (value: string) => { setMethod(value as Method); setErrorKey(null); setEmailProblem(null); setPasswordProblem(null); };
+
+  const signInWithPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const problem = emailFieldError(email, language);
+    setEmailProblem(problem);
+    setPasswordProblem(password ? null : authErrorText("PROJECT_OS_AUTH_CREDENTIALS_INVALID", language));
+    if (problem || !password) return;
+    setBusy(true);
+    setErrorKey(null);
+    const result = await authPost("/api/auth/password/sign-in", { email: email.trim(), password });
+    if (result.ok) { window.location.assign(next); return; }
+    setBusy(false);
+    // a wrong pair is said beside the password (the server does not say which of the two is wrong); a lock says how long it lasts
+    if (result.code === "PROJECT_OS_AUTH_CREDENTIALS_INVALID") setPasswordProblem(authErrorText(result.code, language));
+    else if (result.code === "PROJECT_OS_AUTH_RATE_LIMITED" && result.retryAfterSeconds) setPasswordProblem(t.lockedFor(Math.ceil(result.retryAfterSeconds / 60)));
+    else setErrorKey(result.code ?? "default");
+  };
 
   const requestCode = async (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -164,7 +145,7 @@ export default function Login() {
     if (problem) return;
     setBusy(true);
     setErrorKey(null);
-    const result = await post("/api/auth/email/request", { email });
+    const result = await authPost("/api/auth/email/request", { email });
     setBusy(false);
     if (result.ok) {
       remember(email.trim());
@@ -184,7 +165,7 @@ export default function Login() {
     event.preventDefault();
     setBusy(true);
     setErrorKey(null);
-    const result = await post("/api/auth/email/verify", { email, code });
+    const result = await authPost("/api/auth/email/verify", { email, code });
     if (result.ok) {
       window.location.assign(next);
       return;
@@ -199,8 +180,29 @@ export default function Login() {
         <div className="absolute end-4 top-4"><LanguageToggle showNote /></div>
         <Card className="w-full max-w-sm p-6">
           <div className="mb-5 flex justify-center"><Logo /></div>
-          <h1 className="text-center text-xl font-semibold">{t.title}</h1>
-          {step === "email" ? (
+          <h1 className="text-center text-xl font-semibold">{forgot ? t.forgotTitle : t.title}</h1>
+          {forgot ? (
+            <div className="mt-5 grid gap-4">
+              <p className="text-sm text-muted-foreground">{t.forgotHelp}</p>
+              <SetPassword initialEmail={email} onDone={() => window.location.assign(next)}>
+                <Button variant="ghost" className="-ms-4 min-h-11 text-primary" onClick={() => { setForgot(false); setErrorKey(null); }}>{t.back}</Button>
+              </SetPassword>
+            </div>
+          ) : (<>
+          {step === "email" ? <div className="mt-5"><Segmented layout="grid" columns={2} label={t.method} value={method} onValueChange={switchMethod} options={[{ value: "code", label: t.byCode }, { value: "password", label: t.byPassword }]} /></div> : null}
+          {step === "email" && method === "password" ? (
+            <form ref={passwordForm} onSubmit={signInWithPassword} method="post" className="mt-5 grid gap-4" noValidate data-method="password">
+              <p className="text-sm text-muted-foreground">{t.passwordHelp}</p>
+              <Field label={t.email} required error={emailProblem ?? undefined}>
+                {props => <TextInput {...props} type="email" inputMode="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} className="min-h-12 text-base" />}
+              </Field>
+              <Field label={t.password} required error={passwordProblem ?? undefined}>
+                {props => <TextInput {...props} type="password" autoComplete="current-password" maxLength={PASSWORD_MAX} dir="ltr" value={password} onChange={event => setPassword(event.target.value)} className="min-h-12 text-base" />}
+              </Field>
+              <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!ready || busy}>{!ready ? t.loading : busy ? t.signingIn : t.signIn}</Button>
+              <Button variant="ghost" className="-ms-4 min-h-11 justify-self-start text-primary" onClick={() => { setForgot(true); setErrorKey(null); }}>{t.forgot}</Button>
+            </form>
+          ) : step === "email" ? (
             <form onSubmit={requestCode} method="post" className="mt-5 grid gap-4" noValidate>
               <p className="text-sm text-muted-foreground">{t.emailHelp}</p>
               <Field label={t.email} required error={emailProblem ?? undefined}>
@@ -227,6 +229,7 @@ export default function Login() {
           {googleEnabled && step === "email" ? (
             <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`} className="mt-5 flex min-h-11 items-center justify-center rounded-[var(--radius)] border border-input px-4 text-sm font-medium hover:bg-muted">{t.google}</a>
           ) : null}
+          </>)}
         </Card>
       </main>
     </DirectionProvider>
