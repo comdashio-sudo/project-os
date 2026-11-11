@@ -1,3 +1,4 @@
+import { CheckedForm } from "@/components/CheckedForm";
 import QRCode from "qrcode";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,11 @@ export function OwnTwoStepCard() {
           selfRequired && !companyRequired ? <Button className="min-h-11" type="button" variant="outline" onClick={() => { setCode(""); setMode("off"); }}>{t.turnOff}</Button>
             : !on ? <Button className="min-h-11" type="button" onClick={start}>{t.turnOn}</Button> : null
         ) : (
-          <form className="space-y-3" onSubmit={submit}>
+          <CheckedForm className="space-y-3" onSubmit={submit}>
             {mode === "enrol" ? <><p className="text-sm text-muted-foreground">{t.scan}</p>{qr ? <img src={qr} alt={t.qrAlt} width={192} height={192} className="rounded-md border bg-white" /> : null}{begin.data ? <a href={begin.data.otpauthUri} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">{t.openApp}</a> : null}</> : null}
             <div className="space-y-1.5"><Label htmlFor="own-two-step-code">{t.code}</Label><Input id="own-two-step-code" dir="ltr" autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} /></div>
             <div className="flex flex-wrap gap-2"><Button className="min-h-11" type="submit" disabled={code.trim().length < 6 || confirm.isPending || setOwn.isPending || (mode === "enrol" && !begin.data)}>{t.confirm}</Button><Button className="min-h-11" type="button" variant="ghost" onClick={() => { setMode("idle"); setCode(""); }}>{t.cancel}</Button></div>
-          </form>
+          </CheckedForm>
         )}
         {error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(error, language)}</p> : null}
       </CardContent>
