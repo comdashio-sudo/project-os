@@ -527,6 +527,27 @@ export const projectErrorMessages = {
     en: "The password is too short or too weak: at least 8 characters.",
     ur: "پاس ورڈ چھوٹا یا کمزور ہے: کم از کم 8 حروف۔",
   },
+  // D-79: storage inside the database
+  PROJECT_OS_STORAGE_FILE_TOO_LARGE: {
+    ar: "الملف أكبر من 5 ميغابايت، وهو الحد الحالي للتخزين. صغّر الملف أو قسّمه ثم أعد الرفع.",
+    en: "The file is larger than 5 MB, the current storage limit. Make it smaller or split it, then upload again.",
+    ur: "فائل 5 میگابائٹ سے بڑی ہے، جو موجودہ اسٹوریج کی حد ہے۔ فائل چھوٹی کریں یا تقسیم کریں، پھر دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_STORAGE_QUOTA_EXCEEDED: {
+    ar: "امتلأت مساحة ملفات الشركة (100 ميغابايت). احذف ملفات لم تعد تلزم، أو اطلب من مالك المنصة تفعيل التخزين الخارجي.",
+    en: "The company's file space is full (100 MB). Remove files you no longer need, or ask the platform owner to switch on external storage.",
+    ur: "کمپنی کی فائلوں کی جگہ بھر گئی ہے (100 میگابائٹ)۔ غیر ضروری فائلیں حذف کریں، یا پلیٹ فارم کے مالک سے بیرونی اسٹوریج فعال کرنے کو کہیں۔",
+  },
+  PROJECT_OS_STORAGE_NOT_FOUND: {
+    ar: "الملف غير موجود: ربما حُذف. افتح الصفحة من جديد.",
+    en: "The file is not there: it may have been removed. Open the page again.",
+    ur: "فائل موجود نہیں: شاید حذف ہو گئی ہو۔ صفحہ دوبارہ کھولیں۔",
+  },
+  PROJECT_OS_STORAGE_LINK_INVALID: {
+    ar: "رابط الملف غير صالح أو انتهت مدته. افتح الصفحة من جديد.",
+    en: "The file link is invalid or has expired. Open the page again.",
+    ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
@@ -1921,6 +1942,36 @@ export const projectErrorMessages = {
     ar: "معاملات الحالات غير صالحة: يجب ألا تتناقص بتقدّم الحالة وأن تكون بين 0 و1.",
     en: "The status factors are invalid: they must not decrease as the status advances and must be between 0 and 1.",
     ur: "حیثیت کے عوامل درست نہیں: حیثیت آگے بڑھنے کے ساتھ کم نہیں ہو سکتے اور 0 اور 1 کے درمیان ہونے چاہئیں۔",
+  },
+  PROJECT_OS_PMC_BLOCK_NOT_FOUND: {
+    ar: "البلوك غير موجود في هذا المشروع.",
+    en: "The block was not found in this project.",
+    ur: "یہ بلاک اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_PMC_MODEL_NOT_FOUND: {
+    ar: "النموذج غير موجود: لا أنشطة معرّفة له في هذا المشروع.",
+    en: "The model was not found: no activities are defined for it in this project.",
+    ur: "ماڈل نہیں ملا: اس پروجیکٹ میں اس کی کوئی سرگرمی متعین نہیں۔",
+  },
+  PROJECT_OS_PMC_UNIT_RANGE_INVALID: {
+    ar: "نطاق الوحدات غير صالح: يجب أن يبدأ من 1 فأكثر، وألا تكون نهايته قبل بدايته، وألا يتجاوز 500 وحدة في المرة.",
+    en: "The unit range is invalid: it must start at 1 or more, not end before it starts, and cover at most 500 units at a time.",
+    ur: "یونٹس کی حد درست نہیں: یہ 1 یا اس سے زیادہ سے شروع ہو، شروع سے پہلے ختم نہ ہو، اور ایک بار میں زیادہ سے زیادہ 500 یونٹس ہوں۔",
+  },
+  PROJECT_OS_PMC_UNITS_EXIST: {
+    ar: "بعض أرقام هذا النطاق موجودة في المشروع؛ لم تُنشأ أي وحدة. اختر نطاقًا لا يتداخل معها.",
+    en: "Some numbers in this range already exist in the project; no unit was created. Choose a range that does not overlap them.",
+    ur: "اس حد کے کچھ نمبر پروجیکٹ میں پہلے سے موجود ہیں؛ کوئی یونٹ نہیں بنا۔ ایسی حد منتخب کریں جو ان سے نہ ٹکرائے۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_INCOMPLETE: {
+    ar: "يجب إرسال وزن كل نشاط من أنشطة النموذج، ولا شيء من غيره.",
+    en: "Send a weight for every activity of the model, and nothing else.",
+    ur: "ماڈل کی ہر سرگرمی کا وزن بھیجیں، اور اس کے سوا کچھ نہیں۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_NOT_100: {
+    ar: "مجموع أوزان أنشطة النموذج يجب أن يكون 100% تمامًا؛ لم يُحفظ شيء.",
+    en: "The model's activity weights must total exactly 100%; nothing was saved.",
+    ur: "ماڈل کی سرگرمیوں کے وزن کا مجموعہ ٹھیک 100% ہونا چاہیے؛ کچھ محفوظ نہیں ہوا۔",
   },
   PROJECT_OS_PMC_UNIT_NOT_FOUND: {
     ar: "الوحدة غير موجودة.",
