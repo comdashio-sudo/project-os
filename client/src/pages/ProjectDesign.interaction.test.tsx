@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectDesign } from "./ProjectDesign";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const hoisted = vi.hoisted(() => {
   const state = { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, empty: false };
@@ -65,5 +66,13 @@ describe("ProjectDesign", () => {
     state.arabic = false; state.empty = true; render(<ProjectDesign tenantId="t1" projectId="p1" />);
     expect(screen.getByText("Drawing register")).toBeTruthy();
     expect(screen.getAllByText("No records yet.").length).toBe(4);
+  });
+});
+
+describe("ProjectDesign checks its forms in the page's language (D-65)", () => {
+  it("an empty drawing registers nothing and says so in Arabic under its first field", () => {
+    state.arabic = true; state.calls.registerDrawing = vi.fn();
+    render(<ProjectDesign tenantId="t1" projectId="p1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.calls.registerDrawing);
   });
 });

@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PmoControlLinks } from "./PmoControlLinks";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -45,6 +46,16 @@ describe("PmoControlLinks", () => {
     expect(screen.getByText("طلب معلومات · RFI-01 · Foundation clarification")).toBeTruthy();
     expect(screen.getByText("حالة عدم مطابقة · NCR-01 · Concrete deviation")).toBeTruthy();
     expect(screen.getByRole("button", { name: "حفظ الرابط" })).toBeTruthy();
+    state.arabic = false;
+  });
+});
+
+describe("PmoControlLinks checks its forms in the page's language (D-65)", () => {
+  it("an empty control link creates nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.arabic = true; state.create.mockReset();
+    render(<PmoControlLinks tenantId="00000000-0000-4000-8000-0000000000a1" projects={projects} records={records} />);
+    const form = Array.from(document.querySelectorAll("form")).find(node => node.querySelector("[required]"))!;
+    expectEmptySubmitRefused(form, "ar", state.create);
     state.arabic = false;
   });
 });
