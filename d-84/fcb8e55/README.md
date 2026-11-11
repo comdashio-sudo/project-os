@@ -1,0 +1,1 @@
+D-84 (a) reference lists, a new section in the project controls (no before: the section did not exist). after-{roles,equipment,activities}-{ar,en,ur}-{390,1280}: the section alone, manager view, mocked tRPC replies.
