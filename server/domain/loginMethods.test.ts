@@ -12,7 +12,7 @@ const google = readFileSync(join(__dirname, "..", "_core", "auth", "google.ts"),
 describe("every route that starts a session proves the email address", () => {
   const methods = Array.from(routes.matchAll(/startSession\(req, res, [\w.]+, "(\w+)"/g)).map(match => match[1]);
   it("finds the sign-in routes (the scan is not vacuous) and each one is on the verified list", () => {
-    expect(methods.sort()).toEqual(["email", "google"]);
+    expect(methods.sort()).toEqual(["email", "google", "password", "password"]); // D-82: sign-in by password, and setting one with a mailed code
     expect(methods.filter(method => !VERIFIED_LOGIN_METHODS.includes(method))).toEqual([]);
   });
   it("starts a session in exactly one place", () => {

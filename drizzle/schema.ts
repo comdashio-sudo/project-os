@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -52,6 +53,8 @@ export const companies = pgTable(
     slug: varchar("slug", { length: 120 }).notNull(),
     status: companiesStatusEnum("status").default("active").notNull(),
     defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
+    // D-81 (owner's decision 2026-11-09): two-step verification is optional and off by default for everyone. A company that wants it for its members switches this on (migration 0023).
+    requireTwoStep: boolean("require_two_step").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2406,6 +2409,8 @@ export const userMfa = pgTable("user_mfa", {
   lastUsedStep: integer("last_used_step"),
   failures: integer("failures").default(0).notNull(),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  /** D-81: the person switched the second step on for himself (profile). An enrolment made while it was compulsory (before D-81) reads false: it asks for nothing. */
+  requiredBySelf: boolean("required_by_self").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -3490,5 +3495,29 @@ export const projectEquipment = pgTable(
     foreignKey({ name: "project_equipment_owner_same_project_fk", columns: [table.ownerCompanyId, table.tenantId, table.projectId], foreignColumns: [projectCompanies.id, projectCompanies.tenantId, projectCompanies.projectId] }),
     uniqueIndex("project_equipment_project_plate_unique").on(table.projectId, sql`lower(${table.plateOrSize})`).where(sql`${table.plateOrSize} IS NOT NULL`),
     index("project_equipment_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+// D-79: file storage inside the database, used automatically when the S3 variables are absent (server/dbStorage.ts, same interface as server/storage.ts).
+// One row per stored object, owned by the company named in its key (uploads|tenants|imports|pmc/<company>/...), so row-level security keeps it inside the company.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+export const storedFiles = pgTable(
+  "stored_files",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    key: varchar("key", { length: 1024 }).notNull(),
+    contentType: varchar("content_type", { length: 255 }).default("application/octet-stream").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("stored_files_key_unique").on(table.key),
+    index("stored_files_tenant_idx").on(table.tenantId),
+    check("stored_files_size_check", sql`${table.size} >= 0 AND ${table.size} <= 5242880 AND octet_length(${table.data}) = ${table.size}`),
+    // the key names its owner, and only that owner: a key moved to another company's prefix (or written under it) is impossible, not merely refused (review of #242)
+    check("stored_files_key_owner_check", sql`split_part(${table.key}, '/', 2) = ${table.tenantId}`),
   ],
 );
