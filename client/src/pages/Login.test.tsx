@@ -9,6 +9,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: s
 vi.mock("@/components/BrandMark", () => ({ BrandMark: () => <span>Dashio</span> }));
 
 import Login from "./Login";
+import { TYPING_TEST } from "@/test/typing";
 
 type Reply = { ok: boolean; status?: number; body?: unknown };
 function stubFetch(routes: Record<string, Reply | ((body: unknown) => Reply)>) {
@@ -36,7 +37,7 @@ function withSearch(search: string) {
   Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, search, assign: state.assign } });
 }
 
-describe("login page", () => {
+describe("login page", TYPING_TEST, () => {
   it("asks for the address, then the code, then goes where the visitor was heading", async () => {
     const calls = stubFetch({ "/api/auth/config": { ok: true, body: { google: false } }, "/api/auth/email/request": { ok: true, body: { ok: true } }, "/api/auth/email/verify": { ok: true, body: { ok: true } } });
     withSearch("?next=%2Fpmo%2Ftenant-a");

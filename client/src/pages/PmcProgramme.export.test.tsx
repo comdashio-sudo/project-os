@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { PmcProgramme } from "./PmcProgramme";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -54,7 +55,7 @@ const headerTexts = () => Array.from(document.querySelectorAll("thead th")).map(
 const bodyRowCount = () => document.querySelectorAll("tbody tr").length;
 const exportedCall = () => vi.mocked(buildTableWorkbook).mock.calls[0][0];
 
-describe("PmcProgramme Excel export", () => {
+describe("PmcProgramme Excel export", EXPORT_TEST, () => {
   it("puts the export button in the same block as the programme table", () => {
     show();
     const block = screen.getByTestId("programme");
@@ -67,7 +68,7 @@ describe("PmcProgramme Excel export", () => {
     h.arabic = arabic;
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     expect(exportedCall().columns.map(column => column.header)).toEqual(headerTexts());
     expect(exportedCall().rows).toHaveLength(bodyRowCount());
     expect(bodyRowCount()).toBe(3);
@@ -77,7 +78,7 @@ describe("PmcProgramme Excel export", () => {
   it("exports the percentages as fractions with a percent format, and a month without an actual as an empty cell", async () => {
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     const { columns, rows } = exportedCall();
     expect(rows.map(row => columns.map(column => column.value(row)))).toEqual([
       ["2026-09", 0.3, 0.1, -0.2, 0.3, 0.1],
