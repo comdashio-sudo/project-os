@@ -102,6 +102,6 @@ CREATE INDEX IF NOT EXISTS "site_daily_report_tomorrow_report_idx" ON "site_dail
 --> statement-breakpoint
 -- refuse to finish without what the rules stand on: the four same-project report keys and the same-project submittal key
 DO $$ BEGIN
-  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('site_daily_report_materials_report_fk', 'site_daily_report_hse_report_fk', 'site_daily_report_obstacles_report_fk', 'site_daily_report_tomorrow_report_fk', 'site_daily_report_materials_submittal_fk') AND contype = 'f' AND array_length(conkey, 1) = 3) <> 5 THEN RAISE EXCEPTION '0025: a same-project foreign key is missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'site_daily_report_hse_kind_check' AND contype = 'c') THEN RAISE EXCEPTION '0025: the HSE kind check is missing'; END IF;
+  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('site_daily_report_materials_report_fk', 'site_daily_report_hse_report_fk', 'site_daily_report_obstacles_report_fk', 'site_daily_report_tomorrow_report_fk', 'site_daily_report_materials_submittal_fk') AND contype = 'f' AND array_length(conkey, 1) = 3) <> 5 THEN RAISE EXCEPTION '0026: a same-project foreign key is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'site_daily_report_hse_kind_check' AND contype = 'c') THEN RAISE EXCEPTION '0026: the HSE kind check is missing'; END IF;
 END $$;
