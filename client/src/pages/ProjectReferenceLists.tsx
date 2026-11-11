@@ -8,6 +8,7 @@ import { pickLanguage } from "@/lib/language";
 import { useCan, WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { EquipmentImport, TrackerImport } from "@/components/referenceLists/ReferenceImports";
 
 // D-84 (P-37): the project's reference lists the daily report chooses from (#233): labour roles (direct / indirect), the equipment register and the unit of
 // measure of each site activity. Everyone on the project reads them; changing them is project.manage, and the server refuses the same (PERMISSION_DENIED).
@@ -51,13 +52,15 @@ export function ProjectReferenceLists({ tenantId, projectId }: Scope) {
   const t = pickLanguage(language, text);
   const [tab, setTab] = useState("roles");
   const canEdit = useCan("project.manage", projectId);
+  // D-84 (b): the Tracker writes the PMC units and their statuses, so it asks the PMC permission the server asks (#236)
+  const canImportTracker = useCan("project.pmc.manage", projectId);
   const scope = { tenantId, projectId };
   return (
     <section className="space-y-4 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border sm:p-6" aria-labelledby="reference-lists-title" data-reference-lists>
       <div className="flex items-center gap-3"><ListChecks className="h-5 w-5 text-primary" aria-hidden="true" /><h2 id="reference-lists-title" className="font-semibold">{t.title}</h2></div>
       <Segmented layout="grid" columns={3} label={t.tabs} value={tab} onValueChange={setTab} options={[{ value: "roles", label: t.roles }, { value: "equipment", label: t.equipment }, { value: "activities", label: t.activities }]} />
       <WriteGate permission="project.manage" projectId={projectId} reason={{ ar: text.ar.readOnly, en: text.en.readOnly, ur: text.ur.readOnly }}>{null}</WriteGate>
-      {tab === "roles" ? <Roles scope={scope} t={t} canEdit={canEdit} /> : tab === "equipment" ? <Equipment scope={scope} t={t} canEdit={canEdit} /> : <Activities scope={scope} t={t} canEdit={canEdit} />}
+      {tab === "roles" ? <Roles scope={scope} t={t} canEdit={canEdit} /> : tab === "equipment" ? <Equipment scope={scope} t={t} canEdit={canEdit} /> : <Activities scope={scope} t={t} canEdit={canEdit} canImport={canImportTracker} />}
     </section>
   );
 }
@@ -154,11 +157,12 @@ function Equipment({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolean
           <span className="flex gap-2 sm:col-span-2"><Button type="submit" loading={save.isPending}>{draft.id ? t.save : t.addEquipment}</Button>{draft.id ? <Button variant="ghost" onClick={() => setDraft(blankMachine)}>{t.cancel}</Button> : null}</span>
         </CheckedForm>
       ) : null}
+      {canEdit ? <EquipmentImport tenantId={scope.tenantId} projectId={scope.projectId} onImported={() => { void list.refetch(); }} /> : null}
     </div>
   );
 }
 
-function Activities({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolean }) {
+function Activities({ scope, t, canEdit, canImport }: { scope: Scope; t: T; canEdit: boolean; canImport: boolean }) {
   const { isArabic } = useLanguage();
   const list = trpc.projects.siteActivities.list.useQuery(scope);
   const [drafts, setDrafts] = useState<Record<string, { measureUnit: (typeof MEASURES)[number]; total: string }>>({});
@@ -167,7 +171,9 @@ function Activities({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolea
   const setMeasure = trpc.projects.siteActivities.setMeasure.useMutation({ onSuccess: result => { setNotice(t.saved); setDrafts(current => { const next = { ...current }; delete next[result.id]; return next; }); void list.refetch(); } });
   if (list.isLoading) return <SkeletonRows rows={3} />;
   if (!list.data) return <SectionFailed title={t.activities} error={list.error} isArabic={isArabic} onRetry={() => list.refetch()} retrying={list.isFetching} />;
-  if (list.data.length === 0) return <EmptyState title={t.noActivities} line={t.noActivitiesLine} />;
+  const tracker = canImport ? <TrackerImport tenantId={scope.tenantId} projectId={scope.projectId} onImported={() => { void list.refetch(); }} /> : null;
+  // an empty list's next step is the import that fills it
+  if (list.data.length === 0) return <div className="space-y-3"><EmptyState title={t.noActivities} line={t.noActivitiesLine} />{tracker}</div>;
   const submit = (id: string) => {
     const draft = drafts[id]; if (!draft) return;
     const total = draft.total.trim() === "" ? null : Number(draft.total);
@@ -191,6 +197,7 @@ function Activities({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolea
           </li>
         );
       })}</ul>
+      {tracker}
     </div>
   );
 }

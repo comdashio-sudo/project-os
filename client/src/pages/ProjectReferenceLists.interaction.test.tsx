@@ -6,7 +6,7 @@ import { ProjectReferenceLists } from "./ProjectReferenceLists";
 
 // D-84 (P-37): the reference-list screens on the procedures of #233.
 const h = vi.hoisted(() => ({
-  language: "en" as "ar" | "en" | "ur", canEdit: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, errors: {} as Record<string, unknown>,
+  language: "en" as "ar" | "en" | "ur", canEdit: true, canPmc: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, errors: {} as Record<string, unknown>,
   roles: [] as Array<{ id: string; name: string; category: "direct" | "indirect"; defaultKey: string | null; active: boolean; sortOrder: number }>,
   machines: [] as Array<{ id: string; equipmentType: string; model: string | null; plateOrSize: string | null; ownerCompanyId: string | null; ownerName: string | null; active: boolean }>,
   activities: [] as Array<{ id: string; code: string; name: string; measureUnit: "villa" | "lm" | "m2" | "piece"; totalQuantity: number | null }>,
@@ -15,9 +15,10 @@ const h = vi.hoisted(() => ({
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/lib/permissions", () => ({
-  useCan: () => h.canEdit,
+  useCan: (permission: string) => (permission === "project.pmc.manage" ? h.canPmc : h.canEdit),
   WriteGate: ({ children, reason }: { children: React.ReactNode; reason?: { en: string; ar: string } }) => (h.canEdit ? <>{children}</> : <p role="note">{h.language === "ar" ? reason?.ar : reason?.en}</p>),
 }));
+vi.mock("@/components/referenceLists/ReferenceImports", () => ({ EquipmentImport: () => <p>equipment import</p>, TrackerImport: () => <p>tracker import</p> }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: { message: string }) => `localized: ${error.message}` }));
 vi.mock("@/lib/trpc", () => {
   const mutation = (name: string, result: unknown = {}) => ({ useMutation: (config?: { onSuccess?: (result: unknown) => void }) => ({
@@ -34,7 +35,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 beforeEach(() => {
-  h.language = "en"; h.canEdit = true; h.calls = {}; h.errors = {}; h.rolesError = null;
+  h.language = "en"; h.canEdit = true; h.canPmc = true; h.calls = {}; h.errors = {}; h.rolesError = null;
   h.roles = [{ id: "r1", name: "Masons", category: "direct", defaultKey: null, active: true, sortOrder: 1 }, { id: "r2", name: "Site engineer", category: "indirect", defaultKey: null, active: true, sortOrder: 2 }, { id: "r3", name: "Old trade", category: "direct", defaultKey: null, active: false, sortOrder: 3 }];
   h.machines = [{ id: "m1", equipmentType: "Mixer", model: "MX-2", plateOrSize: "PLT-100", ownerCompanyId: "c-main", ownerName: "Main Contractor Co.", active: true }];
   h.activities = [{ id: "a1", code: "BLK", name: "Blockwork", measureUnit: "villa", totalQuantity: null }, { id: "a2", code: "CRB", name: "Kerbs", measureUnit: "villa", totalQuantity: null }];
@@ -147,5 +148,23 @@ describe("three languages", () => {
     h.language = language;
     render(<ProjectReferenceLists tenantId="t" projectId="p" />);
     expect(screen.getAllByRole("radio").map(node => node.textContent)).toEqual([...tabs]);
+  });
+});
+
+describe("the two Excel imports (D-84 b)", () => {
+  it("the equipment import sits under the register for project.manage; the Tracker under the activities for project.pmc.manage, and fills an empty list", () => {
+    h.activities = [];
+    render(<ProjectReferenceLists tenantId="t" projectId="p" />);
+    tab("Equipment");
+    expect(screen.getByText("equipment import")).toBeTruthy();
+    tab("Activities and units");
+    expect(screen.getByText("No site activities yet")).toBeTruthy();
+    expect(screen.getByText("tracker import")).toBeTruthy();
+    cleanup(); h.canPmc = false; h.canEdit = false;
+    render(<ProjectReferenceLists tenantId="t" projectId="p" />);
+    tab("Equipment");
+    expect(screen.queryByText("equipment import")).toBeNull();
+    tab("Activities and units");
+    expect(screen.queryByText("tracker import")).toBeNull();
   });
 });
