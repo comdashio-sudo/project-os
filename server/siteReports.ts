@@ -102,7 +102,9 @@ const amount = (value: number | undefined) => (value === undefined ? null : Stri
 /** Replaces the four section lists of a report inside the save's transaction. */
 async function writeSections(tx: Tx, input: Scope, reportId: string, sections: Sections, replace: boolean) {
   const base = (index: number) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId, sortOrder: index });
-  if (replace) for (const table of [siteDailyReportMaterials, siteDailyReportHse, siteDailyReportObstacles, siteDailyReportTomorrow]) await tx.delete(table).where(and(mine(table, input), eq(table.reportId, reportId)));
+  // a section the save does not send is left as it is; an empty list clears it (review of #240: the merged screen saves the header alone)
+  const sent = [[siteDailyReportMaterials, sections.materials], [siteDailyReportHse, sections.hse], [siteDailyReportObstacles, sections.obstacleItems], [siteDailyReportTomorrow, sections.tomorrow]] as const;
+  if (replace) for (const [table, rows] of sent) if (rows !== undefined) await tx.delete(table).where(and(mine(table, input), eq(table.reportId, reportId)));
   if (sections.materials?.length) await tx.insert(siteDailyReportMaterials).values(sections.materials.map((row, i) => ({ ...base(i), material: row.material.trim(), quantity: String(row.quantity), unit: row.unit.trim(), supplier: text(row.supplier), consultantSubmittalId: row.consultantSubmittalId ?? null })));
   if (sections.hse?.length) await tx.insert(siteDailyReportHse).values(sections.hse.map((row, i) => ({ ...base(i), kind: row.kind, description: row.description.trim(), peopleCount: row.peopleCount ?? null, actionTaken: text(row.actionTaken) })));
   if (sections.obstacleItems?.length) await tx.insert(siteDailyReportObstacles).values(sections.obstacleItems.map((row, i) => ({ ...base(i), issue: row.issue.trim(), impact: text(row.impact), responsible: text(row.responsible), action: text(row.action), dueDate: row.dueDate ?? null })));
