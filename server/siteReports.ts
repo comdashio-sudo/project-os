@@ -428,7 +428,8 @@ export async function copySiteDailyReportFromYesterday(input: Scope & { reportDa
  * Refused when the project names no reviewer (there is no such step), when it is not that person, when the report is not submitted or was already reviewed.
  */
 export async function checkSiteDailyReportForTenant(input: Scope & { reportId: string; decision: "pass" | "return"; note?: string }) {
-  const db = await authorize(input, READ_PERMISSIONS);
+  // a write to the report's state: reading the project is not enough (review of #243); the chain then decides WHICH of those may do it
+  const db = await authorize(input, ["project.field.manage", "project.manage"]);
   const report = await ownReport(db, input);
   const chain = await chainOf(db, input);
   if (chain.review === null) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
