@@ -5,7 +5,8 @@
 //   Row-level security (project_os_apply_conventions) keeps it inside that company: a statement made for another company's key reads nothing and writes nothing.
 // - A "signed URL" is /api/storage/file/<token>: a token signed by this server that names one key and expires in 15 minutes, minted only for a caller that
 //   already passed the authorization checks (as an S3 presigned URL is). A direct upload is PUT /api/storage/upload/<token> in the same way.
-// - Up to 5 MB a file (also a CHECK in the table) and 100 MB a company. Vercel cuts a request body at 4.5 MB, so a browser upload through it is smaller still.
+// - Up to 5 MB a file (also a CHECK in the table) and 100 MB a company. Vercel cuts a request body at 4.5 MB, so a browser upload through it is announced as 4.5 MB.
+export const VERCEL_REQUEST_BODY_BYTES = 4.5 * 1024 * 1024;
 import { TRPCError } from "@trpc/server";
 import { and, eq, like, sql } from "drizzle-orm";
 import express, { type Express, type Request, type Response } from "express";
@@ -31,7 +32,12 @@ export function tenantOfKey(key: string): string {
 
 const tooLarge = () => new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "PROJECT_OS_STORAGE_FILE_TOO_LARGE" });
 const overQuota = () => new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "PROJECT_OS_STORAGE_QUOTA_EXCEEDED" });
-const secret = () => new TextEncoder().encode(`project-os-db-storage|${ENV.cookieSecret}`);
+/** The same floor as the session (sdk.ts): with no real secret the key would be a constant anyone can read in the source, and every link could be forged. */
+export const MIN_STORAGE_SECRET_LENGTH = 16;
+const secret = () => {
+  if ((ENV.cookieSecret ?? "").length < MIN_STORAGE_SECRET_LENGTH) throw new Error("JWT_SECRET is missing or shorter than 16 characters: storage links cannot be signed");
+  return new TextEncoder().encode(`project-os-db-storage|${ENV.cookieSecret}`);
+};
 type Grant = { key: string; op: "get" | "put"; contentType?: string };
 
 export async function signStorageToken(grant: Grant, now = Date.now()): Promise<string> {
@@ -39,6 +45,7 @@ export async function signStorageToken(grant: Grant, now = Date.now()): Promise<
 }
 /** The grant a token carries, or null: a bad signature, an expired token, or one minted for the other operation. */
 export async function readStorageToken(token: string, op: Grant["op"]): Promise<Grant | null> {
+  if ((ENV.cookieSecret ?? "").length < MIN_STORAGE_SECRET_LENGTH) return null; // refuse every link rather than accept one signed with a guessable key
   try {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
     return payload.op === op && typeof payload.key === "string" ? (payload as unknown as Grant) : null;

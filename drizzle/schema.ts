@@ -3513,5 +3513,7 @@ export const storedFiles = pgTable(
     uniqueIndex("stored_files_key_unique").on(table.key),
     index("stored_files_tenant_idx").on(table.tenantId),
     check("stored_files_size_check", sql`${table.size} >= 0 AND ${table.size} <= 5242880 AND octet_length(${table.data}) = ${table.size}`),
+    // the key names its owner, and only that owner: a key moved to another company's prefix (or written under it) is impossible, not merely refused (review of #242)
+    check("stored_files_key_owner_check", sql`split_part(${table.key}, '/', 2) = ${table.tenantId}`),
   ],
 );

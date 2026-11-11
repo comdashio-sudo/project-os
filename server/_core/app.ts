@@ -7,6 +7,7 @@ import { appRouter } from "../routers";
 import { scheduledEmailNotificationsHandler } from "../scheduledEmailNotifications";
 import { tenantExportHandler } from "../tenantExportRoute";
 import { registerDatabaseStorageRoutes } from "../dbStorage";
+import { partialS3Setup } from "../storage";
 import { scheduledDailyHandler } from "../scheduledDaily";
 import { scheduledImportJobsHandler } from "../scheduledImportJobs";
 import { scheduledLicenseExpiryHandler } from "../scheduledLicenseExpiry";
@@ -64,13 +65,17 @@ export function createApp(options: AppOptions) {
   // broken sign-in on 2026-10-26: "ok" or "ok; schema behind: <migrations still to apply>". The database answer is cached half a minute and bounded to four seconds.
   app.get("/healthz", async (_req, res) => {
     const readiness = await Promise.race([schemaReadiness(), new Promise<null>(resolve => setTimeout(() => resolve(null), 4000))]);
-    const note = readiness === null ? "; schema unknown" : readiness.ready ? "" : `; schema behind: ${pendingMigrations(readiness).join(", ")}`;
+    const storageMissing = partialS3Setup();
+    const note = (readiness === null ? "; schema unknown" : readiness.ready ? "" : `; schema behind: ${pendingMigrations(readiness).join(", ")}`) + (storageMissing.length ? `; storage partly configured, missing: ${storageMissing.join(", ")}` : "");
     res.set("Cache-Control", "no-store").status(200).type("text/plain").send(`ok${note}`);
   });
   // Readiness: 200 when the database has what this release's code names, 503 with the migrations still to apply. The post-deploy check reads it (a warning, not a rollback: the code tolerates it).
   app.get("/api/readyz", async (_req, res) => {
     const readiness = await schemaReadiness();
-    res.set("Cache-Control", "no-store").status(readiness.ready ? 200 : 503).json({ ready: readiness.ready, pendingMigrations: pendingMigrations(readiness) });
+    // D-79: a partial S3 setup (1 to 4 of the 5 variables) is not ready either; the names are said, never a value
+    const storageMissing = partialS3Setup();
+    const ready = readiness.ready && storageMissing.length === 0;
+    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready, pendingMigrations: pendingMigrations(readiness), ...(storageMissing.length ? { storagePartlyConfigured: storageMissing } : {}) });
   });
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.use(apiRateLimit({ perMinute: options.apiRequestsPerMinute ?? apiRateLimitFromEnvironment(), now: options.now }));

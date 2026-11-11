@@ -2185,7 +2185,8 @@ CREATE TABLE "stored_files" (
 	"data" "bytea" NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "stored_files_size_check" CHECK ("stored_files"."size" >= 0 AND "stored_files"."size" <= 5242880 AND octet_length("stored_files"."data") = "stored_files"."size")
+	CONSTRAINT "stored_files_size_check" CHECK ("stored_files"."size" >= 0 AND "stored_files"."size" <= 5242880 AND octet_length("stored_files"."data") = "stored_files"."size"),
+	CONSTRAINT "stored_files_key_owner_check" CHECK (split_part("stored_files"."key", '/', 2) = "stored_files"."tenant_id")
 );
 --> statement-breakpoint
 CREATE TABLE "subcontract_certificate_lines" (

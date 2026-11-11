@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 180_000 });
 import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
 import { runWithDbContext } from "./_core/database";
+import { ENV } from "./_core/env";
 import { createContext } from "./_core/context";
 import { DB_STORAGE_MAX_FILE_BYTES, DB_STORAGE_MAX_TENANT_BYTES, registerDatabaseStorageRoutes } from "./dbStorage";
 import { storageDelete, storageMode, storagePut, storageRead } from "./storage";
@@ -23,6 +24,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("file storage
   const asCompany = <T,>(tenantId: string, work: () => Promise<T>) => runWithDbContext({ userId: null, tenantIds: [tenantId], system: false }, work);
 
   beforeAll(async () => {
+    if (ENV.cookieSecret.length < 16) (ENV as { cookieSecret: string }).cookieSecret = "db-storage-test-secret-0123456789"; // links are signed with it (16 characters at least)
     owner = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL }); await owner.connect();
     a = await createRoleFixture({ label: "dbstore-a" }); b = await createRoleFixture({ label: "dbstore-b" });
     const app = express();
@@ -83,7 +85,13 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("file storage
     const refused = await put(upload.uploadUrl, big, "image/png");
     expect(refused.status).toBe(413); expect(await refused.json()).toEqual({ code: "PROJECT_OS_STORAGE_FILE_TOO_LARGE" });
     await expect(asCompany(a.tenantId, () => storagePut(`uploads/${a.tenantId}/${a.projectId}/big.bin`, big))).rejects.toMatchObject({ message: "PROJECT_OS_STORAGE_FILE_TOO_LARGE" });
-    await expect(owner.query("INSERT INTO stored_files (id, tenant_id, key, size, data) VALUES (gen_random_uuid()::text, $1, 'uploads/x/big', $2, $3)", [a.tenantId, big.length, big])).rejects.toThrow(/stored_files_size_check/);
+    await expect(owner.query("INSERT INTO stored_files (id, tenant_id, key, size, data) VALUES (gen_random_uuid()::text, $1, $2, $3, $4)", [a.tenantId, `uploads/${a.tenantId}/big`, big.length, big])).rejects.toThrow(/stored_files_size_check/);
+  });
+
+  it("NEGATIVE (review of #242): a key cannot name another company than its row — written that way, or moved there later — the database refuses it", async () => {
+    await expect(owner.query("INSERT INTO stored_files (id, tenant_id, key, size, data) VALUES (gen_random_uuid()::text, $1, $2, 1, 'x')", [a.tenantId, `uploads/${b.tenantId}/planted`])).rejects.toThrow(/stored_files_key_owner_check/);
+    const stored = await asCompany(a.tenantId, () => storagePut(`uploads/${a.tenantId}/${a.projectId}/note/move.txt`, "a", "text/plain"));
+    await expect(owner.query("UPDATE stored_files SET key = $1 WHERE key = $2", [`uploads/${b.tenantId}/moved`, stored.key])).rejects.toThrow(/stored_files_key_owner_check/);
   });
 
   it("NEGATIVE: a company cannot store more than its total; another company is not affected", async () => {

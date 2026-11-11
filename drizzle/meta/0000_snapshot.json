@@ -1,5 +1,5 @@
 {
-  "id": "33e45bca-5eda-4b41-9303-6e05678eaf97",
+  "id": "086ab002-1323-408a-92f1-2d0f4443ec7d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -24398,6 +24398,10 @@
         "stored_files_size_check": {
           "name": "stored_files_size_check",
           "value": "\"stored_files\".\"size\" >= 0 AND \"stored_files\".\"size\" <= 5242880 AND octet_length(\"stored_files\".\"data\") = \"stored_files\".\"size\""
+        },
+        "stored_files_key_owner_check": {
+          "name": "stored_files_key_owner_check",
+          "value": "split_part(\"stored_files\".\"key\", '/', 2) = \"stored_files\".\"tenant_id\""
         }
       },
       "isRLSEnabled": false
