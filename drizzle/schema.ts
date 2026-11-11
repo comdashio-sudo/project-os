@@ -2157,7 +2157,7 @@ export const pmcUnits = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
 export const pmcActivityGroups = pgTable(
@@ -2666,6 +2666,10 @@ export const siteDailyReports = pgTable(
     reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: varchar("review_note", { length: 500 }),
+    // D-45 (c), 0025: the middle step of the chain (prepare → review → approve): who reviewed the submitted report, when, and the note; cleared when it goes back to draft
+    checkedByUserId: integer("checked_by_user_id").references(() => users.id),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    checkNote: varchar("check_note", { length: 500 }),
     // D-45 (a), 0023: the number the system gives the report (the project's prefix and its own sequence, never typed), the wind, and the working hours of the day
     reportNumber: varchar("report_number", { length: 40 }),
     wind: varchar("wind", { length: 24 }),
@@ -2727,10 +2731,16 @@ export const siteDailyReportPhotos = pgTable(
     contentType: varchar("content_type", { length: 80 }).notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     caption: varchar("caption", { length: 255 }),
+    // D-45 (c), 0025: where the photo was taken — a zone in words, or a unit of the SAME project (composite foreign key)
+    zone: varchar("zone", { length: 80 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey)],
+  table => [
+    index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey),
+    foreignKey({ name: "site_daily_report_photos_unit_fk", columns: [table.pmcUnitId, table.tenantId, table.projectId], foreignColumns: [pmcUnits.id, pmcUnits.tenantId, pmcUnits.projectId] }),
+  ],
 );
 
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);

@@ -1013,6 +1013,16 @@ export const projectErrorMessages = {
     en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
     ur: "کسی سرگرمی کو مکمل کرنے سے پہلے اس یونٹ اور سرگرمی کے معائنے کو معیار کی ٹیم نے قبول کرنا ضروری ہے، اور کمپنی کی پالیسی اس کو روکتی ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP: {
+    ar: "هذه الخطوة من سلسلة اعتماد التقارير مسندة في هذا المشروع إلى شخص آخر.",
+    en: "This step of the report approval chain is assigned to someone else on this project.",
+    ur: "رپورٹ کی منظوری کے سلسلے کا یہ مرحلہ اس پروجیکٹ میں کسی اور کے سپرد ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER: {
+    ar: "لا تتم هذه الخطوة الآن: الترتيب أعدّه ثم راجعه ثم اعتمده، والتقرير ليس عند هذه الخطوة.",
+    en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
+    ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
     ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
     en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",

@@ -1687,7 +1687,8 @@ CREATE TABLE "pmc_units" (
 	"geometry_json" text,
 	"unit_weight" numeric(12, 4) DEFAULT '1' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pmc_units_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "pmc_verification_statuses" (
@@ -2223,6 +2224,8 @@ CREATE TABLE "site_daily_report_photos" (
 	"content_type" varchar(80) NOT NULL,
 	"size_bytes" integer NOT NULL,
 	"caption" varchar(255),
+	"zone" varchar(80),
+	"pmc_unit_id" varchar(36),
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2265,6 +2268,9 @@ CREATE TABLE "site_daily_reports" (
 	"reviewed_by_user_id" integer,
 	"reviewed_at" timestamp with time zone,
 	"review_note" varchar(500),
+	"checked_by_user_id" integer,
+	"checked_at" timestamp with time zone,
+	"check_note" varchar(500),
 	"report_number" varchar(40),
 	"wind" varchar(24),
 	"work_hours" numeric(4, 1),
@@ -3133,6 +3139,7 @@ ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_report_id_site_daily_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."site_daily_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_unit_fk" FOREIGN KEY ("pmc_unit_id","tenant_id","project_id") REFERENCES "public"."pmc_units"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3140,6 +3147,7 @@ ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_tenant_id_co
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_user_id_users_id_fk" FOREIGN KEY ("prepared_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_checked_by_user_id_users_id_fk" FOREIGN KEY ("checked_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stored_files" ADD CONSTRAINT "stored_files_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
