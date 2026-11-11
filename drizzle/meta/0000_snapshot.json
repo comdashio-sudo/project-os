@@ -1,5 +1,5 @@
 {
-  "id": "c3252392-eab1-407d-a415-75bbf9f9f8b4",
+  "id": "a6b3a4fd-651a-498f-9643-8f45d74c5765",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3070,6 +3070,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'ar'"
+        },
+        "require_two_step": {
+          "name": "require_two_step",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -27768,6 +27775,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "required_by_self": {
+          "name": "required_by_self",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

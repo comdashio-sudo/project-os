@@ -11,7 +11,7 @@ vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () =
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "خطأ" }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false });
-  return { trpc: { useUtils: () => ({ tenant: { administration: { invalidate: vi.fn() } } }), tenant: { administration: { useQuery: () => ({ isLoading: true, error: null, data: undefined }) }, findAssignableUser: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) }, assignMember: { useMutation: mutation }, createRole: { useMutation: mutation }, updateRole: { useMutation: mutation }, assignMembershipRole: { useMutation: mutation }, revokeMembershipRole: { useMutation: mutation }, createInvitation: { useMutation: mutation }, transitionMembershipStatus: { useMutation: mutation } } } };
+  return { trpc: { useUtils: () => ({ tenant: { administration: { invalidate: vi.fn() } } }), tenant: { administration: { useQuery: () => ({ isLoading: true, error: null, data: undefined }) }, securitySettings: { useQuery: () => ({ isLoading: true, isError: false, data: undefined }) }, setRequireTwoStep: { useMutation: mutation }, findAssignableUser: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) }, assignMember: { useMutation: mutation }, createRole: { useMutation: mutation }, updateRole: { useMutation: mutation }, assignMembershipRole: { useMutation: mutation }, revokeMembershipRole: { useMutation: mutation }, createInvitation: { useMutation: mutation }, transitionMembershipStatus: { useMutation: mutation } } } };
 });
 
 describe("TenantAdministration loading state", () => {

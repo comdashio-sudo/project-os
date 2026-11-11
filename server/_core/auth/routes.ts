@@ -35,7 +35,7 @@ export type AuthRoutesDependencies = {
   now?: () => number;
 };
 
-const statusFor: Record<string, number> = { EMAIL_INVALID: 400, RATE_LIMITED: 429, MAIL_UNAVAILABLE: 503, CODE_INVALID: 401 };
+const statusFor: Record<string, number> = { EMAIL_INVALID: 400, RATE_LIMITED: 429, MAIL_UNAVAILABLE: 503, CODE_INVALID: 401, CREDENTIALS_INVALID: 401, PASSWORD_WEAK: 400 };
 
 const displayName = (email: string, name?: string | null) => (name && name.trim()) || email.split("@")[0] || "user";
 
@@ -84,6 +84,41 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
       logError("auth.code_verification_failed", error);
       return res.status(500).json({ code: "PROJECT_OS_AUTH_FAILED" });
     }
+  });
+
+  // D-82: a second way in, beside the mailed code. Both end in the same startSession, so everything after a sign-in (the server-side session, two-step
+  // verification by isMfaRequired, roles and permissions) is the same. The password itself lives only at Supabase Auth; it is never stored, logged or echoed.
+  const refuse = (res: Response, error: unknown, fallback: string, event: string) => {
+    if (error instanceof EmailCodeError) return res.status(statusFor[error.code] ?? 401).json({ code: `PROJECT_OS_AUTH_${error.code}`, ...(error.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}) });
+    logError(event, error); // the logger keeps the error's name and frames, never its message: nothing a request carried reaches the log
+    return res.status(500).json({ code: fallback });
+  };
+
+  app.post("/api/auth/password/sign-in", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    if (!verifyLimiter.hit(req.ip ?? "unknown")) return res.status(429).json({ code: "PROJECT_OS_AUTH_RATE_LIMITED" });
+    try {
+      const { email } = await dependencies.emailCodes.signInWithPassword(req.body?.email, req.body?.password);
+      // a password set straight at the identity provider for an address nobody invited opens nothing here: the same answer as a wrong password
+      if (!(await dependencies.isEligible(email))) throw new EmailCodeError("CREDENTIALS_INVALID");
+      await startSession(req, res, email, "password");
+      return res.status(200).json({ ok: true });
+    } catch (error) { return refuse(res, error, "PROJECT_OS_AUTH_FAILED", "auth.password_sign_in_failed"); }
+  });
+
+  // "Set a password" and "forgot my password" are this one route: the code from /api/auth/email/request, then the new password. It signs the person in.
+  app.post("/api/auth/password/set", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    if (!verifyLimiter.hit(req.ip ?? "unknown")) return res.status(429).json({ code: "PROJECT_OS_AUTH_RATE_LIMITED" });
+    try {
+      let email: string;
+      try { email = normalizeEmail(req.body?.email); } catch { throw new EmailCodeError("CODE_INVALID"); }
+      // an uninvited address was never sent a code (email/request answers it without mail), so it is refused like a wrong code, before anything is stored
+      if (!(await dependencies.isEligible(email))) throw new EmailCodeError("CODE_INVALID");
+      await dependencies.emailCodes.setPassword(email, req.body?.code, req.body?.password);
+      await startSession(req, res, email, "password");
+      return res.status(200).json({ ok: true });
+    } catch (error) { return refuse(res, error, "PROJECT_OS_AUTH_FAILED", "auth.password_set_failed"); }
   });
 
   const google = dependencies.google;

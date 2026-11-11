@@ -47,7 +47,7 @@ for (const view of VIEWS) {
     try {
       await page.goto(`${BASE_URL}${path}${path.includes("?") ? "&" : "?"}lang=ar`, { waitUntil: "load", timeout: 45_000 });
       await page.waitForTimeout(2200);
-      if (step === "code") { await page.locator("#login-email").fill("a11y.check@example.test"); await page.getByRole("button", { name: /إرسال/ }).click().catch(() => {}); await page.waitForTimeout(1500); }
+      if (step === "code") { await page.locator('input[autocomplete="email"]').fill("a11y.check@example.test"); await page.getByRole("button", { name: /إرسال/ }).click().catch(() => {}); await page.waitForTimeout(1500); }
       for (let round = 0; round < 3; round++) { await page.evaluate(() => document.querySelectorAll("details").forEach(element => { element.open = true; })); await page.waitForTimeout(900); }
       const tabs = await page.getByRole("tab").all();
       const passes = [null, ...tabs.slice(0, 12)];
