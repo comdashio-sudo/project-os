@@ -516,6 +516,11 @@ export const projectErrorMessages = {
     en: "Postponing is for the platform owner only.",
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
+  PROJECT_OS_REPORT_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: اختر تاريخًا صحيحًا لبداية الأسبوع أو يومًا من الشهر.",
+    en: "The period is invalid: choose a real date for the start of the week or a day of the month.",
+    ur: "مدت درست نہیں: ہفتے کے آغاز کے لیے یا مہینے کے کسی دن کی درست تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
