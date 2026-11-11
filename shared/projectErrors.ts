@@ -516,10 +516,52 @@ export const projectErrorMessages = {
     en: "Postponing is for the platform owner only.",
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
+  // D-82: password sign-in (the screen in D-83 says these beside the field)
+  PROJECT_OS_AUTH_CREDENTIALS_INVALID: {
+    ar: "البريد أو كلمة المرور غير صحيحة.",
+    en: "The e-mail address or the password is wrong.",
+    ur: "ای میل یا پاس ورڈ غلط ہے۔",
+  },
+  PROJECT_OS_AUTH_PASSWORD_WEAK: {
+    ar: "كلمة المرور قصيرة أو ضعيفة: 8 أحرف على الأقل.",
+    en: "The password is too short or too weak: at least 8 characters.",
+    ur: "پاس ورڈ چھوٹا یا کمزور ہے: کم از کم 8 حروف۔",
+  },
+  // D-79: storage inside the database
+  PROJECT_OS_STORAGE_FILE_TOO_LARGE: {
+    ar: "الملف أكبر من 5 ميغابايت، وهو الحد الحالي للتخزين. صغّر الملف أو قسّمه ثم أعد الرفع.",
+    en: "The file is larger than 5 MB, the current storage limit. Make it smaller or split it, then upload again.",
+    ur: "فائل 5 میگابائٹ سے بڑی ہے، جو موجودہ اسٹوریج کی حد ہے۔ فائل چھوٹی کریں یا تقسیم کریں، پھر دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_STORAGE_QUOTA_EXCEEDED: {
+    ar: "امتلأت مساحة ملفات الشركة (100 ميغابايت). احذف ملفات لم تعد تلزم، أو اطلب من مالك المنصة تفعيل التخزين الخارجي.",
+    en: "The company's file space is full (100 MB). Remove files you no longer need, or ask the platform owner to switch on external storage.",
+    ur: "کمپنی کی فائلوں کی جگہ بھر گئی ہے (100 میگابائٹ)۔ غیر ضروری فائلیں حذف کریں، یا پلیٹ فارم کے مالک سے بیرونی اسٹوریج فعال کرنے کو کہیں۔",
+  },
+  PROJECT_OS_STORAGE_NOT_FOUND: {
+    ar: "الملف غير موجود: ربما حُذف. افتح الصفحة من جديد.",
+    en: "The file is not there: it may have been removed. Open the page again.",
+    ur: "فائل موجود نہیں: شاید حذف ہو گئی ہو۔ صفحہ دوبارہ کھولیں۔",
+  },
+  PROJECT_OS_STORAGE_LINK_INVALID: {
+    ar: "رابط الملف غير صالح أو انتهت مدته. افتح الصفحة من جديد.",
+    en: "The file link is invalid or has expired. Open the page again.",
+    ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
-    ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
-    en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
-    ur: "آپ کے اکاؤنٹ کو دو مرحلوں کی تصدیق درکار ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+    ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
+    en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
+    ur: "آپ کی کمپنی دو مرحلوں کی تصدیق لازمی کرتی ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+  },
+  PROJECT_OS_MFA_SETTING_NOT_READY: {
+    ar: "قاعدة البيانات لم تُحدَّث بعد لهذا الإعداد. اطلب من مالك المنصة تطبيق آخر ترحيلة ثم أعد المحاولة.",
+    en: "The database has not been updated for this setting yet. Ask the platform owner to apply the latest migration, then try again.",
+    ur: "اس ترتیب کے لیے ڈیٹا بیس ابھی اپ ڈیٹ نہیں ہوا۔ پلیٹ فارم کے مالک سے تازہ ترین مائیگریشن لاگو کرنے کو کہیں، پھر دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_REQUIRED_BY_COMPANY: {
+    ar: "لا يمكن إيقاف التحقق بخطوتين: شركة أنت عضو فيها تشترطه. يوقفه مدير تلك الشركة من إعداداتها.",
+    en: "Two-step verification cannot be switched off: a company you belong to requires it. That company's administrator can switch it off in its settings.",
+    ur: "دو مرحلوں کی تصدیق بند نہیں کی جا سکتی: آپ جس کمپنی کے رکن ہیں وہ اسے لازمی کرتی ہے۔ اس کمپنی کا منتظم اسے اس کی ترتیبات سے بند کر سکتا ہے۔",
   },
   PROJECT_OS_MFA_CODE_INVALID: {
     ar: "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل.",
@@ -970,6 +1012,16 @@ export const projectErrorMessages = {
     ar: "لا يُحتسب النشاط مكتملًا قبل قبول فحص الجودة لهذه الوحدة وهذا النشاط، وسياسة الشركة تمنع ذلك.",
     en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
     ur: "کسی سرگرمی کو مکمل کرنے سے پہلے اس یونٹ اور سرگرمی کے معائنے کو معیار کی ٹیم نے قبول کرنا ضروری ہے، اور کمپنی کی پالیسی اس کو روکتی ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP: {
+    ar: "هذه الخطوة من سلسلة اعتماد التقارير مسندة في هذا المشروع إلى شخص آخر.",
+    en: "This step of the report approval chain is assigned to someone else on this project.",
+    ur: "رپورٹ کی منظوری کے سلسلے کا یہ مرحلہ اس پروجیکٹ میں کسی اور کے سپرد ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER: {
+    ar: "لا تتم هذه الخطوة الآن: الترتيب أعدّه ثم راجعه ثم اعتمده، والتقرير ليس عند هذه الخطوة.",
+    en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
+    ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
   },
   PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
     ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
@@ -1900,6 +1952,36 @@ export const projectErrorMessages = {
     ar: "معاملات الحالات غير صالحة: يجب ألا تتناقص بتقدّم الحالة وأن تكون بين 0 و1.",
     en: "The status factors are invalid: they must not decrease as the status advances and must be between 0 and 1.",
     ur: "حیثیت کے عوامل درست نہیں: حیثیت آگے بڑھنے کے ساتھ کم نہیں ہو سکتے اور 0 اور 1 کے درمیان ہونے چاہئیں۔",
+  },
+  PROJECT_OS_PMC_BLOCK_NOT_FOUND: {
+    ar: "البلوك غير موجود في هذا المشروع.",
+    en: "The block was not found in this project.",
+    ur: "یہ بلاک اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_PMC_MODEL_NOT_FOUND: {
+    ar: "النموذج غير موجود: لا أنشطة معرّفة له في هذا المشروع.",
+    en: "The model was not found: no activities are defined for it in this project.",
+    ur: "ماڈل نہیں ملا: اس پروجیکٹ میں اس کی کوئی سرگرمی متعین نہیں۔",
+  },
+  PROJECT_OS_PMC_UNIT_RANGE_INVALID: {
+    ar: "نطاق الوحدات غير صالح: يجب أن يبدأ من 1 فأكثر، وألا تكون نهايته قبل بدايته، وألا يتجاوز 500 وحدة في المرة.",
+    en: "The unit range is invalid: it must start at 1 or more, not end before it starts, and cover at most 500 units at a time.",
+    ur: "یونٹس کی حد درست نہیں: یہ 1 یا اس سے زیادہ سے شروع ہو، شروع سے پہلے ختم نہ ہو، اور ایک بار میں زیادہ سے زیادہ 500 یونٹس ہوں۔",
+  },
+  PROJECT_OS_PMC_UNITS_EXIST: {
+    ar: "بعض أرقام هذا النطاق موجودة في المشروع؛ لم تُنشأ أي وحدة. اختر نطاقًا لا يتداخل معها.",
+    en: "Some numbers in this range already exist in the project; no unit was created. Choose a range that does not overlap them.",
+    ur: "اس حد کے کچھ نمبر پروجیکٹ میں پہلے سے موجود ہیں؛ کوئی یونٹ نہیں بنا۔ ایسی حد منتخب کریں جو ان سے نہ ٹکرائے۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_INCOMPLETE: {
+    ar: "يجب إرسال وزن كل نشاط من أنشطة النموذج، ولا شيء من غيره.",
+    en: "Send a weight for every activity of the model, and nothing else.",
+    ur: "ماڈل کی ہر سرگرمی کا وزن بھیجیں، اور اس کے سوا کچھ نہیں۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_NOT_100: {
+    ar: "مجموع أوزان أنشطة النموذج يجب أن يكون 100% تمامًا؛ لم يُحفظ شيء.",
+    en: "The model's activity weights must total exactly 100%; nothing was saved.",
+    ur: "ماڈل کی سرگرمیوں کے وزن کا مجموعہ ٹھیک 100% ہونا چاہیے؛ کچھ محفوظ نہیں ہوا۔",
   },
   PROJECT_OS_PMC_UNIT_NOT_FOUND: {
     ar: "الوحدة غير موجودة.",

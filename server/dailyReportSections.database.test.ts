@@ -70,8 +70,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's other
     expect(read.obstacleItems[0]).toMatchObject({ issue: "Late concrete delivery", dueDate: "2026-11-03" });
     expect(read.tomorrow.map(row => [row.activity, row.quantity])).toEqual([["Block work", 150], ["Slab pour B04", null]]);
     expect(await rowsIn()).toBe(8);
-    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", lines: [], ...sections(), hse: [] });
+    // a save that does not send the sections (a screen that saves the header alone) leaves all four as they are
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", summary: "Header only", lines: [] });
+    expect(await rowsIn()).toBe(8);
+    // an empty list clears that section only
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", lines: [], hse: [] });
     expect(await rowsIn()).toBe(5);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_materials WHERE tenantId = ?", [tenantId])).toBe(2);
     expect((await callers.viewer.siteReports.get({ ...at(), reportId: saved.id })).totals.hse.meeting).toBe(0);
   });
 

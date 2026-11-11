@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -52,6 +53,8 @@ export const companies = pgTable(
     slug: varchar("slug", { length: 120 }).notNull(),
     status: companiesStatusEnum("status").default("active").notNull(),
     defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
+    // D-81 (owner's decision 2026-11-09): two-step verification is optional and off by default for everyone. A company that wants it for its members switches this on (migration 0023).
+    requireTwoStep: boolean("require_two_step").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2154,7 +2157,7 @@ export const pmcUnits = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
 export const pmcActivityGroups = pgTable(
@@ -2406,6 +2409,8 @@ export const userMfa = pgTable("user_mfa", {
   lastUsedStep: integer("last_used_step"),
   failures: integer("failures").default(0).notNull(),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  /** D-81: the person switched the second step on for himself (profile). An enrolment made while it was compulsory (before D-81) reads false: it asks for nothing. */
+  requiredBySelf: boolean("required_by_self").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -2661,6 +2666,10 @@ export const siteDailyReports = pgTable(
     reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: varchar("review_note", { length: 500 }),
+    // D-45 (c), 0025: the middle step of the chain (prepare → review → approve): who reviewed the submitted report, when, and the note; cleared when it goes back to draft
+    checkedByUserId: integer("checked_by_user_id").references(() => users.id),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    checkNote: varchar("check_note", { length: 500 }),
     // D-45 (a), 0023: the number the system gives the report (the project's prefix and its own sequence, never typed), the wind, and the working hours of the day
     reportNumber: varchar("report_number", { length: 40 }),
     wind: varchar("wind", { length: 24 }),
@@ -2722,10 +2731,16 @@ export const siteDailyReportPhotos = pgTable(
     contentType: varchar("content_type", { length: 80 }).notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     caption: varchar("caption", { length: 255 }),
+    // D-45 (c), 0025: where the photo was taken — a zone in words, or a unit of the SAME project (composite foreign key)
+    zone: varchar("zone", { length: 80 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey)],
+  table => [
+    index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey),
+    foreignKey({ name: "site_daily_report_photos_unit_fk", columns: [table.pmcUnitId, table.tenantId, table.projectId], foreignColumns: [pmcUnits.id, pmcUnits.tenantId, pmcUnits.projectId] }),
+  ],
 );
 
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
@@ -3507,6 +3522,30 @@ export const projectEquipment = pgTable(
     uniqueIndex("project_equipment_project_plate_unique").on(table.projectId, sql`lower(${table.plateOrSize})`).where(sql`${table.plateOrSize} IS NOT NULL`),
     index("project_equipment_tenant_project_idx").on(table.tenantId, table.projectId),
     unique("project_equipment_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+  ],
+);
+
+// D-79: file storage inside the database, used automatically when the S3 variables are absent (server/dbStorage.ts, same interface as server/storage.ts).
+// One row per stored object, owned by the company named in its key (uploads|tenants|imports|pmc/<company>/...), so row-level security keeps it inside the company.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+export const storedFiles = pgTable(
+  "stored_files",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    key: varchar("key", { length: 1024 }).notNull(),
+    contentType: varchar("content_type", { length: 255 }).default("application/octet-stream").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("stored_files_key_unique").on(table.key),
+    index("stored_files_tenant_idx").on(table.tenantId),
+    check("stored_files_size_check", sql`${table.size} >= 0 AND ${table.size} <= 5242880 AND octet_length(${table.data}) = ${table.size}`),
+    // the key names its owner, and only that owner: a key moved to another company's prefix (or written under it) is impossible, not merely refused (review of #242)
+    check("stored_files_key_owner_check", sql`split_part(${table.key}, '/', 2) = ${table.tenantId}`),
   ],
 );
 

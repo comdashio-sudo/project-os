@@ -214,12 +214,12 @@ async function signIn(page, person) {
   const wait = 31_000 - (Date.now() - (lastCodeRequest.get(person.email) ?? 0));
   if (wait > 0 && lastCodeRequest.has(person.email)) await new Promise(resolve => setTimeout(resolve, wait));
   await page.goto(`${BASE_URL}/login?lang=ar`, { waitUntil: "load" });
-  await page.locator("#login-email").fill(person.email);
+  await page.locator('input[autocomplete="email"]').fill(person.email); // the ds Field gives the input a generated id since D-3 (1/8)
   const alreadyHad = mailCount(person.email);
   await page.getByRole("button", { name: /إرسال/ }).click();
   lastCodeRequest.set(person.email, Date.now());
   const code = await codeFor(person.email, alreadyHad);
-  await page.locator("#login-code").fill(code);
+  await page.locator('input[autocomplete="one-time-code"]').fill(code);
   await page.getByRole("button", { name: /تحقق|دخول/ }).click();
   await page.waitForURL(url => !url.pathname.startsWith("/login"), { timeout: 15_000 });
 }

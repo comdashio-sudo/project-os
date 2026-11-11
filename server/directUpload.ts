@@ -6,7 +6,8 @@ import { TRPCError } from "@trpc/server";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot, ensureDefaultCommercialCatalog } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { DIRECT_UPLOAD_PURPOSES, safeUploadFileName, uploadPrefix, type DirectUploadPurpose } from "./directUploadKeys";
-import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl } from "./storage";
+import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageMode } from "./storage";
+import { DB_STORAGE_MAX_FILE_BYTES, VERCEL_REQUEST_BODY_BYTES } from "./dbStorage";
 
 export { DIRECT_UPLOAD_PURPOSES, takeDirectUpload, type DirectUploadPurpose } from "./directUploadKeys";
 
@@ -43,5 +44,5 @@ export async function createDirectUpload(input: { userId: number; tenantId: stri
   if (!ALLOWED_TYPES[input.purpose].test(input.contentType)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_UPLOAD_TYPE_INVALID" });
   const key = `${uploadPrefix(input)}${randomUUID()}/${safeUploadFileName(input.fileName)}`;
   const upload = await storageCreateUploadUrl(key, input.contentType);
-  return { uploadKey: upload.key, uploadUrl: upload.url, headers: upload.headers, expiresInSeconds: upload.expiresInSeconds, maxBytes: MAX_DIRECT_UPLOAD_BYTES };
+  return { uploadKey: upload.key, uploadUrl: upload.url, headers: upload.headers, expiresInSeconds: upload.expiresInSeconds, maxBytes: storageMode() === "database" ? Math.min(DB_STORAGE_MAX_FILE_BYTES, VERCEL_REQUEST_BODY_BYTES) : MAX_DIRECT_UPLOAD_BYTES }; // D-79: 5 MB a file in the database, and the browser's PUT crosses Vercel (4.5 MB)
 }

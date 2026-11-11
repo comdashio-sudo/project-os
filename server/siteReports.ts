@@ -5,7 +5,7 @@
 // obeys the company's quality policy like any other path to COMPLETE.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, consultantSubmittals, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportTomorrow, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
+import { auditLogs, memberships, pmcInspectionRequests, projectReportApprovers, rfis, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, consultantSubmittals, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportTomorrow, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
@@ -56,6 +56,15 @@ async function oneReportPerDay<T>(write: Promise<T>): Promise<T> {
     throw error;
   }
 }
+/** D-45 (c): who holds each step of the project's report chain (D-42 b), as user ids; a step nobody holds is not enforced. */
+async function chainOf(db: Db, input: Scope) {
+  const rows = await db.select({ step: projectReportApprovers.step, userId: memberships.userId }).from(projectReportApprovers)
+    .innerJoin(memberships, and(eq(memberships.id, projectReportApprovers.membershipId), eq(memberships.tenantId, projectReportApprovers.tenantId)))
+    .where(and(eq(projectReportApprovers.tenantId, input.tenantId), eq(projectReportApprovers.projectId, input.projectId)));
+  const of = (step: string) => rows.find(row => row.step === step)?.userId ?? null;
+  return { prepare: of("prepare"), review: of("review"), approve: of("approve") };
+}
+const holdsStep = (holder: number | null, userId: number) => { if (holder !== null && holder !== userId) throw refuse("FORBIDDEN", "PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP"); };
 // the reports written here have no contractor (a work-order-22 import does): the save, the copy and its «already there» check all look at those only
 const ownDayReports = (input: Scope) => and(mine(siteDailyReports, input), eq(siteDailyReports.preparedByUserId, input.userId), sql`${siteDailyReports.contractorId} IS NULL`);
 // the calendar day on site (UTC+3): «a date in the future» is judged against this (D-45 a), not the server's UTC midnight
@@ -102,7 +111,9 @@ const amount = (value: number | undefined) => (value === undefined ? null : Stri
 /** Replaces the four section lists of a report inside the save's transaction. */
 async function writeSections(tx: Tx, input: Scope, reportId: string, sections: Sections, replace: boolean) {
   const base = (index: number) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, reportId, sortOrder: index });
-  if (replace) for (const table of [siteDailyReportMaterials, siteDailyReportHse, siteDailyReportObstacles, siteDailyReportTomorrow]) await tx.delete(table).where(and(mine(table, input), eq(table.reportId, reportId)));
+  // a section the save does not send is left as it is; an empty list clears it (review of #240: the merged screen saves the header alone)
+  const sent = [[siteDailyReportMaterials, sections.materials], [siteDailyReportHse, sections.hse], [siteDailyReportObstacles, sections.obstacleItems], [siteDailyReportTomorrow, sections.tomorrow]] as const;
+  if (replace) for (const [table, rows] of sent) if (rows !== undefined) await tx.delete(table).where(and(mine(table, input), eq(table.reportId, reportId)));
   if (sections.materials?.length) await tx.insert(siteDailyReportMaterials).values(sections.materials.map((row, i) => ({ ...base(i), material: row.material.trim(), quantity: String(row.quantity), unit: row.unit.trim(), supplier: text(row.supplier), consultantSubmittalId: row.consultantSubmittalId ?? null })));
   if (sections.hse?.length) await tx.insert(siteDailyReportHse).values(sections.hse.map((row, i) => ({ ...base(i), kind: row.kind, description: row.description.trim(), peopleCount: row.peopleCount ?? null, actionTaken: text(row.actionTaken) })));
   if (sections.obstacleItems?.length) await tx.insert(siteDailyReportObstacles).values(sections.obstacleItems.map((row, i) => ({ ...base(i), issue: row.issue.trim(), impact: text(row.impact), responsible: text(row.responsible), action: text(row.action), dueDate: row.dueDate ?? null })));
@@ -144,10 +155,11 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   await oneReportPerDay(db.transaction(async tx => {
     const header = { weather: input.weather?.trim() || null, temperatureC: input.temperatureC === undefined ? null : String(input.temperatureC), wind: input.wind?.trim() || null, workHours: input.workHours === undefined ? null : String(input.workHours), summary: input.summary?.trim() || null, obstacles: input.obstacles?.trim() || null };
     if (existing) {
-      await tx.update(siteDailyReports).set({ ...header, status: "draft", reviewNote: null, ...(existing.reportNumber ? {} : { reportNumber: await nextReportNumber(tx, input) }) }).where(eq(siteDailyReports.id, id));
+      await tx.update(siteDailyReports).set({ ...header, status: "draft", reviewNote: null, checkedByUserId: null, checkedAt: null, checkNote: null, ...(existing.reportNumber ? {} : { reportNumber: await nextReportNumber(tx, input) }) }).where(eq(siteDailyReports.id, id));
       await tx.delete(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, id));
-      await tx.delete(siteDailyReportLabour).where(and(mine(siteDailyReportLabour, input), eq(siteDailyReportLabour.reportId, id)));
-      await tx.delete(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, id)));
+      // a list the save does not send is left as it is; an empty list clears it (review of #240: a screen that saves only the header must not wipe the matrix)
+      if (input.labour !== undefined) await tx.delete(siteDailyReportLabour).where(and(mine(siteDailyReportLabour, input), eq(siteDailyReportLabour.reportId, id)));
+      if (input.equipment !== undefined) await tx.delete(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, id)));
     } else {
       await tx.insert(siteDailyReports).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportDate: input.reportDate, ...header, reportNumber: await nextReportNumber(tx, input), preparedByUserId: input.userId });
     }
@@ -176,10 +188,11 @@ export async function submitSiteDailyReportForTenant(input: Scope & { reportId: 
   const report = await ownReport(db, input);
   if (report.preparedByUserId !== input.userId) throw refuse("FORBIDDEN", "PROJECT_OS_SITE_REPORT_NOT_YOURS");
   if (report.status !== "draft" && report.status !== "rejected") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
+  holdsStep((await chainOf(db, input)).prepare, input.userId); // D-45 (c): when the project names who prepares, only that person sends
   const [{ lines }] = await db.select({ lines: sql<number>`count(*)::int` }).from(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, report.id));
   if (!lines && !report.summary) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_EMPTY");
   await db.transaction(async tx => {
-    const changed = await tx.update(siteDailyReports).set({ status: "submitted", submittedAt: new Date(), reviewNote: null }).where(and(eq(siteDailyReports.id, report.id), inArray(siteDailyReports.status, ["draft", "rejected"]))).returning({ id: siteDailyReports.id });
+    const changed = await tx.update(siteDailyReports).set({ status: "submitted", submittedAt: new Date(), reviewNote: null, checkedByUserId: null, checkedAt: null, checkNote: null }).where(and(eq(siteDailyReports.id, report.id), inArray(siteDailyReports.status, ["draft", "rejected"]))).returning({ id: siteDailyReports.id });
     if (!changed.length) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.submitted", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate }) });
   });
@@ -215,6 +228,10 @@ export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: 
   if (report.status !== "submitted") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_NOT_SUBMITTED");
   // The person who wrote the report is not the one who approves it, whatever else they hold.
   if (report.preparedByUserId === input.userId) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_SELF_REVIEW");
+  // D-45 (c): the last step of the chain — by the person who holds it, and only after the review when the project names a reviewer
+  const chain = await chainOf(db, input);
+  holdsStep(chain.approve, input.userId);
+  if (chain.review !== null && !report.checkedAt) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
   if (input.decision === "reject") {
     if ((input.note ?? "").trim().length < 3) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_REJECT_REASON_REQUIRED");
     if (input.dryRun) return { id: report.id, status: "rejected" as const, applied: [] as AppliedCell[], skipped: [] as SkippedCell[], warnings: [] as CellWarning[], notAccepted: [] };
@@ -262,9 +279,11 @@ const imageKind = (bytes: Uint8Array) => {
 };
 
 /** A photo uploaded straight to storage becomes part of a report that is still the preparer's to change. */
-export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: string; uploadKey: string; fileName: string; caption?: string }) {
+export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: string; uploadKey: string; fileName: string; caption?: string; zone?: string; pmcUnitId?: string }) {
   const db = await authorize(input, "project.field.manage");
   const report = await ownReport(db, input);
+  // D-45 (c): the unit a photo shows is one of this project's (the composite foreign key holds the same)
+  if (input.pmcUnitId && !(await db.select({ id: pmcUnits.id }).from(pmcUnits).where(and(mine(pmcUnits, input), eq(pmcUnits.id, input.pmcUnitId))).limit(1)).length) throw refuse("NOT_FOUND", "PROJECT_OS_PMC_UNIT_NOT_FOUND");
   if (report.preparedByUserId !== input.userId) throw refuse("FORBIDDEN", "PROJECT_OS_SITE_REPORT_NOT_YOURS");
   if (report.status !== "draft" && report.status !== "rejected") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
   const [{ photos }] = await db.select({ photos: sql<number>`count(*)::int` }).from(siteDailyReportPhotos).where(eq(siteDailyReportPhotos.reportId, report.id));
@@ -277,7 +296,7 @@ export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: 
   const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/site-reports/${report.id}/${id}-${safeName}`, taken.bytes, kind.type);
   try {
     await db.transaction(async tx => {
-      await tx.insert(siteDailyReportPhotos).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportId: report.id, storageKey: stored.key, fileName: safeName, contentType: kind.type, sizeBytes: taken.bytes.length, caption: input.caption?.trim() || null, createdByUserId: input.userId });
+      await tx.insert(siteDailyReportPhotos).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportId: report.id, storageKey: stored.key, fileName: safeName, contentType: kind.type, sizeBytes: taken.bytes.length, caption: input.caption?.trim() || null, zone: input.zone?.trim() || null, pmcUnitId: input.pmcUnitId ?? null, createdByUserId: input.userId });
       await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.photo_attached", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, photoId: id, bytes: taken.bytes.length }) });
     });
   } catch (error) { await storageDelete(stored.key).catch(() => undefined); throw error; }
@@ -314,6 +333,16 @@ export async function getSiteDailyReportForTenant(input: Scope & { reportId: str
     db.select({ headcount: sql<number>`coalesce(sum(${siteDailyReportLabour.headcount}), 0)::int` }).from(siteDailyReportLabour).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLabour.reportId))
       .where(and(mine(siteDailyReportLabour, input), sql`${siteDailyReports.reportDate} <= ${report.reportDate}`, sql`${siteDailyReports.status} <> 'rejected'`)),
   ]);
+  // D-45 (c): the day's inspections, read (never typed): the WIRs requested and the RFIs sent on the report's day on site (UTC+3), by their state
+  const siteDay = (column: unknown) => sql`((${column} AT TIME ZONE 'UTC') + interval '3 hours')::date = ${report.reportDate}::date`;
+  const [wirs, rfiRows, approvalNames] = await Promise.all([
+    db.select({ id: pmcInspectionRequests.id, code: pmcInspectionRequests.requestCode, responseCode: pmcInspectionRequests.responseCode }).from(pmcInspectionRequests).where(and(mine(pmcInspectionRequests, input), siteDay(pmcInspectionRequests.requestedAt))).orderBy(asc(pmcInspectionRequests.requestCode)),
+    db.select({ id: rfis.id, number: rfis.rfiNumber, status: rfis.status }).from(rfis).where(and(mine(rfis, input), siteDay(rfis.submittedAt))).orderBy(asc(rfis.rfiNumber)),
+    chainOf(db, input),
+  ]);
+  const wirState = (code: string | null) => (code === "A" || code === "B" ? "approved" : code === "C" ? "rejected" : "pending");
+  const rfiState = (status: string) => (status === "answered" || status === "closed" ? "approved" : status === "cancelled" ? "rejected" : "pending");
+  const tally = (states: string[]) => ({ submitted: states.length, approved: states.filter(x => x === "approved").length, rejected: states.filter(x => x === "rejected").length, pending: states.filter(x => x === "pending").length });
   const sum = (rows: Array<{ headcount: number }>) => rows.reduce((total, row) => total + row.headcount, 0);
   const numeric = (value: string | null) => (value === null ? null : Number(value));
   return {
@@ -322,6 +351,16 @@ export async function getSiteDailyReportForTenant(input: Scope & { reportId: str
     equipment: equipment.map(row => ({ ...row, hours: numeric(row.hours) })),
     materials: materials.map(row => ({ ...row, quantity: Number(row.quantity) })),
     hse, obstacleItems, tomorrow: tomorrow.map(row => ({ ...row, quantity: numeric(row.quantity) })),
+    inspections: {
+      wir: { ...tally(wirs.map(row => wirState(row.responseCode))), items: wirs.map(row => ({ ...row, state: wirState(row.responseCode) })) },
+      rfi: { ...tally(rfiRows.map(row => rfiState(row.status))), items: rfiRows.map(row => ({ ...row, state: rfiState(row.status) })) },
+    },
+    // D-45 (c): the chain as it stands — who holds each step, and who did it when
+    approval: {
+      prepare: { holder: approvalNames.prepare, by: report.status === "draft" ? null : report.preparedByUserId, at: report.submittedAt },
+      review: { holder: approvalNames.review, by: report.checkedByUserId, at: report.checkedAt, note: report.checkNote },
+      approve: { holder: approvalNames.approve, by: report.status === "approved" ? report.reviewedByUserId : null, at: report.status === "approved" ? report.reviewedAt : null },
+    },
     // computed, never stored: the report's totals and the cumulative man-days
     totals: {
       hse: Object.fromEntries(HSE_KINDS.map(kind => [kind, hse.filter(row => row.kind === kind).length])) as Record<(typeof HSE_KINDS)[number], number>,
@@ -380,4 +419,30 @@ export async function copySiteDailyReportFromYesterday(input: Scope & { reportDa
   }));
   const [{ reportNumber }] = await db.select({ reportNumber: siteDailyReports.reportNumber }).from(siteDailyReports).where(eq(siteDailyReports.id, id));
   return { id, reportNumber, from: source.id, labour: labour.length, equipment: equipment.length, tomorrow: carried };
+}
+
+// ------------------------------------------------------------------------------------------------------------------------------ the review step (D-45 c)
+
+/**
+ * The middle step of the chain: the person the project named as reviewer passes the submitted report on to approval, or returns it to its preparer with a note.
+ * Refused when the project names no reviewer (there is no such step), when it is not that person, when the report is not submitted or was already reviewed.
+ */
+export async function checkSiteDailyReportForTenant(input: Scope & { reportId: string; decision: "pass" | "return"; note?: string }) {
+  // a write to the report's state: reading the project is not enough (review of #243); the chain then decides WHICH of those may do it
+  const db = await authorize(input, ["project.field.manage", "project.manage"]);
+  const report = await ownReport(db, input);
+  const chain = await chainOf(db, input);
+  if (chain.review === null) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
+  holdsStep(chain.review, input.userId);
+  if (report.preparedByUserId === input.userId) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_SELF_REVIEW");
+  if (report.status !== "submitted" || report.checkedAt) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
+  const note = input.note?.trim() || null;
+  if (input.decision === "return" && (note ?? "").length < 3) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_REJECT_REASON_REQUIRED");
+  await db.transaction(async tx => {
+    const changed = await tx.update(siteDailyReports).set(input.decision === "pass" ? { checkedByUserId: input.userId, checkedAt: new Date(), checkNote: note } : { status: "rejected", reviewNote: note, checkedByUserId: null, checkedAt: null, checkNote: null })
+      .where(and(eq(siteDailyReports.id, report.id), eq(siteDailyReports.status, "submitted"), sql`${siteDailyReports.checkedAt} IS NULL`)).returning({ id: siteDailyReports.id });
+    if (!changed.length) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER");
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: input.decision === "pass" ? "site_report.reviewed" : "site_report.returned", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, note }) });
+  });
+  return { id: report.id, status: input.decision === "pass" ? ("submitted" as const) : ("rejected" as const), reviewed: input.decision === "pass" };
 }

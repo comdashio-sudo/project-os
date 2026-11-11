@@ -13,6 +13,10 @@ export interface CodeProvider {
   sendCode(email: string): Promise<void>;
   /** Resolves with the address the provider confirmed. Throws EmailCodeError (CODE_INVALID for every wrong, expired or reused code). */
   verifyCode(email: string, code: string): Promise<{ email: string }>;
+  /** D-82: the password GoTrue holds for this address. Throws EmailCodeError: CREDENTIALS_INVALID for every wrong password, unknown or unconfirmed address. */
+  signInWithPassword(email: string, password: string): Promise<{ email: string }>;
+  /** D-82: "set a password" and "forgot my password" are one path: a mailed code proves the address, then the new password is stored at GoTrue. No reset link. */
+  setPasswordWithCode(email: string, code: string, password: string): Promise<{ email: string }>;
 }
 
 type GoTrueBody = { error_code?: string; msg?: string; access_token?: string; user?: { email?: string; email_confirmed_at?: string | null } };
@@ -36,10 +40,10 @@ export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProv
   const timeoutMs = config.timeoutMs ?? 10_000;
   const headers = { apikey: config.anonKey, "Content-Type": "application/json" };
 
-  async function call(path: string, body: unknown, extraHeaders: Record<string, string> = {}): Promise<{ status: number; body: GoTrueBody }> {
+  async function call(path: string, body: unknown, extraHeaders: Record<string, string> = {}, method = "POST"): Promise<{ status: number; body: GoTrueBody }> {
     let response: Response;
     try {
-      response = await fetchImpl(`${config.authUrl ?? `${config.url}/auth/v1`}${path}`, { method: "POST", headers: { ...headers, ...extraHeaders }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetchImpl(`${config.authUrl ?? `${config.url}/auth/v1`}${path}`, { method, headers: { ...headers, ...extraHeaders }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
     } catch {
       throw new EmailCodeError("MAIL_UNAVAILABLE");
     }
@@ -47,7 +51,7 @@ export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProv
     return { status: response.status, body: parsed && typeof parsed === "object" ? parsed : {} };
   }
 
-  return {
+  const provider: CodeProvider = {
     async sendCode(email) {
       const { status, body } = await call("/otp", { email, create_user: true });
       if (status >= 200 && status < 300) return;
@@ -57,14 +61,43 @@ export function createSupabaseCodeProvider(config: SupabaseAuthConfig): CodeProv
     },
 
     async verifyCode(email, code) {
-      const { status, body } = await call("/verify", { type: "email", email, token: code });
+      const { accessToken } = await verified(email, code);
+      await logout(accessToken);
+      return { email };
+    },
+
+    async signInWithPassword(email, password) {
+      const { status, body } = await call("/token?grant_type=password", { email, password });
       if (status >= 500) throw new EmailCodeError("MAIL_UNAVAILABLE");
       if (status === 429) throw new EmailCodeError("RATE_LIMITED");
-      const confirmed = body.user?.email?.trim().toLowerCase();
-      if (status !== 200 || !body.access_token || !body.user?.email_confirmed_at || confirmed !== email) throw new EmailCodeError("CODE_INVALID");
-      // The app issues its own session; do not leave a second one open at the provider. A failure here changes nothing for the caller.
-      await call("/logout", {}, { Authorization: `Bearer ${body.access_token}` }).catch(() => undefined);
-      return { email: confirmed };
+      // a wrong password, an address GoTrue does not know and an unconfirmed one all answer the same (no account enumeration)
+      if (status !== 200 || !body.access_token || !body.user?.email_confirmed_at || body.user.email?.trim().toLowerCase() !== email) throw new EmailCodeError("CREDENTIALS_INVALID");
+      await logout(body.access_token);
+      return { email };
+    },
+
+    async setPasswordWithCode(email, code, password) {
+      const { accessToken } = await verified(email, code);
+      try {
+        const { status, body } = await call("/user", { password }, { Authorization: `Bearer ${accessToken}` }, "PUT");
+        // same_password: the address already has exactly this password, which is what was asked for
+        if (status === 422 && body.error_code === "weak_password") throw new EmailCodeError("PASSWORD_WEAK");
+        if ((status < 200 || status >= 300) && body.error_code !== "same_password") throw new EmailCodeError("MAIL_UNAVAILABLE");
+      } finally { await logout(accessToken); }
+      return { email };
     },
   };
+  return provider;
+
+  /** The code check both paths share: the address GoTrue confirmed, and the short-lived token that proves it. */
+  async function verified(email: string, code: string): Promise<{ accessToken: string }> {
+    const { status, body } = await call("/verify", { type: "email", email, token: code });
+    if (status >= 500) throw new EmailCodeError("MAIL_UNAVAILABLE");
+    if (status === 429) throw new EmailCodeError("RATE_LIMITED");
+    const confirmed = body.user?.email?.trim().toLowerCase();
+    if (status !== 200 || !body.access_token || !body.user?.email_confirmed_at || confirmed !== email) throw new EmailCodeError("CODE_INVALID");
+    return { accessToken: body.access_token };
+  }
+  // The app issues its own session; do not leave a second one open at the provider. A failure here changes nothing for the caller.
+  async function logout(accessToken: string) { await call("/logout", {}, { Authorization: `Bearer ${accessToken}` }).catch(() => undefined); }
 }

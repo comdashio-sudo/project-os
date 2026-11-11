@@ -1,4 +1,4 @@
-// Object storage on Supabase Storage through its S3-compatible API.
+// Object storage on Supabase Storage through its S3-compatible API — or, while the S3 variables are absent, inside the database (D-79, see storageMode).
 //
 // Files are stored by key; the database keeps the key, never a URL. A download
 // is a short-lived signed URL minted for a caller that already passed the
@@ -7,6 +7,7 @@ import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 import { ENV } from "./_core/env";
+import { createDatabaseStorage } from "./dbStorage";
 
 export const SIGNED_URL_TTL_SECONDS = 900;
 /** The largest file a user may upload for import. It travels straight from the browser to Storage (not through a function, whose request body stops at 4.5 MB). */
@@ -157,8 +158,30 @@ export function createS3Storage(configuration: StorageConfiguration = storageCon
   });
 }
 
+/**
+ * D-79 (after review of #242): S3 when all five S3 variables are set; the database when NONE is set (or STORAGE_MODE=database says so); and a PARTIAL setup — one to four
+ * of the five — is refused at the first storage call, naming what is missing (never a value). A typo must not quietly move production files into the database, and back.
+ * Moving from the database to S3 later: copy the stored_files rows to the bucket BEFORE setting the S3 variables (docs/OWNER_ACTIONS.md §14), or those files read as missing.
+ */
+export type StorageMode = "s3" | "database";
+export type StorageModeEnv = Parameters<typeof storageConfiguration>[0] & { storageMode?: string };
+const S3_VARIABLES = [["STORAGE_S3_ENDPOINT", "storageS3Endpoint"], ["STORAGE_S3_REGION", "storageS3Region"], ["STORAGE_S3_ACCESS_KEY_ID", "storageS3AccessKeyId"], ["STORAGE_S3_SECRET_ACCESS_KEY", "storageS3SecretAccessKey"], ["STORAGE_BUCKET", "storageBucket"]] as const;
+/** Names of the S3 variables that are set while others are not (empty when the setup is whole or absent). */
+export function partialS3Setup(env: StorageModeEnv = { ...ENV, storageMode: process.env.STORAGE_MODE }): string[] {
+  const missing = S3_VARIABLES.filter(([, field]) => !env[field]).map(([name]) => name);
+  return missing.length > 0 && missing.length < S3_VARIABLES.length ? missing : [];
+}
+export function storageMode(env: StorageModeEnv = { ...ENV, storageMode: process.env.STORAGE_MODE }): StorageMode {
+  if ((env.storageMode ?? "").trim().toLowerCase() === "database") return "database";
+  const missing = partialS3Setup(env);
+  if (missing.length) throw new Error(`Storage is partly configured: set ${missing.join(", ")} (or remove all five S3 variables to keep files in the database)`);
+  return S3_VARIABLES.every(([, field]) => env[field]) ? "s3" : "database";
+}
 let defaultStorage: ReturnType<typeof createS3Storage> | null = null;
-const storage = () => (defaultStorage ??= createS3Storage());
+const storage = () => {
+  if (defaultStorage) return defaultStorage;
+  return (defaultStorage = storageMode() === "s3" ? createS3Storage() : createDatabaseStorage());
+};
 
 export const storagePut = (relKey: string, data: StorageBody, contentType?: string) => storage().storagePut(relKey, data, contentType);
 export const storageGet = (relKey: string) => storage().storageGet(relKey);

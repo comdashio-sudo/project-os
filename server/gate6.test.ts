@@ -44,6 +44,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   beginEnrolment: "two-step verification belongs to a person, not a company: audit_logs requires a company and the platform owner has none (docs/STATE.md, work order 20, C); a failed code is logged by the server",
   confirmEnrolment: "as beginEnrolment: a person-level security step with no company to attach an audit row to",
   verifySecondStep: "as beginEnrolment: a person-level security step with no company to attach an audit row to",
+  setOwnTwoStep: "D-81: a person switches his OWN second step on or off (proved by a current code): as beginEnrolment, person-level with no company to attach an audit row to",
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
   setAccountLanguage: "a person's own interface-language preference (user_language_preferences, one row per signed-in person): not tenant data and not a protected business write, so no audit row (G-203)",
 };
