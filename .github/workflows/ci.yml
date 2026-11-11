@@ -101,8 +101,6 @@ jobs:
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PLAYWRIGHT_VERSION: 1.56.1
-      # These runs sign in with sessions minted for synthetic users, which have no second step; two-step verification is proved by its own tests (server/mfa.database.test.ts).
-      MFA_ENFORCEMENT: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -217,8 +215,6 @@ jobs:
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PLAYWRIGHT_VERSION: 1.56.1
-      # These runs sign in with sessions minted for synthetic users, which have no second step; two-step verification is proved by its own tests (server/mfa.database.test.ts).
-      MFA_ENFORCEMENT: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
