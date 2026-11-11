@@ -5,6 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
+// D-85: typing without the per-key delay (userEvent's default setTimeout between keys); under CPU contention those delays alone pushed
+// these form tests past the 5 s limit. The events and their order are the same.
+const typist = () => userEvent.setup({ delay: null });
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn(), contractsError: null as unknown, contractsRefetch: vi.fn(), listRefetch: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -23,10 +27,10 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-describe("ProjectPurchaseOrders", () => {
+describe("ProjectPurchaseOrders", TYPING_TEST, () => {
   it("submits a purchase order and exposes the governed next transition", async () => {
     cleanup(); state.create.mockClear(); state.transition.mockClear(); state.arabic = false;
-    const user = userEvent.setup();
+    const user = typist();
     render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);
     await user.type(screen.getByLabelText("Purchase-order number"), "PO-002");
     await user.type(screen.getByLabelText("Supplier"), "Steel Supply Co");
@@ -47,7 +51,7 @@ describe("ProjectPurchaseOrders", () => {
 
   it("places the order with a supplier from the register: the name is not typed and only active suppliers are offered (G-103)", async () => {
     cleanup(); state.create.mockClear(); state.arabic = false;
-    const user = userEvent.setup();
+    const user = typist();
     render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);
     const options = Array.from((screen.getByLabelText("Supplier from the register") as HTMLSelectElement).options).map(option => option.text);
     expect(options).toEqual(["Unregistered supplier (type the name)", "SUP-1 · Registered Steel Co"]); // the inactive supplier is not offered
@@ -72,7 +76,7 @@ describe("ProjectPurchaseOrders", () => {
   });
 });
 
-describe("ProjectPurchaseOrders form checks itself in the page's language (D-63)", () => {
+describe("ProjectPurchaseOrders form checks itself in the page's language (D-63)", TYPING_TEST, () => {
   it("an empty purchase order saves nothing and says so in Arabic under its first field", () => {
     cleanup(); state.create.mockClear(); state.arabic = true;
     render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);

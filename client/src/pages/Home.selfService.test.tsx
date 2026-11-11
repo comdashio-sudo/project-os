@@ -4,6 +4,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "./Home";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({
   signup: vi.fn(),
@@ -43,7 +44,7 @@ vi.mock("@/lib/trpc", () => ({
 
 afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "admin"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
 
-describe("Home self-service", () => {
+describe("Home self-service", TYPING_TEST, () => {
   it("marks the company's legal name, short name, plan and seats as required, with a star beside each label", () => {
     render(<Home />);
     for (const label of [/^Legal name/, /^Workspace slug/, /^Plan/, /^Seats/]) expect(screen.getByLabelText(label).getAttribute("aria-required")).toBe("true");

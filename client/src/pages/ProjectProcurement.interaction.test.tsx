@@ -5,16 +5,20 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectProcurement } from "./ProjectProcurement";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
+// D-85: typing without the per-key delay (userEvent's default setTimeout between keys); under CPU contention those delays alone pushed
+// these form tests past the 5 s limit. The events and their order are the same.
+const typist = () => userEvent.setup({ delay: null });
 
 const state = vi.hoisted(() => ({ arabic: false, error: null as unknown, supplier: vi.fn(), requisition: vi.fn(), transition: vi.fn(), linkPurchaseOrder: vi.fn(), refetch: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized procurement error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { procurement: { register: { useQuery: () => ({ isLoading: false, refetch: state.refetch, data: { suppliers: [{ id: "11111111-1111-4111-8111-111111111111", code: "SUP-01", legalName: "Supply Company", active: true }], wbsItems: [{ id: "44444444-4444-4444-8444-444444444444", code: "WBS-01", name: "Concrete works" }], activities: [{ id: "55555555-5555-4555-8555-555555555555", code: "ACT-01", name: "Pour concrete", wbsItemId: "44444444-4444-4444-8444-444444444444" }], purchaseOrders: [{ id: "77777777-7777-4777-8777-777777777777", purchaseOrderNumber: "PO-01", status: "issued" }], requisitions: [{ id: "33333333-3333-4333-8333-333333333333", requisitionNumber: "PR-01", description: "Existing material request", requestedQuantity: "5.000", issuedQuantity: 2, remainingQuantity: 3, unitOfMeasure: "m3", status: "draft", wbs: null, activity: null, purchaseOrder: null }, { id: "66666666-6666-4666-8666-666666666666", requisitionNumber: "PR-02", description: "Approved material request", requestedQuantity: "3.000", issuedQuantity: 0, remainingQuantity: 3, unitOfMeasure: "m3", status: "approved", wbs: null, activity: null, purchaseOrder: null }] } }) }, createSupplier: { useMutation: () => ({ mutate: state.supplier, isPending: false, error: state.error }) }, createRequisition: { useMutation: () => ({ mutate: state.requisition, isPending: false, error: null }) }, transitionRequisition: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) }, linkPurchaseOrder: { useMutation: () => ({ mutate: state.linkPurchaseOrder, isPending: false, error: null }) } }, materials: { list: { useQuery: () => ({ isLoading: false, data: [{ id: "22222222-2222-4222-8222-222222222222", code: "MAT-01", description: "Concrete", unitOfMeasure: "m3" }] }) } } } }));
 
-describe("ProjectProcurement interaction", () => {
+describe("ProjectProcurement interaction", TYPING_TEST, () => {
   beforeEach(() => { cleanup(); state.arabic = false; state.error = null; state.supplier.mockReset(); state.requisition.mockReset(); state.transition.mockReset(); state.linkPurchaseOrder.mockReset(); state.refetch.mockReset(); });
   it("submits a supplier, material request linked to WBS/activity, and draft transition", async () => {
-    const user = userEvent.setup(); render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />);
+    const user = typist(); render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />);
     await user.type(screen.getByLabelText("Supplier code"), "SUP-02"); await user.type(screen.getByLabelText("Legal name"), "Steel Supply"); await user.click(screen.getByRole("button", { name: "Add supplier" }));
     expect(state.supplier).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", code: "SUP-02" }));
     await user.type(screen.getByLabelText("Request number"), "PR-02"); await user.type(screen.getByLabelText("Description"), "Procure structural concrete"); await user.type(screen.getByLabelText("Quantity"), "12"); await user.selectOptions(screen.getByLabelText("Suggested supplier"), "11111111-1111-4111-8111-111111111111"); await user.selectOptions(screen.getByLabelText("Material"), "22222222-2222-4222-8222-222222222222"); await user.selectOptions(screen.getByLabelText("WBS work package"), "44444444-4444-4444-8444-444444444444"); await user.selectOptions(screen.getByLabelText("Activity"), "55555555-5555-4555-8555-555555555555"); await user.click(screen.getByRole("button", { name: "Create request" }));
@@ -27,7 +31,7 @@ describe("ProjectProcurement interaction", () => {
   it("renders the governed material-request context in Arabic without sensitive compensation data", () => { state.arabic = true; render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />); expect(screen.getByText("الموردون وطلبات المواد")).toBeTruthy(); expect(screen.getByLabelText("حزمة العمل WBS")).toBeTruthy(); expect(screen.getByText(/المصروف: 2/)).toBeTruthy(); expect(screen.queryByText(/راتب|salary/i)).toBeNull(); });
 });
 
-describe("ProjectProcurement forms check themselves in the page's language (D-63)", () => {
+describe("ProjectProcurement forms check themselves in the page's language (D-63)", TYPING_TEST, () => {
   it("an empty supplier and an empty material request send nothing and say so in Arabic under the first field", () => {
     cleanup(); state.arabic = true; state.supplier.mockReset(); state.requisition.mockReset();
     render(<ProjectProcurement tenantId="tenant-1" projectId="project-1" />);
