@@ -43,8 +43,9 @@ export type ActivityFacts = { activityId: string; code: string; name: string; mo
 
 /** Per activity: the period's days, its totals and the project's totals up to the period's end, the average per working day and the best day. */
 /**
- * `completed` holds the DISTINCT villas reported COMPLETE per activity, counted by the database over the period and over everything up to its end (review of #248:
- * a villa reported complete on two days is ONE villa; adding the per-day counts counted it twice). The per-day counts stay in the daily series only.
+ * `completed` holds the villas complete per activity (review of #248 and the operator's rule of 11-11): a villa counts in the period of its FIRST counted completion
+ * only, and once in the cumulative; a repeat later adds nothing. Built from the database's first-completion dates (server/reportPeriods.ts completedFrom); the per-day
+ * counts stay in the daily series only.
  */
 export function activityFigures(rows: ActivityDayRow[], facts: ActivityFacts[], range: { start: string; end: string }, workingDayCount: number, completed: { period: Map<string, number>; cumulative: Map<string, number> } = { period: new Map(), cumulative: new Map() }) {
   return facts.map(fact => {

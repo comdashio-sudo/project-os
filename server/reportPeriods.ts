@@ -15,6 +15,17 @@ const num = (value: unknown) => (value === null || value === undefined ? null : 
 // the site's day (UTC+3), as the daily report reads its inspections
 const siteDay = (column: unknown) => sql<string>`(((${column}) AT TIME ZONE 'UTC') + interval '3 hours')::date::text`;
 
+/** Villas complete per activity: in the period (first completion on or after its start) and cumulatively (any first completion up to its end, which the query already bounds). */
+export function completedFrom(firsts: Array<{ activityId: string | null; first: string }>, periodStart: string) {
+  const period = new Map<string, number>(); const cumulative = new Map<string, number>();
+  for (const row of firsts) {
+    if (!row.activityId) continue;
+    cumulative.set(row.activityId, (cumulative.get(row.activityId) ?? 0) + 1);
+    if (row.first >= periodStart) period.set(row.activityId, (period.get(row.activityId) ?? 0) + 1);
+  }
+  return { period, cumulative };
+}
+
 export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor: string; includeUnapproved?: boolean }) {
   const db = await authorize(input, READ_PERMISSIONS);
   const range = periodRange(input.kind, input.anchor);
@@ -27,12 +38,14 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
   const inPeriod = and(upToEnd, sql`${siteDailyReports.reportDate} >= ${range.start}`);
   const profileHours = profile?.workStart && profile.workEnd ? round((Date.parse(`1970-01-01T${profile.workEnd}Z`) - Date.parse(`1970-01-01T${profile.workStart}Z`)) / 3_600_000, 2) : null;
 
-  // review of #248: a villa reported COMPLETE on several days is one villa — counted DISTINCT over the whole period, and over everything up to its end
-  const completedOver = (where: ReturnType<typeof and>) => db.select({ activityId: siteDailyReportLines.pmcActivityDefinitionId, units: sql<number>`count(DISTINCT ${siteDailyReportLines.pmcUnitId})::int` })
+  // review of #248 and the operator's rule (11-11): a villa is complete ONCE — in the period of its FIRST counted completion. The cumulative counts each villa once up to
+  // the period's end; a villa reported complete again in a later period adds nothing to that period. One query: each (activity, villa) with its first completion date.
+  const firstCompletions = db.select({ activityId: siteDailyReportLines.pmcActivityDefinitionId, first: sql<string>`min(${siteDailyReports.reportDate})::text` })
     .from(siteDailyReportLines).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLines.reportId))
-    .where(and(where, eq(siteDailyReportLines.lineType, "work"), eq(siteDailyReportLines.reportedStatus, "COMPLETE"), sql`${siteDailyReportLines.pmcUnitId} IS NOT NULL`)).groupBy(siteDailyReportLines.pmcActivityDefinitionId);
-  const [completedInPeriod, completedToEnd, reports, activityRows, definitions, unitsPerModel, labourRows, cumulativeLabour, equipmentRows, hseRows, wirRows, rfiRows, openNcrs, ncrMoves] = await Promise.all([
-    completedOver(inPeriod), completedOver(upToEnd),
+    .where(and(upToEnd, eq(siteDailyReportLines.lineType, "work"), eq(siteDailyReportLines.reportedStatus, "COMPLETE"), sql`${siteDailyReportLines.pmcUnitId} IS NOT NULL`))
+    .groupBy(siteDailyReportLines.pmcActivityDefinitionId, siteDailyReportLines.pmcUnitId);
+  const [firsts, reports, activityRows, definitions, unitsPerModel, labourRows, cumulativeLabour, equipmentRows, hseRows, wirRows, rfiRows, openNcrs, ncrMoves] = await Promise.all([
+    firstCompletions,
     db.select({ id: siteDailyReports.id, date: siteDailyReports.reportDate, status: siteDailyReports.status, reportNumber: siteDailyReports.reportNumber, workHours: siteDailyReports.workHours }).from(siteDailyReports).where(inPeriod).orderBy(asc(siteDailyReports.reportDate)),
     // one row per activity and day, up to the period's end (the cumulative needs the days before it). A plan nobody entered stays NULL: sum() of nulls is null.
     db.select({ activityId: siteDailyReportLines.pmcActivityDefinitionId, date: siteDailyReports.reportDate, planned: sql<string | null>`sum(${siteDailyReportLines.plannedQuantity})`, actual: sql<string | null>`sum(${siteDailyReportLines.actualQuantity})`,
@@ -88,7 +101,7 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
     period: { kind: input.kind, start: range.start, end: range.end, workDays, workingDays: working, workingDayCount: working.length, includeUnapproved: Boolean(input.includeUnapproved) },
     reports: reports.map(report => ({ id: report.id, date: report.date, reportNumber: report.reportNumber, status: report.status })),
     missingWorkingDays: working.filter(day => !reportedDays.has(day)),
-    activities: activityFigures(dayRows, facts, range, working.length, { period: new Map(completedInPeriod.map(row => [row.activityId!, row.units])), cumulative: new Map(completedToEnd.map(row => [row.activityId!, row.units])) }),
+    activities: activityFigures(dayRows, facts, range, working.length, completedFrom(firsts, range.start)),
     labour: {
       period: { direct: labourRows.filter(row => row.category === "direct").reduce((t, r) => t + r.headcount, 0), indirect: labourRows.filter(row => row.category === "indirect").reduce((t, r) => t + r.headcount, 0), day: labourRows.filter(row => row.shift === "day").reduce((t, r) => t + r.headcount, 0), night: labourRows.filter(row => row.shift === "night").reduce((t, r) => t + r.headcount, 0) },
       cumulative: { direct: cumulativeLabour.find(row => row.category === "direct")?.headcount ?? 0, indirect: cumulativeLabour.find(row => row.category === "indirect")?.headcount ?? 0 },

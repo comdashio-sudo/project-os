@@ -100,7 +100,11 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
     const wall = result.activities.find(row => row.activityId === act.wallA)!;
     // DISTINCT villas, not lines (review of #248): the same villa reported complete again is still one
     const distinct = (rows: typeof lines) => new Set(rows.filter(l => l.activity === act.wallA && l.complete).map(l => l.unit)).size;
-    expect(wall.period.completedUnits).toBe(distinct(inWeek));
+    // the operator's rule (11-11): a villa is complete in the period of its FIRST completion only
+    const first = new Map<string, string>();
+    for (const l of lines.filter(l => l.activity === act.wallA && l.complete && l.date <= week.end)) if (!first.has(l.unit!) || l.date < first.get(l.unit!)!) first.set(l.unit!, l.date);
+    expect(wall.period.completedUnits).toBe([...first.values()].filter(date => date >= week.start).length);
+    expect(wall.period.completedUnits).toBeLessThan(distinct(inWeek)); // villas first completed in earlier weeks and reported again do not count again
     expect(wall.cumulative.completedUnits).toBe(distinct(lines));
     expect(wall.cumulative.completedUnits).toBeLessThan(lines.filter(l => l.activity === act.wallA && l.complete).length); // the data repeats villas, so the two counts differ
     expect(wall.cumulative.completedPercentOfUnits).toBe(Math.round((distinct(lines) / 1000) * 10000) / 100);
