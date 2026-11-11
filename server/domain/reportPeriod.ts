@@ -42,12 +42,16 @@ export type ActivityDayRow = { activityId: string; date: string; planned: number
 export type ActivityFacts = { activityId: string; code: string; name: string; modelCode: string; unitsInModel: number };
 
 /** Per activity: the period's days, its totals and the project's totals up to the period's end, the average per working day and the best day. */
-export function activityFigures(rows: ActivityDayRow[], facts: ActivityFacts[], range: { start: string; end: string }, workingDayCount: number) {
+/**
+ * `completed` holds the DISTINCT villas reported COMPLETE per activity, counted by the database over the period and over everything up to its end (review of #248:
+ * a villa reported complete on two days is ONE villa; adding the per-day counts counted it twice). The per-day counts stay in the daily series only.
+ */
+export function activityFigures(rows: ActivityDayRow[], facts: ActivityFacts[], range: { start: string; end: string }, workingDayCount: number, completed: { period: Map<string, number>; cumulative: Map<string, number> } = { period: new Map(), cumulative: new Map() }) {
   return facts.map(fact => {
     const mine = rows.filter(row => row.activityId === fact.activityId && row.date <= range.end);
     const inPeriod = mine.filter(row => row.date >= range.start).sort((a, b) => a.date.localeCompare(b.date));
-    const period = { planned: sumOrNull(inPeriod.map(row => row.planned)), actual: sumOrNull(inPeriod.map(row => row.actual)), completedUnits: inPeriod.reduce((total, row) => total + row.completedUnits, 0) };
-    const cumulative = { planned: sumOrNull(mine.map(row => row.planned)), actual: sumOrNull(mine.map(row => row.actual)), completedUnits: mine.reduce((total, row) => total + row.completedUnits, 0) };
+    const period = { planned: sumOrNull(inPeriod.map(row => row.planned)), actual: sumOrNull(inPeriod.map(row => row.actual)), completedUnits: completed.period.get(fact.activityId) ?? 0 };
+    const cumulative = { planned: sumOrNull(mine.map(row => row.planned)), actual: sumOrNull(mine.map(row => row.actual)), completedUnits: completed.cumulative.get(fact.activityId) ?? 0 };
     const best = inPeriod.filter(row => row.actual !== null).reduce<ActivityDayRow | null>((top, row) => (top === null || (row.actual ?? 0) > (top.actual ?? 0) ? row : top), null);
     return {
       ...fact,

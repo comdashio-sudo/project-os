@@ -16,7 +16,9 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
   let a: Fixture; let b: Fixture; let owner: pg.Client;
   const UNITS = 1230;
   const act = { wallA: uuid(), finishA: uuid(), wallB: uuid() };
-  const lines: Array<{ date: string; activity: string; planned: number | null; actual: number | null; complete: boolean }> = [];
+  const lines: Array<{ date: string; activity: string; unit: string | null; planned: number | null; actual: number | null; complete: boolean }> = [];
+  const reportOn = new Map<string, string>();
+  let unitB = "";
   const labour: Array<{ date: string; category: "direct" | "indirect"; shift: "day" | "night"; headcount: number; hours: number }> = [];
   const reportDays = daysBetween("2026-10-01", "2026-11-13").filter(day => !isFriday(day));
   const week = { start: "2026-11-07", end: "2026-11-13" };
@@ -44,11 +46,11 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
     // the dailies: approved, one per working day; each with ~200 work lines (villas of model A), a metred line with a plan and an actual, and one line with an ACTUAL BUT NO PLAN
     let unitCursor = 0;
     for (const [index, date] of reportDays.entries()) {
-      const report = uuid(); const hours = 8 + (index % 3);
+      const report = uuid(); const hours = 8 + (index % 3); reportOn.set(date, report);
       await q("INSERT INTO site_daily_reports (id, tenant_id, project_id, report_date, prepared_by_user_id, status, report_number, work_hours) VALUES ($1,$2,$3,$4,$5,'approved',$6,$7)", [report, T, P, date, a.owner.id, `DR-${index + 1}`, hours]);
       const values: unknown[] = []; const tuples: string[] = [];
       const push = (activity: string, unit: string | null, planned: number | null, actual: number | null, complete: boolean) => {
-        lines.push({ date, activity, planned, actual, complete });
+        lines.push({ date, activity, unit, planned, actual, complete });
         const at = values.length; values.push(uuid(), T, P, report, activity, unit, planned, actual, complete ? "COMPLETE" : null);
         tuples.push(`($${at + 1},$${at + 2},$${at + 3},$${at + 4},'work',$${at + 5},$${at + 6},'line',$${at + 7},$${at + 8},$${at + 9})`);
       };
@@ -63,6 +65,9 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
       await q("INSERT INTO site_daily_report_equipment (id, tenant_id, project_id, report_id, equipment_id, count, hours) VALUES ($1,$2,$3,$4,$5,2,7.5)", [uuid(), T, P, report, crane]);
       if (index % 9 === 0) await q("INSERT INTO site_daily_report_hse (id, tenant_id, project_id, report_id, kind, description) VALUES ($1,$2,$3,$4,'near_miss','Synthetic near miss')", [uuid(), T, P, report]);
     }
+    // review of #248: ONE villa of model B reported COMPLETE on two approved days of the week (and once more on a draft): it is one completed villa, not two
+    unitB = unitRows.find((row: { model_code: string }) => row.model_code === "B").id;
+    for (const date of ["2026-11-08", "2026-11-10"]) await q("INSERT INTO site_daily_report_lines (id, tenant_id, project_id, report_id, line_type, pmc_activity_definition_id, pmc_unit_id, description, reported_status) VALUES ($1,$2,$3,$4,'work',$5,$6,'line','COMPLETE')", [uuid(), T, P, reportOn.get(date), act.wallB, unitB]);
     // a DRAFT of another preparer in the week and a REJECTED one: neither is the record
     for (const [status, by] of [["draft", a.people.site.id], ["rejected", a.people.pm.id]] as const) {
       const report = uuid();
@@ -93,8 +98,12 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
     expect(finish.cumulative.actual).toBe(sum(lines.filter(l => l.activity === act.finishA && l.date <= week.end).map(l => l.actual!)));
     expect(finish.daily.map(day => day.actual)).toEqual(inWeek.filter(l => l.activity === act.finishA).map(l => l.actual));
     const wall = result.activities.find(row => row.activityId === act.wallA)!;
-    expect(wall.period.completedUnits).toBe(inWeek.filter(l => l.activity === act.wallA && l.complete).length);
-    expect(wall.cumulative.completedUnits).toBe(lines.filter(l => l.activity === act.wallA && l.complete).length);
+    // DISTINCT villas, not lines (review of #248): the same villa reported complete again is still one
+    const distinct = (rows: typeof lines) => new Set(rows.filter(l => l.activity === act.wallA && l.complete).map(l => l.unit)).size;
+    expect(wall.period.completedUnits).toBe(distinct(inWeek));
+    expect(wall.cumulative.completedUnits).toBe(distinct(lines));
+    expect(wall.cumulative.completedUnits).toBeLessThan(lines.filter(l => l.activity === act.wallA && l.complete).length); // the data repeats villas, so the two counts differ
+    expect(wall.cumulative.completedPercentOfUnits).toBe(Math.round((distinct(lines) / 1000) * 10000) / 100);
     expect(wall.unitsInModel).toBe(1000);
     const weekLabour = labour.filter(row => row.date >= week.start && row.date <= week.end);
     expect(result.labour.period).toEqual({ direct: sum(weekLabour.filter(r => r.category === "direct").map(r => r.headcount)), indirect: sum(weekLabour.filter(r => r.category === "indirect").map(r => r.headcount)), day: sum(weekLabour.filter(r => r.shift === "day").map(r => r.headcount)), night: sum(weekLabour.filter(r => r.shift === "night").map(r => r.headcount)) });
@@ -114,6 +123,13 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
     expect(wallB.period.variance).toBeNull(); expect(wallB.daily.every(day => day.planned === null)).toBe(true);
   });
 
+  it("NEGATIVE (review of #248): one villa reported COMPLETE on two approved days is ONE completed villa — for the week and cumulatively", async () => {
+    const wallB = (await get("owner")).activities.find(row => row.activityId === act.wallB)!;
+    expect(wallB.period.completedUnits).toBe(1);
+    expect(wallB.cumulative.completedUnits).toBe(1);
+    expect(wallB.daily.filter(day => day.completedUnits > 0).map(day => day.date)).toEqual(["2026-11-08", "2026-11-10"]); // the daily series still shows both days
+  });
+
   it("NEGATIVE: drafts and rejected reports are not the record; another company's reports are never counted; a reader without the project is refused", async () => {
     const recorded = (await get("owner")).activities.find(row => row.activityId === act.finishA)!.period.actual!;
     const withDrafts = (await get("owner", { includeUnapproved: true })).activities.find(row => row.activityId === act.finishA)!.period.actual!;
@@ -128,7 +144,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
     const timings: number[] = [];
     for (const kind of ["week", "month", "week", "month"] as const) { const started = performance.now(); await get("owner", { kind }); timings.push(performance.now() - started); }
     console.log(JSON.stringify({ units: UNITS, lines: lines.length, timingsMs: timings.map(t => Math.round(t)) }));
-    expect(Math.max(...timings)).toBeLessThan(3000);
+    expect(Math.max(...timings)).toBeLessThan(500);
     const month = await get("owner", { kind: "month" });
     expect(month.period).toMatchObject({ start: "2026-11-01", end: "2026-11-30" });
     expect(month.missingWorkingDays.every(day => day > "2026-11-13")).toBe(true); // no daily yet after the 13th: said, not invented

@@ -36,11 +36,18 @@ describe("report periods (D-48)", () => {
       { activityId: "a", date: "2026-11-10", planned: 5, actual: 3, completedUnits: 0 },
       { activityId: "a", date: "2026-11-20", planned: 9, actual: 9, completedUnits: 9 }, // after the period: nowhere
     ];
-    const [figure] = activityFigures(rows, [{ activityId: "a", code: "WALL", name: "Wall", modelCode: "A", unitsInModel: 10 }], { start: "2026-11-07", end: "2026-11-13" }, 6);
+    // the distinct villas come from the database (two per-day counts of 2 and 0 are not added up here)
+    const [figure] = activityFigures(rows, [{ activityId: "a", code: "WALL", name: "Wall", modelCode: "A", unitsInModel: 10 }], { start: "2026-11-07", end: "2026-11-13" }, 6, { period: new Map([["a", 2]]), cumulative: new Map([["a", 3]]) });
     expect(figure.period).toMatchObject({ planned: 10, actual: 9, completedUnits: 2, variance: -1, percentOfPlan: 90 });
     expect(figure.cumulative).toMatchObject({ planned: 14, actual: 12, completedUnits: 3, variance: -2, completedPercentOfUnits: 30 });
     expect(figure.averagePerWorkingDay).toBe(1.5);
     expect(figure.bestDay).toEqual({ date: "2026-11-08", actual: 6 });
+  });
+
+  it("NEGATIVE (review of #248): completed villas are never the sum of the daily counts — a villa complete on two days counts once", () => {
+    const rows = [{ activityId: "a", date: "2026-11-08", planned: null, actual: null, completedUnits: 1 }, { activityId: "a", date: "2026-11-10", planned: null, actual: null, completedUnits: 1 }];
+    const [figure] = activityFigures(rows, [{ activityId: "a", code: "WALL", name: "Wall", modelCode: "A", unitsInModel: 10 }], { start: "2026-11-07", end: "2026-11-13" }, 6, { period: new Map([["a", 1]]), cumulative: new Map([["a", 1]]) });
+    expect(figure.period.completedUnits).toBe(1); expect(figure.cumulative.completedUnits).toBe(1); expect(figure.cumulative.completedPercentOfUnits).toBe(10);
   });
 
   it("NCR ages at the period's end, in the report's buckets", () => {

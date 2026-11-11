@@ -27,7 +27,12 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
   const inPeriod = and(upToEnd, sql`${siteDailyReports.reportDate} >= ${range.start}`);
   const profileHours = profile?.workStart && profile.workEnd ? round((Date.parse(`1970-01-01T${profile.workEnd}Z`) - Date.parse(`1970-01-01T${profile.workStart}Z`)) / 3_600_000, 2) : null;
 
-  const [reports, activityRows, definitions, unitsPerModel, labourRows, cumulativeLabour, equipmentRows, hseRows, wirRows, rfiRows, openNcrs, ncrMoves] = await Promise.all([
+  // review of #248: a villa reported COMPLETE on several days is one villa — counted DISTINCT over the whole period, and over everything up to its end
+  const completedOver = (where: ReturnType<typeof and>) => db.select({ activityId: siteDailyReportLines.pmcActivityDefinitionId, units: sql<number>`count(DISTINCT ${siteDailyReportLines.pmcUnitId})::int` })
+    .from(siteDailyReportLines).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLines.reportId))
+    .where(and(where, eq(siteDailyReportLines.lineType, "work"), eq(siteDailyReportLines.reportedStatus, "COMPLETE"), sql`${siteDailyReportLines.pmcUnitId} IS NOT NULL`)).groupBy(siteDailyReportLines.pmcActivityDefinitionId);
+  const [completedInPeriod, completedToEnd, reports, activityRows, definitions, unitsPerModel, labourRows, cumulativeLabour, equipmentRows, hseRows, wirRows, rfiRows, openNcrs, ncrMoves] = await Promise.all([
+    completedOver(inPeriod), completedOver(upToEnd),
     db.select({ id: siteDailyReports.id, date: siteDailyReports.reportDate, status: siteDailyReports.status, reportNumber: siteDailyReports.reportNumber, workHours: siteDailyReports.workHours }).from(siteDailyReports).where(inPeriod).orderBy(asc(siteDailyReports.reportDate)),
     // one row per activity and day, up to the period's end (the cumulative needs the days before it). A plan nobody entered stays NULL: sum() of nulls is null.
     db.select({ activityId: siteDailyReportLines.pmcActivityDefinitionId, date: siteDailyReports.reportDate, planned: sql<string | null>`sum(${siteDailyReportLines.plannedQuantity})`, actual: sql<string | null>`sum(${siteDailyReportLines.actualQuantity})`,
@@ -54,7 +59,7 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
     db.select({ createdAt: ncrs.createdAt }).from(ncrs).where(and(mine(ncrs, input), sql`${ncrs.status} NOT IN ('closed', 'cancelled')`, sql`${siteDay(ncrs.createdAt)} <= ${range.end}`)),
     db.select({
       opened: sql<number>`count(*) FILTER (WHERE ${siteDay(ncrs.createdAt)} BETWEEN ${range.start} AND ${range.end})::int`,
-      // an NCR keeps no closing date of its own: its last change is read as the close (stated in the contract)
+      // an NCR keeps no closing date of its own: its last change is read as the close (a stated limit; a closed_at column is the proposed follow-up)
       closed: sql<number>`count(*) FILTER (WHERE ${ncrs.status} = 'closed' AND ${siteDay(ncrs.updatedAt)} BETWEEN ${range.start} AND ${range.end})::int`,
     }).from(ncrs).where(mine(ncrs, input)),
   ]);
@@ -83,7 +88,7 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
     period: { kind: input.kind, start: range.start, end: range.end, workDays, workingDays: working, workingDayCount: working.length, includeUnapproved: Boolean(input.includeUnapproved) },
     reports: reports.map(report => ({ id: report.id, date: report.date, reportNumber: report.reportNumber, status: report.status })),
     missingWorkingDays: working.filter(day => !reportedDays.has(day)),
-    activities: activityFigures(dayRows, facts, range, working.length),
+    activities: activityFigures(dayRows, facts, range, working.length, { period: new Map(completedInPeriod.map(row => [row.activityId!, row.units])), cumulative: new Map(completedToEnd.map(row => [row.activityId!, row.units])) }),
     labour: {
       period: { direct: labourRows.filter(row => row.category === "direct").reduce((t, r) => t + r.headcount, 0), indirect: labourRows.filter(row => row.category === "indirect").reduce((t, r) => t + r.headcount, 0), day: labourRows.filter(row => row.shift === "day").reduce((t, r) => t + r.headcount, 0), night: labourRows.filter(row => row.shift === "night").reduce((t, r) => t + r.headcount, 0) },
       cumulative: { direct: cumulativeLabour.find(row => row.category === "direct")?.headcount ?? 0, indirect: cumulativeLabour.find(row => row.category === "indirect")?.headcount ?? 0 },
@@ -94,7 +99,8 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
       return { equipmentId, equipmentType: rows[0].equipmentType, units: rows.reduce((t, r) => t + r.count, 0), hours: round(rows.reduce((t, r) => t + Number(r.hours), 0), 2), daily: range.days.map(date => ({ date, count: rows.find(row => row.date === date)?.count ?? 0 })) };
     }),
     quality: {
-      wir: { A: wir("A"), B: wir("B"), C: wir("C"), D: wir("UR"), pending: wir(null) },
+      // the daily report's reading (#243): UR (under review) is pending, like a request with no answer yet
+      wir: { A: wir("A"), B: wir("B"), C: wir("C"), pending: wir("UR") + wir(null) },
       rfi: { submitted: rfiRows.reduce((t, r) => t + r.items, 0), answered: rfi(["answered", "closed"]), cancelled: rfi(["cancelled"]), pending: rfiRows.reduce((t, r) => t + r.items, 0) - rfi(["answered", "closed", "cancelled"]) },
       ncr: { opened: ncrMoves[0]?.opened ?? 0, closed: ncrMoves[0]?.closed ?? 0, ...ncrAges(openNcrs.map(row => row.createdAt), range.end) },
     },
