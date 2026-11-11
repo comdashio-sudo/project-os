@@ -1822,4 +1822,4 @@
 | الحارس: `pmcService.authorize` نفسه (الشركة والمشروع وصلاحية PMC المسمّاة وميزة الترخيص)؛ القراءة `project.pmc.read` والكتابة `project.pmc.manage`؛ كل كتابة في معاملة واحدة مع صف تدقيق (`pmc.units_created`، `pmc.activity_weights_saved`) وجسر EVM | `PROVEN` | سالب: القارئ لا ينشئ، ومن بلا PMC لا يقرأ الشبكة |
 | إضافة على الفرع: خمس طلبات إنشاء متداخلة متزامنة ← واحدة تنشئ والباقي `PROJECT_OS_PMC_UNITS_EXIST` (لا 23505 خام)، ولا رقم مكرر | `PROVEN` | الاختبار نفسه |
 | العزل: بلوك شركة أخرى ← `BLOCK_NOT_FOUND`، ومشروع شركة أخرى ← FORBIDDEN، وبلوك مشروع آخر في الشركة نفسها لا يُرى ولا يُستعمل | `PROVEN` | الاختبار نفسه |
-D80_COUNTS
+| الأعداد (2026-11-11، بعد دمج `main` @ `b71a1b9`) | `PROVEN` | `pnpm check` 0 (لا جديد) · `pnpm build` 0 · `pnpm check:secrets` ← 0 · `pnpm test` ← 3321 ناجحًا، صفر فاشل · `pnpm test:db` ← 614 ناجحًا، 1 فاشل (`predeploy` البيئي المعروف)، 19 متخطى، على خادم PostgreSQL خاص (55484) · `coverage:trpc`: الإجراءات الأربعة مغطاة (`pmcEditor.database.test.ts` أُضيف إلى القائمة) · بلا ترحيلة |
