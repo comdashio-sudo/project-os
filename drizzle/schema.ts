@@ -53,6 +53,8 @@ export const companies = pgTable(
     slug: varchar("slug", { length: 120 }).notNull(),
     status: companiesStatusEnum("status").default("active").notNull(),
     defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
+    // D-81 (owner's decision 2026-11-09): two-step verification is optional and off by default for everyone. A company that wants it for its members switches this on (migration 0023).
+    requireTwoStep: boolean("require_two_step").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2407,6 +2409,8 @@ export const userMfa = pgTable("user_mfa", {
   lastUsedStep: integer("last_used_step"),
   failures: integer("failures").default(0).notNull(),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  /** D-81: the person switched the second step on for himself (profile). An enrolment made while it was compulsory (before D-81) reads false: it asks for nothing. */
+  requiredBySelf: boolean("required_by_self").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

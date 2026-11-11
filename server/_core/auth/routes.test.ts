@@ -271,3 +271,73 @@ describe("Google sign-in routes", () => {
     expect(new URL(url).searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 });
+
+describe("password sign-in (D-82)", () => {
+  const SECRET_PASSWORD = "correct horse 42";
+  it("signs in with the password GoTrue holds, the same session as the mailed code; the code path still works", async () => {
+    const h = await harness();
+    h.fake.passwords.set("engineer@example.test", SECRET_PASSWORD);
+    const response = await h.post("/api/auth/password/sign-in", { email: "Engineer@Example.test", password: SECRET_PASSWORD });
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true });
+    expect(decoded(response.headers.get("set-cookie"))).toContain(`${COOKIE_NAME}=session:${openIdForEmail("engineer@example.test")}:engineer`);
+    expect(h.upserts).toEqual([expect.objectContaining({ email: "engineer@example.test", loginMethod: "password" })]);
+    await h.post("/api/auth/email/request", { email: "engineer@example.test" });
+    expect((await h.post("/api/auth/email/verify", { email: "engineer@example.test", code: "424242" })).status).toBe(200);
+  });
+
+  it("NEGATIVE: a wrong password, an unknown address, an uninvited address with a GoTrue password, a bad address and no password give ONE answer and no cookie", async () => {
+    const h = await harness({ eligible: email => email !== "stranger@example.test" });
+    h.fake.passwords.set("engineer@example.test", SECRET_PASSWORD); h.fake.passwords.set("stranger@example.test", SECRET_PASSWORD);
+    const answers = [
+      await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: "wrong password" }),
+      await h.post("/api/auth/password/sign-in", { email: "nobody@example.test", password: SECRET_PASSWORD }),
+      await h.post("/api/auth/password/sign-in", { email: "stranger@example.test", password: SECRET_PASSWORD }),
+      await h.post("/api/auth/password/sign-in", { email: "not-an-address", password: SECRET_PASSWORD }),
+      await h.post("/api/auth/password/sign-in", { email: "engineer@example.test" }),
+    ];
+    for (const r of answers) { expect(r.status).toBe(401); expect(await r.json()).toEqual({ code: "PROJECT_OS_AUTH_CREDENTIALS_INVALID" }); expect(r.headers.get("set-cookie")).toBeNull(); }
+    expect(h.upserts).toEqual([]);
+  });
+
+  it("NEGATIVE: five wrong passwords lock the address for 15 minutes — the right one is refused with the seconds left — and it opens again after", async () => {
+    const h = await harness();
+    h.fake.passwords.set("engineer@example.test", SECRET_PASSWORD);
+    for (let i = 0; i < 5; i++) expect((await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: `wrong ${i}` })).status).toBe(401);
+    const locked = await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: SECRET_PASSWORD });
+    expect(locked.status).toBe(429); expect(await locked.json()).toEqual({ code: "PROJECT_OS_AUTH_RATE_LIMITED", retryAfterSeconds: 900 }); expect(locked.headers.get("set-cookie")).toBeNull();
+    // the lock is per address: another address, and the mailed code for this one, are not held by it
+    expect((await h.post("/api/auth/password/sign-in", { email: "other@example.test", password: "x" })).status).toBe(401);
+    h.clock.value += 15 * 60 * 1000 + 1;
+    expect((await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: SECRET_PASSWORD })).status).toBe(200);
+  });
+
+  it("set / forgot password: one path — the mailed code then the new password; it signs in, the old password stops working; a weak one is refused before the code is spent", async () => {
+    const h = await harness({ eligible: email => email !== "stranger@example.test" });
+    h.fake.passwords.set("engineer@example.test", "the old password");
+    await h.post("/api/auth/email/request", { email: "engineer@example.test" });
+    const weak = await h.post("/api/auth/password/set", { email: "engineer@example.test", code: "424242", password: "short7!" });
+    expect(weak.status).toBe(400); expect(await weak.json()).toEqual({ code: "PROJECT_OS_AUTH_PASSWORD_WEAK" });
+    const set = await h.post("/api/auth/password/set", { email: "engineer@example.test", code: "424242", password: SECRET_PASSWORD });
+    expect(set.status).toBe(200); expect(decoded(set.headers.get("set-cookie"))).toContain(`${COOKIE_NAME}=session:`);
+    expect((await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: "the old password" })).status).toBe(401);
+    expect((await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: SECRET_PASSWORD })).status).toBe(200);
+    // NEGATIVE: a spent code, a wrong code and an uninvited address all answer like a wrong code, and nothing is stored
+    for (const body of [{ email: "engineer@example.test", code: "424242" }, { email: "engineer@example.test", code: "000000" }, { email: "stranger@example.test", code: "424242" }]) {
+      const r = await h.post("/api/auth/password/set", { ...body, password: "another good one" });
+      expect(r.status).toBe(401); expect(await r.json()).toEqual({ code: "PROJECT_OS_AUTH_CODE_INVALID" });
+    }
+    expect(h.fake.passwords.has("stranger@example.test")).toBe(false);
+  });
+
+  it("never writes the password to the log, even when the server fails behind the route", async () => {
+    const { captureLogs } = await import("../logger");
+    const lines: string[] = []; const restore = captureLogs(line => { lines.push(line); });
+    try {
+      const h = await harness({ eligible: () => { throw new Error(`database down while checking ${SECRET_PASSWORD}`); } });
+      h.fake.passwords.set("engineer@example.test", SECRET_PASSWORD);
+      expect((await h.post("/api/auth/password/sign-in", { email: "engineer@example.test", password: SECRET_PASSWORD })).status).toBe(500);
+      expect(lines.join("\n")).toContain("auth.password_sign_in_failed");
+      expect(lines.join("\n")).not.toContain(SECRET_PASSWORD);
+    } finally { restore(); }
+  });
+});

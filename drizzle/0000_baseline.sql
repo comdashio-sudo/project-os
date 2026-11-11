@@ -415,6 +415,7 @@ CREATE TABLE "companies" (
 	"slug" varchar(120) NOT NULL,
 	"status" "companies_status" DEFAULT 'active' NOT NULL,
 	"default_locale" "companies_default_locale" DEFAULT 'ar' NOT NULL,
+	"require_two_step" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2444,6 +2445,7 @@ CREATE TABLE "user_mfa" (
 	"last_used_step" integer,
 	"failures" integer DEFAULT 0 NOT NULL,
 	"locked_until" timestamp with time zone,
+	"required_by_self" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

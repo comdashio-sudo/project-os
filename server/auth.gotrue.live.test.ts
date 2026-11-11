@@ -232,4 +232,19 @@ describe.skipIf(!live)("sign-in by e-mail code against a real Supabase Auth", ()
     const verified = await post("/api/auth/email/verify", { email, code });
     expect(JSON.stringify(await verified.json())).not.toContain(code);
   });
+
+  it("D-82 — a password set with a mailed code signs in at the real GoTrue; the old one stops working after a change", async () => {
+    const email = address("password");
+    let before = (await requestCode(email)).before;
+    let { code } = await mailedCode(email, before);
+    expect((await post("/api/auth/password/set", { email, code, password: "first password 1" })).status).toBe(200);
+    expect((await post("/api/auth/password/sign-in", { email, password: "first password 1" })).status).toBe(200);
+    await pause(2500); // the provider spaces two codes for one address (as case 2)
+    before = (await requestCode(email)).before;
+    ({ code } = await mailedCode(email, before));
+    expect((await post("/api/auth/password/set", { email, code, password: "second password 2" })).status).toBe(200);
+    const old = await post("/api/auth/password/sign-in", { email, password: "first password 1" });
+    expect(old.status).toBe(401); expect(await old.json()).toEqual({ code: "PROJECT_OS_AUTH_CREDENTIALS_INVALID" });
+    expect((await post("/api/auth/password/sign-in", { email, password: "second password 2" })).status).toBe(200);
+  }, 120_000);
 });

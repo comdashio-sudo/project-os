@@ -24,6 +24,8 @@ const OPEN_ROUTES: Record<string, string> = {
   "/api/auth/config": "which sign-in methods exist (the login page needs it before anyone is signed in)",
   "/api/auth/email/request": "asks for a sign-in code; answers the same for every address (no account enumeration) and is rate limited",
   "/api/auth/email/verify": "exchanges the code for a session; attempt-limited per address",
+  "/api/auth/password/sign-in": "D-82: exchanges a password for a session; one answer for every refusal, locked per address after five wrong ones, and rate limited per source",
+  "/api/auth/password/set": "D-82: sets or replaces the password with a mailed code (the same code as /api/auth/email/request), then signs in; attempt-limited per address",
   "/api/auth/google/start": "starts the optional Google sign-in",
   "/api/auth/google/callback": "completes the optional Google sign-in (state-checked)",
   "/api/storage/file/:token": "D-79: a file from the database storage by a link this server signed (15 minutes, one key) for a caller that passed its checks — as an S3 presigned URL",

@@ -40,7 +40,9 @@ export const REQUIRED_SCHEMA = [
   { migration: "0022_reports_reference_lists", kind: "table", table: "project_labour_roles" },
   { migration: "0022_reports_reference_lists", kind: "table", table: "project_equipment" },
   { migration: "0022_reports_reference_lists", kind: "column", table: "pmc_site_activities", column: "measure_unit" },
-  { migration: "0025_d79_database_file_storage", kind: "table", table: "stored_files" },
+  { migration: "0023_d81_company_require_two_step", kind: "column", table: "companies", column: "require_two_step" },
+  { migration: "0023_d81_company_require_two_step", kind: "column", table: "user_mfa", column: "required_by_self" },
+  { migration: "0024_d79_database_file_storage", kind: "table", table: "stored_files" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
