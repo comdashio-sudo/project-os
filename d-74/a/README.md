@@ -1,0 +1,1 @@
+D-74 (a) 53cea65: the PMC tab «Units, weights and status» with the matrix shown (block empty, 1-20). Mocked tRPC replies; the yellow notice above the tabs comes from pmcSite.percentages missing in the mock, not from this change.
