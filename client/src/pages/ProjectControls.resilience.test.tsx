@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
+const state = vi.hoisted(() => ({ saved: [] as unknown[], scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
 
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
@@ -41,7 +41,7 @@ vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null
 vi.mock("./ProjectPmc", () => ({ ProjectPmcWorkspace: () => <p>PMC workspace</p> }));
 
 vi.mock("@/lib/trpc", () => {
-  const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
+  const mutation = () => ({ mutate: vi.fn(), mutateAsync: async (input: unknown) => { state.saved.push(input); return {}; }, isPending: false, error: null, data: null });
   return { trpc: {
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { project: { code: "P-01", name: "Delivery evidence" }, wbs: [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null } }) },
@@ -285,5 +285,34 @@ describe("ProjectControls checks its forms in the page's language (D-65)", () =>
     render(<ProjectControls />);
     const form = screen.getByRole("button", { name: /Add WBS item/ }).closest("form")!;
     expectEmptySubmitRefused(form, "en", vi.fn());
+  });
+});
+
+// D-74 (b): the WBS and budget sheets (paste from Excel), each row saved by the one-row form's procedure
+describe("ProjectControls — sheet entry", () => {
+  afterEach(() => { cleanup(); state.saved = []; });
+  const paste = (element: HTMLElement, text: string) => fireEvent.paste(element, { clipboardData: { getData: () => text } });
+  it("a WBS block pasted from Excel is saved row by row through wbs.create, numbers read with their grouping commas", async () => {
+    state.saved = [];
+    render(<ProjectControls />);
+    const sheet = screen.getByRole("table", { name: "WBS items sheet" });
+    paste(within(sheet).getAllByRole("textbox")[0]!, "W-02\tStructure\t1,250.5\nW-03\tFinishes\t");
+    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    await waitFor(() => expect(state.saved).toHaveLength(2));
+    expect(state.saved).toEqual([{ tenantId: expect.any(String), projectId: expect.any(String), code: "W-02", name: "Structure", plannedValue: 1250.5 }, { tenantId: expect.any(String), projectId: expect.any(String), code: "W-03", name: "Finishes" }]);
+  });
+
+  it("a budget row naming a WBS code the project does not have is refused on its row and nothing is sent; a known code is sent as its item", async () => {
+    state.saved = [];
+    render(<ProjectControls />);
+    const sheet = screen.getByRole("table", { name: "Budget lines sheet" });
+    paste(within(sheet).getAllByRole("textbox")[0]!, "X-99\tCC-1\t100\t100");
+    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    expect(sheet.textContent).toContain("No WBS item with this code in the project");
+    expect(state.saved).toEqual([]);
+    paste(within(sheet).getAllByRole("textbox")[0]!, "w-01\tCC-1\t1,000\t1,200");
+    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    await waitFor(() => expect(state.saved).toHaveLength(1));
+    expect(state.saved[0]).toMatchObject({ wbsItemId: "wbs-1", costCode: "CC-1", originalAmount: 1000, currentAmount: 1200 });
   });
 });
