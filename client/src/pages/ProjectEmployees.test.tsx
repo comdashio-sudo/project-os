@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectEmployees } from "./ProjectEmployees";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ identityQuery: vi.fn(), create: vi.fn(), archive: vi.fn(), createContract: vi.fn() }));
 
@@ -37,5 +38,15 @@ describe("ProjectEmployees", () => {
     expect(screen.getByText(/ID-REDACTED-001/)).toBeTruthy();
     expect(screen.getByText("This read is recorded in the audit log.")).toBeTruthy();
     expect(state.identityQuery.mock.calls.some(([, options]) => (options as { enabled?: boolean }).enabled)).toBe(true);
+  });
+});
+
+describe("ProjectEmployees checks its forms in the page's language (D-65)", () => {
+  it("an empty employment contract creates nothing and says so in English under its first field", () => {
+    cleanup(); state.createContract.mockReset();
+    render(<ProjectEmployees tenantId="tenant-1" />);
+    fireEvent.click(screen.getByText("EMP-01 · Amina Planner").closest("button")!);
+    const form = Array.from(document.querySelectorAll<HTMLFormElement>("form")).find(node => node.id !== "employee-create" && node.querySelector("[required]"))!;
+    expectEmptySubmitRefused(form, "en", state.createContract);
   });
 });

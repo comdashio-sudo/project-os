@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectGoodsReceipts } from "./ProjectGoodsReceipts";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), refetch: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -26,4 +27,13 @@ describe("ProjectGoodsReceipts interaction", () => {
     expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ grnNumber: "GRN-02", receiptMode: "direct_to_site", warehouseId: undefined, unitCost: 30 }));
   });
   it("renders Arabic GRN context and does not expose sensitive compensation data", () => { state.arabic = true; render(<ProjectGoodsReceipts tenantId="tenant-1" projectId="project-1" />); expect(screen.getByText("استلام المواد (GRN)")).toBeTruthy(); expect(screen.getByLabelText("أمر الشراء الصادر")).toBeTruthy(); expect(screen.queryByText(/راتب|salary/i)).toBeNull(); });
+});
+
+describe("ProjectGoodsReceipts form checks itself in the page's language (D-64)", () => {
+  it("an empty receipt records nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.arabic = true; state.create.mockReset();
+    render(<ProjectGoodsReceipts tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.create);
+    state.arabic = false;
+  });
 });

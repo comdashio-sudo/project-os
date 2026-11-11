@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
 
@@ -274,5 +275,15 @@ describe("ProjectControls section resilience", () => {
     expect(lines.every(line => line.startsWith("Formula: ") && line.includes("Source: "))).toBe(true);
     // work order 21: the face shows the number and its status; each formula is folded behind "How is it calculated?"
     for (const node of screen.getAllByTestId("indicator-basis")) expect(node.closest("details")?.querySelector("summary")?.textContent).toBe("How is it calculated?");
+  });
+});
+
+describe("ProjectControls checks its forms in the page's language (D-65)", () => {
+  afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); });
+  it("an empty WBS item adds nothing and says so in English under its first field", () => {
+    state.performancePartial = true;
+    render(<ProjectControls />);
+    const form = screen.getByRole("button", { name: /Add WBS item/ }).closest("form")!;
+    expectEmptySubmitRefused(form, "en", vi.fn());
   });
 });
