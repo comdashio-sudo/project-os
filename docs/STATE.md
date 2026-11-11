@@ -1794,3 +1794,13 @@
 | المعدات: وحدة خارجية `equipment` في `server/externalImports.ts` (`project.manage` + ميزة `DATA_IMPORT`) و`server/equipmentImport.ts`، عبر الرفع المباشر ومهام `importJobs` | `PROVEN` | `server/equipmentImport.database.test.ts` 3/3: 20 صفًا ← 29 معدة؛ القائمة نفسها معكوسة الترتيب بتغيير طراز واحد ← 0 جديد و1 تحديث؛ البايتات نفسها ← `PROJECT_OS_IMPORT_DUPLICATE_DETECTED`؛ ملف بأخطاء ← الصفوف 3–6 بأسبابها و`PROJECT_OS_IMPORT_NOT_CONFIRMABLE`؛ المهندس ومدير أ على ب ← `PERMISSION_DENIED`، وشركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`. طفرة: بوابة `equipment` إلى `project.read` تُسقط اختبارًا |
 | الأعداد (2026-11-09) | `PROVEN` | `pnpm test:db` ← 601 ناجحًا، 0 فاشل، 19 متخطى (خادم خاص 5435) · `pnpm test` ← 3074 ناجحًا و1 فاشل (`arabicText`: كلمتان مُطبَّعتان في الشيفرة، أُصلحتا فصار 6/6) · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 · `coverage:trpc` بلا إجراءات جديدة (78 موروثة) |
 | حدّ معلن | `OPEN` | المعدات وحدة خارجية لا عامة (الخطة قالت `importPermissions.ts`): المستورد العام في `db.ts` سلسلة تفرّعات بست وحدات، والمحوّل الخارجي صُمّم للملفات ثابتة الأعمدة. الصف بلا لوحة عددٌ يُكمَّل ولا يُنقَص. الشاشة للوكيل 2 |
+
+### D-80: خادم المحررات الجدولية لـPMC — D-3 الجزء 6 (أ) (2026-11-11، الوكيل 1، من `main` @ `5fe9e8b`)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `server/pmcEditorService.ts` من `feat/design-pages` بلا ترحيلة (لا جدول ولا عمود جديد): `pmc.structure` (البلوكات، ولكل نموذج أنشطته وأوزانها ومجموعها، وعدد الوحدات وأعلى رقم)، و`pmc.createUnits` (من–إلى في بلوك ونموذج، 500 حدًّا، الكل أو لا شيء)، و`pmc.saveActivityWeights` (كل أنشطة النموذج معًا، ومجموعها 100% تمامًا)، و`pmc.statusGrid` (وحدات × أنشطة نموذجها بحالاتها، 200 حدًّا). تغيير الخلية بـ`pmc.setUnitActivityStatus` القائم (حارس الجودة والسجل وجسر EVM) | `PROVEN` | `pmcEditor.database.test.ts` 8/8 بحساب `project_os_app` |
+| الحارس: `pmcService.authorize` نفسه (الشركة والمشروع وصلاحية PMC المسمّاة وميزة الترخيص)؛ القراءة `project.pmc.read` والكتابة `project.pmc.manage`؛ كل كتابة في معاملة واحدة مع صف تدقيق (`pmc.units_created`، `pmc.activity_weights_saved`) وجسر EVM | `PROVEN` | سالب: القارئ لا ينشئ، ومن بلا PMC لا يقرأ الشبكة |
+| إضافة على الفرع: خمس طلبات إنشاء متداخلة متزامنة ← واحدة تنشئ والباقي `PROJECT_OS_PMC_UNITS_EXIST` (لا 23505 خام)، ولا رقم مكرر | `PROVEN` | الاختبار نفسه |
+| العزل: بلوك شركة أخرى ← `BLOCK_NOT_FOUND`، ومشروع شركة أخرى ← FORBIDDEN، وبلوك مشروع آخر في الشركة نفسها لا يُرى ولا يُستعمل | `PROVEN` | الاختبار نفسه |
+D80_COUNTS
