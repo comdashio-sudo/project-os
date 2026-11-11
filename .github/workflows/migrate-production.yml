@@ -5,7 +5,8 @@ name: Migrate and promote production
 #   2. the migrations are applied to the production database, then verify-db-security proves the restricted application role (the result is written in the summary);
 #   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
 #      with no publishable key in the repository (D-69) the sign-in check is replaced by the public tRPC procedure system.health (200, ok=true): without a key that check answers 503 by design;
-#   4b. only then is production deployed from here with the Vercel CLI (D-78): vercel pull, vercel build --prod, vercel deploy --prebuilt --prod --skip-domain (a production
+#   4b. only then is production deployed from here with the Vercel CLI (D-78) — when VERCEL_TOKEN may use the project (scripts/ci/vercel-access.sh, D-85). Without that access
+#      (no token, or 401/403 for the team) 4b and 5 are skipped with a warning and step 6 alone deploys: Vercel builds production from the `production` branch (O-5). Otherwise: vercel pull, vercel build --prod, vercel deploy --prebuilt --prod --skip-domain (a production
 #      deployment the production domains do NOT point to yet). No Vercel setting is needed (the
 #      dashboard's Production Branch can stay main; scripts/ci/vercel-ignore.sh still refuses a production build of main from git, and an Ignored Build Step does not apply to a
 #      --prebuilt deployment, which has no build on Vercel to skip);
@@ -17,7 +18,7 @@ name: Migrate and promote production
 #      only after production is verified, and a failed deployment is retried by the next run.
 # Any failure stops the run before the next step. A failure before the promotion in 5 changes nothing on the site; a failure after it rolls it back. The .vercel/ folder (vercel pull writes the production
 # environment there) is deleted by the last step, whatever happened.
-# Secrets: SUPABASE_DB_PASSWORD and VERCEL_TOKEN (checked with vercel whoami AND a throw-away vercel pull of the project before any migration; it is passed to the CLI through the environment, never on a command line, never printed),
+# Secrets: SUPABASE_DB_PASSWORD, and VERCEL_TOKEN (optional since D-85; checked with vercel whoami AND a throw-away vercel pull of the project before any migration; it is passed to the CLI through the environment, never on a command line, never printed),
 # optional VERCEL_AUTOMATION_BYPASS_SECRET. Variables (optional): SUPABASE_POOLER_HOST (pins the session-pooler host; otherwise it is found by trying), VERCEL_TEAM_ID, VERCEL_PROJECT_ID
 # and PRODUCTION_URL (defaults below, the same as post-deploy.yml). The project URL and its PUBLIC publishable key (sb_publishable_, optional since D-69: it adds the sign-in check) are
 # read from config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused by scripts/ci/public-config-check.sh and by
@@ -94,7 +95,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           npm install -g vercel@65.2.0
-      - name: Refuse to start without the secrets, with a rejected VERCEL_TOKEN or with a non-public Supabase key
+      - name: Refuse to start without the database secret or with a non-public Supabase key; decide whether the CLI deploys (VERCEL_TOKEN access)
         id: config
         if: steps.scope.outputs.deploy == 'true'
         env:
@@ -102,29 +103,10 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
-          # D-78: the token deploys production in step 4b, so it is proven BEFORE any migration. The CLI reads it from the environment; the value is never on a command line.
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::error::the repository secret VERCEL_TOKEN is not set (docs/GO_LIVE.md): production is deployed with it after the migrations"; exit 1
-          fi
-          if ! who="$(vercel whoami 2>&1)"; then
-            echo "::error title=VERCEL_TOKEN rejected::vercel whoami failed, so nothing was migrated or deployed. Create a new token (Vercel -> Account Settings -> Tokens) and replace the repository secret VERCEL_TOKEN. The CLI said:"
-            printf '%s\n' "$who" | tail -n 5 | cut -c1-300
-            exit 1
-          fi
-          echo "Vercel token accepted (vercel whoami)"
-          # whoami only proves the token is alive. Step 4b also needs it to READ the project (team VERCEL_ORG_ID, project VERCEL_PROJECT_ID): run 42606597331 passed whoami,
-          # migrated, then failed in 4b with "Could not retrieve Project Settings" (the API answered 403 for the project). So the very command 4b starts with is tried here,
-          # in a throw-away folder that is deleted at once, before anything is migrated.
-          probe="$RUNNER_TEMP/vercel-project-probe"
-          mkdir -p "$probe"
-          if ! pulled="$(vercel pull --yes --environment=production --cwd "$probe" 2>&1)"; then
-            rm -rf "$probe"
-            echo "::error title=VERCEL_TOKEN cannot read the Vercel project::vercel pull for project $VERCEL_PROJECT_ID (team $VERCEL_ORG_ID) failed, so nothing was migrated or deployed. The token must be created with access to that team (docs/OWNER_ACTIONS.md, VERCEL_TOKEN scope). The CLI said:"
-            printf '%s\n' "$pulled" | grep -v '^[[:space:]]*$' | tail -n 5 | cut -c1-300
-            exit 1
-          fi
-          rm -rf "$probe"
-          echo "Vercel project $VERCEL_PROJECT_ID readable with this token (vercel pull, discarded)"
+          # D-78/D-85: may step 4b deploy production with the CLI? Proven BEFORE any migration (vercel whoami and a throw-away vercel pull of the project). A missing token or a
+          # 401/403 (run 42738392972: the token has no access to the team) is a warning and cli=false: Vercel then builds production from the branch step 6 moves (O-5). Any
+          # other failure stops the run here, before anything is migrated. The CLI reads the token from the environment; the script never prints it.
+          bash scripts/ci/vercel-access.sh "$GITHUB_OUTPUT"
           # url required; publishableKey empty = has_key=false (step 3 runs without the sign-in check); anything but sb_publishable_ fails (D-69)
           bash scripts/ci/public-config-check.sh config/supabase.public.json >> "$GITHUB_OUTPUT"
       - name: 1. Migrations are backward compatible
@@ -183,7 +165,7 @@ jobs:
           [ "$status" -eq 0 ] || { echo "--- server log (tail, no secrets) ---"; tail -n 20 "$RUNNER_TEMP/server.log" | cut -c1-300; exit 1; }
       - name: 4b. Deploy production (Vercel CLI, --skip-domain so production does not move yet)
         id: deploy
-        if: steps.scope.outputs.deploy == 'true'
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -206,7 +188,7 @@ jobs:
           echo "deployed (not yet serving production): $url"
       - name: 5. Check the new deployment, promote it, prove production serves it (roll back on failure)
         id: verify
-        if: steps.scope.outputs.deploy == 'true'
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli == 'true'
         # NOT GitHub's default `bash -e {0}`: a failing check must reach the handler on the next line, not end the step there (QA on #231)
         shell: bash --noprofile --norc {0}
         env:
@@ -276,11 +258,17 @@ jobs:
       - name: 6. Promote (fast-forward the production branch to what production now serves; never a force-push)
         id: promote
         if: steps.scope.outputs.deploy == 'true'
+        env:
+          CLI_DEPLOYED: ${{ steps.config.outputs.cli }}
         run: |
           set -euo pipefail
           sha="${{ steps.scope.outputs.sha }}"
           git push origin "$sha:refs/heads/production"
           echo "promoted=$sha" >> "$GITHUB_OUTPUT"
+          # D-85: without the CLI (cli=false) this push IS the deployment: Vercel builds production from this branch (O-5), and post-deploy.yml checks it when Vercel reports it
+          if [ "$CLI_DEPLOYED" != "true" ]; then
+            echo "::notice title=Production deployed by Vercel::the production branch moved to $sha after the migrations and the release check passed; Vercel builds production from it, and post-deploy.yml checks that deployment"
+          fi
       - name: Summary (no secrets)
         if: always() && steps.scope.outputs.deploy == 'true'
         run: |
