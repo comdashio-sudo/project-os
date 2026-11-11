@@ -34,6 +34,7 @@ vi.mock("./ProjectImports", () => ({ ProjectImports: () => null }));
 vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () => null }));
 vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
+vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
   return { trpc: {
