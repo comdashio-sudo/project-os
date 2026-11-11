@@ -1,1 +1,1 @@
-D-74 (b) 00b5c6e: the WBS and budget sheets after Save rows: WBS rows saved; a budget row with an unknown WBS code refused on its row. Taken before the per-sheet problems list was added (the list under the sheet is not in these images). Mocked tRPC replies.
+D-74 (b) 00b5c6e: the WBS and budget sheets after Save rows: WBS rows saved; a budget row with an unknown WBS code refused on its row and named again under the sheet. Mocked tRPC replies.
