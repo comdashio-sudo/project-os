@@ -1821,3 +1821,16 @@
 | مسار شقيق | `PROVEN` | تاريخ التقرير نفسه كان يُقبل `2026-02-30` (`Date.parse` يحوّله إلى 2 مارس) في الحفظ والنسخ؛ صار يُرفض `PROJECT_OS_SITE_REPORT_DATE_INVALID` بالدالة نفسها `realDate`، واختباره في الملف نفسه |
 | الأعداد (2026-11-09) | `PROVEN` | `pnpm test:db` ← 603 ناجحًا، 0 فاشل، 19 متخطى (خادم خاص 5435) · `pnpm test` ← 3095 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 |
 | العزل | `PROVEN` | شركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`؛ مهندس أ على ب ← `PERMISSION_DENIED`؛ صفر صفوف في ب |
+
+### D-45 (ج) P-39 (2): الفحوص المسحوبة والصور وسلسلة الاعتماد (2026-11-11، الوكيل 3، مبني على فرع #240 `d-45b-daily-sections` @ `5a9a21a`)
+
+الترحيلة `drizzle/0025_daily_report_approval.sql` فوق 0024 (يُعاد الترقيم مع ما قبلها). توسيع فقط: `lock_timeout '5s'`، وكتلة `DO`، والرجوع في رأسها. أعمدة `checked_by_user_id`/`checked_at`/`check_note` على التقرير (خطوة المراجعة)، و`zone`/`pmc_unit_id` على الصورة بمفتاح مركّب إلى وحدة من المشروع نفسه، و`UNIQUE (id, tenant_id, project_id)` على `pmc_units`. الفحوص بلا جدول: تُقرأ عند قراءة التقرير.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `siteReports.get` يُرجع `inspections.wir` و`inspections.rfi` (مقدّم/معتمد/مرفوض/معلّق وبنودها) من `pmc_inspection_requests` و`rfis` بيوم الموقع (UTC+3)، ولا يقبلها المدخل؛ و`approval` (صاحب كل خطوة ومن فعلها ومتى) | `PROVEN` | `server/dailyReportApproval.database.test.ts` 4/4 بحساب `project_os_app` (2026-11-11): 5 WIR في اليوم (A، B ← معتمد؛ C ← مرفوض؛ بلا رد وUR ← معلّق) وطلب الساعة 01:00 من اليوم التالي خارجه؛ 3 RFI (submitted/answered/cancelled) وواحد من الأمس خارجه؛ حقل `inspections` أُرسل مع الحفظ فلم يُخزَّن |
+| الصورة على منطقة أو وحدة (`attachPhoto` بـ`zone` و`pmcUnitId`) | `PROVEN` | الرفع الحقيقي (S3 محلي) ← الصورة بمنطقتها ووحدتها؛ وحدة من المشروع ب ← `PROJECT_OS_PMC_UNIT_NOT_FOUND`، وفي القاعدة ← `site_daily_report_photos_unit_fk` |
+| السلسلة: الإرسال لصاحب «أعدّه»، و`siteReports.check` (pass/return) لصاحب «راجعه»، والاعتماد لصاحب «اعتمده» بعد المراجعة؛ الحالة المبلّغة تُطبَّق عند الاعتماد النهائي وحده | `PROVEN` | مهندس غير المُسنَد ← `PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP` عند الإرسال؛ اعتماد قبل المراجعة ← `…_STEP_OUT_OF_ORDER`؛ مراجعة من غير المراجع ← `…_NOT_YOUR_STEP`؛ إرجاع بلا سبب ← `…_REJECT_REASON_REQUIRED`، وبسبب ← مرفوض، ثم حفظ وإرسال ومراجعة؛ مراجعة ثانية ← `…_STEP_OUT_OF_ORDER`؛ مدير بـ`project.manage` لا يملك الخطوة ← `…_NOT_YOUR_STEP`؛ صفر خلايا قبل الاعتماد وخلية IN_PROGRESS بعده؛ الطوابع الثلاثة بالترتيب؛ التدقيق submitted ← returned ← submitted ← reviewed ← approved. طفرات: حذف كلٍّ من الفحوص الأربعة (أعدّه، راجعه، اعتمده، الترتيب) يُسقط اختبارًا |
+| العزل | `PROVEN` | شركة أخرى ← `TENANT_ACCESS_DENIED`/`PROJECT_NOT_FOUND`؛ المشروع ب بلا سلسلة: لا خطوة مراجعة (`…_STEP_OUT_OF_ORDER`) وصفر فحوص |
+| الأعداد (2026-11-11) | `PROVEN` | `pnpm test:db` ← 615 ناجحًا، 0 فاشل، 19 متخطى (خادم خاص 5436) · `pnpm test` ← 3331 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق |
+| حدّ معلن | `OPEN` | خطوة لا يملكها أحد لا تُفرض (مشروع بلا سلسلة يعمل كما قبل). «معتمد» لـRFI = answered أو closed، و«مرفوض» = cancelled |

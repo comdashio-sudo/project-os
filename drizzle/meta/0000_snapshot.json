@@ -1,5 +1,5 @@
 {
-  "id": "2f3773d3-5b57-470f-8dbe-d1ad95b032e3",
+  "id": "11099543-8f8f-4c4a-b52c-2afe3adfa49e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -18687,7 +18687,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "pmc_units_id_tenant_project_unique": {
+          "name": "pmc_units_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -24808,6 +24818,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "zone": {
+          "name": "zone",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pmc_unit_id": {
+          "name": "pmc_unit_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by_user_id": {
           "name": "created_by_user_id",
           "type": "integer",
@@ -24903,6 +24925,23 @@
           ],
           "columnsTo": [
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_photos_unit_fk": {
+          "name": "site_daily_report_photos_unit_fk",
+          "tableFrom": "site_daily_report_photos",
+          "tableTo": "pmc_units",
+          "columnsFrom": [
+            "pmc_unit_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -25198,6 +25237,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "checked_by_user_id": {
+          "name": "checked_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_note": {
+          "name": "check_note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "report_number": {
           "name": "report_number",
           "type": "varchar(40)",
@@ -25361,6 +25418,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "reviewed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_reports_checked_by_user_id_users_id_fk": {
+          "name": "site_daily_reports_checked_by_user_id_users_id_fk",
+          "tableFrom": "site_daily_reports",
+          "tableTo": "users",
+          "columnsFrom": [
+            "checked_by_user_id"
           ],
           "columnsTo": [
             "id"
