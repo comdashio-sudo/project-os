@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
+import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
 beforeAll(() => {
@@ -192,5 +192,13 @@ describe("TableScroll", () => {
     inApp(<TableScroll label="Projects"><table><tbody><tr><td>1</td></tr></tbody></table></TableScroll>);
     expect(screen.queryByText("Swipe the table sideways to see every column")).toBeNull();
     scroll.mockRestore(); client.mockRestore();
+  });
+});
+
+describe("formatWeekday", () => {
+  it("names the day in Western digits' locales, and gives a dash for an empty or impossible day instead of throwing", () => {
+    expect(formatWeekday("2026-11-09", "en")).toBe("Monday");
+    expect(formatWeekday("2026-11-09", "ar")).toBe("الاثنين");
+    for (const value of ["", "2026-11", "2026-02-30x", "not a date", "2026-13-45"]) expect(formatWeekday(value, "en")).toBe("—");
   });
 });

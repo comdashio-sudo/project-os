@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectClaims } from "./ProjectClaims";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ create: vi.fn(), transition: vi.fn() }));
 
@@ -27,5 +28,13 @@ describe("ProjectClaims workflow", () => {
     await user.type(screen.getByLabelText("Approved amount CLM-01"), "80");
     await user.click(screen.getByRole("button", { name: "Approve" }));
     expect(state.transition).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", claimId: "claim-1", nextStatus: "approved", approvedAmount: 80 });
+  });
+});
+
+describe("ProjectClaims form checks itself in the page's language (D-64)", () => {
+  it("an empty claim records nothing and says so in English under its first field", () => {
+    cleanup(); state.create.mockReset();
+    render(<ProjectClaims tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "en", state.create);
   });
 });

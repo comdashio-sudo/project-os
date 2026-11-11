@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 // the master-plan files go browser → Storage on a signed URL and are applied by a background job (G-139); `imp` stands in for the dataImports hooks they use
 const imp = vi.hoisted(() => ({ put: vi.fn(), state: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() } }));
@@ -203,5 +204,15 @@ describe("ProjectMasterPlan", () => {
     render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
     expect(screen.queryByTestId("master-plan-canvas")).toBeNull();
     expect(screen.getByRole("button", { name: "ZONE-A Zone A" })).toBeTruthy();
+  });
+});
+
+describe("ProjectMasterPlan checks its forms in the page's language (D-65)", () => {
+  it("an empty entity adds nothing and says so in English under its first field", () => {
+    state.isArabic = false; state.entityMutate.mockClear();
+    render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    const form = screen.getAllByRole("button", { name: "Add entity" }).at(-1)!.closest("form")!;
+    for (const field of Array.from(form.querySelectorAll<HTMLInputElement>("input[required]"))) fireEvent.change(field, { target: { value: "" } });
+    expectEmptySubmitRefused(form, "en", state.entityMutate);
   });
 });

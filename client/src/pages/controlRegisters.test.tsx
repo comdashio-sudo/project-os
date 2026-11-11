@@ -84,7 +84,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <span>Language toggle</span> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, isArabic: boolean) => isArabic ? "خطأ موضّع" : "Localized error" }));
+// the catalogue takes a language or the older isArabic flag: Arabic either way when asked for it
+vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, language: boolean | string) => (language === true || language === "ar") ? "خطأ موضّع" : "Localized error" }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: null, logout: vi.fn(), loading: false }) }));
 vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
 vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
