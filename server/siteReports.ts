@@ -146,8 +146,9 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
     if (existing) {
       await tx.update(siteDailyReports).set({ ...header, status: "draft", reviewNote: null, ...(existing.reportNumber ? {} : { reportNumber: await nextReportNumber(tx, input) }) }).where(eq(siteDailyReports.id, id));
       await tx.delete(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, id));
-      await tx.delete(siteDailyReportLabour).where(and(mine(siteDailyReportLabour, input), eq(siteDailyReportLabour.reportId, id)));
-      await tx.delete(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, id)));
+      // a list the save does not send is left as it is; an empty list clears it (review of #240: a screen that saves only the header must not wipe the matrix)
+      if (input.labour !== undefined) await tx.delete(siteDailyReportLabour).where(and(mine(siteDailyReportLabour, input), eq(siteDailyReportLabour.reportId, id)));
+      if (input.equipment !== undefined) await tx.delete(siteDailyReportEquipment).where(and(mine(siteDailyReportEquipment, input), eq(siteDailyReportEquipment.reportId, id)));
     } else {
       await tx.insert(siteDailyReports).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportDate: input.reportDate, ...header, reportNumber: await nextReportNumber(tx, input), preparedByUserId: input.userId });
     }
