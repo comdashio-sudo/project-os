@@ -90,7 +90,7 @@ const PERMISSION_UR: Record<string, string> = {
   "project.ncr.manage": "عدم مطابقت کے معاملات کا انتظام", "project.payroll.approve": "تنخواہوں کی منظوری", "project.payroll.run": "تنخواہوں کا عمل چلانا", "project.payroll.sensitive.read": "حساس تنخواہیں پڑھنا",
   "project.payroll.structure": "تنخواہوں کے ڈھانچے طے کرنا", "project.performance.manage": "کارکردگی کے اشاریوں کا انتظام", "project.performance.read_own": "اپنے کارکردگی کے اشاریے پڑھنا", "project.pmc.manage": "پروجیکٹ کنٹرول (PMC) کا انتظام",
   "project.pmc.read": "پروجیکٹ کنٹرول (PMC) دیکھنا", "project.pmc.update": "پروجیکٹ کنٹرول (PMC) کی تازہ کاری", "project.procurement.manage": "خریداری کا انتظام", "project.progress.manage": "کام کی پیش رفت کا انتظام",
-  "project.quality.manage": "معیار کا انتظام", "project.rfi.manage": "معلومات کی درخواستوں کا انتظام", "project.team.invite": "پروجیکٹ میں مدعو کرنا", "project.schedule.manage": "شیڈول کا انتظام", "project.settings.labour": "مزدوری کی لاگت کی ترتیبات",
+  "project.quality.manage": "معیار کا انتظام", "project.qc.receive": "کیو سی وصولی", "project.rfi.manage": "معلومات کی درخواستوں کا انتظام", "project.team.invite": "پروجیکٹ میں مدعو کرنا", "project.schedule.manage": "شیڈول کا انتظام", "project.settings.labour": "مزدوری کی لاگت کی ترتیبات",
   "project.wbs.manage": "ورک بریک ڈاؤن اسٹرکچر (WBS) کا انتظام",
 };
 const PRODUCT_UR: Record<string, string> = {
@@ -123,7 +123,7 @@ const PERMISSION_AR: Record<string, string> = {
   "project.ncr.manage": "إدارة حالات عدم المطابقة", "project.payroll.approve": "اعتماد الرواتب", "project.payroll.run": "تشغيل دورة الرواتب", "project.payroll.sensitive.read": "قراءة الرواتب الحساسة",
   "project.payroll.structure": "ضبط هياكل الرواتب", "project.performance.manage": "إدارة مؤشرات الأداء", "project.performance.read_own": "قراءة مؤشرات أدائي", "project.pmc.manage": "إدارة ضبط المشروع (PMC)",
   "project.pmc.read": "عرض ضبط المشروع (PMC)", "project.pmc.update": "تحديث ضبط المشروع (PMC)", "project.procurement.manage": "إدارة المشتريات", "project.progress.manage": "إدارة تقدم الأعمال",
-  "project.quality.manage": "إدارة الجودة", "project.rfi.manage": "إدارة طلبات المعلومات", "project.team.invite": "الدعوة إلى المشروع", "project.schedule.manage": "إدارة الجدول الزمني", "project.settings.labour": "ضبط إعدادات تكلفة العمالة",
+  "project.quality.manage": "إدارة الجودة", "project.qc.receive": "استلام QC", "project.rfi.manage": "إدارة طلبات المعلومات", "project.team.invite": "الدعوة إلى المشروع", "project.schedule.manage": "إدارة الجدول الزمني", "project.settings.labour": "ضبط إعدادات تكلفة العمالة",
   "project.wbs.manage": "إدارة هيكل تجزئة العمل (WBS)",
 };
 /** A permission's name in the page's language. The raw code is never its text: a screen keeps it in a title attribute (the administrator can still search it). */

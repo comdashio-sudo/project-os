@@ -28,6 +28,9 @@ export const operationalPermissionCatalog = [
   { code: "project.pmc.read", name: "View project control (PMC)", productCode: "PROJECT" as const },
   { code: "project.pmc.update", name: "Update unit-activity status (PMC)", productCode: "PROJECT" as const },
   { code: "project.pmc.manage", name: "Manage the PMC catalogue, baselines and imports", productCode: "PROJECT" as const },
+  // Q-5: the QC engineer's «received / not received» for a villa's activity (pmc_qc_receipts). Only the quality role holds it: the site engineer, who also
+  // manages quality inspections, cannot mark his own work as received.
+  { code: "project.qc.receive", name: "Mark villas as received by QC", productCode: "PROJECT" as const },
   { code: "project.settings.labour", name: "Configure labour cost loading and the working calendar", productCode: "PROJECT" as const },
   { code: "project.manage", name: "Manage governed project operations", productCode: "PROJECT" as const },
   // Q-12 (c): invite people onto THIS project (scope «project» only) with a project role; see projectInviteRoleRefusal for what such a role may not carry.
@@ -73,7 +76,7 @@ export const operationalRoleDefinitions = [
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
-  { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.ncr.manage", "project.performance.read_own"] },
+  { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
   {
     code: "PROJECT_MANAGER",
