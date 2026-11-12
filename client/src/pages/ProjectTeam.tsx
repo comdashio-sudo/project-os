@@ -12,7 +12,8 @@ import { trpc } from "@/lib/trpc";
 
 // Q-12 (c): the project's team — the people on this project with their roles, the invitations still waiting, and one form to invite someone onto THIS project with a role.
 // The company is the one chosen in the top bar and the project is this page's, so the invitation is always «company → project → role». The server decides everything:
-// listing the team takes project.manage; inviting is tenant.createInvitation with scope «project» (tenant.manage), which also e-mails the invitation (#277).
+// listing the team takes project.manage or project.team.invite; inviting is tenant.createInvitation with scope «project» — by the company manager, or by whoever holds
+// project.team.invite on this project (the planning engineer, the project manager) with a role the server allows — and it e-mails the invitation (#277).
 const text = {
   ar: { title: "فريق المشروع", intro: "من يعمل على هذا المشروع وبأي دور. الدعوة من هنا تكون لهذا المشروع داخل الشركة الحالية.", members: "الأعضاء", none: "لا أحد على المشروع بعد.", company: "على الشركة كلها", invited: "دعوة لم تُقبل", pending: "دعوات بانتظار القبول", until: "حتى", invite: "دعوة إلى هذا المشروع", email: "البريد", role: "الدور", pick: "اختر دورًا", send: "إرسال الدعوة", sending: "جارٍ الإرسال…", emailed: "أُرسلت الدعوة إلى البريد.", copy: "لم يُرسل البريد؛ أرسل هذا الرابط بنفسك:" },
   en: { title: "Project team", intro: "Who works on this project, and as what. An invitation from here is for this project inside the current company.", members: "Members", none: "Nobody is on the project yet.", company: "company-wide", invited: "invitation not accepted", pending: "Invitations waiting", until: "until", invite: "Invite to this project", email: "E-mail", role: "Role", pick: "Choose a role", send: "Send the invitation", sending: "Sending…", emailed: "The invitation was e-mailed.", copy: "No e-mail was sent; send this link yourself:" },
@@ -22,10 +23,10 @@ const text = {
 function InviteForm({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { language } = useLanguage(); const t = pickLanguage(language, text);
   const utils = trpc.useUtils();
-  const admin = trpc.tenant.administration.useQuery({ tenantId });
+  const admin = trpc.projects.team.invitableRoles.useQuery({ tenantId, projectId });
   const [email, setEmail] = React.useState(""); const [roleId, setRoleId] = React.useState("");
   const invite = trpc.tenant.createInvitation.useMutation({ onSuccess: () => { setEmail(""); void utils.projects.team.invitations.invalidate(); } });
-  const roles = (admin.data?.roles ?? []).map(role => ({ value: role.id, label: role.name }));
+  const roles = (admin.data ?? []).map(role => ({ value: role.id, label: role.name }));
   const result = invite.data;
   return (
     <Card>
@@ -78,7 +79,7 @@ export default function ProjectTeam() {
             </ul>
           </CardBody>
         </Card>
-        <WriteGate permission="tenant.manage"><SectionErrorBoundary title={t.invite} isArabic={isArabic}><InviteForm tenantId={tenantId} projectId={projectId} /></SectionErrorBoundary></WriteGate>
+        <WriteGate permission="project.team.invite" projectId={projectId}><SectionErrorBoundary title={t.invite} isArabic={isArabic}><InviteForm tenantId={tenantId} projectId={projectId} /></SectionErrorBoundary></WriteGate>
       </div>
     </PageMain>
   );

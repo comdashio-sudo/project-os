@@ -145,6 +145,7 @@ export const outsideColumns: Readonly<Record<string, string>> = {
   "project.performance.read_own": "أداء الشخص نفسه («أدائي») في شاشة القوى العاملة؛ لا عمود.",
   "project.performance.manage": "تقييم الأداء في شاشة القوى العاملة؛ لا عمود.",
   "project.settings.labour": "إعدادات تحميل تكلفة العمالة على مستوى الشركة (server/db.ts)؛ لا عمود.",
+  "project.team.invite": "Q-12 (ج): دعوة أشخاص إلى مشروع واحد بدور مشروع مسموح (server/db.ts createMembershipInvitation، القاعدة projectInviteRoleRefusal)؛ لا عمود.",
   "project.design.architectural": "تخصص منسق التصميم: يضيّق «يعدّل» في المخططات إلى التخصص المعماري (server/domain/designCoordination.ts).",
   "project.design.technical": "تخصص منسق التصميم: يضيّق «يعدّل» في المخططات إلى التخصص الفني (server/domain/designCoordination.ts).",
 };
