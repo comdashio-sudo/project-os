@@ -6,7 +6,7 @@ import { IMPORT_JOB_MAX_ATTEMPTS, IMPORT_JOB_STALL_MS, ORPHAN_UPLOAD_MAX_AGE_MS,
 import { appRouter } from "./routers";
 import { MAX_DIRECT_UPLOAD_BYTES } from "./storage";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
-import { syntheticScheduleWorkbook, syntheticXer } from "./testing/importFixtures";
+import { realisticXer, syntheticScheduleWorkbook, syntheticXer } from "./testing/importFixtures";
 
 // Work order 6, direct upload: a file goes browser → Storage by a signed URL (a REAL HTTP PUT against an S3-compatible server, through the real storage module),
 // is analysed and imported by background jobs whose progress the screen polls. Synthetic fixtures only; the files are 30 MB (XER) and 20,000 rows (Excel).
@@ -267,5 +267,46 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("direct-upload imports an
     expect(s3.objects.has(orphan)).toBe(false);
     expect(s3.objects.has(fresh)).toBe(true);
     expect(s3.objects.has(target.uploadKey)).toBe(true);
+  }, 120_000);
+
+  // Q-13: a real Primavera export repeats short WBS codes under different parents; that is not a duplicate. Fabricated file, through the real upload path.
+  it("a P6 file with repeated short WBS codes imports clean: the tree is stored with its parents and every activity sits under its own WBS", async () => {
+    const importer = callerFor(users.importer, "ijb-importer");
+    await connection.query("DELETE FROM activities WHERE tenantId = ?", [T]); await connection.query("DELETE FROM wbs_items WHERE tenantId = ?", [T]);
+    const fixture = realisticXer();
+    const { registered } = await upload(importer, { name: "p6-repeated-short-codes.xer", bytes: fixture.bytes, format: "xer" });
+    const analysed = await pollUntilDone(importer, registered.id);
+    expect(analysed.view).toMatchObject({ status: "validated", totalRows: fixture.wbsCount + fixture.taskCount, validRows: fixture.wbsCount + fixture.taskCount, invalidRows: 0 });
+    expect(analysed.view.analysis).toMatchObject({ errors: [], errorsTotal: 0, errorGroups: [] });
+    await importer.dataImports.confirm({ ...scope, importId: registered.id });
+    const imported = await pollUntilDone(importer, registered.id);
+    expect(imported.view).toMatchObject({ status: "completed", createdRows: fixture.wbsCount + fixture.taskCount, failureReason: null });
+    const [tree] = await connection.query<{ code: string; parent: string | null }[]>("SELECT w.code AS code, p.code AS parent FROM wbs_items w LEFT JOIN wbs_items p ON p.id = w.parentId WHERE w.tenantId = ? ORDER BY w.code", [T]);
+    expect(Object.fromEntries(tree.map(row => [row.code, row.parent]))).toEqual({ PRJ: null, A: "PRJ", B: "PRJ", "PRJ.A.1": "A", "PRJ.A.2": "A", "PRJ.B.1": "B", "PRJ.B.2": "B", "PRJ.A.1.1": "PRJ.A.1", "PRJ.A.2.1": "PRJ.A.2", "PRJ.B.1.1": "PRJ.B.1", "PRJ.B.2.1": "PRJ.B.2" });
+    const [placed] = await connection.query<{ code: string; wbs: string }[]>("SELECT a.code AS code, w.code AS wbs FROM activities a INNER JOIN wbs_items w ON w.id = a.wbsItemId WHERE a.tenantId = ? ORDER BY a.code", [T]);
+    expect(Object.fromEntries(placed.map(row => [row.code, row.wbs]))).toEqual({ T1: "PRJ.A.1.1", T2: "PRJ.A.1.1", T3: "PRJ.A.2.1", T4: "PRJ.B.1.1", T5: "PRJ.B.1.1", T6: "PRJ.B.1.1", T7: "PRJ.B.2.1", T8: "A" });
+  }, 120_000);
+
+  it("NEGATIVE: real duplicates stay errors, but the screen gets ONE line per kind with the count, the first rows and the repeated value — and nothing is written", async () => {
+    const importer = callerFor(users.importer, "ijb-importer");
+    await connection.query("DELETE FROM activities WHERE tenantId = ?", [T]); await connection.query("DELETE FROM wbs_items WHERE tenantId = ?", [T]);
+    const clean = realisticXer({ repeatSibling: true }).bytes.toString("utf8");
+    // seven more rows reusing T1: the task code repeated eight times in all
+    const extra = Array.from({ length: 7 }, (_, index) => `%R\t${100 + index}\t8\tT1\tCopy ${index}\t2026-01-01 08:00\t2026-02-01 17:00\t1\tTK_NotStart`).join("\n");
+    const bytes = Buffer.from(clean.replace("\n%E", `\n${extra}\n%E`), "utf8");
+    const { registered } = await upload(importer, { name: "p6-real-duplicates.xer", bytes, format: "xer" });
+    const analysed = await pollUntilDone(importer, registered.id);
+    expect(analysed.view.status).toBe("uploaded"); // blocked: confirmation needs an analysis with no errors
+    const analysis = analysed.view.analysis!;
+    expect(analysis.errorsTotal).toBe(8); // seven task codes and one WBS path, row by row
+    expect(analysis.errorGroups).toHaveLength(2);
+    const taskGroup = analysis.errorGroups.find(group => group.field === "activityCode")!;
+    expect(taskGroup).toMatchObject({ code: "IMPORT_DUPLICATE_FILE_KEY", count: 7, values: ["T1", "T1", "T1", "T1", "T1"] });
+    expect(taskGroup.rows).toHaveLength(5); // the first five rows; the count above is the true total
+    expect([...taskGroup.rows].sort((a, b) => a - b)).toEqual(taskGroup.rows);
+    expect(analysis.errorGroups.find(group => group.field === "wbsCode")).toMatchObject({ code: "IMPORT_DUPLICATE_FILE_KEY", count: 1, values: ["PRJ.A.1"] });
+    await expect(importer.dataImports.confirm({ ...scope, importId: registered.id })).rejects.toThrow();
+    expect(await count("wbs_items")).toBe(0);
+    expect(await count("activities")).toBe(0);
   }, 120_000);
 });
