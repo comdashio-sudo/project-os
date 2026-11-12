@@ -14,6 +14,7 @@ import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
+import { getBaselineStatus, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
@@ -560,6 +561,11 @@ export const appRouter = router({
       currency: riyalCurrency(),
     })).mutation(({ ctx, input }) => createProjectForTenant({ userId: ctx.user.id, ...input })),
     transitionLifecycle: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), lifecycleStage: z.enum(["opportunity", "pre_award", "tender", "award", "mobilization", "planning", "design", "procurement", "execution", "commissioning", "handover", "closeout", "post_project_review"]) })).mutation(({ ctx, input }) => transitionProjectLifecycle({ userId: ctx.user.id, ...input })),
+    // Q-10 (a): the project's base file — the checklist of what the project needs and where each piece stands (server/projectBaseline.ts). Read: project.read or project.manage; write: project.manage.
+    baseline: router({
+      status: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBaselineStatus({ userId: ctx.user.id, ...input })),
+      saveContract: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), contractValue: z.number({ message: "PROJECT_OS_CONTRACT_VALUE_INVALID" }), plannedStartAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }), plannedFinishAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }) })).mutation(({ ctx, input }) => saveProjectContract({ userId: ctx.user.id, ...input })),
+    }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
     profile: router({
       get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectProfile({ userId: ctx.user.id, ...input })),
