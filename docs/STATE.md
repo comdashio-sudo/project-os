@@ -1675,6 +1675,17 @@
 | (ج) ما يلزم لذلك: سياسة على `storage.objects` لدور `anon` أو `authenticated`، وفحص الشركة فيها يحتاج قراءة جداول التطبيق (منحة SELECT أو EXECUTE على دالة DEFINER لذلك الدور) | `SOURCE_VERIFIED` | المفتاح العام في كل متصفح، وأي حامل له يحصل على JWT `authenticated` من GoTrue؛ فالسياسة تفتح الملفات لغير شركتها. CLAUDE.md §4: المستودع لا يمنح صلاحيات. وفوق ذلك الخادم لا يحتفظ بأي JWT للمستخدم: يُنهي جلسة GoTrue فور التحقق (`server/_core/auth/supabaseAuth.ts:65-66`). |
 | القرار: لا تنفيذ؛ مفتاح S3 يبقى في `docs/GO_LIVE.md` (مع السبب) وخطوة واحدة في `docs/OWNER_ACTIONS.md` §14؛ O-7 يعود للمالك | `BLOCKED_BY_OWNER` | لم يُلمس `server/storage.ts` ولا مستدعوه ولا `scripts/backup` ولا `scripts/setup-storage.mjs`. |
 
+### D-10: مصفوفة الأدوار — إغلاق بالدليل (2026-11-08، الوكيل 1، على `main` @ `2945838`)
+
+خطة إغلاق معتمدة، بلا كود: المهمة منفّذة منذ #128 (`64221fd`). لم يُلمس `server/domain/operationalRoles.ts` ولا `server/domain/roleMatrix.ts` ولا `scripts/lib/roleFixture.mjs`.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| الاختبار يطابق الكود والجدول | `PROVEN` (أمر) | `pnpm exec vitest run server/domain/roleMatrix.test.ts` ← 72/72 ناجحًا، 2026-11-08، `2945838`؛ **أُعيد 2026-11-12 على `main` @ `a91a21a` + هذا الطلب ← 111/111** (زاد العدد بإضافة D-21/D-42/D-44 للاختبار). **سالب أُعيد:** حذف `project.pmc.update` من `SITE_ENGINEER` ← فشل 1؛ حذف `project.hse.manage` و`project.field.manage` معًا من `HSE_MANAGER` ← فشل 2؛ ثم استُعيد الملف والاختبار 111/111. **تنبيه للأمانة:** حذف `project.hse.manage` وحده من `HSE_MANAGER` لا يُسقط الاختبار لأن `project.field.manage` يمنح الخلية نفسها (منحة زائدة غير ملتقطة بالجدول) — حدّ معلن، لا عيب في الاختبار |
+| الجدول المولَّد مطابق للملف | `PROVEN` (أمر) | `pnpm exec tsx scripts/write-role-matrix.ts` ثم `git status --short` ← فارغ (لا فرق في `docs/ROLE_MATRIX.md`)، 2026-11-08، `2945838`؛ أُعيد 2026-11-12 على `main` @ `a91a21a` + هذا الطلب ← فارغ |
+| العدد: الأمر ذكر 16 دورًا، والجدول 18 صفًا (المالك + 17 قالبًا) | `SOURCE_VERIFIED` | السبب في `docs/ROLE_MATRIX.md` §1؛ يُقبل كما هو بحسب الخطة |
+| حدّ معلن: الأعمدة تغطي دوال الخادم المسمّاة في `roleMatrix.ts` كما كانت يوم #128، ولا تشمل ما أضافه D-1 (المحاولات والتراجع) وD-4 (P6) وD-5 (الموقع والاستشاري) | `OPEN` | نطاق D-21 بعد دمج D-5، ولا يُوسَّع هنا |
+
 ### D-18: الصلاحية ونطاقها من تعيين واحد — G-142 (2026-11-09، الوكيل 1، من `main` @ `935516d`، ودُمج فيه `main` @ `15fd42b` بعد D-42 أ: `projectProfile.database.test.ts` 6/6 و`accessGrants` 4/4 والصلاحيات وقوالب الأدوار 13/13 بعد الدمج)
 
 تضييق لا إرخاء، بلا ترحيلة. لم تُلمس RLS ولا قوالب الأدوار ولا فصل المهام ولا D-19.
