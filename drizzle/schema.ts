@@ -3653,3 +3653,23 @@ export const siteDailyReportTomorrow = pgTable(
   { ...reportChild(), area: varchar("area", { length: 160 }), activity: varchar("activity", { length: 255 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }), unit: varchar("unit", { length: 24 }), resources: text("resources") },
   table => [...childKeys("site_daily_report_tomorrow", table as never), check("site_daily_report_tomorrow_quantity_check", sql`${table.quantity} IS NULL OR ${table.quantity} >= 0`)],
 );
+
+// Q-10 (d): the project's planned labour histogram — how many workers are planned each month, optionally per trade ('' = all trades). Item 8 of the base file
+// (optional). Re-importing replaces the project's plan (server/projectBaseline.ts). Migration 0029.
+export const projectPlannedLabour = pgTable(
+  "project_planned_labour",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    month: date("month", { mode: "string" }).notNull(),
+    trade: varchar("trade", { length: 80 }).default("").notNull(),
+    workers: integer("workers").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_planned_labour_month_trade_unique").on(table.tenantId, table.projectId, table.month, table.trade),
+    check("project_planned_labour_workers_check", sql`${table.workers} >= 0 AND ${table.workers} <= 1000000`),
+  ],
+);

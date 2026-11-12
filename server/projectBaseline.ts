@@ -7,11 +7,12 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, countDistinct, eq, inArray, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { activities, auditLogs, boqItems, pmcActivityDefinitions, pmcPlanMonths, pmcUnits, projects, wbsItems } from "../drizzle/schema";
+import { activities, auditLogs, boqItems, pmcActivityDefinitions, pmcPlanMonths, pmcUnits, projectPlannedLabour, projects, wbsItems } from "../drizzle/schema";
 import { projectGate } from "./projectProfile";
 import { analyzeCashFlowFile, cashFlowRefusal, type CashFlowAnalysis } from "./domain/plannedCashFlow";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
 import { analyzeBoqFile, boqRefusal, type BoqAnalysis } from "./domain/boqFile";
+import { analyzeLabourFile, labourHistogram, labourRefusal, type LabourAnalysis } from "./domain/plannedLabour";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const READ = ["project.read", "project.manage"] as const;
@@ -20,7 +21,7 @@ const WRITE = ["project.manage"] as const;
 export const BASELINE_ITEMS = ["contract", "schedule", "cashFlow", "weights", "units", "boq", "wbs", "labour"] as const;
 export type BaselineItemCode = (typeof BASELINE_ITEMS)[number];
 export type BaselineState = "uploaded" | "missing" | "optional";
-export type BaselineItem = { code: BaselineItemCode; state: BaselineState; count: number; detail: { contractValue?: string; plannedStartAt?: string | null; plannedFinishAt?: string | null; models?: number; curve?: Array<{ month: string; cumulative: number }> } };
+export type BaselineItem = { code: BaselineItemCode; state: BaselineState; count: number; detail: { contractValue?: string; plannedStartAt?: string | null; plannedFinishAt?: string | null; models?: number; curve?: Array<{ month: string; cumulative: number }>; histogram?: Array<{ month: string; workers: number }> } };
 
 /** What a project must have (required) or may have (optional); labour is the only optional one. A required item with nothing behind it is «missing», an optional one «optional». */
 const OPTIONAL: ReadonlySet<BaselineItemCode> = new Set<BaselineItemCode>(["labour"]);
@@ -31,7 +32,7 @@ const isoDay = (value: Date | null) => (value ? value.toISOString().slice(0, 10)
 export async function getBaselineStatus(input: Scope): Promise<{ items: BaselineItem[]; ready: number; required: number }> {
   const db = await projectGate(input, READ);
   const total = async (rows: Promise<Array<{ n: number }>>) => Number((await rows)[0]?.n ?? 0);
-  const [[project], scheduleCount, planMonths, [weights], unitCount, boqCount, wbsCount] = await Promise.all([
+  const [[project], scheduleCount, planMonths, [weights], unitCount, boqCount, wbsCount, labourRows] = await Promise.all([
     db.select({ contractValue: projects.contractValue, plannedStartAt: projects.plannedStartAt, plannedFinishAt: projects.plannedFinishAt }).from(projects).where(and(eq(projects.tenantId, input.tenantId), eq(projects.id, input.projectId))).limit(1),
     total(db.select({ n: count() }).from(activities).where(mine(activities, input))),
     db.select({ month: pmcPlanMonths.month, cumulative: pmcPlanMonths.cumulativePercent }).from(pmcPlanMonths).where(mine(pmcPlanMonths, input)).orderBy(asc(pmcPlanMonths.month)),
@@ -39,6 +40,7 @@ export async function getBaselineStatus(input: Scope): Promise<{ items: Baseline
     total(db.select({ n: count() }).from(pmcUnits).where(mine(pmcUnits, input))),
     total(db.select({ n: count() }).from(boqItems).where(mine(boqItems, input))),
     total(db.select({ n: count() }).from(wbsItems).where(mine(wbsItems, input))),
+    db.select({ month: projectPlannedLabour.month, trade: projectPlannedLabour.trade, workers: projectPlannedLabour.workers }).from(projectPlannedLabour).where(mine(projectPlannedLabour, input)),
   ]);
   const contractValue = Number(project?.contractValue ?? 0);
   // the contract counts as given when it has a value and both dates (a value of zero or a missing date is not a contract)
@@ -52,8 +54,8 @@ export async function getBaselineStatus(input: Scope): Promise<{ items: Baseline
     { code: "units", state: stateOf("units", unitCount), count: unitCount, detail: {} },
     { code: "boq", state: stateOf("boq", boqCount), count: boqCount, detail: {} },
     { code: "wbs", state: stateOf("wbs", wbsCount), count: wbsCount, detail: {} },
-    // planned labour has no table yet (Q-10 c): it is optional and reads as such until it exists
-    { code: "labour", state: "optional", count: 0, detail: {} },
+    // planned labour (Q-10 d): optional; when given, the monthly histogram travels with the item
+    { code: "labour", state: stateOf("labour", labourRows.length), count: labourRows.length, detail: { histogram: labourHistogram(labourRows) } },
   ];
   const required = items.filter(item => !OPTIONAL.has(item.code)).length;
   return { items, ready: items.filter(item => !OPTIONAL.has(item.code) && item.state === "uploaded").length, required };
@@ -176,4 +178,44 @@ export async function boqTemplate(input: Scope & { locale: "ar" | "en" | "ur" })
   const headers = input.locale === "ar" ? ["رقم البند", "وصف البند", "الوحدة", "الكمية", "سعر الوحدة"] : input.locale === "ur" ? ["آئٹم نمبر", "تفصیل", "اکائی", "مقدار", "شرح"] : ["Item no.", "Description", "Unit", "Quantity", "Unit rate"];
   const bytes = await buildSpreadsheet({ sheetName: "BOQ", headers, rows: [["A-01", "Excavation (example)", "m3", 1200, 18.5], ["A-02", "Plain concrete (example)", "m3", 85, 320]], format: "xlsx" });
   return { fileName: "boq.xlsx", base64: bytes.toString("base64") };
+}
+
+// ------------------------------------------------------------------ Q-10 (d): the planned labour histogram
+
+async function readLabour(fileBase64: string, format: "xlsx" | "csv"): Promise<LabourAnalysis> {
+  const bytes = Buffer.from(fileBase64, "base64");
+  if (!bytes.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  if (bytes.length > CASHFLOW_MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_TOO_LARGE" });
+  return analyzeLabourFile(bytes, format);
+}
+
+/** The check report: rows read, refused rows, the monthly histogram and its peak. Writes nothing. */
+export async function previewProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+  await projectGate(input, WRITE);
+  const analysis = await readLabour(input.fileBase64, input.format);
+  const refusal = labourRefusal(analysis);
+  return { count: analysis.rows.length, issues: analysis.issues, histogram: analysis.histogram, peak: analysis.peak, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
+}
+
+/** Replace the project's planned labour with the file's rows: the plan is one file, so a row no longer in it goes. */
+export async function saveProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+  const db = await projectGate(input, WRITE);
+  const analysis = await readLabour(input.fileBase64, input.format);
+  const refusal = labourRefusal(analysis);
+  if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
+  await db.transaction(async tx => {
+    await tx.delete(projectPlannedLabour).where(mine(projectPlannedLabour, input));
+    const inserted = await tx.insert(projectPlannedLabour).values(analysis.rows.map(row => ({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, month: row.month, trade: row.trade, workers: row.workers }))).returning({ id: projectPlannedLabour.id });
+    // the proof of the write is one returned row per row of the file
+    if (inserted.length !== analysis.rows.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.planned_labour_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ rows: analysis.rows.length, peak: analysis.peak }) });
+  });
+  return getBaselineStatus(input);
+}
+
+export async function labourTemplate(input: Scope & { locale: "ar" | "en" | "ur" }) {
+  await projectGate(input, READ);
+  const headers = input.locale === "ar" ? ["الشهر", "المهنة", "العمالة"] : input.locale === "ur" ? ["مہینہ", "پیشہ", "مزدور"] : ["Month", "Trade", "Workers"];
+  const bytes = await buildSpreadsheet({ sheetName: "Labour", headers, rows: [["2027-01", "Masons", 20], ["2027-01", "Carpenters", 12], ["2027-02", "Masons", 35]], format: "xlsx" });
+  return { fileName: "planned-labour.xlsx", base64: bytes.toString("base64") };
 }

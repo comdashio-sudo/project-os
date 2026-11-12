@@ -1871,6 +1871,18 @@ CREATE TABLE "project_material_overrides" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "project_planned_labour" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"month" date NOT NULL,
+	"trade" varchar(80) DEFAULT '' NOT NULL,
+	"workers" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_planned_labour_workers_check" CHECK ("project_planned_labour"."workers" >= 0 AND "project_planned_labour"."workers" <= 1000000)
+);
+--> statement-breakpoint
 CREATE TABLE "project_profiles" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -3068,6 +3080,8 @@ ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overri
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_planned_labour" ADD CONSTRAINT "project_planned_labour_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_planned_labour" ADD CONSTRAINT "project_planned_labour_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3467,6 +3481,7 @@ CREATE UNIQUE INDEX "project_labour_roles_project_default_unique" ON "project_la
 CREATE INDEX "project_labour_roles_tenant_project_idx" ON "project_labour_roles" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_material_overrides_project_material_unique" ON "project_material_overrides" USING btree ("project_id","material_id");--> statement-breakpoint
 CREATE INDEX "project_material_overrides_tenant_project_idx" ON "project_material_overrides" USING btree ("tenant_id","project_id","material_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_planned_labour_month_trade_unique" ON "project_planned_labour" USING btree ("tenant_id","project_id","month","trade");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_profiles_tenant_project_unique" ON "project_profiles" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_report_approvers_project_step_unique" ON "project_report_approvers" USING btree ("tenant_id","project_id","step");--> statement-breakpoint
 CREATE INDEX "project_report_approvers_membership_idx" ON "project_report_approvers" USING btree ("membership_id");--> statement-breakpoint
