@@ -441,6 +441,21 @@ export const projectErrorMessages = {
     en: "The drawing layout is invalid: every shape needs a unique reference, at least three numeric points, and a label of at most 120 characters.",
     ur: "ڈرائنگ کا خاکہ درست نہیں: ہر شکل کا منفرد حوالہ، کم از کم تین عددی نقطے، اور 120 حروف تک کا لیبل ہونا چاہیے۔",
   },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_SAME_POINTS: {
+    ar: "نقطتا المعايرة متطابقتان. اختر نقطتين متباعدتين على الرسم.",
+    en: "The two calibration points are the same. Pick two points apart on the drawing.",
+    ur: "انشانکن کے دونوں نقطے ایک ہی ہیں۔ ڈرائنگ پر دو الگ نقطے منتخب کریں۔",
+  },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_DISTANCE: {
+    ar: "المسافة الحقيقية يجب أن تكون رقمًا أكبر من صفر ولا تتجاوز 100,000 متر.",
+    en: "The real distance must be a number above zero and at most 100,000 metres.",
+    ur: "اصل فاصلہ صفر سے زیادہ اور زیادہ سے زیادہ 100,000 میٹر ہونا چاہیے۔",
+  },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_POINT: {
+    ar: "إحداثيات نقطة المعايرة غير صالحة.",
+    en: "A calibration point has invalid coordinates.",
+    ur: "انشانکن کے نقطے کے نقاط درست نہیں۔",
+  },
   PROJECT_OS_MASTER_PLAN_DRAWING_POLYGON_NOT_FOUND: {
     ar: "هذا الشكل غير موجود في الرسم المحفوظ لهذه النسخة.",
     en: "This shape is not in the saved drawing of this version.",
@@ -592,6 +607,51 @@ export const projectErrorMessages = {
     ar: "إنشاء الشركات لمالك المنصة وحده. اطلب من مالك المنصة إنشاء شركتك أو دعوتك إلى شركة قائمة.",
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
+  },
+  PROJECT_OS_BOQ_COLUMNS_MISSING: {
+    ar: "الملف يحتاج الأعمدة: رقم البند، وصف البند، الوحدة، الكمية، سعر الوحدة. نزّل القالب واملأه.",
+    en: "The file needs the columns: Item no., Description, Unit, Quantity, Unit rate. Download the template and fill it in.",
+    ur: "فائل میں یہ کالم چاہییں: آئٹم نمبر، تفصیل، اکائی، مقدار، شرح۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_BOQ_TOO_MANY_ROWS: {
+    ar: "جدول الكميات يقبل حتى 5000 بند في الملف الواحد.",
+    en: "The bill of quantities accepts up to 5000 items in one file.",
+    ur: "مقداروں کا جدول ایک فائل میں زیادہ سے زیادہ 5000 آئٹم لیتا ہے۔",
+  },
+  PROJECT_OS_BOQ_ROWS_INVALID: {
+    ar: "في الملف بنود مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some items of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کے کچھ آئٹم رد ہوئے۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_BOQ_EMPTY: {
+    ar: "الملف لا يحوي أي بند.",
+    en: "The file has no item in it.",
+    ur: "فائل میں کوئی آئٹم نہیں۔",
+  },
+  PROJECT_OS_CASHFLOW_COLUMNS_MISSING: {
+    ar: "الملف يحتاج عمودين: «الشهر» و«النسبة». نزّل القالب واملأه.",
+    en: "The file needs two columns: «Month» and «Percent». Download the template and fill it in.",
+    ur: "فائل میں دو کالم چاہییں: «مہینہ» اور «فیصد»۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_CASHFLOW_TOO_MANY_MONTHS: {
+    ar: "التدفق النقدي يقبل حتى 240 شهرًا.",
+    en: "The cash flow accepts up to 240 months.",
+    ur: "نقد بہاؤ میں زیادہ سے زیادہ 240 مہینے ہو سکتے ہیں۔",
+  },
+  PROJECT_OS_CASHFLOW_ROWS_INVALID: {
+    ar: "في الملف صفوف مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some rows of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کی کچھ قطاریں رد ہوئیں۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_CASHFLOW_EMPTY: {
+    ar: "الملف لا يحوي أي شهر.",
+    en: "The file has no month in it.",
+    ur: "فائل میں کوئی مہینہ نہیں۔",
+  },
+  PROJECT_OS_CASHFLOW_TOTAL_NOT_100: {
+    ar: "مجموع النسب الشهرية يجب أن يساوي 100%. الفرق ظاهر في تقرير التحقق.",
+    en: "The monthly shares must total 100%. The difference is shown in the check report.",
+    ur: "ماہانہ حصوں کا مجموعہ 100% ہونا چاہیے۔ فرق جانچ رپورٹ میں دکھایا گیا ہے۔",
   },
   PROJECT_OS_CONTRACT_VALUE_INVALID: {
     ar: "قيمة العقد يجب أن تكون رقمًا أكبر من صفر.",

@@ -5,7 +5,7 @@ import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, TextInput,
 import type { BadgeTone } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { PageHeader, PageMain } from "@/components/pageFrame";
-import { SourceNotice } from "@/components/SectionResilience";
+import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { projectErrorCode } from "@/lib/errorCode";
 import { pickLanguage } from "@/lib/language";
@@ -13,6 +13,8 @@ import { WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { ProjectImports } from "./ProjectImports";
+import { CashFlowItem } from "./ProjectBaselineCashFlow";
+import { BoqItem } from "./ProjectBaselineBoq";
 
 // Q-10 (a): the project's «base file» — one page that lists what any project needs before the platform can plan it, says in a line what each piece is and what it feeds, and shows
 // where it stands (uploaded / missing / optional). The owner opens the project and sees the eight items; each one that is a file is uploaded from here, and the importer that
@@ -21,7 +23,7 @@ type Code = "contract" | "schedule" | "cashFlow" | "weights" | "units" | "boq" |
 type Copy = { title: string; what: string; feeds: string };
 const ITEMS: readonly Code[] = ["contract", "schedule", "cashFlow", "weights", "units", "boq", "wbs", "labour"];
 /** The importer that takes the file for an item today (`general`: this page's own import panel; `pmc`: the PMC import tab); the rest are added in the next slices. */
-const UPLOAD: Record<Code, "form" | "general" | "pmc" | "later"> = { contract: "form", schedule: "general", cashFlow: "later", weights: "pmc", units: "pmc", boq: "later", wbs: "general", labour: "later" };
+const UPLOAD: Record<Code, "form" | "general" | "pmc" | "later"> = { contract: "form", schedule: "general", cashFlow: "form", weights: "pmc", units: "pmc", boq: "form", wbs: "general", labour: "later" };
 const GENERAL_MODULE: Partial<Record<Code, "schedule" | "wbs">> = { schedule: "schedule", wbs: "wbs" };
 
 const text = {
@@ -148,7 +150,9 @@ export default function ProjectBaseline() {
                   </CardHeader>
                   <CardBody>
                     {code === "contract" && item ? <WriteGate permission="project.manage" projectId={projectId}><ContractForm tenantId={tenantId} projectId={projectId} value={item.detail.contractValue ?? "0"} start={item.detail.plannedStartAt ?? null} finish={item.detail.plannedFinishAt ?? null} /></WriteGate> : null}
-                    {code !== "contract" ? (
+                    {code === "cashFlow" && item ? <SectionErrorBoundary title={copy.title} isArabic={language === "ar"}><CashFlowItem tenantId={tenantId} projectId={projectId} curve={item.detail.curve ?? []} /></SectionErrorBoundary> : null}
+                    {code === "boq" ? <SectionErrorBoundary title={copy.title} isArabic={language === "ar"}><BoqItem tenantId={tenantId} projectId={projectId} /></SectionErrorBoundary> : null}
+                    {code !== "contract" && code !== "cashFlow" && code !== "boq" ? (
                       <div className="flex flex-wrap items-center gap-2">
                         {kind ? <>
                           <Button type="button" variant="secondary" className="min-h-11" disabled={template.isPending} onClick={() => template.mutate({ moduleCode: kind, locale: language })}><Download className="me-1 h-4 w-4" />{t.template}</Button>

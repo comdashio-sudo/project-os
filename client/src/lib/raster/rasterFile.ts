@@ -27,7 +27,7 @@ export async function readRasterImage(file: File): Promise<GrayImage> {
 // Reads one page (1-based) and reports how many pages the PDF has, so the caller can offer the others.
 // The Node test passes pdf.js's legacy build, the one pdf.js recommends for Node; the browser uses the default build.
 type PdfJs = typeof import("pdfjs-dist");
-export async function readPdfPage(bytes: Uint8Array, pageNumber: number, loadPdfJs: () => Promise<PdfJs> = () => import("pdfjs-dist")): Promise<{ image: GrayImage; pageCount: number }> {
+export async function readPdfPage(bytes: Uint8Array, pageNumber: number, loadPdfJs: () => Promise<PdfJs> = () => import("pdfjs-dist")): Promise<{ image: GrayImage; pageCount: number; preview: string | null }> {
   const pdfjs = await loadPdfJs();
   pdfjs.GlobalWorkerOptions.workerSrc = "/ocr/pdf.worker.min.mjs";
   const loading = pdfjs.getDocument({ data: bytes });
@@ -44,10 +44,12 @@ export async function readPdfPage(bytes: Uint8Array, pageNumber: number, loadPdf
     const width = Math.round(viewport.width);
     const height = Math.round(viewport.height);
     // awaited, so the document is not destroyed while the page is still rendering
+    let preview: string | null = null;
     const image = await drawToGray(width, height, async context => {
       await page.render({ canvasContext: context, viewport, canvas: context.canvas }).promise;
+      preview = canvasPreview(context.canvas);
     });
-    return { image, pageCount };
+    return { image, pageCount, preview };
   } finally {
     await loading.destroy();
   }
@@ -64,4 +66,14 @@ async function drawToGray(width: number, height: number, draw: (context: CanvasR
   await draw(context);
   const pixels = context.getImageData(0, 0, width, height);
   return rgbaToGray(pixels.data, width, height);
+}
+
+// The coloured page shown under the shapes (Q-7). A canvas that cannot export (no canvas support in a test) gives no picture rather than an error.
+function canvasPreview(canvas: HTMLCanvasElement): string | null {
+  try {
+    const url = canvas.toDataURL("image/jpeg", 0.85);
+    return url.startsWith("data:image/") ? url : null;
+  } catch {
+    return null;
+  }
 }

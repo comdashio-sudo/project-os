@@ -14,7 +14,7 @@ import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
-import { getBaselineStatus, saveProjectContract } from "./projectBaseline";
+import { boqTemplate, cashFlowTemplate, getBaselineStatus, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
@@ -66,7 +66,7 @@ import { COMMENT_SEVERITIES, COMMENT_STATUSES, DESIGN_DISCIPLINES, SUBMITTAL_REP
 import { addTenderBidAdjustment, awardTender, createTenderPackage, disqualifyTenderBid, enterTenderBid, getTenderComparison, inviteTenderSupplier, listTenderInvitees, listTenderPackages, listTenderSuppliers, removeTenderBidAdjustment, reviseTenderBid, transitionTenderPackage, withdrawTenderBid } from "./tenderService";
 import { ADJUSTMENT_KINDS } from "./domain/tenders";
 import { setMasterPlanSnapshotSharing, setMasterPlanVersionGeometry, updateMasterPlanEntityLayout } from "./masterPlanTools";
-import { getMasterPlanDrawingLayout, linkMasterPlanDrawingUnit, listMasterPlanDrawingVersions, saveMasterPlanDrawingLayout, unlinkMasterPlanDrawingUnit, uploadMasterPlanDrawingVersion } from "./masterPlanDrawing";
+import { getMasterPlanDrawingLayout, linkMasterPlanDrawingUnit, listMasterPlanDrawingVersions, saveMasterPlanDrawingCalibration, saveMasterPlanDrawingLayout, unlinkMasterPlanDrawingUnit, uploadMasterPlanDrawingVersion } from "./masterPlanDrawing";
 
 import { masterPlanVisionRouter } from "./masterPlanVision";
 import { COOKIE_NAME } from "@shared/const";
@@ -323,7 +323,9 @@ export const appRouter = router({
     // Saved drawing layout (G-189): the polygons of a version's drawing, the links a person confirmed from a polygon to a unit, and the drawing file's versions.
     drawingLayout: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid() })).query(({ ctx, input }) => getMasterPlanDrawingLayout({ userId: ctx.user.id, ...input })),
     drawingVersions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid() })).query(({ ctx, input }) => listMasterPlanDrawingVersions({ userId: ctx.user.id, ...input })),
-    saveDrawingLayout: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygons: z.array(z.object({ id: z.string().uuid().optional(), ref: z.string().min(1).max(80), label: z.string().max(120), points: z.array(z.object({ x: z.number().finite(), y: z.number().finite() })).min(3).max(1000) })).max(5000) })).mutation(({ ctx, input }) => saveMasterPlanDrawingLayout({ userId: ctx.user.id, ...input })),
+    saveDrawingLayout: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygons: z.array(z.object({ id: z.string().uuid().optional(), ref: z.string().min(1).max(80), label: z.string().max(120), points: z.array(z.object({ x: z.number().finite(), y: z.number().finite() })).min(3).max(1000) })).max(5000), background: z.object({ width: z.number().int().min(1).max(20000), height: z.number().int().min(1).max(20000), page: z.number().int().min(1).max(10000) }).nullable().optional() })).mutation(({ ctx, input }) => saveMasterPlanDrawingLayout({ userId: ctx.user.id, ...input })),
+    // Q-7: the two-point calibration (two points of the drawing and the real distance between them in metres).
+    saveDrawingCalibration: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), calibration: z.object({ a: z.object({ x: z.number().finite(), y: z.number().finite() }), b: z.object({ x: z.number().finite(), y: z.number().finite() }), meters: z.number().finite() }) })).mutation(({ ctx, input }) => saveMasterPlanDrawingCalibration({ userId: ctx.user.id, ...input })),
     linkDrawingUnit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygonId: z.string().uuid(), entityId: z.string().uuid() })).mutation(({ ctx, input }) => linkMasterPlanDrawingUnit({ userId: ctx.user.id, ...input })),
     unlinkDrawingUnit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygonId: z.string().uuid() })).mutation(({ ctx, input }) => unlinkMasterPlanDrawingUnit({ userId: ctx.user.id, ...input })),
     uploadDrawingVersion: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255) })).mutation(({ ctx, input }) => uploadMasterPlanDrawingVersion({ userId: ctx.user.id, ...input })),
@@ -569,6 +571,14 @@ export const appRouter = router({
     baseline: router({
       status: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBaselineStatus({ userId: ctx.user.id, ...input })),
       saveContract: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), contractValue: z.number({ message: "PROJECT_OS_CONTRACT_VALUE_INVALID" }), plannedStartAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }), plannedFinishAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }) })).mutation(({ ctx, input }) => saveProjectContract({ userId: ctx.user.id, ...input })),
+      // Q-10 (b): the planned cash flow from a small Excel/CSV file (a month and a share per row; the shares total 100%). preview writes nothing; save replaces the plan.
+      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
+      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
+      cashFlowTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => cashFlowTemplate({ userId: ctx.user.id, ...input })),
+      // Q-10 (c): the bill of quantities from an Excel/CSV file (item code, description, unit, quantity, rate). Same authority as adding one item (project.wbs.manage).
+      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
+      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
+      boqTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => boqTemplate({ userId: ctx.user.id, ...input })),
     }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
     profile: router({
