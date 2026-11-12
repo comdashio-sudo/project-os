@@ -1,5 +1,5 @@
 {
-  "id": "40bcc050-b5f3-409b-a405-980ce8a55e6d",
+  "id": "88c22afe-f838-4560-902c-cc05d484d156",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -17378,12 +17378,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "pmc_qc_receipts_activity_definition_id_pmc_activity_definitions_id_fk": {
-          "name": "pmc_qc_receipts_activity_definition_id_pmc_activity_definitions_id_fk",
+        "pmc_qc_receipts_updated_by_user_id_users_id_fk": {
+          "name": "pmc_qc_receipts_updated_by_user_id_users_id_fk",
           "tableFrom": "pmc_qc_receipts",
-          "tableTo": "pmc_activity_definitions",
+          "tableTo": "users",
           "columnsFrom": [
-            "activity_definition_id"
+            "updated_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -17391,12 +17391,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "pmc_qc_receipts_updated_by_user_id_users_id_fk": {
-          "name": "pmc_qc_receipts_updated_by_user_id_users_id_fk",
+        "pmc_qc_receipts_activity_fk": {
+          "name": "pmc_qc_receipts_activity_fk",
           "tableFrom": "pmc_qc_receipts",
-          "tableTo": "users",
+          "tableTo": "pmc_activity_definitions",
           "columnsFrom": [
-            "updated_by_user_id"
+            "activity_definition_id"
           ],
           "columnsTo": [
             "id"

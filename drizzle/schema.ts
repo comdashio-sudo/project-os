@@ -2264,14 +2264,15 @@ export const pmcQcReceipts = pgTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     unitId: varchar("unit_id", { length: 36 }).notNull().references(() => pmcUnits.id),
-    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull().references(() => pmcActivityDefinitions.id),
+    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
     received: boolean("received").notNull(),
     receivedOn: date("received_on", { mode: "string" }).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_qc_receipts_unit_activity_unique").on(table.tenantId, table.projectId, table.unitId, table.activityDefinitionId), index("pmc_qc_receipts_tenant_project_activity_idx").on(table.tenantId, table.projectId, table.activityDefinitionId)],
+  // the generated name of the activity key is longer than 63 characters (PostgreSQL would cut it): named here
+  table => [foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_qc_receipts_activity_fk" }), uniqueIndex("pmc_qc_receipts_unit_activity_unique").on(table.tenantId, table.projectId, table.unitId, table.activityDefinitionId), index("pmc_qc_receipts_tenant_project_activity_idx").on(table.tenantId, table.projectId, table.activityDefinitionId)],
 );
 
 export const pmcQcReceiptEvents = pgTable(

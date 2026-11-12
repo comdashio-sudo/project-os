@@ -43,7 +43,7 @@ DO $$ BEGIN ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_projec
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_unit_id_pmc_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."pmc_units"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_activity_definition_id_pmc_activity_definitions_id_fk" FOREIGN KEY ("activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_activity_fk" FOREIGN KEY ("activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
