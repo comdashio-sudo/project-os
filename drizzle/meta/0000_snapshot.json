@@ -1,5 +1,5 @@
 {
-  "id": "13a72ba0-c239-4099-b4b7-60521b649226",
+  "id": "2146893b-1e5a-4ab5-ace4-2d921588b2d7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -6177,7 +6177,13 @@
           "name": "recipient_user_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "recipient_email": {
+          "name": "recipient_email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false
         },
         "kind": {
           "name": "kind",
@@ -6332,7 +6338,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "email_outbox_recipient_check": {
+          "name": "email_outbox_recipient_check",
+          "value": "\"email_outbox\".\"recipient_user_id\" IS NOT NULL OR \"email_outbox\".\"recipient_email\" IS NOT NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.employee_assignments": {
@@ -20892,6 +20903,136 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.project_planned_labour": {
+      "name": "project_planned_labour",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "month": {
+          "name": "month",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trade": {
+          "name": "trade",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "workers": {
+          "name": "workers",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_planned_labour_month_trade_unique": {
+          "name": "project_planned_labour_month_trade_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "month",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "trade",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_planned_labour_tenant_id_companies_id_fk": {
+          "name": "project_planned_labour_tenant_id_companies_id_fk",
+          "tableFrom": "project_planned_labour",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_planned_labour_project_id_projects_id_fk": {
+          "name": "project_planned_labour_project_id_projects_id_fk",
+          "tableFrom": "project_planned_labour",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_planned_labour_workers_check": {
+          "name": "project_planned_labour_workers_check",
+          "value": "\"project_planned_labour\".\"workers\" >= 0 AND \"project_planned_labour\".\"workers\" <= 1000000"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.project_profiles": {
       "name": "project_profiles",
       "schema": "",
@@ -30378,7 +30519,8 @@
       "values": [
         "support_escalation",
         "approvals_waiting",
-        "daily_digest"
+        "daily_digest",
+        "membership_invitation"
       ]
     },
     "public.email_outbox_status": {

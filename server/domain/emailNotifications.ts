@@ -82,3 +82,16 @@ export function preferenceAllows(disabled: ReadonlySet<EmailKind>, kind: EmailKi
 export function dailyMailWindow(now: Date) {
   return { day: now.toISOString().slice(0, 10), open: now.getUTCHours() >= DAILY_MAIL_HOUR_UTC };
 }
+
+/** Q-12 (c): the invitation. Arabic first: who invites, to which company and (when the invitation is for a project) which project, as which role; until when; the link. */
+export function membershipInvitationEmail(input: { companyName: string; projectName: string | null; roleName: string; link: string; expiresOn: string }): BuiltEmail {
+  const company = clip(input.companyName.trim() || "—", 120);
+  const project = input.projectName ? clip(input.projectName.trim(), 120) : null;
+  const role = clip(input.roleName.trim() || "—", 80);
+  return compose({
+    subject: project ? `دعوة للانضمام إلى ${company} — مشروع ${project}` : `دعوة للانضمام إلى ${company}`,
+    ar: [`دُعيت للانضمام إلى شركة «${company}»${project ? ` في مشروع «${project}»` : ""} بدور «${role}».`, `الدعوة صالحة حتى ${input.expiresOn}. ادخل بهذا البريد نفسه ثم اقبلها من الرابط.`],
+    en: [`You are invited to join «${company}»${project ? ` on the project «${project}»` : ""} as «${role}».`, `The invitation is valid until ${input.expiresOn}. Sign in with this same e-mail address, then accept it from the link.`],
+    link: input.link,
+  });
+}

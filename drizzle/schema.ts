@@ -299,14 +299,16 @@ export const payrollAllocationAdjustments = pgTable(
  * E-mail waiting to be sent (work order 3, decision 6). Nothing is written here unless e-mail notifications are switched on AND a mail sender is configured,
  * so turning them on later never sends a backlog. `dedupeKey` makes every producer safe to run twice: one escalation, one reminder per day, one digest per day.
  */
-export const emailOutboxKindEnum = pgEnum("email_outbox_kind", ["support_escalation", "approvals_waiting", "daily_digest"]);
+export const emailOutboxKindEnum = pgEnum("email_outbox_kind", ["support_escalation", "approvals_waiting", "daily_digest", "membership_invitation"]);
 export const emailOutboxStatusEnum = pgEnum("email_outbox_status", ["pending", "sent", "failed", "skipped"]);
 export const emailOutbox = pgTable(
   "email_outbox",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 36 }).notNull(),
-    recipientUserId: integer("recipient_user_id").notNull(),
+    // Q-12 (c): an invitation goes to an address that may have no account yet — it carries the address instead of a user (migration 0030); one of the two is always there
+    recipientUserId: integer("recipient_user_id"),
+    recipientEmail: varchar("recipient_email", { length: 320 }),
     kind: emailOutboxKindEnum("kind").notNull(),
     dedupeKey: varchar("dedupe_key", { length: 160 }).notNull(),
     subject: varchar("subject", { length: 300 }).notNull(),
@@ -324,6 +326,7 @@ export const emailOutbox = pgTable(
     index("email_outbox_status_created_idx").on(table.status, table.createdAt),
     foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "eo_tenant_fk" }),
     foreignKey({ columns: [table.recipientUserId], foreignColumns: [users.id], name: "eo_user_fk" }),
+    check("email_outbox_recipient_check", sql`${table.recipientUserId} IS NOT NULL OR ${table.recipientEmail} IS NOT NULL`),
   ],
 );
 
@@ -3654,4 +3657,24 @@ export const siteDailyReportTomorrow = pgTable(
   "site_daily_report_tomorrow",
   { ...reportChild(), area: varchar("area", { length: 160 }), activity: varchar("activity", { length: 255 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }), unit: varchar("unit", { length: 24 }), resources: text("resources") },
   table => [...childKeys("site_daily_report_tomorrow", table as never), check("site_daily_report_tomorrow_quantity_check", sql`${table.quantity} IS NULL OR ${table.quantity} >= 0`)],
+);
+
+// Q-10 (d): the project's planned labour histogram — how many workers are planned each month, optionally per trade ('' = all trades). Item 8 of the base file
+// (optional). Re-importing replaces the project's plan (server/projectBaseline.ts). Migration 0029.
+export const projectPlannedLabour = pgTable(
+  "project_planned_labour",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    month: date("month", { mode: "string" }).notNull(),
+    trade: varchar("trade", { length: 80 }).default("").notNull(),
+    workers: integer("workers").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_planned_labour_month_trade_unique").on(table.tenantId, table.projectId, table.month, table.trade),
+    check("project_planned_labour_workers_check", sql`${table.workers} >= 0 AND ${table.workers} <= 1000000`),
+  ],
 );
