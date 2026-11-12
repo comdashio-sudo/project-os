@@ -44,6 +44,9 @@ await build({
   logLevel: "warning",
 });
 
+// D-47 (b): the PDF font is read from disk next to the function (server/reportExport/dailyReportPdf.ts)
+cpSync(join(root, "server", "assets", "fonts"), join(output, "functions", "api.func", "fonts"), { recursive: true });
+
 writeFileSync(join(output, "functions", "api.func", ".vc-config.json"), JSON.stringify({
   runtime: "nodejs22.x",
   handler: "index.mjs",
