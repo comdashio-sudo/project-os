@@ -18,6 +18,18 @@ const text = {
 const MAX_BYTES = 1024 * 1024;
 type Point = { month: string; cumulative: number };
 
+/** A spreadsheet the server sent (base64) saved by the browser. */
+export function saveBase64File(file: { fileName: string; base64: string }) {
+  const bytes = Uint8Array.from(window.atob(file.base64), value => value.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const anchor = document.createElement("a"); anchor.href = url; anchor.download = file.fileName; anchor.click(); URL.revokeObjectURL(url);
+}
+/** A picked .xlsx/.csv as the base64 body the preview and save procedures take. */
+export async function readPickedFile(picked: File) {
+  const buffer = new Uint8Array(await picked.arrayBuffer()); let binary = ""; buffer.forEach(byte => { binary += String.fromCharCode(byte); });
+  return { name: picked.name, size: picked.size, base64: window.btoa(binary), format: picked.name.toLowerCase().endsWith(".csv") ? "csv" as const : "xlsx" as const };
+}
+
 /** The cumulative plan as a line from 0 to 100%: one point per month, the months on the bottom edge (first and last labelled). */
 export function SCurve({ points, label }: { points: Point[]; label: string }) {
   if (!points.length) return null;
@@ -44,15 +56,9 @@ export function CashFlowItem({ tenantId, projectId, curve }: { tenantId: string;
   const [file, setFile] = React.useState<{ name: string; size: number; base64: string; format: "xlsx" | "csv" } | null>(null);
   const preview = trpc.projects.baseline.previewCashFlow.useMutation();
   const save = trpc.projects.baseline.saveCashFlow.useMutation({ onSuccess: () => { void utils.projects.baseline.status.invalidate(); } });
-  const download = async () => {
-    const result = await utils.projects.baseline.cashFlowTemplate.fetch({ tenantId, projectId, locale: language });
-    const bytes = Uint8Array.from(window.atob(result.base64), value => value.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = result.fileName; anchor.click(); URL.revokeObjectURL(url);
-  };
+  const download = async () => saveBase64File(await utils.projects.baseline.cashFlowTemplate.fetch({ tenantId, projectId, locale: language }));
   const take = async (picked: File) => {
-    const buffer = new Uint8Array(await picked.arrayBuffer()); let binary = ""; buffer.forEach(byte => { binary += String.fromCharCode(byte); });
-    const next = { name: picked.name, size: picked.size, base64: window.btoa(binary), format: picked.name.toLowerCase().endsWith(".csv") ? "csv" as const : "xlsx" as const };
+    const next = await readPickedFile(picked);
     setFile(next); save.reset(); preview.mutate({ tenantId, projectId, fileBase64: next.base64, format: next.format });
   };
   const report = preview.data;

@@ -26,7 +26,7 @@ const contract = (overrides: Record<string, unknown> = {}) => ({ tenantId, proje
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug IN (?, ?)", [SLUG, `${SLUG}-other`]);
   for (const { id } of companies) {
-    for (const table of ["pmc_plan_months", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "activities", "wbs_items", "audit_logs", "membership_invitations"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
+    for (const table of ["boq_items", "pmc_plan_months", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "activities", "wbs_items", "audit_logs", "membership_invitations"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
     await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
     await connection.query("DELETE FROM roles WHERE tenantId = ?", [id]);
@@ -183,6 +183,39 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project base file: the c
     expect(await code(callers.otherOwner.projects.baseline.saveCashFlow({ tenantId: otherTenantId, projectId: projectA, ...file }))).not.toBe("no error");
     expect(await months()).toEqual(before);
     expect(await count("SELECT COUNT(*) AS n FROM pmc_plan_months WHERE tenant_id = ?", [otherTenantId])).toBe(0);
+  });
+
+  // Q-10 (c): the bill of quantities. The owner holds project.wbs.manage; the project manager of A (project.manage only) and the site engineer do not.
+  const boqCsv = (body: string) => Buffer.from(`Item no.,Description,Unit,Quantity,Unit rate\n${body}`).toString("base64");
+  const boqRows = () => connection.query<{ code: string; quantity: string; totalAmount: string }[]>("SELECT code, quantity, total_amount AS \"totalAmount\" FROM boq_items WHERE tenant_id = ? AND project_id = ? ORDER BY code", [tenantId, projectA]).then(result => result[0] as Array<{ code: string; quantity: string; totalAmount: string }>);
+
+  it("Q-10 c POSITIVE: the preview counts new and existing items and writes nothing; the save writes them (audited); a re-import updates by code, adds the new and deletes nothing", async () => {
+    const first = boqCsv("A-01,Excavation,m3,1200,18.5\nA-02,Concrete,m3,85,320\n");
+    const preview = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: first });
+    expect(preview).toMatchObject({ refusal: null, count: 2, newCount: 2, updateCount: 0, totalAmount: 49400 });
+    expect(await boqRows()).toEqual([]);
+    const status = await callers.owner.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: first });
+    expect(item(status, "boq")).toMatchObject({ state: "uploaded", count: 2 });
+    expect(await audits("project.boq_imported")).toBe(1);
+    const second = boqCsv("A-02,Concrete,m3,90,320\nA-03,Blockwork,m2,400,45\n");
+    expect(await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: second })).toMatchObject({ newCount: 1, updateCount: 1 });
+    await callers.owner.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: second });
+    expect((await boqRows()).map(r => [r.code, Number(r.quantity), Number(r.totalAmount)])).toEqual([["A-01", 1200, 22200], ["A-02", 90, 28800], ["A-03", 400, 18000]]);
+  });
+
+  it("Q-10 c NEGATIVE: refused rows are reported and the save is refused; a project manager without project.wbs.manage and another company are refused from the server; nothing changes", async () => {
+    const before = await boqRows();
+    const bad = boqCsv("A-09,,m3,1,1\nA-10,Steel,t,abc,1\n");
+    const preview = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: bad });
+    expect(preview.issues.map(issue => [issue.rowNumber, issue.code])).toEqual([[2, "BOQ_DESCRIPTION_MISSING"], [3, "BOQ_QUANTITY_INVALID"]]);
+    expect(await code(callers.owner.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: bad }))).toBe("PROJECT_OS_BOQ_ROWS_INVALID");
+    const good = boqCsv("A-01,Changed,m3,1,1\n");
+    expect(await code(callers.manager.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: good }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.engineer.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: good }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.otherOwner.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: good }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(await code(callers.otherOwner.projects.baseline.saveBoq({ tenantId: otherTenantId, projectId: projectA, format: "csv", fileBase64: good }))).not.toBe("no error");
+    expect(await boqRows()).toEqual(before);
+    expect(await count("SELECT COUNT(*) AS n FROM boq_items WHERE tenant_id = ?", [otherTenantId])).toBe(0);
   });
 });
 
