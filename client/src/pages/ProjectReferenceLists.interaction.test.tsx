@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   roles: [] as Array<{ id: string; name: string; category: "direct" | "indirect"; defaultKey: string | null; active: boolean; sortOrder: number }>,
   machines: [] as Array<{ id: string; equipmentType: string; model: string | null; plateOrSize: string | null; ownerCompanyId: string | null; ownerName: string | null; active: boolean }>,
   activities: [] as Array<{ id: string; code: string; name: string; measureUnit: "villa" | "lm" | "m2" | "piece"; totalQuantity: number | null }>,
-  rolesError: null as unknown,
+  rolesError: null as unknown, companiesEnabled: [] as boolean[],
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
@@ -28,13 +28,13 @@ vi.mock("@/lib/trpc", () => {
   return { trpc: { projects: {
     labourRoles: { list: query(() => h.roles, () => h.rolesError), save: mutation("roleSave", { id: "r-new" }), setActive: mutation("roleActive"), seedDefaults: mutation("seed", { added: 80, offered: 80 }) },
     equipment: { list: query(() => h.machines), save: mutation("machineSave", { id: "m-new" }), setActive: mutation("machineActive") },
-    companies: { list: query(() => [{ id: "c-main", name: "Main Contractor Co.", role: "main", active: true }, { id: "c-old", name: "Former Sub Co.", role: "sub", active: false }]) },
+    companies: { list: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { h.companiesEnabled.push(options?.enabled !== false); return { data: [{ id: "c-main", name: "Main Contractor Co.", role: "main", active: true }, { id: "c-old", name: "Former Sub Co.", role: "sub", active: false }], isLoading: false, isFetching: false, error: null, refetch: vi.fn() }; } } },
     siteActivities: { list: query(() => h.activities), setMeasure: mutation("setMeasure", (input: { siteActivityId: string }) => ({ id: input.siteActivityId })) },
   } } };
 });
 
 beforeEach(() => {
-  h.language = "en"; h.canEdit = true; h.calls = {}; h.errors = {}; h.rolesError = null;
+  h.language = "en"; h.canEdit = true; h.calls = {}; h.errors = {}; h.rolesError = null; h.companiesEnabled = [];
   h.roles = [{ id: "r1", name: "Masons", category: "direct", defaultKey: null, active: true, sortOrder: 1 }, { id: "r2", name: "Site engineer", category: "indirect", defaultKey: null, active: true, sortOrder: 2 }, { id: "r3", name: "Old trade", category: "direct", defaultKey: null, active: false, sortOrder: 3 }];
   h.machines = [{ id: "m1", equipmentType: "Mixer", model: "MX-2", plateOrSize: "PLT-100", ownerCompanyId: "c-main", ownerName: "Main Contractor Co.", active: true }];
   h.activities = [{ id: "a1", code: "BLK", name: "Blockwork", measureUnit: "villa", totalQuantity: null }, { id: "a2", code: "CRB", name: "Kerbs", measureUnit: "villa", totalQuantity: null }];
@@ -78,6 +78,7 @@ describe("labour roles", () => {
     expect(screen.queryByLabelText(/^Name/)).toBeNull();
     tab("Equipment");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(h.companiesEnabled.every(enabled => !enabled)).toBe(true); // review of #250: no owners list fetched for a reader
     expect(document.querySelectorAll("input, select")).toHaveLength(0);
   });
 
@@ -103,6 +104,7 @@ describe("equipment", () => {
     tab("Equipment");
     expect(within(document.querySelector('[data-machine="m1"]')!).getByText("Main Contractor Co.")).toBeTruthy();
     const owner = screen.getByLabelText(/^Owner/) as HTMLSelectElement;
+    expect((screen.getByLabelText(/^Plate or size/) as HTMLInputElement).maxLength).toBe(80); // the server's limit (review of #250)
     expect(Array.from(owner.options).map(option => option.textContent)).toEqual(["No owner", "Main Contractor Co."]);
     type("Type", "Excavator"); fireEvent.click(screen.getByRole("button", { name: "Add equipment" }));
     expect(h.calls.machineSave).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", id: undefined, equipmentType: "Excavator", model: null, plateOrSize: null, ownerCompanyId: null });
