@@ -14,7 +14,7 @@ import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
-import { getBaselineStatus, saveProjectContract } from "./projectBaseline";
+import { boqTemplate, cashFlowTemplate, getBaselineStatus, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
@@ -570,6 +570,14 @@ export const appRouter = router({
     baseline: router({
       status: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBaselineStatus({ userId: ctx.user.id, ...input })),
       saveContract: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), contractValue: z.number({ message: "PROJECT_OS_CONTRACT_VALUE_INVALID" }), plannedStartAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }), plannedFinishAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }) })).mutation(({ ctx, input }) => saveProjectContract({ userId: ctx.user.id, ...input })),
+      // Q-10 (b): the planned cash flow from a small Excel/CSV file (a month and a share per row; the shares total 100%). preview writes nothing; save replaces the plan.
+      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
+      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
+      cashFlowTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => cashFlowTemplate({ userId: ctx.user.id, ...input })),
+      // Q-10 (c): the bill of quantities from an Excel/CSV file (item code, description, unit, quantity, rate). Same authority as adding one item (project.wbs.manage).
+      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
+      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
+      boqTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => boqTemplate({ userId: ctx.user.id, ...input })),
     }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
     profile: router({
