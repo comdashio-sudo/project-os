@@ -54,7 +54,7 @@ export function mailerFromEnv(env: EmailEnv = currentEnv()): Mailer | null {
   return senderOverride ?? (env.smtp ? createSmtpMailer(env.smtp) : null);
 }
 
-const linkTo = (path: string) => { const base = currentEnv().appBaseUrl; return base ? `${base}${path}` : null; };
+export const linkTo = (path: string) => { const base = currentEnv().appBaseUrl; return base ? `${base}${path}` : null; };
 
 /** Queues one mail. False when the same mail (same dedupe key) was already queued: every producer can run twice safely. */
 export async function enqueueEmail(executor: Executor, input: { tenantId: string; recipientUserId: number; kind: EmailKind; dedupeKey: string; mail: BuiltEmail }): Promise<boolean> {
@@ -83,7 +83,7 @@ export async function recipientsWhoWant(executor: Executor, tenantId: string, ki
 type Holder = { userId: number; scopes: Array<{ type: "company" | "portfolio" | "program" | "project"; id: string | null }> };
 
 /** Active members holding any of these permissions, with the scopes they hold them in. */
-async function permissionHolders(executor: Executor, tenantId: string, codes: readonly string[]): Promise<Holder[]> {
+export async function permissionHolders(executor: Executor, tenantId: string, codes: readonly string[]): Promise<Holder[]> {
   const rows = await executor.select({ userId: memberships.userId, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId })
     .from(memberships).innerJoin(membershipRoles, eq(membershipRoles.membershipId, memberships.id)).innerJoin(rolePermissions, eq(rolePermissions.roleId, membershipRoles.roleId)).innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
     .where(and(eq(memberships.tenantId, tenantId), eq(memberships.status, "active"), inArray(permissions.code, [...codes])));
@@ -92,9 +92,9 @@ async function permissionHolders(executor: Executor, tenantId: string, codes: re
   return Array.from(byUser.values());
 }
 
-type ProjectRow = { id: string; code: string; name: string; portfolioId: string | null; programId: string | null };
+export type ProjectRow = { id: string; code: string; name: string; portfolioId: string | null; programId: string | null };
 /** The projects a holder's scopes reach: the whole company, a portfolio, a program, or one project. */
-function projectsReachedBy(holder: Holder, all: readonly ProjectRow[]) {
+export function projectsReachedBy(holder: Holder, all: readonly ProjectRow[]) {
   const reached = new Set<string>();
   for (const scope of holder.scopes) for (const project of all) {
     if (scope.type === "company" || (scope.type === "project" && scope.id === project.id) || (scope.type === "portfolio" && scope.id === project.portfolioId) || (scope.type === "program" && scope.id === project.programId)) reached.add(project.id);
@@ -117,7 +117,7 @@ const approvalQueues: QueueDefinition[] = [
 ];
 
 /** Companies that use the project product: nothing is mailed for one that does not. */
-async function activeTenantIds(db: Executor) {
+export async function activeTenantIds(db: Executor) {
   const rows = await db.select({ tenantId: tenantEntitlements.tenantId }).from(tenantEntitlements).where(and(eq(tenantEntitlements.productCode, "PROJECT"), eq(tenantEntitlements.active, true)));
   return Array.from(new Set(rows.map(row => row.tenantId)));
 }

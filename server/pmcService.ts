@@ -38,7 +38,7 @@ export async function authorize(input: Scope, permission: "project.pmc.read" | "
   return db;
 }
 
-export const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+export const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Pick<Scope, "tenantId" | "projectId">) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
 // ------------------------------------------------------------ status factors
 
