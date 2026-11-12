@@ -16,7 +16,7 @@ import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { boqTemplate, cashFlowTemplate, getBaselineStatus, labourTemplate, previewProjectLabour, saveProjectLabour, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
-import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
+import { APPROVAL_STEPS, getReportApprovers, listProjectInvitations, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
@@ -602,6 +602,8 @@ export const appRouter = router({
     // Work order 23, P-18 (D-42 b): the people on the project (put there by tenant.createInvitation / tenant.assignMembershipRole with scope «project») and the report chain
     team: router({
       list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectTeam({ userId: ctx.user.id, ...input })),
+      // Q-12 (c): the invitations still waiting for this project (project.manage). Inviting itself stays tenant.createInvitation with scope «project».
+      invitations: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectInvitations({ userId: ctx.user.id, ...input })),
     }),
     approvers: router({
       get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getReportApprovers({ userId: ctx.user.id, ...input })),
