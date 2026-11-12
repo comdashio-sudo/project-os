@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   canManage: true, language: "en" as "en" | "ar" | "ur",
   status: undefined as unknown, statusError: null as unknown,
   saveContract: vi.fn(), saveError: null as unknown, template: vi.fn(),
+  preview: vi.fn(), previewData: undefined as unknown, saveCashFlow: vi.fn(),
 }));
 const item = (code: string, state: string, count: number, detail: Record<string, unknown> = {}) => ({ code, state, count, detail });
 const STATUS = {
@@ -28,6 +29,8 @@ vi.mock("@/lib/trpc", () => ({
     projects: { baseline: {
       status: { useQuery: () => ({ data: h.status, error: h.statusError, refetch: vi.fn() }) },
       saveContract: { useMutation: () => ({ mutate: h.saveContract, isPending: false, error: h.saveError, isSuccess: false }) },
+      previewCashFlow: { useMutation: () => ({ mutate: h.preview, data: h.previewData, isPending: false, isError: false, error: null }) },
+      saveCashFlow: { useMutation: () => ({ mutate: h.saveCashFlow, isPending: false, error: null, isSuccess: false, reset: vi.fn() }) },
     } },
     dataImports: { template: { useMutation: () => ({ mutate: h.template, isPending: false }) } },
   },
@@ -36,7 +39,7 @@ vi.mock("@/lib/trpc", () => ({
 import ProjectBaseline from "./ProjectBaseline";
 
 const refusal = (code: string) => Object.assign(new Error(`English sentence for ${code}`), { data: { code: "BAD_REQUEST", projectError: { code, messages: { ar: `sentence for ${code}`, en: `sentence for ${code}`, ur: `sentence for ${code}` } } } });
-beforeEach(() => { h.canManage = true; h.language = "en"; h.status = STATUS; h.statusError = null; h.saveError = null; h.saveContract.mockReset(); h.template.mockReset(); });
+beforeEach(() => { h.canManage = true; h.language = "en"; h.status = STATUS; h.statusError = null; h.saveError = null; h.saveContract.mockReset(); h.template.mockReset(); h.preview.mockReset(); h.saveCashFlow.mockReset(); h.previewData = undefined; });
 afterEach(() => cleanup());
 const card = (code: string) => screen.getByTestId(`baseline-${code}`);
 
@@ -93,7 +96,8 @@ describe("ProjectBaseline", () => {
     fireEvent.click(within(card("schedule")).getByRole("button", { name: "Excel template" }));
     expect(h.template).toHaveBeenCalledWith({ moduleCode: "schedule", locale: "en" });
     for (const code of ["weights", "units"]) expect(within(card(code)).getByRole("link").getAttribute("href")).toBe("/projects/tenant-1/project-1/pmc?tab=import");
-    for (const code of ["cashFlow", "boq", "labour"]) { expect(within(card(code)).queryByRole("button", { name: "Upload" })).toBeNull(); expect(card(code).textContent).toContain("Upload from here is coming"); }
+    for (const code of ["boq", "labour"]) { expect(within(card(code)).queryByRole("button", { name: "Upload" })).toBeNull(); expect(card(code).textContent).toContain("Upload from here is coming"); }
+    expect(card("cashFlow").textContent).toContain("Excel template"); // Q-10 (b): the cash flow is uploaded on its own card
   });
 
   it("reads right-to-left in Arabic, with the titles and states in Arabic", () => {
@@ -111,4 +115,26 @@ describe("ProjectBaseline", () => {
     expect(screen.queryByTestId("baseline-contract")).toBeNull();
     expect(screen.getByRole("alert")).toBeTruthy();
   });
+
+  // Q-10 (b): the planned cash flow item
+  it("cash flow: the check report shows the months, the total and each refused row; a refused file offers no save", () => {
+    h.previewData = { months: [{ month: "2027-01-01", fraction: 0.4, cumulative: 0.4 }, { month: "2027-02-01", fraction: 0.5, cumulative: 0.9 }], issues: [{ rowNumber: 4, code: "CASHFLOW_MONTH_INVALID", value: "soon" }], totalPercent: 90, fileError: null, refusal: "PROJECT_OS_CASHFLOW_ROWS_INVALID" };
+    render(<ProjectBaseline />);
+    const report = within(card("cashFlow")).getByTestId("cashflow-report");
+    expect(report.textContent).toContain("2 months · Total: 90.00%");
+    expect(report.textContent).toContain("Difference from 100%: -10.00%");
+    expect(report.textContent).toContain("Row 4: Month not understood — soon");
+    expect(report.textContent).toContain("Some rows of the file were refused");
+    expect(within(report).queryByRole("button", { name: "Save the cash flow" })).toBeNull();
+  });
+
+  it("cash flow: a stored plan is drawn as an S-curve, and a site engineer (no project.manage) gets no upload", () => {
+    h.canManage = false;
+    h.status = { ...STATUS, items: STATUS.items.map(entry => entry.code === "cashFlow" ? item("cashFlow", "uploaded", 2, { curve: [{ month: "2027-01-01", cumulative: 0.3 }, { month: "2027-02-01", cumulative: 1 }] }) : entry) };
+    render(<ProjectBaseline />);
+    expect(within(card("cashFlow")).getByTestId("cashflow-curve").textContent).toContain("2027-01");
+    expect(within(card("cashFlow")).queryByTestId("cashflow-report")).toBeNull();
+    expect(card("cashFlow").querySelector("[data-dropzone]")).toBeNull();
+  });
 });
+
