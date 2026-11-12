@@ -75,7 +75,10 @@ export function createApp(options: AppOptions) {
     // D-79: a partial S3 setup (1 to 4 of the 5 variables) is not ready either; the names are said, never a value
     const storageMissing = partialS3Setup();
     const ready = readiness.ready && storageMissing.length === 0;
-    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready, pendingMigrations: pendingMigrations(readiness), ...(storageMissing.length ? { storagePartlyConfigured: storageMissing } : {}) });
+    // D-85b: the commit this deployment was built from (Vercel's system variable, first 12 characters; null elsewhere). The release workflow waits for it after advancing
+    // the production branch without the CLI. A commit hash is public in the repository; nothing secret is said.
+    const commit = (process.env.VERCEL_GIT_COMMIT_SHA ?? "").trim().slice(0, 12) || null;
+    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready, commit, pendingMigrations: pendingMigrations(readiness), ...(storageMissing.length ? { storagePartlyConfigured: storageMissing } : {}) });
   });
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.use(apiRateLimit({ perMinute: options.apiRequestsPerMinute ?? apiRateLimitFromEnvironment(), now: options.now }));
