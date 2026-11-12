@@ -43,7 +43,8 @@ concurrency:
 jobs:
   release:
     name: migrate, prove, promote
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    # a public repository: the CI run must be a push to main of THIS repository (a fork's branch can be called main too, and fork runs never release)
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
