@@ -41,6 +41,8 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
   createCompanyLogoUpload: "mints a signed upload URL and records nothing; the logo is recorded (and audited) by tenant.updateProfile, which takes the uploadKey",
   previewProjectBoq: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectBoq, is audited)",
+  runDevPlanner: "a calculation: reads nothing of the company and stores nothing",
+  exportDevPlanner: "a calculation turned into a workbook: stores nothing",
   previewProjectLabour: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectLabour, is audited)",
   previewProjectCashFlow: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectCashFlow, is audited)",
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
