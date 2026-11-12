@@ -117,6 +117,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
         breadcrumbs={crumbs}
         user={{ name: user?.name ?? "", email: user?.email ?? "" }}
         onSignOut={() => { void logout(); }}
+        onMyCompanies={() => setLocation(`/companies/${tenantId}`)}
       >
         {notices}
         <InShellProvider>{children}</InShellProvider>

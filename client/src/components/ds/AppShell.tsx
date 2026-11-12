@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronsLeft, ChevronsRight, Languages, LogOut, Menu as MenuIcon, Moon, Sun, X, type LucideIcon } from "lucide-react";
+import { Building2, Check, ChevronsLeft, ChevronsRight, Languages, LogOut, Menu as MenuIcon, Moon, Sun, X, type LucideIcon } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LANGUAGES, LANGUAGE_NAMES } from "@/lib/language";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ type Props = {
   nav: NavItem[]; activeId: string; onNavigate?: (item: NavItem) => void;
   companies: SelectOption[]; company: string; onCompany: (value: string) => void;
   projects: SelectOption[]; project: string; onProject: (value: string) => void;
-  breadcrumbs: Crumb[]; user: { name: string; email: string }; onSignOut?: () => void;
+  breadcrumbs: Crumb[]; user: { name: string; email: string }; onSignOut?: () => void; onMyCompanies?: () => void;
   mode?: Mode; onModeChange?: (mode: Mode) => void;
   children: React.ReactNode;
 };
@@ -85,6 +85,7 @@ export function AppShell(props: Props) {
               <div className="px-3 py-2"><p className="text-sm font-semibold">{props.user.name}</p><p dir="ltr" className="text-xs text-muted-foreground">{props.user.email}</p></div>
               <Menu.Separator className="my-1 h-px bg-border" />
               {canDark && props.onModeChange ? <Menu.Item onSelect={() => props.onModeChange?.(mode === "dark" ? "light" : "dark")} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground">{mode === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}{text.theme}: {mode === "dark" ? text.light : text.dark}</Menu.Item> : null}
+              {props.onMyCompanies ? <Menu.Item onSelect={() => props.onMyCompanies?.()} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><Building2 className="h-4 w-4" aria-hidden="true" />{text.myCompanies}</Menu.Item> : null}
               <Menu.Item onSelect={() => props.onSignOut?.()} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><LogOut className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{text.signOut}</Menu.Item>
             </Menu.Content></Menu.Portal>
           </Menu.Root>
