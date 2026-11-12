@@ -1,18 +1,18 @@
 // D-53 (a), §6: the monthly report's data — the period engine (D-48) for a calendar month, the S-curve (planned from the imported P6 schedule against the actual from
 // the approved daily reports), the milestones, and earned value. Read only; nothing is stored, so a figure here is always what the sources say now.
-// Earned value is money: it is returned only to a caller holding project.budget.manage on the project, and is null (with financialHidden) for anyone else.
+// Earned value is money: it is returned only when canSeeFinancials (pmcSiteService.ts, the platform's one rule for money) says so, and is null (with financialHidden)
+// for anyone else. The planned line is the CURRENT imported P6 schedule (its latest import), not a frozen baseline: a re-import with moved dates changes past months too.
+// The actual line weighs each villa equally across models (activity weight % × villas ÷ the project's units); the planned line weighs by P6 planned value.
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { activities, evmSnapshots, pmcActivityDefinitions, pmcUnits, siteDailyReportLines, siteDailyReports } from "../drizzle/schema";
-import { getTenantAccessSnapshot } from "./db";
-import { holdsPermission } from "./domain/authorization";
+import { canSeeFinancials } from "./pmcSiteService";
 import { actualCurve, milestoneStates, monthEnds, plannedCurve } from "./domain/monthlyCurve";
 import { getReportPeriod } from "./reportPeriods";
 import { authorize, READ_PERMISSIONS } from "./siteReports";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
-const FINANCIAL_PERMISSION = "project.budget.manage";
 const isoDay = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 const MILESTONE_TYPES = ["TT_Mile", "TT_FinMile"];
 
@@ -50,8 +50,8 @@ export async function getMonthlyReport(input: Scope & { month: string; includeUn
   const planned = plannedCurve(tasks, dates);
   const actual = actualCurve(completions, weights, unitCount[0]?.units ?? 0, dates);
 
-  const snapshotAccess = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  const financial = Boolean(snapshotAccess && holdsPermission(snapshotAccess, FINANCIAL_PERMISSION, { type: "project", id: input.projectId }));
+  // one rule for money across the platform (the reviewer of #258): canSeeFinancials checks the permission, the subscription and the feature
+  const financial = await canSeeFinancials(input);
   const evm = snapshot[0];
   const num = (value: string | null) => (value === null ? null : Number(value));
 

@@ -29,9 +29,10 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("monthly repo
     await q("INSERT INTO pmc_activity_stages (id, tenant_id, project_id, group_id, code, name) VALUES ($1,$2,$3,$4,'S','S')", [stage, T, P, group]);
     await q("INSERT INTO pmc_activity_definitions (id, tenant_id, project_id, group_id, stage_id, model_code, code, name, weight_percent) VALUES ($1,$3,$4,$5,$6,'A','WALL','Walls',60), ($2,$3,$4,$5,$6,'A','SLAB','Slab',40)", [wall, slab, T, P, group, stage]);
     // the P6 schedule as the importer stores it: two tasks (1,000 in September; 3,000 across October and November) and three milestones
-    const act = (code: string, type: string, start: string, finish: string, value: number, actualFinish: string | null) =>
-      q("INSERT INTO activities (id, tenant_id, project_id, code, name, external_id, task_type, planned_start_at, planned_finish_at, planned_value, duration_hours, actual_finish_at) VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,80,$10)", [uuid(), T, P, code, `x-${code}`, type, `${start}T08:00:00Z`, `${finish}T17:00:00Z`, value, actualFinish ? `${actualFinish}T12:00:00Z` : null]);
-    await act("T1", "TT_Task", "2026-09-01", "2026-09-30", 1000, null);
+    const act = (code: string, type: string, start: string, finish: string, value: number, actualFinish: string | null, actualStart: string | null = null) =>
+      q("INSERT INTO activities (id, tenant_id, project_id, code, name, external_id, task_type, planned_start_at, planned_finish_at, planned_value, duration_hours, actual_finish_at, actual_start_at) VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,80,$10,$11)", [uuid(), T, P, code, `x-${code}`, type, `${start}T08:00:00Z`, `${finish}T17:00:00Z`, value, actualFinish ? `${actualFinish}T12:00:00Z` : null, actualStart ? `${actualStart}T08:00:00Z` : null]);
+    // T1 actually started in August and finished in mid-October (review of #258): the planned line must still spread it over its PLANNED September, never its actual dates
+    await act("T1", "TT_Task", "2026-09-01", "2026-09-30", 1000, "2026-10-15", "2026-08-20");
     await act("T2", "TT_Task", "2026-10-01", "2026-11-30", 3000, null);
     await act("M-DONE-LATE", "TT_Mile", "2026-10-10", "2026-10-10", 0, "2026-10-14");
     await act("M-LATE", "TT_FinMile", "2026-09-20", "2026-09-20", 0, null);
@@ -42,11 +43,13 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("monthly repo
       await q("INSERT INTO site_daily_reports (id, tenant_id, project_id, report_date, prepared_by_user_id, status) VALUES ($1,$2,$3,$4,$5,'approved')", [id, T, P, date, a.owner.id]);
       for (const [activity, unit, actual, complete] of lines) await q("INSERT INTO site_daily_report_lines (id, tenant_id, project_id, report_id, line_type, pmc_activity_definition_id, pmc_unit_id, description, actual_quantity, reported_status) VALUES ($1,$2,$3,$4,'work',$5,$6,'line',$7,$8)", [uuid(), T, P, id, activity, unit, actual, complete ? "COMPLETE" : null]);
     };
+    // review of #258: villa 5 is first complete on WALL in September and reported complete again on 10 October — it counts at September's point only
+    await report("2026-09-15", [[wall, units[5], null, true]]);
     for (let d = 1; d <= 31; d++) {
       const date = `2026-10-${String(d).padStart(2, "0")}`;
       const actual = 10 + (d % 4);
       actuals.push({ date, actual });
-      const villas: Array<[string, string | null, number | null, boolean]> = d <= 5 ? [[wall, units[d - 1], null, true]] : d === 20 ? [[wall, units[0], null, true]] : [];
+      const villas: Array<[string, string | null, number | null, boolean]> = d <= 5 ? [[wall, units[d - 1], null, true]] : d === 20 ? [[wall, units[0], null, true]] : d === 10 ? [[wall, units[5], null, true]] : [];
       await report(date, [[slab, null, actual, false], ...villas]);
     }
     await q("INSERT INTO evm_snapshots (id, tenant_id, project_id, period_at, pv, ev, ac, bac, cv, sv, eac, etc, vac, eac_method, cpi, spi) VALUES ($1,$2,$3,'2026-10-31T20:00:00Z',2000,1800,1900,4000,-100,-200,4222.22,2322.22,-222.22,'bac_over_cpi',0.9474,0.9)", [uuid(), T, P]);
@@ -64,10 +67,19 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("monthly repo
     const point = (month: string) => result.sCurve.points.find(p => p.month === month)!;
     expect(point("2026-09").planned).toBe(25);
     expect(point("2026-10").planned).toBeCloseTo(((1000 + 3000 * (31 / 61)) / 4000) * 100, 3);
-    // 5 villas first completed in October × WALL 60% ÷ 10 villas = 30% (villa 0's repeat on the 20th adds nothing)
-    expect(point("2026-09").actual).toBe(0);
-    expect(point("2026-10").actual).toBe(30);
+    // September: villa 5 first complete × WALL 60% ÷ 10 villas = 6%. October: villas 0–4 add 30% → 36% cumulative; villa 5's repeat on the 10th and villa 0's on the
+    // 20th add nothing (the first completion counts, in its own month: with max(report_date) September would read 0 and the test falls)
+    expect(point("2026-09").actual).toBe(6);
+    expect(point("2026-10").actual).toBe(36);
     expect(result.sCurve.points.map(p => p.month)).toEqual(["2026-09", "2026-10"]);
+  });
+
+  it("NEGATIVE (review of #258): the planned line never reads an activity's ACTUAL dates — T1 ran 20 Aug to 15 Oct, and its value stays in its planned September", async () => {
+    const result = await monthly(a, "pm");
+    // were the planned line spread over T1's actual dates, an August point would appear, September would fall below 25% and October would rise above the formula
+    expect(result.sCurve.points.map(p => p.month)).not.toContain("2026-08");
+    expect(result.sCurve.points.find(p => p.month === "2026-09")!.planned).toBe(25);
+    expect(result.sCurve.points.find(p => p.month === "2026-10")!.planned).toBeCloseTo(((1000 + 3000 * (31 / 61)) / 4000) * 100, 3);
   });
 
   it("the month's figures are the sum of its weeks (actual quantities and villas first completed)", async () => {
