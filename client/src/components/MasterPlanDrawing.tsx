@@ -16,6 +16,8 @@ import type { OcrWorker } from "@/lib/raster/ocrWorker";
 import { MeasureOverlay, MeasurePanel, drawingPointFromClient, type MeasureTool } from "@/components/MasterPlanMeasure";
 import type { DrawingCalibration, PlanPoint } from "@shared/masterPlanCalibration";
 import { ManualLinkPanel, useManualText, type LinkTool } from "@/components/MasterPlanManualLink";
+import { MasterPlanColourPanel, exportDrawingPng, useColourText } from "@/components/MasterPlanColourPanel";
+import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit } from "@/lib/masterPlanColouring";
 import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
 import {
   assignUnit,
@@ -278,6 +280,16 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const hasVersion = latestVersionId(plansQuery.data) !== null;
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
+  // Q-8 (b): colour by a PMC activity's site status (Q-4 writes it), with block and model filters; the plan's unit status stays the default
+  const colourText = useColourText();
+  const svgRef = React.useRef<SVGSVGElement | null>(null);
+  const [activityCode, setActivityCode] = useState("");
+  const [blockFilter, setBlockFilter] = useState("");
+  const [modelFilter, setModelFilter] = useState("");
+  const siteMap = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined }, { enabled: Boolean(drawing) });
+  const villas = (siteMap.data?.units ?? []) as SiteUnit[];
+  const confirmedCodes = items.filter(item => item.state === "confirmed" && item.unitCode).map(item => item.unitCode!);
+  const colouring = activityCode && siteMap.data ? colourUnits(confirmedCodes, villas) : null;
   const summary = summarizeReview(items, units);
   const remaining = units.filter(unit => !items.some(entry => entry.state === "confirmed" && entry.unitId === unit.id));
   const selected = items.find(item => item.polygonId === selectedId) ?? null;
@@ -513,7 +525,21 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                   notice={linkNotice}
                 />
               ) : null}
-              <svg role="img" aria-label={t.map} {...pan.svgProps} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
+              <MasterPlanColourPanel
+                activities={siteMap.data?.activities ?? []}
+                activityCode={activityCode}
+                onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); }}
+                blocks={Array.from(new Set(villas.map(villa => villa.blockCode))).sort()}
+                models={Array.from(new Set(villas.map(villa => villa.modelCode))).sort()}
+                block={blockFilter}
+                model={modelFilter}
+                onBlock={setBlockFilter}
+                onModel={setModelFilter}
+                counts={colouring?.counts ?? null}
+                failed={Boolean(siteMap.error)}
+                onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode || "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
+              />
+              <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
@@ -526,8 +552,9 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                     <g key={polygon.id}>
                       <polygon
                         points={points}
-                        fill={polygonFill(item, unit?.status ?? null)}
-                        fillOpacity={background ? 0.45 : 0.75}
+                        fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
+                        fillOpacity={colouring && item.unitCode && !passesFilter(colouring.villaOf(item.unitCode), blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
+                        data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
                         stroke={isSelected ? "#111827" : "#475569"}
                         strokeWidth={isSelected ? 0.4 : 0.15}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
@@ -562,7 +589,11 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                       </button>
                       {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-slate-600">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
                       {reasonText(item.reason) ? <span className="text-xs text-slate-600">{reasonText(item.reason)}</span> : null}
+                      {colouring && item.state === "confirmed" && item.unitCode ? <span className="text-xs text-slate-600" data-site-status>{colourText.keys[colouring.keyOf(item.unitCode)]}</span> : null}
                     </div>
+                    {selectedId === item.polygonId && item.state === "confirmed" && item.unitCode && colouring?.villaOf(item.unitCode) ? (
+                      <a className="mt-2 inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-sm" href={`/m/${tenantId}/${projectId}/unit/${colouring.villaOf(item.unitCode)!.unitNumber}${activityCode ? `?activity=${encodeURIComponent(activityCode)}` : ""}`}>{colourText.card}</a>
+                    ) : null}
                     {selectedId === item.polygonId ? (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
                         {item.state === "proposed" ? (
