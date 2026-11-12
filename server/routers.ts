@@ -77,12 +77,8 @@ import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
-<<<<<<< HEAD
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
-=======
-import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
->>>>>>> origin/main
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
