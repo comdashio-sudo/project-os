@@ -6,7 +6,8 @@ export const ENV = {
   // Registration is by invitation only (owner's decision 2026-10-25, docs/TASLEEM_AUDIT.md 1.11): an uninvited address gets no sign-in code, and only the platform owner creates companies.
   // REGISTRATION=open is the owner's switch to open it; anything else, or nothing, keeps it closed.
   registrationOpen: (process.env.REGISTRATION ?? "").trim().toLowerCase() === "open",
-  // Two-step verification is on for the platform owner and company administrators. MFA_ENFORCEMENT=off is the break-glass switch (a lost phone AND lost recovery codes): it lifts the requirement, nothing else.
+  // D-81 (2026-11-09): two-step verification is required of nobody by default; a company may require it of its members (companies.require_two_step). MFA_ENFORCEMENT=off is the
+  // break-glass switch (a lost phone AND lost recovery codes): it lifts every company's requirement, nothing else.
   mfaEnforced: (process.env.MFA_ENFORCEMENT ?? "").trim().toLowerCase() !== "off",
   appBaseUrl: (process.env.APP_BASE_URL ?? "").replace(/\/+$/, ""),
   // Supabase Auth sends and checks the sign-in code; the anon key is the only Supabase key this server uses for it.

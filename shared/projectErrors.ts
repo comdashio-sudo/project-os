@@ -81,6 +81,81 @@ export const projectErrorMessages = {
     en: "The requested project is not available in this workspace.",
     ur: "مطلوبہ پروجیکٹ اس ورک اسپیس میں دستیاب نہیں ہے۔",
   },
+  PROJECT_OS_PROJECT_PROFILE_INVALID: {
+    ar: "بيانات المشروع غير صالحة: تحقّق من أيام العمل، وأن بداية الدوام قبل نهايته، وأن بادئة الترقيم أحرف لاتينية كبيرة وأرقام وشرطات.",
+    en: "The project details are not valid: check the working days, that the start of the working day is before its end, and that the report prefix uses capital letters, digits and hyphens.",
+    ur: "پروجیکٹ کی تفصیلات درست نہیں ہیں: کام کے دن چیک کریں، یہ کہ کام کا آغاز اختتام سے پہلے ہو، اور رپورٹ کا سابقہ بڑے لاطینی حروف، ہندسوں اور ڈیش پر مشتمل ہو۔",
+  },
+  PROJECT_OS_PROJECT_MAIN_CONTRACTOR_EXISTS: {
+    ar: "للمشروع مقاول رئيسي فعّال بالفعل. أوقف المقاول الحالي أو سجّل هذه الشركة مقاول باطن.",
+    en: "The project already has an active main contractor. Deactivate the current one or add this company as a subcontractor.",
+    ur: "اس پروجیکٹ کا ایک فعال مرکزی ٹھیکیدار پہلے سے موجود ہے۔ موجودہ کو غیر فعال کریں یا اس کمپنی کو ذیلی ٹھیکیدار کے طور پر شامل کریں۔",
+  },
+  PROJECT_OS_PROJECT_COMPANY_NOT_FOUND: {
+    ar: "الشركة المطلوبة غير مسجّلة في هذا المشروع.",
+    en: "The requested company is not registered on this project.",
+    ur: "مطلوبہ کمپنی اس پروجیکٹ میں درج نہیں ہے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_TYPE_INVALID: {
+    ar: "الشعار يجب أن يكون صورة PNG أو JPEG أو SVG.",
+    en: "The logo must be a PNG, JPEG or SVG image.",
+    ur: "لوگو PNG، JPEG یا SVG تصویر ہونا چاہیے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_TOO_LARGE: {
+    ar: "حجم الشعار يتجاوز 2 ميغابايت.",
+    en: "The logo is larger than 2 MB.",
+    ur: "لوگو کا سائز 2 MB سے زیادہ ہے۔",
+  },
+  PROJECT_OS_PROJECT_LOGO_UNSAFE: {
+    ar: "ملف SVG يحتوي على شيفرة أو روابط تنفيذية، فلا يُقبل شعارًا. احفظه من جديد صورةً بسيطة أو استعمل PNG.",
+    en: "The SVG file contains script or active links, so it is not accepted as a logo. Save it again as a plain image, or use PNG.",
+    ur: "SVG فائل میں اسکرپٹ یا فعال روابط ہیں، اس لیے اسے لوگو کے طور پر قبول نہیں کیا جاتا۔ اسے سادہ تصویر کے طور پر دوبارہ محفوظ کریں یا PNG استعمال کریں۔",
+  },
+  PROJECT_OS_PROJECT_PROFILE_CONFLICT: {
+    ar: "حفظ شخص آخر هذه البيانات في اللحظة نفسها. أعد تحميل الصفحة ثم احفظ من جديد.",
+    en: "Someone else saved this at the same moment. Reload the page and save again.",
+    ur: "کسی اور نے اسی لمحے یہ محفوظ کیا۔ صفحہ دوبارہ لوڈ کریں اور پھر محفوظ کریں۔",
+  },
+  PROJECT_OS_REFERENCE_NAME_MISSING: {
+    ar: "الاسم مطلوب. اكتب اسم الدور أو نوع المعدة ثم احفظ.",
+    en: "A name is required. Enter the role name or the equipment type, then save.",
+    ur: "نام ضروری ہے۔ کردار کا نام یا مشینری کی قسم لکھیں، پھر محفوظ کریں۔",
+  },
+  PROJECT_OS_LABOUR_ROLE_EXISTS: {
+    ar: "في هذا المشروع دور عمالة بالاسم نفسه. اختر اسمًا آخر أو عدّل الدور الموجود.",
+    en: "This project already has a labour role with the same name. Choose another name or edit the existing role.",
+    ur: "اس پروجیکٹ میں اسی نام کا مزدور کردار پہلے سے موجود ہے۔ کوئی اور نام چنیں یا موجودہ کردار میں ترمیم کریں۔",
+  },
+  PROJECT_OS_LABOUR_ROLE_NOT_FOUND: {
+    ar: "دور العمالة المطلوب غير موجود في هذا المشروع.",
+    en: "The requested labour role was not found in this project.",
+    ur: "مطلوبہ مزدور کردار اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_EQUIPMENT_PLATE_EXISTS: {
+    ar: "رقم اللوحة أو المقاس مسجّل لمعدة أخرى في هذا المشروع.",
+    en: "This plate number or size is already registered to another machine on this project.",
+    ur: "یہ پلیٹ نمبر یا سائز اس پروجیکٹ میں کسی اور مشین کے نام درج ہے۔",
+  },
+  PROJECT_OS_EQUIPMENT_NOT_FOUND: {
+    ar: "المعدة المطلوبة غير موجودة في هذا المشروع.",
+    en: "The requested equipment was not found in this project.",
+    ur: "مطلوبہ مشینری اس پروجیکٹ میں نہیں ملی۔",
+  },
+  PROJECT_OS_EQUIPMENT_OWNER_NOT_ON_PROJECT: {
+    ar: "مالك المعدة يجب أن يكون شركة مسجّلة في هذا المشروع. أضف الشركة إلى المشروع أولًا.",
+    en: "The equipment owner must be a company registered on this project. Add the company to the project first.",
+    ur: "مشینری کا مالک اس پروجیکٹ میں درج کمپنی ہونا چاہیے۔ پہلے کمپنی کو پروجیکٹ میں شامل کریں۔",
+  },
+  PROJECT_OS_SITE_ACTIVITY_QUANTITY_REQUIRED: {
+    ar: "النشاط المقيس بالمتر الطولي أو المربع أو بالقطعة يحتاج كميته الكلية، وهي أكبر من صفر.",
+    en: "An activity measured in linear metres, square metres or pieces needs its total quantity, greater than zero.",
+    ur: "میٹر، مربع میٹر یا عدد میں ناپی جانے والی سرگرمی کے لیے کل مقدار ضروری ہے، جو صفر سے زیادہ ہو۔",
+  },
+  PROJECT_OS_PROJECT_APPROVER_NOT_ON_PROJECT: {
+    ar: "لا يمكن إسناد خطوة الاعتماد إلى شخص بلا دور في هذا المشروع. أضِفه إلى المشروع بدور أولًا.",
+    en: "An approval step cannot be given to someone with no role on this project. Add them to the project with a role first.",
+    ur: "منظوری کا مرحلہ ایسے شخص کو نہیں دیا جا سکتا جس کا اس پروجیکٹ میں کوئی کردار نہ ہو۔ پہلے انہیں کسی کردار کے ساتھ پروجیکٹ میں شامل کریں۔",
+  },
   PROJECT_OS_WBS_SCOPE_MISMATCH: {
     ar: "بند WBS المحدد لا يتبع للمشروع المطلوب.",
     en: "The selected WBS item does not belong to the requested project.",
@@ -441,10 +516,57 @@ export const projectErrorMessages = {
     en: "Postponing is for the platform owner only.",
     ur: "مؤخر کرنا صرف پلیٹ فارم کے مالک کے لیے ہے۔",
   },
+  // D-82: password sign-in (the screen in D-83 says these beside the field)
+  PROJECT_OS_AUTH_CREDENTIALS_INVALID: {
+    ar: "البريد أو كلمة المرور غير صحيحة.",
+    en: "The e-mail address or the password is wrong.",
+    ur: "ای میل یا پاس ورڈ غلط ہے۔",
+  },
+  PROJECT_OS_AUTH_PASSWORD_WEAK: {
+    ar: "كلمة المرور قصيرة أو ضعيفة: 8 أحرف على الأقل.",
+    en: "The password is too short or too weak: at least 8 characters.",
+    ur: "پاس ورڈ چھوٹا یا کمزور ہے: کم از کم 8 حروف۔",
+  },
+  // D-79: storage inside the database
+  PROJECT_OS_STORAGE_FILE_TOO_LARGE: {
+    ar: "الملف أكبر من 5 ميغابايت، وهو الحد الحالي للتخزين. صغّر الملف أو قسّمه ثم أعد الرفع.",
+    en: "The file is larger than 5 MB, the current storage limit. Make it smaller or split it, then upload again.",
+    ur: "فائل 5 میگابائٹ سے بڑی ہے، جو موجودہ اسٹوریج کی حد ہے۔ فائل چھوٹی کریں یا تقسیم کریں، پھر دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_STORAGE_QUOTA_EXCEEDED: {
+    ar: "امتلأت مساحة ملفات الشركة (100 ميغابايت). احذف ملفات لم تعد تلزم، أو اطلب من مالك المنصة تفعيل التخزين الخارجي.",
+    en: "The company's file space is full (100 MB). Remove files you no longer need, or ask the platform owner to switch on external storage.",
+    ur: "کمپنی کی فائلوں کی جگہ بھر گئی ہے (100 میگابائٹ)۔ غیر ضروری فائلیں حذف کریں، یا پلیٹ فارم کے مالک سے بیرونی اسٹوریج فعال کرنے کو کہیں۔",
+  },
+  PROJECT_OS_STORAGE_NOT_FOUND: {
+    ar: "الملف غير موجود: ربما حُذف. افتح الصفحة من جديد.",
+    en: "The file is not there: it may have been removed. Open the page again.",
+    ur: "فائل موجود نہیں: شاید حذف ہو گئی ہو۔ صفحہ دوبارہ کھولیں۔",
+  },
+  PROJECT_OS_STORAGE_LINK_INVALID: {
+    ar: "رابط الملف غير صالح أو انتهت مدته. افتح الصفحة من جديد.",
+    en: "The file link is invalid or has expired. Open the page again.",
+    ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
+  },
+  PROJECT_OS_REPORT_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: اختر تاريخًا صحيحًا لبداية الأسبوع أو يومًا من الشهر.",
+    en: "The period is invalid: choose a real date for the start of the week or a day of the month.",
+    ur: "مدت درست نہیں: ہفتے کے آغاز کے لیے یا مہینے کے کسی دن کی درست تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
-    ar: "حسابك يتطلب التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
-    en: "Your account requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
-    ur: "آپ کے اکاؤنٹ کو دو مرحلوں کی تصدیق درکار ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+    ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
+    en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
+    ur: "آپ کی کمپنی دو مرحلوں کی تصدیق لازمی کرتی ہے۔ جاری رکھنے کے لیے آتھنٹیکیٹر ایپ کا کوڈ (یا ریکوری کوڈ) درج کریں۔",
+  },
+  PROJECT_OS_MFA_SETTING_NOT_READY: {
+    ar: "قاعدة البيانات لم تُحدَّث بعد لهذا الإعداد. اطلب من مالك المنصة تطبيق آخر ترحيلة ثم أعد المحاولة.",
+    en: "The database has not been updated for this setting yet. Ask the platform owner to apply the latest migration, then try again.",
+    ur: "اس ترتیب کے لیے ڈیٹا بیس ابھی اپ ڈیٹ نہیں ہوا۔ پلیٹ فارم کے مالک سے تازہ ترین مائیگریشن لاگو کرنے کو کہیں، پھر دوبارہ کوشش کریں۔",
+  },
+  PROJECT_OS_MFA_REQUIRED_BY_COMPANY: {
+    ar: "لا يمكن إيقاف التحقق بخطوتين: شركة أنت عضو فيها تشترطه. يوقفه مدير تلك الشركة من إعداداتها.",
+    en: "Two-step verification cannot be switched off: a company you belong to requires it. That company's administrator can switch it off in its settings.",
+    ur: "دو مرحلوں کی تصدیق بند نہیں کی جا سکتی: آپ جس کمپنی کے رکن ہیں وہ اسے لازمی کرتی ہے۔ اس کمپنی کا منتظم اسے اس کی ترتیبات سے بند کر سکتا ہے۔",
   },
   PROJECT_OS_MFA_CODE_INVALID: {
     ar: "الرمز غير صحيح أو سبق استعماله. أدخل الرمز الحالي من التطبيق، أو رمز استرداد لم يُستعمل.",
@@ -555,6 +677,11 @@ export const projectErrorMessages = {
     ar: "القيمة خارج الحدود المسموحة.",
     en: "The value is outside the allowed range.",
     ur: "قدر اجازت شدہ حد سے باہر ہے۔",
+  },
+  PROJECT_OS_FIELD_STEP_MISMATCH: {
+    ar: "القيمة لا تطابق خطوة الحقل (مثلًا عدد صحيح حيث لا تُقبل الكسور).",
+    en: "The value does not fit the field's step (for example a whole number where fractions are not allowed).",
+    ur: "قدر خانے کے مرحلے سے میل نہیں کھاتی (مثلاً جہاں کسر قبول نہیں وہاں پورا عدد)۔",
   },
   PROJECT_OS_FIELD_DATE_INVALID: {
     ar: "أدخل تاريخًا صحيحًا.",
@@ -890,6 +1017,41 @@ export const projectErrorMessages = {
     ar: "لا يُحتسب النشاط مكتملًا قبل قبول فحص الجودة لهذه الوحدة وهذا النشاط، وسياسة الشركة تمنع ذلك.",
     en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
     ur: "کسی سرگرمی کو مکمل کرنے سے پہلے اس یونٹ اور سرگرمی کے معائنے کو معیار کی ٹیم نے قبول کرنا ضروری ہے، اور کمپنی کی پالیسی اس کو روکتی ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP: {
+    ar: "هذه الخطوة من سلسلة اعتماد التقارير مسندة في هذا المشروع إلى شخص آخر.",
+    en: "This step of the report approval chain is assigned to someone else on this project.",
+    ur: "رپورٹ کی منظوری کے سلسلے کا یہ مرحلہ اس پروجیکٹ میں کسی اور کے سپرد ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER: {
+    ar: "لا تتم هذه الخطوة الآن: الترتيب أعدّه ثم راجعه ثم اعتمده، والتقرير ليس عند هذه الخطوة.",
+    en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
+    ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
+    ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
+    en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",
+    ur: "رپورٹ میں ایک ہی مزدور خانہ (کمپنی، کردار اور شفٹ) دو بار ہے۔ اسے ایک قطار میں رکھیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_EQUIPMENT_DUPLICATE: {
+    ar: "المعدة نفسها مكررة في التقرير. اكتب عددها وساعاتها في سطر واحد.",
+    en: "The same machine appears twice in the report. Enter its count and hours on one row.",
+    ur: "رپورٹ میں ایک ہی مشین دو بار ہے۔ اس کی تعداد اور گھنٹے ایک قطار میں لکھیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_REFERENCE_NOT_FOUND: {
+    ar: "شركة أو دور عمالة أو معدة في التقرير ليست من قوائم هذا المشروع.",
+    en: "A company, labour role or machine in the report is not in this project's lists.",
+    ur: "رپورٹ میں کوئی کمپنی، مزدور کردار یا مشین اس پروجیکٹ کی فہرستوں میں نہیں ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_EXISTS: {
+    ar: "لك تقرير لهذا اليوم بالفعل، فلا يُنسخ فوقه. افتح التقرير الموجود.",
+    en: "You already have a report for this day, so nothing is copied over it. Open the existing report.",
+    ur: "اس دن کی آپ کی رپورٹ پہلے سے موجود ہے، اس لیے اس پر کچھ نقل نہیں ہوگا۔ موجودہ رپورٹ کھولیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY: {
+    ar: "لا تقرير سابق لك في هذا المشروع يُنسخ منه.",
+    en: "You have no earlier report on this project to copy from.",
+    ur: "اس پروجیکٹ میں آپ کی کوئی پچھلی رپورٹ نہیں جس سے نقل کیا جائے۔",
   },
   PROJECT_OS_SITE_REPORT_DATE_FUTURE: {
     ar: "لا يُكتب تقرير يومي بتاريخ مستقبلي.",
@@ -1356,6 +1518,41 @@ export const projectErrorMessages = {
     en: "This file was already imported into this project.",
     ur: "یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔",
   },
+  PROJECT_OS_CONSULTANT_EXPORT_NOT_RECOGNISED: {
+    ar: "لم نتعرّف على هذا الملف كتصدير من نظام الاستشاري (نبحث عن صف فيه Zone وBlock وUnit وVilla Type، ثم الأنشطة ورقم WIR لكل نشاط).",
+    en: "This file was not recognised as the consultant's export (we look for a row with Zone, Block, Unit and Villa Type, then the activities with a WIR number each).",
+    ur: "اس فائل کو مشیر کے نظام کی برآمد کے طور پر نہیں پہچانا گیا (ہم Zone، Block، Unit اور Villa Type والی قطار اور ہر سرگرمی کا WIR نمبر تلاش کرتے ہیں)۔",
+  },
+  PROJECT_OS_SITE_WORKBOOK_NOT_RECOGNISED: {
+    ar: "لم نتعرّف على هذا الملف كملف الموقع القديم (نبحث عن ورقة Weights وورقة Progress أو Progress Log).",
+    en: "This file was not recognised as the site's old workbook (we look for a Weights sheet and a Progress or Progress Log sheet).",
+    ur: "اس فائل کو سائٹ کی پرانی ورک بک کے طور پر نہیں پہچانا گیا (ہم Weights اور Progress یا Progress Log شیٹ تلاش کرتے ہیں)۔",
+  },
+  PROJECT_OS_SITE_LEGACY_ALREADY_IMPORTED: {
+    ar: "سجل الموقع القديم استُورد من قبل في هذا المشروع، ولا يُستورد مرتين.",
+    en: "The site's old record was already imported into this project; it is imported only once.",
+    ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
+  },
+  PROJECT_OS_SITE_UPDATE_INVALID: {
+    ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
+    en: "Nothing was saved: something in the entry must be corrected (a villa that does not exist, a date in the future, a missing field, or an activity that does not apply to the villa's type). The details are under the form.",
+    ur: "کچھ محفوظ نہیں ہوا: اندراج میں کچھ درست کرنا ہے (غیر موجود ولا، مستقبل کی تاریخ، خالی خانہ، یا ایسی سرگرمی جو ولا کی قسم پر لاگو نہیں)۔ تفصیل فارم کے نیچے ہے۔",
+  },
+  PROJECT_OS_PMC_SITE_ACTIVITY_NOT_FOUND: {
+    ar: "نشاط الموقع غير موجود في هذا المشروع.",
+    en: "The site activity was not found in this project.",
+    ur: "سائٹ کی سرگرمی اس پروجیکٹ میں نہیں ملی۔",
+  },
+  PROJECT_OS_PMC_DIFFERENCE_CHANGED: {
+    ar: "تغيّر بعض الفروقات منذ فتحت الشاشة (عولج أو تغيّرت حالته)، فلم يُطبَّق شيء. حدّث القائمة ثم أعد الاختيار.",
+    en: "Some differences changed since the screen was opened (handled or changed state), so nothing was applied. Refresh the list and choose again.",
+    ur: "اسکرین کھلنے کے بعد کچھ فرق بدل گئے، اس لیے کچھ لاگو نہیں ہوا۔ فہرست تازہ کریں اور دوبارہ منتخب کریں۔",
+  },
+  PROJECT_OS_PMC_DIFFERENCE_NOT_FOUND: {
+    ar: "اختر فرقًا واحدًا على الأقل.",
+    en: "Choose at least one difference.",
+    ur: "کم از کم ایک فرق منتخب کریں۔",
+  },
   PROJECT_OS_IMPORT_DISCARD_NOT_ALLOWED: {
     ar: "لا يمكن حذف هذه المحاولة: هي مستورَدة فعلًا أو قيد المعالجة. للمستورَد استعمل «تراجع عن هذا الاستيراد».",
     en: "This attempt cannot be deleted: it was already imported or is being processed. For an imported one use \"Roll back this import\".",
@@ -1476,10 +1673,55 @@ export const projectErrorMessages = {
     en: "A table could not be read from this file. Try a clearer file or Excel.",
     ur: "A table could not be read from this file. Try a clearer file or Excel.",
   },
+  PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED: {
+    ar: "الملف ليس بشكل النوع المختار. اختر نوعًا آخر أو دع النظام يتعرّف عليه. لم يُكتب شيء.",
+    en: "The file does not have the shape of the chosen type. Pick another type or let the system recognise it. Nothing was written.",
+    ur: "فائل منتخب کردہ قسم کی شکل میں نہیں ہے۔ کوئی اور قسم منتخب کریں یا نظام کو اسے پہچاننے دیں۔ کچھ بھی محفوظ نہیں کیا گیا۔",
+  },
   PROJECT_OS_MATRIX_NOT_RECOGNISED: {
     ar: "لم يُتعرَّف على شكل مصفوفة إنجاز الوحدات في هذا الملف. لم يُكتب شيء.",
     en: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
     ur: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
+  },
+  TRACKER_VILLA_MISSING: {
+    ar: "صف في ملف المتابعة بلا رقم فيلا. لم يُكتب شيء.",
+    en: "A row of the tracker has no villa number. Nothing was written.",
+    ur: "ٹریکر کی ایک قطار میں ولا نمبر نہیں ہے۔ کچھ محفوظ نہیں ہوا۔",
+  },
+  TRACKER_VILLA_DUPLICATE: {
+    ar: "رقم الفيلا مكرر في ملف المتابعة. لكل فيلا صف واحد.",
+    en: "The villa number appears twice in the tracker. Each villa has one row.",
+    ur: "ٹریکر میں ولا نمبر دو بار آیا ہے۔ ہر ولا کی ایک ہی قطار ہوتی ہے۔",
+  },
+  TRACKER_STATUS_UNKNOWN: {
+    ar: "حالة غير مفهومة في خلية نشاط. المقبول: Completed أو On going أو فارغ.",
+    en: "An activity cell holds a status that is not understood. Accepted: Completed, On going or empty.",
+    ur: "سرگرمی کے خانے میں ناقابلِ فہم حالت ہے۔ قابلِ قبول: Completed، On going یا خالی۔",
+  },
+  TRACKER_SERIAL_TAKEN: {
+    ar: "الرقم التسلسلي لفيلا جديدة مستعمل لفيلا أخرى في المشروع.",
+    en: "The serial number of a new villa is already used by another villa on the project.",
+    ur: "نئے ولا کا سیریل نمبر پروجیکٹ میں کسی اور ولا کے لیے استعمال ہو چکا ہے۔",
+  },
+  TRACKER_MODEL_UNKNOWN: {
+    ar: "نموذج الفيلا غير معروف في كتالوج أنشطة المشروع. استورد التقرير الشهري (المصفوفة) أولًا.",
+    en: "The villa's model is not in the project's activity catalogue. Import the monthly report (the matrix) first.",
+    ur: "ولا کا ماڈل پروجیکٹ کی سرگرمیوں کی فہرست میں نہیں ہے۔ پہلے ماہانہ رپورٹ (میٹرکس) درآمد کریں۔",
+  },
+  TRACKER_ACTIVITY_NOT_IN_CATALOGUE: {
+    ar: "عمود نشاط في ملف المتابعة لا يطابق اسم أي نشاط لهذا النموذج في الكتالوج.",
+    en: "An activity column of the tracker matches no activity name of this model in the catalogue.",
+    ur: "ٹریکر کا ایک سرگرمی کالم فہرست میں اس ماڈل کی کسی سرگرمی کے نام سے نہیں ملتا۔",
+  },
+  EQUIPMENT_COUNT_WITH_PLATE: {
+    ar: "صف برقم لوحة أو مقاس يمثّل معدة واحدة، فلا يكون عدده أكبر من 1.",
+    en: "A row with a plate or size is one machine, so its count cannot be above 1.",
+    ur: "پلیٹ یا سائز والی قطار ایک مشین ہے، اس لیے اس کی تعداد 1 سے زیادہ نہیں ہو سکتی۔",
+  },
+  PROJECT_OS_EQUIPMENT_IMPORT_NOT_RECOGNISED: {
+    ar: "لم يُعثر على عمود «النوع» في الملف. الأعمدة: النوع، العدد، الطراز، اللوحة أو المقاس.",
+    en: "No «Type» column was found in the file. The columns are: Type, Count, Model, Plate or size.",
+    ur: "فائل میں «Type» کالم نہیں ملا۔ کالم یہ ہیں: Type، Count، Model، Plate or size۔",
   },
   MATRIX_WEIGHTS_NOT_100: {
     ar: "أوزان الأنشطة لا يبلغ مجموعها 100%. صحّح الصف الذي يحمل الأوزان في الملف ثم أعد الرفع.",
@@ -1720,6 +1962,36 @@ export const projectErrorMessages = {
     ar: "معاملات الحالات غير صالحة: يجب ألا تتناقص بتقدّم الحالة وأن تكون بين 0 و1.",
     en: "The status factors are invalid: they must not decrease as the status advances and must be between 0 and 1.",
     ur: "حیثیت کے عوامل درست نہیں: حیثیت آگے بڑھنے کے ساتھ کم نہیں ہو سکتے اور 0 اور 1 کے درمیان ہونے چاہئیں۔",
+  },
+  PROJECT_OS_PMC_BLOCK_NOT_FOUND: {
+    ar: "البلوك غير موجود في هذا المشروع.",
+    en: "The block was not found in this project.",
+    ur: "یہ بلاک اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_PMC_MODEL_NOT_FOUND: {
+    ar: "النموذج غير موجود: لا أنشطة معرّفة له في هذا المشروع.",
+    en: "The model was not found: no activities are defined for it in this project.",
+    ur: "ماڈل نہیں ملا: اس پروجیکٹ میں اس کی کوئی سرگرمی متعین نہیں۔",
+  },
+  PROJECT_OS_PMC_UNIT_RANGE_INVALID: {
+    ar: "نطاق الوحدات غير صالح: يجب أن يبدأ من 1 فأكثر، وألا تكون نهايته قبل بدايته، وألا يتجاوز 500 وحدة في المرة.",
+    en: "The unit range is invalid: it must start at 1 or more, not end before it starts, and cover at most 500 units at a time.",
+    ur: "یونٹس کی حد درست نہیں: یہ 1 یا اس سے زیادہ سے شروع ہو، شروع سے پہلے ختم نہ ہو، اور ایک بار میں زیادہ سے زیادہ 500 یونٹس ہوں۔",
+  },
+  PROJECT_OS_PMC_UNITS_EXIST: {
+    ar: "بعض أرقام هذا النطاق موجودة في المشروع؛ لم تُنشأ أي وحدة. اختر نطاقًا لا يتداخل معها.",
+    en: "Some numbers in this range already exist in the project; no unit was created. Choose a range that does not overlap them.",
+    ur: "اس حد کے کچھ نمبر پروجیکٹ میں پہلے سے موجود ہیں؛ کوئی یونٹ نہیں بنا۔ ایسی حد منتخب کریں جو ان سے نہ ٹکرائے۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_INCOMPLETE: {
+    ar: "يجب إرسال وزن كل نشاط من أنشطة النموذج، ولا شيء من غيره.",
+    en: "Send a weight for every activity of the model, and nothing else.",
+    ur: "ماڈل کی ہر سرگرمی کا وزن بھیجیں، اور اس کے سوا کچھ نہیں۔",
+  },
+  PROJECT_OS_PMC_WEIGHTS_NOT_100: {
+    ar: "مجموع أوزان أنشطة النموذج يجب أن يكون 100% تمامًا؛ لم يُحفظ شيء.",
+    en: "The model's activity weights must total exactly 100%; nothing was saved.",
+    ur: "ماڈل کی سرگرمیوں کے وزن کا مجموعہ ٹھیک 100% ہونا چاہیے؛ کچھ محفوظ نہیں ہوا۔",
   },
   PROJECT_OS_PMC_UNIT_NOT_FOUND: {
     ar: "الوحدة غير موجودة.",

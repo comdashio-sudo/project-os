@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates"
 import { LevelDashboard, LevelSection, NotAvailable, formatIndex, formatMoney, formatPercent } from "@/components/LevelDashboard";
 import { kpiValues, levelHref, type ProjectKpi, type ScopeLevels } from "@/lib/levels";
 import { Figure } from "@/pages/LevelCompany";
+import { TableScroll } from "@/components/ds/TableScroll";
 
 // Level 2, projects management (portfolio): the projects the caller's own PMO assignment covers, from `scopes.portfolio`. It compares
 // the projects, and shows what waits for the consultant and what waits for quality. Each project opens its own level with one click.
@@ -74,9 +75,9 @@ export default function LevelPortfolio() {
       </dl>
     </LevelSection>
     <LevelSection id="portfolio-comparison" title={t.comparison}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-xs text-slate-600">
+      <TableScroll label={t.comparison}>
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="text-xs text-muted-foreground">
             <tr>
               <th scope="col" className="py-2 text-start">{t.project}</th>
               <th scope="col" className="py-2 text-start">{t.progress}</th>
@@ -88,7 +89,7 @@ export default function LevelPortfolio() {
               <th scope="col" className="py-2 text-start"><span className="sr-only">{t.open}</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {rows.map(row => {
               const value = kpiValues(row);
               return <tr key={row.projectId} data-project-row={row.projectId}>
@@ -96,27 +97,27 @@ export default function LevelPortfolio() {
                 <td className="py-3">{formatPercent(value.progress)}</td>
                 <td className="py-3">{formatIndex(value.cpi)}</td>
                 <td className="py-3">{formatIndex(value.spi)}</td>
-                <td className="py-3">{value.profit === null ? <NotAvailable isArabic={isArabic} /> : formatMoney(value.profit, row.currency)}</td>
+                <td className="py-3">{value.profit === null ? <NotAvailable isArabic={isArabic} /> : <bdi>{formatMoney(value.profit, row.currency)}</bdi>}</td>
                 <td className="py-3">{row.overdueActivities}</td>
                 <td className="py-3">{row.stock.materialsBelowReorder}</td>
-                <td className="py-3"><Link href={levelHref(tenantId, "project", row.projectId)} className="inline-flex min-h-[44px] items-center font-semibold text-[#0e6b70]">{t.open}</Link></td>
+                <td className="py-3"><Link href={levelHref(tenantId, "project", row.projectId)} className="inline-flex min-h-[44px] items-center font-semibold text-primary">{t.open}</Link></td>
               </tr>;
             })}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
     </LevelSection>
     <LevelSection id="portfolio-consultant" title={t.consultantTitle}>
-      {consultantRows.length === 0 ? <p className="text-sm text-slate-600">{t.nothingWaiting}</p> : <ul className="space-y-2 text-sm">
-        {consultantRows.map(row => <li key={row.projectId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3">
+      {consultantRows.length === 0 ? <p className="text-sm text-muted-foreground">{t.nothingWaiting}</p> : <ul className="space-y-2 text-sm">
+        {consultantRows.map(row => <li key={row.projectId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-muted p-3">
           <span className="font-medium">{row.code} · {row.name}</span>
           <span>{t.consultantRequests}: {row.pendingConsultant.inspectionRequests} · {t.consultantSubmittals}: {row.pendingConsultant.submittals}</span>
         </li>)}
       </ul>}
     </LevelSection>
     <LevelSection id="portfolio-quality" title={t.qualityTitle}>
-      {qualityRows.length === 0 ? <p className="text-sm text-slate-600">{t.nothingWaiting}</p> : <ul className="space-y-2 text-sm">
-        {qualityRows.map(row => <li key={row.projectId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3">
+      {qualityRows.length === 0 ? <p className="text-sm text-muted-foreground">{t.nothingWaiting}</p> : <ul className="space-y-2 text-sm">
+        {qualityRows.map(row => <li key={row.projectId} className="flex flex-wrap justify-between gap-2 rounded-lg bg-muted p-3">
           <span className="font-medium">{row.code} · {row.name}</span>
           <span>{t.qualityInspections}: {row.pendingQuality.inspectionsAwaitingResult} · {t.qualityNcrs}: {row.pendingQuality.openNcrs}</span>
         </li>)}

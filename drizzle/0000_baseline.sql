@@ -79,8 +79,10 @@ CREATE TYPE "public"."payment_records_status" AS ENUM('pending', 'confirmed', 'c
 CREATE TYPE "public"."payroll_allocations_source" AS ENUM('manual', 'auto_hours');--> statement-breakpoint
 CREATE TYPE "public"."payroll_runs_status" AS ENUM('draft', 'review', 'approved', 'paid');--> statement-breakpoint
 CREATE TYPE "public"."permissions_product_code" AS ENUM('EXECUTIVE', 'PMO', 'PROJECT');--> statement-breakpoint
+CREATE TYPE "public"."pmc_consultant_status" AS ENUM('NOT_RECEIVED', 'RECEIVED', 'APPROVED', 'REJECTED', 'CODE_A', 'CODE_B', 'CODE_C', 'CODE_D');--> statement-breakpoint
 CREATE TYPE "public"."pmc_inspection_requests_response_code" AS ENUM('A', 'B', 'C', 'UR');--> statement-breakpoint
 CREATE TYPE "public"."pmc_inspection_steps_status" AS ENUM('pending', 'in_progress', 'complete', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."pmc_site_status" AS ENUM('NOT_STARTED', 'IN_PROGRESS', 'DONE', 'INSPECTION_REQUESTED', 'QC_APPROVED');--> statement-breakpoint
 CREATE TYPE "public"."pmc_status_factors_status" AS ENUM('NOT_STARTED', 'IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETE');--> statement-breakpoint
 CREATE TYPE "public"."pmc_unit_activity_history_from_status" AS ENUM('NOT_STARTED', 'IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETE');--> statement-breakpoint
 CREATE TYPE "public"."pmc_unit_activity_history_to_status" AS ENUM('NOT_STARTED', 'IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETE');--> statement-breakpoint
@@ -413,6 +415,7 @@ CREATE TABLE "companies" (
 	"slug" varchar(120) NOT NULL,
 	"status" "companies_status" DEFAULT 'active' NOT NULL,
 	"default_locale" "companies_default_locale" DEFAULT 'ar' NOT NULL,
+	"require_two_step" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -442,7 +445,8 @@ CREATE TABLE "consultant_submittals" (
 	"sent_by_user_id" integer,
 	"replied_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "consultant_submittals_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "contracts" (
@@ -1260,7 +1264,8 @@ CREATE TABLE "memberships" (
 	"status" "memberships_status" DEFAULT 'invited' NOT NULL,
 	"joined_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "memberships_id_tenant_unique" UNIQUE("id","tenant_id")
 );
 --> statement-breakpoint
 CREATE TABLE "ncrs" (
@@ -1387,6 +1392,7 @@ CREATE TABLE "pmc_activity_definitions" (
 	"code" varchar(80) NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"weight_percent" numeric(7, 4) NOT NULL,
+	"wir_code" varchar(40),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -1431,6 +1437,75 @@ CREATE TABLE "pmc_blocks" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "pmc_cell_notes" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"unit_id" varchar(36) NOT NULL,
+	"activity_code" varchar(80) NOT NULL,
+	"note" varchar(2000) NOT NULL,
+	"updated_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_consultant_cell_events" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"cell_id" varchar(36) NOT NULL,
+	"from_status" "pmc_consultant_status",
+	"to_status" "pmc_consultant_status" NOT NULL,
+	"observed_on" date NOT NULL,
+	"import_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_consultant_cells" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"unit_id" varchar(36) NOT NULL,
+	"column_id" varchar(36) NOT NULL,
+	"status" "pmc_consultant_status" DEFAULT 'NOT_RECEIVED' NOT NULL,
+	"first_received_on" date,
+	"status_on" date,
+	"last_import_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_consultant_columns" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"source_key" varchar(255) NOT NULL,
+	"wir_code" varchar(40),
+	"section_name" varchar(255),
+	"subgroup_name" varchar(255),
+	"activity_name" varchar(255) NOT NULL,
+	"location_name" varchar(120),
+	"weight" numeric(10, 8),
+	"reported_percent" numeric(9, 6),
+	"activity_code" varchar(80),
+	"link_method" varchar(16),
+	"linked_by_user_id" integer,
+	"linked_at" timestamp with time zone,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_contractors" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"number" varchar(80),
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "pmc_inspection_request_units" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -1467,6 +1542,83 @@ CREATE TABLE "pmc_inspection_steps" (
 	"status" "pmc_inspection_steps_status" DEFAULT 'pending' NOT NULL,
 	"completed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_plan_months" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"month" date NOT NULL,
+	"planned_cost" numeric(18, 2),
+	"planned_percent" numeric(10, 8) NOT NULL,
+	"cumulative_percent" numeric(10, 8) NOT NULL,
+	"import_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_site_activities" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"code" varchar(80) NOT NULL,
+	"csi_name" varchar(255) NOT NULL,
+	"sub_name" varchar(255),
+	"name" varchar(255) NOT NULL,
+	"weight" numeric(10, 8) NOT NULL,
+	"model_codes_json" text,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"measure_unit" varchar(8) DEFAULT 'villa' NOT NULL,
+	"total_quantity" numeric(14, 3),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pmc_site_activities_measure_check" CHECK ("pmc_site_activities"."measure_unit" IN ('villa', 'lm', 'm2', 'piece') AND ("pmc_site_activities"."total_quantity" IS NULL OR "pmc_site_activities"."total_quantity" > 0) AND ("pmc_site_activities"."measure_unit" = 'villa' OR "pmc_site_activities"."total_quantity" IS NOT NULL))
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_site_activity_links" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"site_activity_id" varchar(36) NOT NULL,
+	"activity_code" varchar(80) NOT NULL,
+	"score" numeric(5, 4),
+	"confirmed" boolean DEFAULT false NOT NULL,
+	"confirmed_by_user_id" integer,
+	"confirmed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_site_cell_events" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"cell_id" varchar(36) NOT NULL,
+	"from_status" "pmc_site_status",
+	"to_status" "pmc_site_status" NOT NULL,
+	"status_on" date NOT NULL,
+	"entered_by_user_id" integer,
+	"entered_by_label" varchar(120),
+	"source" varchar(24) NOT NULL,
+	"batch_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_site_cells" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"unit_id" varchar(36) NOT NULL,
+	"site_activity_id" varchar(36) NOT NULL,
+	"status" "pmc_site_status" DEFAULT 'NOT_STARTED' NOT NULL,
+	"status_on" date,
+	"not_started_on" date,
+	"in_progress_on" date,
+	"done_on" date,
+	"inspection_requested_on" date,
+	"qc_approved_on" date,
+	"updated_by_user_id" integer,
+	"updated_by_label" varchar(120),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "pmc_site_plans" (
@@ -1529,10 +1681,14 @@ CREATE TABLE "pmc_units" (
 	"model_code" varchar(80) NOT NULL,
 	"sale_status" varchar(80),
 	"external_code" varchar(120),
+	"villa_label" varchar(40),
+	"net_sellable_area" numeric(12, 2),
+	"unit_price" numeric(14, 2),
 	"geometry_json" text,
 	"unit_weight" numeric(12, 4) DEFAULT '1' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pmc_units_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "pmc_verification_statuses" (
@@ -1631,6 +1787,19 @@ CREATE TABLE "project_commercial_invoices" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "project_companies" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"role" varchar(8) NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_companies_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id"),
+	CONSTRAINT "project_companies_role_check" CHECK ("project_companies"."role" IN ('main', 'sub'))
+);
+--> statement-breakpoint
 CREATE TABLE "project_documents" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -1642,6 +1811,20 @@ CREATE TABLE "project_documents" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "project_equipment" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"equipment_type" varchar(120) NOT NULL,
+	"model" varchar(120),
+	"plate_or_size" varchar(80),
+	"owner_company_id" varchar(36),
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_equipment_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "project_health_snapshots" (
@@ -1657,6 +1840,21 @@ CREATE TABLE "project_health_snapshots" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "project_labour_roles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"name" varchar(120) NOT NULL,
+	"category" varchar(8) NOT NULL,
+	"default_key" varchar(64),
+	"active" boolean DEFAULT true NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_labour_roles_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id"),
+	CONSTRAINT "project_labour_roles_category_check" CHECK ("project_labour_roles"."category" IN ('direct', 'indirect'))
+);
+--> statement-breakpoint
 CREATE TABLE "project_material_overrides" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -1669,6 +1867,53 @@ CREATE TABLE "project_material_overrides" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "project_profiles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"location" varchar(255),
+	"contract_number" varchar(80),
+	"client_name" varchar(255),
+	"consultant_name" varchar(255),
+	"contractor_name" varchar(255),
+	"client_logo_key" varchar(512),
+	"consultant_logo_key" varchar(512),
+	"contractor_logo_key" varchar(512),
+	"work_days" varchar(7) DEFAULT '01234' NOT NULL,
+	"work_start" time,
+	"work_end" time,
+	"report_prefix" varchar(16),
+	"updated_by_user_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_profiles_work_days_check" CHECK ("project_profiles"."work_days" ~ '^0?1?2?3?4?5?6?$' AND "project_profiles"."work_days" <> ''),
+	CONSTRAINT "project_profiles_work_hours_check" CHECK (("project_profiles"."work_start" IS NULL) = ("project_profiles"."work_end" IS NULL) AND ("project_profiles"."work_start" IS NULL OR "project_profiles"."work_start" < "project_profiles"."work_end")),
+	CONSTRAINT "project_profiles_report_prefix_check" CHECK ("project_profiles"."report_prefix" IS NULL OR "project_profiles"."report_prefix" ~ '^[A-Z0-9][A-Z0-9-]{0,15}$')
+);
+--> statement-breakpoint
+CREATE TABLE "project_report_approvers" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"step" varchar(8) NOT NULL,
+	"membership_id" varchar(36) NOT NULL,
+	"assigned_by_user_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_report_approvers_step_check" CHECK ("project_report_approvers"."step" IN ('prepare', 'review', 'approve'))
+);
+--> statement-breakpoint
+CREATE TABLE "project_report_counters" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"kind" varchar(16) NOT NULL,
+	"last_number" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_report_counters_kind_check" CHECK ("project_report_counters"."kind" IN ('daily'))
 );
 --> statement-breakpoint
 CREATE TABLE "project_resources" (
@@ -1879,6 +2124,46 @@ CREATE TABLE "self_service_signup_attempts" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "site_daily_report_equipment" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"equipment_id" varchar(36) NOT NULL,
+	"count" integer NOT NULL,
+	"hours" numeric(6, 2),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_report_equipment_values_check" CHECK ("site_daily_report_equipment"."count" > 0 AND ("site_daily_report_equipment"."hours" IS NULL OR ("site_daily_report_equipment"."hours" >= 0 AND "site_daily_report_equipment"."hours" <= 24)))
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_hse" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"kind" varchar(20) NOT NULL,
+	"description" text NOT NULL,
+	"people_count" integer,
+	"action_taken" text,
+	CONSTRAINT "site_daily_report_hse_kind_check" CHECK ("site_daily_report_hse"."kind" IN ('meeting', 'incident', 'near_miss', 'violation', 'corrective_action') AND ("site_daily_report_hse"."people_count" IS NULL OR "site_daily_report_hse"."people_count" >= 0))
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_labour" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"company_id" varchar(36) NOT NULL,
+	"labour_role_id" varchar(36) NOT NULL,
+	"shift" varchar(8) NOT NULL,
+	"headcount" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_report_labour_shift_check" CHECK ("site_daily_report_labour"."shift" IN ('day', 'night')),
+	CONSTRAINT "site_daily_report_labour_headcount_check" CHECK ("site_daily_report_labour"."headcount" >= 0)
+);
+--> statement-breakpoint
 CREATE TABLE "site_daily_report_lines" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -1888,12 +2173,45 @@ CREATE TABLE "site_daily_report_lines" (
 	"pmc_activity_definition_id" varchar(36),
 	"pmc_unit_id" varchar(36),
 	"label" varchar(160),
+	"wbs_code" varchar(40),
 	"quantity" numeric(10, 2),
 	"hours" numeric(6, 2),
 	"description" text,
 	"reported_status" "pmc_unit_activity_progress_status",
+	"planned_quantity" numeric(14, 3),
+	"actual_quantity" numeric(14, 3),
 	"sort_order" integer DEFAULT 0 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_report_lines_quantities_check" CHECK (("site_daily_report_lines"."planned_quantity" IS NULL OR "site_daily_report_lines"."planned_quantity" >= 0) AND ("site_daily_report_lines"."actual_quantity" IS NULL OR "site_daily_report_lines"."actual_quantity" >= 0))
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_materials" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"material" varchar(160) NOT NULL,
+	"quantity" numeric(14, 3) NOT NULL,
+	"unit" varchar(24) NOT NULL,
+	"supplier" varchar(160),
+	"consultant_submittal_id" varchar(36),
+	CONSTRAINT "site_daily_report_materials_quantity_check" CHECK ("site_daily_report_materials"."quantity" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_obstacles" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"issue" text NOT NULL,
+	"impact" text,
+	"responsible" varchar(160),
+	"action" text,
+	"due_date" date
 );
 --> statement-breakpoint
 CREATE TABLE "site_daily_report_photos" (
@@ -1906,8 +2224,25 @@ CREATE TABLE "site_daily_report_photos" (
 	"content_type" varchar(80) NOT NULL,
 	"size_bytes" integer NOT NULL,
 	"caption" varchar(255),
+	"zone" varchar(80),
+	"pmc_unit_id" varchar(36),
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "site_daily_report_tomorrow" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"area" varchar(160),
+	"activity" varchar(255) NOT NULL,
+	"quantity" numeric(14, 3),
+	"unit" varchar(24),
+	"resources" text,
+	CONSTRAINT "site_daily_report_tomorrow_quantity_check" CHECK ("site_daily_report_tomorrow"."quantity" IS NULL OR "site_daily_report_tomorrow"."quantity" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "site_daily_reports" (
@@ -1919,14 +2254,30 @@ CREATE TABLE "site_daily_reports" (
 	"temperature_c" numeric(5, 1),
 	"summary" text,
 	"obstacles" text,
+	"contractor_id" varchar(36),
+	"main_labour_count" integer,
+	"sub_labour_count" integer,
+	"inspection_status" varchar(24),
+	"day_progress_percent" numeric(7, 4),
+	"remaining_days" integer,
+	"recommendations" text,
+	"source_label" varchar(60),
 	"status" "site_daily_reports_status" DEFAULT 'draft' NOT NULL,
 	"prepared_by_user_id" integer NOT NULL,
 	"submitted_at" timestamp with time zone,
 	"reviewed_by_user_id" integer,
 	"reviewed_at" timestamp with time zone,
 	"review_note" varchar(500),
+	"checked_by_user_id" integer,
+	"checked_at" timestamp with time zone,
+	"check_note" varchar(500),
+	"report_number" varchar(40),
+	"wind" varchar(24),
+	"work_hours" numeric(4, 1),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_reports_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id"),
+	CONSTRAINT "site_daily_reports_work_hours_check" CHECK ("site_daily_reports"."work_hours" IS NULL OR ("site_daily_reports"."work_hours" >= 0 AND "site_daily_reports"."work_hours" <= 24))
 );
 --> statement-breakpoint
 CREATE TABLE "smart_reading_usage" (
@@ -1936,6 +2287,19 @@ CREATE TABLE "smart_reading_usage" (
 	"calls" integer DEFAULT 0 NOT NULL,
 	"estimated_micro_usd" integer DEFAULT 0 NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "stored_files" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"key" varchar(1024) NOT NULL,
+	"content_type" varchar(255) DEFAULT 'application/octet-stream' NOT NULL,
+	"size" integer NOT NULL,
+	"data" "bytea" NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "stored_files_size_check" CHECK ("stored_files"."size" >= 0 AND "stored_files"."size" <= 5242880 AND octet_length("stored_files"."data") = "stored_files"."size"),
+	CONSTRAINT "stored_files_key_owner_check" CHECK (split_part("stored_files"."key", '/', 2) = "stored_files"."tenant_id")
 );
 --> statement-breakpoint
 CREATE TABLE "subcontract_certificate_lines" (
@@ -2193,6 +2557,7 @@ CREATE TABLE "user_mfa" (
 	"last_used_step" integer,
 	"failures" integer DEFAULT 0 NOT NULL,
 	"locked_until" timestamp with time zone,
+	"required_by_self" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2599,6 +2964,22 @@ ALTER TABLE "pmc_baselines" ADD CONSTRAINT "pmc_base_activity_fk" FOREIGN KEY ("
 ALTER TABLE "pmc_blocks" ADD CONSTRAINT "pmc_blocks_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_blocks" ADD CONSTRAINT "pmc_blocks_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_blocks" ADD CONSTRAINT "pmc_blocks_zone_id_pmc_zones_id_fk" FOREIGN KEY ("zone_id") REFERENCES "public"."pmc_zones"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_cell_notes" ADD CONSTRAINT "pmc_cell_notes_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_cell_notes" ADD CONSTRAINT "pmc_cell_notes_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_cell_notes" ADD CONSTRAINT "pmc_cell_notes_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_cell_notes" ADD CONSTRAINT "pmc_cell_notes_unit_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."pmc_units"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cell_events" ADD CONSTRAINT "pmc_consultant_cell_events_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cell_events" ADD CONSTRAINT "pmc_consultant_cell_events_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cell_events" ADD CONSTRAINT "pmc_consultant_events_cell_fk" FOREIGN KEY ("cell_id") REFERENCES "public"."pmc_consultant_cells"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cells" ADD CONSTRAINT "pmc_consultant_cells_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cells" ADD CONSTRAINT "pmc_consultant_cells_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cells" ADD CONSTRAINT "pmc_consultant_cells_unit_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."pmc_units"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_cells" ADD CONSTRAINT "pmc_consultant_cells_column_fk" FOREIGN KEY ("column_id") REFERENCES "public"."pmc_consultant_columns"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_columns" ADD CONSTRAINT "pmc_consultant_columns_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_columns" ADD CONSTRAINT "pmc_consultant_columns_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_consultant_columns" ADD CONSTRAINT "pmc_consultant_columns_linked_by_user_id_users_id_fk" FOREIGN KEY ("linked_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_contractors" ADD CONSTRAINT "pmc_contractors_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_contractors" ADD CONSTRAINT "pmc_contractors_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_inspection_request_units" ADD CONSTRAINT "pmc_inspection_request_units_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_inspection_request_units" ADD CONSTRAINT "pmc_inspection_request_units_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_inspection_request_units" ADD CONSTRAINT "pmc_inspection_unit_request_fk" FOREIGN KEY ("inspection_request_id") REFERENCES "public"."pmc_inspection_requests"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2609,6 +2990,23 @@ ALTER TABLE "pmc_inspection_requests" ADD CONSTRAINT "pmc_insp_activity_fk" FORE
 ALTER TABLE "pmc_inspection_steps" ADD CONSTRAINT "pmc_inspection_steps_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_inspection_steps" ADD CONSTRAINT "pmc_inspection_steps_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_inspection_steps" ADD CONSTRAINT "pmc_step_request_fk" FOREIGN KEY ("inspection_request_id") REFERENCES "public"."pmc_inspection_requests"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_plan_months" ADD CONSTRAINT "pmc_plan_months_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_plan_months" ADD CONSTRAINT "pmc_plan_months_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activities" ADD CONSTRAINT "pmc_site_activities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activities" ADD CONSTRAINT "pmc_site_activities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activity_links" ADD CONSTRAINT "pmc_site_activity_links_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activity_links" ADD CONSTRAINT "pmc_site_activity_links_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activity_links" ADD CONSTRAINT "pmc_site_activity_links_confirmed_by_user_id_users_id_fk" FOREIGN KEY ("confirmed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_activity_links" ADD CONSTRAINT "pmc_site_links_activity_fk" FOREIGN KEY ("site_activity_id") REFERENCES "public"."pmc_site_activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cell_events" ADD CONSTRAINT "pmc_site_cell_events_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cell_events" ADD CONSTRAINT "pmc_site_cell_events_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cell_events" ADD CONSTRAINT "pmc_site_cell_events_entered_by_user_id_users_id_fk" FOREIGN KEY ("entered_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cell_events" ADD CONSTRAINT "pmc_site_events_cell_fk" FOREIGN KEY ("cell_id") REFERENCES "public"."pmc_site_cells"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cells" ADD CONSTRAINT "pmc_site_cells_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cells" ADD CONSTRAINT "pmc_site_cells_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cells" ADD CONSTRAINT "pmc_site_cells_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cells" ADD CONSTRAINT "pmc_site_cells_unit_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."pmc_units"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_site_cells" ADD CONSTRAINT "pmc_site_cells_activity_fk" FOREIGN KEY ("site_activity_id") REFERENCES "public"."pmc_site_activities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_plans" ADD CONSTRAINT "pmc_site_plans_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_plans" ADD CONSTRAINT "pmc_site_plans_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_plans" ADD CONSTRAINT "pmc_site_plans_uploaded_by_user_id_users_id_fk" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2652,15 +3050,31 @@ ALTER TABLE "progress_entries" ADD CONSTRAINT "progress_entries_activity_id_acti
 ALTER TABLE "project_commercial_invoices" ADD CONSTRAINT "proinv_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_commercial_invoices" ADD CONSTRAINT "proinv_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_commercial_invoices" ADD CONSTRAINT "proinv_creator_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_companies" ADD CONSTRAINT "project_companies_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_companies" ADD CONSTRAINT "project_companies_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_documents" ADD CONSTRAINT "project_documents_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_documents" ADD CONSTRAINT "project_documents_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_documents" ADD CONSTRAINT "project_documents_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_equipment" ADD CONSTRAINT "project_equipment_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_equipment" ADD CONSTRAINT "project_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_equipment" ADD CONSTRAINT "project_equipment_owner_same_project_fk" FOREIGN KEY ("owner_company_id","tenant_id","project_id") REFERENCES "public"."project_companies"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_health_snapshots" ADD CONSTRAINT "project_health_snapshots_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_health_snapshots" ADD CONSTRAINT "project_health_snapshots_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_labour_roles" ADD CONSTRAINT "project_labour_roles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_labour_roles" ADD CONSTRAINT "project_labour_roles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_assigned_by_user_id_users_id_fk" FOREIGN KEY ("assigned_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_approvers" ADD CONSTRAINT "project_report_approvers_membership_tenant_fk" FOREIGN KEY ("membership_id","tenant_id") REFERENCES "public"."memberships"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_counters" ADD CONSTRAINT "project_report_counters_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_report_counters" ADD CONSTRAINT "project_report_counters_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2699,18 +3113,43 @@ ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_created_by_use
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "self_service_signup_attempts" ADD CONSTRAINT "self_service_signup_attempts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_item_fk" FOREIGN KEY ("equipment_id","tenant_id","project_id") REFERENCES "public"."project_equipment"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_hse" ADD CONSTRAINT "site_daily_report_hse_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_company_fk" FOREIGN KEY ("company_id","tenant_id","project_id") REFERENCES "public"."project_companies"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_labour" ADD CONSTRAINT "site_daily_report_labour_role_fk" FOREIGN KEY ("labour_role_id","tenant_id","project_id") REFERENCES "public"."project_labour_roles"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_lines" ADD CONSTRAINT "site_daily_report_lines_report_id_site_daily_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."site_daily_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_materials" ADD CONSTRAINT "site_daily_report_materials_submittal_fk" FOREIGN KEY ("consultant_submittal_id","tenant_id","project_id") REFERENCES "public"."consultant_submittals"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_obstacles" ADD CONSTRAINT "site_daily_report_obstacles_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_report_id_site_daily_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."site_daily_reports"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_photos" ADD CONSTRAINT "site_daily_report_photos_unit_fk" FOREIGN KEY ("pmc_unit_id","tenant_id","project_id") REFERENCES "public"."pmc_units"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_tomorrow" ADD CONSTRAINT "site_daily_report_tomorrow_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_user_id_users_id_fk" FOREIGN KEY ("prepared_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_checked_by_user_id_users_id_fk" FOREIGN KEY ("checked_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stored_files" ADD CONSTRAINT "stored_files_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificates" ADD CONSTRAINT "subcert_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -2964,12 +3403,32 @@ CREATE UNIQUE INDEX "pmc_baseline_activity_period_unique" ON "pmc_baselines" USI
 CREATE INDEX "pmc_baselines_tenant_project_period_idx" ON "pmc_baselines" USING btree ("tenant_id","project_id","period_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_blocks_project_code_unique" ON "pmc_blocks" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_blocks_tenant_project_zone_idx" ON "pmc_blocks" USING btree ("tenant_id","project_id","zone_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_cell_notes_unit_activity_unique" ON "pmc_cell_notes" USING btree ("unit_id","activity_code");--> statement-breakpoint
+CREATE INDEX "pmc_cell_notes_tenant_project_idx" ON "pmc_cell_notes" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE INDEX "pmc_consultant_events_tenant_project_idx" ON "pmc_consultant_cell_events" USING btree ("tenant_id","project_id","created_at");--> statement-breakpoint
+CREATE INDEX "pmc_consultant_events_cell_idx" ON "pmc_consultant_cell_events" USING btree ("cell_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_consultant_cells_unit_column_unique" ON "pmc_consultant_cells" USING btree ("unit_id","column_id");--> statement-breakpoint
+CREATE INDEX "pmc_consultant_cells_tenant_project_status_idx" ON "pmc_consultant_cells" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_consultant_columns_project_key_unique" ON "pmc_consultant_columns" USING btree ("project_id","source_key");--> statement-breakpoint
+CREATE INDEX "pmc_consultant_columns_tenant_project_idx" ON "pmc_consultant_columns" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_contractors_project_name_unique" ON "pmc_contractors" USING btree ("project_id","name");--> statement-breakpoint
+CREATE INDEX "pmc_contractors_tenant_project_idx" ON "pmc_contractors" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_inspection_unit_unique" ON "pmc_inspection_request_units" USING btree ("inspection_request_id","unit_id");--> statement-breakpoint
 CREATE INDEX "pmc_inspection_units_tenant_project_idx" ON "pmc_inspection_request_units" USING btree ("tenant_id","project_id","unit_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_inspections_project_code_unique" ON "pmc_inspection_requests" USING btree ("project_id","request_code");--> statement-breakpoint
 CREATE INDEX "pmc_inspections_tenant_project_activity_idx" ON "pmc_inspection_requests" USING btree ("tenant_id","project_id","activity_definition_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_inspection_step_unique" ON "pmc_inspection_steps" USING btree ("inspection_request_id","step_code");--> statement-breakpoint
 CREATE INDEX "pmc_inspection_steps_tenant_project_status_idx" ON "pmc_inspection_steps" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_plan_months_project_month_unique" ON "pmc_plan_months" USING btree ("project_id","month");--> statement-breakpoint
+CREATE INDEX "pmc_plan_months_tenant_project_idx" ON "pmc_plan_months" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_site_activities_project_code_unique" ON "pmc_site_activities" USING btree ("project_id","code");--> statement-breakpoint
+CREATE INDEX "pmc_site_activities_tenant_project_idx" ON "pmc_site_activities" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_site_links_activity_code_unique" ON "pmc_site_activity_links" USING btree ("site_activity_id","activity_code");--> statement-breakpoint
+CREATE INDEX "pmc_site_links_tenant_project_idx" ON "pmc_site_activity_links" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE INDEX "pmc_site_events_tenant_project_idx" ON "pmc_site_cell_events" USING btree ("tenant_id","project_id","created_at");--> statement-breakpoint
+CREATE INDEX "pmc_site_events_cell_idx" ON "pmc_site_cell_events" USING btree ("cell_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_site_cells_unit_activity_unique" ON "pmc_site_cells" USING btree ("unit_id","site_activity_id");--> statement-breakpoint
+CREATE INDEX "pmc_site_cells_tenant_project_status_idx" ON "pmc_site_cells" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE INDEX "pmc_site_plans_tenant_project_idx" ON "pmc_site_plans" USING btree ("tenant_id","project_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_status_factor_unique" ON "pmc_status_factors" USING btree ("project_id","status");--> statement-breakpoint
 CREATE INDEX "pmc_status_factors_tenant_project_idx" ON "pmc_status_factors" USING btree ("tenant_id","project_id");--> statement-breakpoint
@@ -2978,6 +3437,7 @@ CREATE UNIQUE INDEX "pmc_unit_activity_unique" ON "pmc_unit_activity_progress" U
 CREATE INDEX "pmc_unit_progress_tenant_project_status_idx" ON "pmc_unit_activity_progress" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_units_project_number_unique" ON "pmc_units" USING btree ("project_id","unit_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_units_project_external_code_unique" ON "pmc_units" USING btree ("project_id","external_code") WHERE "pmc_units"."external_code" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_units_project_villa_label_unique" ON "pmc_units" USING btree ("project_id","villa_label") WHERE "pmc_units"."villa_label" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "pmc_units_tenant_project_block_idx" ON "pmc_units" USING btree ("tenant_id","project_id","block_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_verification_status_project_code_unique" ON "pmc_verification_statuses" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_verification_status_tenant_project_idx" ON "pmc_verification_statuses" USING btree ("tenant_id","project_id","active");--> statement-breakpoint
@@ -2992,12 +3452,23 @@ CREATE INDEX "programs_tenant_portfolio_idx" ON "programs" USING btree ("tenant_
 CREATE INDEX "progress_entries_tenant_project_date_idx" ON "progress_entries" USING btree ("tenant_id","project_id","measured_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "proj_inv_project_number_unique" ON "project_commercial_invoices" USING btree ("project_id","invoice_number");--> statement-breakpoint
 CREATE INDEX "proj_inv_tenant_project_idx" ON "project_commercial_invoices" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_companies_one_active_main" ON "project_companies" USING btree ("project_id") WHERE "project_companies"."role" = 'main' AND "project_companies"."active";--> statement-breakpoint
+CREATE INDEX "project_companies_tenant_project_idx" ON "project_companies" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_documents_project_number_unique" ON "project_documents" USING btree ("project_id","document_number");--> statement-breakpoint
 CREATE INDEX "project_documents_tenant_project_status_idx" ON "project_documents" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_equipment_project_plate_unique" ON "project_equipment" USING btree ("project_id",lower("plate_or_size")) WHERE "project_equipment"."plate_or_size" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "project_equipment_tenant_project_idx" ON "project_equipment" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_health_period_unique" ON "project_health_snapshots" USING btree ("project_id","period_at");--> statement-breakpoint
 CREATE INDEX "project_health_tenant_project_idx" ON "project_health_snapshots" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_labour_roles_project_name_unique" ON "project_labour_roles" USING btree ("project_id",lower("name"));--> statement-breakpoint
+CREATE UNIQUE INDEX "project_labour_roles_project_default_unique" ON "project_labour_roles" USING btree ("project_id","default_key") WHERE "project_labour_roles"."default_key" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "project_labour_roles_tenant_project_idx" ON "project_labour_roles" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_material_overrides_project_material_unique" ON "project_material_overrides" USING btree ("project_id","material_id");--> statement-breakpoint
 CREATE INDEX "project_material_overrides_tenant_project_idx" ON "project_material_overrides" USING btree ("tenant_id","project_id","material_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_profiles_tenant_project_unique" ON "project_profiles" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_report_approvers_project_step_unique" ON "project_report_approvers" USING btree ("tenant_id","project_id","step");--> statement-breakpoint
+CREATE INDEX "project_report_approvers_membership_idx" ON "project_report_approvers" USING btree ("membership_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_report_counters_project_kind_unique" ON "project_report_counters" USING btree ("tenant_id","project_id","kind");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_resources_project_code_unique" ON "project_resources" USING btree ("project_id","resource_code");--> statement-breakpoint
 CREATE INDEX "project_resources_tenant_project_type_idx" ON "project_resources" USING btree ("tenant_id","project_id","resource_type");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_warehouses_project_code_unique" ON "project_warehouses" USING btree ("project_id","code");--> statement-breakpoint
@@ -3026,13 +3497,24 @@ CREATE UNIQUE INDEX "schedule_calendars_project_external_unique" ON "schedule_ca
 CREATE INDEX "scheduled_jobs_task_uid_idx" ON "scheduled_jobs" USING btree ("schedule_cron_task_uid");--> statement-breakpoint
 CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "site_daily_report_equipment_item_unique" ON "site_daily_report_equipment" USING btree ("report_id","equipment_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_equipment_tenant_project_idx" ON "site_daily_report_equipment" USING btree ("tenant_id","project_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_hse_report_idx" ON "site_daily_report_hse" USING btree ("report_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "site_daily_report_labour_cell_unique" ON "site_daily_report_labour" USING btree ("report_id","company_id","labour_role_id","shift");--> statement-breakpoint
+CREATE INDEX "site_daily_report_labour_tenant_project_idx" ON "site_daily_report_labour" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_lines_report_idx" ON "site_daily_report_lines" USING btree ("report_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_lines_cell_idx" ON "site_daily_report_lines" USING btree ("pmc_unit_id","pmc_activity_definition_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_materials_report_idx" ON "site_daily_report_materials" USING btree ("report_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_obstacles_report_idx" ON "site_daily_report_obstacles" USING btree ("report_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_photos_report_idx" ON "site_daily_report_photos" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_photos_key_unique" ON "site_daily_report_photos" USING btree ("storage_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id");--> statement-breakpoint
+CREATE INDEX "site_daily_report_tomorrow_report_idx" ON "site_daily_report_tomorrow" USING btree ("report_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id",coalesce("contractor_id", ''));--> statement-breakpoint
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "site_daily_reports_project_number_unique" ON "site_daily_reports" USING btree ("project_id","report_number") WHERE "site_daily_reports"."report_number" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint
+CREATE UNIQUE INDEX "stored_files_key_unique" ON "stored_files" USING btree ("key");--> statement-breakpoint
+CREATE INDEX "stored_files_tenant_idx" ON "stored_files" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint

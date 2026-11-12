@@ -50,7 +50,7 @@ export function GuardedPanels({ children, isArabic, titles }: { children: React.
 }
 
 /** `error` is the source's error: a refusal says so in a sentence (the server's, when it sent one) instead of the generic failure copy. */
-export function SectionMessage({ title, isArabic, language, kind, detail, onRetry, error }: { title: string; isArabic: boolean; language?: Language; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown }) {
+export function SectionMessage({ title, isArabic, language, kind, detail, onRetry, error, actions }: { title: string; isArabic: boolean; language?: Language; kind: "loading" | "empty" | "error" | "partial"; detail?: string; onRetry?: () => void; error?: unknown; actions?: React.ReactNode }) {
   const contextLanguage = useOptionalLanguage();
   const lang = language ?? contextLanguage ?? resolveLanguage(isArabic);
   const copy = pickLanguage(lang, { ar: {
@@ -73,7 +73,7 @@ export function SectionMessage({ title, isArabic, language, kind, detail, onRetr
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">
       {kind === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? (kind === "error" && isRefusal(error) ? refusalSentence(error, lang, "section") : copy[kind])}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}</div>
+      <div><p className="font-semibold">{title}</p><p className="mt-1">{detail ?? (kind === "error" && isRefusal(error) ? refusalSentence(error, lang, "section") : copy[kind])}</p>{onRetry && <button type="button" className="mt-2 min-h-[44px] rounded-lg border border-current bg-white px-4 text-sm font-semibold" onClick={onRetry}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}{actions ? <div className="mt-3">{actions}</div> : null}</div>
     </div>
   </section>;
 }

@@ -5,12 +5,24 @@ name: Migrate and promote production
 #   2. the migrations are applied to the production database, then verify-db-security proves the restricted application role (the result is written in the summary);
 #   3. the release candidate is BUILT HERE and started against that migrated database as the restricted role: /healthz 200, a wrong sign-in code answers 4xx (never 5xx), /api/readyz lists no pending migration;
 #      with no publishable key in the repository (D-69) the sign-in check is replaced by the public tRPC procedure system.health (200, ok=true): without a key that check answers 503 by design;
-#   4. only then is the `production` branch fast-forwarded to this commit, which is what makes Vercel build production (Vercel: Settings -> Git -> Production Branch = production; main is a Preview only).
-# Any failure stops the run before the next step: nothing is promoted, the site keeps serving the previous release.
-# Secrets: SUPABASE_DB_PASSWORD only (no Supabase or Vercel access token, no Deploy Hook: the push to `production` is the trigger). Variable (optional): SUPABASE_POOLER_HOST (pins the
-# session-pooler host; otherwise it is found by trying). The project URL and its PUBLIC publishable key (sb_publishable_, optional since D-69: it adds the sign-in check) are
+#   4b. only then is production deployed from here with the Vercel CLI (D-78) — when VERCEL_TOKEN may use the project (scripts/ci/vercel-access.sh, D-85). Without that access
+#      (no token, or 401/403 for the team) 4b and 5 are skipped with a warning and step 6 alone deploys: Vercel builds production from the `production` branch (O-5). Otherwise: vercel pull, vercel build --prod, vercel deploy --prebuilt --prod --skip-domain (a production
+#      deployment the production domains do NOT point to yet). No Vercel setting is needed (the
+#      dashboard's Production Branch can stay main; scripts/ci/vercel-ignore.sh still refuses a production build of main from git, and an Ignored Build Step does not apply to a
+#      --prebuilt deployment, which has no build on Vercel to skip);
+#   5. vercel inspect proves the new deployment is READY with target production and scripts/ci/post-deploy-check.mjs checks its own address (a failure here changes nothing);
+#      then vercel promote, then vercel inspect of the production address is asked until it names the new deployment, and the same check runs on the production address. A failure
+#      after the promotion rolls production back (vercel rollback to the deployment that served before 4b) and fails the run. The explicit promote also restores the automatic
+#      domain assignment that any earlier rollback turned off;
+#   6. last, the `production` branch is fast-forwarded to this commit (never a force-push). It records what production serves: the "What would ship" diff is taken against it, so it moves
+#      only after production is verified, and a failed deployment is retried by the next run.
+# Any failure stops the run before the next step. A failure before the promotion in 5 changes nothing on the site; a failure after it rolls it back. The .vercel/ folder (vercel pull writes the production
+# environment there) is deleted by the last step, whatever happened.
+# Secrets: SUPABASE_DB_PASSWORD, and VERCEL_TOKEN (optional since D-85; checked with vercel whoami AND a throw-away vercel pull of the project before any migration; it is passed to the CLI through the environment, never on a command line, never printed),
+# optional VERCEL_AUTOMATION_BYPASS_SECRET. Variables (optional): SUPABASE_POOLER_HOST (pins the session-pooler host; otherwise it is found by trying), VERCEL_TEAM_ID, VERCEL_PROJECT_ID
+# and PRODUCTION_URL (defaults below, the same as post-deploy.yml). The project URL and its PUBLIC publishable key (sb_publishable_, optional since D-69: it adds the sign-in check) are
 # read from config/supabase.public.json in the repository, never from a GitHub variable (D-35); a secret key there is refused by scripts/ci/public-config-check.sh and by
-# server/testing/supabasePublicConfig.test.ts.
+# server/testing/supabasePublicConfig.test.ts. The order of the steps is held by server/testing/releaseWorkflow.test.ts.
 # It starts when CI on main has FINISHED GREEN for the commit (workflow_run), not on the push itself: the heavy checks (unit tests, database suite,
 # screenshots, the three journeys) run once on main and nothing is migrated or promoted before they pass (owner's decision, 2026-10-27). A CI run cancelled
 # by a newer merge releases nothing; the newer commit's run does. By hand (workflow_dispatch) it releases main's newest commit.
@@ -23,7 +35,6 @@ on:
 
 permissions:
   contents: write
-  deployments: read
 
 concurrency:
   group: migrate-production
@@ -39,6 +50,11 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_POOLER_HOST }}
       GH_TOKEN: ${{ github.token }}
+      # the same team and project as post-deploy.yml; the Vercel CLI reads these two names (no link file is committed)
+      VERCEL_ORG_ID: ${{ vars.VERCEL_TEAM_ID || 'team_DDgIiaktQp5KcMWBYSnBPxEf' }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_z9rRP8H1AzWS5ElYIZMtJn12sgZM' }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://dashio-lovat.vercel.app' }}
+      VERCEL_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,15 +90,23 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Install
+      - name: Install (and the Vercel CLI, pinned)
         if: steps.scope.outputs.deploy == 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Refuse to start without the one secret or with a non-public Supabase key
+        run: |
+          pnpm install --frozen-lockfile
+          npm install -g vercel@65.2.0
+      - name: Refuse to start without the database secret or with a non-public Supabase key; decide whether the CLI deploys (VERCEL_TOKEN access)
         id: config
         if: steps.scope.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
+          # D-78/D-85/D-85b: may step 4b deploy production with the CLI? Proven BEFORE any migration (the HTTP status of GET /v9/projects/{id}, then a throw-away vercel pull).
+          # A missing token or a 401/403 (run 42738392972) is a warning and cli=false: Vercel then builds production from the branch step 6 moves (O-5) and step 6b waits for it.
+          # Any other status (404, 429, 5xx, a timeout) stops the run here, before anything is migrated. The token is never on a command line nor printed.
+          bash scripts/ci/vercel-access.sh "$GITHUB_OUTPUT"
           # url required; publishableKey empty = has_key=false (step 3 runs without the sign-in check); anything but sb_publishable_ fails (D-69)
           bash scripts/ci/public-config-check.sh config/supabase.public.json >> "$GITHUB_OUTPUT"
       - name: 1. Migrations are backward compatible
@@ -139,33 +163,123 @@ jobs:
           # the same check also WARNS (does not fail) on pending migrations; here that is a failure: step 2 has just applied them all
           if grep -q "migrations pending\|schema behind" "$RUNNER_TEMP/gate.log"; then echo "::error::the migrated database still lacks migrations the release names"; status=1; fi
           [ "$status" -eq 0 ] || { echo "--- server log (tail, no secrets) ---"; tail -n 20 "$RUNNER_TEMP/server.log" | cut -c1-300; exit 1; }
-      - name: 4. Promote (fast-forward the production branch; never a force-push)
+      - name: 4b. Deploy production (Vercel CLI, --skip-domain so production does not move yet)
+        id: deploy
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # what production serves now: step 5 rolls back to it if the promoted deployment fails (empty on the very first deployment)
+          previous="$(vercel inspect "${PRODUCTION_URL#https://}" --json 2>/dev/null | jq -r '.id // empty' || true)"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          echo "production before this release: ${previous:-(none found)}"
+          # the production environment of the Vercel project is written under .vercel/ (deleted by the last step, never uploaded as an artifact)
+          vercel pull --yes --environment=production
+          vercel build --prod
+          # --skip-domain: a production deployment that is NOT aliased to the production domains; step 5 checks it, then promotes it. So any failure from here
+          # to the promotion (no address printed, not READY, a failed check) leaves production exactly as it was, with nothing to roll back.
+          vercel deploy --prebuilt --prod --skip-domain > "$RUNNER_TEMP/deploy.out"
+          url="$(grep -Eo 'https://[^[:space:]]+' "$RUNNER_TEMP/deploy.out" | tail -n 1 || true)"
+          if [ -z "$url" ]; then
+            echo "::error::vercel deploy did not print a deployment address; production was not changed (--skip-domain)"; exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "deployed (not yet serving production): $url"
+      - name: 5. Check the new deployment, promote it, prove production serves it (roll back on failure)
+        id: verify
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli == 'true'
+        # NOT GitHub's default `bash -e {0}`: a failing check must reach the handler on the next line, not end the step there (QA on #231)
+        shell: bash --noprofile --norc {0}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+          PREVIOUS: ${{ steps.deploy.outputs.previous }}
+          HAS_KEY: ${{ steps.config.outputs.has_key }}
+          PROMOTE_WAIT_SECONDS: "300"
+        run: |
+          set -uo pipefail
+          # post-deploy.yml is not relied on: a CLI deployment may create no GitHub deployment_status for it to react to
+          # before the promotion production is untouched: stop, nothing to undo
+          fail() {
+            echo "::error title=Not promoted::$1. Production was not changed."
+            exit 1
+          }
+          # after the promotion: back to what served before step 4b
+          roll_back() {
+            echo "::error title=Production check failed::$1"
+            if [ -n "$PREVIOUS" ]; then
+              if vercel rollback "$PREVIOUS" --yes; then echo "::warning title=Production rolled back::to deployment $PREVIOUS"; echo "rolled_back=$PREVIOUS" >> "$GITHUB_OUTPUT"
+              else echo "::error title=Rollback failed::use Vercel -> Deployments -> the previous one -> Instant Rollback"; fi
+            else
+              echo "::error title=No automatic rollback::no previous production deployment was recorded in step 4b; use Vercel -> Deployments -> Instant Rollback"
+            fi
+            exit 1
+          }
+          check_args=()
+          [ "$HAS_KEY" = "true" ] || check_args=(--without-sign-in)
+          # 1) the new deployment is READY and is a production deployment
+          info="$(vercel inspect "$DEPLOY_URL" --wait --timeout 5m --json 2>/dev/null)" || fail "vercel inspect could not read $DEPLOY_URL"
+          new_id="$(jq -r '.id // empty' <<<"$info")"
+          state="$(jq -r '.readyState // empty' <<<"$info")"
+          target="$(jq -r '.target // empty' <<<"$info")"
+          echo "deployment $DEPLOY_URL: id=$new_id state=$state target=$target"
+          if [ -z "$new_id" ] || [ "$state" != "READY" ] || [ "$target" != "production" ]; then fail "$DEPLOY_URL is id=$new_id state=$state target=$target, not a READY production deployment"; fi
+          # 2) the post-deploy check on the deployment's own address, before it serves anyone
+          node scripts/ci/post-deploy-check.mjs "$DEPLOY_URL" "${check_args[@]}" 2>&1 | tee "$RUNNER_TEMP/deployment.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # a deployment address behind Vercel's protection answers 401/403 without the bypass secret: that is "cannot check here", not "broken";
+            # the same check then runs on the production address after the promotion, with the rollback behind it
+            if [ -z "$BYPASS_SECRET" ] && grep -Eq '^healthz: (401|403)$' "$RUNNER_TEMP/deployment.log"; then
+              echo "::notice::$DEPLOY_URL is protected and VERCEL_AUTOMATION_BYPASS_SECRET is not set: checked after the promotion only"
+            else
+              fail "the post-deploy check of $DEPLOY_URL failed"
+            fi
+          fi
+          # 3) promote it (this also restores the automatic domain assignment a past rollback turned off)
+          vercel promote "$new_id" --yes || roll_back "vercel promote $new_id failed"
+          # 4) the production address serves THIS deployment (no fixed sleep: ask until it does or the time is up)
+          served=""
+          deadline=$((SECONDS + PROMOTE_WAIT_SECONDS))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            served="$(vercel inspect "${PRODUCTION_URL#https://}" --json 2>/dev/null | jq -r '.id // empty')"
+            if [ "$served" = "$new_id" ]; then break; fi
+            sleep 10
+          done
+          echo "production $PRODUCTION_URL serves: ${served:-(unknown)}"
+          if [ "$served" != "$new_id" ]; then roll_back "$PRODUCTION_URL still serves ${served:-an unknown deployment}, not $new_id, ${PROMOTE_WAIT_SECONDS}s after the promotion"; fi
+          # 5) the same check on the production address
+          node scripts/ci/post-deploy-check.mjs "$PRODUCTION_URL" "${check_args[@]}" 2>&1 | tee "$RUNNER_TEMP/production.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then roll_back "the post-deploy check of $PRODUCTION_URL failed"; fi
+          echo "Production $PRODUCTION_URL serves ${{ steps.scope.outputs.sha }} (deployment $new_id, $DEPLOY_URL) and passed the post-deploy check." >> "$GITHUB_STEP_SUMMARY"
+      - name: 6. Promote (fast-forward the production branch to what production now serves; never a force-push)
         id: promote
         if: steps.scope.outputs.deploy == 'true'
+        env:
+          CLI_DEPLOYED: ${{ steps.config.outputs.cli }}
         run: |
           set -euo pipefail
           sha="${{ steps.scope.outputs.sha }}"
           git push origin "$sha:refs/heads/production"
           echo "promoted=$sha" >> "$GITHUB_OUTPUT"
-      - name: 5. Did Vercel build it as PRODUCTION? (a Preview means the Production Branch setting is still main)
-        if: steps.scope.outputs.deploy == 'true'
+          # D-85: without the CLI (cli=false) this push IS the deployment: Vercel builds production from this branch (O-5), and post-deploy.yml checks it when Vercel reports it
+          if [ "$CLI_DEPLOYED" != "true" ]; then
+            echo "::notice title=Production deployed by Vercel::the production branch moved to $sha after the migrations and the release check passed; Vercel builds production from it, and post-deploy.yml checks that deployment"
+          fi
+      - name: 6b. Without the CLI, wait until production serves the pushed commit (fail after the time limit; rollback is manual)
+        id: confirm
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli != 'true'
+        env:
+          CONFIRM_WAIT_SECONDS: ${{ vars.CONFIRM_WAIT_SECONDS || '900' }}
         run: |
-          sha="${{ steps.scope.outputs.sha }}"
-          for _ in $(seq 1 45); do
-            rows="$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$sha&per_page=20" --jq '.[] | "\(.id) \(.environment)"' 2>/dev/null || true)"
-            if echo "$rows" | grep -qi "production"; then
-              id="$(echo "$rows" | grep -i production | head -1 | cut -d' ' -f1)"
-              state="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state' 2>/dev/null || true)"
-              echo "production deployment $id: ${state:-pending}"
-              [ "$state" = "success" ] && { echo "Vercel built $sha for production (post-deploy.yml checks it and rolls back on failure)." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
-              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then echo "::error::the production build of $sha failed on Vercel"; exit 1; fi
-            elif [ -n "$rows" ] && echo "$rows" | grep -qi "preview"; then
-              echo "::error title=Vercel built it as a Preview::Vercel -> dashio -> Settings -> Git -> Production Branch must be 'production' (docs/GO_LIVE.md). Until then production does not move; the database is already migrated and the site is safe on the previous release."
-              exit 1
-            fi
-            sleep 20
-          done
-          echo "::warning::no deployment for $sha appeared within 15 minutes (Vercel may have skipped it as unchanged)"
+          set -euo pipefail
+          # D-85b: step 6's push IS the deployment on this path. /api/readyz names the commit Vercel built (VERCEL_GIT_COMMIT_SHA); a production that does not serve the
+          # pushed sha within the limit fails the run. Nothing is rolled back automatically here: docs/OWNER_ACTIONS.md §16 (Instant Rollback).
+          bash scripts/ci/wait-for-commit.sh "$PRODUCTION_URL" "${{ steps.scope.outputs.sha }}" "$CONFIRM_WAIT_SECONDS" 15 2>&1 | tee "$RUNNER_TEMP/confirm.log"
+          echo "confirmed=${{ steps.scope.outputs.sha }}" >> "$GITHUB_OUTPUT"
       - name: Summary (no secrets)
         if: always() && steps.scope.outputs.deploy == 'true'
         run: |
@@ -174,5 +288,13 @@ jobs:
             echo "### Migrations"; echo '```'; tail -n 4 "$RUNNER_TEMP/migrate.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
             echo "### verify-db-security"; echo '```'; tail -n 3 "$RUNNER_TEMP/verify.log" 2>/dev/null | cut -c1-400 || echo "(did not run)"; echo '```'
             echo "### Release check (healthz, wrong sign-in code is 4xx or system.health without a key, readyz)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/gate.log" 2>/dev/null || echo "(did not run)"; echo '```'
-            echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'NOT promoted: a step before it failed, the site stays on the previous release' }}"
+            echo "### Production deployment (Vercel CLI)"; echo "${{ steps.deploy.outputs.url && format('deployed {0} (serves production only if step 5 promoted it)', steps.deploy.outputs.url) || 'NOT deployed: a step before it failed, the site stays on the previous release' }}"
+            echo "${{ steps.verify.outputs.rolled_back && format('ROLLED BACK to {0}: the new deployment failed its check', steps.verify.outputs.rolled_back) || '' }}"
+            echo "### Check of the new deployment, before the promotion"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/deployment.log" 2>/dev/null || echo "(did not run)"; echo '```'
+            echo "### Production check, after the promotion"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/production.log" 2>/dev/null || echo "(did not run)"; echo '```'
+            echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'production branch NOT moved: a step before it failed' }}"
+            echo "### Production serves the release (without the CLI, step 6b)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/confirm.log" 2>/dev/null || echo "(did not run: the CLI deployed and step 5 checked it, or a step before failed)"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Delete .vercel/ (the pulled production environment), whatever happened
+        if: always()
+        run: rm -rf .vercel

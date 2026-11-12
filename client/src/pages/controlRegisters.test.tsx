@@ -84,13 +84,16 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <span>Language toggle</span> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, isArabic: boolean) => isArabic ? "خطأ موضّع" : "Localized error" }));
+// the catalogue takes a language or the older isArabic flag: Arabic either way when asked for it
+vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (_error: unknown, language: boolean | string) => (language === true || language === "ar") ? "خطأ موضّع" : "Localized error" }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: null, logout: vi.fn(), loading: false }) }));
 vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
 vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
 vi.mock("./ProjectProcurement", () => ({ ProjectProcurement: () => null }));
 vi.mock("./ProjectGoodsReceipts", () => ({ ProjectGoodsReceipts: () => null }));
+vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("wouter", () => ({
+  useLocation: () => ["/", vi.fn()],
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
   useParams: () => ({ tenantId: "tenant-1" }),
 }));
@@ -224,6 +227,8 @@ vi.mock("@/lib/trpc", () => ({
     tenant: {
       administration: { useQuery: () => ({ isLoading: false, error: null, data: state.tenantAdminData }) },
       roleTemplateRemovals: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      securitySettings: { useQuery: () => ({ data: undefined, isLoading: false, isError: true }) },
+      setRequireTwoStep: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       decideRoleTemplateRemovals: { useMutation: () => ({ mutate: vi.fn(), error: null, isPending: false }) },
       findAssignableUser: { useQuery: () => ({ data: { id: 77, name: "Khalid", email: "khalid@example.com" }, error: null, isFetching: false }) },
       assignMember: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: state.tenantAssignmentError, isSuccess: state.tenantAssignmentSuccess }) },

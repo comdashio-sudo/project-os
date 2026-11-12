@@ -2,14 +2,6 @@
  "client/src/components/DirectImportRunner.tsx": {
   "raw-file-input": 1
  },
- "client/src/components/FieldShell.tsx": {
-  "hardcoded-colour": 3,
-  "number-format": 1
- },
- "client/src/components/LevelDashboard.tsx": {
-  "hardcoded-colour": 4,
-  "number-format": 3
- },
  "client/src/components/MasterPlanDrawing.tsx": {
   "raw-file-input": 1,
   "raw-select": 5,
@@ -87,32 +79,14 @@
   "hardcoded-colour": 6,
   "number-format": 1
  },
- "client/src/pages/FieldEntry.tsx": {
-  "raw-select": 9,
-  "hardcoded-colour": 12,
-  "number-format": 2
- },
  "client/src/pages/Home.tsx": {
-  "hardcoded-colour": 8
+  "hardcoded-colour": 6
  },
  "client/src/pages/IntegrationSettings.tsx": {
   "raw-select": 13,
   "hardcoded-colour": 1
  },
  "client/src/pages/LabourLoadingCard.tsx": {
-  "number-format": 1
- },
- "client/src/pages/LevelCompany.tsx": {
-  "hardcoded-colour": 1
- },
- "client/src/pages/LevelPortfolio.tsx": {
-  "hardcoded-colour": 1
- },
- "client/src/pages/LevelProject.tsx": {
-  "number-format": 1
- },
- "client/src/pages/LevelWarehouse.tsx": {
-  "hardcoded-colour": 1,
   "number-format": 1
  },
  "client/src/pages/LicensingConsole.tsx": {
@@ -134,9 +108,6 @@
  },
  "client/src/pages/PlatformAdmin.tsx": {
   "hardcoded-colour": 6
- },
- "client/src/pages/PmcProgramme.tsx": {
-  "hardcoded-colour": 4
  },
  "client/src/pages/PmcSitePlan.tsx": {
   "raw-file-input": 2,
@@ -171,10 +142,6 @@
  "client/src/pages/ProjectContracts.tsx": {
   "raw-select": 7,
   "hardcoded-colour": 2
- },
- "client/src/pages/ProjectControls.tsx": {
-  "hardcoded-colour": 28,
-  "number-format": 1
  },
  "client/src/pages/ProjectDataExport.tsx": {
   "hardcoded-colour": 2
@@ -219,10 +186,6 @@
  },
  "client/src/pages/ProjectNotifications.tsx": {
   "number-format": 1
- },
- "client/src/pages/ProjectPmc.tsx": {
-  "raw-select": 7,
-  "hardcoded-colour": 4
  },
  "client/src/pages/ProjectProcurement.tsx": {
   "raw-select": 15
@@ -269,19 +232,10 @@
  "client/src/pages/ProjectWorkforce.tsx": {
   "hardcoded-colour": 3
  },
- "client/src/pages/QuickIssue.tsx": {
-  "raw-select": 5,
-  "hardcoded-colour": 2
- },
  "client/src/pages/SetupWizard.tsx": {
   "western-digits": 4,
   "raw-select": 12,
   "hardcoded-colour": 5
- },
- "client/src/pages/SiteDailyReport.tsx": {
-  "raw-file-input": 1,
-  "raw-select": 13,
-  "hardcoded-colour": 1
  },
  "client/src/pages/SupportCenter.tsx": {
   "raw-select": 4,

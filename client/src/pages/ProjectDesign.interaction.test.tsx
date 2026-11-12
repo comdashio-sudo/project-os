@@ -4,6 +4,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectDesign } from "./ProjectDesign";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const hoisted = vi.hoisted(() => {
   const state = { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>>, empty: false };
@@ -23,7 +25,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { design: {
   registerDrawing: hoisted.mutation("registerDrawing"), addRevision: hoisted.mutation("addRevision"), cancelDrawing: hoisted.mutation("cancelDrawing"), approveDrawing: hoisted.mutation("approveDrawing"), createTransmittal: hoisted.mutation("createTransmittal"), transitionTransmittal: hoisted.mutation("transitionTransmittal"), raiseComment: hoisted.mutation("raiseComment"), transitionComment: hoisted.mutation("transitionComment"), createSubmittal: hoisted.mutation("createSubmittal"), transitionSubmittal: hoisted.mutation("transitionSubmittal"),
 } } }));
 
-describe("ProjectDesign", () => {
+describe("ProjectDesign", TYPING_TEST, () => {
   beforeEach(() => { state.arabic = true; state.calls = {}; state.empty = false; }); afterEach(cleanup);
 
   it("shows the design-phase board in Arabic, with the share approved and the consultant replies", () => {
@@ -65,5 +67,13 @@ describe("ProjectDesign", () => {
     state.arabic = false; state.empty = true; render(<ProjectDesign tenantId="t1" projectId="p1" />);
     expect(screen.getByText("Drawing register")).toBeTruthy();
     expect(screen.getAllByText("No records yet.").length).toBe(4);
+  });
+});
+
+describe("ProjectDesign checks its forms in the page's language (D-65)", () => {
+  it("an empty drawing registers nothing and says so in Arabic under its first field", () => {
+    state.arabic = true; state.calls.registerDrawing = vi.fn();
+    render(<ProjectDesign tenantId="t1" projectId="p1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.calls.registerDrawing);
   });
 });

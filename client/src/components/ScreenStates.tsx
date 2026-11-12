@@ -88,18 +88,33 @@ export function refusalSentence(error: unknown, language: Language | boolean, sc
  * No permission: a sentence the person can act on. The server's own refusal sentence is used when it sent one (it names the missing
  * permission); otherwise the fixed sentence. Never a bare 403, never a blank.
  */
-export function NoPermission({ isArabic, error, title }: { isArabic: boolean; error?: unknown; title?: string }) {
+export function NoPermission({ isArabic, error, title, scope = "screen" }: { isArabic: boolean; error?: unknown; title?: string; scope?: "screen" | "section" }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
-  const sentence = refusalSentence(error, lang);
+  const sentence = refusalSentence(error, lang, scope);
   const next = pickLanguage(lang, { ar: "اطلب من مالك الشركة أو من يدير صلاحيات فريقك إضافتها لك، ثم أعد فتح الشاشة.", en: "Ask the company owner or whoever manages your team's permissions to grant it, then reopen this screen.", ur: "کمپنی کے مالک یا اپنی ٹیم کی صلاحیتیں منظم کرنے والے شخص سے یہ صلاحیت دینے کو کہیں، پھر یہ اسکرین دوبارہ کھولیں۔" });
   return <section role="note" data-screen-state="no-permission" className="rounded-2xl border border-slate-300 bg-slate-50 p-5 text-sm text-slate-800">
     <div className="flex items-start gap-3">
       <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
       <div>
-        <p className="font-semibold">{title ?? pickLanguage(lang, { ar: "لا صلاحية لعرض هذه الشاشة", en: "No permission to view this screen", ur: "اس اسکرین کو دیکھنے کی اجازت نہیں" })}</p>
+        <p className="font-semibold">{title ?? (scope === "section" ? pickLanguage(lang, { ar: "لا صلاحية لعرض هذا القسم", en: "No permission to view this section", ur: "اس حصے کو دیکھنے کی اجازت نہیں" }) : null) ?? pickLanguage(lang, { ar: "لا صلاحية لعرض هذه الشاشة", en: "No permission to view this screen", ur: "اس اسکرین کو دیکھنے کی اجازت نہیں" })}</p>
         <p className="mt-1">{sentence}</p>
         <p className="mt-1 text-slate-600">{next}</p>
       </div>
     </div>
+  </section>;
+}
+
+/**
+ * A register that could not load, in the page's frame: its card, its own title, "Could not load: <title>" and the shared error surface with
+ * a retry, in the page's language. Never a bare line of red text between the cards (D-3 design review of #222 and #232).
+ */
+export function SectionFailed({ title, error, isArabic, onRetry, retrying = false }: { title: string; error: unknown; isArabic: boolean; onRetry?: () => unknown; retrying?: boolean }) {
+  const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
+  return <section aria-label={title} className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
+    <h2 className="mb-3 font-semibold">{title}</h2>
+    {/* a refusal is not an error to retry: it says, for this section, which permission is missing */}
+    {isRefusal(error)
+      ? <NoPermission isArabic={isArabic} error={error} scope="section" />
+      : <ErrorState isArabic={isArabic} error={error} title={pickLanguage(lang, { ar: `تعذّر تحميل: ${title}`, en: `Could not load: ${title}`, ur: `لوڈ نہیں ہو سکا: ${title}` })} onRetry={onRetry} retrying={retrying} />}
   </section>;
 }

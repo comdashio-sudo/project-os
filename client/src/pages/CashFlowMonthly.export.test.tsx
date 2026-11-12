@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import CashFlowMonthly from "./CashFlowMonthly";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -23,9 +24,17 @@ vi.mock("@/lib/trpc", () => ({ trpc: { profitability: { cashFlow: { useQuery: ()
   data: { months: h.empty ? [] : months, totals: { receipts: 1725, outflows: 650, net: 1075 }, lowestCumulative: null },
 }) } } } }));
 
+// D-85: these tests failed only under CPU contention (four runs at once on four cores reproduce it every time; one run alone never does),
+// not because of the date: building the .xlsx (ExcelJS loads on first use) can take longer than waitFor's default 1 s there. So the waits
+// for the download use EXPORT_WAIT (client/src/test/exportWait.ts), and the clock is pinned to midday UTC (the same calendar day in UTC and in Riyadh, +3) so the file name is exact.
+const PINNED = new Date("2026-11-09T12:00:00Z");
+vi.setConfig({ hookTimeout: 30000 }); // the hooks around these tests (render, cleanup) slow down with the rest under contention
+
 let downloads: string[] = [];
 let clickSpy: MockInstance<HTMLAnchorElement["click"]>;
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] }); // only the clock
+  vi.setSystemTime(PINNED);
   downloads = [];
   URL.createObjectURL = vi.fn(() => "blob:export-test");
   URL.revokeObjectURL = vi.fn();
@@ -34,6 +43,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   clickSpy.mockRestore();
   vi.clearAllMocks();
@@ -47,7 +57,7 @@ const headerTexts = () => Array.from(document.querySelectorAll("thead th")).map(
 const bodyRowCount = () => document.querySelectorAll("tbody tr").length;
 const exportedCall = () => vi.mocked(buildTableWorkbook).mock.calls[0][0];
 
-describe("CashFlowMonthly Excel export", () => {
+describe("CashFlowMonthly Excel export", EXPORT_TEST, () => {
   it("puts the export button in the same card as the table", () => {
     show();
     const card = screen.getByTestId("cashflow-monthly");
@@ -60,17 +70,17 @@ describe("CashFlowMonthly Excel export", () => {
     h.arabic = arabic;
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     expect(exportedCall().columns.map(column => column.header)).toEqual(headerTexts());
     expect(exportedCall().rows).toHaveLength(bodyRowCount());
     expect(bodyRowCount()).toBe(2);
-    expect(downloads[0]).toMatch(/^cash-flow-monthly-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(downloads[0]).toBe("cash-flow-monthly-2026-11-09.xlsx");
   });
 
   it("exports the amounts as numbers, not as the formatted text on screen", async () => {
     show();
     fireEvent.click(exportButton());
-    await waitFor(() => expect(downloads).toHaveLength(1));
+    await waitFor(() => expect(downloads).toHaveLength(1), EXPORT_WAIT);
     const { columns, rows } = exportedCall();
     expect(rows.map(row => columns.map(column => column.value(row)))).toEqual([
       ["2026-09", 0, 250, -250, -250],

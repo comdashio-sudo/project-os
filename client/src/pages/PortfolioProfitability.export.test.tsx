@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTableWorkbook } from "@/lib/excelExport";
 import { PortfolioProfitability } from "./PortfolioProfitability";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -32,7 +33,7 @@ const data = {
   unavailable: [{ projectId: "p3", code: "C", name: "No data", reason: "EVM_UNAVAILABLE" }],
 };
 
-describe("PortfolioProfitability export", () => {
+describe("PortfolioProfitability export", EXPORT_TEST, () => {
   it("renders the export button in the same card as the table", () => {
     state.query = { isLoading: false, error: null, data };
     render(<PortfolioProfitability tenantId="t" />);
@@ -49,7 +50,7 @@ describe("PortfolioProfitability export", () => {
     const headerRow = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent ?? "");
     expect(headerRow).toEqual(["Project", "Forecast profit (FPAC)", "Movement", "Open"]);
     fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     // The last column is the "Open" link: an action, not data, so it is not exported.
     expect(input.columns.map(column => column.header)).toEqual(headerRow.slice(0, -1));
@@ -61,7 +62,7 @@ describe("PortfolioProfitability export", () => {
     state.query = { isLoading: false, error: null, data };
     render(<PortfolioProfitability tenantId="t" />);
     fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.rows.map(row => input.columns.map(column => column.value(row)))).toEqual([
       ["B · Loss", -70, -20],
@@ -82,7 +83,7 @@ describe("PortfolioProfitability export", () => {
     state.query = { isLoading: false, error: null, data };
     render(<PortfolioProfitability tenantId="t" />);
     fireEvent.click(screen.getByRole("button", { name: "تصدير إلى Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     expect(vi.mocked(buildTableWorkbook).mock.calls[0][0].columns.map(column => column.header)).toEqual(["المشروع", "الربح المتوقع (FPAC)", "الحركة"]);
   });
 });

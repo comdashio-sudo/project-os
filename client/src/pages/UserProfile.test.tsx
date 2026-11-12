@@ -4,20 +4,24 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UserProfile from "./UserProfile";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ isArabic: false, user: { name: "Project Manager", email: "pm@example.test" } }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user, loading: false, logout: vi.fn() }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/BrandMark", () => ({ BrandIcon: () => <span>Dashio icon</span>, BrandMark: () => <span>Dashio</span> }));
+vi.mock("@/components/OwnTwoStepCard", () => ({ OwnTwoStepCard: () => null })); // its own test: OwnTwoStepCard.test.tsx
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => <a href={href} {...props}>{children}</a> }));
 
 beforeEach(() => { localStorage.clear(); state.isArabic = false; });
 afterEach(() => cleanup());
 
-describe("UserProfile", () => {
+// D-85: the first test types into four fields, which under load measured past the 5 s test limit; the typing has no delay and the describe a
+// deliberate limit (TYPING_TEST). The second waits for the task form to be drawn before it reaches into it, so a slow render is waited for, not misread.
+describe("UserProfile", TYPING_TEST, () => {
   it("updates profile details and adds a follow-up task", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<UserProfile />);
     await user.click(screen.getByRole("button", { name: "Edit details" }));
     await user.type(screen.getByLabelText("Job title"), "Project Manager");
@@ -34,9 +38,10 @@ describe("UserProfile", () => {
   });
 
   it("names a task with no name beside its field and adds nothing", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<UserProfile />);
     await user.click(screen.getByRole("button", { name: "Add task" }));
+    await screen.findByLabelText("Task name");
     await user.click((document.getElementById("task-title")?.closest("form") as HTMLFormElement).querySelector("button[type=submit]") as HTMLButtonElement);
     expect(screen.getByText("This field is required.")).toBeTruthy();
     expect(localStorage.getItem("project-os-profile-tasks")).toBeNull();

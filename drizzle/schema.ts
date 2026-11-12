@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -10,7 +11,9 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -50,6 +53,8 @@ export const companies = pgTable(
     slug: varchar("slug", { length: 120 }).notNull(),
     status: companiesStatusEnum("status").default("active").notNull(),
     defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
+    // D-81 (owner's decision 2026-11-09): two-step verification is optional and off by default for everyone. A company that wants it for its members switches this on (migration 0023).
+    requireTwoStep: boolean("require_two_step").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -71,6 +76,8 @@ export const memberships = pgTable(
   table => [
     uniqueIndex("memberships_tenant_user_unique").on(table.tenantId, table.userId),
     index("memberships_user_tenant_idx").on(table.userId, table.tenantId),
+    // the target of a (membership, company) foreign key: a row that names a person of company X cannot point at a membership of company Y (0021)
+    unique("memberships_id_tenant_unique").on(table.id, table.tenantId),
   ],
 );
 
@@ -2140,12 +2147,17 @@ export const pmcUnits = pgTable(
     saleStatus: varchar("sale_status", { length: 80 }),
     // The unit's code in the company's ERP (e.g. an Oracle code «zone-block-plot»): the foreign key that ties this unit to the other system. Unique inside a project when present.
     externalCode: varchar("external_code", { length: 120 }),
+    // Work order 22: the villa number as the site and the consultant write it («268»): the key that ties a unit across the three sources. Unique inside a project when present.
+    villaLabel: varchar("villa_label", { length: 40 }),
+    // Work order 22: net sellable area (m²) and unit price (SAR/m²). Financial: read and written only with project.budget.manage.
+    netSellableArea: numeric("net_sellable_area", { precision: 12, scale: 2 }),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2 }),
     geometryJson: text("geometry_json"),
     unitWeight: numeric("unit_weight", { precision: 12, scale: 4 }).default("1").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
 );
 
 export const pmcActivityGroups = pgTable(
@@ -2188,6 +2200,8 @@ export const pmcActivityDefinitions = pgTable(
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     weightPercent: numeric("weight_percent", { precision: 7, scale: 4 }).notNull(),
+    // Work order 22: the inspection request (WIR) number the monthly report writes above the activity; the key shared with the consultant's export.
+    wirCode: varchar("wir_code", { length: 40 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2395,6 +2409,8 @@ export const userMfa = pgTable("user_mfa", {
   lastUsedStep: integer("last_used_step"),
   failures: integer("failures").default(0).notNull(),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  /** D-81: the person switched the second step on for himself (profile). An enrolment made while it was compulsory (before D-81) reads false: it asks for nothing. */
+  requiredBySelf: boolean("required_by_self").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -2633,16 +2649,41 @@ export const siteDailyReports = pgTable(
     temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }),
     summary: text("summary"),
     obstacles: text("obstacles"),
+    // Work order 22 (the site's daily sheet it replaces): which contractor, its own and its subcontractors' labour, the inspection status of the day, today's progress,
+    // the days the contractor says remain, and recommendations. Equipment and the labour by WBS code are lines (line_type equipment / labour, wbs_code).
+    contractorId: varchar("contractor_id", { length: 36 }),
+    mainLabourCount: integer("main_labour_count"),
+    subLabourCount: integer("sub_labour_count"),
+    inspectionStatus: varchar("inspection_status", { length: 24 }),
+    dayProgressPercent: numeric("day_progress_percent", { precision: 7, scale: 4 }),
+    remainingDays: integer("remaining_days"),
+    recommendations: text("recommendations"),
+    // «مُستورد» for a report brought in from the old sheet; empty for one written here
+    sourceLabel: varchar("source_label", { length: 60 }),
     status: siteDailyReportsStatusEnum("status").default("draft").notNull(),
     preparedByUserId: integer("prepared_by_user_id").notNull().references(() => users.id),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: varchar("review_note", { length: 500 }),
+    // D-45 (c), 0025: the middle step of the chain (prepare → review → approve): who reviewed the submitted report, when, and the note; cleared when it goes back to draft
+    checkedByUserId: integer("checked_by_user_id").references(() => users.id),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    checkNote: varchar("check_note", { length: 500 }),
+    // D-45 (a), 0023: the number the system gives the report (the project's prefix and its own sequence, never typed), the wind, and the working hours of the day
+    reportNumber: varchar("report_number", { length: 40 }),
+    wind: varchar("wind", { length: 24 }),
+    workHours: numeric("work_hours", { precision: 4, scale: 1 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("site_daily_reports_project_date_preparer_unique").on(table.projectId, table.reportDate, table.preparedByUserId), index("site_daily_reports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status)],
+  // one report per engineer per project per day — and, since work order 22, per contractor of that day (the old sheet held one row per contractor per day)
+  table => [
+    uniqueIndex("site_daily_reports_project_date_preparer_unique").on(table.projectId, table.reportDate, table.preparedByUserId, sql`coalesce(${table.contractorId}, '')`), index("site_daily_reports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
+    uniqueIndex("site_daily_reports_project_number_unique").on(table.projectId, table.reportNumber).where(sql`${table.reportNumber} IS NOT NULL`),
+    unique("site_daily_reports_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    check("site_daily_reports_work_hours_check", sql`${table.workHours} IS NULL OR (${table.workHours} >= 0 AND ${table.workHours} <= 24)`),
+  ],
 );
 
 export const siteDailyReportLinesTypeEnum = pgEnum("site_daily_report_lines_line_type", ["labour", "equipment", "work"]);
@@ -2658,16 +2699,24 @@ export const siteDailyReportLines = pgTable(
     pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     // a trade or a piece of equipment; empty for a work line
     label: varchar("label", { length: 160 }),
+    // Work order 22: labour counted by WBS code («DC-01 Earth Works»)
+    wbsCode: varchar("wbs_code", { length: 40 }),
     // headcount for labour, number of machines for equipment
     quantity: numeric("quantity", { precision: 10, scale: 2 }),
     hours: numeric("hours", { precision: 6, scale: 2 }),
     description: text("description"),
     // work lines only: the status the cell is reported to have reached; applied when the report is approved
     reportedStatus: pmcUnitActivityProgressStatusEnum("reported_status"),
+    // D-45 (a): for an activity measured in metres or pieces, the quantity planned for the day and the quantity done (the variance and the totals are computed, never stored)
+    plannedQuantity: numeric("planned_quantity", { precision: 14, scale: 3 }),
+    actualQuantity: numeric("actual_quantity", { precision: 14, scale: 3 }),
     sortOrder: integer("sort_order").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("site_daily_report_lines_report_idx").on(table.reportId), index("site_daily_report_lines_cell_idx").on(table.pmcUnitId, table.pmcActivityDefinitionId)],
+  table => [
+    index("site_daily_report_lines_report_idx").on(table.reportId), index("site_daily_report_lines_cell_idx").on(table.pmcUnitId, table.pmcActivityDefinitionId),
+    check("site_daily_report_lines_quantities_check", sql`(${table.plannedQuantity} IS NULL OR ${table.plannedQuantity} >= 0) AND (${table.actualQuantity} IS NULL OR ${table.actualQuantity} >= 0)`),
+  ],
 );
 
 export const siteDailyReportPhotos = pgTable(
@@ -2682,10 +2731,16 @@ export const siteDailyReportPhotos = pgTable(
     contentType: varchar("content_type", { length: 80 }).notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     caption: varchar("caption", { length: 255 }),
+    // D-45 (c), 0025: where the photo was taken — a zone in words, or a unit of the SAME project (composite foreign key)
+    zone: varchar("zone", { length: 80 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey)],
+  table => [
+    index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey),
+    foreignKey({ name: "site_daily_report_photos_unit_fk", columns: [table.pmcUnitId, table.tenantId, table.projectId], foreignColumns: [pmcUnits.id, pmcUnits.tenantId, pmcUnits.projectId] }),
+  ],
 );
 
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
@@ -2725,7 +2780,7 @@ export const consultantSubmittals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [uniqueIndex("consultant_submittals_number_revision_unique").on(table.projectId, table.submittalNumber, table.revision), index("consultant_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("consultant_submittals_material_idx").on(table.projectId, table.materialId)],
+  table => [uniqueIndex("consultant_submittals_number_revision_unique").on(table.projectId, table.submittalNumber, table.revision), index("consultant_submittals_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("consultant_submittals_material_idx").on(table.projectId, table.materialId), unique("consultant_submittals_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId)],
 );
 
 // The reply codes a company uses (A/B/C/D by default) and whether each one counts as an approval.
@@ -3115,4 +3170,483 @@ export const activityResourceAssignments = pgTable(
     uniqueIndex("activity_resource_assignments_project_external_unique").on(table.projectId, table.externalId), index("activity_resource_assignments_activity_idx").on(table.projectId, table.activityId),
     foreignKey({ columns: [table.resourceId], foreignColumns: [projectResources.id], name: "act_resource_assign_resource_fk" }),
   ],
+);
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+// Work order 22 (the 390-villa project): the site ↔ the consultant ↔ the monthly report. Three independent sources per cell (unit × activity):
+//   - the MONTHLY REPORT is the catalogue (pmc_activity_definitions, 128 activities per model, each with its WIR number) and pmc_unit_activity_progress;
+//   - the SITE records its own state on its own list of activities (pmc_site_activities, 114), per unit, with a dated history (pmc_site_cells / _events);
+//   - the CONSULTANT's export says, per unit and per column (WIR), received or not (pmc_consultant_cells / _events), its columns linked to the catalogue.
+// The site list and the catalogue are linked by pmc_site_activity_links (suggested by name, confirmed once by the owner; one site activity may cover several).
+
+export const pmcSiteActivities = pgTable(
+  "pmc_site_activities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    code: varchar("code", { length: 80 }).notNull(),
+    csiName: varchar("csi_name", { length: 255 }).notNull(),
+    subName: varchar("sub_name", { length: 255 }),
+    name: varchar("name", { length: 255 }).notNull(),
+    // share of one villa (the list adds up to 1.0)
+    weight: numeric("weight", { precision: 10, scale: 8 }).notNull(),
+    // the villa types (models) the activity applies to; empty = every type
+    modelCodesJson: text("model_codes_json"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    // D-44 (0022): what the activity is measured in (a villa, linear metres, square metres, pieces) and, for anything but a villa, the whole quantity to be done
+    measureUnit: varchar("measure_unit", { length: 8 }).default("villa").notNull(),
+    totalQuantity: numeric("total_quantity", { precision: 14, scale: 3 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_site_activities_project_code_unique").on(table.projectId, table.code), index("pmc_site_activities_tenant_project_idx").on(table.tenantId, table.projectId),
+    check("pmc_site_activities_measure_check", sql`${table.measureUnit} IN ('villa', 'lm', 'm2', 'piece') AND (${table.totalQuantity} IS NULL OR ${table.totalQuantity} > 0) AND (${table.measureUnit} = 'villa' OR ${table.totalQuantity} IS NOT NULL)`),
+  ],
+);
+
+export const pmcSiteActivityLinks = pgTable(
+  "pmc_site_activity_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    siteActivityId: varchar("site_activity_id", { length: 36 }).notNull(),
+    // the catalogue activity code (the same code on every model)
+    activityCode: varchar("activity_code", { length: 80 }).notNull(),
+    // how close the names are (0..1) when the platform suggested it
+    score: numeric("score", { precision: 5, scale: 4 }),
+    confirmed: boolean("confirmed").default(false).notNull(),
+    confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_site_links_activity_code_unique").on(table.siteActivityId, table.activityCode),
+    index("pmc_site_links_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.siteActivityId], foreignColumns: [pmcSiteActivities.id], name: "pmc_site_links_activity_fk" }),
+  ],
+);
+
+export const pmcSiteStatusEnum = pgEnum("pmc_site_status", ["NOT_STARTED", "IN_PROGRESS", "DONE", "INSPECTION_REQUESTED", "QC_APPROVED"]);
+export const pmcSiteCells = pgTable(
+  "pmc_site_cells",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unit_id", { length: 36 }).notNull(),
+    siteActivityId: varchar("site_activity_id", { length: 36 }).notNull(),
+    status: pmcSiteStatusEnum("status").default("NOT_STARTED").notNull(),
+    // the date of the current status, and the date each status was reached
+    statusOn: date("status_on", { mode: "string" }),
+    notStartedOn: date("not_started_on", { mode: "string" }),
+    inProgressOn: date("in_progress_on", { mode: "string" }),
+    doneOn: date("done_on", { mode: "string" }),
+    inspectionRequestedOn: date("inspection_requested_on", { mode: "string" }),
+    qcApprovedOn: date("qc_approved_on", { mode: "string" }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    // «مُستورد» for a status brought in from the old sheet (never a personal e-mail)
+    updatedByLabel: varchar("updated_by_label", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_site_cells_unit_activity_unique").on(table.unitId, table.siteActivityId),
+    index("pmc_site_cells_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
+    foreignKey({ columns: [table.unitId], foreignColumns: [pmcUnits.id], name: "pmc_site_cells_unit_fk" }),
+    foreignKey({ columns: [table.siteActivityId], foreignColumns: [pmcSiteActivities.id], name: "pmc_site_cells_activity_fk" }),
+  ],
+);
+
+export const pmcSiteCellEvents = pgTable(
+  "pmc_site_cell_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    cellId: varchar("cell_id", { length: 36 }).notNull(),
+    fromStatus: pmcSiteStatusEnum("from_status"),
+    toStatus: pmcSiteStatusEnum("to_status").notNull(),
+    statusOn: date("status_on", { mode: "string" }).notNull(),
+    enteredByUserId: integer("entered_by_user_id").references(() => users.id),
+    enteredByLabel: varchar("entered_by_label", { length: 120 }),
+    // site (an engineer's update) · legacy (the old sheet, once) · comparison (an action on a difference)
+    source: varchar("source", { length: 24 }).notNull(),
+    // one update of several villas at once shares a batch
+    batchId: varchar("batch_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("pmc_site_events_tenant_project_idx").on(table.tenantId, table.projectId, table.createdAt), index("pmc_site_events_cell_idx").on(table.cellId), foreignKey({ columns: [table.cellId], foreignColumns: [pmcSiteCells.id], name: "pmc_site_events_cell_fk" })],
+);
+
+export const pmcConsultantStatusEnum = pgEnum("pmc_consultant_status", ["NOT_RECEIVED", "RECEIVED", "APPROVED", "REJECTED", "CODE_A", "CODE_B", "CODE_C", "CODE_D"]);
+// One column of the consultant's export: its WIR, its place in the CSI tree, and the catalogue activity it is linked to (by the WIR, or by the owner once).
+export const pmcConsultantColumns = pgTable(
+  "pmc_consultant_columns",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    sourceKey: varchar("source_key", { length: 255 }).notNull(),
+    wirCode: varchar("wir_code", { length: 40 }),
+    sectionName: varchar("section_name", { length: 255 }),
+    subgroupName: varchar("subgroup_name", { length: 255 }),
+    activityName: varchar("activity_name", { length: 255 }).notNull(),
+    locationName: varchar("location_name", { length: 120 }),
+    weight: numeric("weight", { precision: 10, scale: 8 }),
+    // the percentage the consultant's own export shows beside the WIR (compared, never written into a cell)
+    reportedPercent: numeric("reported_percent", { precision: 9, scale: 6 }),
+    activityCode: varchar("activity_code", { length: 80 }),
+    // wir (the same number in both sources) · owner (matched by hand, once)
+    linkMethod: varchar("link_method", { length: 16 }),
+    linkedByUserId: integer("linked_by_user_id").references(() => users.id),
+    linkedAt: timestamp("linked_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_consultant_columns_project_key_unique").on(table.projectId, table.sourceKey), index("pmc_consultant_columns_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+export const pmcConsultantCells = pgTable(
+  "pmc_consultant_cells",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unit_id", { length: 36 }).notNull(),
+    columnId: varchar("column_id", { length: 36 }).notNull(),
+    status: pmcConsultantStatusEnum("status").default("NOT_RECEIVED").notNull(),
+    // the date of the export that first showed it received (the age of a difference counts from here)
+    firstReceivedOn: date("first_received_on", { mode: "string" }),
+    statusOn: date("status_on", { mode: "string" }),
+    lastImportId: varchar("last_import_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_consultant_cells_unit_column_unique").on(table.unitId, table.columnId),
+    index("pmc_consultant_cells_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
+    foreignKey({ columns: [table.unitId], foreignColumns: [pmcUnits.id], name: "pmc_consultant_cells_unit_fk" }),
+    foreignKey({ columns: [table.columnId], foreignColumns: [pmcConsultantColumns.id], name: "pmc_consultant_cells_column_fk" }),
+  ],
+);
+
+export const pmcConsultantCellEvents = pgTable(
+  "pmc_consultant_cell_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    cellId: varchar("cell_id", { length: 36 }).notNull(),
+    fromStatus: pmcConsultantStatusEnum("from_status"),
+    toStatus: pmcConsultantStatusEnum("to_status").notNull(),
+    observedOn: date("observed_on", { mode: "string" }).notNull(),
+    importId: varchar("import_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("pmc_consultant_events_tenant_project_idx").on(table.tenantId, table.projectId, table.createdAt), index("pmc_consultant_events_cell_idx").on(table.cellId), foreignKey({ columns: [table.cellId], foreignColumns: [pmcConsultantCells.id], name: "pmc_consultant_events_cell_fk" })],
+);
+
+// The site's note on a difference (unit × catalogue activity), written by a person on the comparison screen.
+export const pmcCellNotes = pgTable(
+  "pmc_cell_notes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unit_id", { length: 36 }).notNull(),
+    activityCode: varchar("activity_code", { length: 80 }).notNull(),
+    note: varchar("note", { length: 2000 }).notNull(),
+    updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_cell_notes_unit_activity_unique").on(table.unitId, table.activityCode), index("pmc_cell_notes_tenant_project_idx").on(table.tenantId, table.projectId), foreignKey({ columns: [table.unitId], foreignColumns: [pmcUnits.id], name: "pmc_cell_notes_unit_fk" })],
+);
+
+export const pmcContractors = pgTable(
+  "pmc_contractors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    name: varchar("name", { length: 255 }).notNull(),
+    number: varchar("number", { length: 80 }),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_contractors_project_name_unique").on(table.projectId, table.name), index("pmc_contractors_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+// The planned monthly curve from the schedule (the «PLanned P6» sheet): the S-curve's planned line. The actual line is computed from the site's dated statuses.
+export const pmcPlanMonths = pgTable(
+  "pmc_plan_months",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    month: date("month", { mode: "string" }).notNull(),
+    plannedCost: numeric("planned_cost", { precision: 18, scale: 2 }),
+    plannedPercent: numeric("planned_percent", { precision: 10, scale: 8 }).notNull(),
+    cumulativePercent: numeric("cumulative_percent", { precision: 10, scale: 8 }).notNull(),
+    importId: varchar("import_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("pmc_plan_months_project_month_unique").on(table.projectId, table.month), index("pmc_plan_months_tenant_project_idx").on(table.tenantId, table.projectId)],
+);
+
+
+// Work order 23, P-17 (D-42 a): what a project carries beyond its code and name — where it is, the contract, the three parties with their logos, the working week and hours, and
+// the prefix its reports are numbered with. One row per project. A logo is a storage key under uploads/{tenant}/{project}/logo/ (never a URL); it is shown by a signed link.
+export const projectProfiles = pgTable(
+  "project_profiles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    location: varchar("location", { length: 255 }),
+    contractNumber: varchar("contract_number", { length: 80 }),
+    clientName: varchar("client_name", { length: 255 }),
+    consultantName: varchar("consultant_name", { length: 255 }),
+    contractorName: varchar("contractor_name", { length: 255 }),
+    clientLogoKey: varchar("client_logo_key", { length: 512 }),
+    consultantLogoKey: varchar("consultant_logo_key", { length: 512 }),
+    contractorLogoKey: varchar("contractor_logo_key", { length: 512 }),
+    // the working days as ascending distinct digits, 0 = Sunday … 6 = Saturday («01234» = Sunday to Thursday)
+    workDays: varchar("work_days", { length: 7 }).default("01234").notNull(),
+    workStart: time("work_start"),
+    workEnd: time("work_end"),
+    reportPrefix: varchar("report_prefix", { length: 16 }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_profiles_tenant_project_unique").on(table.tenantId, table.projectId),
+    check("project_profiles_work_days_check", sql`${table.workDays} ~ '^0?1?2?3?4?5?6?$' AND ${table.workDays} <> ''`),
+    check("project_profiles_work_hours_check", sql`(${table.workStart} IS NULL) = (${table.workEnd} IS NULL) AND (${table.workStart} IS NULL OR ${table.workStart} < ${table.workEnd})`),
+    check("project_profiles_report_prefix_check", sql`${table.reportPrefix} IS NULL OR ${table.reportPrefix} ~ '^[A-Z0-9][A-Z0-9-]{0,15}$'`),
+  ],
+);
+
+// The companies taking part in a project: one main contractor (at most one active, held by the partial unique index, not by a check in code) and any number of subcontractors.
+// Separate from pmc_contractors (the consultant tracker's contractor list from 0019); unifying the two is G-210 in docs/GAP_LIST.md.
+export const projectCompanies = pgTable(
+  "project_companies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    name: varchar("name", { length: 255 }).notNull(),
+    role: varchar("role", { length: 8 }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_companies_role_check", sql`${table.role} IN ('main', 'sub')`),
+    uniqueIndex("project_companies_one_active_main").on(table.projectId).where(sql`${table.role} = 'main' AND ${table.active}`),
+    index("project_companies_tenant_project_idx").on(table.tenantId, table.projectId),
+    // D-44 (0022): what project_equipment's owner refers to, so an owner from another project or company is impossible
+    unique("project_companies_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+  ],
+);
+
+// Work order 23, P-18 (D-42 b): who prepares, reviews and approves a project's reports — one person per step, a membership of the SAME company
+// (held by the composite foreign key, not by a check in code). That the person has a role on the project is checked when the step is assigned.
+export const projectReportApprovers = pgTable(
+  "project_report_approvers",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    step: varchar("step", { length: 8 }).notNull(),
+    membershipId: varchar("membership_id", { length: 36 }).notNull(),
+    assignedByUserId: integer("assigned_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_report_approvers_step_check", sql`${table.step} IN ('prepare', 'review', 'approve')`),
+    uniqueIndex("project_report_approvers_project_step_unique").on(table.tenantId, table.projectId, table.step),
+    foreignKey({ name: "project_report_approvers_membership_tenant_fk", columns: [table.membershipId, table.tenantId], foreignColumns: [memberships.id, memberships.tenantId] }),
+    index("project_report_approvers_membership_idx").on(table.membershipId),
+  ],
+);
+
+// D-44 (a), P-35: the project's reference lists the daily report chooses from. Labour roles (direct = the trades on the work, indirect = staff and support), copied from
+// shared/defaultLabourRoles.ts by an idempotent procedure (default_key marks a copied row, so copying again adds nothing even after a rename) and edited after.
+export const projectLabourRoles = pgTable(
+  "project_labour_roles",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    name: varchar("name", { length: 120 }).notNull(),
+    category: varchar("category", { length: 8 }).notNull(),
+    defaultKey: varchar("default_key", { length: 64 }),
+    active: boolean("active").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("project_labour_roles_category_check", sql`${table.category} IN ('direct', 'indirect')`),
+    uniqueIndex("project_labour_roles_project_name_unique").on(table.projectId, sql`lower(${table.name})`),
+    uniqueIndex("project_labour_roles_project_default_unique").on(table.projectId, table.defaultKey).where(sql`${table.defaultKey} IS NOT NULL`),
+    index("project_labour_roles_tenant_project_idx").on(table.tenantId, table.projectId),
+    unique("project_labour_roles_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+  ],
+);
+
+// The equipment on the project. The owner is one of the companies on the SAME project (composite foreign key, not a check in code); a plate or size is unique per project.
+export const projectEquipment = pgTable(
+  "project_equipment",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    equipmentType: varchar("equipment_type", { length: 120 }).notNull(),
+    model: varchar("model", { length: 120 }),
+    plateOrSize: varchar("plate_or_size", { length: 80 }),
+    ownerCompanyId: varchar("owner_company_id", { length: 36 }),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "project_equipment_owner_same_project_fk", columns: [table.ownerCompanyId, table.tenantId, table.projectId], foreignColumns: [projectCompanies.id, projectCompanies.tenantId, projectCompanies.projectId] }),
+    uniqueIndex("project_equipment_project_plate_unique").on(table.projectId, sql`lower(${table.plateOrSize})`).where(sql`${table.plateOrSize} IS NOT NULL`),
+    index("project_equipment_tenant_project_idx").on(table.tenantId, table.projectId),
+    unique("project_equipment_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+  ],
+);
+
+// D-79: file storage inside the database, used automatically when the S3 variables are absent (server/dbStorage.ts, same interface as server/storage.ts).
+// One row per stored object, owned by the company named in its key (uploads|tenants|imports|pmc/<company>/...), so row-level security keeps it inside the company.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+export const storedFiles = pgTable(
+  "stored_files",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    key: varchar("key", { length: 1024 }).notNull(),
+    contentType: varchar("content_type", { length: 255 }).default("application/octet-stream").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("stored_files_key_unique").on(table.key),
+    index("stored_files_tenant_idx").on(table.tenantId),
+    check("stored_files_size_check", sql`${table.size} >= 0 AND ${table.size} <= 5242880 AND octet_length(${table.data}) = ${table.size}`),
+    // the key names its owner, and only that owner: a key moved to another company's prefix (or written under it) is impossible, not merely refused (review of #242)
+    check("stored_files_key_owner_check", sql`split_part(${table.key}, '/', 2) = ${table.tenantId}`),
+  ],
+);
+
+// D-45 (a), P-38: the daily report's labour matrix (company × role × shift → headcount) and its equipment (machine → count, hours). Every reference is to the SAME project:
+// composite foreign keys (id, tenant_id, project_id) make a role, a company, a machine or a report of another project impossible, not merely refused.
+export const siteDailyReportLabour = pgTable(
+  "site_daily_report_labour",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull(),
+    companyId: varchar("company_id", { length: 36 }).notNull(),
+    labourRoleId: varchar("labour_role_id", { length: 36 }).notNull(),
+    shift: varchar("shift", { length: 8 }).notNull(),
+    headcount: integer("headcount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("site_daily_report_labour_shift_check", sql`${table.shift} IN ('day', 'night')`),
+    check("site_daily_report_labour_headcount_check", sql`${table.headcount} >= 0`),
+    uniqueIndex("site_daily_report_labour_cell_unique").on(table.reportId, table.companyId, table.labourRoleId, table.shift),
+    foreignKey({ name: "site_daily_report_labour_report_fk", columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+    foreignKey({ name: "site_daily_report_labour_company_fk", columns: [table.companyId, table.tenantId, table.projectId], foreignColumns: [projectCompanies.id, projectCompanies.tenantId, projectCompanies.projectId] }),
+    foreignKey({ name: "site_daily_report_labour_role_fk", columns: [table.labourRoleId, table.tenantId, table.projectId], foreignColumns: [projectLabourRoles.id, projectLabourRoles.tenantId, projectLabourRoles.projectId] }),
+    index("site_daily_report_labour_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+export const siteDailyReportEquipment = pgTable(
+  "site_daily_report_equipment",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull(),
+    equipmentId: varchar("equipment_id", { length: 36 }).notNull(),
+    count: integer("count").notNull(),
+    hours: numeric("hours", { precision: 6, scale: 2 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    check("site_daily_report_equipment_values_check", sql`${table.count} > 0 AND (${table.hours} IS NULL OR (${table.hours} >= 0 AND ${table.hours} <= 24))`),
+    uniqueIndex("site_daily_report_equipment_item_unique").on(table.reportId, table.equipmentId),
+    foreignKey({ name: "site_daily_report_equipment_report_fk", columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+    foreignKey({ name: "site_daily_report_equipment_item_fk", columns: [table.equipmentId, table.tenantId, table.projectId], foreignColumns: [projectEquipment.id, projectEquipment.tenantId, projectEquipment.projectId] }),
+    index("site_daily_report_equipment_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+
+// The per-project sequence a report number is taken from: one row per project and kind, bumped by an atomic upsert inside the report's own transaction.
+export const projectReportCounters = pgTable(
+  "project_report_counters",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    lastNumber: integer("last_number").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("project_report_counters_project_kind_unique").on(table.tenantId, table.projectId, table.kind), check("project_report_counters_kind_check", sql`${table.kind} IN ('daily')`)],
+);
+
+// D-45 (b), P-39 (1): the daily report's other sections, each a list replaced whole on every save of a report still in the preparer's hands, each tied to a report of the
+// SAME project by a composite foreign key (id, tenant_id, project_id). Materials received (optionally against the consultant's approval of that material, same project),
+// HSE events of the day, obstacles, and the plan for tomorrow.
+const reportChild = () => ({
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+  projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+  reportId: varchar("report_id", { length: 36 }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+const childKeys = (name: string, table: { reportId: never; tenantId: never; projectId: never }) => [
+  foreignKey({ name: `${name}_report_fk`, columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+  index(`${name}_report_idx`).on(table.reportId),
+];
+export const siteDailyReportMaterials = pgTable(
+  "site_daily_report_materials",
+  { ...reportChild(), material: varchar("material", { length: 160 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(), unit: varchar("unit", { length: 24 }).notNull(), supplier: varchar("supplier", { length: 160 }), consultantSubmittalId: varchar("consultant_submittal_id", { length: 36 }) },
+  table => [
+    ...childKeys("site_daily_report_materials", table as never),
+    check("site_daily_report_materials_quantity_check", sql`${table.quantity} > 0`),
+    foreignKey({ name: "site_daily_report_materials_submittal_fk", columns: [table.consultantSubmittalId, table.tenantId, table.projectId], foreignColumns: [consultantSubmittals.id, consultantSubmittals.tenantId, consultantSubmittals.projectId] }),
+  ],
+);
+export const siteDailyReportHse = pgTable(
+  "site_daily_report_hse",
+  { ...reportChild(), kind: varchar("kind", { length: 20 }).notNull(), description: text("description").notNull(), peopleCount: integer("people_count"), actionTaken: text("action_taken") },
+  table => [...childKeys("site_daily_report_hse", table as never), check("site_daily_report_hse_kind_check", sql`${table.kind} IN ('meeting', 'incident', 'near_miss', 'violation', 'corrective_action') AND (${table.peopleCount} IS NULL OR ${table.peopleCount} >= 0)`)],
+);
+export const siteDailyReportObstacles = pgTable(
+  "site_daily_report_obstacles",
+  { ...reportChild(), issue: text("issue").notNull(), impact: text("impact"), responsible: varchar("responsible", { length: 160 }), action: text("action"), dueDate: date("due_date", { mode: "string" }) },
+  table => [...childKeys("site_daily_report_obstacles", table as never)],
+);
+export const siteDailyReportTomorrow = pgTable(
+  "site_daily_report_tomorrow",
+  { ...reportChild(), area: varchar("area", { length: 160 }), activity: varchar("activity", { length: 255 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }), unit: varchar("unit", { length: 24 }), resources: text("resources") },
+  table => [...childKeys("site_daily_report_tomorrow", table as never), check("site_daily_report_tomorrow_quantity_check", sql`${table.quantity} IS NULL OR ${table.quantity} >= 0`)],
 );

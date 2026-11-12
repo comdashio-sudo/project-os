@@ -118,7 +118,7 @@ import {
   pmcInspectionSteps,
   pmcBaselines,
 } from "../drizzle/schema";
-import { hasScopeAccess, productsForPackage, type TenantAccessSnapshot } from "./domain/authorization";
+import { holdsPermission, productsForPackage, type ScopeType, type TenantAccessSnapshot } from "./domain/authorization";
 import { defaultCommercialFeatures, defaultCommercialPlans } from "./domain/commercialCatalog";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm, type EvmInput } from "./domain/evm";
@@ -224,8 +224,9 @@ export async function getTenantAccessSnapshot(input: { userId: number; tenantId:
   const [entitlements, scopes, grantedPermissions] = await Promise.all([
     db.select({ productCode: tenantEntitlements.productCode }).from(tenantEntitlements).where(and(eq(tenantEntitlements.tenantId, input.tenantId), eq(tenantEntitlements.active, true))),
     db.select({ scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId }).from(membershipRoles).where(eq(membershipRoles.membershipId, currentMembership.id)),
+    // one row per (assignment, permission it carries), so the scope stays with the permission it was granted on (G-142, D-18)
     db
-      .select({ code: permissions.code })
+      .select({ code: permissions.code, scopeType: membershipRoles.scopeType, scopeId: membershipRoles.scopeId })
       .from(membershipRoles)
       .innerJoin(roles, eq(membershipRoles.roleId, roles.id))
       .innerJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
@@ -239,6 +240,7 @@ export async function getTenantAccessSnapshot(input: { userId: number; tenantId:
     entitledProducts: Array.from(new Set(entitlements.map(item => item.productCode as ProductCode))),
     permissionCodes: Array.from(new Set(grantedPermissions.map(item => item.code))),
     scopes,
+    grants: grantedPermissions.map(item => ({ code: item.code, scopeType: item.scopeType as ScopeType, scopeId: item.scopeId ?? null })),
   };
 }
 
@@ -266,7 +268,7 @@ async function assertTenantBillingManager(userId: number, tenantId: string): Pro
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
   if (user?.role === "admin") return;
   const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
-  if (!snapshot || snapshot.membershipStatus !== "active" || !snapshot.permissionCodes.includes("tenant.manage")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!snapshot || snapshot.membershipStatus !== "active" || !holdsPermission(snapshot, "tenant.manage", { type: "company" })) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
 }
 
 async function assertPlatformAdministrator(userId: number): Promise<void> {
@@ -800,7 +802,8 @@ export async function assertProjectWithinTenant(input: { tenantId: string; proje
     .where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)))
     .limit(1);
 
-  if (!project[0]) throw new Error("PROJECT_OS_PROJECT_NOT_FOUND");
+  // NOT_FOUND, not a server error: a project of another company is "not found" to this caller (QA on #248); the message is unchanged
+  if (!project[0]) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_NOT_FOUND" });
 }
 
 export async function getPmcProjectSummaryForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -1132,7 +1135,7 @@ async function notifySupportOwners(tx: DatabaseTransaction, input: { tenantId: s
   return recipients.length;
 }
 
-function canManageSupport(snapshot: TenantAccessSnapshot) { return snapshot.permissionCodes.includes("tenant.manage"); }
+function canManageSupport(snapshot: TenantAccessSnapshot) { return holdsPermission(snapshot, "tenant.manage", { type: "company" }); }
 
 function normalizeSupportTags(tags: string[] | undefined, automatic: string[] = []) {
   const normalized = [...automatic, ...(tags ?? [])].map(tag => tag.trim().toLowerCase()).filter(Boolean);
@@ -2441,7 +2444,7 @@ export async function getTenantLabourSettings(input: { userId: number; tenantId:
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.settings.labour", "project.cashflow.read"] });
   const [saved] = await db.select({ id: tenantSettings.id }).from(tenantSettings).where(eq(tenantSettings.tenantId, input.tenantId)).limit(1);
-  return { ...(await readTenantLabourSettings(db, input.tenantId)), isDefault: !saved, canEdit: snapshot.permissionCodes.includes("project.settings.labour") };
+  return { ...(await readTenantLabourSettings(db, input.tenantId)), isDefault: !saved, canEdit: holdsPermission(snapshot, "project.settings.labour") };
 }
 
 export async function saveTenantLabourSettings(input: { userId: number; tenantId: string; employerGosiRateSaudi: number; employerGosiRateNonSaudi: number; indirectLoadingPercent: number; hoursPerDay: number; workingDays: number[]; eosFirstPeriodYears: number; eosFirstPeriodMonthsPerYear: number; eosLaterMonthsPerYear: number }) {
@@ -2712,12 +2715,14 @@ async function assertAnyPayrollAccess(input: { userId: number; tenantId: string;
 export async function getPayrollCapabilitiesForTenant(input: { userId: number; tenantId: string }) {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  const activeProjectMember = snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes("PROJECT") && snapshot.scopes.some(scope => scope.scopeType === "company");
+  // the same rule as assertPayrollAccess: the payroll permission on a company-wide assignment (not any permission plus any company assignment)
+  const activeProjectMember = snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes("PROJECT");
+  const can = (permission: PayrollPermission) => activeProjectMember && holdsPermission(snapshot, permission, { type: "company" });
   return {
-    canManageStructure: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.structure"),
-    canRunPayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.run"),
-    canApprovePayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.approve"),
-    canReadSensitivePayroll: activeProjectMember && snapshot.permissionCodes.includes("project.payroll.sensitive.read"),
+    canManageStructure: can("project.payroll.structure"),
+    canRunPayroll: can("project.payroll.run"),
+    canApprovePayroll: can("project.payroll.approve"),
+    canReadSensitivePayroll: can("project.payroll.sensitive.read"),
   };
 }
 
@@ -2982,6 +2987,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const onProject = { type: "project" as const, id: input.projectId };
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
   const [warehouses, materials, movements, issues, receipts, wbs, progress, issuedOrders] = await Promise.all([
     db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name }).from(projectWarehouses).where(and(mine(projectWarehouses), eq(projectWarehouses.active, true))).orderBy(asc(projectWarehouses.code)),
@@ -3011,7 +3017,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
     // Issued purchase orders a storekeeper can receive against, each with the material last received on it (the likely next one).
     purchaseOrders: issuedOrders.map(order => ({ id: order.id, purchaseOrderNumber: order.purchaseOrderNumber, supplierName: order.supplierName, currency: order.currency, hasCommitment: Boolean(order.commitmentId), lastReceivedMaterialId: receipts.find(receipt => receipt.purchaseOrderId === order.id)?.materialId ?? null })),
     // What the caller may actually do here, so the screen offers only that. The server still enforces each write.
-    can: { logProgress: snapshot.permissionCodes.includes("project.progress.manage"), issueMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), receiveMaterial: snapshot.permissionCodes.includes("project.inventory.manage"), logTeamHours: snapshot.permissionCodes.includes("project.manage") },
+    can: { logProgress: holdsPermission(snapshot, "project.progress.manage", onProject), issueMaterial: holdsPermission(snapshot, "project.inventory.manage", onProject), receiveMaterial: holdsPermission(snapshot, "project.inventory.manage", onProject), logTeamHours: holdsPermission(snapshot, "project.manage", onProject) },
   };
 }
 
@@ -3460,7 +3466,8 @@ export async function getPortfolioProfitabilityForTenant(input: { userId: number
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "executive.read" });
   const all = await db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency }).from(projects).where(and(eq(projects.tenantId, input.tenantId), eq(projects.status, "active")));
-  const visible = all.filter(project => hasScopeAccess(snapshot.scopes, { type: "project", id: project.id }));
+  // a project counts only where the executive.read assignment itself covers it (G-142, D-18)
+  const visible = all.filter(project => holdsPermission(snapshot, "executive.read", { type: "project", id: project.id }));
   const now = input.now ?? new Date();
   type Entry = { projectId: string; code: string; name: string; currency: string; fpac: number; movement: number | null };
   const settled = await Promise.all(visible.map(async (project): Promise<{ entry: Entry } | { failure: { projectId: string; code: string; name: string; reason: string } }> => {

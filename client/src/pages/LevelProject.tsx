@@ -1,3 +1,4 @@
+import { formatDate } from "@/components/ds/format";
 import React from "react";
 import { useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -10,6 +11,7 @@ import { kpiValues, type ScopeLevels } from "@/lib/levels";
 import { Figure } from "@/pages/LevelCompany";
 import { enumLabel } from "@/lib/labels";
 import { ProjectFpac } from "@/pages/ProjectFpac";
+import { TableScroll } from "@/components/ds/TableScroll";
 
 // Level 3, one project: profitability, EVM, progress, the daily report, handovers and inspections. The figures come from `scopes.project`
 // (scopeDashboards.ts); the profitability panel is the existing ProjectFpac; the daily reports and the inspections are the existing
@@ -72,7 +74,7 @@ export default function LevelProject() {
     .sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime())
     .slice(0, 5);
   const latestInspections = (inspections.data ?? []).slice().sort((a, b) => new Date(b.inspectedAt).getTime() - new Date(a.inspectedAt).getTime()).slice(0, 5);
-  const day = (value: Date | string) => new Intl.DateTimeFormat(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" }), { dateStyle: "medium" }).format(new Date(value));
+  const day = (value: Date | string) => formatDate(value, language);
   const currency = data.project.currency;
   return dashboard(<>
     <LevelSection id="project-progress" title={t.progress}>
@@ -82,7 +84,7 @@ export default function LevelProject() {
         <Figure label={t.spi} value={formatIndex(values.spi)} />
         <Figure label={t.profit} value={values.profit === null ? t.notAvailable : formatMoney(values.profit, currency)} />
       </dl>
-      {values.progress === null && <p className="mt-4 text-sm text-slate-600">{t.progressUnavailable}</p>}
+      {values.progress === null && <p className="mt-4 text-sm text-muted-foreground">{t.progressUnavailable}</p>}
     </LevelSection>
     <LevelSection id="project-evm" title={t.evm}>
       {"vac" in evm
@@ -93,17 +95,17 @@ export default function LevelProject() {
             <Figure label={t.eac} value={formatMoney(evm.eac, currency)} />
             <Figure label={t.vac} value={formatMoney(evm.vac, currency)} />
           </dl>
-        : <p className="text-sm text-slate-600">{t.evmUnavailable}</p>}
+        : <p className="text-sm text-muted-foreground">{t.evmUnavailable}</p>}
     </LevelSection>
     <ProjectFpac tenantId={tenantId} projectId={projectId} />
     <LevelSection id="project-daily" title={t.daily}>
       <SourceNotice query={reports} isArabic={isArabic} title={t.daily} fallback={t.dailyFailed} />
       {reports.isLoading ? <LoadingState isArabic={isArabic} label={t.loading} />
-        : reports.data && dailyReports.length === 0 ? <p className="text-sm text-slate-600">{t.noDaily}</p>
-        : dailyReports.length > 0 ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-            <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.report}</th><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.workforce}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{dailyReports.map(report => <tr key={report.id}><th scope="row" className="py-3 text-start font-medium">{report.reportNumber}</th><td className="py-3">{day(report.reportedAt)}</td><td className="py-3">{report.workforceCount}</td><td className="py-3">{enumLabel(report.status, language)}</td></tr>)}</tbody>
-          </table></div> : null}
+        : reports.data && dailyReports.length === 0 ? <p className="text-sm text-muted-foreground">{t.noDaily}</p>
+        : dailyReports.length > 0 ? <TableScroll label={t.daily}><table className="w-full min-w-[560px] text-sm">
+            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.report}</th><th scope="col" className="py-2 text-start">{t.date}</th><th scope="col" className="py-2 text-start">{t.workforce}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
+            <tbody className="divide-y divide-border">{dailyReports.map(report => <tr key={report.id}><th scope="row" className="py-3 text-start font-medium">{report.reportNumber}</th><td className="py-3">{day(report.reportedAt)}</td><td className="py-3">{report.workforceCount}</td><td className="py-3">{enumLabel(report.status, language)}</td></tr>)}</tbody>
+          </table></TableScroll> : null}
     </LevelSection>
     <LevelSection id="project-handovers" title={t.handovers}>
       <SourceNotice query={deliveries} isArabic={isArabic} title={t.handovers} fallback={t.handoversFailed} />
@@ -122,11 +124,11 @@ export default function LevelProject() {
       </dl>
       <SourceNotice query={inspections} isArabic={isArabic} title={t.inspections} fallback={t.inspectionsFailed} />
       {inspections.isLoading ? <LoadingState isArabic={isArabic} label={t.loading} />
-        : inspections.data && latestInspections.length === 0 ? <p className="text-sm text-slate-600">{t.noInspections}</p>
-        : latestInspections.length > 0 ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-            <thead className="text-xs text-slate-600"><tr><th scope="col" className="py-2 text-start">{t.inspection}</th><th scope="col" className="py-2 text-start">{t.inspectedAt}</th><th scope="col" className="py-2 text-start">{t.outcome}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{latestInspections.map(item => <tr key={item.id}><th scope="row" className="py-3 text-start font-medium">{item.inspectionNumber}</th><td className="py-3">{day(item.inspectedAt)}</td><td className="py-3">{enumLabel(item.outcome, language)}</td><td className="py-3">{enumLabel(item.status, language)}</td></tr>)}</tbody>
-          </table></div> : null}
+        : inspections.data && latestInspections.length === 0 ? <p className="text-sm text-muted-foreground">{t.noInspections}</p>
+        : latestInspections.length > 0 ? <TableScroll label={t.inspections}><table className="w-full min-w-[560px] text-sm">
+            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.inspection}</th><th scope="col" className="py-2 text-start">{t.inspectedAt}</th><th scope="col" className="py-2 text-start">{t.outcome}</th><th scope="col" className="py-2 text-start">{t.status}</th></tr></thead>
+            <tbody className="divide-y divide-border">{latestInspections.map(item => <tr key={item.id}><th scope="row" className="py-3 text-start font-medium">{item.inspectionNumber}</th><td className="py-3">{day(item.inspectedAt)}</td><td className="py-3">{enumLabel(item.outcome, language)}</td><td className="py-3">{enumLabel(item.status, language)}</td></tr>)}</tbody>
+          </table></TableScroll> : null}
     </LevelSection>
   </>);
 }

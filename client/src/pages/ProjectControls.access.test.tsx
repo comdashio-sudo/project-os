@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import ProjectControls from "./ProjectControls";
 
 vi.mock("wouter", () => ({
+  useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()],
   useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }),
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
@@ -33,6 +34,7 @@ vi.mock("./ProjectImports", () => ({ ProjectImports: () => null }));
 vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () => null }));
 vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
+vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
   return { trpc: {

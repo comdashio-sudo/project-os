@@ -1,9 +1,10 @@
+import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
 /**
@@ -303,7 +304,7 @@ export function AIChatBox({
       </div>
 
       {/* Input Area */}
-      <form
+      <CheckedForm
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         className="flex gap-2 p-4 border-t bg-background/50 items-end"
@@ -314,6 +315,8 @@ export function AIChatBox({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          aria-label={placeholder}
+          required
           className="flex-1 max-h-32 resize-none min-h-9"
           rows={1}
         />
@@ -329,7 +332,7 @@ export function AIChatBox({
             <Send className="size-4" />
           )}
         </Button>
-      </form>
+      </CheckedForm>
     </div>
   );
 }

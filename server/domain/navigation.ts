@@ -1,4 +1,4 @@
-import { hasScopeAccess, type ScopeType, type TenantAccessSnapshot } from "./authorization";
+import { holdsPermission, type ScopeType, type TenantAccessSnapshot } from "./authorization";
 import type { ProductCode } from "../../drizzle/schema";
 
 export type NavigationItem = { id: string; level: "EXECUTIVE" | "PMO" | "PROJECT" | "ADMIN"; labelKey: string; href: string; product: ProductCode; permission: string | readonly string[]; scope: { type: ScopeType; id?: string }; visible?: (snapshot: TenantAccessSnapshot) => boolean };
@@ -7,7 +7,7 @@ export type NavigationItem = { id: string; level: "EXECUTIVE" | "PMO" | "PROJECT
  * The levels entry (work order 16, G-193 to G-195). A person can enter the levels when the snapshot holds one of the permissions that opens a level,
  * on a licensed product: executive.read at company scope (the company level), pmo.read at any scope (the portfolio level, which answers only over the
  * person's own projects), project.read or project.manage at any scope, and project.inventory.manage at any scope (the warehouse, reached from a project).
- * The snapshot pools the assignments, so this is only the sidebar's answer; `/levels/:tenantId` asks the server per assignment (levelReads.entry).
+ * Each permission is read with the scope of the assignment that carries it (G-142, D-18); `/levels/:tenantId` still asks the server per assignment (levelReads.entry).
  */
 const LEVEL_ENTRY: readonly { product: ProductCode; permissions: readonly string[]; companyOnly?: boolean }[] = [
   { product: "EXECUTIVE", permissions: ["executive.read"], companyOnly: true },
@@ -18,14 +18,13 @@ const LEVEL_ENTRY: readonly { product: ProductCode; permissions: readonly string
 export function canEnterLevels(snapshot: TenantAccessSnapshot): boolean {
   if (snapshot.membershipStatus !== "active") return false;
   return LEVEL_ENTRY.some(entry => snapshot.entitledProducts.includes(entry.product)
-    && entry.permissions.some(permission => snapshot.permissionCodes.includes(permission))
-    && (entry.companyOnly ? hasScopeAccess(snapshot.scopes, { type: "company" }) : snapshot.scopes.length > 0));
+    && (entry.companyOnly ? holdsPermission(snapshot, entry.permissions, { type: "company" }) : holdsPermission(snapshot, entry.permissions)));
 }
 
 function isVisible(snapshot: TenantAccessSnapshot, item: NavigationItem) {
   if (item.visible) return item.visible(snapshot);
   const permissions = Array.isArray(item.permission) ? item.permission : [item.permission];
-  return snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes(item.product) && permissions.some(permission => snapshot.permissionCodes.includes(permission)) && hasScopeAccess(snapshot.scopes, item.scope);
+  return snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes(item.product) && holdsPermission(snapshot, permissions, item.scope);
 }
 
 export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; tenantId: string; projectId?: string }) {

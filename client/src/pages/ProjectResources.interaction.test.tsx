@@ -4,6 +4,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectResources } from "./ProjectResources";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ error: null as unknown, mutate: vi.fn(), allocationMutate: vi.fn() }));
 
@@ -11,7 +13,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized resource error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { resources: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "resource-1", resourceCode: "LAB-01", name: "Civil crew", resourceType: "labor", plannedUnits: "10.00", allocatedUnits: "5.00", unitCost: "100.00", currency: "SAR" }], refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: state.error }) }, updateAllocation: { useMutation: () => ({ mutate: state.allocationMutate, isPending: false, error: null }) } } } }));
 
-describe("ProjectResources interaction", () => {
+describe("ProjectResources interaction", TYPING_TEST, () => {
   beforeEach(() => { cleanup(); state.error = null; state.mutate.mockReset(); state.allocationMutate.mockReset(); });
 
   it("submits a bounded resource record and shows its defined allocation denominator", async () => {
@@ -54,5 +56,13 @@ describe("ProjectResources interaction", () => {
     await user.click(screen.getByRole("button", { name: "Update allocation" }));
 
     expect(state.allocationMutate).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", resourceId: "resource-1", allocatedUnits: 8 });
+  });
+});
+
+describe("ProjectResources form checks itself in the page's language (D-64)", () => {
+  it("an empty resource creates nothing and says so in English under its first field", () => {
+    cleanup(); state.error = null; state.mutate.mockReset();
+    render(<ProjectResources tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "en", state.mutate);
   });
 });

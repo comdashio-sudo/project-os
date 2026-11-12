@@ -1,4 +1,4 @@
-// One synthetic company with the sixteen operating roles, each held by a different synthetic person.
+// One synthetic company with the owner and the seventeen role templates, each held by a different synthetic person (D-21: QA/QC and HSE added).
 //
 // Everything is invented (*.example.test). The people are created the way the e-mail sign-in creates them
 // (openId = email:<40 hex of SHA-256(address)>), so signing in through the real screen finds the same account.
@@ -36,6 +36,9 @@ export const ROLE_DEFINITIONS = [
   { key: "designArch", ar: "منسق التصميم المعماري", system: "DESIGN_COORDINATOR_ARCHITECTURAL", scope: "project" },
   { key: "designTech", ar: "منسق التصميم الفني", system: "DESIGN_COORDINATOR_TECHNICAL", scope: "project" },
   { key: "contracts", ar: "مدير العقود", system: "CONTRACTS_MANAGER", scope: "project" },
+  // D-21: the two templates the rehearsal did not cover. QA/QC carries project.read itself; HSE does not, so it gets the viewer role like the site engineer.
+  { key: "qaqc", ar: "مدير الجودة", system: "QA_QC_MANAGER", scope: "project" },
+  { key: "hse", ar: "مدير السلامة", system: "HSE_MANAGER", scope: "project", viewer: true },
 ];
 
 export async function createRoleFixture({ label = "e2e" } = {}) {

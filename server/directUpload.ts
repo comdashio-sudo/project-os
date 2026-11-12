@@ -6,7 +6,8 @@ import { TRPCError } from "@trpc/server";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot, ensureDefaultCommercialCatalog } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { DIRECT_UPLOAD_PURPOSES, safeUploadFileName, uploadPrefix, type DirectUploadPurpose } from "./directUploadKeys";
-import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl } from "./storage";
+import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageMode } from "./storage";
+import { DB_STORAGE_MAX_FILE_BYTES, VERCEL_REQUEST_BODY_BYTES } from "./dbStorage";
 
 export { DIRECT_UPLOAD_PURPOSES, takeDirectUpload, type DirectUploadPurpose } from "./directUploadKeys";
 
@@ -18,6 +19,8 @@ const ALLOWED_TYPES: Record<DirectUploadPurpose, RegExp> = {
   sitePhoto: /^image\/(png|jpeg|webp)$/,
   // a drawing of a Master Plan (G-189): PDF, PNG, JPEG or a DXF text file; the server checks the content itself
   masterPlanDrawing: /^(application\/(pdf|dxf|octet-stream)|image\/(png|jpeg)|image\/vnd\.dxf|text\/plain)$/,
+  // a party's logo on the project profile (D-42 a): PNG, JPEG or SVG; the server reads the bytes (and refuses an SVG carrying script) in projectProfile.ts
+  logo: /^image\/(png|jpeg|svg\+xml)$/,
 };
 /** The permission the module's own procedure requires, so a person can upload exactly when they could have attached the file before. */
 async function authorizeDirectUpload(input: { userId: number; tenantId: string; projectId: string; purpose: DirectUploadPurpose }) {
@@ -31,7 +34,7 @@ async function authorizeDirectUpload(input: { userId: number; tenantId: string; 
   }
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.purpose === "sitePhoto" ? "project.field.manage" : "project.write", scope: { type: "project", id: input.projectId } });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.purpose === "sitePhoto" ? "project.field.manage" : input.purpose === "logo" ? "project.manage" : "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
 }
 
@@ -41,5 +44,5 @@ export async function createDirectUpload(input: { userId: number; tenantId: stri
   if (!ALLOWED_TYPES[input.purpose].test(input.contentType)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_UPLOAD_TYPE_INVALID" });
   const key = `${uploadPrefix(input)}${randomUUID()}/${safeUploadFileName(input.fileName)}`;
   const upload = await storageCreateUploadUrl(key, input.contentType);
-  return { uploadKey: upload.key, uploadUrl: upload.url, headers: upload.headers, expiresInSeconds: upload.expiresInSeconds, maxBytes: MAX_DIRECT_UPLOAD_BYTES };
+  return { uploadKey: upload.key, uploadUrl: upload.url, headers: upload.headers, expiresInSeconds: upload.expiresInSeconds, maxBytes: storageMode() === "database" ? Math.min(DB_STORAGE_MAX_FILE_BYTES, VERCEL_REQUEST_BODY_BYTES) : MAX_DIRECT_UPLOAD_BYTES }; // D-79: 5 MB a file in the database, and the browser's PUT crosses Vercel (4.5 MB)
 }

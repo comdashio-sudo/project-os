@@ -2,9 +2,10 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import ProjectPmc, { ProjectPmcWorkspace } from "./ProjectPmc";
+import ProjectPmc, { PMC_TEXT, ProjectPmcWorkspace, ageText } from "./ProjectPmc";
 import { exportElementToPdf } from "@/lib/pdfExport";
 import { buildTableWorkbook } from "@/lib/excelExport";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
@@ -20,12 +21,13 @@ const state = vi.hoisted(() => ({
   imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() },
 }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/pdfExport", () => ({ exportElementToPdf: vi.fn(async () => "x.pdf") }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 
 const h = vi.hoisted(() => {
   const options = { zones: ["Z1", "Z2"], blocks: ["B1"], groups: ["CIV"], stages: ["INT"], activities: ["WALLS"] };
-  const freshness = [{ source: "status", lastAt: new Date(), ageDays: 3 }, { source: "baseline", lastAt: null, ageDays: null }];
+  const freshness = [{ source: "status", lastAt: new Date(), ageDays: 3 }, { source: "baseline", lastAt: null, ageDays: null }, { source: "requests", lastAt: new Date(), ageDays: 1 }, { source: "internal_key", lastAt: new Date(), ageDays: 2 }];
   const screenQuery = (data: unknown, emptyData: unknown) => (input: unknown) => {
     state.inputs.push(input);
     if (state.loading) return { isLoading: true, error: null, data: undefined, refetch: () => undefined };
@@ -36,7 +38,7 @@ const h = vi.hoisted(() => {
   return { screenQuery, reply };
 });
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: state.put }));
-vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmc: {
+vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmcSite: { percentages: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } }, pmc: {
   latestUpdates: { useQuery: h.screenQuery({ engineers: [{ userId: 1, name: "Eng One", updates: 3, activeDays: 2, perDay: [], unitFrom: 1, unitTo: 4, addedProjectPercent: 40, byGroup: [{ groupCode: "CIV", groupName: "Civil", addedProjectPercent: 30, updates: 2 }] }], totals: { updates: 3, addedProjectPercent: 40 } }, { engineers: [], totals: { updates: 0, addedProjectPercent: 0 } }) },
   approvals: { useQuery: h.screenQuery({ requests: [{ code: "IR-1", activityCode: "WALLS", activityName: "Walls", requestedAt: new Date("2026-10-10"), contractor: "C1", consultant: "X", response: "A", units: 2 }], byConsultant: [h.reply], byDay: [h.reply], byActivity: [h.reply], contractors: [], consultants: [] }, { requests: [], byConsultant: [], byDay: [], byActivity: [], contractors: [], consultants: [] }) },
   inspectionFlow: { useQuery: h.screenQuery({ total: 4, byStage: [{ stage: "WAITING_CONSULTANT", count: 1, percent: 25 }], heldBy: [{ holder: "Consultant X", count: 1 }], stalledActivities: [{ activityCode: "PAINT", activityName: "Paint", open: 2, oldestDays: 14 }] }, { total: 0, byStage: [], heldBy: [], stalledActivities: [] }) },
@@ -65,6 +67,10 @@ describe("ProjectPmc screens", () => {
     expect(screen.getAllByText("40%", { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByTestId("freshness").textContent).toContain("Activity status: 3 days ago");
     expect(screen.getByTestId("freshness").textContent).toContain("Baseline: never updated");
+    // one day is singular, and a source the screen has no name for never shows its internal key
+    expect(screen.getByTestId("freshness").textContent).toContain("Requests: 1 day ago");
+    expect(screen.getByTestId("freshness").textContent).toContain("Other source: 2 days ago");
+    expect(screen.getByTestId("freshness").textContent).not.toContain("internal_key");
     open("Approvals"); expect(screen.getByText("IR-1")).toBeTruthy(); expect(screen.getByText("Replies per consultant")).toBeTruthy();
     open("Inspections"); expect(screen.getByText("Waiting for consultant")).toBeTruthy(); expect(screen.getByText("PAINT · Paint")).toBeTruthy();
     open("Activities"); expect(screen.getByText("WALLS · Walls")).toBeTruthy();
@@ -116,7 +122,7 @@ describe("ProjectPmc screens", () => {
     expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
     expect(screen.getByText("ضبط المشروع PMC")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "آخر التحديثات" })).toBeTruthy();
-    expect(screen.getByTestId("freshness").textContent).toContain("قبل 3 يومًا");
+    expect(screen.getByTestId("freshness").textContent).toContain("قبل 3 أيام");
   });
 });
 
@@ -249,7 +255,7 @@ describe("ProjectPmc as a tab inside the controls page (G-051) and the PDF butto
   });
 });
 
-describe("ProjectPmc Excel export, table by table", () => {
+describe("ProjectPmc Excel export, table by table", EXPORT_TEST, () => {
   let anchorClick: MockInstance;
   beforeEach(() => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:pmc"), revokeObjectURL: vi.fn() });
@@ -263,8 +269,8 @@ describe("ProjectPmc Excel export, table by table", () => {
     const button = within(table.closest("div.space-y-2") as HTMLElement).getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement;
     const before = vi.mocked(buildTableWorkbook).mock.calls.length;
     fireEvent.click(button);
-    await waitFor(() => expect(vi.mocked(buildTableWorkbook).mock.calls.length).toBe(before + 1));
-    await waitFor(() => expect(button.disabled).toBe(false));
+    await waitFor(() => expect(vi.mocked(buildTableWorkbook).mock.calls.length).toBe(before + 1), EXPORT_WAIT);
+    await waitFor(() => expect(button.disabled).toBe(false), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[before]![0];
     return {
       input,
@@ -356,5 +362,19 @@ describe("ProjectPmc Excel export, table by table", () => {
     expect(result.headers).toEqual(result.tableHeaders);
     expect(result.exportedRows).toBe(2);
     expect(result.bodyRows).toBe(2);
+  });
+});
+
+describe("PMC data freshness: the age of a source in each language", () => {
+  it("counts days with the right plural in Arabic, English and Urdu, and names every source the server sends", () => {
+    expect([1, 2, 3, 10, 11].map(n => ageText(PMC_TEXT.ar, n))).toEqual(["قبل يوم واحد", "قبل يومين", "قبل 3 أيام", "قبل 10 أيام", "قبل 11 يومًا"]);
+    expect([1, 2].map(n => ageText(PMC_TEXT.en, n))).toEqual(["1 day ago", "2 days ago"]);
+    expect([1, 5].map(n => ageText(PMC_TEXT.ur, n))).toEqual(["1 دن پہلے", "5 دن پہلے"]);
+    for (const language of ["ar", "en", "ur"] as const) {
+      expect(ageText(PMC_TEXT[language], 0)).toBe(PMC_TEXT[language].today);
+      // the five sources server/pmcScreensService.ts reports
+      for (const source of ["locations", "catalog", "status", "requests", "baseline"] as const) expect(PMC_TEXT[language].sources[source]).toBeTruthy();
+    }
+    expect(PMC_TEXT.ur.freshness).toBe("ڈیٹا کی تازگی");
   });
 });

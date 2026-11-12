@@ -7,6 +7,7 @@ const access: TenantAccessSnapshot = {
   entitledProducts: ["PMO", "PROJECT"],
   permissionCodes: ["project.read", "project.write"],
   scopes: [{ scopeType: "project", scopeId: "project-1" }],
+  grants: [{ code: "project.read", scopeType: "project", scopeId: "project-1" }, { code: "project.write", scopeType: "project", scopeId: "project-1" }],
 };
 
 describe("commercial packages", () => {

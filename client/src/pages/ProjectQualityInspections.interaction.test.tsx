@@ -4,6 +4,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectQualityInspections } from "./ProjectQualityInspections";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
@@ -14,7 +16,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { qualityInspections: {
   transitionStatus: { useMutation: () => ({ mutate: state.transition, isPending: false, error: null }) },
 } } }));
 
-describe("ProjectQualityInspections", () => {
+describe("ProjectQualityInspections", TYPING_TEST, () => {
   it("submits an inspection and exposes the governed next transition", async () => {
     cleanup(); state.create.mockClear(); state.transition.mockClear(); state.arabic = false;
     const user = userEvent.setup();
@@ -35,6 +37,15 @@ describe("ProjectQualityInspections", () => {
     expect(screen.getByText("سجل فحوصات الجودة")).toBeTruthy();
     expect(screen.getByLabelText("رقم الفحص")).toBeTruthy();
     expect(screen.getByRole("button", { name: "تحديث الحالة: مرسل" })).toBeTruthy();
+    state.arabic = false;
+  });
+});
+
+describe("ProjectQualityInspections checks its forms in the page's language (D-65)", () => {
+  it("an empty inspection records nothing and says so in Arabic under its first field", () => {
+    cleanup(); state.arabic = true; state.create.mockReset();
+    render(<ProjectQualityInspections tenantId="tenant-1" projectId="project-1" />);
+    expectEmptySubmitRefused(document.querySelector("form")!, "ar", state.create);
     state.arabic = false;
   });
 });

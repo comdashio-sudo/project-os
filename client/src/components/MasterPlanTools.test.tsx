@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MasterPlanCanvas, MasterPlanEntityTools, MasterPlanVersionTools, SnapshotShareToggle, type ToolsEntity } from "./MasterPlanTools";
+import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 const hoisted = vi.hoisted(() => ({ state: { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>> }, mutation: (name: string) => ({ useMutation: () => ({ mutate: hoisted.state.calls[name] ?? (hoisted.state.calls[name] = vi.fn()), isPending: false, error: null }) }) }));
 const { state } = hoisted;
@@ -15,7 +17,7 @@ const entity = (id: string, code: string, parent: string | null, extra: Partial<
 beforeEach(() => { state.arabic = true; state.calls = {}; });
 afterEach(cleanup);
 
-describe("MasterPlanVersionTools", () => {
+describe("MasterPlanVersionTools", TYPING_TEST, () => {
   it("saves the rotation and the real size of the plan, and turns by 90° from the buttons", async () => {
     const user = userEvent.setup(); const saved = vi.fn();
     render(<MasterPlanVersionTools tenantId="t" projectId="p" version={{ id: "v1", rotationDegrees: 0, mapWidthMeters: null, mapHeightMeters: null }} onSaved={saved} />);
@@ -30,7 +32,7 @@ describe("MasterPlanVersionTools", () => {
   it("shows nothing without a version", () => { const { container } = render(<MasterPlanVersionTools tenantId="t" projectId="p" version={undefined} onSaved={vi.fn()} />); expect(container.textContent).toBe(""); });
 });
 
-describe("MasterPlanEntityTools", () => {
+describe("MasterPlanEntityTools", TYPING_TEST, () => {
   const all = [entity("root", "ROOT", null), entity("child", "CHILD", "root"), entity("grand", "GRAND", "child"), entity("other", "OTHER", null)];
   const render1 = (target: ToolsEntity, extra: Record<string, unknown> = {}) => render(<MasterPlanEntityTools tenantId="t" projectId="p" entity={target} entities={all} activity={null} mapWidthMeters={400} mapHeightMeters={250} onChanged={vi.fn()} {...extra} />);
 
@@ -70,7 +72,7 @@ describe("MasterPlanEntityTools", () => {
   });
 });
 
-describe("MasterPlanCanvas", () => {
+describe("MasterPlanCanvas", TYPING_TEST, () => {
   const drawn: Array<[string, unknown[]]> = [];
   beforeEach(() => {
     drawn.length = 0;
@@ -93,7 +95,7 @@ describe("MasterPlanCanvas", () => {
   });
 });
 
-describe("SnapshotShareToggle", () => {
+describe("SnapshotShareToggle", TYPING_TEST, () => {
   it("lets the author share and un-share, and only tells everyone else that it was shared", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<SnapshotShareToggle tenantId="t" projectId="p" snapshot={{ id: "s1", createdByUserId: 7, sharedWithProject: false }} currentUserId={7} onChanged={vi.fn()} />);
@@ -107,5 +109,15 @@ describe("SnapshotShareToggle", () => {
     expect(screen.getByText("مشاركة من زميل")).toBeTruthy();
     rerender(<SnapshotShareToggle tenantId="t" projectId="p" snapshot={{ id: "s1", createdByUserId: 7, sharedWithProject: false }} currentUserId={9} onChanged={vi.fn()} />);
     expect(screen.queryByText("مشاركة من زميل")).toBeNull();
+  });
+});
+
+describe("MasterPlanTools forms check themselves in the page's language (D-63)", TYPING_TEST, () => {
+  it("an empty rotation, or an empty position, sends nothing and says so under the field", async () => {
+    render(<MasterPlanVersionTools tenantId="t" projectId="p" version={{ id: "v1", rotationDegrees: 0, mapWidthMeters: null, mapHeightMeters: null }} onSaved={vi.fn()} />);
+    const rotation = screen.getByLabelText("زاوية التدوير (درجة)") as HTMLInputElement;
+    fireEvent.change(rotation, { target: { value: "" } });
+    state.calls.setVersionGeometry ??= vi.fn();
+    expect(expectEmptySubmitRefused(rotation.form!, "ar", state.calls.setVersionGeometry)).toBe(rotation);
   });
 });

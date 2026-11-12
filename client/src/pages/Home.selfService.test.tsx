@@ -4,6 +4,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Home from "./Home";
+import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({
   signup: vi.fn(),
@@ -24,12 +25,11 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/const", () => ({ startLogin: vi.fn() }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/components/ui/select", () => ({
-  Select: ({ value, onValueChange, children }: { value: string; onValueChange: (value: string) => void; children: React.ReactNode }) => <select aria-label="Plan" value={value} onChange={event => onValueChange(event.target.value)}>{children}</select>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => <option value={value}>{children}</option>,
+// The custom list (Radix) needs pointer APIs jsdom lacks; a native stand-in keeps the same contract (value, options, placeholder, the field's id for its label).
+vi.mock("@/components/ds", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/components/ds")>()),
+  Select: ({ id, value, onValueChange, options, placeholder, "aria-required": ariaRequired }: { id?: string; value?: string; onValueChange: (value: string) => void; options: Array<{ value: string; label: string }>; placeholder?: string; "aria-required"?: boolean }) =>
+    <select id={id} aria-required={ariaRequired || undefined} value={value} onChange={event => onValueChange(event.target.value)}><option value="">{placeholder}</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>,
 }));
 vi.mock("@/components/MfaGate", () => ({ MfaGate: ({ children }: { children: React.ReactNode }) => <>{children}</> })); // the second-step gate has its own test (MfaGate.test.tsx)
 vi.mock("@/lib/trpc", () => ({
@@ -44,15 +44,20 @@ vi.mock("@/lib/trpc", () => ({
 
 afterEach(() => { cleanup(); state.signup.mockClear(); state.refetch.mockClear(); state.tenantQuery = { data: [], isLoading: false, isSuccess: true, isError: false, refetch: state.refetch }; state.signupError = null; state.role = "admin"; state.plansQuery = { data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }], isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; state.signupOptions = null; });
 
-describe("Home self-service", () => {
+describe("Home self-service", TYPING_TEST, () => {
+  it("marks the company's legal name, short name, plan and seats as required, with a star beside each label", () => {
+    render(<Home />);
+    for (const label of [/^Legal name/, /^Workspace slug/, /^Plan/, /^Seats/]) expect(screen.getByLabelText(label).getAttribute("aria-required")).toBe("true");
+    expect(screen.getAllByLabelText("Required")).toHaveLength(4);
+  });
   it("submits the server-catalog plan with company and seat boundaries", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.type(screen.getByLabelText("Legal name"), "Pilot Company");
-    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("pilot-company");
-    await user.selectOptions(screen.getByLabelText("Plan"), "PROJECT_STANDARD");
-    await user.clear(screen.getByLabelText("Seats"));
-    await user.type(screen.getByLabelText("Seats"), "5");
+    await user.type(screen.getByLabelText(/^Legal name/), "Pilot Company");
+    expect((screen.getByLabelText(/^Workspace slug/) as HTMLInputElement).value).toBe("pilot-company");
+    await user.selectOptions(screen.getByLabelText(/^Plan/), "PROJECT_STANDARD");
+    await user.clear(screen.getByLabelText(/^Seats/));
+    await user.type(screen.getByLabelText(/^Seats/), "5");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
     expect(state.signup).toHaveBeenCalledWith({ legalName: "Pilot Company", slug: "pilot-company", planCode: "PROJECT_STANDARD", seats: 5 });
   });
@@ -93,23 +98,23 @@ describe("Home self-service", () => {
     state.role = "user";
     render(<Home />);
     expect(screen.getByText("Access is by invitation")).toBeTruthy();
-    expect(screen.queryByLabelText("Legal name")).toBeNull();
+    expect(screen.queryByLabelText(/^Legal name/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
   });
   it("suggests a short name from an Arabic legal name, and stops suggesting once the person edits it", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.type(screen.getByLabelText("Legal name"), "فناء");
-    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("fanaa");
-    await user.clear(screen.getByLabelText("Workspace slug"));
-    await user.type(screen.getByLabelText("Workspace slug"), "my-firm");
-    await user.type(screen.getByLabelText("Legal name"), " الجديدة");
-    expect((screen.getByLabelText("Workspace slug") as HTMLInputElement).value).toBe("my-firm");
+    await user.type(screen.getByLabelText(/^Legal name/), "فناء");
+    expect((screen.getByLabelText(/^Workspace slug/) as HTMLInputElement).value).toBe("fanaa");
+    await user.clear(screen.getByLabelText(/^Workspace slug/));
+    await user.type(screen.getByLabelText(/^Workspace slug/), "my-firm");
+    await user.type(screen.getByLabelText(/^Legal name/), " الجديدة");
+    expect((screen.getByLabelText(/^Workspace slug/) as HTMLInputElement).value).toBe("my-firm");
   });
 
   it("gives the short name its rule as helper text, with no browser pattern and no browser validation on the form", () => {
     render(<Home />);
-    const slug = screen.getByLabelText("Workspace slug");
+    const slug = screen.getByLabelText(/^Workspace slug/);
     expect(screen.getByText("Lowercase English letters, digits and dashes only, for example: fanaa")).toBeTruthy();
     expect(slug.hasAttribute("pattern")).toBe(false);
     expect(slug.closest("form")?.hasAttribute("novalidate")).toBe(true);
@@ -118,10 +123,10 @@ describe("Home self-service", () => {
   it("names the broken rule beside the short name in the form's language and does not submit", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.selectOptions(screen.getByLabelText("Plan"), "PROJECT_STANDARD");
-    await user.type(screen.getByLabelText("Legal name"), "Pilot Company");
-    await user.clear(screen.getByLabelText("Workspace slug"));
-    await user.type(screen.getByLabelText("Workspace slug"), "ab");
+    await user.selectOptions(screen.getByLabelText(/^Plan/), "PROJECT_STANDARD");
+    await user.type(screen.getByLabelText(/^Legal name/), "Pilot Company");
+    await user.clear(screen.getByLabelText(/^Workspace slug/));
+    await user.type(screen.getByLabelText(/^Workspace slug/), "ab");
     expect(screen.getByRole("alert").textContent).toBe("The short name must be at least 3 characters.");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
     expect(state.signup).not.toHaveBeenCalled();
