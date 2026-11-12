@@ -55,6 +55,8 @@ export const companies = pgTable(
     defaultLocale: companiesDefaultLocaleEnum("default_locale").default("ar").notNull(),
     // D-81 (owner's decision 2026-11-09): two-step verification is optional and off by default for everyone. A company that wants it for its members switches this on (migration 0023).
     requireTwoStep: boolean("require_two_step").default(false).notNull(),
+    // Q-12 part 1 (b): the company's own logo, a Storage key (migration 0028); null = no logo
+    logoKey: varchar("logo_key", { length: 512 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

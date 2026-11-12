@@ -61,6 +61,19 @@ describe("PmcEditors", () => {
     expect(h.invalidated.sort()).toEqual(["progress", "statusGrid", "structure"]); // #244: the three readings are stale after a write
   });
 
+  it("Q-3: off 100% the difference is shown, and «distribute proportionally» scales every weight to total exactly 100%", () => {
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    expect(screen.queryByRole("button", { name: "Distribute proportionally to 100%" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Weight %: WALLS"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Weight %: FINISH"), { target: { value: "20" } });
+    expect(document.querySelector("[data-weight-difference]")!.textContent).toContain("50.00%");
+    fireEvent.click(screen.getByRole("button", { name: "Distribute proportionally to 100%" }));
+    expect((screen.getByLabelText("Weight %: WALLS") as HTMLInputElement).value).toBe("60");
+    expect((screen.getByLabelText("Weight %: FINISH") as HTMLInputElement).value).toBe("40");
+    expect((screen.getByRole("button", { name: "Save the weights" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(document.querySelector("[data-weight-difference]")).toBeNull();
+  });
+
   it("a click on a matrix cell moves it to its next status through the one status write", async () => {
     render(<PmcEditors tenantId="t" projectId="p" />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Show" })); });

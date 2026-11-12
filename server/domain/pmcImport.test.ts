@@ -95,7 +95,7 @@ describe("PMC import: catalogue and weights", () => {
 
   it("names the model whose weights do not total 100 and plans nothing for it (rule 4)", () => {
     const plan = planCatalog(rows(...model("A", [60, 40]), ...model("B", [50, 30])), context);
-    expect(plan.errors).toEqual([{ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: "B", detail: "B totals 80" }]);
+    expect(plan.errors).toEqual([{ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: "B", detail: "B totals 80 (missing 20)" }]);
     expect(plan.newDefinitions.map(definition => definition.modelCode)).toEqual(["A", "A"]);
   });
 

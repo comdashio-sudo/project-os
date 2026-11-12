@@ -23,21 +23,21 @@ const copy = {
   ar: {
     units: "إنشاء وحدات بالجملة", unitsHint: "وحدات متتالية في بلوك واحد ونموذج واحد. إن وُجد رقم منها في المشروع لا يُنشأ شيء.", block: "البلوك", model: "النموذج", from: "من الرقم", to: "إلى الرقم",
     count: (n: number) => `${formatNumber(n)} وحدة`, create: "إنشاء الوحدات", created: (n: number, from: number, to: number) => `أُنشئت ${formatNumber(n)} وحدة (${from}–${to}).`,
-    weights: "أوزان الأنشطة", weightsHint: "أوزان أنشطة النموذج معًا؛ لا تُحفظ حتى يكون مجموعها 100% تمامًا.", activity: "النشاط", weight: "الوزن %", total: "المجموع", saveWeights: "حفظ الأوزان", savedWeights: "حُفظت الأوزان.", noModels: "لا نماذج بعد: يُنشأ النموذج وأنشطته من استيراد الأنشطة.",
+    weights: "أوزان الأنشطة", weightsHint: "أوزان أنشطة النموذج معًا؛ لا تُحفظ حتى يكون مجموعها 100% تمامًا.", activity: "النشاط", weight: "الوزن %", total: "المجموع", saveWeights: "حفظ الأوزان", savedWeights: "حُفظت الأوزان.", distribute: "توزيع نسبي حتى 100%", difference: "الفرق", section: "القسم", sub: "البند الفرعي", noModels: "لا نماذج بعد: يُنشأ النموذج وأنشطته من استيراد الأنشطة.",
     grid: "مصفوفة الحالة", gridHint: "انقر الخانة لنقلها إلى الحالة التالية.", show: "عرض", unit: "الوحدة", notInModel: "ليس في نموذج الوحدة", truncated: "تُعرض أول 200 وحدة؛ ضيّق النطاق.", noUnits: "لا وحدات في هذا النطاق.", readOnly: "للعرض فقط: لا تملك صلاحية تحديث الحالة.",
     statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "مراجعة", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `الوحدة ${unit} · ${activity}: ${now}، انقر لتصبح ${then}`,
   },
   en: {
     units: "Create units in bulk", unitsHint: "Consecutive units in one block and one model. If any of the numbers exists in the project, nothing is created.", block: "Block", model: "Model", from: "From number", to: "To number",
     count: (n: number) => `${formatNumber(n)} units`, create: "Create the units", created: (n: number, from: number, to: number) => `${formatNumber(n)} units created (${from}–${to}).`,
-    weights: "Activity weights", weightsHint: "A model's activity weights together; they cannot be saved until they total exactly 100%.", activity: "Activity", weight: "Weight %", total: "Total", saveWeights: "Save the weights", savedWeights: "The weights were saved.", noModels: "No models yet: a model and its activities come from the activities import.",
+    weights: "Activity weights", weightsHint: "A model's activity weights together; they cannot be saved until they total exactly 100%.", activity: "Activity", weight: "Weight %", total: "Total", saveWeights: "Save the weights", savedWeights: "The weights were saved.", distribute: "Distribute proportionally to 100%", difference: "Difference", section: "Section", sub: "Sub-item", noModels: "No models yet: a model and its activities come from the activities import.",
     grid: "Status matrix", gridHint: "Click a cell to move it to its next status.", show: "Show", unit: "Unit", notInModel: "Not in the unit's model", truncated: "The first 200 units are shown; narrow the range.", noUnits: "No units in this range.", readOnly: "View only: you cannot update the status.",
     statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "WIP", UNDER_REVIEW: "Rev", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `Unit ${unit} · ${activity}: ${now}, click to make it ${then}`,
   },
   ur: {
     units: "یونٹس ایک ساتھ بنائیں", unitsHint: "ایک بلاک اور ایک ماڈل میں مسلسل یونٹس۔ اگر کوئی نمبر پروجیکٹ میں موجود ہو تو کچھ نہیں بنتا۔", block: "بلاک", model: "ماڈل", from: "نمبر سے", to: "نمبر تک",
     count: (n: number) => `${formatNumber(n)} یونٹس`, create: "یونٹس بنائیں", created: (n: number, from: number, to: number) => `${formatNumber(n)} یونٹس بن گئے (${from}–${to})۔`,
-    weights: "سرگرمیوں کے وزن", weightsHint: "ماڈل کی سرگرمیوں کے وزن ایک ساتھ؛ مجموعہ ٹھیک 100% ہونے تک محفوظ نہیں ہوتے۔", activity: "سرگرمی", weight: "وزن %", total: "مجموعہ", saveWeights: "وزن محفوظ کریں", savedWeights: "وزن محفوظ ہو گئے۔", noModels: "ابھی کوئی ماڈل نہیں: ماڈل اور اس کی سرگرمیاں سرگرمیوں کی درآمد سے آتی ہیں۔",
+    weights: "سرگرمیوں کے وزن", weightsHint: "ماڈل کی سرگرمیوں کے وزن ایک ساتھ؛ مجموعہ ٹھیک 100% ہونے تک محفوظ نہیں ہوتے۔", activity: "سرگرمی", weight: "وزن %", total: "مجموعہ", saveWeights: "وزن محفوظ کریں", savedWeights: "وزن محفوظ ہو گئے۔", distribute: "تناسب سے 100% تک تقسیم کریں", difference: "فرق", section: "سیکشن", sub: "ذیلی آئٹم", noModels: "ابھی کوئی ماڈل نہیں: ماڈل اور اس کی سرگرمیاں سرگرمیوں کی درآمد سے آتی ہیں۔",
     grid: "حیثیت کا میٹرکس", gridHint: "خانے پر کلک کریں تاکہ وہ اگلی حیثیت پر جائے۔", show: "دکھائیں", unit: "یونٹ", notInModel: "یونٹ کے ماڈل میں نہیں", truncated: "پہلے 200 یونٹس دکھائے گئے ہیں؛ حد کم کریں۔", noUnits: "اس حد میں کوئی یونٹ نہیں۔", readOnly: "صرف دیکھنے کے لیے: آپ حیثیت تازہ نہیں کر سکتے۔",
     statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "جائزے میں", COMPLETE: "مکمل" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "جاری", UNDER_REVIEW: "جائزہ", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `یونٹ ${unit} · ${activity}: ${now}، کلک کریں تاکہ ${then} ہو`,
   },
@@ -105,7 +105,7 @@ function BulkUnits({ tenantId, projectId, blocks, models, start, onDone }: { ten
   );
 }
 
-function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; projectId: string; models: Array<{ modelCode: string; totalWeight: number; activities: Array<{ id: string; code: string; name: string; weightPercent: number }> }>; onDone: () => void }) {
+function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; projectId: string; models: Array<{ modelCode: string; totalWeight: number; activities: Array<{ id: string; code: string; name: string; weightPercent: number; section?: string; sub?: string }> }>; onDone: () => void }) {
   const { language } = useLanguage(); const t = pickLanguage(language, copy);
   const [modelCode, setModelCode] = React.useState<string | undefined>(models[0]?.modelCode);
   React.useEffect(() => { if (!modelCode && models[0]) setModelCode(models[0].modelCode); }, [models, modelCode]);
@@ -116,6 +116,15 @@ function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; pr
   const save = trpc.pmc.saveActivityWeights.useMutation({ onSuccess: () => { refresh(); onDone(); } });
   const total = Math.round((model?.activities ?? []).reduce((sum, activity) => sum + (Number(draft[activity.id]) || 0), 0) * 10000) / 10000;
   const complete = Math.abs(total - 100) <= 0.0001;
+  // Q-3: the owner's own tool has a «distribute proportionally» button — every weight scaled by the same factor so the model totals exactly 100% (the last one takes the rounding)
+  const distribute = () => {
+    const activities = model?.activities ?? [];
+    if (!(total > 0)) return;
+    const scaled = activities.map(activity => Math.round(((Number(draft[activity.id]) || 0) * 100 / total) * 10000) / 10000);
+    const rest = Math.round((100 - scaled.slice(0, -1).reduce((sum, value) => sum + value, 0)) * 10000) / 10000;
+    if (scaled.length) scaled[scaled.length - 1] = rest;
+    setDraft(Object.fromEntries(activities.map((activity, index) => [activity.id, String(scaled[index])])));
+  };
   if (!models.length) return <Card aria-label={t.weights}><CardBody><p className="text-sm text-muted-foreground">{t.noModels}</p></CardBody></Card>;
   return (
     <Card aria-label={t.weights}>
@@ -123,19 +132,20 @@ function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; pr
       <CardBody className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="text-sm"><span className="mb-1 block">{t.model}</span><Select aria-label={t.model} className="min-w-32" value={modelCode} onValueChange={setModelCode} options={models.map(item => ({ value: item.modelCode, label: item.modelCode }))} /></div>
-          <p data-weight-total className="flex items-center gap-2 text-sm"><span>{t.total}:</span><Badge tone={complete ? "success" : "warning"}><bdi dir="ltr">{formatPercent(total, 2)} / 100%</bdi></Badge></p>
+          <p data-weight-total className="flex items-center gap-2 text-sm"><span>{t.total}:</span><Badge tone={complete ? "success" : "warning"}><bdi dir="ltr">{formatPercent(total, 2)} / 100%</bdi></Badge>{!complete && <span data-weight-difference>{t.difference}: <bdi dir="ltr">{formatPercent(Math.round((100 - total) * 10000) / 10000, 2)}</bdi></span>}</p>
         </div>
         {/* review of #252: on a phone the weight fields were cut at the start edge of a plain scroller; TableScroll says when it scrolls and fades the edge */}
         <TableScroll label={t.weights}>
           <table className="w-full text-sm" aria-label={t.weights}>
-            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.activity}</th><th scope="col" className="py-2 text-start">{t.weight}</th></tr></thead>
+            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.section}</th><th scope="col" className="py-2 text-start">{t.activity}</th><th scope="col" className="py-2 text-start">{t.weight}</th></tr></thead>
             <tbody className="divide-y divide-border">{(model?.activities ?? []).map(activity => (
-              <tr key={activity.id}><th scope="row" className="py-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activity.name}</th>
+              <tr key={activity.id}><td className="py-2 pe-3 align-top text-xs text-muted-foreground">{activity.section ?? ""}{activity.sub && activity.sub !== activity.section ? <><br />{activity.sub}</> : null}</td><th scope="row" className="py-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activity.name}</th>
                 <td className="py-1"><input aria-label={`${t.weight}: ${activity.code}`} className={field} dir="ltr" inputMode="decimal" value={draft[activity.id] ?? ""} onChange={event => setDraft(current => ({ ...current, [activity.id]: event.target.value }))} /></td></tr>
             ))}</tbody>
           </table>
         </TableScroll>
         <div className="flex flex-wrap items-center gap-3">
+          {!complete && total > 0 && <Button variant="secondary" onClick={distribute}>{t.distribute}</Button>}
           <Button loading={save.isPending} disabled={!complete || !model} onClick={() => model && save.mutate({ tenantId, projectId, modelCode: model.modelCode, weights: model.activities.map(activity => ({ activityDefinitionId: activity.id, weightPercent: Number(draft[activity.id]) || 0 })) })}>{t.saveWeights}</Button>
           {save.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(save.error, language)}</p> : null}
           {save.isSuccess ? <p role="status" className="text-sm text-success">{t.savedWeights}</p> : null}

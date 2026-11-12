@@ -6,7 +6,7 @@
 import { readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
 
 export const PMC_IMPORT_LIMITS = { maxRows: 60_000, maxColumns: 20 } as const;
-export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline", "baselineDates"] as const;
+export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline", "baselineDates", "weights"] as const;
 export type PmcImportKind = (typeof PMC_IMPORT_KINDS)[number];
 export type PmcImportError = { rowNumber: number; code: string; field?: string; detail?: string };
 export type PmcStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE";
@@ -15,11 +15,12 @@ export type PmcImportCounts = { create: number; update: number; unchanged: numbe
 type Field = { key: string; required: boolean; aliases: string[] };
 const FIELDS: Record<PmcImportKind, Field[]> = {
   locations: [
-    { key: "zoneCode", required: true, aliases: ["zone code", "zone", "رمز المنطقة", "المنطقة"] },
+    // Q-3: a villa list often has no zone column (البلوك | الفيلا | النموذج); the units then go to one zone, DEFAULT_ZONE_CODE
+    { key: "zoneCode", required: false, aliases: ["zone code", "zone", "رمز المنطقة", "المنطقة", "الزون"] },
     { key: "zoneName", required: false, aliases: ["zone name", "اسم المنطقة"] },
     { key: "blockCode", required: true, aliases: ["block code", "block", "رمز البلوك", "البلوك", "رمز الكتلة"] },
     { key: "blockName", required: false, aliases: ["block name", "اسم البلوك", "اسم الكتلة"] },
-    { key: "unitNumber", required: true, aliases: ["unit number", "unit no", "unit", "رقم الوحدة", "الوحدة"] },
+    { key: "unitNumber", required: true, aliases: ["unit number", "unit no", "unit", "رقم الوحدة", "الوحدة", "villa", "villa no", "villa number", "الفيلا", "رقم الفيلا"] },
     { key: "modelCode", required: true, aliases: ["model", "model code", "type", "النموذج", "رمز النموذج", "الطراز"] },
     { key: "saleStatus", required: false, aliases: ["sale status", "حالة البيع"] },
     { key: "unitWeight", required: false, aliases: ["unit weight", "وزن الوحدة"] },
@@ -60,6 +61,16 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "plannedPercent", required: true, aliases: ["planned percent", "planned", "النسبة المخططة", "المخطط"] },
   ],
   // The other way to give a baseline: when each activity starts and ends (G-042). It is expanded into the same monthly points.
+  // Q-3: the project's weights table as the owner keeps it (Excel, CSV, or an export from Google Sheets / AppSheet): section (CSI) | sub-item | activity | weight.
+  // It is translated into catalogue rows (weightsToCatalogRows) and checked and saved by the catalogue's own rules; columns it does not know are ignored.
+  weights: [
+    { key: "csi", required: true, aliases: ["csi", "csi section", "section", "division", "بند csi", "القسم", "قسم csi"] },
+    { key: "sub", required: false, aliases: ["sub", "sub item", "subitem", "sub-item", "البند الفرعي", "بند فرعي"] },
+    { key: "activityCode", required: false, aliases: ["activity code", "code", "wir", "wir code", "رمز النشاط"] },
+    { key: "activityName", required: true, aliases: ["activity", "activity name", "description", "النشاط", "اسم النشاط", "البند"] },
+    { key: "weight", required: true, aliases: ["weight", "weight percent", "percentage", "new percentage", "الوزن", "نسبة الوزن", "النسبة"] },
+    { key: "modelCode", required: false, aliases: ["model", "model code", "النموذج", "رمز النموذج"] },
+  ],
   baselineDates: [
     { key: "modelCode", required: true, aliases: ["model", "model code", "النموذج", "رمز النموذج", "الطراز"] },
     { key: "activityCode", required: true, aliases: ["activity code", "activity", "رمز النشاط", "النشاط"] },
@@ -140,7 +151,8 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     if (header) mapping.set(field.key, header);
   }
   const errors: PmcImportError[] = [];
-  for (const header of headers) if (header && !known.has(normalize(header))) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
+  // a weights table exported from a spreadsheet tool carries its own extra columns (ids, totals, notes): they are ignored, not refused
+  if (input.kind !== "weights") for (const header of headers) if (header && !known.has(normalize(header))) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
   for (const field of fields) if (field.required && !mapping.has(field.key)) errors.push({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key });
   if (errors.length) return { headers, rows: [], errors };
   return {
@@ -182,11 +194,11 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
   const updatedUnits: LocationsPlan["updatedUnits"] = [];
   let unchanged = 0;
   for (const { rowNumber, cells } of rows) {
-    const zoneCode = text(cells.zoneCode);
     const blockCode = text(cells.blockCode);
+    // no zone written: the block's own zone if the block exists (in the project or earlier in the file), else the one default zone
+    const zoneCode = text(cells.zoneCode) || context.blocks.get(blockCode)?.zoneCode || blockInfo.get(blockCode)?.zoneCode || DEFAULT_ZONE_CODE;
     const modelCode = text(cells.modelCode);
     const before = errors.length;
-    required(errors, rowNumber, "zoneCode", zoneCode);
     required(errors, rowNumber, "blockCode", blockCode);
     required(errors, rowNumber, "modelCode", modelCode);
     const unitNumber = wholeNumber(cells.unitNumber);
@@ -283,7 +295,7 @@ export function planCatalog(rows: ParsedRow[], context: CatalogContext): Catalog
     const totalWeight = round4(modelRows.reduce((sum, row) => sum + row.weightPercent, 0));
     models.push({ modelCode, activities: modelRows.length, totalWeight });
     if (modelsWithRowErrors.has(modelCode)) return;
-    if (Math.abs(totalWeight - 100) > 0.0001) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight}` }); }
+    if (Math.abs(totalWeight - 100) > 0.0001) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight} (${totalWeight < 100 ? "missing" : "over by"} ${round4(Math.abs(100 - totalWeight))})` }); }
     const fileCodes = new Set(modelRows.map(row => row.code));
     context.activityCodesByModel.get(modelCode)?.forEach(existingCode => { if (!fileCodes.has(existingCode)) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_ACTIVITY_OMITTED", field: modelCode, detail: `${modelCode}/${existingCode}` }); } });
   });
@@ -529,3 +541,57 @@ export function planBaselineDates(rows: ParsedRow[], context: BaselineContext): 
 }
 
 export { defKey as pmcDefinitionKey };
+
+// ---- weights (Q-3): the owner's table translated into catalogue rows
+
+export const DEFAULT_ZONE_CODE = "Z1";
+export type WeightsTranslation = { rows: ParsedRow[]; errors: PmcImportError[]; ignoredZeroWeight: number; scaledFromFractions: boolean };
+const weightNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  const raw = text(value).replace(/,/g, "").replace(/%$/, "").trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+/** A stable code for an activity that came without one, so importing the same table again finds the same activity. */
+export function weightActivityCode(name: string): string {
+  let hash = 0x811c9dc5;
+  for (const char of name.trim().toLowerCase()) { hash ^= char.codePointAt(0)!; hash = Math.imul(hash, 0x01000193) >>> 0; }
+  return `ACT-${hash.toString(16).padStart(8, "0").toUpperCase()}`;
+}
+
+/**
+ * The rules of the owner's own tool: a row with no weight or a weight of zero is skipped (counted, not refused); weights written as fractions (0.025, all at most 1 and
+ * totalling 1) are read as percentages; the CSI section is the group and the sub-item the stage (a row without a sub-item sits in a stage named after its section);
+ * a table without a model column applies to every model the project's villas use, so the villa list comes first.
+ */
+export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[]): WeightsTranslation {
+  const errors: PmcImportError[] = [];
+  const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; weight: number; modelCode: string }> = [];
+  let ignoredZeroWeight = 0;
+  for (const { rowNumber, cells } of rows) {
+    const weightCell = text(cells.weight);
+    const weight = weightNumber(cells.weight);
+    const name = text(cells.activityName);
+    const csi = text(cells.csi);
+    if (!weightCell || weight === 0) { if (name || csi) ignoredZeroWeight += 1; continue; }
+    if (weight === undefined || weight < 0) { errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "weightPercent" }); continue; }
+    if (!csi) { errors.push({ rowNumber, code: "PMC_CLASSIFICATION_BLANK", field: "groupCode" }); continue; }
+    if (!name) { errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "activityName" }); continue; }
+    kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, weight, modelCode: text(cells.modelCode) });
+  }
+  const total = kept.reduce((sum, row) => sum + row.weight, 0);
+  const scaledFromFractions = kept.length > 0 && kept.every(row => row.weight <= 1) && Math.abs(total - 1) <= 0.0001 * kept.length + 0.0001;
+  const models = projectModels.length ? projectModels : [];
+  const withoutModel = kept.some(row => !row.modelCode);
+  if (withoutModel && !models.length) errors.push({ rowNumber: 0, code: "PMC_WEIGHTS_NEED_VILLAS" });
+  const out: ParsedRow[] = [];
+  for (const row of kept) {
+    const weightPercent = scaledFromFractions ? Math.round(row.weight * 100 * 10000) / 10000 : row.weight;
+    const stage = row.sub || row.csi;
+    for (const modelCode of row.modelCode ? [row.modelCode] : models) {
+      out.push({ rowNumber: row.rowNumber, cells: { modelCode, groupCode: row.csi.slice(0, 80), groupName: row.csi, stageCode: `${row.csi} / ${stage}`.slice(0, 80), stageName: stage, activityCode: row.code.slice(0, 80), activityName: row.name, weightPercent } });
+    }
+  }
+  return { rows: out, errors, ignoredZeroWeight, scaledFromFractions };
+}
