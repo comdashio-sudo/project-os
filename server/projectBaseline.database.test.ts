@@ -26,7 +26,7 @@ const contract = (overrides: Record<string, unknown> = {}) => ({ tenantId, proje
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug IN (?, ?)", [SLUG, `${SLUG}-other`]);
   for (const { id } of companies) {
-    for (const table of ["boq_items", "pmc_plan_months", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "activities", "wbs_items", "audit_logs", "membership_invitations"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
+    for (const table of ["project_planned_labour", "boq_items", "pmc_plan_months", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "activities", "wbs_items", "audit_logs", "membership_invitations"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
     await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
     await connection.query("DELETE FROM roles WHERE tenantId = ?", [id]);
@@ -216,6 +216,36 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project base file: the c
     expect(await code(callers.otherOwner.projects.baseline.saveBoq({ tenantId: otherTenantId, projectId: projectA, format: "csv", fileBase64: good }))).not.toBe("no error");
     expect(await boqRows()).toEqual(before);
     expect(await count("SELECT COUNT(*) AS n FROM boq_items WHERE tenant_id = ?", [otherTenantId])).toBe(0);
+  });
+
+  // Q-10 (d): the planned labour histogram (project.manage, the project manager of A).
+  const labourCsv = (body: string) => Buffer.from(`Month,Trade,Workers\n${body}`).toString("base64");
+  const labourRows = () => connection.query<{ month: string; trade: string; workers: number }[]>("SELECT to_char(month, 'YYYY-MM') AS month, trade, workers FROM project_planned_labour WHERE tenant_id = ? AND project_id = ? ORDER BY month, trade", [tenantId, projectA]).then(result => result[0] as Array<{ month: string; trade: string; workers: number }>);
+
+  it("Q-10 d POSITIVE: the preview gives the histogram and peak and writes nothing; the save stores the rows (audited) and the item reads uploaded with its histogram; a new file replaces the plan", async () => {
+    const file = labourCsv("2027-01,Masons,20\n2027-01,Carpenters,12\n2027-02,Masons,35\n");
+    const preview = await callers.manager.projects.baseline.previewLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: file });
+    expect(preview).toMatchObject({ refusal: null, count: 3, peak: 35, histogram: [{ month: "2027-01-01", workers: 32 }, { month: "2027-02-01", workers: 35 }] });
+    expect(await labourRows()).toEqual([]);
+    const status = await callers.manager.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: file });
+    expect(item(status, "labour")).toMatchObject({ state: "uploaded", count: 3, detail: { histogram: [{ month: "2027-01-01", workers: 32 }, { month: "2027-02-01", workers: 35 }] } });
+    expect(await audits("project.planned_labour_saved")).toBe(1);
+    await callers.manager.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: labourCsv("2027-03,Masons,50\n") });
+    expect(await labourRows()).toEqual([{ month: "2027-03", trade: "Masons", workers: 50 }]);
+  });
+
+  it("Q-10 d NEGATIVE: refused rows are reported and the save is refused; a site engineer and another company are refused from the server; nothing changes", async () => {
+    const before = await labourRows();
+    const bad = labourCsv("2027-04,Masons,2.5\n2027-04,Masons,3\n");
+    const preview = await callers.manager.projects.baseline.previewLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: bad });
+    expect(preview.issues.map(issue => [issue.rowNumber, issue.code])).toEqual([[2, "LABOUR_WORKERS_INVALID"]]);
+    expect(await code(callers.manager.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: bad }))).toBe("PROJECT_OS_LABOUR_ROWS_INVALID");
+    const good = labourCsv("2027-05,All,9\n");
+    expect(await code(callers.engineer.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: good }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.otherOwner.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: good }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect(await code(callers.otherOwner.projects.baseline.saveLabour({ tenantId: otherTenantId, projectId: projectA, format: "csv", fileBase64: good }))).not.toBe("no error");
+    expect(await labourRows()).toEqual(before);
+    expect(await count("SELECT COUNT(*) AS n FROM project_planned_labour WHERE tenant_id = ?", [otherTenantId])).toBe(0);
   });
 });
 

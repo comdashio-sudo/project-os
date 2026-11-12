@@ -628,6 +628,26 @@ export const projectErrorMessages = {
     en: "The file has no item in it.",
     ur: "فائل میں کوئی آئٹم نہیں۔",
   },
+  PROJECT_OS_LABOUR_COLUMNS_MISSING: {
+    ar: "الملف يحتاج عمودي «الشهر» و«العمالة» (و«المهنة» اختياري). نزّل القالب واملأه.",
+    en: "The file needs the columns «Month» and «Workers» («Trade» is optional). Download the template and fill it in.",
+    ur: "فائل میں «مہینہ» اور «مزدور» کالم چاہییں («پیشہ» اختیاری)۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_LABOUR_TOO_MANY_ROWS: {
+    ar: "العمالة المخططة تقبل حتى 3000 صف.",
+    en: "The planned labour accepts up to 3000 rows.",
+    ur: "منصوبہ بند افرادی قوت زیادہ سے زیادہ 3000 قطاریں لیتی ہے۔",
+  },
+  PROJECT_OS_LABOUR_ROWS_INVALID: {
+    ar: "في الملف صفوف مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some rows of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کی کچھ قطاریں رد ہوئیں۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_LABOUR_EMPTY: {
+    ar: "الملف لا يحوي أي صف.",
+    en: "The file has no row in it.",
+    ur: "فائل میں کوئی قطار نہیں۔",
+  },
   PROJECT_OS_CASHFLOW_COLUMNS_MISSING: {
     ar: "الملف يحتاج عمودين: «الشهر» و«النسبة». نزّل القالب واملأه.",
     en: "The file needs two columns: «Month» and «Percent». Download the template and fill it in.",
