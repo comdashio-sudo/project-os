@@ -1,3 +1,4 @@
+import { projectErrorCode } from "./errorCode";
 // Offline queue for the phone entry screen (G-033). A request that could not reach the server is kept on the device
 // with the identifier it was first sent with, and is sent again, one at a time and in order, when the phone is back
 // online. The server answers a repeated identifier with the stored first answer (client_requests), so a request whose
@@ -72,12 +73,14 @@ export async function flushQueue(scope: string, send: (item: QueueItem) => Promi
         else { discard(scope, id, store); outcome.sent += 1; }
       } catch (error) {
         if (isNetworkError(error)) { outcome.stoppedOffline = true; break; }
-        if ((error as { message?: string } | null)?.message === IN_PROGRESS_CODE && (item.busyAnswers ?? 0) + 1 < MAX_BUSY_ANSWERS) {
+        // the product's code sits in data.projectError.code (the message is the English sentence); a plain Error thrown by a sender still carries it as its message
+        const code = projectErrorCode(error) ?? (error as { message?: string } | null)?.message ?? null;
+        if (code === IN_PROGRESS_CODE && (item.busyAnswers ?? 0) + 1 < MAX_BUSY_ANSWERS) {
           // Likely the first attempt is still being processed: keep it pending, count the answer, and stop here so the order is kept.
           saveQueue(scope, loadQueue(scope, store).map(entry => entry.id === id ? { ...entry, busyAnswers: (entry.busyAnswers ?? 0) + 1 } : entry), store);
           outcome.stoppedOffline = true; break;
         }
-        saveQueue(scope, loadQueue(scope, store).map(entry => entry.id === id ? { ...entry, status: "failed" as const, error: (error as { message?: string })?.message ?? "UNKNOWN" } : entry), store);
+        saveQueue(scope, loadQueue(scope, store).map(entry => entry.id === id ? { ...entry, status: "failed" as const, error: code ?? "UNKNOWN" } : entry), store);
         outcome.failed += 1;
       }
     }
