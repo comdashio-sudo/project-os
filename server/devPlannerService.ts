@@ -7,9 +7,11 @@
 import ExcelJS from "exceljs";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { getTenantAccessSnapshot } from "./db";
+import { assertProjectWithinTenant, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { planDevelopment, type PlannerInput } from "./domain/devPlanner";
+import { getBaselineStatus, writePlanMonthsAudited, writePlannedLabourAudited } from "./projectBaseline";
+import { projectGate } from "./projectProfile";
 
 const MONTH = 30.44;
 const n = (max: number, min = 0) => z.number().finite().min(min).max(max);
@@ -70,4 +72,35 @@ export async function exportDevPlanner(input: { userId: number; tenantId: string
   sheet(t.labour, [t.month, t.workers], s.labour.months.map((workers, i) => [i + 1, workers]));
   sheet(t.sales, [t.month, t.sold], s.sales.curve.map((sold, i) => [Math.round((s.sales.launchMonth + i) * 10) / 10, sold]));
   return { fileName: "development-plan.xlsx", base64: Buffer.from(await book.xlsx.writeBuffer()).toString("base64") };
+}
+
+// ------------------------------------------------------------------ Q-11 (c): the plan applied to a project's base file
+
+const addMonths = (start: string, offset: number) => { const [y, m] = start.split("-").map(Number); const total = y * 12 + (m - 1) + offset; return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`; };
+
+/**
+ * The likely scenario's monthly labour histogram becomes the project's planned labour (all trades, one row a month), and the planned cash flow is that histogram's
+ * shape — each month's share of the total worker-months, so the shares total exactly 100% (the last month takes the rounding). Month one is the construction start
+ * the person chose. It replaces the project's two plans (as an upload would), audited with source «planner». project.manage on the project.
+ */
+export function plannerMonths(plan: PlannerInput, constructionStart: string) {
+  const hist = summarizePlan(plan).labour.months;
+  const total = hist.reduce((sum, workers) => sum + workers, 0);
+  if (!total) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CASHFLOW_EMPTY" });
+  let running = 0;
+  const cash = hist.map((workers, i) => { const fraction = i === hist.length - 1 ? Math.max(0, 1 - running) : Math.round((workers / total) * 1e8) / 1e8; running += fraction; return { month: addMonths(constructionStart, i), fraction, cumulative: i === hist.length - 1 ? 1 : running }; });
+  return { labour: hist.map((workers, i) => ({ month: addMonths(constructionStart, i), trade: "", workers })), cash, peak: Math.max(0, ...hist) };
+}
+
+export async function applyPlannerToProject(input: { userId: number; tenantId: string; projectId: string; plan: PlannerInput; constructionStart: string }) {
+  const scope = { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId };
+  // the gate, explicit: project.manage on THIS project, and the project belongs to this company; projectGate then gives the request's database
+  assertTenantAccess(await snapshotOf(input.userId, input.tenantId), { tenantId: input.tenantId, product: "PROJECT", permission: "project.manage", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const db = await projectGate(scope, ["project.manage"]);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.constructionStart)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_DATES_INVALID" });
+  const months = plannerMonths(input.plan, input.constructionStart);
+  await writePlannedLabourAudited(db, scope, months.labour, months.peak, "planner");
+  await writePlanMonthsAudited(db, scope, months.cash, "planner");
+  return getBaselineStatus(scope);
 }
