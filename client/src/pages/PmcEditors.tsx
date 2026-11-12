@@ -7,7 +7,7 @@ import { pickLanguage } from "@/lib/language";
 import { WriteGate, useCan } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { getProjectError } from "@shared/projectErrors";
+import { projectErrorCode } from "@/lib/errorCode";
 
 // D-74 (work order 21, on the D-80 contract of #244), the PMC table editors: units created in bulk for a block and a model; a model's activity weights edited together with a
 // counter that must reach exactly 100% before they can be saved (rule 4); and a units-by-activities grid where a click moves a cell to its next
@@ -45,7 +45,7 @@ const copy = {
 
 const field = "min-h-11 w-28 rounded-[var(--radius)] border border-input bg-card px-2 text-sm text-foreground";
 /** The refusal's code, so its sentence is shown under the field it is about (the contract of #244); the sentence itself is the product's translation. */
-const codeOf = (error: unknown) => getProjectError((error as { message?: string } | null)?.message ?? "").code as string;
+const codeOf = (error: unknown) => projectErrorCode(error);
 /** After a write the three readings the editors and the PMC screens draw from are stale (#244). */
 function useRefresh() {
   const utils = trpc.useUtils();

@@ -103,4 +103,16 @@ describe("flushing", () => {
     expect(loadQueue("s", store).map(entry => [entry.id, entry.status, entry.error])).toEqual([["a", "failed", IN_PROGRESS_CODE]]);
     expect(calls.filter(id => id === "b")).toHaveLength(1);
   });
+
+  // review of #252 (rule 18): a tRPC refusal carries its code in data.projectError.code and an English SENTENCE as its message
+  const trpcRefusal = (code: string, sentence: string) => Object.assign(new Error(sentence), { data: { code: "CONFLICT", projectError: { code } } });
+  it("reads the product code from data.projectError.code, not from the translated message", async () => {
+    enqueue("s", item("a"), store); enqueue("s", item("b"), store);
+    await flushQueue("s", async entry => { if (entry.id === "a") throw trpcRefusal(IN_PROGRESS_CODE, "The same request is still being processed."); }, store);
+    expect(loadQueue("s", store).map(entry => [entry.id, entry.status, entry.busyAnswers])).toEqual([["a", "pending", 1], ["b", "pending", undefined]]);
+    saveQueue("s", [], store);
+    enqueue("s", item("c"), store);
+    await flushQueue("s", async () => { throw trpcRefusal("PROJECT_OS_PERMISSION_DENIED", "You do not have permission."); }, store);
+    expect(loadQueue("s", store).map(entry => [entry.status, entry.error])).toEqual([["failed", "PROJECT_OS_PERMISSION_DENIED"]]);
+  });
 });

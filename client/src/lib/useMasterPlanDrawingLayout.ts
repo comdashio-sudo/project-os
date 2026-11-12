@@ -1,3 +1,4 @@
+import { projectErrorCode } from "./errorCode";
 // The server side of the saved Master Plan drawing (G-189): load the layout of the drawing of the newest version, and save it when the person confirms.
 // Saving stores the drawing file as a new version when a new file was picked, replaces the polygons, then brings the confirmed links to what is on
 // screen (unlinks first, so a unit can move to another shape). Only confirmed links are sent; the automatic proposals never leave the browser.
@@ -46,7 +47,7 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
       await utils.masterPlans.drawingLayout.invalidate(scope);
       return { ok: true };
     } catch (error) {
-      return { ok: false, code: error instanceof Error ? error.message : "UNKNOWN" };
+      return { ok: false, code: projectErrorCode(error) ?? (error instanceof Error ? error.message : "UNKNOWN") };
     }
   }
 

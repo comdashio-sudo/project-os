@@ -18,7 +18,6 @@ const h = vi.hoisted(() => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children, permission }: { children: React.ReactNode; permission: string }) => (permission === "project.pmc.manage" && !h.canManage ? null : <>{children}</>), useCan: () => h.canUpdate }));
-vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: { message: string }) => `localized: ${error.message}` }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({ pmc: Object.fromEntries(["structure", "statusGrid", "progress"].map(name => [name, { invalidate: () => { h.invalidated.push(name); } }])) }),
@@ -80,6 +79,8 @@ describe("PmcEditors", () => {
   });
 });
 
+// review of #252: the error exactly as the server sends it — the translated sentence in `message`, the code and the three languages in data.projectError
+const refusal = (code: string) => Object.assign(new Error(`English sentence for ${code}`), { data: { code: "BAD_REQUEST", projectError: { code, messages: { ar: `sentence for ${code}`, en: `sentence for ${code}`, ur: `sentence for ${code}` } } } });
 describe("PmcEditors — refusals beside their field (D-74)", () => {
   const described = (label: RegExp) => { const field = screen.getAllByLabelText(label)[0]!; return document.getElementById((field.getAttribute("aria-describedby") ?? "").split(" ").pop() ?? "")?.textContent ?? null; };
   it.each([
@@ -87,17 +88,17 @@ describe("PmcEditors — refusals beside their field (D-74)", () => {
     ["PROJECT_OS_PMC_UNIT_RANGE_INVALID", /^To number/],
     ["PROJECT_OS_PMC_BLOCK_NOT_FOUND", /^Block/],
   ] as const)("%s is said under its field, with the focus on it", (code, label) => {
-    h.createError = { message: code };
+    h.createError = refusal(code);
     render(<PmcEditors tenantId="t" projectId="p" />);
-    expect(described(label)).toBe(`localized: ${code}`);
+    expect(described(label)).toBe(`sentence for ${code}`);
     expect(document.activeElement).toBe(screen.getAllByLabelText(label)[0]);
-    expect(screen.getAllByText(`localized: ${code}`)).toHaveLength(1); // under the field only, not repeated under the form
+    expect(screen.getAllByText(`sentence for ${code}`)).toHaveLength(1); // under the field only, not repeated under the form
   });
 
   it("a refusal tied to no field is said once under the form", () => {
-    h.createError = { message: "PROJECT_OS_PERMISSION_DENIED" };
+    h.createError = refusal("PROJECT_OS_PERMISSION_DENIED");
     render(<PmcEditors tenantId="t" projectId="p" />);
-    expect(screen.getAllByText("localized: PROJECT_OS_PERMISSION_DENIED")).toHaveLength(1);
+    expect(screen.getAllByText("sentence for PROJECT_OS_PERMISSION_DENIED")).toHaveLength(1);
   });
 });
 
