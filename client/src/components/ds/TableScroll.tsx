@@ -29,7 +29,8 @@ export function TableScroll({ label, children, className }: { label: string; chi
       </div>
       {overflows ? <>
         <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 end-0 w-8 bg-gradient-to-l from-card to-transparent rtl:bg-gradient-to-r" />
-        <p className="mt-1 text-xs text-muted-foreground">{text.scrollSideways}</p>
+        {/* review of #254: Nastaliq (Urdu) runs taller than its line box, so the hint keeps a line height that does not reach into what follows */}
+        <p className="mt-1 pb-1 text-xs leading-6 text-muted-foreground">{text.scrollSideways}</p>
       </> : null}
     </div>
   );
