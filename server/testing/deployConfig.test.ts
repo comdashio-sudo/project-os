@@ -33,9 +33,9 @@ describe("vercel.json and the Vercel build", () => {
 
   it("schedules ONE daily job on the free plan, and the four separate jobs only when the build is told it is a paid plan", () => {
     const crons = [...build.matchAll(/\{ path: "(\/api\/scheduled\/\w+)", schedule: "([^"]+)" \}/g)].map(match => [match[1], match[2]]);
-    expect(crons).toEqual([["/api/scheduled/licenseExpiry", "0 2 * * *"], ["/api/scheduled/profitabilitySnapshots", "10 2 * * *"], ["/api/scheduled/emailNotifications", "0 * * * *"], ["/api/scheduled/importJobs", "*/5 * * * *"], ["/api/scheduled/daily", "0 2 * * *"]]);
+    expect(crons).toEqual([["/api/scheduled/licenseExpiry", "0 2 * * *"], ["/api/scheduled/profitabilitySnapshots", "10 2 * * *"], ["/api/scheduled/emailNotifications", "0 * * * *"], ["/api/scheduled/importJobs", "*/5 * * * *"], ["/api/scheduled/daily", "0 4 * * *"]]);
     expect(build).toContain('const PRO_CRONS = process.env.CRON_PLAN === "pro"');
-    expect(build).toMatch(/: \[\{ path: "\/api\/scheduled\/daily", schedule: "0 2 \* \* \*" \}\]/); // the default (free plan) is the single daily job
+    expect(build).toMatch(/: \[\{ path: "\/api\/scheduled\/daily", schedule: "0 4 \* \* \*" \}\]/); // the default (free plan) is the single daily job
     const app = text("server/_core/app.ts");
     for (const [route] of crons) expect(app, route).toContain(route);
     expect(app).toContain("app.get(path, asSystem(reason), handler)"); // Vercel Cron calls with GET
