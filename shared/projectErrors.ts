@@ -1458,6 +1458,36 @@ export const projectErrorMessages = {
     en: "Too many attempts. Wait a moment and try again.",
     ur: "بہت زیادہ کوششیں۔ کچھ دیر انتظار کریں اور دوبارہ کوشش کریں۔",
   },
+  PROJECT_OS_WBS_CODE_EXISTS: {
+    ar: "رمز بند هيكل تجزئة العمل مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This WBS code is already used in this project. Choose another code.",
+    ur: "WBS کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  PROJECT_OS_ACTIVITY_CODE_EXISTS: {
+    ar: "رمز النشاط مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This activity code is already used in this project. Choose another code.",
+    ur: "سرگرمی کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  PROJECT_OS_RESOURCE_CODE_EXISTS: {
+    ar: "رمز المورد مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This resource code is already used in this project. Choose another code.",
+    ur: "وسیلے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  PROJECT_OS_CONTRACT_CODE_EXISTS: {
+    ar: "رمز العقد مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This contract code is already used in this project. Choose another code.",
+    ur: "معاہدے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  PROJECT_OS_COMMITMENT_CODE_EXISTS: {
+    ar: "رمز الالتزام مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This commitment code is already used in this project. Choose another code.",
+    ur: "وابستگی کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  PROJECT_OS_RISK_CODE_EXISTS: {
+    ar: "رمز الخطر مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This risk code is already used in this project. Choose another code.",
+    ur: "خطرے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
   PROJECT_OS_BOQ_CODE_EXISTS: {
     ar: "رمز بند جدول الكميات مستعمل في هذا المشروع.",
     en: "This BOQ item code is already used in this project.",
