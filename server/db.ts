@@ -1035,6 +1035,11 @@ export async function getPublicCommercialPlans() {
 
 // The query layer wraps the driver's error ("Failed query: ..."); isUniqueViolation reads the SQLSTATE (23505) off its cause.
 export const isDuplicateEntryError = isUniqueViolation;
+/** A code that already exists in the project is the user's input, not a server failure (D-87): the unique index decides — also between two people saving at once — and
+ * the answer is 409 CONFLICT with that code's own translated message, never a 500. */
+async function conflictOnDuplicate<T>(message: string, work: () => Promise<T>): Promise<T> {
+  try { return await work(); } catch (error) { if (isUniqueViolation(error)) throw new TRPCError({ code: "CONFLICT", message }); throw error; }
+}
 
 function safeDatabaseErrorCode(error: unknown) {
   if (!error || typeof error !== "object") return "UNKNOWN";
@@ -2249,7 +2254,7 @@ export async function createProjectResourceForTenant(input: { userId: number; te
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.schedule.manage", "project.manage"], scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(projectResources).values({ id, tenantId: input.tenantId, projectId: input.projectId, resourceCode: input.resourceCode, name: input.name, resourceType: input.resourceType, plannedUnits: String(input.plannedUnits), allocatedUnits: String(input.allocatedUnits), unitCost: String(input.unitCost), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_created", entityType: "project_resource", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, resourceCode: input.resourceCode, resourceType: input.resourceType, plannedUnits: input.plannedUnits, allocatedUnits: input.allocatedUnits }) }); });
+  await conflictOnDuplicate("PROJECT_OS_RESOURCE_CODE_EXISTS", () => db.transaction(async tx => { await tx.insert(projectResources).values({ id, tenantId: input.tenantId, projectId: input.projectId, resourceCode: input.resourceCode, name: input.name, resourceType: input.resourceType, plannedUnits: String(input.plannedUnits), allocatedUnits: String(input.allocatedUnits), unitCost: String(input.unitCost), currency: input.currency, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.resource_created", entityType: "project_resource", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, resourceCode: input.resourceCode, resourceType: input.resourceType, plannedUnits: input.plannedUnits, allocatedUnits: input.allocatedUnits }) }); }));
   return { id };
 }
 
@@ -3059,7 +3064,7 @@ export async function createProjectWarehouseForTenant(input: { userId: number; t
   const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.inventory.manage", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [duplicate] = await db.select({ id: projectWarehouses.id }).from(projectWarehouses).where(and(eq(projectWarehouses.projectId, input.projectId), eq(projectWarehouses.code, input.code))).limit(1); if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WAREHOUSE_CODE_EXISTS" });
-  const id = crypto.randomUUID(); await db.transaction(async tx => { await tx.insert(projectWarehouses).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, name: input.name, locationDescription: input.locationDescription, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.created", entityType: "project_warehouse", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); }); return { id };
+  const id = crypto.randomUUID(); await conflictOnDuplicate("PROJECT_OS_WAREHOUSE_CODE_EXISTS", () => db.transaction(async tx => { await tx.insert(projectWarehouses).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, name: input.name, locationDescription: input.locationDescription, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.created", entityType: "project_warehouse", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); })); return { id };
 }
 
 /** A stock movement that is not a receipt or an issue (a transfer between warehouses, an adjustment) changes what the books say is on the shelf without a delivery note behind it, so the person must say why (G-104). */
@@ -3228,10 +3233,10 @@ export async function createContractForTenant(input: { userId: number; tenantId:
   if (counterpartyKind === "supplier" && !input.supplierId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CONTRACT_SUPPLIER_REQUIRED" });
   const counterparty = input.supplierId ? await registeredSupplierName(db, input.tenantId, input.supplierId) : input.counterparty;
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_CONTRACT_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(contracts).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, counterparty, counterpartyKind, supplierId: input.supplierId, contractValue: String(input.contractValue), currency: input.currency, startAt: input.startAt, endAt: input.endAt, status: "draft" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.contract_created", entityType: "contract", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, contractValue: input.contractValue, counterpartyKind, supplierId: input.supplierId ?? null }) });
-  });
+  }));
   return { id };
 }
 
@@ -3247,10 +3252,10 @@ export async function createCommitmentForTenant(input: { userId: number; tenantI
     if (!contract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CONTRACT_NOT_FOUND" });
   }
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_COMMITMENT_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(commitments).values({ id, tenantId: input.tenantId, projectId: input.projectId, contractId: input.contractId, code: input.code, description: input.description, amount: String(input.amount), currency: input.currency, committedAt: input.committedAt, status: "draft" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.commitment_created", entityType: "commitment", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, contractId: input.contractId ?? null, code: input.code, amount: input.amount }) });
-  });
+  }));
   return { id };
 }
 
@@ -3262,7 +3267,7 @@ export async function createRisk(input: { userId: number; tenantId: string; proj
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(risks).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, probability: input.probability, severity: input.severity, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_created", entityType: "risk", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); });
+  await conflictOnDuplicate("PROJECT_OS_RISK_CODE_EXISTS", () => db.transaction(async tx => { await tx.insert(risks).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: input.code, title: input.title, probability: input.probability, severity: input.severity, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_created", entityType: "risk", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code }) }); }));
   return { id };
 }
 
@@ -3640,10 +3645,10 @@ export async function createWbsItem(input: { userId: number; tenantId: string; p
     await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.parentId });
   }
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_WBS_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(wbsItems).values({ id, tenantId: input.tenantId, projectId: input.projectId, parentId: input.parentId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0) });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.wbs_created", entityType: "wbs_item", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, code: input.code, parentId: input.parentId ?? null }) });
-  });
+  }));
   return { id };
 }
 
@@ -3657,10 +3662,10 @@ export async function createActivity(input: { userId: number; tenantId: string; 
   if (input.wbsItemId) await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
   if (input.plannedFinishAt < input.plannedStartAt) throw new Error("PROJECT_OS_ACTIVITY_SCHEDULE_INVALID");
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_ACTIVITY_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(activities).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, code: input.code, name: input.name, plannedValue: String(input.plannedValue ?? 0), plannedStartAt: input.plannedStartAt, plannedFinishAt: input.plannedFinishAt, status: "not_started" });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.activity_created", entityType: "activity", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, wbsItemId: input.wbsItemId ?? null, code: input.code, plannedStartAt: input.plannedStartAt.toISOString(), plannedFinishAt: input.plannedFinishAt.toISOString() }) });
-  });
+  }));
   return { id };
 }
 
@@ -4077,7 +4082,7 @@ export async function createBoqItemForTenant(input: { userId: number; tenantId: 
 
   const id = crypto.randomUUID();
   const totalAmount = input.quantity * input.unitRate;
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_BOQ_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(boqItems).values({
       id,
       tenantId: input.tenantId,
@@ -4101,7 +4106,7 @@ export async function createBoqItemForTenant(input: { userId: number; tenantId: 
       entityId: id,
       metadata: JSON.stringify({ projectId: input.projectId, code: input.code, quantity: input.quantity, unitRate: input.unitRate })
     });
-  });
+  }));
   return { id };
 }
 
@@ -4127,7 +4132,7 @@ export async function createSubcontractContractForTenant(input: { userId: number
   const subcontractorName = input.supplierId ? await registeredSupplierName(db, input.tenantId, input.supplierId) : input.subcontractorName;
 
   const id = crypto.randomUUID();
-  await db.transaction(async tx => {
+  await conflictOnDuplicate("PROJECT_OS_SUBCONTRACT_CODE_EXISTS", () => db.transaction(async tx => {
     await tx.insert(subcontractContracts).values({
       id,
       tenantId: input.tenantId,
@@ -4150,7 +4155,7 @@ export async function createSubcontractContractForTenant(input: { userId: number
       entityId: id,
       metadata: JSON.stringify({ projectId: input.projectId, code: input.code, subcontractorName: input.subcontractorName, contractValue: input.contractValue })
     });
-  });
+  }));
   return { id };
 }
 
