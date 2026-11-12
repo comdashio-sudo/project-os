@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle2, ClipboardPaste, Plus, Trash2, XCircle } from "lucide-react";
-import { Button } from "@/components/ds";
+import { Button, TableScroll } from "@/components/ds";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { fieldMessage } from "@/lib/formValidation";
 import { pickLanguage, type Language } from "@/lib/language";
@@ -33,6 +33,8 @@ export function gridRowProblem(columns: GridColumn[], row: GridRow, language: La
     if (!value) { if (column.required) return `${column.label}: ${fieldMessage("PROJECT_OS_FIELD_REQUIRED", language)}`; continue; }
     if (column.minLength && value.length < column.minLength) return `${column.label}: ${fieldMessage("PROJECT_OS_FIELD_TOO_SHORT", language)}`;
     if (column.kind === "number") {
+      // review of #254: a comma is a thousands separator only in its places ("1,250.5"); "1,5" is refused, not read as 15
+      if (value.includes(",") && !/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(value)) return `${column.label}: ${fieldMessage("PROJECT_OS_FIELD_NUMBER_INVALID", language)}`;
       const number = Number(value.replace(/,/g, ""));
       if (!Number.isFinite(number)) return `${column.label}: ${fieldMessage("PROJECT_OS_FIELD_NUMBER_INVALID", language)}`;
       if ((column.min !== undefined && number < column.min) || (column.max !== undefined && number > column.max)) return `${column.label}: ${fieldMessage("PROJECT_OS_FIELD_OUT_OF_RANGE", language)}`;
@@ -47,8 +49,10 @@ export const gridNumber = (value: string | undefined) => Number((value ?? "").tr
 const empty = (columns: GridColumn[]): GridRow => Object.fromEntries(columns.map(column => [column.key, ""]));
 const isBlank = (row: GridRow) => Object.values(row).every(value => !value.trim());
 
-export function GridEditor({ label, columns, onSaveRow, validateRow, initialRows = 3, disabled }: {
+export function GridEditor({ label, columns, onSaveRow, onSaved, validateRow, initialRows = 3, disabled }: {
   label: string; columns: GridColumn[]; onSaveRow: (row: GridRow) => Promise<void>; validateRow?: (row: GridRow) => string | null; initialRows?: number; disabled?: boolean;
+  /** Called once after the whole sheet is saved, when at least one row was (review of #254: the screen refreshes once, not once per row). */
+  onSaved?: () => void;
 }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, copy);
@@ -108,12 +112,14 @@ export function GridEditor({ label, columns, onSaveRow, validateRow, initialRows
     }
     setBusy(false);
     setSummary(t.summary(ok, bad));
+    if (ok > 0) onSaved?.();
   };
 
   return (
     <div className="flex flex-col gap-3" data-grid-editor>
       <p className="flex items-start gap-2 text-xs text-muted-foreground"><ClipboardPaste className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{t.paste}</p>
-      <div className="overflow-x-auto rounded-[var(--radius)] border border-border">
+      {/* review of #254: the sheet says when it scrolls sideways (hint and edge fade) and keeps the row number in place; the rows not saved are named again under it */}
+      <TableScroll label={label} className="rounded-[var(--radius)] border border-border">
         <table className="w-full min-w-[560px] text-sm" aria-label={label}>
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr><th scope="col" className="w-12 px-2 py-2 text-start">{t.row}</th>{columns.map(column => <th key={column.key} scope="col" className="px-2 py-2 text-start" style={column.width ? { width: column.width } : undefined}>{column.label}{column.required ? <span className="ms-0.5 text-destructive" aria-hidden="true">*</span> : null}</th>)}<th scope="col" className="px-2 py-2 text-start">{t.result}</th><th scope="col" className="w-10"><span className="sr-only">{t.remove}</span></th></tr>
@@ -142,7 +148,7 @@ export function GridEditor({ label, columns, onSaveRow, validateRow, initialRows
             })}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
       {/* D-74 (b): the rows that were not saved are named again under the sheet, so the reason is read even where the sheet scrolls sideways (a phone, a half-width card) */}
       {states.some(state => state.status === "invalid" || state.status === "failed") ? (
         <ul role="alert" data-grid-problems className="space-y-1 rounded-[var(--radius)] bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground">

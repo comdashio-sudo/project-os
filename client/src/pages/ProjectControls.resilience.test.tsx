@@ -297,7 +297,7 @@ describe("ProjectControls — sheet entry", () => {
     render(<ProjectControls />);
     const sheet = screen.getByRole("table", { name: "WBS items sheet" });
     paste(within(sheet).getAllByRole("textbox")[0]!, "W-02\tStructure\t1,250.5\nW-03\tFinishes\t");
-    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    await act(async () => { fireEvent.click(within(sheet.closest("[data-grid-editor]") as HTMLElement).getByRole("button", { name: "Save rows" })); });
     await waitFor(() => expect(state.saved).toHaveLength(2));
     expect(state.saved).toEqual([{ tenantId: expect.any(String), projectId: expect.any(String), code: "W-02", name: "Structure", plannedValue: 1250.5 }, { tenantId: expect.any(String), projectId: expect.any(String), code: "W-03", name: "Finishes" }]);
   });
@@ -307,11 +307,11 @@ describe("ProjectControls — sheet entry", () => {
     render(<ProjectControls />);
     const sheet = screen.getByRole("table", { name: "Budget lines sheet" });
     paste(within(sheet).getAllByRole("textbox")[0]!, "X-99\tCC-1\t100\t100");
-    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    await act(async () => { fireEvent.click(within(sheet.closest("[data-grid-editor]") as HTMLElement).getByRole("button", { name: "Save rows" })); });
     expect(sheet.textContent).toContain("No WBS item with this code in the project");
     expect(state.saved).toEqual([]);
     paste(within(sheet).getAllByRole("textbox")[0]!, "w-01\tCC-1\t1,000\t1,200");
-    await act(async () => { fireEvent.click(within(sheet.closest("div")!.parentElement!).getByRole("button", { name: "Save rows" })); });
+    await act(async () => { fireEvent.click(within(sheet.closest("[data-grid-editor]") as HTMLElement).getByRole("button", { name: "Save rows" })); });
     await waitFor(() => expect(state.saved).toHaveLength(1));
     expect(state.saved[0]).toMatchObject({ wbsItemId: "wbs-1", costCode: "CC-1", originalAmount: 1000, currentAmount: 1200 });
   });

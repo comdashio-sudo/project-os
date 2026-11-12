@@ -51,4 +51,18 @@ describe("GridEditor (work order 21: paste from Excel, each row checked)", () =>
     expect(gridRowProblem(columns, { code: "A1", name: "Walls", value: "1,250.50" }, "ar")).toBeNull();
     expect(gridRowProblem(columns, { code: "", name: "Walls", value: "" }, "ar")).toMatch(/^Code: /);
   });
+
+  it("review of #254: «1,5» is refused with a message, not read as 15; «1,250.5» is a grouped number", () => {
+    expect(gridRowProblem(columns, { code: "A1", name: "Walls", value: "1,5" }, "en")).toMatch(/^Planned value: /);
+    expect(gridRowProblem(columns, { code: "A1", name: "Walls", value: "1,250.5" }, "en")).toBeNull();
+    expect(gridRowProblem(columns, { code: "A1", name: "Walls", value: "12,50" }, "en")).toMatch(/^Planned value: /);
+  });
+
+  it("review of #254: the screen is told once after the whole sheet is saved, not once per row", async () => {
+    const onSaved = vi.fn();
+    render(<GridEditor label="WBS sheet" columns={columns} initialRows={1} onSaveRow={vi.fn(async () => undefined)} onSaved={onSaved} />);
+    pasteInto(screen.getByLabelText("Code (Row 1)"), "A1\tFoundations\t100\nA2\tWalls\t200\nA3\tRoof\t300");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save rows" })); });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  });
 });
