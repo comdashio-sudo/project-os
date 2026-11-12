@@ -548,6 +548,11 @@ export const projectErrorMessages = {
     en: "The file link is invalid or has expired. Open the page again.",
     ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
   },
+  PROJECT_OS_REPORT_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: اختر تاريخًا صحيحًا لبداية الأسبوع أو يومًا من الشهر.",
+    en: "The period is invalid: choose a real date for the start of the week or a day of the month.",
+    ur: "مدت درست نہیں: ہفتے کے آغاز کے لیے یا مہینے کے کسی دن کی درست تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
@@ -1667,6 +1672,11 @@ export const projectErrorMessages = {
     ar: "تعذّرت قراءة جدول من هذا الملف. جرّب ملفًا أوضح أو Excel.",
     en: "A table could not be read from this file. Try a clearer file or Excel.",
     ur: "A table could not be read from this file. Try a clearer file or Excel.",
+  },
+  PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED: {
+    ar: "الملف ليس بشكل النوع المختار. اختر نوعًا آخر أو دع النظام يتعرّف عليه. لم يُكتب شيء.",
+    en: "The file does not have the shape of the chosen type. Pick another type or let the system recognise it. Nothing was written.",
+    ur: "فائل منتخب کردہ قسم کی شکل میں نہیں ہے۔ کوئی اور قسم منتخب کریں یا نظام کو اسے پہچاننے دیں۔ کچھ بھی محفوظ نہیں کیا گیا۔",
   },
   PROJECT_OS_MATRIX_NOT_RECOGNISED: {
     ar: "لم يُتعرَّف على شكل مصفوفة إنجاز الوحدات في هذا الملف. لم يُكتب شيء.",
