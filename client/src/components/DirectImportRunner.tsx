@@ -13,7 +13,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { AppRouter } from "../../../server/routers";
 
 export type DirectImportView = inferRouterOutputs<AppRouter>["dataImports"]["progress"];
-export type DirectImportModule = "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial" | "costs" | "purchaseOrders" | "employees" | "timeEntries" | "equipment";
+export type DirectImportModule = "pmc.weights" | "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial" | "costs" | "purchaseOrders" | "employees" | "timeEntries" | "equipment";
 
 type Props = {
   tenantId: string; projectId: string; moduleCode: DirectImportModule;

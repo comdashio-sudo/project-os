@@ -169,7 +169,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC import (500 units x 
     const catalogReport = await manager.pmc.analyzeImport({ ...scope, kind: "catalog", format: "xlsx", base64: wrongCatalog });
     expect(catalogReport.canConfirm).toBe(false);
     expect(catalogReport.errors).toEqual(expect.arrayContaining([
-      { rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: "F", detail: "F totals 99" },
+      { rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: "F", detail: "F totals 99 (missing 1)" },
       { rowNumber: 4, code: "PMC_CLASSIFICATION_BLANK", field: "groupCode" },
     ]));
 

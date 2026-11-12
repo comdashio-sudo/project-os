@@ -18,6 +18,7 @@ import { WriteGate } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import type { ExportColumn } from "@/lib/excelExport";
 import { pickLanguage } from "@/lib/language";
+import { pmcImportReason } from "@/lib/pmcImportMessages";
 import { wo22Text } from "@/lib/wo22Text";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
 import { TableScroll } from "@/components/ds/TableScroll";
@@ -35,7 +36,7 @@ export const PMC_TEXT = {
     group: "المجموعة", weight: "الوزن", share: "النسبة من الوزن", zone: "المنطقة", cells: "الخلايا", complete: "المكتمل", completion: "الإنجاز", unassigned: "غير مسند",
     period: "الفترة من", status: "الحالة", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" } as Record<string, string>,
     unit: "الوحدة", verification: "حالة التحقق", since: "منذ", age: "العمر (أيام)", buckets: "أعمار الانتظار", late: "أنشطة متأخرة", planned: "المخطط", actual: "الفعلي", noLate: "لا أنشطة متأخرة",
-    importKinds: { locations: "المواقع", catalog: "الكتالوج والأوزان", status: "حالة الوحدة-النشاط", requests: "الطلبات والردود", baseline: "خط الأساس", baselineDates: "خط الأساس بتواريخ البداية والنهاية" } as Record<string, string>,
+    importKinds: { weights: "جدول الأوزان (القسم، البند الفرعي، النشاط، الوزن)", locations: "قائمة الفلل (الزون، البلوك، الفيلا، النموذج)", catalog: "الكتالوج والأوزان", status: "حالة الوحدة-النشاط", requests: "الطلبات والردود", baseline: "خط الأساس", baselineDates: "خط الأساس بتواريخ البداية والنهاية" } as Record<string, string>, ignoredZero: "صفوف تُجوهلت لأن وزنها صفر أو فارغ", scaledFractions: "الأوزان مكتوبة كسورًا (مجموعها 1) فقُرئت نسبًا مئوية.",
     importKind: "نوع الملف", chooseFile: "اختر ملف Excel أو CSV", analyze: "فحص الملف", confirm: "حفظ الملف الموافَق عليه", report: "تقرير التحقق", rows: "الصفوف", create: "سيُنشأ", update: "سيُحدَّث", unchanged: "بلا تغيير", errorsFound: "صفوف مرفوضة", row: "الصف", reason: "السبب", saved: "تم الحفظ", nothingSaved: "لم يُحفظ شيء قبل موافقتك.", alreadyUpToDate: "الملف مطابق لما هو محفوظ: لا شيء ليُحفظ.",
   },
   en: {
@@ -50,7 +51,7 @@ export const PMC_TEXT = {
     group: "Group", weight: "Weight", share: "Share of weight", zone: "Zone", cells: "Cells", complete: "Complete", completion: "Completion", unassigned: "Unassigned",
     period: "Period from", status: "Status", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
     unit: "Unit", verification: "Verification status", since: "Since", age: "Age (days)", buckets: "Waiting age", late: "Late activities", planned: "Planned", actual: "Actual", noLate: "No late activities",
-    importKinds: { locations: "Locations", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>,
+    importKinds: { weights: "Weights table (section, sub-item, activity, weight)", locations: "Villa list (zone, block, villa, model)", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>, ignoredZero: "Rows skipped because their weight is zero or empty", scaledFractions: "The weights are written as fractions (totalling 1), so they were read as percentages.",
     importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
   }, ur: {
     title: "Project control (PMC)", back: "Back to project controls", loading: "Loading…", retry: "Retry", noData: "No data", export: "Export Excel", pdf: "PDF", print: "Print", pdfFailed: "Could not build the PDF. Print from the browser instead.",
@@ -64,7 +65,7 @@ export const PMC_TEXT = {
     group: "Group", weight: "Weight", share: "Share of weight", zone: "Zone", cells: "Cells", complete: "Complete", completion: "Completion", unassigned: "Unassigned",
     period: "Period from", status: "Status", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
     unit: "Unit", verification: "Verification status", since: "Since", age: "Age (days)", buckets: "Waiting age", late: "Late activities", planned: "Planned", actual: "Actual", noLate: "No late activities",
-    importKinds: { locations: "Locations", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>,
+    importKinds: { weights: "وزن کی جدول (سیکشن، ذیلی آئٹم، سرگرمی، وزن)", locations: "ولاز کی فہرست (زون، بلاک، ولا، ماڈل)", catalog: "Catalogue and weights", status: "Unit-activity status", requests: "Requests and replies", baseline: "Baseline", baselineDates: "Baseline by start and end dates" } as Record<string, string>, ignoredZero: "قطاریں چھوڑ دی گئیں کیونکہ ان کا وزن صفر یا خالی ہے", scaledFractions: "وزن کسور میں لکھے ہیں (مجموعہ 1)، اس لیے انہیں فیصد کے طور پر پڑھا گیا۔",
     importKind: "File type", chooseFile: "Choose an Excel or CSV file", analyze: "Check the file", confirm: "Save the approved file", report: "Validation report", rows: "Rows", create: "Will create", update: "Will update", unchanged: "Unchanged", errorsFound: "Rejected rows", row: "Row", reason: "Reason", saved: "Saved", nothingSaved: "Nothing is saved until you approve.", alreadyUpToDate: "The file matches what is stored: nothing to save.",
   },
 };
@@ -279,9 +280,10 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
 }
 
 function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; projectId: string; t: T; isArabic: boolean }) {
-  const [kind, setKind] = useState<"locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("locations");
+  const { language } = useLanguage();
+  const [kind, setKind] = useState<"weights" | "locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("weights");
   // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
-  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number } };
+  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { ignoredZeroWeight?: number; scaledFromFractions?: boolean } };
   const renderReport = (view: DirectImportView) => {
     const report = (view.external?.report as { pmc?: Report } | undefined)?.pmc;
     if (!report) return null;
@@ -289,9 +291,12 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
       <div className="space-y-3" data-testid="import-report">
         <h3 className="font-semibold">{t.report}</h3>
         <p className="flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-muted px-2 py-0.5">{t.rows}: {report.totalRows}</span><span className="rounded-full bg-success-soft px-2 py-0.5">{t.create}: {report.counts.create}</span><span className="rounded-full bg-warning-soft px-2 py-0.5">{t.update}: {report.counts.update}</span><span className="rounded-full bg-muted px-2 py-0.5">{t.unchanged}: {report.counts.unchanged}</span><span className={`rounded-full px-2 py-0.5 ${report.errorCount ? "bg-danger-soft text-danger-soft-foreground" : "bg-muted"}`}>{t.errorsFound}: {report.errorCount}</span></p>
+        {/* Q-3: what the weights table did quietly is said, not hidden: rows skipped for a zero weight, fractions read as percentages */}
+        {(report.details?.ignoredZeroWeight ?? 0) > 0 && <p className="text-sm text-muted-foreground" data-ignored-zero>{t.ignoredZero}: {report.details!.ignoredZeroWeight}</p>}
+        {report.details?.scaledFromFractions && <p className="text-sm text-muted-foreground" data-scaled-fractions>{t.scaledFractions}</p>}
         {report.errors.length > 0 && <DataTable exportAs={{ file: "pmc-import-rejected-rows", sheet: t.errorsFound, title: `${t.title} · ${t.errorsFound}` }} rows={report.errors} columns={h => [
           { header: t.row, kind: "number", value: e => e.rowNumber || null, cell: e => e.rowNumber || "—" },
-          h.text(t.reason, e => [e.code, e.field, e.detail].filter(Boolean).join(" · ")),
+          h.text(t.reason, e => pmcImportReason(e, language)),
         ]} />}
         {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.alreadyUpToDate}</p>}
       </div>
