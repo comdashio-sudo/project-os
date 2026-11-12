@@ -142,6 +142,7 @@ vi.mock("@/lib/trpc", () => ({
       saveDrawingLayout: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
       linkDrawingUnit: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
       unlinkDrawingUnit: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
+      saveDrawingCalibration: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
     },
     directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } },
     dataImports: {
