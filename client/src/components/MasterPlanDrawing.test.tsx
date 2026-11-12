@@ -31,7 +31,7 @@ vi.mock("@/lib/trpc", () => {
     trpc: {
       useUtils: () => ({ masterPlans: { drawingLayout: { fetch: vi.fn(), invalidate: vi.fn() } } }),
       directUploads: { create: mutation() },
-      pmc: { siteMap: { useQuery: (input: { activityCode?: string }) => ({ data: state.siteMapError ? undefined : input.activityCode ? { activities: [{ code: "BLK", name: "Blockwork" }], units: (state.siteMap as { units: unknown[] }).units } : { activities: [{ code: "BLK", name: "Blockwork" }], units: [] }, error: state.siteMapError }) } },
+      pmc: { qcMap: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? [{ unitNumber: 1, modelCode: "A", blockCode: "B1", status: "RECEIVED" }, { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "NOT_RECEIVED" }] : undefined, error: null }) }, siteMap: { useQuery: (input: { activityCode?: string }) => ({ data: state.siteMapError ? undefined : input.activityCode ? { activities: [{ code: "BLK", name: "Blockwork" }], units: (state.siteMap as { units: unknown[] }).units } : { activities: [{ code: "BLK", name: "Blockwork" }], units: [] }, error: state.siteMapError }) } },
       masterPlans: {
         list: { useQuery: () => ({ data: state.data, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }) },
         drawingLayout: { useQuery: () => ({ data: state.layout, isLoading: false, error: null, refetch: vi.fn() }) },
@@ -374,6 +374,14 @@ describe("MasterPlanDrawing", () => {
       expect(second!.getAttribute("fill-opacity")).not.toBe("0.08");
       fireEvent.click(screen.getByRole("button", { name: /Shape 1 · Confirmed/ }));
       expect(screen.getByRole("link", { name: "Villa card" }).getAttribute("href")).toBe("/m/t/p/unit/1?activity=BLK");
+    });
+
+    it("the QC source colours the same shapes by receipt, apart from the site's status", async () => {
+      const container = await colouredDrawing();
+      fireEvent.change(screen.getByLabelText("Source"), { target: { value: "qc" } });
+      expect(Array.from(container.querySelectorAll("polygon[data-colour]")).map(node => node.getAttribute("data-colour"))).toEqual(["RECEIVED", "NOT_RECEIVED"]);
+      expect(container.querySelector('[data-key="RECEIVED"] [data-count]')?.textContent).toBe("1");
+      expect(container.querySelector('[data-key="COMPLETE"]')).toBeNull();
     });
 
     it("site statuses that fail to load say so, and the plan's own status colouring stays", async () => {

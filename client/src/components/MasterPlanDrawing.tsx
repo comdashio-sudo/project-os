@@ -286,10 +286,14 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [activityCode, setActivityCode] = useState("");
   const [blockFilter, setBlockFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
+  const [colourSource, setColourSource] = useState<"site" | "qc">("site");
   const siteMap = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined }, { enabled: Boolean(drawing) });
-  const villas = (siteMap.data?.units ?? []) as SiteUnit[];
+  // Q-5's QC receipt for the same activity, coloured apart from the site's status
+  const qcMap = trpc.pmc.qcMap.useQuery({ tenantId, projectId, activityCode }, { enabled: Boolean(drawing) && Boolean(activityCode) && colourSource === "qc" });
+  const villas = (colourSource === "qc" ? qcMap.data ?? [] : siteMap.data?.units ?? []) as SiteUnit[];
+  const colourData = colourSource === "qc" ? qcMap.data : siteMap.data;
   const confirmedCodes = items.filter(item => item.state === "confirmed" && item.unitCode).map(item => item.unitCode!);
-  const colouring = activityCode && siteMap.data ? colourUnits(confirmedCodes, villas) : null;
+  const colouring = activityCode && colourData ? colourUnits(confirmedCodes, villas) : null;
   const summary = summarizeReview(items, units);
   const remaining = units.filter(unit => !items.some(entry => entry.state === "confirmed" && entry.unitId === unit.id));
   const selected = items.find(item => item.polygonId === selectedId) ?? null;
@@ -529,6 +533,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 activities={siteMap.data?.activities ?? []}
                 activityCode={activityCode}
                 onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); }}
+                source={colourSource}
+                onSource={setColourSource}
                 blocks={Array.from(new Set(villas.map(villa => villa.blockCode))).sort()}
                 models={Array.from(new Set(villas.map(villa => villa.modelCode))).sort()}
                 block={blockFilter}
@@ -536,8 +542,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 onBlock={setBlockFilter}
                 onModel={setModelFilter}
                 counts={colouring?.counts ?? null}
-                failed={Boolean(siteMap.error)}
-                onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode || "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
+                failed={Boolean(colourSource === "qc" ? qcMap.error : siteMap.error)}
+                onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode ? `${activityCode}-${colourSource}` : "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
               />
               <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}

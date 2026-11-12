@@ -1,7 +1,7 @@
 // Q-8 (b): colouring the master-plan drawing by a PMC activity's site status. A plan unit and a PMC villa are matched by the number in the unit's code
 // (V-04, V0004, B1-U-0004 → villa 4): the plan and the PMC table have no stored link, so the number is the rule, stated on the screen; a code with no
 // number, or a number with no villa, is «not matched» and shown as such, never guessed. Colours are the theme's tokens (so the key reads in dark mode).
-export type SiteStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE";
+export type SiteStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" | "RECEIVED" | "NOT_RECEIVED";
 export type SiteUnit = { unitNumber: number; modelCode: string; blockCode: string; status: SiteStatus | null };
 export type ColourKey = SiteStatus | "NOT_IN_MODEL" | "NOT_MATCHED";
 
@@ -10,10 +10,15 @@ export const SITE_COLOUR: Record<ColourKey, string> = {
   IN_PROGRESS: "var(--warning)",
   UNDER_REVIEW: "var(--info)",
   COMPLETE: "var(--success)",
+  // Q-5's QC receipt, kept apart from the site's status
+  RECEIVED: "var(--success)",
+  NOT_RECEIVED: "var(--destructive)",
   NOT_IN_MODEL: "var(--border)",
   NOT_MATCHED: "var(--background)",
 };
-export const KEY_ORDER: ColourKey[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE", "NOT_IN_MODEL", "NOT_MATCHED"];
+export const KEY_ORDER: ColourKey[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE", "RECEIVED", "NOT_RECEIVED", "NOT_IN_MODEL", "NOT_MATCHED"];
+export const SITE_KEYS: ColourKey[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE", "NOT_IN_MODEL", "NOT_MATCHED"];
+export const QC_KEYS: ColourKey[] = ["RECEIVED", "NOT_RECEIVED", "NOT_IN_MODEL", "NOT_MATCHED"];
 
 /** The villa number in a plan unit's code: its last run of digits. */
 export function unitNumberOf(code: string): number | null {
