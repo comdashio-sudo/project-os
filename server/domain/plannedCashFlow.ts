@@ -16,7 +16,7 @@ const TOLERANCE = 0.01; // percentage points
 const normalize = (value: string) => value.trim().toLowerCase();
 const pad = (n: number) => String(n).padStart(2, "0");
 
-function monthOf(value: unknown): string | null {
+export function monthOf(value: unknown): string | null {
   if (value instanceof Date && Number.isFinite(value.getTime())) return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-01`;
   const text = String(value ?? "").trim();
   const match = /^(\d{4})[-/](\d{1,2})(?:[-/](\d{1,2}))?/.exec(text);

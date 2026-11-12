@@ -40,6 +40,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   analyzeSmartUpload: "reads the uploaded original and answers what it understood; nothing is imported. The only record it can make is the AI-reading usage counter (smart_reading_usage), when the owner has turned the AI reading on",
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
   previewProjectBoq: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectBoq, is audited)",
+  previewProjectLabour: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectLabour, is audited)",
   previewProjectCashFlow: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectCashFlow, is audited)",
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
