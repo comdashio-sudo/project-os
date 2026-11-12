@@ -11,10 +11,11 @@ import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
 import { ReportSection } from "@/components/dailyReport/ReportSection";
 import { EquipmentOfDay, HeaderExtras, LabourMatrix, equipmentBody, equipmentFrom, equipmentProblems, labourBody, labourFrom, labourProblems, labourTotal, useCoreText, type EquipmentRows, type LabourCells } from "@/components/dailyReport/CoreSections";
+import { DailyReportDocument, ReportExports } from "@/components/dailyReport/DailyReportDocument";
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useParams } from "wouter";
 
 // The daily site report on the phone (work order 14, item 1). The site engineer writes it in four short parts — the day, the people and equipment, the work done per
@@ -126,6 +127,9 @@ export default function SiteDailyReport() {
   const [labourCells, setLabourCells] = useState<LabourCells>({});
   const [dayEquipment, setDayEquipment] = useState<EquipmentRows>({});
   const copy = trpc.siteReports.copyFromYesterday.useMutation({ onSuccess: result => { void utils.siteReports.list.invalidate(); void openReport(result.id); } });
+  // Q-9 (c): the report as a document, for the PDF and Word exports; the labour sheet is the server's (D-47 a)
+  const documentRef = useRef<HTMLElement | null>(null);
+  const exportSheet = trpc.siteReports.export.useMutation();
   const [photoZone, setPhotoZone] = useState("");
   const [photoUnit, setPhotoUnit] = useState("");
 
@@ -325,6 +329,19 @@ export default function SiteDailyReport() {
           )}
         </CheckedForm>
       </WriteGate>
+
+      {reportId && detail.data && (
+        <>
+          <ReportExports language={language} fileBase={`daily-report-${detail.data.report.reportNumber ?? date}`} documentRef={documentRef} buttonClass={`${tap} rounded-xl border bg-card px-3 text-sm font-medium disabled:opacity-50`}
+            onExcel={() => exportSheet.mutateAsync({ ...scope, reportId, format: "xlsx", locale: language })} />
+          {/* drawn off screen: the PDF is a picture of this element, and Word takes its HTML */}
+          <div aria-hidden="true" style={{ position: "fixed", insetInlineStart: -20000, top: 0 }}>
+            <DailyReportDocument ref={documentRef} data={detail.data} language={language}
+              unitNumber={id => String(units.find(unit => unit.id === id)?.number ?? "—")}
+              activityName={id => activities.find(activity => activity.id === id)?.name ?? "—"} />
+          </div>
+        </>
+      )}
 
       <section className="space-y-2" aria-label={t.recent}>
         <h2 className="text-base font-semibold">{t.recent}</h2>

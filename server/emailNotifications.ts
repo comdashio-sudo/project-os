@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, ne, notInArray, sql } from "drizzle-orm";
 import type { getDb } from "./db";
 import { rowsAffected } from "./_core/database";
 import {
@@ -214,7 +214,7 @@ export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?
   const [{ n: sentToday }] = await db.select({ n: sql<number>`count(*)::int` }).from(emailOutbox).where(and(eq(emailOutbox.status, "sent"), gte(emailOutbox.sentAt, startOfUtcDay(now))));
   const recent = await db.select({ at: emailOutbox.sentAt }).from(emailOutbox).where(and(eq(emailOutbox.status, "sent"), gte(emailOutbox.sentAt, new Date(now.getTime() - gate.pauseMs - 60_000))));
   const pausedUntil = pauseEnd(recent.map(row => row.at!).filter(Boolean), now, gate);
-  const pending = await db.select({ id: emailOutbox.id, tenantId: emailOutbox.tenantId, recipientUserId: emailOutbox.recipientUserId, kind: emailOutbox.kind, subject: emailOutbox.subject, text: emailOutbox.bodyText, html: emailOutbox.bodyHtml, attempts: emailOutbox.attempts }).from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "failed"]), lt(emailOutbox.attempts, MAX_ATTEMPTS)))
+  const pending = await db.select({ id: emailOutbox.id, tenantId: emailOutbox.tenantId, recipientUserId: emailOutbox.recipientUserId, kind: emailOutbox.kind, subject: emailOutbox.subject, text: emailOutbox.bodyText, html: emailOutbox.bodyHtml, attempts: emailOutbox.attempts }).from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "failed"]), lt(emailOutbox.attempts, MAX_ATTEMPTS), ne(emailOutbox.kind, "membership_invitation")))
     .orderBy(sql`CASE ${emailOutbox.kind} WHEN 'support_escalation' THEN 0 WHEN 'approvals_waiting' THEN 1 ELSE 2 END`, emailOutbox.createdAt).limit(options.limit ?? 50);
   if (pausedUntil) { summary.pausedUntil = pausedUntil; summary.deferred = pending.length; return summary; }
   let allowance = notificationAllowance(gate, sentToday);
@@ -225,6 +225,8 @@ export async function flushEmailOutbox(db: Db, mailer: Mailer, options: { limit?
     // Claim the row before sending: another flush (the cron and a request can overlap) that loses this race skips it, so one mail is never sent twice.
     const claim = await db.update(emailOutbox).set({ attempts: sql`${emailOutbox.attempts} + 1` }).where(and(eq(emailOutbox.id, item.id), eq(emailOutbox.attempts, item.attempts), inArray(emailOutbox.status, ["pending", "failed"])));
     if (rowsAffected(claim) !== 1) continue;
+    // an invitation row (no user, an address) is written already sent or refused by server/invitationEmail.ts and never waits here; a row without a user is never mailed
+    if (item.recipientUserId === null) { await db.update(emailOutbox).set({ status: "skipped", lastError: "no user to resolve the address" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }
     const [recipient] = await db.select({ email: users.email }).from(users).innerJoin(memberships, and(eq(memberships.userId, users.id), eq(memberships.tenantId, item.tenantId), eq(memberships.status, "active"))).where(eq(users.id, item.recipientUserId)).limit(1);
     if (!recipient?.email) { await db.update(emailOutbox).set({ status: "skipped", lastError: "no deliverable address or no longer a member" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }
     if (gate.blockReservedDomains && isReservedMailDomain(recipient.email)) { await db.update(emailOutbox).set({ status: "skipped", lastError: "reserved domain: mail to it can never be delivered" }).where(eq(emailOutbox.id, item.id)); summary.skipped += 1; continue; }

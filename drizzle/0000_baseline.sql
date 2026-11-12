@@ -33,7 +33,7 @@ CREATE TYPE "public"."design_drawings_status" AS ENUM('registered', 'under_revie
 CREATE TYPE "public"."design_transmittals_direction" AS ENUM('outgoing', 'incoming');--> statement-breakpoint
 CREATE TYPE "public"."design_transmittals_status" AS ENUM('draft', 'sent', 'acknowledged');--> statement-breakpoint
 CREATE TYPE "public"."email_notification_preferences_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest');--> statement-breakpoint
-CREATE TYPE "public"."email_outbox_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest');--> statement-breakpoint
+CREATE TYPE "public"."email_outbox_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest', 'membership_invitation');--> statement-breakpoint
 CREATE TYPE "public"."email_outbox_status" AS ENUM('pending', 'sent', 'failed', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."employee_assignments_status" AS ENUM('planned', 'active', 'closed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."employee_attendance_attendance_status" AS ENUM('present', 'absent', 'leave', 'secondment');--> statement-breakpoint
@@ -679,7 +679,8 @@ CREATE TABLE "email_notification_preferences" (
 CREATE TABLE "email_outbox" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
-	"recipient_user_id" integer NOT NULL,
+	"recipient_user_id" integer,
+	"recipient_email" varchar(320),
 	"kind" "email_outbox_kind" NOT NULL,
 	"dedupe_key" varchar(160) NOT NULL,
 	"subject" varchar(300) NOT NULL,
@@ -689,7 +690,8 @@ CREATE TABLE "email_outbox" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"last_error" varchar(200),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"sent_at" timestamp with time zone
+	"sent_at" timestamp with time zone,
+	CONSTRAINT "email_outbox_recipient_check" CHECK ("email_outbox"."recipient_user_id" IS NOT NULL OR "email_outbox"."recipient_email" IS NOT NULL)
 );
 --> statement-breakpoint
 CREATE TABLE "employee_assignments" (
@@ -1869,6 +1871,18 @@ CREATE TABLE "project_material_overrides" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "project_planned_labour" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"month" date NOT NULL,
+	"trade" varchar(80) DEFAULT '' NOT NULL,
+	"workers" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_planned_labour_workers_check" CHECK ("project_planned_labour"."workers" >= 0 AND "project_planned_labour"."workers" <= 1000000)
 );
 --> statement-breakpoint
 CREATE TABLE "project_profiles" (
@@ -3068,6 +3082,8 @@ ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overri
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_material_overrides" ADD CONSTRAINT "project_material_overrides_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_planned_labour" ADD CONSTRAINT "project_planned_labour_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_planned_labour" ADD CONSTRAINT "project_planned_labour_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_profiles" ADD CONSTRAINT "project_profiles_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3467,6 +3483,7 @@ CREATE UNIQUE INDEX "project_labour_roles_project_default_unique" ON "project_la
 CREATE INDEX "project_labour_roles_tenant_project_idx" ON "project_labour_roles" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_material_overrides_project_material_unique" ON "project_material_overrides" USING btree ("project_id","material_id");--> statement-breakpoint
 CREATE INDEX "project_material_overrides_tenant_project_idx" ON "project_material_overrides" USING btree ("tenant_id","project_id","material_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_planned_labour_month_trade_unique" ON "project_planned_labour" USING btree ("tenant_id","project_id","month","trade");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_profiles_tenant_project_unique" ON "project_profiles" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_report_approvers_project_step_unique" ON "project_report_approvers" USING btree ("tenant_id","project_id","step");--> statement-breakpoint
 CREATE INDEX "project_report_approvers_membership_idx" ON "project_report_approvers" USING btree ("membership_id");--> statement-breakpoint
