@@ -75,6 +75,7 @@ import { sdk } from "./_core/sdk";
 import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { getCompanyProfile, updateCompanyProfile } from "./companyProfile";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
@@ -336,6 +337,9 @@ export const appRouter = router({
     mine: protectedProcedure.query(({ ctx }) => listTenantsForUser(ctx.user.id)),
     administration: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantAdministration({ userId: ctx.user.id, ...input })),
     // D-81: the company's own choice to require two-step verification of its members (off by default; tenant.manage only)
+    // Q-12 part 1: the «My companies» screen reads and edits a company's own details (tenant.manage; server/companyProfile.ts)
+    profile: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyProfile({ userId: ctx.user.id, ...input })),
+    updateProfile: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), legalName: z.string().trim().min(2, { message: "PROJECT_OS_FIELD_REQUIRED" }).max(255), defaultLocale: z.enum(["ar", "en"]) })).mutation(({ ctx, input }) => updateCompanyProfile({ userId: ctx.user.id, ...input })),
     securitySettings: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanySecurity({ userId: ctx.user.id, ...input })),
     setRequireTwoStep: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), requireTwoStep: z.boolean() })).mutation(({ ctx, input }) => setCompanyRequireTwoStep({ userId: ctx.user.id, ...input })),
     roleTemplateRemovals: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["pending", "approved", "declined"]).optional() })).query(({ ctx, input }) => getRoleTemplateRemovals({ userId: ctx.user.id, ...input })),
