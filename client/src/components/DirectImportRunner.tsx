@@ -2,6 +2,7 @@ import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 import { resolveLanguage } from "@/lib/language";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ds";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
@@ -12,7 +13,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { AppRouter } from "../../../server/routers";
 
 export type DirectImportView = inferRouterOutputs<AppRouter>["dataImports"]["progress"];
-export type DirectImportModule = "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial" | "costs" | "purchaseOrders" | "employees" | "timeEntries";
+export type DirectImportModule = "pmc.locations" | "pmc.catalog" | "pmc.status" | "pmc.requests" | "pmc.baseline" | "pmc.baselineDates" | "masterPlanMapping" | "masterPlanSpatial" | "costs" | "purchaseOrders" | "employees" | "timeEntries" | "equipment";
 
 type Props = {
   tenantId: string; projectId: string; moduleCode: DirectImportModule;
@@ -33,6 +34,8 @@ type Props = {
   /** What the importer would do, shown between the verdict and the confirm button. */
   renderReport?: (view: DirectImportView) => React.ReactNode;
   onCompleted?: (view: DirectImportView) => void;
+  /** D-84 (b): the design system's drop area instead of the browser's own file input (which spills past a narrow card); a screen opts in, the others keep their input. */
+  dropzone?: boolean;
 };
 
 const text = {
@@ -65,7 +68,7 @@ const text = {
  * The file travels browser → Storage by a signed URL (no request body carries it, so the host's 4.5 MB ceiling does not apply, up to 50 MB), then a background job
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
-export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted }: Props) {
+export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted, dropzone = false }: Props) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const t = text[lang];
   const [file, setFile] = useState<File | null>(null);
@@ -122,10 +125,14 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
   const errors = view?.analysis?.errors ?? [];
   return (
     <div className="space-y-3" data-testid="direct-import">
-      <div className="flex flex-wrap items-end gap-3">
+      {dropzone ? <div className="space-y-3">
+        <FileDropzone accept={[".xlsx", ".csv"]} maxBytes={MAX_IMPORT_UPLOAD_BYTES} disabled={busy || inFlight} onFiles={files => { setFile(files[0] ?? null); setLocalError(null); }}
+          items={file ? [{ id: "file", name: file.name, size: file.size, status: uploadPercent !== null ? "uploading" : importId ? "done" : "queued", progress: uploadPercent ?? undefined }] : []} />
+        <Button type="button" className="min-h-[44px]" disabled={!file || busy || inFlight} onClick={() => void start()}><FileUp className="me-1 h-4 w-4" />{analyzeLabel}</Button>
+      </div> : <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{fileLabel}<input aria-label={fileLabel} type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-1 block min-h-[44px] rounded-xl border border-slate-200 p-2 text-sm" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /></label>
         <Button type="button" className="min-h-[44px]" disabled={!file || busy || inFlight} onClick={() => void start()}><FileUp className="me-1 h-4 w-4" />{analyzeLabel}</Button>
-      </div>
+      </div>}
       {localError && <p role="alert" className="text-sm text-red-700">{localError}</p>}
       {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
       {uploadPercent !== null && <div role="status" aria-live="polite"><p className="text-sm">{t.uploading} ({uploadPercent}%)</p><progress className="mt-1 h-2 w-full" max={100} value={uploadPercent} aria-label={t.progressLabel} /></div>}

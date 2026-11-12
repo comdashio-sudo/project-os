@@ -91,6 +91,7 @@ vi.mock("./ProjectMaterials", () => ({ ProjectMaterials: () => null }));
 vi.mock("./ProjectWarehouses", () => ({ ProjectWarehouses: () => null }));
 vi.mock("./ProjectProcurement", () => ({ ProjectProcurement: () => null }));
 vi.mock("./ProjectGoodsReceipts", () => ({ ProjectGoodsReceipts: () => null }));
+vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("wouter", () => ({
   useLocation: () => ["/", vi.fn()],
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
