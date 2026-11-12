@@ -10,6 +10,7 @@ import { useDirectUpload } from "@/lib/useDirectUpload";
 import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
 import { LockedNote, ReportSection } from "@/components/dailyReport/ReportSection";
+import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
 import React, { useMemo, useState } from "react";
@@ -115,6 +116,9 @@ export default function SiteDailyReport() {
   const put = <K extends keyof Sections>(name: K) => (rows: Sections[K]) => setSections(current => ({ ...current, [name]: rows }));
   const [message, setMessage] = useState<string | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string | null>(null);
+  // D-45 (c): where the next photo was taken (a zone in words, a unit of this project), both optional
+  const [photoZone, setPhotoZone] = useState("");
+  const [photoUnit, setPhotoUnit] = useState("");
 
   const units = options.data?.units ?? [];
   const activities = options.data?.activities ?? [];
@@ -170,7 +174,7 @@ export default function SiteDailyReport() {
     setPhotoMessage(t.uploading);
     try {
       const key = await upload.upload(file, file.type || "image/jpeg");
-      await attach.mutateAsync({ ...scope, reportId, uploadKey: key, fileName: file.name || "photo.jpg" });
+      await attach.mutateAsync({ ...scope, reportId, uploadKey: key, fileName: file.name || "photo.jpg", zone: photoZone.trim() || undefined, pmcUnitId: photoUnit.trim() ? unitOf(photoUnit)?.id : undefined });
     } catch { setPhotoMessage(null); }
   };
 
@@ -263,7 +267,7 @@ export default function SiteDailyReport() {
             </ReportSection>
             <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}</ReportSection>
             <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
-            <ReportSection number={4} title={t.inspections} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={4} title={t.inspections} summary={detail.data?.inspections ? `WIR ${detail.data.inspections.wir.submitted} · RFI ${detail.data.inspections.rfi.submitted}` : undefined} defaultOpen={false}><InspectionsSection inspections={reportId ? detail.data?.inspections : undefined} /></ReportSection>
             <ReportSection number={5} title={t.materials} summary={t.lineCount(sections.materials.length)}>
               {/* a list of approvals that failed to load says so; the choice stays at «no approval» meanwhile */}
               <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
@@ -277,13 +281,15 @@ export default function SiteDailyReport() {
             <ReportSection number={8} title={t.tomorrow} summary={t.lineCount(sections.tomorrow.length)}><TomorrowSection title={t.tomorrow} rows={sections.tomorrow} onChange={put("tomorrow")} locked={locked} /></ReportSection>
             <ReportSection number={9} title={t.photos}>
             {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
-            {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending} onFile={file => { void addPhoto(file); }} />}
+            {reportId && !locked && <PhotoPlace zone={photoZone} unitNumber={photoUnit} onZone={setPhotoZone} onUnit={setPhotoUnit} unitKnown={Boolean(unitOf(photoUnit))} />}
+            {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending || (photoUnit.trim() !== "" && !unitOf(photoUnit))} onFile={file => { void addPhoto(file); }} />}
             {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
-            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
+            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => { const place = photoPlaceText(language, photo.zone ?? null, photo.pmcUnitId ? String(units.find(unit => unit.id === photo.pmcUnitId)?.number ?? "") || null : null); return <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}{place ? <span className="block text-xs text-muted-foreground" data-photo-place>{place}</span> : null}</li>; })}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
             </ReportSection>
             <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={false}>
               <p className="text-sm"><span className="text-muted-foreground">{t.statusNow}: </span>{reportId ? (locked ? t.pending : t.draft) : t.newReport}</p>
-              <p className="text-sm font-medium">{t.chain}</p><LockedNote />
+              <p className="text-sm font-medium">{t.chain}</p>
+              <ApprovalChain scope={scope} reportId={reportId} status={detail.data?.report.status ?? null} approval={detail.data?.approval} onChanged={() => { void detail.refetch(); void utils.siteReports.list.invalidate(); }} />
             </ReportSection>
           </div>
           {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
