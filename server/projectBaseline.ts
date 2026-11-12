@@ -5,12 +5,13 @@
 // Reading takes project.read or project.manage; writing takes project.manage. The audit row is written in the same transaction as the change. No import happens here:
 // the checklist points at the importers that already exist (WBS, schedule, units, weights, BOQ) and the status is read from what they stored.
 import { randomUUID } from "node:crypto";
-import { and, asc, count, countDistinct, eq, notInArray } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, inArray, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { activities, auditLogs, boqItems, pmcActivityDefinitions, pmcPlanMonths, pmcUnits, projects, wbsItems } from "../drizzle/schema";
 import { projectGate } from "./projectProfile";
 import { analyzeCashFlowFile, cashFlowRefusal, type CashFlowAnalysis } from "./domain/plannedCashFlow";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
+import { analyzeBoqFile, boqRefusal, type BoqAnalysis } from "./domain/boqFile";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const READ = ["project.read", "project.manage"] as const;
@@ -124,4 +125,55 @@ export async function cashFlowTemplate(input: Scope & { locale: "ar" | "en" | "u
   const headers = input.locale === "ar" ? ["الشهر", "النسبة"] : input.locale === "ur" ? ["مہینہ", "فیصد"] : ["Month", "Percent"];
   const bytes = await buildSpreadsheet({ sheetName: "Cash flow", headers, rows: [["2027-01", "20%"], ["2027-02", "50%"], ["2027-03", "30%"]], format: "xlsx" });
   return { fileName: "planned-cash-flow.xlsx", base64: bytes.toString("base64") };
+}
+
+// ------------------------------------------------------------------ Q-10 (c): the bill of quantities
+
+// the same authority as adding one BOQ item by hand (createBoqItemForTenant)
+const BOQ_WRITE = ["project.wbs.manage"] as const;
+const BOQ_MAX_BYTES = 3 * 1024 * 1024; // the request ceiling of a file sent inside a request (CLAUDE.md §5)
+const fileCode = (code: string) => prefixed(code.startsWith("IMPORT_") && code !== "IMPORT_FILE_TOO_LARGE" ? "IMPORT_FILE_INVALID" : code);
+async function readBoq(fileBase64: string, format: "xlsx" | "csv"): Promise<BoqAnalysis> {
+  const bytes = Buffer.from(fileBase64, "base64");
+  if (!bytes.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  if (bytes.length > BOQ_MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_TOO_LARGE" });
+  return analyzeBoqFile(bytes, format);
+}
+
+/** The check report: the items read, the refused rows, the total, and how many codes are new and how many already exist (and would be updated). Writes nothing. */
+export async function previewProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+  const db = await projectGate(input, BOQ_WRITE);
+  const analysis = await readBoq(input.fileBase64, input.format);
+  const refusal = boqRefusal(analysis);
+  const codes = analysis.items.map(item => item.code);
+  const existing = codes.length ? (await db.select({ code: boqItems.code }).from(boqItems).where(and(mine(boqItems, input), inArray(boqItems.code, codes)))).length : 0;
+  return { count: analysis.items.length, items: analysis.items.slice(0, 20), issues: analysis.issues, totalAmount: analysis.totalAmount, newCount: analysis.items.length - existing, updateCount: existing, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
+}
+
+/** Write the file's items: a new code is added, an existing code (same project) is updated in place. Nothing is deleted: an item no longer in the file stays (a certificate may cite it). */
+export async function saveProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+  const db = await projectGate(input, BOQ_WRITE);
+  const analysis = await readBoq(input.fileBase64, input.format);
+  const refusal = boqRefusal(analysis);
+  if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
+  await db.transaction(async tx => {
+    let written = 0;
+    for (const item of analysis.items) {
+      const values = { description: item.description, unitOfMeasure: item.unitOfMeasure, quantity: String(item.quantity), unitRate: String(item.unitRate), totalAmount: item.totalAmount.toFixed(2), updatedAt: new Date() };
+      const rows = await tx.insert(boqItems).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, code: item.code, createdByUserId: input.userId, ...values })
+        .onConflictDoUpdate({ target: [boqItems.projectId, boqItems.code], set: values, setWhere: eq(boqItems.tenantId, input.tenantId) }).returning({ id: boqItems.id });
+      written += rows.length;
+    }
+    // the proof of the write is one returned row per item; fewer means a code belongs to a row this company may not touch
+    if (written !== analysis.items.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_BOQ_CODE_EXISTS" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.boq_imported", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ items: analysis.items.length, totalAmount: analysis.totalAmount }) });
+  });
+  return getBaselineStatus(input);
+}
+
+export async function boqTemplate(input: Scope & { locale: "ar" | "en" | "ur" }) {
+  await projectGate(input, READ);
+  const headers = input.locale === "ar" ? ["رقم البند", "وصف البند", "الوحدة", "الكمية", "سعر الوحدة"] : input.locale === "ur" ? ["آئٹم نمبر", "تفصیل", "اکائی", "مقدار", "شرح"] : ["Item no.", "Description", "Unit", "Quantity", "Unit rate"];
+  const bytes = await buildSpreadsheet({ sheetName: "BOQ", headers, rows: [["A-01", "Excavation (example)", "m3", 1200, 18.5], ["A-02", "Plain concrete (example)", "m3", 85, 320]], format: "xlsx" });
+  return { fileName: "boq.xlsx", base64: bytes.toString("base64") };
 }

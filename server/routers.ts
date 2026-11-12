@@ -14,7 +14,7 @@ import { MAPPING_TYPES } from "./integrations/mappings";
 import { createWebhookEndpointForManager, listWebhookDeliveriesForManager, listWebhookEndpointsForManager, sendTestWebhookForManager, setWebhookEndpointActiveForManager, WEBHOOK_EVENTS } from "./integrations/webhooks";
 import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
-import { cashFlowTemplate, getBaselineStatus, previewProjectCashFlow, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
+import { boqTemplate, cashFlowTemplate, getBaselineStatus, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
 import { APPROVAL_STEPS, getReportApprovers, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
@@ -573,6 +573,10 @@ export const appRouter = router({
       previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
       saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
       cashFlowTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => cashFlowTemplate({ userId: ctx.user.id, ...input })),
+      // Q-10 (c): the bill of quantities from an Excel/CSV file (item code, description, unit, quantity, rate). Same authority as adding one item (project.wbs.manage).
+      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
+      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
+      boqTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => boqTemplate({ userId: ctx.user.id, ...input })),
     }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
     profile: router({

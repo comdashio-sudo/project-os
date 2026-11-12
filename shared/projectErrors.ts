@@ -593,6 +593,26 @@ export const projectErrorMessages = {
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
   },
+  PROJECT_OS_BOQ_COLUMNS_MISSING: {
+    ar: "الملف يحتاج الأعمدة: رقم البند، وصف البند، الوحدة، الكمية، سعر الوحدة. نزّل القالب واملأه.",
+    en: "The file needs the columns: Item no., Description, Unit, Quantity, Unit rate. Download the template and fill it in.",
+    ur: "فائل میں یہ کالم چاہییں: آئٹم نمبر، تفصیل، اکائی، مقدار، شرح۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_BOQ_TOO_MANY_ROWS: {
+    ar: "جدول الكميات يقبل حتى 5000 بند في الملف الواحد.",
+    en: "The bill of quantities accepts up to 5000 items in one file.",
+    ur: "مقداروں کا جدول ایک فائل میں زیادہ سے زیادہ 5000 آئٹم لیتا ہے۔",
+  },
+  PROJECT_OS_BOQ_ROWS_INVALID: {
+    ar: "في الملف بنود مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some items of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کے کچھ آئٹم رد ہوئے۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_BOQ_EMPTY: {
+    ar: "الملف لا يحوي أي بند.",
+    en: "The file has no item in it.",
+    ur: "فائل میں کوئی آئٹم نہیں۔",
+  },
   PROJECT_OS_CASHFLOW_COLUMNS_MISSING: {
     ar: "الملف يحتاج عمودين: «الشهر» و«النسبة». نزّل القالب واملأه.",
     en: "The file needs two columns: «Month» and «Percent». Download the template and fill it in.",
