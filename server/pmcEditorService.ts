@@ -4,7 +4,7 @@
 // PMC permission and the PMC licence feature), every write in one transaction with its audit row. The import code is not used or changed here.
 import { TRPCError } from "@trpc/server";
 import { and, asc, between, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones } from "../drizzle/schema";
 import { validateActivityWeights } from "./domain/pmc";
 import { isUniqueViolation } from "./_core/database";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
@@ -20,12 +20,13 @@ export async function getPmcStructure(input: Scope) {
   const [zones, blocks, definitions, units] = await Promise.all([
     db.select({ id: pmcZones.id, code: pmcZones.code, name: pmcZones.name }).from(pmcZones).where(mine(pmcZones, input)).orderBy(asc(pmcZones.code)),
     db.select({ id: pmcBlocks.id, code: pmcBlocks.code, name: pmcBlocks.name, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(mine(pmcBlocks, input)).orderBy(asc(pmcBlocks.code)),
-    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sub: pmcActivityStages.name }).from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).innerJoin(pmcActivityStages, eq(pmcActivityStages.id, pmcActivityDefinitions.stageId)).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
     db.select({ unitNumber: pmcUnits.unitNumber }).from(pmcUnits).where(mine(pmcUnits, input)),
   ]);
   const zoneCode = new Map(zones.map(zone => [zone.id, zone.code]));
-  const models = new Map<string, Array<{ id: string; code: string; name: string; weightPercent: number }>>();
-  for (const definition of definitions) models.set(definition.modelCode, [...(models.get(definition.modelCode) ?? []), { id: definition.id, code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent) }]);
+  // Q-3: each activity carries its CSI section and sub-item (the group and stage), so the weights table reads as the owner keeps it
+  const models = new Map<string, Array<{ id: string; code: string; name: string; weightPercent: number; section: string; sub: string }>>();
+  for (const definition of definitions) models.set(definition.modelCode, [...(models.get(definition.modelCode) ?? []), { id: definition.id, code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), section: definition.section, sub: definition.sub }]);
   return {
     blocks: blocks.map(block => ({ id: block.id, code: block.code, name: block.name, zoneCode: zoneCode.get(block.zoneId) ?? "" })),
     models: Array.from(models, ([modelCode, activities]) => ({ modelCode, activities, totalWeight: Math.round(activities.reduce((sum, item) => sum + item.weightPercent, 0) * 10000) / 10000 })),

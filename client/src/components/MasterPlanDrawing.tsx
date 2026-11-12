@@ -15,6 +15,8 @@ import { PanZoomControls, usePanZoom } from "@/components/PanZoomMap";
 import type { OcrWorker } from "@/lib/raster/ocrWorker";
 import { MeasureOverlay, MeasurePanel, drawingPointFromClient, type MeasureTool } from "@/components/MasterPlanMeasure";
 import type { DrawingCalibration, PlanPoint } from "@shared/masterPlanCalibration";
+import { ManualLinkPanel, useManualText, type LinkTool } from "@/components/MasterPlanManualLink";
+import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
 import {
   assignUnit,
   buildReview,
@@ -236,6 +238,12 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   // Q-7: the picture under the shapes of a raster drawing (an image or a PDF page), at the size the shapes were read at; null for a DXF.
   const [background, setBackground] = useState<{ href: string; width: number; height: number; page: number } | null>(null);
   const [tool, setTool] = useState<MeasureTool>("none");
+  // Q-8: linking by hand — the unit being placed, a tap or a polygon, the polygon's corners so far
+  const manualText = useManualText();
+  const [linkTool, setLinkTool] = useState<LinkTool | null>(null);
+  const [linkUnitId, setLinkUnitId] = useState("");
+  const [linkPicks, setLinkPicks] = useState<PlanPoint[]>([]);
+  const [linkNotice, setLinkNotice] = useState<{ kind: "linked" | "already" | "few"; code?: string } | null>(null);
   const [picks, setPicks] = useState<PlanPoint[]>([]);
   const [localCalibration, setLocalCalibration] = useState<DrawingCalibration | null>(null);
 
@@ -396,7 +404,41 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     return false;
   }
 
+  // the shape is linked to the unit at once; the list then moves to the next unit that has no shape
+  function placeShape(points: PlanPoint[]) {
+    const unit = units.find(entry => entry.id === linkUnitId);
+    if (!drawing || !unit) return;
+    const result = addManualShape(drawing, items, points, unit);
+    if (!result.ok) { setLinkNotice({ kind: result.code === "UNIT_ALREADY_LINKED" ? "already" : "few" }); return; }
+    setDrawing(result.drawing);
+    setItems(result.items);
+    setLinkPicks([]);
+    setLinkNotice({ kind: "linked", code: unit.code });
+    setLinkUnitId(unlinkedUnits(units, result.items)[0]?.id ?? "");
+  }
+
   function onMapClick(event: React.MouseEvent<SVGSVGElement>) {
+    if (linkTool && geometry && drawing) {
+      const point = drawingPointFromClient(event.currentTarget, event.clientX, event.clientY, geometry.flipY);
+      if (!point) return;
+      if (linkTool === "point") {
+        // a tap inside a read shape that is not confirmed links that shape; elsewhere it places a small marker
+        const under = shapeAt(drawing, point);
+        const item = under ? items.find(entry => entry.polygonId === under) : undefined;
+        const unit = units.find(entry => entry.id === linkUnitId);
+        if (item && item.state !== "confirmed" && unit) {
+          const result = assignUnit(items, item.polygonId, unit);
+          if (!result.ok) { setLinkNotice({ kind: "already" }); return; }
+          setItems(result.items);
+          setLinkNotice({ kind: "linked", code: unit.code });
+          setLinkUnitId(unlinkedUnits(units, result.items)[0]?.id ?? "");
+          return;
+        }
+        placeShape(squareAround(point, markerSide(drawing)));
+      }
+      else setLinkPicks(previous => [...previous, point]);
+      return;
+    }
     if (tool === "none" || !geometry) return;
     const point = drawingPointFromClient(event.currentTarget, event.clientX, event.clientY, geometry.flipY);
     if (point) setPicks(previous => (previous.length >= 2 ? [point] : [...previous, point]));
@@ -451,14 +493,27 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
               <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView }} />
               <MeasurePanel
                 tool={tool}
-                onTool={next => { setTool(next); setPicks([]); }}
+                onTool={next => { setTool(next); setPicks([]); setLinkTool(null); setLinkPicks([]); }}
                 picks={picks}
                 calibration={calibration}
                 canCalibrate={Boolean(saved.layout?.drawingId) && !file}
                 busy={saved.busy}
                 onSaveCalibration={onSaveCalibration}
               />
-              <svg role="img" aria-label={t.map} {...pan.svgProps} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" ? "cursor-crosshair" : ""}`}>
+              {units.length > 0 ? (
+                <ManualLinkPanel
+                  unlinked={unlinkedUnits(units, items)}
+                  total={units.length}
+                  unitId={linkUnitId}
+                  onUnit={id => { setLinkUnitId(id); setLinkNotice(null); }}
+                  tool={linkTool}
+                  onTool={next => { setLinkTool(next); setLinkPicks([]); setLinkNotice(null); setTool("none"); setPicks([]); }}
+                  polygonPoints={linkPicks.length}
+                  onClose={() => placeShape(linkPicks)}
+                  notice={linkNotice}
+                />
+              ) : null}
+              <svg role="img" aria-label={t.map} {...pan.svgProps} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
@@ -482,12 +537,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         onClick={() => { if (tool === "none") setSelectedId(polygon.id); }}
                         onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setSelectedId(polygon.id); }}
                         // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
-                        style={tool === "none" ? { cursor: "pointer" } : { pointerEvents: "none" }}
+                        style={tool === "none" && !linkTool ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
                       {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="#111827" pointerEvents="none">{item.unitCode}</text> : null}
                     </g>
                   );
                 })}
+                {linkPicks.length > 0 ? <polyline data-testid="link-polygon" points={linkPicks.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ")} fill="none" stroke="currentColor" className="text-red-600" strokeWidth={Math.max(geometry.width, geometry.height) / 400} pointerEvents="none" /> : null}
                 <MeasureOverlay picks={picks} flipY={geometry.flipY} size={Math.max(geometry.width, geometry.height) / 150} />
               </svg>
               <p className="mt-2 text-xs text-slate-600">{t.legend}</p>
@@ -517,6 +573,9 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         ) : null}
                         {item.state === "confirmed" ? (
                           <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => applyResult(clearLink(items, item.polygonId))}>{t.clear}</button>
+                        ) : null}
+                        {item.layer === MANUAL_LAYER ? (
+                          <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => { if (!drawing) return; const next = removeManualShape(drawing, items, item.polygonId); setDrawing(next.drawing); setItems(next.items); setSelectedId(null); }}>{manualText.removeShape}</button>
                         ) : null}
                         {item.state !== "confirmed" ? (
                           <>

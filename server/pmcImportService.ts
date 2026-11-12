@@ -36,6 +36,7 @@ import {
   planBaseline,
   planBaselineDates,
   planCatalog,
+  weightsToCatalogRows,
   planLocations,
   planRequests,
   planStatus,
@@ -100,6 +101,16 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
 export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }, parsed: ParsedFile, fileHash: string): Promise<Prepared> {
   const total = parsed.rows.length;
   const scope = input;
+
+  // Q-3: the owner's weights table becomes catalogue rows (every model the villas use when the table names none) and is checked and saved by the catalogue's rules
+  if (input.kind === "weights") {
+    const models = (await db.selectDistinct({ modelCode: pmcUnits.modelCode }).from(pmcUnits).where(mine(pmcUnits, scope))).map(row => row.modelCode).sort();
+    const translated = weightsToCatalogRows(parsed.rows, models);
+    const extra = { ignoredZeroWeight: translated.ignoredZeroWeight, scaledFromFractions: translated.scaledFromFractions, models };
+    if (translated.errors.length) return { report: report("weights", fileHash, total, translated.errors, { create: 0, update: 0, unchanged: 0 }, extra), apply: null };
+    const prepared = await prepareRows(db, { ...input, kind: "catalog" }, { headers: parsed.headers, rows: translated.rows, errors: [] }, fileHash);
+    return { ...prepared, report: { ...prepared.report, kind: "weights", totalRows: total, details: { ...prepared.report.details, ...extra } } };
+  }
 
   if (input.kind === "locations") {
     const [zones, blocks, units] = await Promise.all([
@@ -288,7 +299,7 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
   await db.transaction(async tx => {
     await apply(tx);
     // Statuses, catalog weights/links and the unit list all move PMC progress; the other kinds do not.
-    if (input.kind === "status" || input.kind === "catalog" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
+    if (input.kind === "status" || input.kind === "catalog" || input.kind === "weights" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows }) });
   });
   void refreshStatisticsAfterBulkLoad(db, ["pmc_*"], prepared.report.totalRows); // never blocks (bulkLoadStats.ts)
