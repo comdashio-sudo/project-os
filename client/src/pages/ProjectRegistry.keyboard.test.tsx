@@ -37,6 +37,9 @@ describe("ProjectRegistry keyboard access", () => {
     expect(screen.getByLabelText("Currency")).toBeTruthy();
     await user.tab();
     expect(document.activeElement).toBe(workspace);
+    // Q-11 (b): the development planner is reached from the registry's header, between the workspace link and the language button
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Development planner" }));
     await user.tab();
     expect(document.activeElement).toBe(language);
     // The registry is empty here, so its empty state's next action (a link to the form) comes before the form in the focus path.

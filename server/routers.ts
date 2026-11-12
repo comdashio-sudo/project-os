@@ -16,6 +16,7 @@ import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { boqTemplate, cashFlowTemplate, getBaselineStatus, labourTemplate, previewProjectLabour, saveProjectLabour, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
+import { exportDevPlanner, plannerInputSchema, runDevPlanner } from "./devPlannerService";
 import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProjectInvitations, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
@@ -559,6 +560,11 @@ export const appRouter = router({
   }),
   executive: router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
+  }),
+  // Q-11 (b): the residential development planner (server/devPlannerService.ts). Nothing is stored; a project planning permission in the company.
+  devPlanner: router({
+    run: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), plan: plannerInputSchema })).mutation(({ ctx, input }) => runDevPlanner({ userId: ctx.user.id, ...input })),
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), plan: plannerInputSchema, locale: z.enum(["ar", "en", "ur"]) })).mutation(({ ctx, input }) => exportDevPlanner({ userId: ctx.user.id, ...input })),
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
