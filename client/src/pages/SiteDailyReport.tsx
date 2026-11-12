@@ -10,6 +10,7 @@ import { useDirectUpload } from "@/lib/useDirectUpload";
 import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
 import { LockedNote, ReportSection } from "@/components/dailyReport/ReportSection";
+import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
@@ -95,6 +96,8 @@ export default function SiteDailyReport() {
   // D-44 (a), #233: the labour roles and the equipment the report chooses from (active ones only); the project manager can seed the default roles
   const roles = trpc.projects.labourRoles.list.useQuery(scope, { enabled });
   const machines = trpc.projects.equipment.list.useQuery(scope, { enabled });
+  // the consultant's material approvals a received material may name (optional; a list that fails says so in section 5 and leaves the choice at «no approval»)
+  const submittals = trpc.submittals.list.useQuery({ ...scope, submittalType: "material_approval" }, { enabled });
   const seedRoles = trpc.projects.labourRoles.seedDefaults.useMutation({ onSuccess: () => { setMessage(t.seeded); void roles.refetch(); } });
 
   const [reportId, setReportId] = useState<string | null>(null);
@@ -106,6 +109,10 @@ export default function SiteDailyReport() {
   const [summary, setSummary] = useState("");
   const [obstacles, setObstacles] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
+  // D-46 (2): sections 5 to 8 on the contract of D-45 (b)
+  const [sections, setSections] = useState<Sections>(emptySections());
+  const sectionText = useSectionText();
+  const put = <K extends keyof Sections>(name: K) => (rows: Sections[K]) => setSections(current => ({ ...current, [name]: rows }));
   const [message, setMessage] = useState<string | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string | null>(null);
 
@@ -126,7 +133,7 @@ export default function SiteDailyReport() {
   const problems = useMemo(() => lines.flatMap(line => {
     if (line.lineType === "work") return !unitOf(line.unitNumber) || !line.activityId ? [line.key] : [];
     return line.label.trim() === "" ? [line.key] : [];
-  }), [lines, units]); // eslint-disable-line react-hooks/exhaustive-deps
+  }).concat(sectionProblems(sections)), [lines, units, sections]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const body = () => ({
     ...scope, reportDate: date, weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
@@ -135,14 +142,16 @@ export default function SiteDailyReport() {
       description: line.description.trim() || undefined, pmcUnitId: line.lineType === "work" ? unitOf(line.unitNumber)?.id : undefined,
       pmcActivityDefinitionId: line.activityId || undefined, reportedStatus: line.lineType === "work" ? line.reportedStatus : undefined,
     })),
+    // the server replaces the four lists whole on each save, so all four go every time, empty ones included
+    ...sectionsBody(sections),
   });
 
-  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setMessage(null); setPhotoMessage(null); };
+  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setMessage(null); setPhotoMessage(null); };
   const openReport = async (id: string) => {
     const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
     const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");
     setReportId(id); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
-    setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? "");
+    setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? ""); setSections(sectionsFrom(full));
     setLines(full.lines.map(line => ({ key: line.id, lineType: line.lineType, label: line.label ?? "", quantity: line.quantity === null ? "" : String(line.quantity), hours: line.hours === null ? "" : String(line.hours), description: line.description ?? "", unitNumber: unitNumber(line.pmcUnitId), activityId: line.pmcActivityDefinitionId ?? "", reportedStatus: (line.reportedStatus ?? "IN_PROGRESS") as Status })));
     setLocked(full.report.status === "submitted" || full.report.status === "approved");
     setRejectedNote(full.report.status === "rejected" ? (full.report.reviewNote ?? null) : null);
@@ -255,12 +264,17 @@ export default function SiteDailyReport() {
             <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}</ReportSection>
             <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
             <ReportSection number={4} title={t.inspections} defaultOpen={false}><LockedNote /></ReportSection>
-            <ReportSection number={5} title={t.materials} defaultOpen={false}><LockedNote /></ReportSection>
-            <ReportSection number={6} title={t.hse} defaultOpen={false}><LockedNote /></ReportSection>
-            <ReportSection number={7} title={t.obstacles}>
-              <label className="block text-sm font-medium">{t.obstacles}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
+            <ReportSection number={5} title={t.materials} summary={t.lineCount(sections.materials.length)}>
+              {/* a list of approvals that failed to load says so; the choice stays at «no approval» meanwhile */}
+              <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
+              <MaterialsSection title={t.materials} rows={sections.materials} onChange={put("materials")} locked={locked} submittals={submittals.data ?? []} />
             </ReportSection>
-            <ReportSection number={8} title={t.tomorrow} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={6} title={t.hse} summary={hseSummary(sections.hse, sectionText) || t.lineCount(0)}><HseSection title={t.hse} rows={sections.hse} onChange={put("hse")} locked={locked} /></ReportSection>
+            <ReportSection number={7} title={t.obstacles} summary={t.lineCount(sections.obstacleItems.length)}>
+              <ObstaclesSection title={t.obstacles} rows={sections.obstacleItems} onChange={put("obstacleItems")} locked={locked} />
+              <label className="block text-sm font-medium">{sectionText.freeText}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
+            </ReportSection>
+            <ReportSection number={8} title={t.tomorrow} summary={t.lineCount(sections.tomorrow.length)}><TomorrowSection title={t.tomorrow} rows={sections.tomorrow} onChange={put("tomorrow")} locked={locked} /></ReportSection>
             <ReportSection number={9} title={t.photos}>
             {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
             {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending} onFile={file => { void addPhoto(file); }} />}
