@@ -5,19 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Work order 21: the PMC table editors (bulk units, weights to 100%, the click-to-update status matrix).
 const h = vi.hoisted(() => ({
-  canUpdate: true,
+  canUpdate: true, canManage: true,
   structure: {
     blocks: [{ id: "b1", code: "B1", name: "Block 1", zoneCode: "Z1" }],
     models: [{ modelCode: "A", totalWeight: 100, activities: [{ id: "d1", code: "WALLS", name: "Walls", weightPercent: 60 }, { id: "d2", code: "FINISH", name: "Finish", weightPercent: 40 }] }],
     unitCount: 2, highestUnitNumber: 2,
   },
-  grid: { units: [{ id: "u1", unitNumber: 1, modelCode: "A" }], truncated: false, activities: [{ id: "d1", modelCode: "A", code: "WALLS", name: "Walls" }, { id: "d2", modelCode: "A", code: "FINISH", name: "Finish" }], cells: [{ unitId: "u1", activityDefinitionId: "d1", status: "IN_PROGRESS" }] },
+  grid: { units: [{ id: "u1", unitNumber: 1, modelCode: "A" }], truncated: false, activities: [{ id: "d1", modelCode: "A", code: "WALLS", name: "Walls" }, { id: "d2", modelCode: "A", code: "FINISH", name: "Finish" }, { id: "d3", modelCode: "A", code: "ROOF", name: "Roof" }], cells: [{ unitId: "u1", activityDefinitionId: "d1", status: "IN_PROGRESS" }, { unitId: "u1", activityDefinitionId: "d3", status: "COMPLETE" }] },
   createUnits: vi.fn(), saveWeights: vi.fn(), setStatus: vi.fn(), createError: null as unknown, invalidated: [] as string[],
 }));
 
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
-vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => h.canUpdate }));
+vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children, permission }: { children: React.ReactNode; permission: string }) => (permission === "project.pmc.manage" && !h.canManage ? null : <>{children}</>), useCan: () => h.canUpdate }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: { message: string }) => `localized: ${error.message}` }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -34,7 +34,7 @@ vi.mock("@/lib/trpc", () => ({
 
 import { PmcEditors } from "./PmcEditors";
 
-beforeEach(() => { h.canUpdate = true; h.createError = null; h.invalidated = []; h.createUnits.mockReset(); h.saveWeights.mockReset(); h.setStatus.mockReset(); });
+beforeEach(() => { h.canUpdate = true; h.canManage = true; h.createError = null; h.invalidated = []; h.createUnits.mockReset(); h.saveWeights.mockReset(); h.setStatus.mockReset(); });
 afterEach(() => cleanup());
 
 describe("PmcEditors", () => {
@@ -98,5 +98,32 @@ describe("PmcEditors — refusals beside their field (D-74)", () => {
     h.createError = { message: "PROJECT_OS_PERMISSION_DENIED" };
     render(<PmcEditors tenantId="t" projectId="p" />);
     expect(screen.getAllByText("localized: PROJECT_OS_PERMISSION_DENIED")).toHaveLength(1);
+  });
+});
+
+describe("PmcEditors — wide tables (review of #252)", () => {
+  it("the weights and the status matrix each sit in the scrolling frame that says when it scrolls", async () => {
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Show" })); });
+    for (const name of ["Activity weights", "Status matrix"]) expect(screen.getAllByRole("region", { name }).some(region => region.parentElement?.hasAttribute("data-table-scroll"))).toBe(true);
+  });
+});
+
+describe("PmcEditors — review of #252", () => {
+  it("a complete cell is the last step: one click cannot send it back to not started", async () => {
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Show" })); });
+    const done = screen.getByRole("button", { name: "Unit 1 · Roof: Complete" }) as HTMLButtonElement;
+    expect(done.disabled).toBe(true);
+    fireEvent.click(done);
+    expect(h.setStatus).not.toHaveBeenCalled();
+  });
+
+  it("without project.pmc.manage the units and weights editors are not drawn; the matrix still is", () => {
+    h.canManage = false;
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    expect(screen.queryByRole("region", { name: "Create units in bulk" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save the weights" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show" })).toBeTruthy();
   });
 });

@@ -1,5 +1,5 @@
 import React from "react";
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput, formatNumber, formatPercent } from "@/components/ds";
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TableScroll, TextInput, formatNumber, formatPercent } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -14,7 +14,9 @@ import { getProjectError } from "@shared/projectErrors";
 // status (the same server write as everywhere else: quality gate, history, EVM). Server: server/pmcEditorService.ts.
 const STATUSES = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"] as const;
 type Status = (typeof STATUSES)[number];
-const next = (status: Status): Status => STATUSES[(STATUSES.indexOf(status) + 1) % STATUSES.length];
+// review of #252: a click moves a cell forward and COMPLETE is the last step, so one click can never send a finished cell back to «not started»
+// (a correction goes through the unit card, where the change is deliberate)
+const next = (status: Status): Status | null => (status === "COMPLETE" ? null : STATUSES[STATUSES.indexOf(status) + 1]);
 const TONE: Record<Status, string> = { NOT_STARTED: "bg-muted text-muted-foreground", IN_PROGRESS: "bg-warning-soft text-warning-soft-foreground", UNDER_REVIEW: "bg-info-soft text-info-soft-foreground", COMPLETE: "bg-success-soft text-success-soft-foreground" };
 
 const copy = {
@@ -123,15 +125,16 @@ function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; pr
           <div className="text-sm"><span className="mb-1 block">{t.model}</span><Select aria-label={t.model} className="min-w-32" value={modelCode} onValueChange={setModelCode} options={models.map(item => ({ value: item.modelCode, label: item.modelCode }))} /></div>
           <p data-weight-total className="flex items-center gap-2 text-sm"><span>{t.total}:</span><Badge tone={complete ? "success" : "warning"}><bdi dir="ltr">{formatPercent(total, 2)} / 100%</bdi></Badge></p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm" aria-label={t.weights}>
+        {/* review of #252: on a phone the weight fields were cut at the start edge of a plain scroller; TableScroll says when it scrolls and fades the edge */}
+        <TableScroll label={t.weights}>
+          <table className="w-full text-sm" aria-label={t.weights}>
             <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.activity}</th><th scope="col" className="py-2 text-start">{t.weight}</th></tr></thead>
             <tbody className="divide-y divide-border">{(model?.activities ?? []).map(activity => (
               <tr key={activity.id}><th scope="row" className="py-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activity.name}</th>
                 <td className="py-1"><input aria-label={`${t.weight}: ${activity.code}`} className={field} dir="ltr" inputMode="decimal" value={draft[activity.id] ?? ""} onChange={event => setDraft(current => ({ ...current, [activity.id]: event.target.value }))} /></td></tr>
             ))}</tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="flex flex-wrap items-center gap-3">
           <Button loading={save.isPending} disabled={!complete || !model} onClick={() => model && save.mutate({ tenantId, projectId, modelCode: model.modelCode, weights: model.activities.map(activity => ({ activityDefinitionId: activity.id, weightPercent: Number(draft[activity.id]) || 0 })) })}>{t.saveWeights}</Button>
           {save.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(save.error, language)}</p> : null}
@@ -171,7 +174,8 @@ function StatusGrid({ tenantId, projectId, blocks }: { tenantId: string; project
         {change.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(change.error, language)}</p> : null}
         {grid.data && !grid.data.units.length ? <p className="text-sm text-muted-foreground">{t.noUnits}</p> : null}
         {grid.data?.units.length ? (
-          <div className="overflow-x-auto">
+          // review of #252: activities past the frame's edge are scrolled to, with the hint and the fade, and the unit column stays in place
+          <TableScroll label={t.grid}>
             <table className="text-xs" aria-label={t.grid}>
               <thead><tr><th scope="col" className="sticky start-0 bg-card px-2 py-2 text-start">{t.unit}</th>{codes.map(code => <th key={code} scope="col" className="px-1 py-2 text-center font-medium"><bdi>{code}</bdi></th>)}</tr></thead>
               <tbody>{grid.data.units.map(unit => (
@@ -183,8 +187,8 @@ function StatusGrid({ tenantId, projectId, blocks }: { tenantId: string; project
                     const status = statusOf.get(`${unit.id}:${definition.id}`) ?? "NOT_STARTED";
                     return (
                       <td key={code} className="px-1 py-1">
-                        <button type="button" data-cell-status={status} disabled={!canUpdate || change.isPending} aria-label={t.cellLabel(unit.unitNumber, definition.name, t.statuses[status], t.statuses[next(status)])}
-                          onClick={() => change.mutate({ tenantId, projectId, unitId: unit.id, activityDefinitionId: definition.id, status: next(status) })}
+                        <button type="button" data-cell-status={status} disabled={!canUpdate || change.isPending || next(status) === null} aria-label={next(status) ? t.cellLabel(unit.unitNumber, definition.name, t.statuses[status], t.statuses[next(status)!]) : `${t.unit} ${unit.unitNumber} · ${definition.name}: ${t.statuses[status]}`}
+                          onClick={() => { const to = next(status); if (to) change.mutate({ tenantId, projectId, unitId: unit.id, activityDefinitionId: definition.id, status: to }); }}
                           className={`min-h-11 min-w-11 rounded-[calc(var(--radius)-2px)] px-1.5 text-[11px] font-medium ${TONE[status]} disabled:cursor-default`}>{t.short[status]}</button>
                       </td>
                     );
@@ -192,7 +196,7 @@ function StatusGrid({ tenantId, projectId, blocks }: { tenantId: string; project
                 </tr>
               ))}</tbody>
             </table>
-          </div>
+          </TableScroll>
         ) : null}
         {grid.data?.truncated ? <p className="text-xs text-muted-foreground">{t.truncated}</p> : null}
       </CardBody>
