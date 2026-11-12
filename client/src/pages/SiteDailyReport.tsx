@@ -9,10 +9,13 @@ import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
 import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
-import { LockedNote, ReportSection } from "@/components/dailyReport/ReportSection";
+import { ReportSection } from "@/components/dailyReport/ReportSection";
+import { EquipmentOfDay, HeaderExtras, LabourMatrix, equipmentBody, equipmentFrom, equipmentProblems, labourBody, labourFrom, labourProblems, labourTotal, useCoreText, type EquipmentRows, type LabourCells } from "@/components/dailyReport/CoreSections";
+import { DailyReportDocument, ReportExports } from "@/components/dailyReport/DailyReportDocument";
+import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useParams } from "wouter";
 
 // The daily site report on the phone (work order 14, item 1). The site engineer writes it in four short parts — the day, the people and equipment, the work done per
@@ -115,6 +118,20 @@ export default function SiteDailyReport() {
   const put = <K extends keyof Sections>(name: K) => (rows: Sections[K]) => setSections(current => ({ ...current, [name]: rows }));
   const [message, setMessage] = useState<string | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string | null>(null);
+  // D-45 (c): where the next photo was taken (a zone in words, a unit of this project), both optional
+  // Q-9 (b): the header's wind and hours, the labour matrix and the equipment of the day (D-45 a)
+  const coreText = useCoreText();
+  const companies = trpc.projects.companies.list.useQuery(scope, { enabled });
+  const [wind, setWind] = useState("");
+  const [workHours, setWorkHours] = useState("");
+  const [labourCells, setLabourCells] = useState<LabourCells>({});
+  const [dayEquipment, setDayEquipment] = useState<EquipmentRows>({});
+  const copy = trpc.siteReports.copyFromYesterday.useMutation({ onSuccess: result => { void utils.siteReports.list.invalidate(); void openReport(result.id); } });
+  // Q-9 (c): the report as a document, for the PDF and Word exports; the labour sheet is the server's (D-47 a)
+  const documentRef = useRef<HTMLElement | null>(null);
+  const exportSheet = trpc.siteReports.export.useMutation();
+  const [photoZone, setPhotoZone] = useState("");
+  const [photoUnit, setPhotoUnit] = useState("");
 
   const units = options.data?.units ?? [];
   const activities = options.data?.activities ?? [];
@@ -133,7 +150,7 @@ export default function SiteDailyReport() {
   const problems = useMemo(() => lines.flatMap(line => {
     if (line.lineType === "work") return !unitOf(line.unitNumber) || !line.activityId ? [line.key] : [];
     return line.label.trim() === "" ? [line.key] : [];
-  }).concat(sectionProblems(sections)), [lines, units, sections]); // eslint-disable-line react-hooks/exhaustive-deps
+  }).concat(sectionProblems(sections), labourProblems(labourCells), equipmentProblems(dayEquipment), workHours.trim() !== "" && !(Number(workHours) >= 0 && Number(workHours) <= 24) ? ["workHours"] : []), [lines, units, sections, labourCells, dayEquipment, workHours]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const body = () => ({
     ...scope, reportDate: date, weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
@@ -144,14 +161,20 @@ export default function SiteDailyReport() {
     })),
     // the server replaces the four lists whole on each save, so all four go every time, empty ones included
     ...sectionsBody(sections),
+    wind: wind || undefined, workHours: num(workHours),
+    // a list goes only when what it is drawn from loaded: the server replaces a list that is sent, and a list left out stays as it is
+    ...(companies.data && roles.data ? { labour: labourBody(labourCells) } : {}),
+    ...(machines.data ? { equipment: equipmentBody(dayEquipment) } : {}),
   });
 
-  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setMessage(null); setPhotoMessage(null); };
+  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
   const openReport = async (id: string) => {
     const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
     const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");
     setReportId(id); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
     setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? ""); setSections(sectionsFrom(full));
+    setWind(full.report.wind ?? ""); setWorkHours(full.report.workHours === null || full.report.workHours === undefined ? "" : String(full.report.workHours));
+    setLabourCells(labourFrom(full.labour ?? [])); setDayEquipment(equipmentFrom(full.equipment ?? []));
     setLines(full.lines.map(line => ({ key: line.id, lineType: line.lineType, label: line.label ?? "", quantity: line.quantity === null ? "" : String(line.quantity), hours: line.hours === null ? "" : String(line.hours), description: line.description ?? "", unitNumber: unitNumber(line.pmcUnitId), activityId: line.pmcActivityDefinitionId ?? "", reportedStatus: (line.reportedStatus ?? "IN_PROGRESS") as Status })));
     setLocked(full.report.status === "submitted" || full.report.status === "approved");
     setRejectedNote(full.report.status === "rejected" ? (full.report.reviewNote ?? null) : null);
@@ -163,14 +186,14 @@ export default function SiteDailyReport() {
   const weatherName: Record<string, string> = { clear: t.weatherClear, cloudy: t.weatherCloudy, rain: t.weatherRain, dust: t.weatherDust, hot: t.weatherHot, windy: t.weatherWindy };
   const reports = list.data ?? [];
   const waiting = reports.filter(report => report.status === "submitted");
-  const error = save.error ?? submit.error ?? attach.error ?? detail.error;
+  const error = save.error ?? submit.error ?? attach.error ?? detail.error ?? copy.error;
 
   const addPhoto = async (file: File | undefined) => {
     if (!file || !reportId) return;
     setPhotoMessage(t.uploading);
     try {
       const key = await upload.upload(file, file.type || "image/jpeg");
-      await attach.mutateAsync({ ...scope, reportId, uploadKey: key, fileName: file.name || "photo.jpg" });
+      await attach.mutateAsync({ ...scope, reportId, uploadKey: key, fileName: file.name || "photo.jpg", zone: photoZone.trim() || undefined, pmcUnitId: photoUnit.trim() ? unitOf(photoUnit)?.id : undefined });
     } catch { setPhotoMessage(null); }
   };
 
@@ -240,6 +263,12 @@ export default function SiteDailyReport() {
         {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
         {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
         <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate(body()); }}>
+          {!reportId && !locked && (
+            <div className="space-y-1 rounded-xl border bg-card p-3" data-copy-yesterday>
+              <Button type="button" variant="outline" className={tap} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date }); }}>{coreText.copy}</Button>
+              <p className="text-xs text-muted-foreground">{coreText.copyHint}</p>
+            </div>
+          )}
           {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
           {rejectedNote && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
           {locked && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
@@ -255,15 +284,16 @@ export default function SiteDailyReport() {
                 <label className="block text-sm font-medium">{t.temperature}<input className={`${fieldInput} mt-1`} type="number" inputMode="decimal" step="any" value={temperature} disabled={locked} onChange={event => setTemperature(event.target.value)} /></label>
               </div>
               <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-card p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
-              <p className="text-sm font-medium">{t.windHours}</p><LockedNote />
+              <HeaderExtras wind={wind} workHours={workHours} onWind={setWind} onHours={setWorkHours} locked={locked} />
             </ReportSection>
-            <ReportSection number={1} title={t.labour} summary={t.workers(total("labour"))}>
+            <ReportSection number={1} title={t.labour} summary={t.workers(total("labour") + labourTotal(labourCells))}>
               {group("labour", t.labour, t.addLabour)}
-              <p className="text-sm font-medium">{t.matrix}</p><LockedNote />
+              <SourceNotice query={companies} isArabic={isArabic} title={coreText.matrix} />
+              <LabourMatrix companies={companies.data ?? []} roles={roles.data ?? []} cells={labourCells} onChange={setLabourCells} locked={locked} />
             </ReportSection>
-            <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}</ReportSection>
+            <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}<EquipmentOfDay machines={machines.data ?? []} rows={dayEquipment} onChange={setDayEquipment} locked={locked} /></ReportSection>
             <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
-            <ReportSection number={4} title={t.inspections} defaultOpen={false}><LockedNote /></ReportSection>
+            <ReportSection number={4} title={t.inspections} summary={detail.data?.inspections ? `WIR ${detail.data.inspections.wir.submitted} · RFI ${detail.data.inspections.rfi.submitted}` : undefined} defaultOpen={false}><InspectionsSection inspections={reportId ? detail.data?.inspections : undefined} /></ReportSection>
             <ReportSection number={5} title={t.materials} summary={t.lineCount(sections.materials.length)}>
               {/* a list of approvals that failed to load says so; the choice stays at «no approval» meanwhile */}
               <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
@@ -277,13 +307,15 @@ export default function SiteDailyReport() {
             <ReportSection number={8} title={t.tomorrow} summary={t.lineCount(sections.tomorrow.length)}><TomorrowSection title={t.tomorrow} rows={sections.tomorrow} onChange={put("tomorrow")} locked={locked} /></ReportSection>
             <ReportSection number={9} title={t.photos}>
             {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
-            {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending} onFile={file => { void addPhoto(file); }} />}
+            {reportId && !locked && <PhotoPlace zone={photoZone} unitNumber={photoUnit} onZone={setPhotoZone} onUnit={setPhotoUnit} unitKnown={Boolean(unitOf(photoUnit))} />}
+            {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending || (photoUnit.trim() !== "" && !unitOf(photoUnit))} onFile={file => { void addPhoto(file); }} />}
             {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
-            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
+            {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => { const place = photoPlaceText(language, photo.zone ?? null, photo.pmcUnitId ? String(units.find(unit => unit.id === photo.pmcUnitId)?.number ?? "") || null : null); return <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}{place ? <span className="block text-xs text-muted-foreground" data-photo-place>{place}</span> : null}</li>; })}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
             </ReportSection>
             <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={false}>
               <p className="text-sm"><span className="text-muted-foreground">{t.statusNow}: </span>{reportId ? (locked ? t.pending : t.draft) : t.newReport}</p>
-              <p className="text-sm font-medium">{t.chain}</p><LockedNote />
+              <p className="text-sm font-medium">{t.chain}</p>
+              <ApprovalChain scope={scope} reportId={reportId} status={detail.data?.report.status ?? null} approval={detail.data?.approval} onChanged={() => { void detail.refetch(); void utils.siteReports.list.invalidate(); }} />
             </ReportSection>
           </div>
           {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
@@ -297,6 +329,19 @@ export default function SiteDailyReport() {
           )}
         </CheckedForm>
       </WriteGate>
+
+      {reportId && detail.data && (
+        <>
+          <ReportExports language={language} fileBase={`daily-report-${detail.data.report.reportNumber ?? date}`} documentRef={documentRef} buttonClass={`${tap} rounded-xl border bg-card px-3 text-sm font-medium disabled:opacity-50`}
+            onExcel={() => exportSheet.mutateAsync({ ...scope, reportId, format: "xlsx", locale: language })} />
+          {/* drawn off screen: the PDF is a picture of this element, and Word takes its HTML */}
+          <div aria-hidden="true" style={{ position: "fixed", insetInlineStart: -20000, top: 0 }}>
+            <DailyReportDocument ref={documentRef} data={detail.data} language={language}
+              unitNumber={id => String(units.find(unit => unit.id === id)?.number ?? "—")}
+              activityName={id => activities.find(activity => activity.id === id)?.name ?? "—"} />
+          </div>
+        </>
+      )}
 
       <section className="space-y-2" aria-label={t.recent}>
         <h2 className="text-base font-semibold">{t.recent}</h2>

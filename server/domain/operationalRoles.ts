@@ -30,6 +30,8 @@ export const operationalPermissionCatalog = [
   { code: "project.pmc.manage", name: "Manage the PMC catalogue, baselines and imports", productCode: "PROJECT" as const },
   { code: "project.settings.labour", name: "Configure labour cost loading and the working calendar", productCode: "PROJECT" as const },
   { code: "project.manage", name: "Manage governed project operations", productCode: "PROJECT" as const },
+  // Q-12 (c): invite people onto THIS project (scope «project» only) with a project role; see projectInviteRoleRefusal for what such a role may not carry.
+  { code: "project.team.invite", name: "Invite people onto the project", productCode: "PROJECT" as const },
   // Technical and architectural coordination (work order 5): the drawing register, transmittals, design comments and consultant submittals.
   { code: "project.design.manage", name: "Manage the drawing register, transmittals, design comments and submittals", productCode: "PROJECT" as const },
   { code: "project.design.architectural", name: "Coordinate architectural drawings (architecture, interior, landscape)", productCode: "PROJECT" as const },
@@ -69,7 +71,7 @@ export const operationalRoleDefinitions = [
   { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
   { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
-  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.performance.read_own"] },
+  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
@@ -78,6 +80,7 @@ export const operationalRoleDefinitions = [
     name: "Project Manager",
     permissions: [
       "project.manage",
+      "project.team.invite",
       "project.pmc.read",
       "project.pmc.update",
       "project.pmc.manage",
@@ -128,4 +131,14 @@ export function assertOperationalRoleSeparation(existingRoleCodes: string[], nex
     (normalizedNext === right && existingRoleCodes.includes(left)),
   );
   if (conflict) throw new Error("PROJECT_OS_SEPARATION_OF_DUTIES_CONFLICT");
+}
+
+/**
+ * Q-12 (c): a person who invites with project.team.invite (not tenant.manage) puts the invitee on ONE project. The role offered must be a PROJECT role whose
+ * permissions all live inside a project — nothing company-wide (tenant.*, executive.*, pmo.*), no onward invitation (project.team.invite: no chain of delegation),
+ * and no people's personal or pay data (project.hr.*, project.payroll.*, project.attendance.*). Returns the first permission that is refused, or null.
+ */
+export function projectInviteRoleRefusal(role: { productCode: string | null }, codes: readonly string[]): string | null {
+  if (role.productCode && role.productCode !== "PROJECT") return role.productCode;
+  return codes.find(code => !code.startsWith("project.") || code === "project.team.invite" || /^project\.(hr|payroll|attendance)\./.test(code)) ?? null;
 }

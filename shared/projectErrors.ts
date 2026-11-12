@@ -608,6 +608,11 @@ export const projectErrorMessages = {
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
   },
+  PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED: {
+    ar: "هذا الدور لا يُمنح من دعوة المشروع: اختر دورًا للمشروع لا يحمل صلاحيات الشركة أو الدعوة أو بيانات الموظفين والرواتب، أو اطلب من مدير الشركة.",
+    en: "This role cannot be given from a project invitation: choose a project role without company, invitation, or staff and pay permissions, or ask the company manager.",
+    ur: "یہ کردار پروجیکٹ کی دعوت سے نہیں دیا جا سکتا: کمپنی، دعوت یا عملے اور تنخواہ کی اجازت کے بغیر پروجیکٹ کا کردار چنیں، یا کمپنی کے مینیجر سے کہیں۔",
+  },
   PROJECT_OS_BOQ_COLUMNS_MISSING: {
     ar: "الملف يحتاج الأعمدة: رقم البند، وصف البند، الوحدة، الكمية، سعر الوحدة. نزّل القالب واملأه.",
     en: "The file needs the columns: Item no., Description, Unit, Quantity, Unit rate. Download the template and fill it in.",
@@ -627,6 +632,26 @@ export const projectErrorMessages = {
     ar: "الملف لا يحوي أي بند.",
     en: "The file has no item in it.",
     ur: "فائل میں کوئی آئٹم نہیں۔",
+  },
+  PROJECT_OS_LABOUR_COLUMNS_MISSING: {
+    ar: "الملف يحتاج عمودي «الشهر» و«العمالة» (و«المهنة» اختياري). نزّل القالب واملأه.",
+    en: "The file needs the columns «Month» and «Workers» («Trade» is optional). Download the template and fill it in.",
+    ur: "فائل میں «مہینہ» اور «مزدور» کالم چاہییں («پیشہ» اختیاری)۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_LABOUR_TOO_MANY_ROWS: {
+    ar: "العمالة المخططة تقبل حتى 3000 صف.",
+    en: "The planned labour accepts up to 3000 rows.",
+    ur: "منصوبہ بند افرادی قوت زیادہ سے زیادہ 3000 قطاریں لیتی ہے۔",
+  },
+  PROJECT_OS_LABOUR_ROWS_INVALID: {
+    ar: "في الملف صفوف مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some rows of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کی کچھ قطاریں رد ہوئیں۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_LABOUR_EMPTY: {
+    ar: "الملف لا يحوي أي صف.",
+    en: "The file has no row in it.",
+    ur: "فائل میں کوئی قطار نہیں۔",
   },
   PROJECT_OS_CASHFLOW_COLUMNS_MISSING: {
     ar: "الملف يحتاج عمودين: «الشهر» و«النسبة». نزّل القالب واملأه.",

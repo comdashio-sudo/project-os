@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   canManage: true, language: "en" as "en" | "ar" | "ur",
   status: undefined as unknown, statusError: null as unknown,
   saveContract: vi.fn(), saveError: null as unknown, template: vi.fn(),
-  preview: vi.fn(), previewData: undefined as unknown, saveCashFlow: vi.fn(), previewBoq: vi.fn(), boqData: undefined as unknown,
+  preview: vi.fn(), previewData: undefined as unknown, saveCashFlow: vi.fn(), previewBoq: vi.fn(), boqData: undefined as unknown, labourData: undefined as unknown,
 }));
 const item = (code: string, state: string, count: number, detail: Record<string, unknown> = {}) => ({ code, state, count, detail });
 const STATUS = {
@@ -30,6 +30,8 @@ vi.mock("@/lib/trpc", () => ({
       status: { useQuery: () => ({ data: h.status, error: h.statusError, refetch: vi.fn() }) },
       saveContract: { useMutation: () => ({ mutate: h.saveContract, isPending: false, error: h.saveError, isSuccess: false }) },
       previewCashFlow: { useMutation: () => ({ mutate: h.preview, data: h.previewData, isPending: false, isError: false, error: null }) },
+      previewLabour: { useMutation: () => ({ mutate: vi.fn(), data: h.labourData, isPending: false, isError: false, error: null }) },
+      saveLabour: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, reset: vi.fn() }) },
       previewBoq: { useMutation: () => ({ mutate: h.previewBoq, data: h.boqData, isPending: false, isError: false, error: null }) },
       saveBoq: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, reset: vi.fn() }) },
       saveCashFlow: { useMutation: () => ({ mutate: h.saveCashFlow, isPending: false, error: null, isSuccess: false, reset: vi.fn() }) },
@@ -41,7 +43,7 @@ vi.mock("@/lib/trpc", () => ({
 import ProjectBaseline from "./ProjectBaseline";
 
 const refusal = (code: string) => Object.assign(new Error(`English sentence for ${code}`), { data: { code: "BAD_REQUEST", projectError: { code, messages: { ar: `sentence for ${code}`, en: `sentence for ${code}`, ur: `sentence for ${code}` } } } });
-beforeEach(() => { h.canManage = true; h.language = "en"; h.status = STATUS; h.statusError = null; h.saveError = null; h.saveContract.mockReset(); h.template.mockReset(); h.preview.mockReset(); h.saveCashFlow.mockReset(); h.previewData = undefined; h.boqData = undefined; });
+beforeEach(() => { h.canManage = true; h.language = "en"; h.status = STATUS; h.statusError = null; h.saveError = null; h.saveContract.mockReset(); h.template.mockReset(); h.preview.mockReset(); h.saveCashFlow.mockReset(); h.previewData = undefined; h.boqData = undefined; h.labourData = undefined; });
 afterEach(() => cleanup());
 const card = (code: string) => screen.getByTestId(`baseline-${code}`);
 
@@ -98,7 +100,6 @@ describe("ProjectBaseline", () => {
     fireEvent.click(within(card("schedule")).getByRole("button", { name: "Excel template" }));
     expect(h.template).toHaveBeenCalledWith({ moduleCode: "schedule", locale: "en" });
     for (const code of ["weights", "units"]) expect(within(card(code)).getByRole("link").getAttribute("href")).toBe("/projects/tenant-1/project-1/pmc?tab=import");
-    for (const code of ["labour"]) { expect(within(card(code)).queryByRole("button", { name: "Upload" })).toBeNull(); expect(card(code).textContent).toContain("Upload from here is coming"); }
     expect(card("cashFlow").textContent).toContain("Excel template"); // Q-10 (b): the cash flow is uploaded on its own card
   });
 
@@ -150,6 +151,18 @@ describe("ProjectBaseline", () => {
     expect(report.textContent).toContain("Some items of the file were refused");
     expect(within(report).queryByRole("button", { name: "Save the BOQ" })).toBeNull();
     expect(card("boq").textContent).toContain("Excel template");
+  });
+
+  // Q-10 (d): planned labour
+  it("labour: a stored plan is drawn as a histogram with its peak; the check report names refused rows and offers no save", () => {
+    h.status = { ...STATUS, items: STATUS.items.map(entry => entry.code === "labour" ? item("labour", "uploaded", 3, { histogram: [{ month: "2027-01-01", workers: 32 }, { month: "2027-02-01", workers: 35 }] }) : entry) };
+    h.labourData = { count: 1, issues: [{ rowNumber: 2, code: "LABOUR_WORKERS_INVALID", value: "2.5" }], histogram: [], peak: 0, fileError: null, refusal: "PROJECT_OS_LABOUR_ROWS_INVALID" };
+    render(<ProjectBaseline />);
+    expect(within(card("labour")).getByTestId("labour-histogram").textContent).toContain("Peak: 35");
+    const report = within(card("labour")).getByTestId("labour-report");
+    expect(report.textContent).toContain("Row 2: Workers must be a whole number from zero — 2.5");
+    expect(within(report).queryByRole("button", { name: "Save the planned labour" })).toBeNull();
+    expect(card("labour").textContent).toContain("Uploaded · 3 records");
   });
 });
 
