@@ -14,7 +14,7 @@ const text = {
   ar: {
     title: "بطاقة الوحدة", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج",
     activity: "النشاط", allActivities: "كل الأنشطة (سجل الوحدة)", status: "الحالة", openNcrs: "NCR مفتوحة", quality: "الجودة",
-    accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
+    qcReceipt: "استلام QC", qcReceived: "مستلم", qcNotReceived: "غير مستلم", qcNone: "لم يُسجَّل بعد", accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
     NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل",
     timeline: "الخط الزمني", empty: "لا أحداث بعد لهذه الوحدة.", filter: "النوع", all: "الكل",
@@ -24,7 +24,7 @@ const text = {
   en: {
     title: "Unit card", back: "Back to quick entry", loading: "Loading…", retry: "Retry", unitUnknown: "No unit with that number in this project.", unitLabel: "Unit", zone: "Zone", block: "Block", model: "Model",
     activity: "Activity", allActivities: "All activities (the unit's record)", status: "Status", openNcrs: "Open NCRs", quality: "Quality",
-    accepted: "Inspection accepted", notAccepted: "No accepted inspection", heldByNcr: "The inspection is accepted, but an open NCR keeps it from counting", policy: "Completion rule", ncrRule: "NCR rule",
+    qcReceipt: "QC receipt", qcReceived: "Received", qcNotReceived: "Not received", qcNone: "Not recorded yet", accepted: "Inspection accepted", notAccepted: "No accepted inspection", heldByNcr: "The inspection is accepted, but an open NCR keeps it from counting", policy: "Completion rule", ncrRule: "NCR rule",
     modeoff: "Off", modewarn: "Warn", modeblock: "Block",
     NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete",
     timeline: "Timeline", empty: "No events yet for this unit.", filter: "Kind", all: "All",
@@ -34,7 +34,7 @@ const text = {
   ur: {
     title: "یونٹ کارڈ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش", unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں۔", unitLabel: "یونٹ", zone: "زون", block: "بلاک", model: "ماڈل",
     activity: "سرگرمی", allActivities: "تمام سرگرمیاں (یونٹ کا ریکارڈ)", status: "حالت", openNcrs: "کھلے NCR", quality: "معیار",
-    accepted: "معائنہ قبول شدہ", notAccepted: "کوئی قبول شدہ معائنہ نہیں", heldByNcr: "معائنہ قبول ہے، مگر کھلا NCR اسے شمار ہونے سے روکتا ہے", policy: "تکمیل کا قاعدہ", ncrRule: "NCR کا قاعدہ",
+    qcReceipt: "کیو سی وصولی", qcReceived: "وصول شدہ", qcNotReceived: "وصول نہیں ہوا", qcNone: "ابھی درج نہیں", accepted: "معائنہ قبول شدہ", notAccepted: "کوئی قبول شدہ معائنہ نہیں", heldByNcr: "معائنہ قبول ہے، مگر کھلا NCR اسے شمار ہونے سے روکتا ہے", policy: "تکمیل کا قاعدہ", ncrRule: "NCR کا قاعدہ",
     modeoff: "بند", modewarn: "تنبیہ", modeblock: "روک",
     NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیرِ جائزہ", COMPLETE: "مکمل",
     timeline: "ٹائم لائن", empty: "اس یونٹ کے لیے ابھی کوئی واقعہ نہیں۔", filter: "قسم", all: "سب",
@@ -61,6 +61,8 @@ export default function UnitCard() {
   const activities = (options.data?.activities ?? []).filter(item => item.modelCode === unit?.modelCode);
   const requested = new URLSearchParams(search).get("activity");
   const activity = activities.find(item => item.code === requested);
+  // Q-5: the villa's QC receipt beside its site status (pmc_qc_receipts, apart from the progress); a failed reading only hides the line
+  const states = trpc.pmc.villaStates.useQuery({ ...scope, villa: unitNumber }, { enabled: enabled && Boolean(unitNumber) });
   const card = trpc.cells.card.useQuery({ ...scope, unitId: unit?.id ?? "", activityDefinitionId: activity?.id }, { enabled: enabled && Boolean(unit) });
   const [kind, setKind] = useState<(typeof KINDS)[number] | "all">("all");
   const [shownCount, setShownCount] = useState(PAGE);
@@ -104,6 +106,7 @@ export default function UnitCard() {
         {data.activity && (
           <div className="space-y-1 sm:col-span-4" data-cell-status>
             <p className="text-sm"><b>{t.status}:</b> {name(data.status ?? "NOT_STARTED")}</p>
+            {!states.isError && (() => { const qc = states.data?.activities.find(item => item.code === data.activity?.code); return <p className="text-sm" data-qc-receipt><b>{t.qcReceipt}:</b> {qc?.qcReceived === true ? t.qcReceived : qc?.qcReceived === false ? t.qcNotReceived : t.qcNone}{qc?.qcOn ? <> · <bdi dir="ltr">{qc.qcOn}</bdi></> : null}</p>; })()}
             {data.qc && <>
               <p className={`text-sm font-semibold ${data.qc.accepted ? "text-emerald-700" : "text-red-700"}`}>{t.quality}: {data.qc.accepted ? t.accepted : t.notAccepted} <span className="font-normal text-slate-600">({t.policy}: {name("mode" + data.qc.policy)} · {t.ncrRule}: {name("mode" + data.qc.ncrMode)})</span></p>
               {data.qc.heldByNcr && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.heldByNcr}</p>}
