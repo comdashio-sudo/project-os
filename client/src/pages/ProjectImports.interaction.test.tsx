@@ -39,6 +39,28 @@ describe("ProjectImports", () => {
     expect(await screen.findByText("Rows: 2")).toBeTruthy(); expect(screen.getByText("Validation errors: 1")).toBeTruthy(); expect(screen.getByText("The file must contain exactly one worksheet. — 1 row: 0")).toBeTruthy();
   });
 
+  it("a Primavera file chosen under another kind is sent as a schedule, with a notice; a CSV is still no schedule", async () => {
+    state.mock.progress = analysed;
+    const user = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
+    // the default kind is WBS: the person uploaded the XER where it does not belong
+    await user.upload(screen.getByLabelText("Choose a file"), new File(["%T\tPROJWBS"], "programme.xer", { type: "text/plain" })); await user.click(screen.getByRole("button", { name: "Analyze file" }));
+    await waitFor(() => expect(state.mock.registerUpload).toHaveBeenCalled());
+    expect(state.mock.createUpload).toHaveBeenCalledWith({ tenantId: "tenant-1", projectId: "project-1", moduleCode: "schedule", fileName: "programme.xer", sourceFormat: "xer" });
+    expect(state.mock.registerUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "schedule", sourceFormat: "xer" }));
+    expect((await screen.findByTestId("xer-routed-notice")).textContent).toContain("sent to the Schedule kind automatically");
+    // NEGATIVE: under Schedule a CSV is refused as before, and nothing is uploaded
+    state.mock.createUpload.mockClear(); state.mock.registerUpload.mockClear();
+    const bypass = userEvent.setup({ applyAccept: false }); // the dialog hides CSV under Schedule, but «All files» can still pick one
+    await bypass.upload(screen.getByLabelText("Choose a file"), new File(["a,b"], "plan.csv", { type: "text/csv" })); await bypass.click(screen.getByRole("button", { name: "Analyze file" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("The file format does not match the selected template.");
+    expect(state.mock.createUpload).not.toHaveBeenCalled(); expect(screen.queryByTestId("xer-routed-notice")).toBeNull();
+  });
+
+  it("opens on the kind it is asked for", () => {
+    render(<ProjectImports tenantId="tenant-1" projectId="project-1" initialModule="schedule" />);
+    expect(screen.getByRole("button", { name: "Schedule" }).className).not.toBe(screen.getByRole("button", { name: "WBS" }).className);
+  });
+
   it("shows the job while it runs — status, stage and percent — and no confirm button yet", async () => {
     state.mock.progress = { ...analysed, status: "analyzing", progressStage: "parsing", progressPercent: 30, analysis: null };
     const user = userEvent.setup(); render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);

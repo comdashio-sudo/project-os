@@ -593,6 +593,11 @@ export const projectErrorMessages = {
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
   },
+  PROJECT_OS_CONTRACT_VALUE_INVALID: {
+    ar: "قيمة العقد يجب أن تكون رقمًا أكبر من صفر.",
+    en: "The contract value must be a number greater than zero.",
+    ur: "معاہدے کی قدر صفر سے بڑا نمبر ہونی چاہیے۔",
+  },
   PROJECT_OS_COMMERCIAL_PLAN_NOT_FOUND: {
     ar: "الخطة التجارية المحددة غير متاحة أو غير نشطة.",
     en: "The selected commercial plan is unavailable or inactive.",
