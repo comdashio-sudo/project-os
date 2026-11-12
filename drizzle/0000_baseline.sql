@@ -33,7 +33,7 @@ CREATE TYPE "public"."design_drawings_status" AS ENUM('registered', 'under_revie
 CREATE TYPE "public"."design_transmittals_direction" AS ENUM('outgoing', 'incoming');--> statement-breakpoint
 CREATE TYPE "public"."design_transmittals_status" AS ENUM('draft', 'sent', 'acknowledged');--> statement-breakpoint
 CREATE TYPE "public"."email_notification_preferences_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest');--> statement-breakpoint
-CREATE TYPE "public"."email_outbox_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest');--> statement-breakpoint
+CREATE TYPE "public"."email_outbox_kind" AS ENUM('support_escalation', 'approvals_waiting', 'daily_digest', 'membership_invitation');--> statement-breakpoint
 CREATE TYPE "public"."email_outbox_status" AS ENUM('pending', 'sent', 'failed', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."employee_assignments_status" AS ENUM('planned', 'active', 'closed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."employee_attendance_attendance_status" AS ENUM('present', 'absent', 'leave', 'secondment');--> statement-breakpoint
@@ -679,7 +679,8 @@ CREATE TABLE "email_notification_preferences" (
 CREATE TABLE "email_outbox" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
-	"recipient_user_id" integer NOT NULL,
+	"recipient_user_id" integer,
+	"recipient_email" varchar(320),
 	"kind" "email_outbox_kind" NOT NULL,
 	"dedupe_key" varchar(160) NOT NULL,
 	"subject" varchar(300) NOT NULL,
@@ -689,7 +690,8 @@ CREATE TABLE "email_outbox" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"last_error" varchar(200),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"sent_at" timestamp with time zone
+	"sent_at" timestamp with time zone,
+	CONSTRAINT "email_outbox_recipient_check" CHECK ("email_outbox"."recipient_user_id" IS NOT NULL OR "email_outbox"."recipient_email" IS NOT NULL)
 );
 --> statement-breakpoint
 CREATE TABLE "employee_assignments" (
