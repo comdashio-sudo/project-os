@@ -1013,6 +1013,41 @@ export const projectErrorMessages = {
     en: "An activity cannot be complete before quality has accepted an inspection of this unit and activity, and the company's policy blocks it.",
     ur: "کسی سرگرمی کو مکمل کرنے سے پہلے اس یونٹ اور سرگرمی کے معائنے کو معیار کی ٹیم نے قبول کرنا ضروری ہے، اور کمپنی کی پالیسی اس کو روکتی ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_NOT_YOUR_STEP: {
+    ar: "هذه الخطوة من سلسلة اعتماد التقارير مسندة في هذا المشروع إلى شخص آخر.",
+    en: "This step of the report approval chain is assigned to someone else on this project.",
+    ur: "رپورٹ کی منظوری کے سلسلے کا یہ مرحلہ اس پروجیکٹ میں کسی اور کے سپرد ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_STEP_OUT_OF_ORDER: {
+    ar: "لا تتم هذه الخطوة الآن: الترتيب أعدّه ثم راجعه ثم اعتمده، والتقرير ليس عند هذه الخطوة.",
+    en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
+    ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
+    ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
+    en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",
+    ur: "رپورٹ میں ایک ہی مزدور خانہ (کمپنی، کردار اور شفٹ) دو بار ہے۔ اسے ایک قطار میں رکھیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_EQUIPMENT_DUPLICATE: {
+    ar: "المعدة نفسها مكررة في التقرير. اكتب عددها وساعاتها في سطر واحد.",
+    en: "The same machine appears twice in the report. Enter its count and hours on one row.",
+    ur: "رپورٹ میں ایک ہی مشین دو بار ہے۔ اس کی تعداد اور گھنٹے ایک قطار میں لکھیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_REFERENCE_NOT_FOUND: {
+    ar: "شركة أو دور عمالة أو معدة في التقرير ليست من قوائم هذا المشروع.",
+    en: "A company, labour role or machine in the report is not in this project's lists.",
+    ur: "رپورٹ میں کوئی کمپنی، مزدور کردار یا مشین اس پروجیکٹ کی فہرستوں میں نہیں ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_EXISTS: {
+    ar: "لك تقرير لهذا اليوم بالفعل، فلا يُنسخ فوقه. افتح التقرير الموجود.",
+    en: "You already have a report for this day, so nothing is copied over it. Open the existing report.",
+    ur: "اس دن کی آپ کی رپورٹ پہلے سے موجود ہے، اس لیے اس پر کچھ نقل نہیں ہوگا۔ موجودہ رپورٹ کھولیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY: {
+    ar: "لا تقرير سابق لك في هذا المشروع يُنسخ منه.",
+    en: "You have no earlier report on this project to copy from.",
+    ur: "اس پروجیکٹ میں آپ کی کوئی پچھلی رپورٹ نہیں جس سے نقل کیا جائے۔",
+  },
   PROJECT_OS_SITE_REPORT_DATE_FUTURE: {
     ar: "لا يُكتب تقرير يومي بتاريخ مستقبلي.",
     en: "A daily report cannot be dated in the future.",

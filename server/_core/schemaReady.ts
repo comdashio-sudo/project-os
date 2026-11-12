@@ -43,6 +43,16 @@ export const REQUIRED_SCHEMA = [
   { migration: "0023_d81_company_require_two_step", kind: "column", table: "companies", column: "require_two_step" },
   { migration: "0023_d81_company_require_two_step", kind: "column", table: "user_mfa", column: "required_by_self" },
   { migration: "0024_d79_database_file_storage", kind: "table", table: "stored_files" },
+  { migration: "0025_daily_report_core", kind: "table", table: "site_daily_report_labour" },
+  { migration: "0025_daily_report_core", kind: "table", table: "site_daily_report_equipment" },
+  { migration: "0025_daily_report_core", kind: "table", table: "project_report_counters" },
+  { migration: "0025_daily_report_core", kind: "column", table: "site_daily_reports", column: "report_number" },
+  { migration: "0026_daily_report_sections", kind: "table", table: "site_daily_report_materials" },
+  { migration: "0026_daily_report_sections", kind: "table", table: "site_daily_report_hse" },
+  { migration: "0026_daily_report_sections", kind: "table", table: "site_daily_report_obstacles" },
+  { migration: "0026_daily_report_sections", kind: "table", table: "site_daily_report_tomorrow" },
+  { migration: "0027_daily_report_approval", kind: "column", table: "site_daily_reports", column: "checked_at" },
+  { migration: "0027_daily_report_approval", kind: "column", table: "site_daily_report_photos", column: "pmc_unit_id" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

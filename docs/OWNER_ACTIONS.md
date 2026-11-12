@@ -158,7 +158,9 @@
 4. GitHub ← **Actions** ← **Migrate and promote production** ← **Run workflow** ← `main`.
 5. لا تغيّر سر `SUPABASE_DB_PASSWORD` ولا كلمة مرور `project_os_app` في Supabase: كلاهما يُشتق ويُضبط آليًا.
 
-## 16. مفتاح Vercel لا يقرأ مشروع dashio (BLOCKED_BY_OWNER — خطوة واحدة، 9 نوفمبر 2026، D-78)
+## 16. مفتاح Vercel لا يقرأ مشروع dashio (اختياري منذ D-85 — لا يوقف الإطلاق، 9 نوفمبر 2026، D-78)
+
+**تحديث D-85 (11 نوفمبر 2026):** الإطلاق لم يعد يتوقف عند هذا المفتاح. حين يُرفض (403) يكتب السير تحذيرًا، ويطبّق الترحيلات ويفحص النسخة ثم يقدّم فرع `production`، فيبني Vercel الإنتاج منه بنفسه (O-5). الخطوات أدناه تعيد النشر بالـCLI (مع الترقية والتراجع الآليين في الخطوة 5) متى شئت، ولا شيء منها عاجل.
 
 **ما حدث:** أول تشغيل إطلاق بعد D-78 (التشغيل 42606597331، `main` @ `b5b57db`) طبّق الترحيلات ونجح فحصها، ثم وقف في الخطوة 4b قبل أي نشر، والموقع على نسخته السابقة. رسالة Vercel CLI 65.2.0:
 «Error: Could not retrieve Project Settings. To link your Project, remove the `.vercel` directory and deploy again.»

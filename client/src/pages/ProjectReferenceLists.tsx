@@ -119,7 +119,8 @@ const blankMachine: MachineDraft = { equipmentType: "", model: "", plateOrSize: 
 function Equipment({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolean }) {
   const { isArabic } = useLanguage();
   const list = trpc.projects.equipment.list.useQuery(scope);
-  const companies = trpc.projects.companies.list.useQuery(scope);
+  // review of #250: the owners list is for the form, so someone who cannot edit does not fetch it
+  const companies = trpc.projects.companies.list.useQuery(scope, { enabled: canEdit });
   const [draft, setDraft] = useState<MachineDraft>(blankMachine);
   const [notice, setNotice] = useState<string | null>(null);
   const done = () => { setNotice(t.saved); setDraft(blankMachine); void list.refetch(); };
@@ -152,7 +153,7 @@ function Equipment({ scope, t, canEdit }: { scope: Scope; t: T; canEdit: boolean
         <CheckedForm className="grid gap-3 rounded-[var(--radius)] border bg-muted/40 p-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (!draft.equipmentType.trim()) return; save.mutate({ ...scope, id: draft.id, equipmentType: draft.equipmentType.trim(), model: draft.model.trim() || null, plateOrSize: draft.plateOrSize.trim() || null, ownerCompanyId: draft.ownerCompanyId || null }); }}>
           <Field label={t.type} required>{props => <TextInput {...props} required maxLength={120} value={draft.equipmentType} onChange={event => put({ equipmentType: event.target.value })} />}</Field>
           <Field label={t.model} optional>{props => <TextInput {...props} maxLength={120} value={draft.model} onChange={event => put({ model: event.target.value })} />}</Field>
-          <Field label={t.plate} optional>{props => <TextInput {...props} maxLength={120} dir="auto" value={draft.plateOrSize} onChange={event => put({ plateOrSize: event.target.value })} />}</Field>
+          <Field label={t.plate} optional>{props => <TextInput {...props} maxLength={80} dir="auto" value={draft.plateOrSize} onChange={event => put({ plateOrSize: event.target.value })} />}</Field>
           <Field label={t.owner} optional>{props => <Select {...props} value={draft.ownerCompanyId || NONE} onValueChange={value => put({ ownerCompanyId: value === NONE ? "" : value })} options={[{ value: NONE, label: t.noOwner }, ...owners.map(company => ({ value: company.id, label: company.name }))]} />}</Field>
           <span className="flex gap-2 sm:col-span-2"><Button type="submit" loading={save.isPending}>{draft.id ? t.save : t.addEquipment}</Button>{draft.id ? <Button variant="ghost" onClick={() => setDraft(blankMachine)}>{t.cancel}</Button> : null}</span>
         </CheckedForm>
