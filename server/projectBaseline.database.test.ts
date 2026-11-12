@@ -139,4 +139,50 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project base file: the c
     const [[row]] = await connection.query<{ contractValue: string }[]>("SELECT contractValue FROM projects WHERE id = ?", [projectC]);
     expect(Number(row.contractValue)).toBe(0);
   });
+
+  // Q-10 (b): the planned cash flow. Files are built in the test (synthetic months); project A already holds one month from the test above, which a save replaces.
+  const csv = (body: string) => Buffer.from(`Month,Percent\n${body}`).toString("base64");
+  const months = () => connection.query<{ month: string; plannedPercent: string; cumulativePercent: string }[]>("SELECT to_char(month, 'YYYY-MM') AS month, planned_percent AS \"plannedPercent\", cumulative_percent AS \"cumulativePercent\" FROM pmc_plan_months WHERE tenant_id = ? AND project_id = ? ORDER BY month", [tenantId, projectA]).then(result => result[0] as Array<{ month: string; plannedPercent: string; cumulativePercent: string }>);
+
+  it("Q-10 b POSITIVE: the preview reports the months, total and S-curve and writes nothing; the save replaces the plan, audited, and the checklist shows the curve", async () => {
+    const before = await months();
+    const preview = await callers.manager.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,20%\n2027-02,50%\n2027-03,30%\n") });
+    expect(preview).toMatchObject({ refusal: null, totalPercent: 100, issues: [] });
+    expect(preview.months.map(m => m.cumulative)).toEqual([0.2, 0.7, 1]);
+    expect(await months()).toEqual(before);
+    const status = await callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,20%\n2027-02,50%\n2027-03,30%\n") });
+    expect((await months()).map(m => [m.month, Number(m.plannedPercent), Number(m.cumulativePercent)])).toEqual([["2027-01", 0.2, 0.2], ["2027-02", 0.5, 0.7], ["2027-03", 0.3, 1]]);
+    expect(item(status, "cashFlow")).toMatchObject({ state: "uploaded", count: 3 });
+    expect((item(status, "cashFlow").detail.curve as Array<{ cumulative: number }>).map(point => point.cumulative)).toEqual([0.2, 0.7, 1]);
+    expect(await audits("project.cash_flow_saved")).toBe(1);
+    // importing again with other months leaves exactly the new file's months: no duplicate, no leftover
+    await callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-02,40%\n2027-04,60%\n") });
+    expect((await months()).map(m => m.month)).toEqual(["2027-02", "2027-04"]);
+    const template = await callers.manager.projects.baseline.cashFlowTemplate({ tenantId, projectId: projectA, locale: "ar" });
+    expect(Buffer.from(template.base64, "base64").subarray(0, 2).toString()).toBe("PK");
+  });
+
+  it("Q-10 b NEGATIVE: a total other than 100% or a refused row is reported in the preview, and the save is refused and changes nothing", async () => {
+    const before = await months();
+    const short = await callers.manager.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,40%\n2027-02,50%\n") });
+    expect(short).toMatchObject({ refusal: "PROJECT_OS_CASHFLOW_TOTAL_NOT_100", totalPercent: 90 });
+    expect(await code(callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,40%\n2027-02,50%\n") }))).toBe("PROJECT_OS_CASHFLOW_TOTAL_NOT_100");
+    const bad = await callers.manager.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,50%\nsoon,50%\n") });
+    expect(bad.issues).toEqual([{ rowNumber: 3, code: "CASHFLOW_MONTH_INVALID", value: "soon" }]);
+    expect(await code(callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: csv("2027-01,50%\nsoon,50%\n") }))).toBe("PROJECT_OS_CASHFLOW_ROWS_INVALID");
+    expect(await months()).toEqual(before);
+  });
+
+  it("Q-10 b NEGATIVE: a site engineer (no project.manage) and another company are refused from the server, and nothing changes", async () => {
+    const before = await months();
+    const file = { format: "csv" as const, fileBase64: csv("2027-01,100%\n") };
+    expect(await code(callers.engineer.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, ...file }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.engineer.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, ...file }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.otherOwner.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, ...file }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // the other company's owner, in its own company, cannot reach project A by naming it
+    expect(await code(callers.otherOwner.projects.baseline.saveCashFlow({ tenantId: otherTenantId, projectId: projectA, ...file }))).not.toBe("no error");
+    expect(await months()).toEqual(before);
+    expect(await count("SELECT COUNT(*) AS n FROM pmc_plan_months WHERE tenant_id = ?", [otherTenantId])).toBe(0);
+  });
 });
+

@@ -593,6 +593,31 @@ export const projectErrorMessages = {
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
   },
+  PROJECT_OS_CASHFLOW_COLUMNS_MISSING: {
+    ar: "الملف يحتاج عمودين: «الشهر» و«النسبة». نزّل القالب واملأه.",
+    en: "The file needs two columns: «Month» and «Percent». Download the template and fill it in.",
+    ur: "فائل میں دو کالم چاہییں: «مہینہ» اور «فیصد»۔ سانچہ ڈاؤن لوڈ کر کے بھریں۔",
+  },
+  PROJECT_OS_CASHFLOW_TOO_MANY_MONTHS: {
+    ar: "التدفق النقدي يقبل حتى 240 شهرًا.",
+    en: "The cash flow accepts up to 240 months.",
+    ur: "نقد بہاؤ میں زیادہ سے زیادہ 240 مہینے ہو سکتے ہیں۔",
+  },
+  PROJECT_OS_CASHFLOW_ROWS_INVALID: {
+    ar: "في الملف صفوف مرفوضة. صحّحها كما في تقرير التحقق ثم ارفعه مرة أخرى.",
+    en: "Some rows of the file were refused. Correct them as the check report shows, then upload it again.",
+    ur: "فائل کی کچھ قطاریں رد ہوئیں۔ جانچ رپورٹ کے مطابق درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
+  PROJECT_OS_CASHFLOW_EMPTY: {
+    ar: "الملف لا يحوي أي شهر.",
+    en: "The file has no month in it.",
+    ur: "فائل میں کوئی مہینہ نہیں۔",
+  },
+  PROJECT_OS_CASHFLOW_TOTAL_NOT_100: {
+    ar: "مجموع النسب الشهرية يجب أن يساوي 100%. الفرق ظاهر في تقرير التحقق.",
+    en: "The monthly shares must total 100%. The difference is shown in the check report.",
+    ur: "ماہانہ حصوں کا مجموعہ 100% ہونا چاہیے۔ فرق جانچ رپورٹ میں دکھایا گیا ہے۔",
+  },
   PROJECT_OS_CONTRACT_VALUE_INVALID: {
     ar: "قيمة العقد يجب أن تكون رقمًا أكبر من صفر.",
     en: "The contract value must be a number greater than zero.",
