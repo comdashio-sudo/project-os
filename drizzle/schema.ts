@@ -2740,6 +2740,8 @@ export const siteDailyReportPhotos = pgTable(
   table => [
     index("site_daily_report_photos_report_idx").on(table.reportId), uniqueIndex("site_daily_report_photos_key_unique").on(table.storageKey),
     foreignKey({ name: "site_daily_report_photos_unit_fk", columns: [table.pmcUnitId, table.tenantId, table.projectId], foreignColumns: [pmcUnits.id, pmcUnits.tenantId, pmcUnits.projectId] }),
+    // D-49 (a), 0028: the target of the weekly report's photo key, so a weekly report can only name a photo of its own project
+    unique("site_daily_report_photos_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
   ],
 );
 
@@ -3649,4 +3651,53 @@ export const siteDailyReportTomorrow = pgTable(
   "site_daily_report_tomorrow",
   { ...reportChild(), area: varchar("area", { length: 160 }), activity: varchar("activity", { length: 255 }).notNull(), quantity: numeric("quantity", { precision: 14, scale: 3 }), unit: varchar("unit", { length: 24 }), resources: text("resources") },
   table => [...childKeys("site_daily_report_tomorrow", table as never), check("site_daily_report_tomorrow_quantity_check", sql`${table.quantity} IS NULL OR ${table.quantity} >= 0`)],
+);
+
+// D-49 (a), 0028: the weekly report's own words. Its figures are never stored: they are the period engine's (D-48, server/reportPeriods.ts) every time it is read.
+// One report per project and week (the week starts on the day its anchor names); the photos it shows are chosen from the project's daily-report photos.
+export const weeklyReports = pgTable(
+  "weekly_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    summary: text("summary"),
+    analysis: text("analysis"),
+    correctiveActions: text("corrective_actions"),
+    milestones: text("milestones"),
+    outlook: text("outlook"),
+    engineering: text("engineering"),
+    procurement: text("procurement"),
+    commercial: text("commercial"),
+    interfaces: text("interfaces"),
+    issues: text("issues"),
+    decisions: text("decisions"),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("weekly_reports_project_week_unique").on(table.projectId, table.weekStart),
+    unique("weekly_reports_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+  ],
+);
+export const weeklyReportPhotos = pgTable(
+  "weekly_report_photos",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    weeklyReportId: varchar("weekly_report_id", { length: 36 }).notNull(),
+    photoId: varchar("photo_id", { length: 36 }).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "weekly_report_photos_report_fk", columns: [table.weeklyReportId, table.tenantId, table.projectId], foreignColumns: [weeklyReports.id, weeklyReports.tenantId, weeklyReports.projectId] }),
+    foreignKey({ name: "weekly_report_photos_photo_fk", columns: [table.photoId, table.tenantId, table.projectId], foreignColumns: [siteDailyReportPhotos.id, siteDailyReportPhotos.tenantId, siteDailyReportPhotos.projectId] }),
+    uniqueIndex("weekly_report_photos_report_photo_unique").on(table.weeklyReportId, table.photoId),
+    index("weekly_report_photos_report_idx").on(table.weeklyReportId),
+  ],
 );
