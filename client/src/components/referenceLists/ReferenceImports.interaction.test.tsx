@@ -8,7 +8,7 @@ import { EquipmentImport, isolateLatin, TrackerImport } from "./ReferenceImports
 const HASH = "a".repeat(64);
 const h = vi.hoisted(() => ({
   language: "en" as "ar" | "en" | "ur", calls: [] as Array<[string, unknown]>, put: vi.fn(), runner: null as null | Record<string, unknown>,
-  analysis: {} as Record<string, unknown>, confirmError: null as unknown,
+  analysis: {} as Record<string, unknown>, confirmError: null as unknown, invalidated: [] as string[],
 }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: (error: { message: string }) => `localized: ${error.message}` }));
@@ -20,7 +20,7 @@ vi.mock("@/lib/trpc", () => {
     const run = async (input: unknown) => { h.calls.push([name, input]); if (name === "confirm" && h.confirmError) { setState({ isSuccess: false, error: h.confirmError }); throw h.confirmError; } const data = reply(); setState({ data, isSuccess: true, error: null }); config?.onSuccess?.(); return data; };
     return { mutate: (input: unknown) => { void run(input).catch(() => undefined); }, mutateAsync: run, reset: () => setState({ isSuccess: false, error: null }), isPending: false, ...state };
   } });
-  return { trpc: { smartImport: {
+  return { trpc: { useUtils: () => ({ pmc: { progress: { invalidate: () => { h.invalidated.push("progress"); } }, structure: { invalidate: () => { h.invalidated.push("structure"); } } } }), smartImport: {
     createUpload: mutation("createUpload", () => ({ uploadKey: "smart/t/p/k/tracker.xlsx", uploadUrl: "https://storage.example.test/put", headers: { "content-type": "x" } })),
     analyze: mutation("analyze", () => h.analysis),
     confirm: mutation("confirm", () => ({ status: "completed" })),
@@ -28,7 +28,7 @@ vi.mock("@/lib/trpc", () => {
 });
 
 const plan = (errors: Array<{ rowNumber: number; code: string; detail?: string }>) => ({ matrixPlan: { fileHash: HASH, errors, canConfirm: errors.length === 0, summary: { units: 1230 }, changes: { newUnits: 1230, completing: 5100, unitsTouched: 1230, unchangedCells: 0, regressed: 1 } } });
-beforeEach(() => { h.language = "en"; h.calls = []; h.put.mockReset(); h.put.mockResolvedValue(undefined); h.runner = null; h.confirmError = null; h.analysis = plan([]); });
+beforeEach(() => { h.language = "en"; h.calls = []; h.put.mockReset(); h.put.mockResolvedValue(undefined); h.runner = null; h.confirmError = null; h.invalidated = []; h.analysis = plan([]); });
 afterEach(cleanup);
 const choose = (name: string) => fireEvent.change(document.querySelector('[data-import="tracker"] input[type="file"]')!, { target: { files: [new File(["x"], name)] } });
 
@@ -45,6 +45,7 @@ describe("units Tracker import", () => {
     expect(document.querySelector("[data-plan] dl")!.textContent).toContain("New units1,230");
     fireEvent.click(screen.getByRole("button", { name: "Confirm the import" }));
     await waitFor(() => expect(imported).toHaveBeenCalled());
+    expect(h.invalidated.sort()).toEqual(["progress", "structure"]); // review of #251
     expect(h.calls[2]).toEqual(["confirm", { tenantId: "t", projectId: "p", uploadKey: "smart/t/p/k/tracker.xlsx", fileName: "tracker.xlsx", kind: "unitMatrix", forced: {}, approvedHash: HASH }]);
     expect(screen.getByText("Import complete: 1230 units in the file.")).toBeTruthy();
   });
@@ -107,5 +108,16 @@ describe("Latin words in an RTL sentence (review of #251)", () => {
     const { container } = render(<p>{isolateLatin("استيراد Tracker الوحدات بحالة Completed أو On going.")}</p>);
     expect(Array.from(container.querySelectorAll("bdi")).map(node => node.textContent)).toEqual(["Tracker", "Completed", "On going"]);
     expect(container.textContent).toBe("استيراد Tracker الوحدات بحالة Completed أو On going.");
+  });
+});
+
+describe("no zero hash (review of #251)", () => {
+  it("a plan without its file hash offers no confirm, so nothing is ever sent with a made-up hash", async () => {
+    h.analysis = { matrixPlan: { ...(plan([]) as { matrixPlan: Record<string, unknown> }).matrixPlan, fileHash: undefined } };
+    render(<TrackerImport tenantId="t" projectId="p" onImported={vi.fn()} />);
+    choose("tracker.xlsx");
+    fireEvent.click(screen.getByRole("button", { name: "Analyse the file" }));
+    await screen.findByText("What the import would write");
+    expect(screen.queryByRole("button", { name: "Confirm the import" })).toBeNull();
   });
 });

@@ -59,7 +59,6 @@ export function EquipmentImport({ tenantId, projectId, onImported }: { tenantId:
   );
 }
 
-const ZERO = "0".repeat(64);
 export function TrackerImport({ tenantId, projectId, onImported }: { tenantId: string; projectId: string; onImported: () => void }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, text);
@@ -70,7 +69,9 @@ export function TrackerImport({ tenantId, projectId, onImported }: { tenantId: s
   const [upload, setUpload] = useState<{ uploadKey: string; fileName: string } | null>(null);
   const createUpload = trpc.smartImport.createUpload.useMutation();
   const analyze = trpc.smartImport.analyze.useMutation();
-  const confirm = trpc.smartImport.confirm.useMutation({ onSuccess: onImported });
+  const utils = trpc.useUtils();
+  // review of #251: the Tracker writes PMC units and statuses, so the PMC readings drawn from them are refreshed too
+  const confirm = trpc.smartImport.confirm.useMutation({ onSuccess: () => { void utils.pmc.progress.invalidate(); void utils.pmc.structure.invalidate(); onImported(); } });
   const plan = analyze.data?.matrixPlan;
 
   const busy = uploading !== null || createUpload.isPending || analyze.isPending || confirm.isPending;
@@ -116,8 +117,8 @@ export function TrackerImport({ tenantId, projectId, onImported }: { tenantId: s
               <ul className="space-y-1">{plan.errors.slice(0, 50).map((error, index) => <li key={index}>{t.row} {formatNumber(error.rowNumber)}: {rowProblem(error.code, language)}{error.detail ? <> <bdi dir="ltr">({error.detail})</bdi></> : null}</li>)}</ul>
             </div>
           ) : null}
-          {confirm.isSuccess ? <p role="status" className="text-sm font-medium">{t.done(plan.summary.units)}</p> : plan.canConfirm && upload ? (
-            <Button className="min-h-11" loading={confirm.isPending} onClick={() => confirm.mutate({ ...scope, ...upload, kind: "unitMatrix", forced: {}, approvedHash: plan.fileHash ?? ZERO })}>{confirm.isPending ? t.importing : t.confirm}</Button>
+          {confirm.isSuccess ? <p role="status" className="text-sm font-medium">{t.done(plan.summary.units)}</p> : plan.canConfirm && plan.fileHash && upload ? (
+            <Button className="min-h-11" loading={confirm.isPending} onClick={() => confirm.mutate({ ...scope, ...upload, kind: "unitMatrix", forced: {}, approvedHash: plan.fileHash })}>{confirm.isPending ? t.importing : t.confirm}</Button>
           ) : null}
           {confirm.error ? <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(confirm.error, language)}</p> : null}
         </div>
