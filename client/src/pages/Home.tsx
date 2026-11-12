@@ -11,8 +11,9 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { slugFromName } from "@shared/slug";
 import { Activity, ArrowUpRight, BarChart3, Building2, CircleAlert, ClipboardCheck, Gauge, Layers3, PackageCheck, ShieldCheck, UsersRound } from "lucide-react";
-import React, { useState } from "react";
-import { Link } from "wouter";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { FIELD_LANDING_KEY, fieldLandingPath, singleActiveTenant } from "@/lib/fieldLanding";
 import { SourceNotice } from "@/components/SectionResilience";
 import { enumLabel, permissionLabel, productLabel } from "@/lib/labels";
 import { pickLanguage } from "@/lib/language";
@@ -50,6 +51,17 @@ export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const { isArabic, language } = useLanguage();
   const tenants = trpc.tenant.mine.useQuery(undefined, { enabled: isAuthenticated });
+  // Q-4 part 2: a site engineer with one project opens straight on «Progress update» (client/src/lib/fieldLanding.ts), once per browser session
+  const [, navigate] = useLocation();
+  const onlyTenant = singleActiveTenant(tenants.data);
+  const access = trpc.accessSummary.mine.useQuery({ tenantId: onlyTenant ?? "" }, { enabled: Boolean(onlyTenant), staleTime: 30_000, retry: 1 });
+  // a failed reading only means no shortcut: the workspace is shown as for everyone (nothing on the page depends on it)
+  const landing = access.isError ? null : fieldLandingPath(onlyTenant, access.data);
+  useEffect(() => {
+    if (!landing) return;
+    try { if (sessionStorage.getItem(FIELD_LANDING_KEY)) return; sessionStorage.setItem(FIELD_LANDING_KEY, "1"); } catch { /* no storage: still go, the guard is only for coming back */ }
+    navigate(landing);
+  }, [landing, navigate]);
   const plans = trpc.selfService.plans.useQuery(undefined, { enabled: isAuthenticated });
   const [legalName, setLegalName] = useState("");
   const [slug, setSlug] = useState("");

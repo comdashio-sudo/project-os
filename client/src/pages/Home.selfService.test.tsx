@@ -24,7 +24,7 @@ vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button ty
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/const", () => ({ startLogin: vi.fn() }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
-vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
+vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useLocation: () => ["/", vi.fn()] }));
 // The custom list (Radix) needs pointer APIs jsdom lacks; a native stand-in keeps the same contract (value, options, placeholder, the field's id for its label).
 vi.mock("@/components/ds", async importOriginal => ({
   ...(await importOriginal<typeof import("@/components/ds")>()),
@@ -34,6 +34,7 @@ vi.mock("@/components/ds", async importOriginal => ({
 vi.mock("@/components/MfaGate", () => ({ MfaGate: ({ children }: { children: React.ReactNode }) => <>{children}</> })); // the second-step gate has its own test (MfaGate.test.tsx)
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    accessSummary: { mine: { useQuery: () => ({ data: undefined }) } },
     tenant: { mine: { useQuery: () => ({ ...state.tenantQuery, refetch: state.refetch }) } },
     selfService: {
       plans: { useQuery: () => state.plansQuery },
