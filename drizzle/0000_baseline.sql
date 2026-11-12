@@ -1101,6 +1101,8 @@ CREATE TABLE "master_plan_drawings" (
 	"project_id" varchar(36) NOT NULL,
 	"master_plan_version_id" varchar(36) NOT NULL,
 	"created_by_user_id" integer NOT NULL,
+	"calibration" text,
+	"background" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

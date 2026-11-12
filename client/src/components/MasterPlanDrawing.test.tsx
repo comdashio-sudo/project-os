@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   error: null as unknown,
   layout: undefined as unknown,
+  calibrate: vi.fn(async () => ({})),
 }));
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
@@ -34,6 +35,7 @@ vi.mock("@/lib/trpc", () => {
         saveDrawingLayout: mutation(),
         linkDrawingUnit: mutation(),
         unlinkDrawingUnit: mutation(),
+        saveDrawingCalibration: { useMutation: () => ({ mutateAsync: state.calibrate, isPending: false }) },
       },
     },
   };
@@ -79,6 +81,7 @@ afterEach(() => {
   state.isLoading = false;
   state.error = null;
   state.layout = undefined;
+  state.calibrate.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -87,6 +90,15 @@ describe("MasterPlanDrawing", () => {
     state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
     render(<MasterPlanDrawing tenantId="t" projectId="p" />);
     expect(screen.getByRole("note").textContent).toMatch(/no units/);
+  });
+
+  it("Q-7: a project with no master plan says so, still shows an uploaded drawing, and offers no save", async () => {
+    state.data = { plans: [], versions: [], entities: [] };
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    expect(screen.getByRole("note").textContent).toMatch(/no master plan yet/);
+    await upload(container, DRAWING);
+    await waitFor(() => screen.getByText(/Unlinked: 3/));
+    expect((screen.getByRole("button", { name: "Save layout" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("shows a section error, not an empty plan, when the plan list cannot be read", () => {
@@ -208,9 +220,130 @@ describe("MasterPlanDrawing", () => {
   it("refuses a file type that is neither a DXF nor a raster image", async () => {
     state.data = plan();
     const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
-    await upload(container, "bytes", "plan.dwg");
+    await upload(container, "bytes", "plan.xyz");
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/not supported/));
     expect(raster.readRasterImage).not.toHaveBeenCalled();
+  });
+
+  it("Q-7: refuses a DWG with a message that asks for DXF or PDF, and reads nothing", async () => {
+    state.data = plan();
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    expect((container.querySelector('input[type="file"]') as HTMLInputElement).accept).toContain(".dwg");
+    await upload(container, "AC1032 synthetic", "PLAN.DWG");
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/save it as DXF or PDF/));
+    expect(raster.readRasterImage).not.toHaveBeenCalled();
+    expect(raster.readPdfPage).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Confirmed:/)).toBeNull();
+  });
+
+  it("Q-7: an uploaded image is shown under its shapes, framed by the picture", async () => {
+    state.data = plan();
+    URL.createObjectURL = vi.fn(() => "blob:picture");
+    raster.readRasterImage.mockResolvedValue({ width: 640, height: 480, data: new Uint8Array(640 * 480) });
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    raster.analyseRaster.mockResolvedValue({ drawing: buildRasterDrawing([{ id: "shape-1", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }], x: 0, y: 0, width: 10, height: 10 }], [], 480), shapeCount: 1, labelCount: 0 });
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "png-bytes", "plan.png");
+    await waitFor(() => expect(screen.getByTestId("drawing-background")).toBeTruthy());
+    const picture = screen.getByTestId("drawing-background");
+    expect(picture.getAttribute("href")).toBe("blob:picture");
+    expect([picture.getAttribute("width"), picture.getAttribute("height")]).toEqual(["640", "480"]);
+    expect(screen.getByRole("img", { name: "Drawing map" }).getAttribute("viewBox")).toBe("0 0 640 480");
+    // a file not saved yet cannot be calibrated
+    expect((screen.getByRole("button", { name: "Two-point calibration" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Save the layout first/)).toBeTruthy();
+  });
+
+  it("Q-7: a saved raster drawing gets its picture back from the stored file", async () => {
+    state.data = plan();
+    state.layout = {
+      drawingId: "drawing-1",
+      latestVersion: { id: "dv-1", versionNumber: 1, fileName: "plan.png", mimeType: "image/png", sizeBytes: 10, pageCount: 1, checksumSha256: "a".repeat(64), uploadedByUserId: 1, createdAt: new Date("2026-10-20") },
+      versions: [], links: [], calibration: null,
+      polygons: [{ id: "srv-1", ref: "P1", label: "", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] }],
+      background: { width: 300, height: 200, page: 1 },
+      backgroundUrl: "https://files.example.test/signed-plan.png",
+    };
+    render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await waitFor(() => expect(screen.getByTestId("drawing-background").getAttribute("href")).toBe("https://files.example.test/signed-plan.png"));
+  });
+
+  describe("Q-7: two-point calibration and measuring", () => {
+    // A saved DXF drawing whose frame is known, so a tap on the map lands on a known drawing point.
+    function savedDrawing(calibration: unknown = null) {
+      state.data = plan();
+      state.layout = {
+        drawingId: "drawing-1",
+        latestVersion: { id: "dv-1", versionNumber: 1, fileName: "plan.dxf", mimeType: "application/dxf", sizeBytes: 10, pageCount: 1, checksumSha256: "a".repeat(64), uploadedByUserId: 1, createdAt: new Date("2026-10-20") },
+        versions: [], links: [], background: null, backgroundUrl: null, calibration,
+        polygons: [{ id: "srv-1", ref: "P1", label: "", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }] }],
+      };
+      render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    }
+    // Map the SVG so one screen pixel is one unit of its viewBox: then a tap at (vx - box.x, vy - box.y) is the viewBox point (vx, vy).
+    function tap(svg: SVGSVGElement, drawingX: number, drawingY: number) {
+      const [bx, by, bw, bh] = svg.getAttribute("viewBox")!.split(" ").map(Number);
+      svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: bw, height: bh, right: bw, bottom: bh, x: 0, y: 0, toJSON: () => ({}) });
+      // the map draws y downwards: a drawing point (x, y) is at viewBox y = 100 + pad*2 + ... ; flipY of this drawing is minY + maxY - y = 100 - y
+      fireEvent.click(svg, { clientX: drawingX - bx, clientY: 100 - drawingY - by, detail: 1 });
+    }
+
+    it("saves two picked points and the real distance, then measures another length in metres", async () => {
+      savedDrawing();
+      await waitFor(() => screen.getByText(/not calibrated yet/));
+      expect((screen.getByRole("button", { name: "Measure a distance" }) as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "Two-point calibration" }));
+      const svg = screen.getByRole("img", { name: "Drawing map" }) as unknown as SVGSVGElement;
+      tap(svg, 0, 0);
+      tap(svg, 80, 0);
+      fireEvent.change(screen.getByLabelText(/Real distance/), { target: { value: "40" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save calibration" }));
+      await waitFor(() => expect(state.calibrate).toHaveBeenCalledTimes(1));
+      const sent = (state.calibrate.mock.calls[0] as unknown as [{ calibration: { a: { x: number; y: number }; b: { x: number; y: number }; meters: number } }])[0].calibration;
+      expect(sent.meters).toBe(40);
+      expect(sent.a.x).toBeCloseTo(0, 6);
+      expect(sent.a.y).toBeCloseTo(0, 6);
+      expect(sent.b.x).toBeCloseTo(80, 6);
+      await waitFor(() => screen.getByText(/calibrated: 0\.5000 metres per drawing unit/));
+      fireEvent.click(screen.getByRole("button", { name: "Measure a distance" }));
+      tap(svg, 10, 10);
+      tap(svg, 10, 70); // 60 units at 0.5 m per unit
+      expect(screen.getByText("Length: 30.00 m")).toBeTruthy();
+    });
+
+    it("refuses a distance of zero and two taps on the same point without calling the server", async () => {
+      savedDrawing();
+      await waitFor(() => screen.getByText(/not calibrated yet/));
+      fireEvent.click(screen.getByRole("button", { name: "Two-point calibration" }));
+      const svg = screen.getByRole("img", { name: "Drawing map" }) as unknown as SVGSVGElement;
+      tap(svg, 20, 20);
+      tap(svg, 60, 20);
+      fireEvent.change(screen.getByLabelText(/Real distance/), { target: { value: "0" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save calibration" }));
+      expect(screen.getByRole("alert").textContent).toMatch(/above zero/);
+      tap(svg, 30, 30);
+      tap(svg, 30, 30);
+      fireEvent.change(screen.getByLabelText(/Real distance/), { target: { value: "12" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save calibration" }));
+      expect(screen.getByRole("alert").textContent).toMatch(/same/);
+      expect(state.calibrate).not.toHaveBeenCalled();
+    });
+
+    it("a saved calibration measures at once, and a tap while measuring does not select a shape", async () => {
+      savedDrawing({ a: { x: 0, y: 0 }, b: { x: 100, y: 0 }, meters: 25 });
+      await waitFor(() => screen.getByText(/calibrated: 0\.2500/));
+      fireEvent.click(screen.getByRole("button", { name: "Measure a distance" }));
+      const svg = screen.getByRole("img", { name: "Drawing map" }) as unknown as SVGSVGElement;
+      tap(svg, 0, 50);
+      tap(svg, 100, 50);
+      expect(screen.getByText("Length: 25.00 m")).toBeTruthy();
+      expect(screen.getByTestId("measure-overlay").querySelectorAll("circle")).toHaveLength(2);
+      // a phone moves a tap onto the nearest clickable shape, so the shapes take no taps while measuring, and take them again after
+      const polygonEl = svg.querySelector("polygon") as SVGPolygonElement;
+      expect(polygonEl.style.pointerEvents).toBe("none");
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+      expect(polygonEl.style.pointerEvents).toBe("");
+    });
   });
 
   it("offers a page choice for a multi-page PDF and reads the page the reviewer picks", async () => {

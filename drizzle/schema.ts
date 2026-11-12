@@ -1131,6 +1131,9 @@ export const masterPlanDrawings = pgTable(
     projectId: varchar("project_id", { length: 36 }).notNull(),
     masterPlanVersionId: varchar("master_plan_version_id", { length: 36 }).notNull(),
     createdByUserId: integer("created_by_user_id").notNull(),
+    // Q-7: JSON {a, b, meters} of the two-point calibration, and JSON {width, height, page} of the raster the shapes were read from (null for a DXF)
+    calibration: text("calibration"),
+    background: text("background"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

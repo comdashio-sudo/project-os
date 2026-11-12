@@ -13,6 +13,8 @@ import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
 import { rasterKind, readPdfPage, readRasterImage } from "@/lib/raster/rasterFile";
 import { PanZoomControls, usePanZoom } from "@/components/PanZoomMap";
 import type { OcrWorker } from "@/lib/raster/ocrWorker";
+import { MeasureOverlay, MeasurePanel, drawingPointFromClient, type MeasureTool } from "@/components/MasterPlanMeasure";
+import type { DrawingCalibration, PlanPoint } from "@shared/masterPlanCalibration";
 import {
   assignUnit,
   buildReview,
@@ -40,9 +42,10 @@ type ViewError = { kind: "read" | "file" | "action"; code: string; message: { ar
 const text = {
   ar: {
     title: "الرسم التفاعلي للخطة الرئيسية",
-    intro: "ارفع ملف DXF للرسم. تُربط الأشكال بالوحدات تلقائيًا، ويجب أن تؤكد كل ربط قبل أن يُحسب.",
+    intro: "ارفع الرسم: صورة PNG أو JPG، أو PDF، أو DXF. كبّر وحرّك بالإصبعين أو بالأزرار. تُربط الأشكال بالوحدات تلقائيًا، ويجب أن تؤكد كل ربط قبل أن يُحسب.",
     upload: "اختيار ملف الرسم",
     noUnits: "لا توجد وحدات في أحدث إصدار من الخطة الرئيسية. أضف الوحدات أولًا.",
+    noPlan: "لا توجد خطة رئيسية لهذا المشروع بعد. أنشئ الخطة من «الخطة الرئيسية» أعلاه ثم احفظ الرسم فيها.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `مؤكَّد: ${c.confirmed} · مقترح: ${c.proposed} · غير مربوط: ${c.unlinked} · وحدات متبقية: ${c.unitsRemaining} من ${c.unitsTotal}`,
     shapes: "الأشكال",
@@ -79,6 +82,7 @@ const text = {
     saveFailed: "تعذر حفظ التخطيط. راجع الرسالة وحاول مجددًا.",
     readFailed: "تعذّرت قراءة الملف",
     unsupported: "نوع الملف غير مدعوم. ارفع ملف DXF أو PNG أو JPG أو PDF.",
+    dwg: "ملفات DWG لا تُقرأ في المتصفح. افتح الرسم في برنامج التصميم واحفظه بصيغة DXF أو PDF ثم ارفعه.",
     rasterFailed: "تعذّرت قراءة الصورة. جرّب ملفًا أوضح أو ملف DXF.",
     busy: (done: number, total: number) => (total === 0 ? "جارٍ قراءة الرسم…" : `جارٍ قراءة الوحدات: ${done} من ${total}`),
     rasterNote: (shapes: number, labels: number) => `وُجد ${shapes} شكلًا وقُرئ رمز ${labels} منها. كل ربط مقترح من قراءة الصورة، فأكِّده أو غيّره قبل الحساب.`,
@@ -88,9 +92,10 @@ const text = {
   },
   en: {
     title: "Interactive master-plan drawing",
-    intro: "Upload a DXF drawing. Shapes are matched to units automatically, and each link must be confirmed before it counts.",
+    intro: "Upload the drawing: a PNG or JPG image, a PDF, or a DXF. Zoom and move with two fingers or the buttons. Shapes are matched to units automatically, and each link must be confirmed before it counts.",
     upload: "Choose a drawing file",
     noUnits: "The latest master-plan version has no units. Add units first.",
+    noPlan: "This project has no master plan yet. Create it under \u201cMaster plan\u201d above, then save the drawing into it.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `Confirmed: ${c.confirmed} · Proposed: ${c.proposed} · Unlinked: ${c.unlinked} · Units remaining: ${c.unitsRemaining} of ${c.unitsTotal}`,
     shapes: "Shapes",
@@ -127,6 +132,7 @@ const text = {
     saveFailed: "The layout could not be saved. Check the message and try again.",
     readFailed: "The file could not be read",
     unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
+    dwg: "DWG files cannot be read in the browser. Open the drawing in your design program, save it as DXF or PDF, then upload it.",
     rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
     busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
     rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
@@ -139,6 +145,7 @@ const text = {
     intro: "DXF ڈرائنگ اپ لوڈ کریں۔ شکلیں خودکار طور پر یونٹوں سے ملائی جاتی ہیں، اور ہر جوڑ کو شمار ہونے سے پہلے تصدیق کرنا ہوگا۔",
     upload: "ڈرائنگ کی فائل منتخب کریں",
     noUnits: "ماسٹر پلان کے تازہ ترین ورژن میں کوئی یونٹ نہیں۔ پہلے یونٹ شامل کریں۔",
+    noPlan: "اس منصوبے کا ابھی کوئی ماسٹر پلان نہیں۔ اوپر «ماسٹر پلان» سے بنائیں، پھر ڈرائنگ اس میں محفوظ کریں۔",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `Confirmed: ${c.confirmed} · Proposed: ${c.proposed} · Unlinked: ${c.unlinked} · Units remaining: ${c.unitsRemaining} of ${c.unitsTotal}`,
     shapes: "شکلیں",
@@ -175,6 +182,7 @@ const text = {
     saveFailed: "خاکہ محفوظ نہیں ہو سکا۔ پیغام دیکھیں اور دوبارہ کوشش کریں۔",
     readFailed: "فائل پڑھی نہیں جا سکی",
     unsupported: "یہ فائل کی قسم معاون نہیں ہے۔ DXF، PNG، JPG یا PDF فائل اپ لوڈ کریں۔",
+    dwg: "DWG فائلیں براؤزر میں نہیں پڑھی جا سکتیں۔ ڈرائنگ کو ڈیزائن پروگرام میں کھول کر DXF یا PDF کے طور پر محفوظ کریں، پھر اپ لوڈ کریں۔",
     rasterFailed: "تصویر پڑھی نہیں جا سکی۔ زیادہ واضح فائل یا DXF آزمائیں۔",
     busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
     rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
@@ -225,6 +233,11 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [error, setError] = useState<ViewError | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [rasterStats, setRasterStats] = useState<{ shapes: number; labels: number } | null>(null);
+  // Q-7: the picture under the shapes of a raster drawing (an image or a PDF page), at the size the shapes were read at; null for a DXF.
+  const [background, setBackground] = useState<{ href: string; width: number; height: number; page: number } | null>(null);
+  const [tool, setTool] = useState<MeasureTool>("none");
+  const [picks, setPicks] = useState<PlanPoint[]>([]);
+  const [localCalibration, setLocalCalibration] = useState<DrawingCalibration | null>(null);
 
   useEffect(() => {
     if (!drawing && saved.savedReview) {
@@ -233,11 +246,35 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     }
   }, [drawing, saved.savedReview]);
 
+  // After a reload the saved raster drawing gets its picture back: an image directly by its short-lived link, a PDF page rendered again in the browser.
+  const savedBackground = saved.layout?.background ?? null;
+  const savedBackgroundUrl = saved.layout?.backgroundUrl ?? null;
+  const savedMime = saved.layout?.latestVersion?.mimeType ?? "";
+  useEffect(() => {
+    if (background || file || !savedBackground || !savedBackgroundUrl) return;
+    let cancelled = false;
+    const { width, height, page } = savedBackground;
+    if (savedMime.startsWith("image/")) {
+      setBackground({ href: savedBackgroundUrl, width, height, page });
+    } else if (savedMime === "application/pdf") {
+      fetch(savedBackgroundUrl)
+        .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status)))))
+        .then(bytes => readPdfPage(new Uint8Array(bytes), page))
+        .then(pdf => { if (!cancelled && pdf.preview) setBackground({ href: pdf.preview, width, height, page }); })
+        .catch(() => undefined); // the shapes still show; only the picture under them is missing
+    }
+    return () => { cancelled = true; };
+  }, [background, file, savedBackground, savedBackgroundUrl, savedMime]);
+
+  const calibration = localCalibration ?? saved.layout?.calibration ?? null;
+  const hasVersion = latestVersionId(plansQuery.data) !== null;
+
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
   const summary = summarizeReview(items, units);
   const remaining = units.filter(unit => !items.some(entry => entry.state === "confirmed" && entry.unitId === unit.id));
   const selected = items.find(item => item.polygonId === selectedId) ?? null;
-  const geometry = drawing ? mapGeometry(drawing) : null;
+  // A raster drawing is framed by its picture, so the picture and the shapes line up; a DXF by its shapes.
+  const geometry = drawing ? (background ? { x: 0, y: 0, width: background.width, height: background.height, flipY: (y: number) => background.height - y } : mapGeometry(drawing)) : null;
   const ignoredCount = drawing ? Object.values(drawing.ignoredEntities).reduce((sum, value) => sum + value, 0) : 0;
   const pan = usePanZoom(geometry);
 
@@ -257,9 +294,15 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setError({ kind: "file", code: "FILE_TOO_LARGE", message: { ar: text.ar.tooLarge, en: text.en.tooLarge, ur: text.ur.tooLarge } });
       return;
     }
+    if (/\.dwg$/i.test(file.name)) {
+      setError({ kind: "file", code: "DWG_NOT_SUPPORTED", message: { ar: text.ar.dwg, en: text.en.dwg, ur: text.ur.dwg } });
+      return;
+    }
     setFile(file);
     setSavedNotice(false);
     setPdfSource(null);
+    setTool("none");
+    setPicks([]);
     if (/\.dxf$/i.test(file.name)) {
       await readDxfFile(file);
       return;
@@ -283,6 +326,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     }
     setDrawing(parsed.drawing);
     setRasterStats(null);
+    setBackground(null);
     setItems(buildReview(parsed.drawing, matchDrawingToUnits(parsed.drawing, units)));
     setSelectedId(null);
     setError(null);
@@ -297,6 +341,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       const pdf = kind === "pdf" ? await readPdfPage(new Uint8Array(await file.arrayBuffer()), page) : null;
       const image = pdf ? pdf.image : await readRasterImage(file);
       if (pdf) setPdfSource({ file, pageCount: pdf.pageCount, page });
+      const href = pdf ? pdf.preview : URL.createObjectURL(file);
+      setBackground(href ? { href, width: image.width, height: image.height, page } : null);
       const [{ createOcrWorker }, { analyseRaster }] = await Promise.all([import("@/lib/raster/ocrWorker"), import("@/lib/raster/rasterAnalysis")]);
       ocr = await createOcrWorker(OCR_ASSETS);
       const analysis = await analyseRaster(image, ocr.recognize, (done, total) => setProgress({ done, total }));
@@ -328,13 +374,32 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     if (!drawing) return;
     setError(null);
     setSavedNotice(false);
-    const outcome = await saved.save({ file, drawing, items });
+    // A new raster file stores the size it was read at; a new DXF clears it; saving links only keeps what is stored.
+    const outcome = await saved.save({ file, drawing, items, background: file ? (background ? { width: background.width, height: background.height, page: background.page } : null) : undefined });
     if (outcome.ok) {
       setFile(null);
       setSavedNotice(true);
     } else {
       setError({ kind: "action", code: outcome.code, message: { ar: text.ar.saveFailed, en: text.en.saveFailed, ur: text.ur.saveFailed } });
     }
+  }
+
+  async function onSaveCalibration(next: DrawingCalibration) {
+    setError(null);
+    const outcome = await saved.saveCalibration(next);
+    if (outcome.ok) {
+      setLocalCalibration(next);
+      setPicks([]);
+      return true;
+    }
+    setError({ kind: "action", code: outcome.code, message: { ar: text.ar.saveFailed, en: text.en.saveFailed, ur: text.ur.saveFailed } });
+    return false;
+  }
+
+  function onMapClick(event: React.MouseEvent<SVGSVGElement>) {
+    if (tool === "none" || !geometry) return;
+    const point = drawingPointFromClient(event.currentTarget, event.clientX, event.clientY, geometry.flipY);
+    if (point) setPicks(previous => (previous.length >= 2 ? [point] : [...previous, point]));
   }
 
   const unitStatusText = (status: string) => (t.unitStatus as Record<string, string>)[status] ?? status;
@@ -349,12 +414,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
 
-      {plansQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noUnits}</p> : null}
+      {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noPlan}</p> : null}
+      {plansQuery.data && hasVersion && units.length === 0 ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium">
           {t.upload}
-          <input type="file" accept=".dxf,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} disabled={units.length === 0} />
+          <input type="file" accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} />
         </label>
         {pdfSource && pdfSource.pageCount > 1 ? (
           <label className="flex flex-col text-xs">
@@ -383,7 +449,17 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
           {geometry ? (
             <div>
               <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView }} />
-              <svg role="img" aria-label={t.map} {...pan.svgProps} className="h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200">
+              <MeasurePanel
+                tool={tool}
+                onTool={next => { setTool(next); setPicks([]); }}
+                picks={picks}
+                calibration={calibration}
+                canCalibrate={Boolean(saved.layout?.drawingId) && !file}
+                busy={saved.busy}
+                onSaveCalibration={onSaveCalibration}
+              />
+              <svg role="img" aria-label={t.map} {...pan.svgProps} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" ? "cursor-crosshair" : ""}`}>
+                {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
                   if (!item) return null;
@@ -396,21 +472,23 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                       <polygon
                         points={points}
                         fill={polygonFill(item, unit?.status ?? null)}
-                        fillOpacity={0.75}
+                        fillOpacity={background ? 0.45 : 0.75}
                         stroke={isSelected ? "#111827" : "#475569"}
                         strokeWidth={isSelected ? 0.4 : 0.15}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
                         role="button"
                         tabIndex={0}
                         aria-label={`${t.shape(items.indexOf(item) + 1)}: ${item.unitCode ?? t.state[item.state]}`}
-                        onClick={() => setSelectedId(polygon.id)}
+                        onClick={() => { if (tool === "none") setSelectedId(polygon.id); }}
                         onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setSelectedId(polygon.id); }}
-                        style={{ cursor: "pointer" }}
+                        // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
+                        style={tool === "none" ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
                       {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="#111827" pointerEvents="none">{item.unitCode}</text> : null}
                     </g>
                   );
                 })}
+                <MeasureOverlay picks={picks} flipY={geometry.flipY} size={Math.max(geometry.width, geometry.height) / 150} />
               </svg>
               <p className="mt-2 text-xs text-slate-600">{t.legend}</p>
             </div>
@@ -472,7 +550,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white disabled:opacity-50" disabled={!drawing || saved.busy || (!file && !saved.layout?.latestVersion)} onClick={onSave}>{t.save}</button>
+            <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white disabled:opacity-50" disabled={!drawing || !hasVersion || saved.busy || (!file && !saved.layout?.latestVersion)} onClick={onSave}>{t.save}</button>
             <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
             <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
           </div>

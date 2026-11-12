@@ -13,9 +13,13 @@ name: CI
 #    main that has no successful run here, so nothing reaches production without them, and they are not run a second time;
 #  - no daily scheduled run; a newer run on the same branch cancels the older one; every job has a time limit.
 on:
+  # Only pull requests run the light gate, and only a push to main runs the heavy jobs, so one change never runs twice. A change that touches
+  # documentation alone (docs/ and Markdown files) starts no run at all; a change that touches any code still runs, documentation included.
   pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
 permissions:
