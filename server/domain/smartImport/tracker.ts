@@ -59,7 +59,8 @@ export function detectTracker(grid: SheetGrid): { ok: true; model: TrackerModel 
     const serial = parseNumber(row[found.get("serial") ?? -1])?.value ?? NaN;
     units.push({ row: r + 1, serial: Number.isFinite(serial) ? Math.round(serial) : NaN, stage: at(row, "stage"), block: at(row, "block"), villaLabel: villaLabelOf(at(row, "villa"), ""), modelCode: at(row, "model"), statuses });
   }
-  if (units.length < 5) return { ok: false, reason: "TOO_FEW_UNITS" };
+  // one villa is enough: the four identity headers, three activity columns and statuses in words already make the shape (a floor of five sent a small tracker to the table reader)
+  if (units.length < 1) return { ok: false, reason: "TOO_FEW_UNITS" };
   if (!recognised || recognised < filled * 0.9) return { ok: false, reason: "STATUS_CELLS_NOT_RECOGNISED" };
   return { ok: true, model: { sheet: grid.name, headerRow: headerRow + 1, mergedFilled: grid.mergedFilled, activities, units, unknownCells } };
 }

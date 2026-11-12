@@ -101,6 +101,7 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
     input = { ...input, fileName: input.fileName.replace(/\.[a-z0-9]+$/i, "") + ".csv" };
   }
   let result = await understand(bytes, { fileName: input.fileName, sheet: input.sheet, kind: input.kind, forced: input.forced });
+  if (result.warnings.includes("KIND_NOT_DETECTED")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED" });
   let profile: SmartAnalysis["profile"] = null;
   if (result.kind === "scheduleUpdate") {
     const scheduleUpdatePlan = await analyzeScheduleUpdate({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes });
