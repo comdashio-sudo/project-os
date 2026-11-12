@@ -49,6 +49,7 @@ vi.mock("@/lib/trpc", () => {
       list: { useQuery: () => ({ data: h.reports, isLoading: false, error: null, refetch: vi.fn() }) },
       get: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? { ...h.detail, photos: h.detail.photos } : undefined, error: null, refetch: vi.fn() }) },
       save: mutation("save"), submit: mutation("submit"), review: mutation("review"), attachPhoto: mutation("attachPhoto"),
+      export: { useMutation: () => ({ mutateAsync: vi.fn(async () => ({ url: "https://files.example.test/x.xlsx", fileName: "x.xlsx" })), isPending: false, error: null }) },
       copyFromYesterday: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.copy(input); config.onSuccess?.({ id: "r-copy" }, input); }, isPending: false, error: null }) },
       check: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.check(input); config.onSuccess?.({}, input); }, isPending: false, error: null }) },
     },
@@ -457,5 +458,19 @@ describe("SiteDailyReport — header extras, labour matrix, equipment of the day
     fireEvent.click(screen.getByText("Copy from yesterday"));
     expect(h.copy).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", reportDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
     await waitFor(() => expect(screen.queryByText("Copy from yesterday")).toBeNull());
+  });
+});
+
+describe("SiteDailyReport — exports (Q-9 c)", () => {
+  it("the export bar and the document appear only for a saved report", async () => {
+    render(<SiteDailyReport />);
+    expect(document.querySelector("[data-report-exports]")).toBeNull();
+    cleanup();
+    h.reports = [{ id: "r9", reportDate: "2026-10-20", status: "approved", weather: "clear" }];
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("View"));
+    await waitFor(() => expect(document.querySelector("[data-report-exports]")).toBeTruthy());
+    expect(document.querySelector("[data-report-document]")).toBeTruthy();
+    expect(screen.getByText("Download PDF")).toBeTruthy();
   });
 });

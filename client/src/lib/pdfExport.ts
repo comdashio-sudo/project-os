@@ -29,7 +29,7 @@ export function pdfFileName(base: string, stamp: Date = new Date()): string {
   return `${cleaned}-${stamp.toISOString().slice(0, 10)}.pdf`;
 }
 
-export async function exportElementToPdf(element: HTMLElement, fileBase: string): Promise<string> {
+export async function exportElementToPdf(element: HTMLElement, fileBase: string, orientation: "landscape" | "portrait" = "landscape"): Promise<string> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
   const canvas = await html2canvas(element, {
     scale: 2,
@@ -39,7 +39,7 @@ export async function exportElementToPdf(element: HTMLElement, fileBase: string)
     // The screen's own tools (filters, tabs, buttons) are not part of the report, exactly as in the print stylesheet.
     ignoreElements: node => node instanceof HTMLElement && (node.dataset.pdfIgnore !== undefined || node.classList.contains("print:hidden")),
   });
-  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+  const pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 8;
