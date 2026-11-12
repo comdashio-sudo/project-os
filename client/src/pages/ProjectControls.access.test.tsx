@@ -38,6 +38,7 @@ vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null })
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
   return { trpc: {
+    pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 2, long: 1, active: 4 }, rows: [] }, isError: false, error: null }) } },
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined, refetch: vi.fn() }) },
       getControlsSchedule: { useQuery: () => ({ isLoading: false, error: { message: "forbidden" }, data: undefined, refetch: vi.fn() }) },

@@ -77,7 +77,12 @@ import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
+<<<<<<< HEAD
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
+=======
+import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts } from "./pmcQcReceipts";
+import { getStalledUnits, setStallThreshold } from "./stalledUnits";
+>>>>>>> origin/main
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
@@ -193,6 +198,9 @@ export const appRouter = router({
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
     updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcProgress({ userId: ctx.user.id, ...input })),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
+    // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
+    stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
+    setStallThreshold: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), thresholdDays: z.number().int().min(1, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }).max(60, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }) })).mutation(({ ctx, input }) => setStallThreshold({ userId: ctx.user.id, ...input })),
     // Q-5: the QC engineer's receipts (server/pmcQcReceipts.ts): one atomic batch, the counters per activity, the history, a villa's two states
     updateQcReceipts: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), received: z.boolean(), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcQcReceipts({ userId: ctx.user.id, ...input })),
     qcCounters: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcQcCounters({ userId: ctx.user.id, ...input })),

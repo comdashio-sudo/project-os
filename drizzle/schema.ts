@@ -2291,6 +2291,21 @@ export const pmcQcReceiptEvents = pgTable(
   table => [index("pmc_qc_receipt_events_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt)],
 );
 
+// Q-14: per project, after how many WORKING days without movement a started villa counts as stalled (3 by default; over 14 is long-stalled). Migration 0033.
+export const projectStallSettings = pgTable(
+  "project_stall_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    thresholdDays: integer("threshold_days").default(3).notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [uniqueIndex("project_stall_settings_project_unique").on(table.tenantId, table.projectId), check("project_stall_settings_threshold_check", sql`${table.thresholdDays} >= 1 AND ${table.thresholdDays} <= 60`)],
+);
+
 export const pmcVerificationStatuses = pgTable(
   "pmc_verification_statuses",
   {
