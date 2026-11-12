@@ -87,6 +87,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(read.totals.cumulativeManDays).toBe(27);
     expect(read.lines[0]).toMatchObject({ plannedQuantity: 120, actualQuantity: 95.5, variance: -24.5 });
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4); // the second save replaced, not added
+    // a save without the lists leaves them as they are; an empty list clears that list only
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "windy", lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }] });
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_equipment WHERE reportId = ?", [saved.id])).toBe(2);
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", lines: [], equipment: [] });
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_equipment WHERE reportId = ?", [saved.id])).toBe(0);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4);
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "sunny", wind: "N 10 km/h", workHours: 9, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
   });
 
   it("numbers are sequential with no duplicate when reports are saved at the same moment", async () => {

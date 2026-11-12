@@ -10,7 +10,7 @@ const sources = Object.fromEntries(readdirSync(serverDir).filter(name => /\.ts$/
 const routers = sources["routers.ts"];
 
 /** Helpers that end in `assertTenantAccess` (active membership + licensed product + permission + scope) or check the licence themselves. */
-const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertRoleProductEntitled", "resolveScopedAccess", "authorizeInventory"];
+const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertCompanyManager", "assertRoleProductEntitled", "resolveScopedAccess", "authorizeInventory"];
 
 const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   getTenantNavigationForUser: "returns only the menu entries the caller's own access snapshot allows and reads no company data; a non-member is refused",

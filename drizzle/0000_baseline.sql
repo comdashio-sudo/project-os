@@ -415,6 +415,7 @@ CREATE TABLE "companies" (
 	"slug" varchar(120) NOT NULL,
 	"status" "companies_status" DEFAULT 'active' NOT NULL,
 	"default_locale" "companies_default_locale" DEFAULT 'ar' NOT NULL,
+	"require_two_step" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -2288,6 +2289,19 @@ CREATE TABLE "smart_reading_usage" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "stored_files" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"key" varchar(1024) NOT NULL,
+	"content_type" varchar(255) DEFAULT 'application/octet-stream' NOT NULL,
+	"size" integer NOT NULL,
+	"data" "bytea" NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "stored_files_size_check" CHECK ("stored_files"."size" >= 0 AND "stored_files"."size" <= 5242880 AND octet_length("stored_files"."data") = "stored_files"."size"),
+	CONSTRAINT "stored_files_key_owner_check" CHECK (split_part("stored_files"."key", '/', 2) = "stored_files"."tenant_id")
+);
+--> statement-breakpoint
 CREATE TABLE "subcontract_certificate_lines" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"certificate_id" varchar(36) NOT NULL,
@@ -2543,6 +2557,7 @@ CREATE TABLE "user_mfa" (
 	"last_used_step" integer,
 	"failures" integer DEFAULT 0 NOT NULL,
 	"locked_until" timestamp with time zone,
+	"required_by_self" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -3134,6 +3149,7 @@ ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_checked_by_user_id_users_id_fk" FOREIGN KEY ("checked_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stored_files" ADD CONSTRAINT "stored_files_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificates" ADD CONSTRAINT "subcert_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3497,6 +3513,8 @@ CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_d
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_number_unique" ON "site_daily_reports" USING btree ("project_id","report_number") WHERE "site_daily_reports"."report_number" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint
+CREATE UNIQUE INDEX "stored_files_key_unique" ON "stored_files" USING btree ("key");--> statement-breakpoint
+CREATE INDEX "stored_files_tenant_idx" ON "stored_files" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint

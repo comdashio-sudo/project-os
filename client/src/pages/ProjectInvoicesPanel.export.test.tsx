@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTableWorkbook } from "@/lib/excelExport";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
+import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 
 vi.mock("@/lib/excelExport", async importOriginal => {
   const actual = await importOriginal<typeof import("@/lib/excelExport")>();
@@ -33,7 +34,7 @@ afterEach(() => { cleanup(); clickSpy.mockRestore(); h.arabic = false; h.empty =
 
 const show = () => render(<ProjectInvoicesPanel tenantId="t" projectId="p" currency="SAR" />);
 
-describe("ProjectInvoicesPanel export", () => {
+describe("ProjectInvoicesPanel export", EXPORT_TEST, () => {
   it("renders the export button in the panel heading row, in the same section as the table", () => {
     show();
     const button = screen.getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement;
@@ -49,7 +50,7 @@ describe("ProjectInvoicesPanel export", () => {
     const headerRow = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent ?? "");
     expect(headerRow).toEqual(["Number", "Date", "Client", "Total", "Status", ""]);
     fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.columns.map(column => column.header)).toEqual(headerRow.slice(0, -1));
     expect(input.rows.length).toBe(table.querySelectorAll("tbody tr").length);
@@ -59,7 +60,7 @@ describe("ProjectInvoicesPanel export", () => {
   it("passes raw values: the date as a Date, the total as a number, the status as the text the cell shows", async () => {
     show();
     fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     const [first, , paid] = input.rows.map(row => input.columns.map(column => column.value(row)));
     expect(first[0]).toBe("INV-1");
@@ -85,7 +86,7 @@ describe("ProjectInvoicesPanel export", () => {
     h.arabic = true;
     show();
     fireEvent.click(screen.getByRole("button", { name: "تصدير إلى Excel" }));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(1), EXPORT_WAIT);
     const input = vi.mocked(buildTableWorkbook).mock.calls[0][0];
     expect(input.columns.map(column => column.header)).toEqual(["الرقم", "التاريخ", "العميل", "الإجمالي", "الحالة"]);
     const paid = input.rows[2];

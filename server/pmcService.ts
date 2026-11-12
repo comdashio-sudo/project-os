@@ -26,10 +26,10 @@ export const PMC_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMP
 export const PMC_INSPECTION_STEPS = ["CONFIGURATIONS", "MANAGER_APPROVAL", "TECHNICAL_ASSISTANT", "WAITING_CONSULTANT", "RESULT_RECEIVING"] as const;
 export type PmcInspectionStepCode = (typeof PMC_INSPECTION_STEPS)[number];
 
-type Scope = { userId: number; tenantId: string; projectId: string };
+export type Scope = { userId: number; tenantId: string; projectId: string };
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
 
-async function authorize(input: Scope, permission: "project.pmc.read" | "project.pmc.update" | "project.pmc.manage") {
+export async function authorize(input: Scope, permission: "project.pmc.read" | "project.pmc.update" | "project.pmc.manage") {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
@@ -38,7 +38,7 @@ async function authorize(input: Scope, permission: "project.pmc.read" | "project
   return db;
 }
 
-const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+export const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
 // ------------------------------------------------------------ status factors
 

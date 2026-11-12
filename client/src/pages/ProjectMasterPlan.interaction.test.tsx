@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectMasterPlan } from "./ProjectMasterPlan";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
+import { TYPING_TEST } from "@/test/typing";
 
 // the master-plan files go browser → Storage on a signed URL and are applied by a background job (G-139); `imp` stands in for the dataImports hooks they use
 const imp = vi.hoisted(() => ({ put: vi.fn(), state: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() } }));
@@ -34,7 +35,7 @@ vi.mock("@/lib/trpc", async () => ({
   },
 }));
 
-describe("ProjectMasterPlan", () => {
+describe("ProjectMasterPlan", TYPING_TEST, () => {
   afterEach(() => { state.isArabic = false; state.snapshots = []; cleanup(); });
 
   it("selects a filtered spatial entity and reveals its authorized KPI details", async () => {
