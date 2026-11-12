@@ -1974,6 +1974,17 @@ CREATE TABLE "project_resources" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "project_stall_settings" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"threshold_days" integer DEFAULT 3 NOT NULL,
+	"updated_by_user_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "project_stall_settings_threshold_check" CHECK ("project_stall_settings"."threshold_days" >= 1 AND "project_stall_settings"."threshold_days" <= 60)
+);
+--> statement-breakpoint
 CREATE TABLE "project_warehouses" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -3131,6 +3142,9 @@ ALTER TABLE "project_report_counters" ADD CONSTRAINT "project_report_counters_pr
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_resources" ADD CONSTRAINT "project_resources_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_stall_settings" ADD CONSTRAINT "project_stall_settings_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_stall_settings" ADD CONSTRAINT "project_stall_settings_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_stall_settings" ADD CONSTRAINT "project_stall_settings_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_warehouses" ADD CONSTRAINT "pwh_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_warehouses" ADD CONSTRAINT "pwh_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_warehouses" ADD CONSTRAINT "pwh_creator_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3528,6 +3542,7 @@ CREATE INDEX "project_report_approvers_membership_idx" ON "project_report_approv
 CREATE UNIQUE INDEX "project_report_counters_project_kind_unique" ON "project_report_counters" USING btree ("tenant_id","project_id","kind");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_resources_project_code_unique" ON "project_resources" USING btree ("project_id","resource_code");--> statement-breakpoint
 CREATE INDEX "project_resources_tenant_project_type_idx" ON "project_resources" USING btree ("tenant_id","project_id","resource_type");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_stall_settings_project_unique" ON "project_stall_settings" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "project_warehouses_project_code_unique" ON "project_warehouses" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "project_warehouses_tenant_project_active_idx" ON "project_warehouses" USING btree ("tenant_id","project_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "projects_tenant_code_unique" ON "projects" USING btree ("tenant_id","code");--> statement-breakpoint
