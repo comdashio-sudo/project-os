@@ -37,6 +37,7 @@ vi.mock("./ProjectImports", () => ({ ProjectImports: () => null }));
 vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () => null }));
 vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
+vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null }));
 vi.mock("./ProjectPmc", () => ({ ProjectPmcWorkspace: () => <p>PMC workspace</p> }));
 
