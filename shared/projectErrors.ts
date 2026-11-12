@@ -608,6 +608,11 @@ export const projectErrorMessages = {
     en: "Only the platform owner creates companies. Ask the platform owner to create your company or to invite you to an existing one.",
     ur: "کمپنیاں صرف پلیٹ فارم کا مالک بناتا ہے۔ پلیٹ فارم کے مالک سے اپنی کمپنی بنوائیں یا کسی موجودہ کمپنی میں دعوت مانگیں۔",
   },
+  PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED: {
+    ar: "هذا الدور لا يُمنح من دعوة المشروع: اختر دورًا للمشروع لا يحمل صلاحيات الشركة أو الدعوة أو بيانات الموظفين والرواتب، أو اطلب من مدير الشركة.",
+    en: "This role cannot be given from a project invitation: choose a project role without company, invitation, or staff and pay permissions, or ask the company manager.",
+    ur: "یہ کردار پروجیکٹ کی دعوت سے نہیں دیا جا سکتا: کمپنی، دعوت یا عملے اور تنخواہ کی اجازت کے بغیر پروجیکٹ کا کردار چنیں، یا کمپنی کے مینیجر سے کہیں۔",
+  },
   PROJECT_OS_BOQ_COLUMNS_MISSING: {
     ar: "الملف يحتاج الأعمدة: رقم البند، وصف البند، الوحدة، الكمية، سعر الوحدة. نزّل القالب واملأه.",
     en: "The file needs the columns: Item no., Description, Unit, Quantity, Unit rate. Download the template and fill it in.",

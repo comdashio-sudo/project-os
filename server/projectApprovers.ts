@@ -7,7 +7,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, membershipInvitations, membershipRoles, memberships, projectReportApprovers, roles, users } from "../drizzle/schema";
+import { auditLogs, membershipInvitations, membershipRoles, memberships, permissions, projectReportApprovers, rolePermissions, roles, users } from "../drizzle/schema";
+import { projectInviteRoleRefusal } from "./domain/operationalRoles";
 import { projectGate, violates } from "./projectProfile";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -32,18 +33,30 @@ async function team(db: Db, input: Scope, membershipIds?: string[]) {
 }
 
 export async function listProjectTeam(input: Scope) {
-  const db = await projectGate(input, ["project.manage"]);
+  // Q-12 (c): the person who may invite onto the project (project.team.invite) sees who is already on it
+  const db = await projectGate(input, ["project.manage", "project.team.invite"]);
   return team(db, input);
 }
 
 /** Q-12 (c): the invitations still waiting for this project (made with scope «project» and this project's id): who, as which role, until when. project.manage. */
 export async function listProjectInvitations(input: Scope) {
-  const db = await projectGate(input, ["project.manage"]);
+  const db = await projectGate(input, ["project.manage", "project.team.invite"]);
   const rows = await db.select({ id: membershipInvitations.id, email: membershipInvitations.email, roleName: roles.name, expiresAt: membershipInvitations.expiresAt })
     .from(membershipInvitations).innerJoin(roles, and(eq(roles.id, membershipInvitations.roleId), eq(roles.tenantId, membershipInvitations.tenantId)))
     .where(and(eq(membershipInvitations.tenantId, input.tenantId), eq(membershipInvitations.scopeType, "project"), eq(membershipInvitations.scopeId, input.projectId), eq(membershipInvitations.status, "pending")));
   const now = Date.now();
   return rows.filter(row => row.expiresAt.getTime() > now).sort((a, b) => a.email.localeCompare(b.email));
+}
+
+/** Q-12 (c): the roles a project invitation may give — the company's roles that pass projectInviteRoleRefusal (a project role, nothing company-wide, no onward
+ *  invitation, no staff or pay data). The same rule the server applies to a project inviter; offered to the company manager on this page too. */
+export async function listInvitableProjectRoles(input: Scope) {
+  const db = await projectGate(input, ["project.team.invite"]);
+  const rows = await db.select({ id: roles.id, name: roles.name, productCode: roles.productCode, code: permissions.code })
+    .from(roles).leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id)).leftJoin(permissions, eq(permissions.id, rolePermissions.permissionId)).where(eq(roles.tenantId, input.tenantId));
+  const byRole = new Map<string, { id: string; name: string; productCode: string | null; codes: string[] }>();
+  for (const row of rows) { const role = byRole.get(row.id) ?? { id: row.id, name: row.name, productCode: row.productCode, codes: [] }; if (row.code) role.codes.push(row.code); byRole.set(row.id, role); }
+  return Array.from(byRole.values()).filter(role => role.codes.length && projectInviteRoleRefusal(role, role.codes) === null).map(role => ({ id: role.id, name: role.name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getReportApprovers(input: Scope) {
