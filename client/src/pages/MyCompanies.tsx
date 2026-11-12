@@ -9,6 +9,7 @@ import { formFieldErrors, slugFieldError } from "@/lib/formValidation";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { putToStorage } from "@/lib/uploadLimit";
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 
@@ -16,9 +17,9 @@ import { Link, useLocation, useParams } from "wouter";
 // (self-service sign-up: the server checks the verified email, the plan and the daily limit), and the details of the open company for its managers.
 // Who may edit is decided by the server (tenant.profile answers only tenant.manage); the form is simply absent for everyone else.
 const T = {
-  ar: { title: "شركاتي", intro: "الشركات التي أنت عضو فيها. افتح أيًّا منها، أو أنشئ شركة جديدة.", open: "افتح", current: "الشركة الحالية", invited: "دعوة لم تُقبل", suspended: "موقوفة", revoked: "مُلغاة", none: "لست عضوًا في أي شركة بعد.", details: "بيانات الشركة الحالية", legal: "الاسم القانوني", locale: "لغة الشركة", save: "حفظ", saving: "جارٍ الحفظ…", saved: "حُفظت بيانات الشركة.", slug: "المعرّف", newTitle: "شركة جديدة", newSlug: "المعرّف (أحرف إنجليزية صغيرة وأرقام وشرطات)", plan: "الخطة", pick: "اختر خطة", seats: "عدد المقاعد", create: "إنشاء الشركة", creating: "جارٍ الإنشاء…" },
-  en: { title: "My companies", intro: "The companies you belong to. Open any of them, or create a new company.", open: "Open", current: "Current company", invited: "Invitation not accepted", suspended: "Suspended", revoked: "Revoked", none: "You are not a member of any company yet.", details: "Details of the current company", legal: "Legal name", locale: "Company language", save: "Save", saving: "Saving…", saved: "The company details were saved.", slug: "Identifier", newTitle: "New company", newSlug: "Identifier (lowercase letters, digits, dashes)", plan: "Plan", pick: "Choose a plan", seats: "Seats", create: "Create the company", creating: "Creating…" },
-  ur: { title: "میری کمپنیاں", intro: "وہ کمپنیاں جن کے آپ رکن ہیں۔ کوئی بھی کھولیں، یا نئی کمپنی بنائیں۔", open: "کھولیں", current: "موجودہ کمپنی", invited: "دعوت قبول نہیں ہوئی", suspended: "معطل", revoked: "منسوخ", none: "آپ ابھی کسی کمپنی کے رکن نہیں ہیں۔", details: "موجودہ کمپنی کی تفصیلات", legal: "قانونی نام", locale: "کمپنی کی زبان", save: "محفوظ کریں", saving: "محفوظ ہو رہا ہے…", saved: "کمپنی کی تفصیلات محفوظ ہو گئیں۔", slug: "شناخت", newTitle: "نئی کمپنی", newSlug: "شناخت (چھوٹے انگریزی حروف، ہندسے، ڈیش)", plan: "پلان", pick: "پلان منتخب کریں", seats: "نشستیں", create: "کمپنی بنائیں", creating: "بن رہی ہے…" },
+  ar: {  logo: "الشعار", logoHint: "PNG أو JPEG أو SVG، حتى 2 ميجابايت. يُحفظ مع «حفظ».", logoNone: "لا شعار", logoRemove: "إزالة الشعار", logoPending: "شعار جديد جاهز للحفظ", logoUploading: "جارٍ الرفع…", title: "شركاتي", intro: "الشركات التي أنت عضو فيها. افتح أيًّا منها، أو أنشئ شركة جديدة.", open: "افتح", current: "الشركة الحالية", invited: "دعوة لم تُقبل", suspended: "موقوفة", revoked: "مُلغاة", none: "لست عضوًا في أي شركة بعد.", details: "بيانات الشركة الحالية", legal: "الاسم القانوني", locale: "لغة الشركة", save: "حفظ", saving: "جارٍ الحفظ…", saved: "حُفظت بيانات الشركة.", slug: "المعرّف", newTitle: "شركة جديدة", newSlug: "المعرّف (أحرف إنجليزية صغيرة وأرقام وشرطات)", plan: "الخطة", pick: "اختر خطة", seats: "عدد المقاعد", create: "إنشاء الشركة", creating: "جارٍ الإنشاء…" },
+  en: {  logo: "Logo", logoHint: "PNG, JPEG or SVG, up to 2 MB. Stored when you press Save.", logoNone: "No logo", logoRemove: "Remove the logo", logoPending: "New logo ready to save", logoUploading: "Uploading…", title: "My companies", intro: "The companies you belong to. Open any of them, or create a new company.", open: "Open", current: "Current company", invited: "Invitation not accepted", suspended: "Suspended", revoked: "Revoked", none: "You are not a member of any company yet.", details: "Details of the current company", legal: "Legal name", locale: "Company language", save: "Save", saving: "Saving…", saved: "The company details were saved.", slug: "Identifier", newTitle: "New company", newSlug: "Identifier (lowercase letters, digits, dashes)", plan: "Plan", pick: "Choose a plan", seats: "Seats", create: "Create the company", creating: "Creating…" },
+  ur: {  logo: "لوگو", logoHint: "PNG، JPEG یا SVG، 2 MB تک۔ «محفوظ کریں» پر محفوظ ہوگا۔", logoNone: "کوئی لوگو نہیں", logoRemove: "لوگو ہٹائیں", logoPending: "نیا لوگو محفوظ کرنے کے لیے تیار", logoUploading: "اپ لوڈ ہو رہا ہے…", title: "میری کمپنیاں", intro: "وہ کمپنیاں جن کے آپ رکن ہیں۔ کوئی بھی کھولیں، یا نئی کمپنی بنائیں۔", open: "کھولیں", current: "موجودہ کمپنی", invited: "دعوت قبول نہیں ہوئی", suspended: "معطل", revoked: "منسوخ", none: "آپ ابھی کسی کمپنی کے رکن نہیں ہیں۔", details: "موجودہ کمپنی کی تفصیلات", legal: "قانونی نام", locale: "کمپنی کی زبان", save: "محفوظ کریں", saving: "محفوظ ہو رہا ہے…", saved: "کمپنی کی تفصیلات محفوظ ہو گئیں۔", slug: "شناخت", newTitle: "نئی کمپنی", newSlug: "شناخت (چھوٹے انگریزی حروف، ہندسے، ڈیش)", plan: "پلان", pick: "پلان منتخب کریں", seats: "نشستیں", create: "کمپنی بنائیں", creating: "بن رہی ہے…" },
 };
 const LOCALES = [{ value: "ar", label: "العربية" }, { value: "en", label: "English" }] as const;
 
@@ -57,7 +58,17 @@ function CompanyDetails({ tenantId, t, isArabic, onSaved }: { tenantId: string; 
   const profile = trpc.tenant.profile.useQuery({ tenantId }, { retry: false });
   const [legalName, setLegalName] = useState(""); const [defaultLocale, setDefaultLocale] = useState<"ar" | "en">("ar");
   useEffect(() => { if (profile.data) { setLegalName(profile.data.legalName); setDefaultLocale(profile.data.defaultLocale); } }, [profile.data]);
-  const save = trpc.tenant.updateProfile.useMutation({ onSuccess: () => { onSaved(); void profile.refetch(); } });
+  // logo: undefined = keep, null = remove, { uploadKey } = the file already PUT to Storage, taken by the server on «Save»
+  const [logo, setLogo] = useState<{ uploadKey: string } | null | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const logoUpload = trpc.tenant.createLogoUpload.useMutation();
+  const save = trpc.tenant.updateProfile.useMutation({ onSuccess: () => { setLogo(undefined); onSaved(); void profile.refetch(); } });
+  const pickLogo = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try { const target = await logoUpload.mutateAsync({ tenantId, fileName: file.name, contentType: file.type || "application/octet-stream" }); await putToStorage(target.uploadUrl, target.headers, file, () => undefined); setLogo({ uploadKey: target.uploadKey }); }
+    catch { /* the refusal is shown from logoUpload.error */ } finally { setUploading(false); }
+  };
   // a refusal (not a manager of this company) means no form: the server would refuse the write anyway. Any other failure says so (G-100).
   if (profile.error) return profile.error.data?.code === "FORBIDDEN" ? null : <SourceNotice query={profile} isArabic={isArabic} title={t.details} className="mt-6" />;
   if (!profile.data) return null;
@@ -65,12 +76,21 @@ function CompanyDetails({ tenantId, t, isArabic, onSaved }: { tenantId: string; 
     <section className="mt-6 rounded-xl border border-border p-4" aria-labelledby="company-details-title">
       <h2 id="company-details-title" className="text-lg font-semibold">{t.details}</h2>
       <p className="mt-1 text-xs text-muted-foreground">{t.slug}: <span dir="ltr">{profile.data.slug}</span></p>
-      <form noValidate className="mt-3 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, legalName, defaultLocale }); }}>
+      <form noValidate className="mt-3 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); save.mutate({ tenantId, legalName, defaultLocale, ...(logo === undefined ? {} : { logo }) }); }}>
         <div><Label htmlFor="company-legal">{t.legal}</Label><Input id="company-legal" className="mt-2 min-h-[44px]" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} maxLength={255} /></div>
         <div><Label htmlFor="company-locale">{t.locale}</Label><Select id="company-locale" className="mt-2 md:min-h-11" options={[...LOCALES]} value={defaultLocale} onValueChange={value => setDefaultLocale(value as "ar" | "en")} /></div>
+        <div className="sm:col-span-2"><Label htmlFor="company-logo">{t.logo}</Label>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {logo === undefined && profile.data.logo?.url ? <img src={profile.data.logo.url} alt={t.logo} className="h-16 w-auto max-w-40 rounded-md border border-border bg-white object-contain p-1" /> : <span className="text-sm text-muted-foreground">{logo ? t.logoPending : t.logoNone}</span>}
+            <Input id="company-logo" type="file" accept="image/png,image/jpeg,image/svg+xml" aria-describedby="company-logo-hint" className="min-h-[44px] max-w-xs" disabled={uploading} onChange={event => void pickLogo(event.target.files?.[0])} />
+            {(profile.data.logo || logo) && logo !== null && <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setLogo(null)}>{t.logoRemove}</Button>}
+          </div>
+          <p id="company-logo-hint" className="mt-1 text-xs text-muted-foreground">{uploading ? t.logoUploading : t.logoHint}</p>
+          {logoUpload.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(logoUpload.error, isArabic)}</p>}
+        </div>
         {save.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
         {save.isSuccess && <p role="status" className="text-sm text-emerald-800 sm:col-span-2">{t.saved}</p>}
-        <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={save.isPending || legalName.trim().length < 2}>{save.isPending ? t.saving : t.save}</Button></div>
+        <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={save.isPending || uploading || legalName.trim().length < 2}>{save.isPending ? t.saving : t.save}</Button></div>
       </form>
     </section>
   );
