@@ -12,9 +12,9 @@ export const tap = "min-h-[44px] min-w-[44px]";
 export const fieldInput = `${tap} w-full rounded-xl border bg-card px-3 text-base`;
 
 const tabsText = {
-  ar: { nav: "شاشات الميدان", progress: "تحديث الإنجاز", report: "التقرير اليومي", submittals: "تسليمات الاستشاري", quality: "الجودة", unit: "بطاقة وحدة", unitNumber: "رقم الوحدة", open: "فتح" },
-  en: { nav: "Field screens", progress: "Progress update", report: "Daily report", submittals: "Consultant submittals", quality: "Quality", unit: "Unit card", unitNumber: "Unit number", open: "Open" },
-  ur: { nav: "سائٹ کی اسکرینیں", progress: "پیش رفت کی تازہ کاری", report: "روزانہ رپورٹ", submittals: "کنسلٹنٹ سبمٹلز", quality: "معیار", unit: "یونٹ کارڈ", unitNumber: "یونٹ نمبر", open: "کھولیں" },
+  ar: { nav: "شاشات الميدان", progress: "تحديث الإنجاز", qc: "استلام QC", report: "التقرير اليومي", submittals: "تسليمات الاستشاري", quality: "الجودة", unit: "بطاقة وحدة", unitNumber: "رقم الوحدة", open: "فتح" },
+  en: { nav: "Field screens", progress: "Progress update", qc: "QC receipt", report: "Daily report", submittals: "Consultant submittals", quality: "Quality", unit: "Unit card", unitNumber: "Unit number", open: "Open" },
+  ur: { nav: "سائٹ کی اسکرینیں", progress: "پیش رفت کی تازہ کاری", qc: "کیو سی وصولی", report: "روزانہ رپورٹ", submittals: "کنسلٹنٹ سبمٹلز", quality: "معیار", unit: "یونٹ کارڈ", unitNumber: "یونٹ نمبر", open: "کھولیں" },
 };
 
 /** The ways between the field screens, and a unit number that opens the unit's card. */
@@ -24,7 +24,7 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   const [, navigate] = useLocation();
   const [unit, setUnit] = React.useState("");
   const base = `/m/${tenantId}/${projectId}`;
-  const tabs = [["progress", `${base}/progress`, t.progress], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
+  const tabs = [["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
       {tabs.map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}
