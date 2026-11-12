@@ -2259,9 +2259,6 @@ export const pmcUnitActivityHistory = pgTable(
 // villa's card shows both. One row per villa and activity; every change is an event (from, to, the date chosen, who, when). Migration 0032.
 export const pmcQcReceipts = pgTable(
   "pmc_qc_receipts",
-// Q-14: per project, after how many WORKING days without movement a started villa counts as stalled (3 by default; over 14 is long-stalled). Migration 0033.
-export const projectStallSettings = pgTable(
-  "project_stall_settings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
@@ -2270,7 +2267,6 @@ export const projectStallSettings = pgTable(
     activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
     received: boolean("received").notNull(),
     receivedOn: date("received_on", { mode: "string" }).notNull(),
-    thresholdDays: integer("threshold_days").default(3).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -2293,6 +2289,20 @@ export const pmcQcReceiptEvents = pgTable(
     changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [index("pmc_qc_receipt_events_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt)],
+);
+
+// Q-14: per project, after how many WORKING days without movement a started villa counts as stalled (3 by default; over 14 is long-stalled). Migration 0033.
+export const projectStallSettings = pgTable(
+  "project_stall_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    thresholdDays: integer("threshold_days").default(3).notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
   table => [uniqueIndex("project_stall_settings_project_unique").on(table.tenantId, table.projectId), check("project_stall_settings_threshold_check", sql`${table.thresholdDays} >= 1 AND ${table.thresholdDays} <= 60`)],
 );
 
