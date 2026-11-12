@@ -268,6 +268,73 @@ describe("MasterPlanDrawing", () => {
     await waitFor(() => expect(screen.getByTestId("drawing-background").getAttribute("href")).toBe("https://files.example.test/signed-plan.png"));
   });
 
+  describe("Q-8: linking by hand and the «not linked» list", () => {
+    async function openDrawing() {
+      state.data = plan();
+      const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+      await upload(container, DRAWING);
+      await waitFor(() => screen.getByText(/Proposed: 2/));
+      return screen.getByRole("img", { name: "Drawing map" }) as unknown as SVGSVGElement;
+    }
+    const tapAt = (svg: SVGSVGElement, x: number, y: number) => {
+      const [bx, by, bw, bh] = svg.getAttribute("viewBox")!.split(" ").map(Number);
+      svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: bw, height: bh, right: bw, bottom: bh, x: 0, y: 0, toJSON: () => ({}) });
+      // this drawing's frame flips y around minY + maxY = 10
+      fireEvent.click(svg, { clientX: x - bx, clientY: 10 - y - by, detail: 1 });
+    };
+
+    it("lists the units with no confirmed shape; a tap places the chosen unit, confirmed, and the list moves on", async () => {
+      const svg = await openDrawing();
+      expect(screen.getByText("Not linked: 3 of 3")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "B1-U-0003" }));
+      fireEvent.click(screen.getByRole("button", { name: "Link by a tap" }));
+      tapAt(svg, 55, 5);
+      await waitFor(() => screen.getByText("B1-U-0003 linked. Save the layout to keep the link."));
+      expect(screen.getByText("Not linked: 2 of 3")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Shape 4 · Confirmed · B1-U-0003/ })).toBeTruthy();
+      expect((screen.getByRole("button", { name: "B1-U-0001" }) as HTMLButtonElement).getAttribute("aria-pressed")).toBe("true");
+      // while linking, the shapes take no taps (a phone would move the tap onto them)
+      expect((svg.querySelector("polygon") as SVGPolygonElement).style.pointerEvents).toBe("none");
+    });
+
+    it("a tap inside a read shape that is not confirmed links that shape instead of adding a marker", async () => {
+      const svg = await openDrawing();
+      fireEvent.click(screen.getByRole("button", { name: "B1-U-0003" }));
+      fireEvent.click(screen.getByRole("button", { name: "Link by a tap" }));
+      tapAt(svg, 45, 5); // inside the third read square (40..50), which had no text
+      await waitFor(() => screen.getByText(/B1-U-0003 linked/));
+      expect(screen.getByRole("button", { name: /Shape 3 · Confirmed · B1-U-0003/ })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Shape 4/ })).toBeNull();
+    });
+
+    it("a polygon needs three corners before it closes; closing links it", async () => {
+      const svg = await openDrawing();
+      fireEvent.click(screen.getByRole("button", { name: "B1-U-0003" }));
+      fireEvent.click(screen.getByRole("button", { name: "Draw a polygon" }));
+      tapAt(svg, 50, 1); tapAt(svg, 58, 1);
+      expect((screen.getByRole("button", { name: "Close the polygon (2 points)" }) as HTMLButtonElement).disabled).toBe(true);
+      tapAt(svg, 58, 9);
+      fireEvent.click(screen.getByRole("button", { name: "Close the polygon (3 points)" }));
+      await waitFor(() => screen.getByText(/B1-U-0003 linked/));
+      expect(screen.getByText("Not linked: 2 of 3")).toBeTruthy();
+    });
+
+    it("a hand-drawn shape can be removed and its unit returns to the list; a read shape has no remove button", async () => {
+      const svg = await openDrawing();
+      fireEvent.click(screen.getByRole("button", { name: "B1-U-0003" }));
+      fireEvent.click(screen.getByRole("button", { name: "Link by a tap" }));
+      tapAt(svg, 55, 5);
+      await waitFor(() => screen.getByText(/B1-U-0003 linked/));
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+      fireEvent.click(screen.getByRole("button", { name: /Shape 1 ·/ }));
+      expect(screen.queryByRole("button", { name: "Remove the shape" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /Shape 4 · Confirmed · B1-U-0003/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Remove the shape" }));
+      expect(screen.getByText("Not linked: 3 of 3")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Shape 4/ })).toBeNull();
+    });
+  });
+
   describe("Q-7: two-point calibration and measuring", () => {
     // A saved DXF drawing whose frame is known, so a tap on the map lands on a known drawing point.
     function savedDrawing(calibration: unknown = null) {

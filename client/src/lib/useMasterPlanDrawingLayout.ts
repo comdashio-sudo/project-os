@@ -41,9 +41,15 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
       const current = await utils.masterPlans.drawingLayout.fetch(scope);
       const idByRef = new Map(current.polygons.map(polygon => [polygon.ref, polygon.id]));
       const refByPolygonId = new Map(current.polygons.map(polygon => [polygon.id, polygon.ref]));
+      // a shape that leaves the drawing (a new file, a removed hand-drawn shape) may still carry a saved link, and the server will not delete a linked
+      // shape: its link is taken away first, then the shapes are replaced (found when a second upload after linking failed to save)
+      const keptRefs = new Set(args.drawing.polygons.map(polygon => polygon.id));
+      const leaving = current.links.filter(link => !keptRefs.has(refByPolygonId.get(link.polygonId) ?? ""));
+      for (const link of leaving) await unlinkUnit.mutateAsync({ ...scope, polygonId: link.polygonId });
+      const remainingLinks = current.links.filter(link => !leaving.includes(link));
       const saved = await saveLayout.mutateAsync({ ...scope, polygons: polygonsToSave(args.drawing, idByRef), ...(args.background !== undefined ? { background: args.background } : {}) });
       const savedIdByRef = new Map(saved.polygons.map(polygon => [polygon.ref, polygon.id]));
-      const changes = linkChanges(args.items, refByPolygonId, current.links, savedIdByRef);
+      const changes = linkChanges(args.items, refByPolygonId, remainingLinks, savedIdByRef);
       for (const polygonId of changes.unlink) await unlinkUnit.mutateAsync({ ...scope, polygonId });
       for (const link of changes.link) await linkUnit.mutateAsync({ ...scope, ...link });
       await utils.masterPlans.drawingLayout.invalidate(scope);
