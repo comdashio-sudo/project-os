@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { getReportPeriod } from "./reportPeriods";
 import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
 import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
@@ -449,6 +450,10 @@ export const appRouter = router({
     reportSectionIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), product: z.enum(["EXECUTIVE", "PMO", "PROJECT"]), sectionKey: z.string().trim().min(2).max(80).regex(/^[a-z0-9:_-]+$/), state: z.enum(["error", "partial"]), projectId: z.string().uuid().optional() }).superRefine((value, context) => { if (value.product === "PROJECT" && !value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); if (value.product !== "PROJECT" && value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); })).mutation(({ ctx, input }) => reportDashboardSectionIssueForTenant({ userId: ctx.user.id, ...input })),
   }),
   // Work order 12, items 4 to 7: the site's daily report, the consultant's submittals, the company's quality policy, and the card of a unit or an activity.
+  // D-48 (§5): the period engine — a week (seven days from its first) or a calendar month, added up from the daily reports (server/reportPeriods.ts). Read only.
+  reportPeriods: router({
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(["week", "month"]), anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), includeUnapproved: z.boolean().optional() })).query(({ ctx, input }) => getReportPeriod({ userId: ctx.user.id, ...input })),
+  }),
   siteReports: router({
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
