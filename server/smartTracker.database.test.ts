@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { ENV } from "./_core/env";
 import { appRouter } from "./routers";
+import { projectErrorMessages } from "../shared/projectErrors";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 
 // D-44 (b): the site's unit TRACKER through the smart import box, on a real database, as the restricted application role. The workbook is SYNTHETIC, generated here
@@ -174,5 +175,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the site's unit tracker 
     expect(await code(stranger.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "tracker-reader.xlsx" }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'pmc.tracker_import_confirmed'", [T])).toBe(2);
     expect(await n("SELECT COUNT(*) AS n FROM pmc_units WHERE tenantId = ?", [T2])).toBe(0);
+  }, 300_000);
+
+  it("a small tracker (the 500 found in test): 1 villa is analysed as a tracker; 2 rows that are not one, with the tracker chosen, are refused with a translated code", async () => {
+    const manager = callerFor(users.manager, "trk-manager");
+    const one = await trackerWorkbook(baseStatus, rows => rows.splice(1));
+    const run = await importTracker(manager, "tracker-one.xlsx", one.bytes);
+    expect(run.analysis.understanding.kind).toBe("unitMatrix");
+    expect(run.analysis.matrixPlan!.summary).toMatchObject({ shape: "tracker", units: 1 });
+    expect(run.analysis.matrixPlan!.errors).toEqual([]);
+    const two = await trackerWorkbook(() => "Half done", rows => rows.splice(2));
+    const target = await upload(manager, "tracker-two.xlsx", two.bytes);
+    expect(await code(manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "tracker-two.xlsx", kind: "unitMatrix" }))).toBe("PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED");
+    expect(projectErrorMessages.PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED.ar).toContain("لم يُكتب شيء");
+    expect(await code(manager.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: "tracker-two.xlsx", kind: "unitMatrix", forced: {} as never, approvedHash: "0".repeat(64) }))).toBe("PROJECT_OS_MATRIX_NOT_RECOGNISED");
+    expect(await n("SELECT COUNT(*) AS n FROM pmc_units WHERE tenantId = ?", [T])).toBe(VILLAS);
+    expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'pmc.tracker_import_confirmed'", [T])).toBe(2);
   }, 300_000);
 });

@@ -802,7 +802,8 @@ export async function assertProjectWithinTenant(input: { tenantId: string; proje
     .where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)))
     .limit(1);
 
-  if (!project[0]) throw new Error("PROJECT_OS_PROJECT_NOT_FOUND");
+  // NOT_FOUND, not a server error: a project of another company is "not found" to this caller (QA on #248); the message is unchanged
+  if (!project[0]) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_NOT_FOUND" });
 }
 
 export async function getPmcProjectSummaryForTenant(input: { userId: number; tenantId: string; projectId: string }) {

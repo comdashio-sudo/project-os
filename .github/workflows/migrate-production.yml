@@ -103,9 +103,9 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::the repository secret SUPABASE_DB_PASSWORD is not set (docs/GO_LIVE.md, automatic release)"; exit 1; }
-          # D-78/D-85: may step 4b deploy production with the CLI? Proven BEFORE any migration (vercel whoami and a throw-away vercel pull of the project). A missing token or a
-          # 401/403 (run 42738392972: the token has no access to the team) is a warning and cli=false: Vercel then builds production from the branch step 6 moves (O-5). Any
-          # other failure stops the run here, before anything is migrated. The CLI reads the token from the environment; the script never prints it.
+          # D-78/D-85/D-85b: may step 4b deploy production with the CLI? Proven BEFORE any migration (the HTTP status of GET /v9/projects/{id}, then a throw-away vercel pull).
+          # A missing token or a 401/403 (run 42738392972) is a warning and cli=false: Vercel then builds production from the branch step 6 moves (O-5) and step 6b waits for it.
+          # Any other status (404, 429, 5xx, a timeout) stops the run here, before anything is migrated. The token is never on a command line nor printed.
           bash scripts/ci/vercel-access.sh "$GITHUB_OUTPUT"
           # url required; publishableKey empty = has_key=false (step 3 runs without the sign-in check); anything but sb_publishable_ fails (D-69)
           bash scripts/ci/public-config-check.sh config/supabase.public.json >> "$GITHUB_OUTPUT"
@@ -269,6 +269,17 @@ jobs:
           if [ "$CLI_DEPLOYED" != "true" ]; then
             echo "::notice title=Production deployed by Vercel::the production branch moved to $sha after the migrations and the release check passed; Vercel builds production from it, and post-deploy.yml checks that deployment"
           fi
+      - name: 6b. Without the CLI, wait until production serves the pushed commit (fail after the time limit; rollback is manual)
+        id: confirm
+        if: steps.scope.outputs.deploy == 'true' && steps.config.outputs.cli != 'true'
+        env:
+          CONFIRM_WAIT_SECONDS: ${{ vars.CONFIRM_WAIT_SECONDS || '900' }}
+        run: |
+          set -euo pipefail
+          # D-85b: step 6's push IS the deployment on this path. /api/readyz names the commit Vercel built (VERCEL_GIT_COMMIT_SHA); a production that does not serve the
+          # pushed sha within the limit fails the run. Nothing is rolled back automatically here: docs/OWNER_ACTIONS.md §16 (Instant Rollback).
+          bash scripts/ci/wait-for-commit.sh "$PRODUCTION_URL" "${{ steps.scope.outputs.sha }}" "$CONFIRM_WAIT_SECONDS" 15 2>&1 | tee "$RUNNER_TEMP/confirm.log"
+          echo "confirmed=${{ steps.scope.outputs.sha }}" >> "$GITHUB_OUTPUT"
       - name: Summary (no secrets)
         if: always() && steps.scope.outputs.deploy == 'true'
         run: |
@@ -282,6 +293,7 @@ jobs:
             echo "### Check of the new deployment, before the promotion"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/deployment.log" 2>/dev/null || echo "(did not run)"; echo '```'
             echo "### Production check, after the promotion"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/production.log" 2>/dev/null || echo "(did not run)"; echo '```'
             echo "### Promotion"; echo "${{ steps.promote.outputs.promoted && format('production branch moved to {0}', steps.promote.outputs.promoted) || 'production branch NOT moved: a step before it failed' }}"
+            echo "### Production serves the release (without the CLI, step 6b)"; echo '```'; cut -c1-300 < "$RUNNER_TEMP/confirm.log" 2>/dev/null || echo "(did not run: the CLI deployed and step 5 checked it, or a step before failed)"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Delete .vercel/ (the pulled production environment), whatever happened
         if: always()
