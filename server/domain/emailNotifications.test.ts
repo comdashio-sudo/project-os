@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approvalsWaitingEmail, dailyDigestEmail, dailyMailWindow, DAILY_MAIL_HOUR_UTC, preferenceAllows, supportEscalationEmail } from "./emailNotifications";
+import { approvalsWaitingEmail, dailyDigestEmail, dailyMailWindow, DAILY_MAIL_HOUR_UTC, preferenceAllows, stalledUnitsEmail, supportEscalationEmail } from "./emailNotifications";
 
 describe("e-mail notification messages", () => {
   it("an escalation names the ticket and the reason in Arabic first and English after, and links to the app", () => {
@@ -54,5 +54,26 @@ describe("e-mail notification messages", () => {
   it("the once-a-day mails wait for the morning hour and belong to the UTC date", () => {
     expect(dailyMailWindow(new Date(`2026-11-02T0${DAILY_MAIL_HOUR_UTC - 1}:59:00Z`))).toEqual({ day: "2026-11-02", open: false });
     expect(dailyMailWindow(new Date(`2026-11-02T0${DAILY_MAIL_HOUR_UTC}:00:00Z`))).toEqual({ day: "2026-11-02", open: true });
+  });
+});
+
+describe("Q-14 (b): the stalled-units digest", () => {
+  const base = { date: "2026-11-15", projectCode: "PX-1", projectName: "Demo villas", threshold: 3, link: "https://app.example.test/projects/t/p/stalled" };
+  const v = (villa: string, workingDays: number) => ({ villa, blockCode: "B1", workingDays, lastActivity: "Footings" });
+
+  it("nothing stalled means no mail", () => {
+    expect(stalledUnitsEmail({ ...base, newToday: [], continuing: [] })).toBeNull();
+  });
+
+  it("Arabic first: the newly stalled villas, then the continuing ones, with their counts and the link; a long list is cut at 30 lines", () => {
+    const mail = stalledUnitsEmail({ ...base, newToday: [v("7", 4)], continuing: Array.from({ length: 35 }, (_u, i) => v(String(100 + i), 20)) })!;
+    expect(mail.subject).toContain("36");
+    const [arabic] = mail.text.split("\n—\n");
+    expect(arabic.indexOf("متوقفة جديدة اليوم: 1")).toBeLessThan(arabic.indexOf("فيلا 7 (بلوك B1): 4 يوم عمل"));
+    expect(arabic.indexOf("ما زالت متوقفة: 35")).toBeGreaterThan(arabic.indexOf("فيلا 7"));
+    expect(arabic).toContain("و5 أخرى في الشاشة.");
+    expect(arabic).not.toContain("فيلا 134");
+    expect(mail.text).toContain(base.link);
+    expect(mail.html).toContain('dir="rtl"');
   });
 });

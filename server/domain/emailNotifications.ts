@@ -95,3 +95,34 @@ export function membershipInvitationEmail(input: { companyName: string; projectN
     link: input.link,
   });
 }
+
+/** Q-14 (b): one villa line in the 7:00 stalled-units digest. */
+export type StalledDigestVilla = { villa: string; blockCode: string; workingDays: number; lastActivity: string | null };
+
+/** Q-14 (b): the morning summary of one project's stalled villas: those that crossed the threshold today first, then those still stalled. Nothing stalled means no mail. */
+export function stalledUnitsEmail(input: { date: string; projectCode: string; projectName: string; threshold: number; newToday: readonly StalledDigestVilla[]; continuing: readonly StalledDigestVilla[]; link: string | null }): BuiltEmail | null {
+  if (!input.newToday.length && !input.continuing.length) return null;
+  const project = `${input.projectCode} · ${clip(input.projectName, 60)}`;
+  const LIMIT = 30; // a long list is cut: the screen behind the link has every villa
+  const lines = (villas: readonly StalledDigestVilla[], lang: "ar" | "en") => [
+    ...villas.slice(0, LIMIT).map(v => lang === "ar"
+      ? `• فيلا ${v.villa}${v.blockCode ? ` (بلوك ${v.blockCode})` : ""}: ${v.workingDays} يوم عمل بلا حركة${v.lastActivity ? ` · آخر بند: ${clip(v.lastActivity, 60)}` : ""}`
+      : `• Villa ${v.villa}${v.blockCode ? ` (block ${v.blockCode})` : ""}: ${v.workingDays} working days without movement${v.lastActivity ? ` · last item: ${clip(v.lastActivity, 60)}` : ""}`),
+    ...(villas.length > LIMIT ? [lang === "ar" ? `• و${villas.length - LIMIT} أخرى في الشاشة.` : `• and ${villas.length - LIMIT} more on the screen.`] : []),
+  ];
+  const total = input.newToday.length + input.continuing.length;
+  return compose({
+    subject: `الوحدات المتوقفة ${input.date} — ${project}: ${total} | Stalled units ${input.date}: ${total}`,
+    ar: [
+      `مشروع ${project} — فلل بلا حركة أكثر من ${input.threshold} أيام عمل (${input.date}):`,
+      `متوقفة جديدة اليوم: ${input.newToday.length}`, ...lines(input.newToday, "ar"),
+      `ما زالت متوقفة: ${input.continuing.length}`, ...lines(input.continuing, "ar"),
+    ],
+    en: [
+      `Project ${project}: villas with no movement for more than ${input.threshold} working days (${input.date}):`,
+      `Newly stalled today: ${input.newToday.length}`, ...lines(input.newToday, "en"),
+      `Still stalled: ${input.continuing.length}`, ...lines(input.continuing, "en"),
+    ],
+    link: input.link,
+  });
+}

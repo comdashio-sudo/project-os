@@ -11,6 +11,7 @@ import { SectionFailed } from "@/components/ScreenStates";
 const labels = {
   PROJECT_HEALTH_EXCEPTION: { ar: "استثناء في صحة المشروع", en: "Project-health exception", ur: "پروجیکٹ کی صحت کا استثناء" },
   FIELD_REPORT_REVIEWED: { ar: "قرار مراجعة تقرير ميداني", en: "Field-report review decision", ur: "فیلڈ رپورٹ کے جائزے کا فیصلہ" },
+  STALLED_UNITS_DAILY: { ar: "ملخص الوحدات المتوقفة اليوم", en: "Today's stalled units summary", ur: "آج کے رکے ہوئے یونٹس کا خلاصہ" },
   SUPPORT_TICKET_ESCALATED: { ar: "تذكرة دعم تحتاج متابعتك", en: "A support ticket needs you", ur: "ایک سپورٹ ٹکٹ کو آپ کی ضرورت ہے" },
 } as const;
 

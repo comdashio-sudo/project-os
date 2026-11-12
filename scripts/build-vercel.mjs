@@ -72,7 +72,7 @@ writeFileSync(join(output, "config.json"), JSON.stringify({
       { path: "/api/scheduled/emailNotifications", schedule: "0 * * * *" },
       { path: "/api/scheduled/importJobs", schedule: "*/5 * * * *" },
     ]
-    : [{ path: "/api/scheduled/daily", schedule: "0 2 * * *" }],
+    : [{ path: "/api/scheduled/daily", schedule: "0 4 * * *" }] // 04:00 UTC = 07:00 Riyadh: the hour the morning mails (DAILY_MAIL_HOUR_UTC) are made,
 }, null, 2));
 
 console.log(JSON.stringify({ output: ".vercel/output", function: "api", maxDurationSeconds: MAX_DURATION_SECONDS, uploadLimitBytes: Number(UPLOAD_LIMIT_BYTES), crons: PRO_CRONS ? 4 : 1, region: REGION }));
