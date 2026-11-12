@@ -1673,6 +1673,11 @@ export const projectErrorMessages = {
     en: "A table could not be read from this file. Try a clearer file or Excel.",
     ur: "A table could not be read from this file. Try a clearer file or Excel.",
   },
+  PROJECT_OS_SMART_IMPORT_KIND_NOT_DETECTED: {
+    ar: "الملف ليس بشكل النوع المختار. اختر نوعًا آخر أو دع النظام يتعرّف عليه. لم يُكتب شيء.",
+    en: "The file does not have the shape of the chosen type. Pick another type or let the system recognise it. Nothing was written.",
+    ur: "فائل منتخب کردہ قسم کی شکل میں نہیں ہے۔ کوئی اور قسم منتخب کریں یا نظام کو اسے پہچاننے دیں۔ کچھ بھی محفوظ نہیں کیا گیا۔",
+  },
   PROJECT_OS_MATRIX_NOT_RECOGNISED: {
     ar: "لم يُتعرَّف على شكل مصفوفة إنجاز الوحدات في هذا الملف. لم يُكتب شيء.",
     en: "The unit-completion matrix shape was not recognised in this file. Nothing was written.",
