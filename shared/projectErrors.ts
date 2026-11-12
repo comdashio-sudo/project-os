@@ -1623,6 +1623,11 @@ export const projectErrorMessages = {
     en: "The site's old record was already imported into this project; it is imported only once.",
     ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
   },
+  PROJECT_OS_STALL_THRESHOLD_INVALID: {
+    ar: "حد التوقف عدد أيام عمل من 1 إلى 60.",
+    en: "The stall threshold is a number of working days from 1 to 60.",
+    ur: "رکاوٹ کی حد 1 سے 60 تک کام کے دنوں کی تعداد ہے۔",
+  },
   PROJECT_OS_SITE_UPDATE_INVALID: {
     ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
     en: "Nothing was saved: something in the entry must be corrected (a villa that does not exist, a date in the future, a missing field, or an activity that does not apply to the villa's type). The details are under the form.",

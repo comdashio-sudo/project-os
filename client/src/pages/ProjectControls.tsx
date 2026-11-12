@@ -235,6 +235,7 @@ export default function ProjectControls() {
             {([["baseline", pickLanguage(language, { ar: "ملف المشروع الأساسي", en: "Project base file", ur: "پروجیکٹ کی بنیادی فائل" })], ["team", pickLanguage(language, { ar: "فريق المشروع", en: "Project team", ur: "پروجیکٹ ٹیم" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
               <Link key={path} href={`/projects/${tenantId}/${projectId}/${path}`} className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-input px-3 md:min-h-10 text-sm font-medium text-foreground hover:bg-muted">{label}</Link>
             ))}
+            <StalledUnitsLink tenantId={tenantId} projectId={projectId} />
           </nav>
           </PageHeader>
         </section>
@@ -377,4 +378,12 @@ function OperationsGroup({ id, title, children, defaultOpen = false, lazy = fals
   const linked = Boolean(id) && hash === `#${id}`;
   React.useEffect(() => { if (linked && id) document.getElementById(id)?.scrollIntoView?.({ block: "start" }); }, [linked, id]);
   return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
+}
+
+/** Q-14: the project's stalled villas as a link with their count (stalled + long-stalled); a failed reading shows the link without a count. */
+function StalledUnitsLink({ tenantId, projectId }: { tenantId: string; projectId: string }) {
+  const { language } = useLanguage();
+  const stalled = trpc.pmc.stalledUnits.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), staleTime: 60_000 });
+  const count = stalled.isError || !stalled.data ? null : stalled.data.counts.stalled + stalled.data.counts.long;
+  return <Link href={`/projects/${tenantId}/${projectId}/stalled`} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] border border-input px-3 md:min-h-10 text-sm font-medium text-foreground hover:bg-muted" data-stalled-link>{pickLanguage(language, { ar: "الوحدات المتوقفة", en: "Stalled units", ur: "رکی ہوئی یونٹس" })}{count !== null && count > 0 ? <span className="rounded-full bg-warning px-2 text-xs text-warning-foreground"><bdi dir="ltr">{count}</bdi></span> : null}</Link>;
 }

@@ -14,7 +14,7 @@ const text = {
   ar: {
     title: "بطاقة الوحدة", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج",
     activity: "النشاط", allActivities: "كل الأنشطة (سجل الوحدة)", status: "الحالة", openNcrs: "NCR مفتوحة", quality: "الجودة",
-    qcReceipt: "استلام QC", qcReceived: "مستلم", qcNotReceived: "غير مستلم", qcNone: "لم يُسجَّل بعد", accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
+    qcReceipt: "استلام QC", qcReceived: "مستلم", qcNotReceived: "غير مستلم", qcNone: "لم يُسجَّل بعد", stalled: "متوقفة", longStalled: "متوقفة طويلًا", workingDays: "أيام عمل بلا حركة", nextActivity: "البند التالي", accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
     NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل",
     timeline: "الخط الزمني", empty: "لا أحداث بعد لهذه الوحدة.", filter: "النوع", all: "الكل",
@@ -24,7 +24,7 @@ const text = {
   en: {
     title: "Unit card", back: "Back to quick entry", loading: "Loading…", retry: "Retry", unitUnknown: "No unit with that number in this project.", unitLabel: "Unit", zone: "Zone", block: "Block", model: "Model",
     activity: "Activity", allActivities: "All activities (the unit's record)", status: "Status", openNcrs: "Open NCRs", quality: "Quality",
-    qcReceipt: "QC receipt", qcReceived: "Received", qcNotReceived: "Not received", qcNone: "Not recorded yet", accepted: "Inspection accepted", notAccepted: "No accepted inspection", heldByNcr: "The inspection is accepted, but an open NCR keeps it from counting", policy: "Completion rule", ncrRule: "NCR rule",
+    qcReceipt: "QC receipt", qcReceived: "Received", qcNotReceived: "Not received", qcNone: "Not recorded yet", stalled: "Stalled", longStalled: "Long stalled", workingDays: "working days without movement", nextActivity: "Next activity", accepted: "Inspection accepted", notAccepted: "No accepted inspection", heldByNcr: "The inspection is accepted, but an open NCR keeps it from counting", policy: "Completion rule", ncrRule: "NCR rule",
     modeoff: "Off", modewarn: "Warn", modeblock: "Block",
     NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete",
     timeline: "Timeline", empty: "No events yet for this unit.", filter: "Kind", all: "All",
@@ -34,7 +34,7 @@ const text = {
   ur: {
     title: "یونٹ کارڈ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش", unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں۔", unitLabel: "یونٹ", zone: "زون", block: "بلاک", model: "ماڈل",
     activity: "سرگرمی", allActivities: "تمام سرگرمیاں (یونٹ کا ریکارڈ)", status: "حالت", openNcrs: "کھلے NCR", quality: "معیار",
-    qcReceipt: "کیو سی وصولی", qcReceived: "وصول شدہ", qcNotReceived: "وصول نہیں ہوا", qcNone: "ابھی درج نہیں", accepted: "معائنہ قبول شدہ", notAccepted: "کوئی قبول شدہ معائنہ نہیں", heldByNcr: "معائنہ قبول ہے، مگر کھلا NCR اسے شمار ہونے سے روکتا ہے", policy: "تکمیل کا قاعدہ", ncrRule: "NCR کا قاعدہ",
+    qcReceipt: "کیو سی وصولی", qcReceived: "وصول شدہ", qcNotReceived: "وصول نہیں ہوا", qcNone: "ابھی درج نہیں", stalled: "رکی ہوئی", longStalled: "طویل عرصے سے رکی ہوئی", workingDays: "کام کے دن بغیر حرکت", nextActivity: "اگلی سرگرمی", accepted: "معائنہ قبول شدہ", notAccepted: "کوئی قبول شدہ معائنہ نہیں", heldByNcr: "معائنہ قبول ہے، مگر کھلا NCR اسے شمار ہونے سے روکتا ہے", policy: "تکمیل کا قاعدہ", ncrRule: "NCR کا قاعدہ",
     modeoff: "بند", modewarn: "تنبیہ", modeblock: "روک",
     NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیرِ جائزہ", COMPLETE: "مکمل",
     timeline: "ٹائم لائن", empty: "اس یونٹ کے لیے ابھی کوئی واقعہ نہیں۔", filter: "قسم", all: "سب",
@@ -63,6 +63,9 @@ export default function UnitCard() {
   const activity = activities.find(item => item.code === requested);
   // Q-5: the villa's QC receipt beside its site status (pmc_qc_receipts, apart from the progress); a failed reading only hides the line
   const states = trpc.pmc.villaStates.useQuery({ ...scope, villa: unitNumber }, { enabled: enabled && Boolean(unitNumber) });
+  // Q-14: a stalled villa says so on its card (working days since its last movement); a failed reading only hides the line
+  const stall = trpc.pmc.stalledUnits.useQuery(scope, { enabled, staleTime: 60_000 });
+  const stallRow = stall.isError ? undefined : stall.data?.rows.find(row => row.villa === String(Number(unitNumber)) && row.state !== "active");
   const card = trpc.cells.card.useQuery({ ...scope, unitId: unit?.id ?? "", activityDefinitionId: activity?.id }, { enabled: enabled && Boolean(unit) });
   const [kind, setKind] = useState<(typeof KINDS)[number] | "all">("all");
   const [shownCount, setShownCount] = useState(PAGE);
@@ -94,6 +97,7 @@ export default function UnitCard() {
 
   return shell(
     <>
+      {stallRow && <p role="status" data-stall-badge className="rounded-xl border border-warning bg-warning-soft p-3 text-sm text-warning-soft-foreground">{stallRow.state === "long" ? t.longStalled : t.stalled}: <bdi dir="ltr">{stallRow.workingDays}</bdi> {t.workingDays}{stallRow.nextActivity ? <> · {t.nextActivity}: {stallRow.nextActivity.name}</> : null}</p>}
       <section aria-label={t.unitLabel} className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-4">
         <p><span className="block text-xs text-slate-600">{t.unitLabel}</span><b className="text-lg">{data.unit.number}</b></p>
         <p><span className="block text-xs text-slate-600">{t.zone} / {t.block}</span><b>{data.unit.zone} / {data.unit.block}</b></p>
