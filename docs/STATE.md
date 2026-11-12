@@ -1881,6 +1881,17 @@
 | `actionlint` 1.7.7 على كل سير العمل ← 0 | `PROVEN` | محليًا بلا shellcheck (لم يُسمح بتنزيله)؛ CI يشغّله معه |
 | بعد أول نجاح على `main`: D-8 ثم D-36 | `OPEN` | — |
 
+### D-85b: قرار الصلاحية بحالة HTTP، وتأكيد النشر بلا CLI (2026-11-11، الوكيل 1، متابعة مراجعة #249، من `main` @ `feb3728`)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `vercel-access.sh` يقرر من **حالة HTTP** لـ`GET /v9/projects/{id}?teamId=…` (`curl -w '%{http_code}'`، الجسم إلى `/dev/null`) لا من نص الأداة: 200 ← تجربة `vercel pull` ثم `cli=true`؛ 401/403 أو مفتاح غائب ← تحذير و`cli=false`؛ ما سواها (404، 429، 5xx، `000` مهلة أو شبكة) ← `::error` قبل أي ترحيلة. المفتاح يصل `curl` في ملف إعداد (600، يُحذف فورًا)، لا على سطر أوامر، ويُمحى من أي نص يُطبع (`***`) | `PROVEN` (محليًا) / `UNVERIFIED` (على `main`) | `vercelAccess.test.ts` 10/10 لهذا السكربت بـ`curl` و`vercel` مزيّفين: 200 ← `cli=true` والمفتاح في ملف الإعداد وحده وغائب عن argv والملف لا يبقى؛ 403 و401 ← تحذير بلا `pull` |
+| سالب (المراجع): خمس حالات كان نمط D-85 يقرؤها «لا صلاحية» ← كلها خروج 1 بلا قرار: 503 جسمه «403»، 500 فيه «401»، مهلة رسالتها `.403`، 429 «You do not have access»، 404 لمشروع خاطئ؛ و`pull` فاشل بعد 200 يوقف السير والمفتاح في رسالته يُطبع `***` | `PROVEN` (محليًا) | الاختبارات الخمسة `NEGATIVE (D-85b)` واختبار المحو؛ واختبار المصدر يرفض أي `grep`/`=~`/`vercel whoami` في السكربت |
+| تأكيد النشر بلا CLI: `/api/readyz` يعيد `commit` (أول 12 حرفًا من `VERCEL_GIT_COMMIT_SHA`، أو `null`)، والخطوة 6b (بشرط `cli != 'true'`، بعد 6) تشغّل `wait-for-commit.sh` حتى يخدم العنوان العام الالتزام المدفوع وهو `ready`، وتُفشل التشغيل بعد `CONFIRM_WAIT_SECONDS` (900 افتراضًا). لا تراجع آلي في هذا المسار: يدوي (`OWNER_ACTIONS.md` §16) | `PROVEN` (محليًا) / `UNVERIFIED` (على الإنتاج) | `app.test.ts` (readyz: `0123456789ab` ثم `null`)؛ `wait-for-commit.sh` 3/3: ينتظر القديم والانقطاع ثم ينجح، وسالب: قديم بعد المهلة، `commit: null`، صحيح لكن غير جاهز، بلا جواب ← خروج 1؛ `releaseWorkflow.test.ts` 27/27 منها أربع طفرات 6b (حذفها، `always()`، قبل 6، `continue-on-error`) |
+| `actionlint` على سير الإطلاق ← 0 | `PROVEN` | محليًا بلا shellcheck |
+| الأعداد (2026-11-12، على `feb3728` + هذا الطلب، بلا ترحيلة) | `PROVEN` | `pnpm check` 0 · `pnpm build` 0 · `check:secrets` 0 · `pnpm test` ← 3388 ناجحًا و1 فاشل (`deployConfig`: `VERCEL_GIT_COMMIT_SHA` غير مدرج في GO_LIVE) أُصلح بإدراجه ثم 10/10 · `pnpm test:db` ← 630 ناجحًا و6 فاشلة، 20 متخطى (خادم خاص 55486): `emailGate` (3) و`email.notifications` و`pmcEditor` (عزل) و`predeploy` — هذا الطلب لا يمس شيفرة قاعدة البيانات، والمجموعة نفسها تسقط على فرع D-53 المبني على `main`؛ تُعزى للبيئة والساعة لا لهذا الطلب، وتستحق بندًا مستقلًا |
+| حدّ معلن: إن كان «Automatically expose System Environment Variables» مطفأً في مشروع Vercel فـ`commit` يبقى `null` وتفشل 6b بعد المهلة رغم نجاح النشر — الرسالة تقول «unknown commit» | `OPEN` | `OWNER_ACTIONS.md` §16 |
+
 ### D-45 (أ) P-38: نواة التقرير اليومي — الرقم والرأس ومصفوفة العمالة والمعدات و«انسخ من أمس» (2026-11-09، الوكيل 3، من `main` @ `05924eb`)
 
 الترحيلة `drizzle/0025_daily_report_core.sql` (كانت 0023 ثم 0024؛ أُعيد ترقيمها بعد دمج D-81 بـ0023 في `b71a1b9` وD-79 بـ0024 في `049424d`، مع `schemaReady.ts` والأساس). توسيع فقط: `lock_timeout '5s'`، وكتلة `DO` ترفض الإكمال إن غاب أحد المفاتيح الخمسة بالمشروع نفسه أو فرادة الرقم أو خلية العمالة، والرجوع في رأسها. جداول `site_daily_report_labour` و`site_daily_report_equipment` و`project_report_counters`، وأعمدة `report_number` و`wind` و`work_hours` في الرأس و`planned_quantity`/`actual_quantity` في الأسطر.
