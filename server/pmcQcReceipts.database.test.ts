@@ -134,4 +134,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-5: the QC engineer's r
     const [rows] = await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM pmc_qc_receipts WHERE tenantId = ?", [T_OTHER]);
     expect(Number(rows[0].n)).toBe(0);
   });
+
+  it("Q-8: the QC map gives one activity's state on every villa (no receipt = not received; another model = none), reads with project.pmc.read, and refuses another company", async () => {
+    expect(await qc().pmc.qcMap({ ...scope, activityCode: "FOOT" })).toEqual([
+      { unitNumber: 1, modelCode: "A", blockCode: "B1", status: "RECEIVED" },
+      { unitNumber: 2, modelCode: "A", blockCode: "B1", status: "NOT_RECEIVED" },
+      { unitNumber: 3, modelCode: "B", blockCode: "B2", status: "NOT_RECEIVED" },
+      { unitNumber: 4, modelCode: "B", blockCode: "B2", status: "NOT_RECEIVED" },
+    ]);
+    expect((await qc().pmc.qcMap({ ...scope, activityCode: "NO-SUCH" })).map(row => row.status)).toEqual([null, null, null, null]);
+    expect((await callerFor(users.reader, "q5q-reader").pmc.qcMap({ ...scope, activityCode: "FOOT" }))[0]!.status).toBe("RECEIVED");
+    await expect(qc().pmc.qcMap({ tenantId: T_OTHER, projectId: P_OTHER, activityCode: "FOOT" })).rejects.toThrow();
+  });
 });

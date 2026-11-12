@@ -4,23 +4,26 @@ import React from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { Select } from "@/components/ds";
-import { KEY_ORDER, SITE_COLOUR, type ColourKey } from "@/lib/masterPlanColouring";
+import { QC_KEYS, SITE_COLOUR, SITE_KEYS, type ColourKey } from "@/lib/masterPlanColouring";
 
 const text = {
   ar: {
     colourBy: "التلوين حسب", planStatus: "حالة الوحدة في الخطة", block: "البلوك", model: "النموذج", all: "الكل", exportPng: "تصدير PNG", card: "بطاقة الفيلا",
     rule: "تُطابَق الوحدة مع الفيلا برقمها في الرمز (\u2066V-04\u2069 ← الفيلا 4).", noSource: "تعذّر تحميل حالات الموقع؛ التلوين بحالة الوحدة في الخطة.",
-    keys: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل", NOT_IN_MODEL: "ليس في نموذج الفيلا", NOT_MATCHED: "بلا فيلا مطابقة" },
+    source: "المصدر", site: "الموقع", qc: "استلام QC",
+    keys: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم", NOT_IN_MODEL: "ليس في نموذج الفيلا", NOT_MATCHED: "بلا فيلا مطابقة" },
   },
   en: {
     colourBy: "Colour by", planStatus: "Unit status in the plan", block: "Block", model: "Model", all: "All", exportPng: "Export PNG", card: "Villa card",
     rule: "A unit is matched to a villa by the number in its code (V-04 → villa 4).", noSource: "Site statuses could not be loaded; colouring by the plan's unit status.",
-    keys: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete", NOT_IN_MODEL: "Not in the villa's model", NOT_MATCHED: "No matching villa" },
+    source: "Source", site: "Site", qc: "QC receipt",
+    keys: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete", RECEIVED: "Received", NOT_RECEIVED: "Not received", NOT_IN_MODEL: "Not in the villa's model", NOT_MATCHED: "No matching villa" },
   },
   ur: {
     colourBy: "رنگ بلحاظ", planStatus: "منصوبے میں یونٹ کی حالت", block: "بلاک", model: "ماڈل", all: "سب", exportPng: "PNG برآمد کریں", card: "ولا کارڈ",
     rule: "یونٹ کو اس کے کوڈ کے نمبر سے ولا سے ملایا جاتا ہے (\u2066V-04\u2069 ← ولا 4)۔", noSource: "سائٹ کی حالتیں لوڈ نہیں ہو سکیں؛ منصوبے کی یونٹ حالت سے رنگ۔",
-    keys: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیر جائزہ", COMPLETE: "مکمل", NOT_IN_MODEL: "ولا کے ماڈل میں نہیں", NOT_MATCHED: "مطابق ولا نہیں" },
+    source: "ماخذ", site: "سائٹ", qc: "QC وصولی",
+    keys: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیر جائزہ", COMPLETE: "مکمل", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں", NOT_IN_MODEL: "ولا کے ماڈل میں نہیں", NOT_MATCHED: "مطابق ولا نہیں" },
   },
 };
 export const useColourText = () => pickLanguage(useLanguage().language, text);
@@ -32,6 +35,8 @@ export function MasterPlanColourPanel(props: {
   activities: Array<{ code: string; name: string }>;
   activityCode: string;
   onActivity: (code: string) => void;
+  source: "site" | "qc";
+  onSource: (source: "site" | "qc") => void;
   blocks: string[];
   models: string[];
   block: string;
@@ -52,6 +57,9 @@ export function MasterPlanColourPanel(props: {
         </label>
         {props.activityCode ? (
           <>
+            <label className="flex flex-col text-xs">{t.source}
+              <Select className="mt-1" aria-label={t.source} value={props.source} onValueChange={value => props.onSource(value === "qc" ? "qc" : "site")} options={[{ value: "site", label: t.site }, { value: "qc", label: t.qc }]} />
+            </label>
             <label className="flex flex-col text-xs">{t.block}
               <Select className="mt-1" aria-label={t.block} value={props.block || ANY} onValueChange={value => props.onBlock(value === ANY ? "" : value)} options={[{ value: ANY, label: t.all }, ...props.blocks.map(block => ({ value: block, label: block }))]} />
             </label>
@@ -66,7 +74,7 @@ export function MasterPlanColourPanel(props: {
       {props.activityCode && props.counts ? (
         <>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label={t.colourBy} data-colour-key>
-            {KEY_ORDER.filter(key => key !== "NOT_MATCHED" || props.counts![key] > 0).map(key => (
+            {(props.source === "qc" ? QC_KEYS : SITE_KEYS).filter(key => key !== "NOT_MATCHED" || props.counts![key] > 0).map(key => (
               <li key={key} className="flex items-center gap-1" data-key={key}>
                 <span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm ring-1 ring-slate-400" style={{ background: SITE_COLOUR[key] }} />
                 {t.keys[key]}: <b data-count>{props.counts![key]}</b>

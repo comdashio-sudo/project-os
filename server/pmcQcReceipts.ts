@@ -5,7 +5,7 @@
 // activity is still saved but named in `warnings` (the owner's tool warns the same way).
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { authorize, mine, type Scope } from "./pmcService";
 import { resolveVillaBatch } from "./pmcProgressUpdate";
 import { villaKey } from "./wo22Shared";
@@ -95,4 +95,22 @@ export async function pmcVillaStates(input: Scope & { villa: string }) {
   const siteBy = new Map(site.map(row => [row.activityDefinitionId, row.status]));
   const qcBy = new Map(qc.map(row => [row.activityDefinitionId, row]));
   return { villa: villaKey(unit.villaLabel ?? unit.unitNumber), modelCode: unit.modelCode, activities: definitions.map(definition => ({ code: definition.code, name: definition.name, siteStatus: siteBy.get(definition.id) ?? "NOT_STARTED", qcReceived: qcBy.get(definition.id)?.received ?? null, qcOn: qcBy.get(definition.id)?.receivedOn ?? null })) };
+}
+
+/** Q-8: one activity's QC state on every villa, for colouring the master plan: received / not received, or null where the villa's model has no such activity. */
+export async function pmcQcMap(input: Scope & { activityCode: string }) {
+  const db = await authorize(input, "project.pmc.read");
+  const [units, definitions] = await Promise.all([
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code }).from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId))).where(mine(pmcUnits, input)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityDefinitions.code, input.activityCode))),
+  ]);
+  const receipts = definitions.length
+    ? await db.select({ unitId: pmcQcReceipts.unitId, received: pmcQcReceipts.received }).from(pmcQcReceipts).where(and(mine(pmcQcReceipts, input), inArray(pmcQcReceipts.activityDefinitionId, definitions.map(definition => definition.id))))
+    : [];
+  const models = new Set(definitions.map(definition => definition.modelCode));
+  const receivedBy = new Map(receipts.map(row => [row.unitId, row.received]));
+  return units.sort((a, b) => a.unitNumber - b.unitNumber).map(unit => ({
+    unitNumber: unit.unitNumber, modelCode: unit.modelCode, blockCode: unit.blockCode,
+    status: models.has(unit.modelCode) ? ((receivedBy.get(unit.id) ?? false) ? "RECEIVED" as const : "NOT_RECEIVED" as const) : null,
+  }));
 }
