@@ -29,7 +29,7 @@ export type PmcInspectionStepCode = (typeof PMC_INSPECTION_STEPS)[number];
 export type Scope = { userId: number; tenantId: string; projectId: string };
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
 
-export async function authorize(input: Scope, permission: "project.pmc.read" | "project.pmc.update" | "project.pmc.manage") {
+export async function authorize(input: Scope, permission: "project.pmc.read" | "project.pmc.update" | "project.pmc.manage" | "project.qc.receive") {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
