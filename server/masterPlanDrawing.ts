@@ -9,7 +9,8 @@ import { auditLogs, masterPlanDrawingLinks, masterPlanDrawingPolygons, masterPla
 import { countPdfPages, detectDrawingKind, layoutProblem, type DrawingPolygonInput } from "./domain/masterPlanDrawing";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb } from "./db";
 import { safeUploadFileName, takeDirectUpload } from "./directUploadKeys";
-import { storagePut } from "./storage";
+import { storageGetSignedUrl, storagePut } from "./storage";
+import { calibrationProblem, parseBackground, parseCalibration, type DrawingBackground, type DrawingCalibration } from "../shared/masterPlanCalibration";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -32,7 +33,7 @@ async function requireVersion(db: Db, scope: Scope, masterPlanVersionId: string)
 }
 
 async function findDrawing(db: Db, scope: Scope, masterPlanVersionId: string) {
-  const [drawing] = await db.select({ id: masterPlanDrawings.id }).from(masterPlanDrawings).where(and(eq(masterPlanDrawings.masterPlanVersionId, masterPlanVersionId), eq(masterPlanDrawings.tenantId, scope.tenantId), eq(masterPlanDrawings.projectId, scope.projectId))).limit(1);
+  const [drawing] = await db.select({ id: masterPlanDrawings.id, calibration: masterPlanDrawings.calibration, background: masterPlanDrawings.background }).from(masterPlanDrawings).where(and(eq(masterPlanDrawings.masterPlanVersionId, masterPlanVersionId), eq(masterPlanDrawings.tenantId, scope.tenantId), eq(masterPlanDrawings.projectId, scope.projectId))).limit(1);
   return drawing ?? null;
 }
 
@@ -71,13 +72,37 @@ export async function getMasterPlanDrawingLayout(input: Scope & { masterPlanVers
   const db = await open(input, "project.read");
   await requireVersion(db, input, input.masterPlanVersionId);
   const drawing = await findDrawing(db, input, input.masterPlanVersionId);
-  if (!drawing) return { drawingId: null, latestVersion: null, versions: [], polygons: [], links: [] };
+  if (!drawing) return { drawingId: null, latestVersion: null, versions: [], polygons: [], links: [], calibration: null, background: null, backgroundUrl: null };
   const [versions, polygons, links] = await Promise.all([
     versionsOf(db, input, drawing.id),
     db.select({ id: masterPlanDrawingPolygons.id, ref: masterPlanDrawingPolygons.ref, label: masterPlanDrawingPolygons.label, points: masterPlanDrawingPolygons.points }).from(masterPlanDrawingPolygons).where(and(eq(masterPlanDrawingPolygons.drawingId, drawing.id), eq(masterPlanDrawingPolygons.tenantId, input.tenantId), eq(masterPlanDrawingPolygons.projectId, input.projectId))).orderBy(asc(masterPlanDrawingPolygons.ref)),
     db.select({ polygonId: masterPlanDrawingLinks.polygonId, entityId: masterPlanDrawingLinks.entityId, confirmedByUserId: masterPlanDrawingLinks.confirmedByUserId, confirmedAt: masterPlanDrawingLinks.confirmedAt }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawing.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))),
   ]);
-  return { drawingId: drawing.id, latestVersion: versions[0] ?? null, versions, polygons: polygons.map(polygonView), links };
+  const background = parseBackground(drawing.background);
+  // The picture under the shapes: a short-lived link to the newest file, only for a raster drawing (a DXF is drawn from its shapes).
+  const backgroundUrl = background && versions[0] ? await latestFileUrl(db, input, versions[0].id) : null;
+  return { drawingId: drawing.id, latestVersion: versions[0] ?? null, versions, polygons: polygons.map(polygonView), links, calibration: parseCalibration(drawing.calibration), background, backgroundUrl };
+}
+
+async function latestFileUrl(db: Db, scope: Scope, versionId: string) {
+  const [row] = await db.select({ storageKey: masterPlanDrawingVersions.storageKey }).from(masterPlanDrawingVersions).where(and(eq(masterPlanDrawingVersions.id, versionId), eq(masterPlanDrawingVersions.tenantId, scope.tenantId), eq(masterPlanDrawingVersions.projectId, scope.projectId))).limit(1);
+  return row ? storageGetSignedUrl(row.storageKey) : null;
+}
+
+/** Store the two-point calibration of the drawing (Q-7). Points that coincide or a distance that is not a positive number of metres are refused. */
+export async function saveMasterPlanDrawingCalibration(input: Scope & { masterPlanVersionId: string; calibration: DrawingCalibration }) {
+  const db = await open(input, "project.write");
+  await requireVersion(db, input, input.masterPlanVersionId);
+  const drawingId = await requireDrawing(db, input, input.masterPlanVersionId);
+  const problem = calibrationProblem(input.calibration);
+  if (problem) throw refuse("BAD_REQUEST", `PROJECT_OS_MASTER_PLAN_CALIBRATION_${problem}`);
+  const calibration = { a: input.calibration.a, b: input.calibration.b, meters: input.calibration.meters };
+  await db.transaction(async tx => {
+    const updated = await tx.update(masterPlanDrawings).set({ calibration: JSON.stringify(calibration), updatedAt: new Date() }).where(and(eq(masterPlanDrawings.id, drawingId), eq(masterPlanDrawings.tenantId, input.tenantId), eq(masterPlanDrawings.projectId, input.projectId))).returning({ id: masterPlanDrawings.id });
+    if (updated.length !== 1) throw refuse("NOT_FOUND", "PROJECT_OS_MASTER_PLAN_DRAWING_NOT_FOUND");
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.drawing_calibrated", entityType: "master_plan_drawing", entityId: drawingId, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, ...calibration }) });
+  });
+  return { drawingId, calibration };
 }
 
 /** Every stored version of the drawing, newest first. Nothing is ever removed. */
@@ -92,7 +117,7 @@ export async function listMasterPlanDrawingVersions(input: Scope & { masterPlanV
  * Replace the drawing's polygons with the given set. A polygon with an `id` is updated; one without is added; one that is left out is removed,
  * and a polygon that still carries a confirmed link cannot be removed (the link is unlinked first, with its own audit row).
  */
-export async function saveMasterPlanDrawingLayout(input: Scope & { masterPlanVersionId: string; polygons: DrawingPolygonInput[] }) {
+export async function saveMasterPlanDrawingLayout(input: Scope & { masterPlanVersionId: string; polygons: DrawingPolygonInput[]; background?: DrawingBackground | null }) {
   const db = await open(input, "project.write");
   await requireVersion(db, input, input.masterPlanVersionId);
   const drawingId = await requireDrawing(db, input, input.masterPlanVersionId);
@@ -112,6 +137,8 @@ export async function saveMasterPlanDrawingLayout(input: Scope & { masterPlanVer
   const updated = input.polygons.length - added;
   try {
     await db.transaction(async tx => {
+      // A DXF clears the raster background (null); leaving it out keeps what is stored.
+      if (input.background !== undefined) await tx.update(masterPlanDrawings).set({ background: input.background ? JSON.stringify(input.background) : null, updatedAt: new Date() }).where(and(eq(masterPlanDrawings.id, drawingId), eq(masterPlanDrawings.tenantId, input.tenantId), eq(masterPlanDrawings.projectId, input.projectId)));
       if (removedIds.length > 0) await tx.delete(masterPlanDrawingPolygons).where(and(inArray(masterPlanDrawingPolygons.id, removedIds), eq(masterPlanDrawingPolygons.drawingId, drawingId), eq(masterPlanDrawingPolygons.tenantId, input.tenantId), eq(masterPlanDrawingPolygons.projectId, input.projectId)));
       for (const polygon of input.polygons) {
         if (polygon.id === undefined) continue;
