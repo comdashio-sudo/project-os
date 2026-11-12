@@ -65,7 +65,7 @@ export async function renderDailyReportPdf(model: DailyReportDocument): Promise<
   };
   table(model.header.map(([label]) => label), [model.header.map(([, value]) => value)]);
   for (const section of model.sections) {
-    room(60); doc.fontSize(12); line(section.title, left, y, width); y += 22;
+    room(section.tables.length ? 110 : 60); doc.fontSize(12); line(section.title, left, y, width); y += 22; // a title stays with its table's header and first row
     for (const t of section.tables) table(t.columns, t.rows, t.total);
     for (const photo of section.images ?? []) { room(200); doc.image(photo.bytes, left + width / 4, y, { fit: [width / 2, 170], align: "center" }); y += 175; doc.fontSize(9); line(photo.caption, left, y, width); y += 18; }
   }
