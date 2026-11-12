@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, membershipRoles, memberships, projectReportApprovers, roles, users } from "../drizzle/schema";
+import { auditLogs, membershipInvitations, membershipRoles, memberships, projectReportApprovers, roles, users } from "../drizzle/schema";
 import { projectGate, violates } from "./projectProfile";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -34,6 +34,16 @@ async function team(db: Db, input: Scope, membershipIds?: string[]) {
 export async function listProjectTeam(input: Scope) {
   const db = await projectGate(input, ["project.manage"]);
   return team(db, input);
+}
+
+/** Q-12 (c): the invitations still waiting for this project (made with scope «project» and this project's id): who, as which role, until when. project.manage. */
+export async function listProjectInvitations(input: Scope) {
+  const db = await projectGate(input, ["project.manage"]);
+  const rows = await db.select({ id: membershipInvitations.id, email: membershipInvitations.email, roleName: roles.name, expiresAt: membershipInvitations.expiresAt })
+    .from(membershipInvitations).innerJoin(roles, and(eq(roles.id, membershipInvitations.roleId), eq(roles.tenantId, membershipInvitations.tenantId)))
+    .where(and(eq(membershipInvitations.tenantId, input.tenantId), eq(membershipInvitations.scopeType, "project"), eq(membershipInvitations.scopeId, input.projectId), eq(membershipInvitations.status, "pending")));
+  const now = Date.now();
+  return rows.filter(row => row.expiresAt.getTime() > now).sort((a, b) => a.email.localeCompare(b.email));
 }
 
 export async function getReportApprovers(input: Scope) {

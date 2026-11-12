@@ -96,4 +96,12 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the invitation e-mail (Q
     expect(sent).toHaveLength(0);
     expect(await count("SELECT COUNT(*) AS n FROM membership_invitations WHERE email = ?", ["intruder@im.example.test"])).toBe(0);
   });
+
+  it("the project's team page lists the project's pending invitations only (not company-wide ones); another company is refused", async () => {
+    const waiting = await callers.owner.projects.team.invitations({ tenantId, projectId: PROJECT });
+    expect(waiting.map(item => [item.email, item.roleName])).toEqual([["new.engineer@im.example.test", "Site engineer"]]);
+    expect(await code(callers.outsider.projects.team.invitations({ tenantId, projectId: PROJECT }))).not.toBe("no error");
+    expect(await code(callers.outsider.projects.team.invitations({ tenantId: otherTenantId, projectId: PROJECT }))).not.toBe("no error");
+  });
 });
+
