@@ -25,7 +25,7 @@ import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
 import { INTERFACE_LANGUAGES } from "@shared/interfaceLanguages";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
-import { exportSiteDailyReport } from "./dailyReportExport";
+import { EXPORT_FORMATS, exportSiteDailyReport } from "./dailyReportExport";
 import { getAccountLanguage, setAccountLanguage } from "./userLanguage";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
@@ -468,7 +468,7 @@ export const appRouter = router({
     review: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["approve", "reject"]), note: z.string().trim().max(500).optional(), dryRun: z.boolean().optional() })).mutation(({ ctx, input }) => reviewSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
     attachPhoto: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), uploadKey: z.string().min(10).max(600), fileName: z.string().trim().min(1).max(255), caption: z.string().trim().max(255).optional(), zone: z.string().trim().max(80).optional(), pmcUnitId: z.string().uuid().optional() })).mutation(({ ctx, input }) => attachSiteReportPhotoForTenant({ userId: ctx.user.id, ...input })),
     // D-47: the report's exports, read through the same gate as reading it; a signed link to the file written to storage
-    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), format: z.enum(["xlsx"]), locale: z.enum(EXPORT_LOCALES).default("ar") })).mutation(({ ctx, input }) => exportSiteDailyReport({ userId: ctx.user.id, ...input })),
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), format: z.enum(EXPORT_FORMATS), locale: z.enum(EXPORT_LOCALES).default("ar") })).mutation(({ ctx, input }) => exportSiteDailyReport({ userId: ctx.user.id, ...input })),
     // D-45 (c): the review step of the chain (prepare → review → approve)
     check: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["pass", "return"]), note: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => checkSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
   }),

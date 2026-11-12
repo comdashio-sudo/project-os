@@ -3,7 +3,7 @@
 // Every figure comes from the report's own labour rows (siteReports.get, which also checks who may read it): nothing is typed, and every total is a SUM formula over the
 // cells above it, stored with its computed result, so the file stays right when someone edits it and reads right before Excel recalculates. The file is written to
 // storage under the company's prefix and handed back as a signed link (a request body is capped at 4.5 MB on Vercel); an audit row records each export.
-// Word and PDF (the sections 0–10) are part (b).
+// Part (b): Word and PDF with the sections 0–10 (server/reportExport/), from one document model.
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import { and, eq } from "drizzle-orm";
@@ -12,6 +12,9 @@ import { getDb } from "./db";
 import { getSiteDailyReportForTenant } from "./siteReports";
 import { storageGetSignedUrl, storagePut } from "./storage";
 import type { ExportLocale } from "../shared/exportLocale";
+import { buildDailyReportDocument } from "./reportExport/dailyReportModel";
+import { renderDailyReportDocx } from "./reportExport/dailyReportDocx";
+import { renderDailyReportPdf } from "./reportExport/dailyReportPdf";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 type LabourRow = { companyId: string; companyName: string; roleName: string; category: string; shift: string; headcount: number };
@@ -90,16 +93,20 @@ export async function buildLabourWorkbook(input: { reportNumber: string | null; 
 }
 
 /** siteReports.export: the report read through the same gate as reading it, the file written to storage, a signed link back, an audit row. */
-export async function exportSiteDailyReport(input: Scope & { reportId: string; format: "xlsx"; locale: ExportLocale }) {
+export const EXPORT_FORMATS = ["xlsx", "docx", "pdf"] as const;
+const CONTENT_TYPE = { xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pdf: "application/pdf" } as const;
+export async function exportSiteDailyReport(input: Scope & { reportId: string; format: (typeof EXPORT_FORMATS)[number]; locale: ExportLocale }) {
   const read = await getSiteDailyReportForTenant(input); // tenant, project and read permission are checked here
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const companies = (await db.select({ id: projectCompanies.id, name: projectCompanies.name, role: projectCompanies.role }).from(projectCompanies)
     .where(and(eq(projectCompanies.tenantId, input.tenantId), eq(projectCompanies.projectId, input.projectId)))) as Company[];
   companies.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "main" ? -1 : 1));
-  const bytes = await buildLabourWorkbook({ reportNumber: read.report.reportNumber, reportDate: read.report.reportDate, locale: input.locale, companies, labour: read.labour as LabourRow[] });
-  const name = `${(read.report.reportNumber ?? read.report.reportDate).replace(/[^A-Za-z0-9-]/g, "_")}-labour.xlsx`;
-  const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/exports/daily/${read.report.id}/${randomUUID()}-${name}`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  const bytes = input.format === "xlsx"
+    ? await buildLabourWorkbook({ reportNumber: read.report.reportNumber, reportDate: read.report.reportDate, locale: input.locale, companies, labour: read.labour as LabourRow[] })
+    : await (async () => { const model = await buildDailyReportDocument(db, input, read, input.locale); return input.format === "pdf" ? renderDailyReportPdf(model) : renderDailyReportDocx(model); })();
+  const name = `${(read.report.reportNumber ?? read.report.reportDate).replace(/[^A-Za-z0-9-]/g, "_")}${input.format === "xlsx" ? "-labour" : ""}.${input.format}`;
+  const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/exports/daily/${read.report.id}/${randomUUID()}-${name}`, bytes, CONTENT_TYPE[input.format]);
   await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.exported", entityType: "site_daily_report", entityId: read.report.id, metadata: JSON.stringify({ projectId: input.projectId, format: input.format, locale: input.locale, bytes: bytes.length }) });
   return { fileName: name, url: await storageGetSignedUrl(stored.key), bytes: bytes.length };
 }
