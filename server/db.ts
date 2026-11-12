@@ -10,6 +10,7 @@ import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
 import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
 import { createHash, randomBytes } from "node:crypto";
+import { sendInvitationEmail } from "./invitationEmail";
 import { logError } from "./_core/logger";
 import {
   type InsertUser,
@@ -750,7 +751,9 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
     await tx.insert(membershipInvitations).values({ id: invitationId, tenantId: input.tenantId, email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, tokenHash, status: "pending", invitedByUserId: input.actorUserId, expiresAt });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.actorUserId, action: "tenant.member_invited", entityType: "membership_invitation", entityId: invitationId, metadata: JSON.stringify({ email, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, expiresAt: expiresAt.toISOString() }) });
   });
-  return { invitationId, email, expiresAt, inviteToken };
+  // Q-12 (c): the invitation is mailed (company, project and role named); never fails the invitation, which already stands
+  const emailOutcome = await sendInvitationEmail(db, { tenantId: input.tenantId, invitationId, email, inviteToken, roleId: role.id, scopeType: input.scopeType, scopeId: input.scopeId ?? null, expiresAt }).catch(() => "failed" as const);
+  return { invitationId, email, expiresAt, inviteToken, emailed: emailOutcome === "sent", emailOutcome };
 }
 
 /** Accepting proves possession of the invitation token, and the invitation names a company the caller cannot see yet: it runs as system, then the caller learns the company. */

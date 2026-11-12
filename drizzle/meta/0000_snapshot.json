@@ -1,5 +1,5 @@
 {
-  "id": "319a6664-5483-40e2-8132-4cd9b6aba675",
+  "id": "eb2618a9-2bd5-4721-bfdf-d8886c1b071c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -6171,7 +6171,13 @@
           "name": "recipient_user_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "recipient_email": {
+          "name": "recipient_email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false
         },
         "kind": {
           "name": "kind",
@@ -6326,7 +6332,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "email_outbox_recipient_check": {
+          "name": "email_outbox_recipient_check",
+          "value": "\"email_outbox\".\"recipient_user_id\" IS NOT NULL OR \"email_outbox\".\"recipient_email\" IS NOT NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.employee_assignments": {
@@ -30502,7 +30513,8 @@
       "values": [
         "support_escalation",
         "approvals_waiting",
-        "daily_digest"
+        "daily_digest",
+        "membership_invitation"
       ]
     },
     "public.email_outbox_status": {
