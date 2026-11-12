@@ -19,7 +19,7 @@ export function Segmented({ options, value, onValueChange, label, layout = "inli
     <div role="radiogroup" aria-label={label} className={cn("rounded-[var(--radius)] border border-input bg-muted p-0.5", layout === "grid" ? cn("grid grid-cols-2 gap-0.5", SM_COLUMNS[columns]) : "inline-flex")}>
       {options.map((option, index) => { const active = option.value === value; return (
         <button key={option.value} type="button" role="radio" aria-checked={active} tabIndex={active ? 0 : -1} onClick={() => onValueChange(option.value)} onKeyDown={event => move(event, index)}
-          className={cn("rounded-[calc(var(--radius)-2px)] px-4 text-sm font-medium transition-colors", layout === "grid" ? "min-h-11 px-2" : "min-h-10", active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{option.label}</button>); })}
+          className={cn("rounded-[calc(var(--radius)-2px)] px-4 text-sm font-medium transition-colors", layout === "grid" ? "min-h-11 px-2" : "min-h-11 md:min-h-10", active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{option.label}</button>); })}
     </div>
   );
 }

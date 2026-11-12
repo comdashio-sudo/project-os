@@ -76,6 +76,7 @@ import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
+import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
@@ -186,6 +187,10 @@ export const appRouter = router({
     setUnitActivityStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid(), status: z.enum(PMC_STATUSES), verificationStatusId: z.string().uuid().nullable().optional(), note: z.string().trim().max(1000).optional() })).mutation(({ ctx, input }) => setPmcUnitActivityStatus({ userId: ctx.user.id, ...input })),
     // D-80 (work order 21): the PMC table editors (server/pmcEditorService.ts). Read: project.pmc.read; write: project.pmc.manage; the PMC licence feature on both.
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
+    // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
+    progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
+    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcProgress({ userId: ctx.user.id, ...input })),
+    progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     createUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), from: z.number().int().min(1), to: z.number().int().min(1) })).mutation(({ ctx, input }) => createPmcUnits({ userId: ctx.user.id, ...input })),
     saveActivityWeights: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), weights: z.array(z.object({ activityDefinitionId: z.string().uuid(), weightPercent: z.number().min(0).max(100) })).min(1).max(500) })).mutation(({ ctx, input }) => savePmcActivityWeights({ userId: ctx.user.id, ...input })),
     statusGrid: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid().optional(), from: z.number().int().min(1).optional(), to: z.number().int().min(1).optional() })).query(({ ctx, input }) => getPmcStatusGrid({ userId: ctx.user.id, ...input })),

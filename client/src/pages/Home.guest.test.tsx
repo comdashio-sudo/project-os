@@ -12,8 +12,8 @@ vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button ty
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/const", () => ({ startLogin: () => state.startLogin() }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
-vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
-vi.mock("@/lib/trpc", () => ({ trpc: { tenant: { mine: { useQuery: () => ({ data: [], isLoading: false, isSuccess: true, isError: false, refetch: vi.fn() }) } }, selfService: { plans: { useQuery: () => ({ data: [], isLoading: false }) }, signup: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } } } }));
+vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useLocation: () => ["/", vi.fn()] }));
+vi.mock("@/lib/trpc", () => ({ trpc: { accessSummary: { mine: { useQuery: () => ({ data: undefined }) } }, tenant: { mine: { useQuery: () => ({ data: [], isLoading: false, isSuccess: true, isError: false, refetch: vi.fn() }) } }, selfService: { plans: { useQuery: () => ({ data: [], isLoading: false }) }, signup: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } } } }));
 
 afterEach(() => { cleanup(); state.startLogin.mockClear(); state.isArabic = false; });
 
