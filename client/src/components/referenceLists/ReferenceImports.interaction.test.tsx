@@ -94,6 +94,8 @@ describe("equipment list import", () => {
     const label = h.runner!.errorLabel as (code: string) => string;
     expect(label("EQUIPMENT_COUNT_WITH_PLATE")).not.toBe("EQUIPMENT_COUNT_WITH_PLATE");
     expect(label("UNKNOWN_CODE")).toBe("UNKNOWN_CODE");
+    // QA of #251: the importer's own row codes read as sentences too
+    for (const rowCode of ["IMPORT_REQUIRED_VALUE_MISSING", "IMPORT_INVALID_NUMBER"]) expect(label(rowCode)).not.toBe(rowCode);
   });
 
   it("names the Arabic columns on an Arabic page", () => {

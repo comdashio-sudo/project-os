@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
 import { equipmentImportHeaders } from "@shared/importTemplateHeaders";
 import { projectErrorMessages } from "@shared/projectErrors";
+import { ledgerErrorLabel } from "@/lib/ledgerMessages";
 
 // D-84 (b): the two Excel files of the reference lists (#236). The equipment list goes through the direct-upload importer (module «equipment»: analyse, read
 // the report, confirm). The units Tracker goes through the smart import as a unit matrix: the server reads it, counts in a rolled-back transaction what it
@@ -44,7 +45,8 @@ export function isolateLatin(text: string): React.ReactNode {
 
 /** A refusal or row problem in the page's language when the product knows its code; otherwise the code itself, so nothing is hidden. */
 export function rowProblem(code: string, language: Language): string {
-  return code in projectErrorMessages ? projectErrorMessages[code as keyof typeof projectErrorMessages][language] : code;
+  // QA of #251: the importer's row codes (IMPORT_REQUIRED_VALUE_MISSING, IMPORT_INVALID_NUMBER, …) have their sentences in the ledger importers' catalogue
+  return ledgerErrorLabel(code, language) ?? (code in projectErrorMessages ? projectErrorMessages[code as keyof typeof projectErrorMessages][language] : code);
 }
 
 export function EquipmentImport({ tenantId, projectId, onImported }: { tenantId: string; projectId: string; onImported: () => void }) {
