@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   error: null as unknown,
   layout: undefined as unknown,
   calibrate: vi.fn(async () => ({})),
+  siteMap: { activities: [{ code: "BLK", name: "Blockwork" }], units: [] as unknown[] } as unknown,
+  siteMapError: null as unknown,
 }));
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
@@ -20,6 +22,7 @@ vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOr
 vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWorker }));
 vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: "en", isArabic: false, isRtl: false }) }));
 // The saved layout (G-189) is a separate hook; its queries and mutations are stubbed here, the hook itself is exercised by its own tests.
 vi.mock("@/lib/trpc", () => {
@@ -28,6 +31,7 @@ vi.mock("@/lib/trpc", () => {
     trpc: {
       useUtils: () => ({ masterPlans: { drawingLayout: { fetch: vi.fn(), invalidate: vi.fn() } } }),
       directUploads: { create: mutation() },
+      pmc: { siteMap: { useQuery: (input: { activityCode?: string }) => ({ data: state.siteMapError ? undefined : input.activityCode ? { activities: [{ code: "BLK", name: "Blockwork" }], units: (state.siteMap as { units: unknown[] }).units } : { activities: [{ code: "BLK", name: "Blockwork" }], units: [] }, error: state.siteMapError }) } },
       masterPlans: {
         list: { useQuery: () => ({ data: state.data, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }) },
         drawingLayout: { useQuery: () => ({ data: state.layout, isLoading: false, error: null, refetch: vi.fn() }) },
@@ -82,6 +86,7 @@ afterEach(() => {
   state.error = null;
   state.layout = undefined;
   state.calibrate.mockClear();
+  state.siteMapError = null;
   vi.restoreAllMocks();
 });
 
@@ -332,6 +337,52 @@ describe("MasterPlanDrawing", () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove the shape" }));
       expect(screen.getByText("Not linked: 3 of 3")).toBeTruthy();
       expect(screen.queryByRole("button", { name: /Shape 4/ })).toBeNull();
+    });
+  });
+
+  describe("Q-8 (b): colouring by a PMC activity's site status", () => {
+    async function colouredDrawing() {
+      state.data = plan();
+      (state.siteMap as { units: unknown[] }).units = [
+        { unitNumber: 1, modelCode: "A", blockCode: "B1", status: "COMPLETE" },
+        { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "IN_PROGRESS" },
+      ];
+      const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+      await upload(container, DRAWING);
+      await waitFor(() => screen.getByText(/Proposed: 2/));
+      for (const name of [/Shape 1 · Proposed/, /Shape 2 · Proposed/]) { fireEvent.click(screen.getByRole("button", { name })); fireEvent.click(screen.getByRole("button", { name: "Confirm" })); }
+      fireEvent.change(screen.getByLabelText("Colour by"), { target: { value: "BLK" } });
+      return container;
+    }
+
+    it("colours each linked shape by its villa's status (matched by the number in the code) and counts them in the key", async () => {
+      const container = await colouredDrawing();
+      const colours = Array.from(container.querySelectorAll("polygon[data-colour]")).map(node => node.getAttribute("data-colour"));
+      expect(colours).toEqual(["COMPLETE", "IN_PROGRESS"]);
+      expect(container.querySelector('[data-key="COMPLETE"] [data-count]')?.textContent).toBe("1");
+      expect(container.querySelector('[data-key="IN_PROGRESS"] [data-count]')?.textContent).toBe("1");
+      expect(container.querySelector('[data-key="NOT_STARTED"] [data-count]')?.textContent).toBe("0");
+      // the unconfirmed third shape keeps its neutral colour: a proposal is never coloured as a villa
+      expect(container.querySelectorAll("polygon[data-colour]")).toHaveLength(2);
+    });
+
+    it("the block filter dims the other villas, and a linked shape opens its villa card", async () => {
+      const container = await colouredDrawing();
+      fireEvent.change(screen.getByLabelText("Block"), { target: { value: "B2" } });
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      expect(first!.getAttribute("fill-opacity")).toBe("0.08");
+      expect(second!.getAttribute("fill-opacity")).not.toBe("0.08");
+      fireEvent.click(screen.getByRole("button", { name: /Shape 1 · Confirmed/ }));
+      expect(screen.getByRole("link", { name: "Villa card" }).getAttribute("href")).toBe("/m/t/p/unit/1?activity=BLK");
+    });
+
+    it("site statuses that fail to load say so, and the plan's own status colouring stays", async () => {
+      state.siteMapError = { message: "forbidden" };
+      state.data = plan();
+      const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+      await upload(container, DRAWING);
+      await waitFor(() => screen.getByText(/Site statuses could not be loaded/));
+      expect(container.querySelectorAll("polygon[data-colour]")).toHaveLength(0);
     });
   });
 
