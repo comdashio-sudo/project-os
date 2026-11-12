@@ -568,6 +568,21 @@ export const projectErrorMessages = {
     en: "The period is invalid: choose a real date for the start of the week or a day of the month.",
     ur: "مدت درست نہیں: ہفتے کے آغاز کے لیے یا مہینے کے کسی دن کی درست تاریخ منتخب کریں۔",
   },
+  PROJECT_OS_WEEKLY_REPORT_PHOTO_NOT_FOUND: {
+    ar: "صورة مختارة ليست من صور التقارير اليومية لهذا المشروع، فلم يُحفظ شيء.",
+    en: "A chosen photo is not one of this project's daily-report photos, so nothing was saved.",
+    ur: "منتخب کردہ تصویر اس پروجیکٹ کی روزانہ رپورٹ کی تصاویر میں سے نہیں، اس لیے کچھ محفوظ نہیں ہوا۔",
+  },
+  PROJECT_OS_WEEKLY_REPORT_PHOTOS_TOO_MANY: {
+    ar: "اختر 24 صورة على الأكثر للتقرير الأسبوعي.",
+    en: "Choose at most 24 photos for the weekly report.",
+    ur: "ہفتہ وار رپورٹ کے لیے زیادہ سے زیادہ 24 تصاویر منتخب کریں۔",
+  },
+  PROJECT_OS_WEEKLY_REPORT_EXISTS: {
+    ar: "حُفظ تقرير لهذا الأسبوع للتو من مكان آخر. أعد فتحه ثم احفظ.",
+    en: "A report for this week was just saved elsewhere. Open it again, then save.",
+    ur: "اس ہفتے کی رپورٹ ابھی کہیں اور محفوظ ہوئی ہے۔ اسے دوبارہ کھولیں، پھر محفوظ کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",
