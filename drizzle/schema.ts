@@ -2255,6 +2255,10 @@ export const pmcUnitActivityHistory = pgTable(
   table => [index("pmc_history_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt), foreignKey({ columns: [table.unitActivityProgressId], foreignColumns: [pmcUnitActivityProgress.id], name: "pmc_hist_progress_fk" })],
 );
 
+// Q-5: the QC engineer's receipt of a villa's activity — «received» or «not received» — kept apart from the site's progress (pmc_unit_activity_progress), so the
+// villa's card shows both. One row per villa and activity; every change is an event (from, to, the date chosen, who, when). Migration 0032.
+export const pmcQcReceipts = pgTable(
+  "pmc_qc_receipts",
 // Q-14: per project, after how many WORKING days without movement a started villa counts as stalled (3 by default; over 14 is long-stalled). Migration 0033.
 export const projectStallSettings = pgTable(
   "project_stall_settings",
@@ -2262,11 +2266,33 @@ export const projectStallSettings = pgTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
     projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    unitId: varchar("unit_id", { length: 36 }).notNull().references(() => pmcUnits.id),
+    activityDefinitionId: varchar("activity_definition_id", { length: 36 }).notNull(),
+    received: boolean("received").notNull(),
+    receivedOn: date("received_on", { mode: "string" }).notNull(),
     thresholdDays: integer("threshold_days").default(3).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
+  // the generated name of the activity key is longer than 63 characters (PostgreSQL would cut it): named here
+  table => [foreignKey({ columns: [table.activityDefinitionId], foreignColumns: [pmcActivityDefinitions.id], name: "pmc_qc_receipts_activity_fk" }), uniqueIndex("pmc_qc_receipts_unit_activity_unique").on(table.tenantId, table.projectId, table.unitId, table.activityDefinitionId), index("pmc_qc_receipts_tenant_project_activity_idx").on(table.tenantId, table.projectId, table.activityDefinitionId)],
+);
+
+export const pmcQcReceiptEvents = pgTable(
+  "pmc_qc_receipt_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    receiptId: varchar("receipt_id", { length: 36 }).notNull().references(() => pmcQcReceipts.id),
+    fromReceived: boolean("from_received"),
+    toReceived: boolean("to_received").notNull(),
+    receivedOn: date("received_on", { mode: "string" }).notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id),
+    changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [index("pmc_qc_receipt_events_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt)],
   table => [uniqueIndex("project_stall_settings_project_unique").on(table.tenantId, table.projectId), check("project_stall_settings_threshold_check", sql`${table.thresholdDays} >= 1 AND ${table.thresholdDays} <= 60`)],
 );
 

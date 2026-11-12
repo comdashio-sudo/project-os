@@ -24,6 +24,7 @@ vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   siteReports: { options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) } },
+  pmc: { villaStates: { useQuery: () => ({ data: { villa: "12", modelCode: "A", activities: [{ code: "WALLS", name: "Walls", siteStatus: "COMPLETE", qcReceived: true, qcOn: "2026-11-11" }] }, isError: false, error: null }) } },
   cells: { card: { useQuery: (input: { unitId: string; activityDefinitionId?: string }) => { h.cardInput(input); return { data: { unit: { id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1" }, activity: input.activityDefinitionId ? { id: "a-walls", code: "WALLS", name: "Walls" } : null, status: input.activityDefinitionId ? "COMPLETE" : null, qc: input.activityDefinitionId ? { policy: "block", accepted: !h.held, ncrMode: "block", heldByNcr: h.held } : null, openNcrs: 1, events: all().slice(0, h.events) }, isLoading: false, error: null, refetch: vi.fn() }; } } },
 } }));
 
@@ -63,7 +64,7 @@ describe("UnitCard", () => {
     render(<UnitCard />);
     expect(h.cardInput).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", unitId: "u12", activityDefinitionId: "a-walls" });
     const cell = document.querySelector("[data-cell-status]") as HTMLElement;
-    expect(cell.textContent).toContain("Status: Complete"); expect(cell.textContent).toContain("Quality: Inspection accepted"); expect(cell.textContent).toContain("Completion rule: Block"); expect(cell.textContent).toContain("NCR rule: Block");
+    expect(cell.textContent).toContain("Status: Complete"); expect(cell.textContent).toContain("Quality: Inspection accepted"); expect(cell.textContent).toContain("QC receipt: Received · 2026-11-11"); expect(cell.textContent).toContain("Completion rule: Block"); expect(cell.textContent).toContain("NCR rule: Block");
   });
 
   it("says plainly when an accepted inspection is held back by an open NCR", () => {
