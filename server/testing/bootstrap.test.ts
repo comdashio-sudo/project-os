@@ -178,9 +178,9 @@ describe("Data API closing when Supabase answers 500 (launch run 35)", () => {
 });
 
 describe("owner email from the workflow input", () => {
-  // The run that failed (run 26 on main) received "comdashio@gmail.com " with a trailing space and stopped in the first guard, before any call.
+  // The run that failed (run 26 on main) received "owner@dashio.example.test " with a trailing space and stopped in the first guard, before any call.
   it("accepts an address with a trailing space or newline, and returns it trimmed", () => {
-    expect(normalizeOwnerEmail("comdashio@gmail.com ")).toBe("comdashio@gmail.com");
+    expect(normalizeOwnerEmail("owner@dashio.example.test ")).toBe("owner@dashio.example.test");
     expect(normalizeOwnerEmail(" owner@example.test\n")).toBe("owner@example.test");
   });
   it("still refuses something that is not an address, in Arabic, and does not echo it", () => {
