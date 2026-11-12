@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { auditLogs, projectCompanies } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getSiteDailyReportForTenant } from "./siteReports";
-import { storageGetSignedUrl, storagePut } from "./storage";
+import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
 import type { ExportLocale } from "../shared/exportLocale";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -100,6 +100,8 @@ export async function exportSiteDailyReport(input: Scope & { reportId: string; f
   const bytes = await buildLabourWorkbook({ reportNumber: read.report.reportNumber, reportDate: read.report.reportDate, locale: input.locale, companies, labour: read.labour as LabourRow[] });
   const name = `${(read.report.reportNumber ?? read.report.reportDate).replace(/[^A-Za-z0-9-]/g, "_")}-labour.xlsx`;
   const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/exports/daily/${read.report.id}/${randomUUID()}-${name}`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.exported", entityType: "site_daily_report", entityId: read.report.id, metadata: JSON.stringify({ projectId: input.projectId, format: input.format, locale: input.locale, bytes: bytes.length }) });
+  // no file without its audit row: if the row cannot be written the stored file is removed and the export fails
+  try { await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.exported", entityType: "site_daily_report", entityId: read.report.id, metadata: JSON.stringify({ projectId: input.projectId, format: input.format, locale: input.locale, bytes: bytes.length }) }); }
+  catch (error) { await storageDelete(stored.key).catch(() => undefined); throw error; }
   return { fileName: name, url: await storageGetSignedUrl(stored.key), bytes: bytes.length };
 }

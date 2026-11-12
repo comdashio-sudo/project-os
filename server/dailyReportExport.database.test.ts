@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
@@ -70,6 +71,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's labou
     companiesOf.main = (await callers.manager.projects.companies.save({ ...at(), name: "Main Contractor (example)", role: "main" })).id;
     companiesOf.subA = (await callers.manager.projects.companies.save({ ...at(), name: "Sub Alpha (example)", role: "sub" })).id;
     companiesOf.subB = (await callers.manager.projects.companies.save({ ...at(), name: "Sub Beta (example)", role: "sub" })).id;
+    await callers.owner.projects.companies.save({ ...at(B), name: "Project B Co (example)", role: "sub" });
     await callers.manager.projects.labourRoles.seedDefaults({ ...at(), language: "ar" });
     const roles = await callers.manager.projects.labourRoles.list(at());
     const role = (key: string) => roles.find(item => item.defaultKey === key)!.id;
@@ -86,10 +88,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's labou
   it("the labour sheet opens, carries the five blocks, and every block's totals equal the report's own computed totals, as SUM formulas", async () => {
     const exported = await callers.engineer.siteReports.export({ ...at(), reportId, format: "xlsx", locale: "ar" });
     expect(exported.fileName).toMatch(/-labour\.xlsx$/);
-    const book = new ExcelJS.Workbook();
-    await book.xlsx.load(Buffer.from(await (await fetch(exported.url)).arrayBuffer()) as never);
+    const bytes = Buffer.from(await (await fetch(exported.url)).arrayBuffer()); const book = new ExcelJS.Workbook();
+    await book.xlsx.load(bytes as never);
     const sheet = book.worksheets[0];
     expect(sheet.views[0]).toMatchObject({ rightToLeft: true });
+    // every formula carries its computed value (zeros included), so a reader that does not recalculate shows it: no <f> without a <v> after it
+    const xml = await (await JSZip.loadAsync(bytes)).file("xl/worksheets/sheet1.xml")!.async("string");
+    const formulas = xml.match(/<c [^>]*>(?:(?!<\/c>).)*?<f>.*?<\/c>/g) ?? [];
+    expect(formulas.length).toBeGreaterThan(20); expect(formulas.filter(c => !/<\/f><v>-?\d+(\.\d+)?<\/v>/.test(c))).toEqual([]); expect(formulas.filter(c => c.includes("<v>0</v>")).length).toBeGreaterThan(0);
     const { totals } = await callers.engineer.siteReports.get({ ...at(), reportId });
     expect(totals.labour).toMatchObject({ total: 54, direct: 47, indirect: 7 });
     // block 1 (indirect) and block 2 (direct): the grand total in the last column, and the formula behind it
@@ -104,6 +110,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's labou
     expect([2, 3, 4, 5, 6].map(c => valueOf(summary.getCell(c)))).toEqual([36, 11, 6, 1, totals.labour.total]);
     // block 5: each company's detail equals its own total
     for (const item of totals.labour.byCompany) expect(lastValue(blockTotal(sheet, `تفصيل — ${item.companyName}`)), item.companyName).toBe(item.headcount);
+    // a company of project B (same tenant) is never on project A's sheet
+    const strings = await (await JSZip.loadAsync(bytes)).file("xl/sharedStrings.xml")!.async("string"); expect(strings).toContain("Sub Beta"); expect(strings).not.toContain("Project B Co");
     expect(Number((await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'site_report.exported' AND entityId = ?", [tenantId, reportId]))[0][0].n)).toBe(1);
   });
 
