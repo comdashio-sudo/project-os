@@ -39,6 +39,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   createSmartUpload: "mints a signed upload URL for the smart import box and records nothing; the import is recorded (and audited) by confirmSmartImport, which writes smart_import_confirmed and hands the rows to registerImportUpload",
   analyzeSmartUpload: "reads the uploaded original and answers what it understood; nothing is imported. The only record it can make is the AI-reading usage counter (smart_reading_usage), when the owner has turned the AI reading on",
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
+  createCompanyLogoUpload: "mints a signed upload URL and records nothing; the logo is recorded (and audited) by tenant.updateProfile, which takes the uploadKey",
   previewProjectBoq: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectBoq, is audited)",
   previewProjectLabour: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectLabour, is audited)",
   previewProjectCashFlow: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectCashFlow, is audited)",
