@@ -160,6 +160,8 @@ export async function understand(bytes: Uint8Array, options: UnderstandOptions):
     return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), kind: "scheduleUpdate", kindConfidence: 0.97, sheet: m.sheet, candidates: [{ sheet: m.sheet, kind: "scheduleUpdate", score: 0.97, rows: m.rows.length }],
       scheduleUpdate: { sheet: m.sheet, headerRow: m.headerRow, rows: m.rows.length, withStart: m.rows.filter(r => r.actualStart).length, withFinish: m.rows.filter(r => r.actualFinish).length, ignoredSheets: m.ignoredSheets, badDates: m.badDates.length }, warnings: m.badDates.length ? ["UPDATE_DATES_UNREADABLE"] : [] };
   }
+  // a kind read by its structure (not by columns), chosen but not found in the file: said plainly. KINDS has no column definition for it, so the table reader cannot go on
+  if (options.kind && !(options.kind in KINDS)) return { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(item => item.name), warnings: ["KIND_NOT_DETECTED"] };
   const tables = grid.sheets.map(sheet => ({ sheet, table: tabulate(sheet) })).filter((item): item is { sheet: SheetGrid; table: Table } => item.table !== null && item.table.dataRows.length > 0);
   const result: Understanding = { ...empty, encoding: grid.encoding, sheetNames: grid.sheets.map(sheet => sheet.name) };
   if (!tables.length) return { ...result, warnings: ["NO_TABLE_FOUND"] };

@@ -1,9 +1,9 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { getReportPeriod } from "./reportPeriods";
 import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
 import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
 import { discardImportAttempt, rollbackImport } from "./importAttempts";
-import { EXPORT_LOCALES } from "@shared/exportLocale";
 import { TRPCError } from "@trpc/server";
 import { SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, SLUG_RULE } from "@shared/slug";
 import { API_SCOPES, createApiKeyForManager, listApiKeysForManager, revokeApiKeyForManager } from "./integrations/apiKeys";
@@ -25,6 +25,8 @@ import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel 
 import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
 import { INTERFACE_LANGUAGES } from "@shared/interfaceLanguages";
+import { EXPORT_LOCALES } from "@shared/exportLocale";
+import { exportSiteDailyReport } from "./dailyReportExport";
 import { getAccountLanguage, setAccountLanguage } from "./userLanguage";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
@@ -448,6 +450,10 @@ export const appRouter = router({
     reportSectionIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), product: z.enum(["EXECUTIVE", "PMO", "PROJECT"]), sectionKey: z.string().trim().min(2).max(80).regex(/^[a-z0-9:_-]+$/), state: z.enum(["error", "partial"]), projectId: z.string().uuid().optional() }).superRefine((value, context) => { if (value.product === "PROJECT" && !value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); if (value.product !== "PROJECT" && value.projectId) context.addIssue({ code: "custom", message: "PROJECT_OS_REQUEST_FAILED" }); })).mutation(({ ctx, input }) => reportDashboardSectionIssueForTenant({ userId: ctx.user.id, ...input })),
   }),
   // Work order 12, items 4 to 7: the site's daily report, the consultant's submittals, the company's quality policy, and the card of a unit or an activity.
+  // D-48 (§5): the period engine — a week (seven days from its first) or a calendar month, added up from the daily reports (server/reportPeriods.ts). Read only.
+  reportPeriods: router({
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(["week", "month"]), anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), includeUnapproved: z.boolean().optional() })).query(({ ctx, input }) => getReportPeriod({ userId: ctx.user.id, ...input })),
+  }),
   siteReports: router({
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
@@ -466,6 +472,8 @@ export const appRouter = router({
     submit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).mutation(({ ctx, input }) => submitSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
     review: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["approve", "reject"]), note: z.string().trim().max(500).optional(), dryRun: z.boolean().optional() })).mutation(({ ctx, input }) => reviewSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
     attachPhoto: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), uploadKey: z.string().min(10).max(600), fileName: z.string().trim().min(1).max(255), caption: z.string().trim().max(255).optional(), zone: z.string().trim().max(80).optional(), pmcUnitId: z.string().uuid().optional() })).mutation(({ ctx, input }) => attachSiteReportPhotoForTenant({ userId: ctx.user.id, ...input })),
+    // D-47: the report's exports, read through the same gate as reading it; a signed link to the file written to storage
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), format: z.enum(["xlsx"]), locale: z.enum(EXPORT_LOCALES).default("ar") })).mutation(({ ctx, input }) => exportSiteDailyReport({ userId: ctx.user.id, ...input })),
     // D-45 (c): the review step of the chain (prepare → review → approve)
     check: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["pass", "return"]), note: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => checkSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
   }),

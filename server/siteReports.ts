@@ -36,7 +36,7 @@ export type ReportTomorrowInput = { area?: string; activity: string; quantity?: 
 type Sections = { materials?: ReportMaterialInput[]; hse?: ReportHseInput[]; obstacleItems?: ReportObstacleInput[]; tomorrow?: ReportTomorrowInput[] };
 export type ReportInput = Sections & { reportDate: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
 
-async function authorize(input: Scope, permission: string | readonly string[]) {
+export async function authorize(input: Scope, permission: string | readonly string[]) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
@@ -306,7 +306,7 @@ export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: 
 
 // ------------------------------------------------------------------------------------------------------------------------------ reading
 
-const READ_PERMISSIONS = ["project.read", "project.field.manage", "project.manage"] as const;
+export const READ_PERMISSIONS = ["project.read", "project.field.manage", "project.manage"] as const;
 
 export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number }) {
   const db = await authorize(input, READ_PERMISSIONS);
