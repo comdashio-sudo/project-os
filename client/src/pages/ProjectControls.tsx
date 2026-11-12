@@ -52,6 +52,7 @@ import { enumLabel } from "@/lib/labels";
 import { WriteGate, useCan } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
+import { GridEditor, gridNumber } from "@/components/GridEditor";
 
 const today = new Date().toISOString().slice(0, 10);
 const emptyPlanningQuery = { data: undefined, isLoading: false, error: null, refetch: async () => undefined };
@@ -104,6 +105,9 @@ export default function ProjectControls() {
   const createWbs = trpc.wbs.create.useMutation({ onSuccess: refresh });
   const createActivity = trpc.activities.create.useMutation({ onSuccess: refresh });
   const createBudget = trpc.budgets.create.useMutation({ onSuccess: refresh });
+  // D-74 (b): the sheets save each row by the same procedures, through their own mutations, so a row's refusal is said on its row and not again above the page
+  const sheetWbs = trpc.wbs.create.useMutation();
+  const sheetBudget = trpc.budgets.create.useMutation();
   const createCost = trpc.costs.createActual.useMutation({ onSuccess: refresh });
   const createProgress = trpc.progress.create.useMutation({ onSuccess: refresh });
   const saveEvm = trpc.controls.saveEvmSnapshot.useMutation({ onSuccess: refresh });
@@ -175,6 +179,14 @@ export default function ProjectControls() {
   const healthStatusLabel = (status: string) => ({ green: pickLanguage(language, { ar: "أخضر", en: "Green", ur: "سبز" }), amber: pickLanguage(language, { ar: "كهرماني", en: "Amber", ur: "نارنجی" }), red: pickLanguage(language, { ar: "أحمر", en: "Red", ur: "سرخ" }) }[status] ?? status);
   const healthConfidenceLabel = (confidence: string) => ({ low: pickLanguage(language, { ar: "منخفضة", en: "Low", ur: "کم" }), medium: pickLanguage(language, { ar: "متوسطة", en: "Medium", ur: "متوسط" }), high: pickLanguage(language, { ar: "مرتفعة", en: "High", ur: "زیادہ" }) }[confidence] ?? confidence);
   const dateLabel = (value: Date | string | null) => value ? formatDate(value, language) : "—";
+  const sheet = pickLanguage(language, {
+    ar: { open: "إدخال جدولي (لصق من Excel)", wbs: "جدول بنود هيكل تجزئة العمل", budget: "جدول بنود الميزانية", wbsCode: "رمز بند WBS (فارغ = المشروع)", unknownWbs: "لا بند WBS بهذا الرمز في المشروع" },
+    en: { open: "Sheet entry (paste from Excel)", wbs: "WBS items sheet", budget: "Budget lines sheet", wbsCode: "WBS code (empty = the project)", unknownWbs: "No WBS item with this code in the project" },
+    ur: { open: "جدولی اندراج (Excel سے پیسٹ کریں)", wbs: "WBS آئٹمز کی شیٹ", budget: "بجٹ کی مدوں کی شیٹ", wbsCode: "WBS کوڈ (خالی = پروجیکٹ)", unknownWbs: "پروجیکٹ میں اس کوڈ کا کوئی WBS آئٹم نہیں" },
+  });
+  const wbsIdByCode = new Map(data.wbs.map(item => [item.code.trim().toLowerCase(), item.id]));
+  // a sheet row is saved by the same procedure as the one-row form; a refusal comes back in the person's language, on its row
+  const saveRow = async (run: () => Promise<unknown>) => { try { await run(); } catch (error) { throw new Error(getLocalizedProjectError(error, language)); } };
   // Every upload and add button reaches a group that lives in the overview tab. From the PMC tab the page switches to the overview first and
   // jumps once it is drawn (#217); an add button then puts the focus on the group's first field, as "+ Add" does inside a section.
   const goToOverviewLane = (id: string, focusFirstField = false) => {
@@ -274,7 +286,11 @@ export default function ProjectControls() {
                 <Input aria-label={t.name} placeholder={t.name} value={wbs.name} onChange={event => setWbs({ ...wbs, name: event.target.value })} required />
                 <Input aria-label={t.planned} placeholder={t.planned} type="number" min="0" value={wbs.plannedValue} onChange={event => setWbs({ ...wbs, plannedValue: event.target.value })} />
                 <Button disabled={disabled}><Plus className="me-1 h-4 w-4" />{createWbs.isPending ? t.submitting : t.addWbs}</Button>
-              </CheckedForm></WriteGate>
+              </CheckedForm>
+              <details className="group mt-4"><summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary">{sheet.open}</summary>
+                <div className="mt-3"><GridEditor label={sheet.wbs} columns={[{ key: "code", label: t.code, required: true }, { key: "name", label: t.name, required: true, minLength: 2 }, { key: "plannedValue", label: t.planned, kind: "number", min: 0 }]}
+                  onSaveRow={row => saveRow(() => sheetWbs.mutateAsync({ tenantId, projectId, code: row.code.trim(), name: row.name.trim(), ...(row.plannedValue.trim() ? { plannedValue: gridNumber(row.plannedValue) } : {}) }))} onSaved={refresh} /></div>
+              </details></WriteGate>
               {data.wbs.length ? <div className="mt-5 divide-y rounded-xl border">{data.wbs.map(item => <div key={item.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold">{item.code} · {item.name}</p><p className="mt-1 text-xs text-muted-foreground">{t.planned}: {item.plannedValue}</p></div><Badge variant="secondary">{item.progressPercent}%</Badge></div>)}</div> : <p className="mt-5 text-sm text-muted-foreground">{t.emptyWbs}</p>}
             </section>
 
@@ -292,8 +308,13 @@ export default function ProjectControls() {
               {data.activities.length ? <div className="mt-5 divide-y rounded-xl border">{data.activities.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{item.code} · {item.name}</p><p className="mt-1 text-xs text-muted-foreground">{dateLabel(item.plannedStartAt)} — {dateLabel(item.plannedFinishAt)}</p></div><Badge variant="secondary">{statusLabel(item.status)}</Badge></div>)}</div> : <p className="mt-5 text-sm text-muted-foreground">{t.noActivities}</p>}
             </section>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={Banknote} title={t.budget} /><WriteGate permission={"project.budget.manage"} projectId={projectId} reason={{ ar: "لا تملك صلاحية إدخال بنود الميزانية، فالشاشة للعرض فقط.", en: "You do not have permission to enter budget lines; this view is read-only for you.", ur: "آپ کو بجٹ کی سطریں درج کرنے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><CheckedForm className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createBudget.mutate({ tenantId, projectId, ...(budget.wbsItemId === "project" ? {} : { wbsItemId: budget.wbsItemId }), costCode: budget.costCode, originalAmount: Number(budget.originalAmount), currentAmount: Number(budget.currentAmount) }); setBudget({ wbsItemId: "project", costCode: "", originalAmount: "", currentAmount: "" }); }}><WbsSelect value={budget.wbsItemId} onChange={wbsItemId => setBudget({ ...budget, wbsItemId })} label={t.link} projectLabel={t.projectLevel} items={data.wbs} /><Input aria-label={t.costCode} placeholder={t.costCode} value={budget.costCode} onChange={event => setBudget({ ...budget, costCode: event.target.value })} required /><Input aria-label={t.original} placeholder={t.original} type="number" min="0" value={budget.originalAmount} onChange={event => setBudget({ ...budget, originalAmount: event.target.value })} required /><Input aria-label={t.current} placeholder={t.current} type="number" min="0" value={budget.currentAmount} onChange={event => setBudget({ ...budget, currentAmount: event.target.value })} required /><Button className="w-full" disabled={disabled}>{createBudget.isPending ? t.submitting : t.addBudget}</Button></CheckedForm></WriteGate></section>
+            <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+              <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={Banknote} title={t.budget} /><WriteGate permission={"project.budget.manage"} projectId={projectId} reason={{ ar: "لا تملك صلاحية إدخال بنود الميزانية، فالشاشة للعرض فقط.", en: "You do not have permission to enter budget lines; this view is read-only for you.", ur: "آپ کو بجٹ کی سطریں درج کرنے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><CheckedForm className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createBudget.mutate({ tenantId, projectId, ...(budget.wbsItemId === "project" ? {} : { wbsItemId: budget.wbsItemId }), costCode: budget.costCode, originalAmount: Number(budget.originalAmount), currentAmount: Number(budget.currentAmount) }); setBudget({ wbsItemId: "project", costCode: "", originalAmount: "", currentAmount: "" }); }}><WbsSelect value={budget.wbsItemId} onChange={wbsItemId => setBudget({ ...budget, wbsItemId })} label={t.link} projectLabel={t.projectLevel} items={data.wbs} /><Input aria-label={t.costCode} placeholder={t.costCode} value={budget.costCode} onChange={event => setBudget({ ...budget, costCode: event.target.value })} required /><Input aria-label={t.original} placeholder={t.original} type="number" min="0" value={budget.originalAmount} onChange={event => setBudget({ ...budget, originalAmount: event.target.value })} required /><Input aria-label={t.current} placeholder={t.current} type="number" min="0" value={budget.currentAmount} onChange={event => setBudget({ ...budget, currentAmount: event.target.value })} required /><Button className="w-full" disabled={disabled}>{createBudget.isPending ? t.submitting : t.addBudget}</Button></CheckedForm>
+                <details className="group mt-4"><summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary">{sheet.open}</summary>
+                  <div className="mt-3"><GridEditor label={sheet.budget} columns={[{ key: "wbsCode", label: sheet.wbsCode }, { key: "costCode", label: t.costCode, required: true }, { key: "originalAmount", label: t.original, kind: "number", required: true, min: 0 }, { key: "currentAmount", label: t.current, kind: "number", required: true, min: 0 }]}
+                    validateRow={row => (row.wbsCode.trim() && !wbsIdByCode.has(row.wbsCode.trim().toLowerCase()) ? `${sheet.wbsCode}: ${sheet.unknownWbs}` : null)}
+                    onSaveRow={row => saveRow(() => sheetBudget.mutateAsync({ tenantId, projectId, ...(row.wbsCode.trim() ? { wbsItemId: wbsIdByCode.get(row.wbsCode.trim().toLowerCase())! } : {}), costCode: row.costCode.trim(), originalAmount: gridNumber(row.originalAmount), currentAmount: gridNumber(row.currentAmount) }))} onSaved={refresh} /></div>
+                </details></WriteGate></section>
               <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={Activity} title={t.cost} /><WriteGate permission={"project.cost.enter"} projectId={projectId} reason={{ ar: "لا تملك صلاحية تسجيل التكلفة الفعلية، فالشاشة للعرض فقط.", en: "You do not have permission to record actual cost; this view is read-only for you.", ur: "آپ کو اصل لاگت درج کرنے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><CheckedForm className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createCost.mutate({ tenantId, projectId, ...(cost.wbsItemId === "project" ? {} : { wbsItemId: cost.wbsItemId }), amount: Number(cost.amount), incurredAt: new Date(`${cost.incurredAt}T00:00:00.000Z`) }); setCost({ wbsItemId: "project", amount: "", incurredAt: today }); }}><WbsSelect value={cost.wbsItemId} onChange={wbsItemId => setCost({ ...cost, wbsItemId })} label={t.link} projectLabel={t.projectLevel} items={data.wbs} /><Input aria-label={t.amount} placeholder={t.amount} type="number" min="0.01" step="0.01" value={cost.amount} onChange={event => setCost({ ...cost, amount: event.target.value })} required /><Input aria-label={t.date} type="date" value={cost.incurredAt} onChange={event => setCost({ ...cost, incurredAt: event.target.value })} required /><Button className="w-full" disabled={disabled}>{createCost.isPending ? t.submitting : t.addCost}</Button></CheckedForm></WriteGate></section>
             </div>
           </OperationsGroup>
