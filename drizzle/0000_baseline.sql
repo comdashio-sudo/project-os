@@ -416,6 +416,7 @@ CREATE TABLE "companies" (
 	"status" "companies_status" DEFAULT 'active' NOT NULL,
 	"default_locale" "companies_default_locale" DEFAULT 'ar' NOT NULL,
 	"require_two_step" boolean DEFAULT false NOT NULL,
+	"logo_key" varchar(512),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

@@ -39,6 +39,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   createSmartUpload: "mints a signed upload URL for the smart import box and records nothing; the import is recorded (and audited) by confirmSmartImport, which writes smart_import_confirmed and hands the rows to registerImportUpload",
   analyzeSmartUpload: "reads the uploaded original and answers what it understood; nothing is imported. The only record it can make is the AI-reading usage counter (smart_reading_usage), when the owner has turned the AI reading on",
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
+  createCompanyLogoUpload: "mints a signed upload URL and records nothing; the logo is recorded (and audited) by tenant.updateProfile, which takes the uploadKey",
   exportProjectData: "a read-only export: it delegates to createDataExport or exportLedgerData, each of which writes the data_export_generated audit row",
   buildImportTemplateForUser: "returns a blank template generated from the importer's field table: no tenant or project data is read or written",
   beginEnrolment: "two-step verification belongs to a person, not a company: audit_logs requires a company and the platform owner has none (docs/STATE.md, work order 20, C); a failed code is logged by the server",
