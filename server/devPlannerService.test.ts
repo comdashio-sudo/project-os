@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exampleInput } from "./domain/devPlanner";
-import { plannerInputSchema, summarizePlan } from "./devPlannerService";
+import { plannerInputSchema, plannerMonths, summarizePlan } from "./devPlannerService";
 
 // Q-11 (b): the plan as the screen reads it, from the 120-villa example the engine is pinned to (part a: likely 752.7 days, peak 629).
 describe("development planner summary", () => {
@@ -23,4 +23,15 @@ describe("development planner summary", () => {
     expect(plannerInputSchema.safeParse({ ...ok, villaModels: [{ ...ok.villaModels[0], bua: 0 }] }).success).toBe(false);
     expect(plannerInputSchema.safeParse({ ...ok, extra: 1 }).success).toBe(false);
   });
+
+  it("Q-11 c: the plan becomes consecutive months from the chosen construction start; labour = the histogram; cash shares total exactly 100%", () => {
+    const m = plannerMonths(exampleInput(), "2027-11");
+    expect(m.labour[0]).toEqual({ month: "2027-11-01", trade: "", workers: m.labour[0].workers });
+    expect(m.labour[2].month).toBe("2028-01-01");
+    expect(m.peak).toBe(629);
+    expect(m.cash.at(-1)!.cumulative).toBe(1);
+    expect(m.cash.reduce((sum, row) => sum + row.fraction, 0)).toBeCloseTo(1, 8);
+    expect(m.cash.every((row, i) => i === 0 || row.cumulative >= m.cash[i - 1].cumulative)).toBe(true);
+  });
 });
+

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-11 (b): the planner screen. Fabricated numbers only.
-const h = vi.hoisted(() => ({ run: vi.fn(), data: undefined as unknown, exportFn: vi.fn() }));
+const h = vi.hoisted(() => ({ run: vi.fn(), data: undefined as unknown, exportFn: vi.fn(), apply: vi.fn() }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t1" }) }));
 vi.mock("@/lib/trpc", () => ({
@@ -13,6 +13,10 @@ vi.mock("@/lib/trpc", () => ({
     devPlanner: {
       run: { useMutation: () => ({ mutate: h.run, isPending: false, error: null, data: h.data }) },
       export: { useMutation: () => ({ mutate: h.exportFn, isPending: false, error: null }) },
+      applyToProject: { useMutation: () => ({ mutate: h.apply, isPending: false, error: null, isSuccess: false }) },
+    },
+    projects: { list: { useQuery: () => ({ isSuccess: true, data: [{ id: "p1", code: "VIL-1", name: "Villas" }] }) } },
+    _unused: {
     },
   },
 }));
@@ -36,5 +40,6 @@ describe("DevPlanner", () => {
     expect(result).toContain("24.7 months");
     expect(result).toContain("Frame");
     expect(result).toContain("Peak: 629");
+    expect(result).toContain("Apply to a project");
   });
 });

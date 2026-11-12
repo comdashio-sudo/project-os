@@ -105,19 +105,7 @@ export async function saveProjectCashFlow(input: Scope & { fileBase64: string; f
   const analysis = await readCashFlow(input.fileBase64, input.format);
   const refusal = cashFlowRefusal(analysis);
   if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: prefixed(refusal.startsWith("IMPORT_") ? "IMPORT_FILE_INVALID" : refusal) });
-  await db.transaction(async tx => {
-    const months = analysis.months.map(row => row.month);
-    await tx.delete(pmcPlanMonths).where(and(mine(pmcPlanMonths, input), notInArray(pmcPlanMonths.month, months)));
-    for (const row of analysis.months) {
-      const values = { plannedPercent: row.fraction.toFixed(8), cumulativePercent: row.cumulative.toFixed(8), plannedCost: null, importId: null };
-      await tx.insert(pmcPlanMonths).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, month: row.month, ...values })
-        .onConflictDoUpdate({ target: [pmcPlanMonths.projectId, pmcPlanMonths.month], set: values });
-    }
-    // the proof of the write is what is now stored: exactly the file's months, no more and no fewer
-    const [stored] = await tx.select({ n: count() }).from(pmcPlanMonths).where(mine(pmcPlanMonths, input));
-    if (Number(stored?.n ?? 0) !== months.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
-    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.cash_flow_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ months: months.length, first: months[0], last: months[months.length - 1] }) });
-  });
+  await writePlanMonthsAudited(db, input, analysis.months, "file");
   return getBaselineStatus(input);
 }
 
@@ -203,13 +191,7 @@ export async function saveProjectLabour(input: Scope & { fileBase64: string; for
   const analysis = await readLabour(input.fileBase64, input.format);
   const refusal = labourRefusal(analysis);
   if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
-  await db.transaction(async tx => {
-    await tx.delete(projectPlannedLabour).where(mine(projectPlannedLabour, input));
-    const inserted = await tx.insert(projectPlannedLabour).values(analysis.rows.map(row => ({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, month: row.month, trade: row.trade, workers: row.workers }))).returning({ id: projectPlannedLabour.id });
-    // the proof of the write is one returned row per row of the file
-    if (inserted.length !== analysis.rows.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
-    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.planned_labour_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ rows: analysis.rows.length, peak: analysis.peak }) });
-  });
+  await writePlannedLabourAudited(db, input, analysis.rows, analysis.peak, "file");
   return getBaselineStatus(input);
 }
 
@@ -218,4 +200,34 @@ export async function labourTemplate(input: Scope & { locale: "ar" | "en" | "ur"
   const headers = input.locale === "ar" ? ["الشهر", "المهنة", "العمالة"] : input.locale === "ur" ? ["مہینہ", "پیشہ", "مزدور"] : ["Month", "Trade", "Workers"];
   const bytes = await buildSpreadsheet({ sheetName: "Labour", headers, rows: [["2027-01", "Masons", 20], ["2027-01", "Carpenters", 12], ["2027-02", "Masons", 35]], format: "xlsx" });
   return { fileName: "planned-labour.xlsx", base64: bytes.toString("base64") };
+}
+
+// ------------------------------------------------------------------ the two writers, shared by the file uploads and the development planner (Q-11 c)
+
+type GateDb = Awaited<ReturnType<typeof projectGate>>;
+/** Replaces the project's planned months (fractions): a month given is written, a month no longer given is removed; proven by the count; audited with its source. */
+export async function writePlanMonthsAudited(db: GateDb, input: Scope, rows: Array<{ month: string; fraction: number; cumulative: number }>, source: "file" | "planner") {
+  await db.transaction(async tx => {
+    const months = rows.map(row => row.month);
+    await tx.delete(pmcPlanMonths).where(and(mine(pmcPlanMonths, input), notInArray(pmcPlanMonths.month, months)));
+    for (const row of rows) {
+      const values = { plannedPercent: row.fraction.toFixed(8), cumulativePercent: row.cumulative.toFixed(8), plannedCost: null, importId: null };
+      await tx.insert(pmcPlanMonths).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, month: row.month, ...values })
+        .onConflictDoUpdate({ target: [pmcPlanMonths.projectId, pmcPlanMonths.month], set: values });
+    }
+    // the proof of the write is what is now stored: exactly the given months, no more and no fewer
+    const [stored] = await tx.select({ n: count() }).from(pmcPlanMonths).where(mine(pmcPlanMonths, input));
+    if (Number(stored?.n ?? 0) !== months.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.cash_flow_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ source, months: months.length, first: months[0], last: months[months.length - 1] }) });
+  });
+}
+
+/** Replaces the project's planned labour (the plan is one set: a row no longer given goes); proven by one returned row per row; audited with its source. */
+export async function writePlannedLabourAudited(db: GateDb, input: Scope, rows: Array<{ month: string; trade: string; workers: number }>, peak: number, source: "file" | "planner") {
+  await db.transaction(async tx => {
+    await tx.delete(projectPlannedLabour).where(mine(projectPlannedLabour, input));
+    const inserted = rows.length ? await tx.insert(projectPlannedLabour).values(rows.map(row => ({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, month: row.month, trade: row.trade, workers: row.workers }))).returning({ id: projectPlannedLabour.id }) : [];
+    if (inserted.length !== rows.length) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.planned_labour_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ source, rows: rows.length, peak }) });
+  });
 }
