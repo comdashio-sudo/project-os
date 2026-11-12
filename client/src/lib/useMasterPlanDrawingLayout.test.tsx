@@ -2,6 +2,7 @@
 // Synthetic layout only. Q-8: a shape that leaves the drawing loses its saved link BEFORE the shapes are replaced (the server refuses to delete a linked shape).
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { useMasterPlanDrawingLayout } from "./useMasterPlanDrawingLayout";
 
 const calls: string[] = [];
 const current = {
@@ -23,7 +24,6 @@ vi.mock("@/lib/trpc", () => {
     },
   } };
 });
-const { useMasterPlanDrawingLayout } = await import("./useMasterPlanDrawingLayout");
 
 describe("saving a drawing whose linked shape left it (Q-8)", () => {
   it("unlinks the leaving shape first, then replaces the shapes, and leaves the kept link alone", async () => {
