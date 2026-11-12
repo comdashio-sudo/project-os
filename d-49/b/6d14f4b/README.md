@@ -1,0 +1,1 @@
+D-49 (b) 6d14f4b: the weekly report editor; open-* is the week as opened, saved-* after the journey (suggest from the figures, choose two photos, save). Mocked tRPC replies; the photos are drawn placeholders.
