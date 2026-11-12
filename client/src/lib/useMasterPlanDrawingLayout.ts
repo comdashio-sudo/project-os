@@ -9,6 +9,7 @@ import type { ProjectUnit } from "./dxf/dxfMatch";
 import type { DxfDrawing } from "./dxf/dxfReader";
 import type { ReviewItem } from "./dxf/dxfReview";
 import { layoutToReview, linkChanges, polygonsToSave } from "./masterPlanDrawingLayout";
+import type { DrawingBackground, DrawingCalibration } from "@shared/masterPlanCalibration";
 
 const NO_VERSION = "00000000-0000-4000-8000-000000000000";
 
@@ -25,12 +26,13 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
   const saveLayout = trpc.masterPlans.saveDrawingLayout.useMutation();
   const linkUnit = trpc.masterPlans.linkDrawingUnit.useMutation();
   const unlinkUnit = trpc.masterPlans.unlinkDrawingUnit.useMutation();
+  const calibrate = trpc.masterPlans.saveDrawingCalibration.useMutation();
 
   const layout = layoutQuery.data;
   // The saved layout as the review editor shows it; null when nothing is saved yet, so the screen keeps what the person loaded.
   const savedReview = useMemo(() => (layout && layout.polygons.length > 0 ? layoutToReview(layout, input.units) : null), [layout, input.units]);
 
-  async function save(args: { file: File | null; drawing: DxfDrawing; items: ReviewItem[] }): Promise<SaveOutcome> {
+  async function save(args: { file: File | null; drawing: DxfDrawing; items: ReviewItem[]; background?: DrawingBackground | null }): Promise<SaveOutcome> {
     try {
       if (args.file) {
         const uploadKey = await upload.upload(args.file, args.file.type || "application/octet-stream");
@@ -39,7 +41,7 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
       const current = await utils.masterPlans.drawingLayout.fetch(scope);
       const idByRef = new Map(current.polygons.map(polygon => [polygon.ref, polygon.id]));
       const refByPolygonId = new Map(current.polygons.map(polygon => [polygon.id, polygon.ref]));
-      const saved = await saveLayout.mutateAsync({ ...scope, polygons: polygonsToSave(args.drawing, idByRef) });
+      const saved = await saveLayout.mutateAsync({ ...scope, polygons: polygonsToSave(args.drawing, idByRef), ...(args.background !== undefined ? { background: args.background } : {}) });
       const savedIdByRef = new Map(saved.polygons.map(polygon => [polygon.ref, polygon.id]));
       const changes = linkChanges(args.items, refByPolygonId, current.links, savedIdByRef);
       for (const polygonId of changes.unlink) await unlinkUnit.mutateAsync({ ...scope, polygonId });
@@ -51,13 +53,24 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
     }
   }
 
+  async function saveCalibration(calibration: DrawingCalibration): Promise<SaveOutcome> {
+    try {
+      await calibrate.mutateAsync({ ...scope, calibration });
+      await utils.masterPlans.drawingLayout.invalidate(scope);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, code: projectErrorCode(error) ?? (error instanceof Error ? error.message : "UNKNOWN") };
+    }
+  }
+
   return {
     layout,
+    saveCalibration,
     savedReview,
     loading: layoutQuery.isLoading,
     error: layoutQuery.error,
     refetch: () => layoutQuery.refetch(),
     save,
-    busy: upload.busy || uploadVersion.isPending || saveLayout.isPending || linkUnit.isPending || unlinkUnit.isPending,
+    busy: upload.busy || uploadVersion.isPending || saveLayout.isPending || linkUnit.isPending || unlinkUnit.isPending || calibrate.isPending,
   };
 }

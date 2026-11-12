@@ -441,6 +441,21 @@ export const projectErrorMessages = {
     en: "The drawing layout is invalid: every shape needs a unique reference, at least three numeric points, and a label of at most 120 characters.",
     ur: "ڈرائنگ کا خاکہ درست نہیں: ہر شکل کا منفرد حوالہ، کم از کم تین عددی نقطے، اور 120 حروف تک کا لیبل ہونا چاہیے۔",
   },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_SAME_POINTS: {
+    ar: "نقطتا المعايرة متطابقتان. اختر نقطتين متباعدتين على الرسم.",
+    en: "The two calibration points are the same. Pick two points apart on the drawing.",
+    ur: "انشانکن کے دونوں نقطے ایک ہی ہیں۔ ڈرائنگ پر دو الگ نقطے منتخب کریں۔",
+  },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_DISTANCE: {
+    ar: "المسافة الحقيقية يجب أن تكون رقمًا أكبر من صفر ولا تتجاوز 100,000 متر.",
+    en: "The real distance must be a number above zero and at most 100,000 metres.",
+    ur: "اصل فاصلہ صفر سے زیادہ اور زیادہ سے زیادہ 100,000 میٹر ہونا چاہیے۔",
+  },
+  PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_POINT: {
+    ar: "إحداثيات نقطة المعايرة غير صالحة.",
+    en: "A calibration point has invalid coordinates.",
+    ur: "انشانکن کے نقطے کے نقاط درست نہیں۔",
+  },
   PROJECT_OS_MASTER_PLAN_DRAWING_POLYGON_NOT_FOUND: {
     ar: "هذا الشكل غير موجود في الرسم المحفوظ لهذه النسخة.",
     en: "This shape is not in the saved drawing of this version.",

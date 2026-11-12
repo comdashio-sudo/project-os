@@ -1,5 +1,5 @@
 {
-  "id": "dbd00220-60ce-45b1-95b3-0ad02dd2e1cc",
+  "id": "66060350-1afc-414c-89fe-777da167f374",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -11173,6 +11173,18 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "calibration": {
+          "name": "calibration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

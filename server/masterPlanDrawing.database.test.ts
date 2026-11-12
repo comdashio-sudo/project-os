@@ -238,4 +238,40 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Master Plan drawing layo
     expect(await callers.reader.masterPlans.drawingLayout(plan())).toEqual(before);
     await expect(callers.stranger.masterPlans.saveDrawingLayout({ ...plan(), polygons: [] })).rejects.toThrow();
   });
+
+  it("Q-7: a two-point calibration is saved with one audit row, read back, and refused for coinciding points, a bad distance, a read-only role and another tenant", async () => {
+    const calibration = { a: { x: 0, y: 0 }, b: { x: 300, y: 400 }, meters: 50 };
+    const auditBefore = await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'master_plans.drawing_calibrated'", [tenantId]);
+    expect(await callers.owner.masterPlans.saveDrawingCalibration({ ...plan(), calibration })).toMatchObject({ calibration });
+    expect((await callers.reader.masterPlans.drawingLayout(plan())).calibration).toEqual(calibration);
+    await expect(callers.owner.masterPlans.saveDrawingCalibration({ ...plan(), calibration: { ...calibration, b: { x: 0, y: 0 } } })).rejects.toThrow("PROJECT_OS_MASTER_PLAN_CALIBRATION_SAME_POINTS");
+    await expect(callers.owner.masterPlans.saveDrawingCalibration({ ...plan(), calibration: { ...calibration, meters: 0 } })).rejects.toThrow("PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_DISTANCE");
+    await expect(callers.owner.masterPlans.saveDrawingCalibration({ ...plan(), calibration: { ...calibration, meters: -3 } })).rejects.toThrow("PROJECT_OS_MASTER_PLAN_CALIBRATION_BAD_DISTANCE");
+    await expect(callers.reader.masterPlans.saveDrawingCalibration({ ...plan(), calibration: { ...calibration, meters: 99 } })).rejects.toThrow(DENIED);
+    await expect(callers.otherOwner.masterPlans.saveDrawingCalibration({ ...plan(), calibration: { ...calibration, meters: 99 } })).rejects.toThrow();
+    await expect(callers.otherOwner.masterPlans.saveDrawingCalibration({ tenantId: otherTenantId, projectId, masterPlanVersionId: versionId, calibration: { ...calibration, meters: 99 } })).rejects.toThrow();
+    await expect(callers.owner.masterPlans.saveDrawingCalibration({ tenantId, projectId: otherProjectId, masterPlanVersionId: otherVersionId, calibration })).rejects.toThrow("PROJECT_OS_MASTER_PLAN_DRAWING_NOT_FOUND");
+    expect((await callers.reader.masterPlans.drawingLayout(plan())).calibration).toEqual(calibration);
+    const auditAfter = await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM audit_logs WHERE tenantId = ? AND action = 'master_plans.drawing_calibrated'", [tenantId]);
+    expect(auditAfter[0][0].n - auditBefore[0][0].n).toBe(1);
+  });
+
+  it("Q-7: a raster drawing keeps the size it was read at and gets a link to its picture; a DXF save clears it", async () => {
+    const current = await callers.reader.masterPlans.drawingLayout(plan());
+    const polygons = current.polygons.map(item => ({ id: item.id, ref: item.ref, label: item.label, points: item.points }));
+    const upload = await uploadDrawing("owner", versionId, PNG, "plan.png");
+    await upload.result();
+    await callers.owner.masterPlans.saveDrawingLayout({ ...plan(), polygons, background: { width: 1200, height: 800, page: 1 } });
+    const withPicture = await callers.reader.masterPlans.drawingLayout(plan());
+    expect(withPicture.background).toEqual({ width: 1200, height: 800, page: 1 });
+    expect(withPicture.latestVersion?.mimeType).toBe("image/png");
+    expect(withPicture.backgroundUrl).toEqual(expect.any(String));
+    // saving links only (no background given) keeps it
+    await callers.owner.masterPlans.saveDrawingLayout({ ...plan(), polygons });
+    expect((await callers.reader.masterPlans.drawingLayout(plan())).background).toEqual({ width: 1200, height: 800, page: 1 });
+    await expect(callers.reader.masterPlans.saveDrawingLayout({ ...plan(), polygons, background: null })).rejects.toThrow(DENIED);
+    await callers.owner.masterPlans.saveDrawingLayout({ ...plan(), polygons, background: null });
+    const cleared = await callers.reader.masterPlans.drawingLayout(plan());
+    expect(cleared).toMatchObject({ background: null, backgroundUrl: null });
+  });
 });
