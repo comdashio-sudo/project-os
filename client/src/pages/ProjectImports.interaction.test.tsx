@@ -36,7 +36,7 @@ describe("ProjectImports", () => {
     expect(state.put).toHaveBeenCalledWith("https://storage.example.test/upload?sig=1", { "Content-Type": "text/plain" }, file, expect.any(Function)); // the bytes go to the signed URL, not to our API
     expect(state.mock.registerUpload).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", moduleCode: "wbs", sourceFormat: "xlsx", duplicateMode: "upsert", uploadKey: "imports/tenant-1/project-1/pending/k/file" }));
     expect(JSON.stringify(state.mock.registerUpload.mock.calls)).not.toContain("base64");
-    expect(await screen.findByText("Rows: 2")).toBeTruthy(); expect(screen.getByText("Validation errors: 1")).toBeTruthy(); expect(screen.getByText("The file must contain exactly one worksheet.")).toBeTruthy();
+    expect(await screen.findByText("Rows: 2")).toBeTruthy(); expect(screen.getByText("Validation errors: 1")).toBeTruthy(); expect(screen.getByText("The file must contain exactly one worksheet. — 1 row: 0")).toBeTruthy();
   });
 
   it("shows the job while it runs — status, stage and percent — and no confirm button yet", async () => {

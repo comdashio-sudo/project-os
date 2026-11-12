@@ -146,7 +146,7 @@ async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: E
       summaryJson: JSON.stringify({ context: contextOf(record.summaryJson), report: analysis.report, canConfirm: analysis.canConfirm }), progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null,
     }).where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "analyzing"))).returning({ id: dataImports.id });
     if (!verdict.length) return;
-    await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: error.field ?? null })));
+    await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: error.field ?? null, value: error.detail ? error.detail.slice(0, 200) : null })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_uploaded", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, totalRows: analysis.totalRows, errorCount: analysis.errors.length }) });
   });
 }
@@ -198,7 +198,7 @@ export async function runImportAnalysis(job: JobIdentity, options: { resume?: bo
         mappingJson: JSON.stringify(analysis.mapping), summaryJson: JSON.stringify({ sheetNames: analysis.sheetNames, headers: analysis.headers }), progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null,
       }).where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "analyzing"))).returning({ id: dataImports.id });
       if (!verdict.length) return; // cancelled or failed meanwhile: nothing to record
-      await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null })));
+      await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: "field" in error ? error.field : null, value: "detail" in error && error.detail ? String(error.detail).slice(0, 200) : null })));
       // what the file holds that this importer does not read: kept as WARNINGS (named in the preview), which never stop the import
       const ignored = analysisWarnings(analysis);
       if (ignored.length) await insertChunked(tx, dataImportErrors, ignored.map(warning => ({ id: randomUUID(), importId: job.importId, rowNumber: warning.rowNumber, code: warning.code, severity: "warning" as const, suggestedFix: warning.field ?? null })));
@@ -321,6 +321,8 @@ async function resumeIfStalled(db: Db, job: JobIdentity, record: Awaited<ReturnT
 
 /** The most validation errors a poll returns; the record's counters carry the true totals. */
 const PROGRESS_ERRORS_LIMIT = 100;
+/** How many row numbers and values a grouped error shows. */
+const PROGRESS_GROUP_SAMPLES = 5;
 
 async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord>> | { id: string; status: string; progressPercent: number; progressStage: string | null; failureReason: string | null; totalRows: number; validRows: number; invalidRows: number; createdRows: number; updatedRows: number; skippedRows: number }, input: JobIdentity) {
   const view = { id: record.id, status: record.status, progressPercent: record.progressPercent, progressStage: record.progressStage, failureReason: record.failureReason, totalRows: record.totalRows, validRows: record.validRows, invalidRows: record.invalidRows, createdRows: record.createdRows, updatedRows: record.updatedRows, skippedRows: record.skippedRows };
@@ -329,11 +331,17 @@ async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord
   const [stored] = await db.select({ mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   const errors = await db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error"))).orderBy(dataImportErrors.rowNumber).limit(PROGRESS_ERRORS_LIMIT);
   const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error")));
+  // One line per kind of error, not one per row: a P6 file with 172 rows of the same mistake read as 172 identical lines. Each group carries its true count, the first rows it happens on and a few of the offending values.
+  const errorGroups = await db.select({
+    code: dataImportErrors.code, field: dataImportErrors.suggestedFix, count: sql<number>`count(*)::int`,
+    rows: sql<number[]>`(array_agg(${dataImportErrors.rowNumber} order by ${dataImportErrors.rowNumber}))[1:${sql.raw(String(PROGRESS_GROUP_SAMPLES))}]`,
+    values: sql<string[]>`coalesce((array_agg(${dataImportErrors.value} order by ${dataImportErrors.rowNumber}) filter (where ${dataImportErrors.value} is not null))[1:${sql.raw(String(PROGRESS_GROUP_SAMPLES))}], '{}')`,
+  }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error"))).groupBy(dataImportErrors.code, dataImportErrors.suggestedFix).orderBy(sql`min(${dataImportErrors.rowNumber})`).limit(PROGRESS_ERRORS_LIMIT);
   const warnings = await db.select({ code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "warning"))).orderBy(dataImportErrors.suggestedFix).limit(PROGRESS_ERRORS_LIMIT);
   const parse = parseJson;
   const summary = parse<{ headers?: string[]; report?: Record<string, unknown>; canConfirm?: boolean }>(stored?.summaryJson, {});
   // `external` carries the PMC / master-plan importer's own report (what the file would create or change); the general importer's screen ignores it.
-  return { ...view, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorsListed: errors.length, errorsTotal: Number(total), warnings }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
+  return { ...view, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorGroups, errorsListed: errors.length, errorsTotal: Number(total), warnings }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
 }
 
 /** What the screen polls. Anyone who can read the project's imports sees the state; a poll by someone who may import also revives a dead job. */
