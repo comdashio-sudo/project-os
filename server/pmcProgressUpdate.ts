@@ -33,11 +33,11 @@ export async function listProgressActivities(input: Scope) {
 
 export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; status: ProgressStatus; date: string };
 
-export async function updatePmcProgress(input: ProgressUpdateInput) {
-  const db = await authorize(input, "project.pmc.update");
-  const issues: ProgressIssue[] = [];
+/** The checks every villa-batch shares (Q-4 progress, Q-5 QC): the fields, the date (not in the future, Riyadh's day), then the villas (a list, a range or a
+ * block, never two at once) resolved against the project and the activity's models. Refused whole, villa by villa, before anything is written. */
+export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>>, input: Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; date: string }, extra: ProgressIssue[] = []) {
+  const issues: ProgressIssue[] = [...extra];
   if (!input.activityCode?.trim()) issues.push({ code: "SITE_FIELD_MISSING", detail: "activity" });
-  if (!PROGRESS_STATUSES.includes(input.status)) issues.push({ code: "SITE_FIELD_MISSING", detail: "status" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? "") || Number.isNaN(Date.parse(`${input.date}T00:00:00Z`))) issues.push({ code: "SITE_FIELD_MISSING", detail: "date" });
   else if (input.date > siteToday()) issues.push({ code: "SITE_DATE_IN_FUTURE", detail: input.date });
   const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0].reduce((a, b) => a + b, 0);
@@ -71,6 +71,12 @@ export async function updatePmcProgress(input: ProgressUpdateInput) {
     targets.push({ unitId: unit.id, villa, activityDefinitionId });
   }
   if (issues.length || !targets.length) throw refuse(issues.length ? issues : [{ code: "SITE_FIELD_MISSING", detail: "villas" }]);
+  return targets;
+}
+
+export async function updatePmcProgress(input: ProgressUpdateInput) {
+  const db = await authorize(input, "project.pmc.update");
+  const targets = await resolveVillaBatch(db, input, PROGRESS_STATUSES.includes(input.status) ? [] : [{ code: "SITE_FIELD_MISSING", detail: "status" }]);
 
   // the date the engineer chose is the moment of the change (noon of that day in Riyadh; today keeps the real time)
   const changedAt = input.date === siteToday() ? new Date() : new Date(`${input.date}T09:00:00Z`);
