@@ -13,6 +13,7 @@ const releaseText = readFileSync(path.join(workflowsDir, releaseFile), "utf8");
 const SCOPE_CONDITION = "steps.scope.outputs.deploy == 'true'";
 // D-85: the CLI deployment (4b) and its check (5) run only when scripts/ci/vercel-access.sh found the token able to use the project
 const CLI_CONDITION = `${SCOPE_CONDITION} && steps.config.outputs.cli == 'true'`;
+const CONFIRM_CONDITION = `${SCOPE_CONDITION} && steps.config.outputs.cli != 'true'`;
 const accessScript = readFileSync(path.join(root, "scripts/ci/vercel-access.sh"), "utf8");
 
 type Step = { name: string; text: string };
@@ -150,7 +151,17 @@ export function releaseProblems(text: string, otherWorkflows: Record<string, str
   else {
     problems.push(...verifyProblems(steps[verify]));
     if (condition(steps[verify]) !== CLI_CONDITION) problems.push(`step 5's condition is "${condition(steps[verify])}", not "${CLI_CONDITION}"`);
-  }  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
+  }  // D-85b: without the CLI, step 6b waits until the production address serves the pushed commit and fails the run after its limit (no automatic rollback on this path)
+  const confirm = firstIndex(steps, named("6b. "));
+  if (confirm < 0) problems.push("step 6b (production serves the pushed commit without the CLI) is missing");
+  else {
+    if (confirm < advance) problems.push("step 6b comes before the production branch moves");
+    if (condition(steps[confirm]) !== CONFIRM_CONDITION) problems.push(`step 6b's condition is "${condition(steps[confirm])}", not "${CONFIRM_CONDITION}"`);
+    if (!/bash scripts\/ci\/wait-for-commit\.sh "\$PRODUCTION_URL" "\$\{\{ steps\.scope\.outputs\.sha \}\}" "\$CONFIRM_WAIT_SECONDS"/.test(steps[confirm].text)) problems.push("step 6b does not run scripts/ci/wait-for-commit.sh on $PRODUCTION_URL with the pushed sha and $CONFIRM_WAIT_SECONDS");
+    if (!/^ {10}set -euo pipefail$/m.test(steps[confirm].text)) problems.push("step 6b pipes into tee without set -euo pipefail");
+    if (/continue-on-error:/.test(steps[confirm].text)) problems.push("step 6b has continue-on-error (a production that never serves the release would pass)");
+  }
+  const promote = firstIndex(steps, step => /refs\/heads\/production/.test(step.text));
   if (promote >= 0 && promote < verify) problems.push("the production branch moves before production is verified");
   // the pulled environment is deleted by a last, unconditional step and never uploaded
   const last = steps[steps.length - 1];
@@ -257,13 +268,20 @@ describe("release workflow: production is deployed by the Vercel CLI only after 
     ["the production branch moved before the release check (3)", () => moveStep(releaseText, "6. ", "3. "), 'moves before step "3."'],
     ["continue-on-error on the release check (3)", () => mutate("3. ", /\n {8}if: /, "\n        continue-on-error: true\n        if: "), "continue-on-error before the production branch moves"],
     ["4b runs without the access decision", () => mutate("4b. ", /\n {8}if: [^\n]*\n/, `\n        if: ${SCOPE_CONDITION}\n`), "the deployment's condition"],
+    ["no step 6b (D-85b)", () => mutate("6b. ", /bash scripts\/ci\/wait-for-commit\.sh[^\n]*/, "true"), "does not run scripts/ci/wait-for-commit.sh"],
+    ["step 6b also after the CLI path, or after a failure (D-85b)", () => mutate("6b. ", /\n {8}if: [^\n]*\n/, "\n        if: always()\n"), "step 6b's condition"],
+    ["step 6b moved before the production branch (D-85b)", () => moveStep(releaseText, "6b. ", "6. "), "step 6b comes before"],
+    ["step 6b may fail quietly (D-85b)", () => mutate("6b. ", /\n {8}if: /, "\n        continue-on-error: true\n        if: "), "step 6b has continue-on-error"],
     ["the access decision dropped before the migrations", () => mutate("Refuse to start", /\n[^\n]*bash scripts\/ci\/vercel-access\.sh[^\n]*/, ""), "vercel-access.sh does not run before step 2"],
   ])("refuses (D-85): %s", (_label, make, expected) => {
     expect(releaseProblems(make())).toEqual(expect.arrayContaining([expect.stringContaining(expected)]));
   });
 
-  it("the access script holds the probe the workflow relied on (whoami, then a throw-away pull, deleted on every path) and never names the token on a command line", () => {
-    expect(accessScript).toMatch(/vercel whoami/);
+  it("the access script decides on the HTTP status of the projects API (D-85b), then the throw-away pull (deleted on every path), and never names the token on a command line", () => {
+    expect(accessScript).toMatch(/curl -sS -o \/dev\/null -w '%\{http_code\}' --max-time \d+ -K "\$cfg" "\$api\/v9\/projects\//);
+    expect(accessScript).toMatch(/^ {2}401\|403\) skip /m);
+    expect(accessScript).not.toMatch(/grep|=~|vercel whoami/); // no text classification of an answer
+    expect(accessScript).toMatch(/rm -f "\$cfg"/);
     expect(accessScript).toMatch(/vercel pull --yes --environment=production --cwd "\$probe"/);
     expect((accessScript.match(/rm -rf "\$probe"/g) ?? []).length).toBe(2);
     expect(accessScript).not.toMatch(/--token\b|(echo|printf)[^\n]*\$\{?VERCEL_TOKEN/);

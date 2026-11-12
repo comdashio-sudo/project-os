@@ -548,6 +548,11 @@ export const projectErrorMessages = {
     en: "The file link is invalid or has expired. Open the page again.",
     ur: "فائل کا لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ صفحہ دوبارہ کھولیں۔",
   },
+  PROJECT_OS_REPORT_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: اختر تاريخًا صحيحًا لبداية الأسبوع أو يومًا من الشهر.",
+    en: "The period is invalid: choose a real date for the start of the week or a day of the month.",
+    ur: "مدت درست نہیں: ہفتے کے آغاز کے لیے یا مہینے کے کسی دن کی درست تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_MFA_REQUIRED: {
     ar: "شركتك تشترط التحقق بخطوتين. أدخل رمز تطبيق المصادقة (أو رمز استرداد) لمتابعة العمل.",
     en: "Your company requires two-step verification. Enter the code from your authenticator app (or a recovery code) to continue.",

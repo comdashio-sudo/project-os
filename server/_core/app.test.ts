@@ -48,6 +48,19 @@ afterAll(() => undefined);
 
 const leaks = (text: string) => Object.entries(SECRETS).filter(([, value]) => text.includes(value)).map(([name]) => name);
 
+describe("/api/readyz names the deployed commit (D-85b)", () => {
+  it("the first 12 characters of VERCEL_GIT_COMMIT_SHA, and null when the host does not set it; no other variable is said", async () => {
+    const { base } = await start();
+    vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "0123456789abcdef0123456789abcdef01234567");
+    const body = await (await fetch(base + "/api/readyz")).json();
+    expect(body.commit).toBe("0123456789ab");
+    expect(Object.keys(body).sort()).toEqual(expect.arrayContaining(["commit", "pendingMigrations", "ready"]));
+    expect(JSON.stringify(body)).not.toContain(SECRET);
+    vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "");
+    expect((await (await fetch(base + "/api/readyz")).json()).commit).toBeNull();
+  }, 30_000);
+});
+
 describe("security headers", () => {
   const HEADERS = ["x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy", "cross-origin-opener-policy"] as const;
 
