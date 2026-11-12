@@ -99,7 +99,6 @@ vi.mock("wouter", () => ({
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    pmc: { stalledUnits: { useQuery: () => ({ data: undefined, isError: false, error: null }) } },
     // the company-data card belongs to the owner; for everyone else the server refuses its preview and the card renders nothing
     tenantData: { preview: { useQuery: () => ({ data: undefined, error: new Error("PROJECT_OS_TENANT_OWNER_REQUIRED"), isLoading: false, refetch: vi.fn() }) }, requestDeletion: { useMutation: () => ({ mutate: vi.fn() }) }, confirmDeletion: { useMutation: () => ({ mutate: vi.fn() }) } },
     useUtils: () => ({
@@ -126,7 +125,7 @@ vi.mock("@/lib/trpc", () => ({
       reportSectionIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
     },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
-    pmc: { siteMap: { useQuery: () => ({ data: undefined, error: null }) } },
+    pmc: { siteMap: { useQuery: () => ({ data: undefined, error: null }) }, stalledUnits: { useQuery: () => ({ data: undefined, isError: false, error: null }) } },
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: { plans: [], versions: [], entities: [] }, refetch: vi.fn() }) },
       visualizationRules: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },
