@@ -38,7 +38,7 @@ export function FileDropzone({ accept, maxBytes, items, onFiles, onRemove, disab
         <UploadCloud className={cn("h-8 w-8", over ? "text-primary" : "text-muted-foreground")} aria-hidden="true" />
         <p className="text-sm font-medium text-foreground">{over ? text.dropActive : text.dropTitle}</p>
         <p className="text-xs text-muted-foreground">{text.dropOr}</p>
-        <Button variant="secondary" size="md" disabled={disabled} onClick={() => input.current?.click()}>{items.length && !multiple ? text.dropReplace : text.dropChoose}</Button>
+        <Button variant="secondary" size="md" className="md:min-h-11" disabled={disabled} onClick={() => input.current?.click()}>{items.length && !multiple ? text.dropReplace : text.dropChoose}</Button>
         <p className="text-xs text-muted-foreground">{hint ?? <>{text.dropTypes}: <bdi dir="ltr">{accept.map(item => item.replace(".", "").toUpperCase()).join(" · ")}</bdi> — {text.dropLimit}: <bdi dir="ltr">{formatBytes(maxBytes)}</bdi></>}</p>
         <input ref={input} type="file" className="sr-only" tabIndex={-1} aria-hidden="true" multiple={multiple} accept={accept.join(",")} disabled={disabled}
           onChange={event => { if (event.target.files) take(event.target.files); event.target.value = ""; }} />
