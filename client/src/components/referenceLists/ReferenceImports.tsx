@@ -37,6 +37,11 @@ const text = {
   },
 };
 
+/** Latin words inside an Arabic or Urdu sentence (Tracker, Excel, Completed, On going) wrapped in <bdi>, so their punctuation does not jump to the wrong side. */
+export function isolateLatin(text: string): React.ReactNode {
+  return text.split(/([A-Za-z][A-Za-z0-9 .\-]*[A-Za-z0-9]|[A-Za-z])/).map((part, index) => (index % 2 ? <bdi key={index}>{part}</bdi> : part));
+}
+
 /** A refusal or row problem in the page's language when the product knows its code; otherwise the code itself, so nothing is hidden. */
 export function rowProblem(code: string, language: Language): string {
   return code in projectErrorMessages ? projectErrorMessages[code as keyof typeof projectErrorMessages][language] : code;
@@ -47,9 +52,9 @@ export function EquipmentImport({ tenantId, projectId, onImported }: { tenantId:
   const t = pickLanguage(language, text);
   return (
     <section className="space-y-2 rounded-[var(--radius)] border p-3" aria-label={t.equipmentTitle} data-import="equipment">
-      <h3 className="text-sm font-semibold">{t.equipmentTitle}</h3>
-      <p className="text-xs text-muted-foreground">{t.columns} {(language === "ar" ? equipmentImportHeaders.ar : equipmentImportHeaders.en).join(" | ")}</p>
-      <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode="equipment" isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} errorLabel={code => rowProblem(code, language)} onCompleted={onImported} />
+      <h3 className="text-sm font-semibold">{isolateLatin(t.equipmentTitle)}</h3>
+      <p className="text-xs text-muted-foreground">{t.columns} {(language === "ar" ? equipmentImportHeaders.ar : equipmentImportHeaders.en).map((header, index) => <React.Fragment key={header}>{index ? " | " : ""}<bdi>{header}</bdi></React.Fragment>)}</p>
+      <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode="equipment" isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} errorLabel={code => rowProblem(code, language)} onCompleted={onImported} dropzone />
     </section>
   );
 }
@@ -92,8 +97,8 @@ export function TrackerImport({ tenantId, projectId, onImported }: { tenantId: s
   const counts = plan ? [[t.newUnits, plan.changes.newUnits], [t.completing, plan.changes.completing], [t.inProgress, plan.changes.unitsTouched], [t.unchanged, plan.changes.unchangedCells], [t.regressed, plan.changes.regressed]] as const : [];
   return (
     <section className="space-y-3 rounded-[var(--radius)] border p-3" aria-label={t.trackerTitle} data-import="tracker">
-      <h3 className="text-sm font-semibold">{t.trackerTitle}</h3>
-      <p className="text-xs text-muted-foreground">{t.trackerHelp}</p>
+      <h3 className="text-sm font-semibold">{isolateLatin(t.trackerTitle)}</h3>
+      <p className="text-xs text-muted-foreground">{isolateLatin(t.trackerHelp)}</p>
       <div className="space-y-3">
         <div><FileDropzone accept={[".xlsx"]} maxBytes={MAX_IMPORT_UPLOAD_BYTES} disabled={busy} onFiles={files => { setFile(files[0] ?? null); setProblem(null); setUpload(null); analyze.reset(); confirm.reset(); }}
           items={file ? [{ id: "tracker", name: file.name, size: file.size, status: uploading !== null ? "uploading" : upload ? "done" : "queued", progress: uploading ?? undefined }] : []} /></div>

@@ -2,7 +2,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EquipmentImport, TrackerImport } from "./ReferenceImports";
+import { EquipmentImport, isolateLatin, TrackerImport } from "./ReferenceImports";
 
 // D-84 (b): the equipment list and the units Tracker from Excel (#236).
 const HASH = "a".repeat(64);
@@ -88,7 +88,7 @@ describe("units Tracker import", () => {
 describe("equipment list import", () => {
   it("runs the direct importer on the «equipment» module, names the expected columns, and reads its row problems as sentences", () => {
     render(<EquipmentImport tenantId="t" projectId="p" onImported={vi.fn()} />);
-    expect(h.runner).toMatchObject({ tenantId: "t", projectId: "p", moduleCode: "equipment" });
+    expect(h.runner).toMatchObject({ tenantId: "t", projectId: "p", moduleCode: "equipment", dropzone: true }); // review of #251: the drop area, not the browser's input
     expect(screen.getByText(/Expected columns:/).textContent).toBe("Expected columns: Type | Count | Model | Plate or size");
     const label = h.runner!.errorLabel as (code: string) => string;
     expect(label("EQUIPMENT_COUNT_WITH_PLATE")).not.toBe("EQUIPMENT_COUNT_WITH_PLATE");
@@ -99,5 +99,13 @@ describe("equipment list import", () => {
     h.language = "ar";
     render(<EquipmentImport tenantId="t" projectId="p" onImported={vi.fn()} />);
     expect(screen.getByText(/الأعمدة المتوقعة:/).textContent).toBe("الأعمدة المتوقعة: النوع | العدد | الطراز | اللوحة أو المقاس");
+  });
+});
+
+describe("Latin words in an RTL sentence (review of #251)", () => {
+  it("are each wrapped in bdi, the rest left as text", () => {
+    const { container } = render(<p>{isolateLatin("استيراد Tracker الوحدات بحالة Completed أو On going.")}</p>);
+    expect(Array.from(container.querySelectorAll("bdi")).map(node => node.textContent)).toEqual(["Tracker", "Completed", "On going"]);
+    expect(container.textContent).toBe("استيراد Tracker الوحدات بحالة Completed أو On going.");
   });
 });
