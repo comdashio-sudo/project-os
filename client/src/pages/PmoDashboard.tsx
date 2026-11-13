@@ -89,7 +89,7 @@ export default function PmoDashboard() {
   const issueEscalationMutation = trpc.pmo.transitionIssueEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
   const actionEscalationMutation = trpc.pmo.transitionActionEscalation.useMutation({ onSuccess: () => utils.dashboards.invalidate() });
 
-  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <PageMain className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(setupQuery.error, isArabic)}</PageMain>;
+  if (setupQuery.error && risksQuery.error && issuesQuery.error && actionsQuery.error) return <PageMain className="min-h-screen bg-muted p-8 text-red-700">{getLocalizedProjectError(setupQuery.error, isArabic)}</PageMain>;
   const data = {
     portfolios: setupQuery.data?.portfolios ?? [], programs: setupQuery.data?.programs ?? [], projects: setupQuery.data?.projects ?? [],
     risks: risksQuery.data?.risks ?? [], issues: issuesQuery.data?.issues ?? [], actions: actionsQuery.data?.actions ?? [],
@@ -129,10 +129,10 @@ export default function PmoDashboard() {
   const submitProjectLink = (event: FormEvent) => { event.preventDefault(); projectLinkMutation.mutate({ tenantId, projectId: projectLinkForm.projectId, ...(projectLinkForm.programId ? { programId: projectLinkForm.programId } : {}), ...(projectLinkForm.portfolioId ? { portfolioId: projectLinkForm.portfolioId } : {}) }); };
 
   return (
-    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+    <PageMain className="min-h-screen bg-muted text-slate-900">
       <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link></OutsideShell>
+          <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></OutsideShell>
           <div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
         </div>
       </PageHeader>
@@ -144,8 +144,8 @@ export default function PmoDashboard() {
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_actions" state={actionsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_planning" state={planningQuery.error ? "error" : planningOverview.summary.dataRequiredProjects > 0 ? "partial" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_today_exceptions" state={exceptionsQuery.error ? "error" : null} />
-        <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
-          <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">PROJECT OS</p>
+        <section className="rounded-3xl bg-primary p-7 text-white">
+          <p className="text-xs font-bold tracking-[.16em] text-secondary">PROJECT OS</p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
           <p className="mt-2 text-slate-300">{t.sub}</p>
         </section>
@@ -282,7 +282,7 @@ export default function PmoDashboard() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   const { isArabic, language } = useLanguage();
-  return <SectionErrorBoundary title={label} isArabic={isArabic}><Card><CardContent className="p-5"><FolderTree className="h-5 w-5 text-[#0e6b70]" /><p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></CardContent></Card></SectionErrorBoundary>;
+  return <SectionErrorBoundary title={label} isArabic={isArabic}><Card><CardContent className="p-5"><FolderTree className="h-5 w-5 text-primary" /><p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></CardContent></Card></SectionErrorBoundary>;
 }
 
 function PlanningMetric({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "critical" | "warning" }) {
@@ -292,5 +292,5 @@ function PlanningMetric({ label, value, tone = "default" }: { label: string; val
 
 function Register({ icon: Icon, title, items, empty, isArabic }: { icon: typeof ShieldAlert; title: string; items: React.ReactNode[]; empty: string; isArabic: boolean }) {
   if (!items.length) return <SectionMessage title={title} isArabic={isArabic} kind="empty" detail={empty} />;
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-[#0e6b70]" />{title}</CardTitle></CardHeader><CardContent className="space-y-3">{items.map((item, index) => <div key={index} className="rounded-xl bg-slate-50 p-4 text-sm font-medium">{item}</div>)}</CardContent></Card>;
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-primary" />{title}</CardTitle></CardHeader><CardContent className="space-y-3">{items.map((item, index) => <div key={index} className="rounded-xl bg-slate-50 p-4 text-sm font-medium">{item}</div>)}</CardContent></Card>;
 }

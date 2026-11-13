@@ -69,14 +69,14 @@ export default function SetupWizard() {
   const complete: Record<Step, boolean> = { company: Boolean(tenantId), project: Boolean(projectId), import: false, invite: false };
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
-      <header className="border-b bg-white"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></header>
+    <main className="min-h-screen bg-muted text-slate-900" dir={isRtl ? "rtl" : "ltr"}>
+      <header className="border-b bg-white"><div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4"><Link href="/" className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></header>
       <div className="mx-auto max-w-4xl px-5 py-8">
         <h1 className="text-3xl font-semibold">{t.title}</h1>
         <p className="mt-2 max-w-3xl leading-7 text-slate-600">{t.sub}</p>
         <nav aria-label={t.title} className="mt-6"><ol className="grid gap-2 sm:grid-cols-4">
           {STEPS.map((key, i) => (
-            <li key={key}><button type="button" aria-current={step === key ? "step" : undefined} disabled={i > 0 && !tenantId} onClick={() => goto(key)} className={`flex min-h-[44px] w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${step === key ? "border-[#0e6b70] bg-[#0e6b70] text-white" : "border-slate-300 bg-white text-slate-700 disabled:opacity-50"}`}>
+            <li key={key}><button type="button" aria-current={step === key ? "step" : undefined} disabled={i > 0 && !tenantId} onClick={() => goto(key)} className={`flex min-h-[44px] w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${step === key ? "border-primary bg-primary text-white" : "border-slate-300 bg-white text-slate-700 disabled:opacity-50"}`}>
               <span className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs">{complete[key] ? <Check className="h-4 w-4" aria-label={t.done} /> : i + 1}</span>{t.steps[key]}</button></li>
           ))}
         </ol></nav>
@@ -185,7 +185,7 @@ function InviteStep({ t, isArabic, tenantId, projectId, project }: { t: (typeof 
         </form>
       </WriteGate>
       {sent.length > 0 && <div className="mt-5"><p className="text-sm font-semibold">{t.sent}</p><ul className="mt-2 space-y-2">{sent.map(item => <li key={item.token} className="rounded-xl border border-slate-200 p-3 text-sm"><p><span dir="ltr">{item.email}</span> · {item.role}</p><p className="mt-1 text-xs text-slate-500">{item.emailed ? t.emailed : t.notEmailed} {t.link}</p><code dir="ltr" className="mt-1 block break-all rounded bg-slate-100 p-2 text-xs">{`${origin}/invite/accept?token=${item.token}`}</code></li>)}</ul></div>}
-      <div className="mt-6">{projectId ? <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center rounded-xl bg-[#0e6b70] px-4 text-sm font-semibold text-white">{t.finish}</Link> : <p className="text-sm text-slate-500">{t.needProject}</p>}</div>
+      <div className="mt-6">{projectId ? <Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white">{t.finish}</Link> : <p className="text-sm text-slate-500">{t.needProject}</p>}</div>
     </div>
   );
 }
