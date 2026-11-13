@@ -61,11 +61,15 @@ function contextualClient(client: pg.PoolClient): pg.PoolClient {
   // A pooled client is handed out again and again: wrap it once, or every checkout would add a layer to every later query.
   if (wrapped.has(client)) return client;
   wrapped.add(client);
-  const original = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>;
+  // The prototype's query is looked up at each call, not copied once: a wrapper that kept the method it found at its first checkout would go on
+  // calling that copy for the client's whole life, past anything installed on pg.Client later (the statement count in levelQueryCount relies on it).
+  const original = (...args: unknown[]) => (Object.getPrototypeOf(client).query as (...a: unknown[]) => Promise<unknown>).apply(client, args);
   (client as unknown as { query: (...args: unknown[]) => Promise<unknown> }).query = async (...args: unknown[]) => {
     const result = await original(...args);
     const context = currentDbContext();
-    if (context && /^\s*begin\b/i.test(textOf(args[0]))) await original(settingsSql(client, context));
+    // A BEGIN that does not carry the settings (a drizzle transaction, with or without options) needs them after it: ContextPool.query sends "BEGIN; SELECT set_config(…)" as one
+    // statement, and repeating the settings there cost one more round trip on every client that had once served a transaction.
+    if (context && /^\s*begin\b/i.test(textOf(args[0])) && !/\bset_config\(/i.test(textOf(args[0]))) await original(settingsSql(client, context));
     return result;
   };
   return client;

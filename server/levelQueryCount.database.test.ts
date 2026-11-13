@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
 import { getDb, runWithDbContext } from "./_core/database";
+import { sql } from "drizzle-orm";
 import { loadProfitabilityRows, loadProfitabilityRowsByProject } from "./profitability";
 import { loadPmcDataset, loadPmcDatasets } from "./pmcScreensService";
 
@@ -85,6 +86,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("D-23: the company level'
       // NEGATIVE: a project of no one (or of another tenant) comes back empty, never with this tenant's rows
       const stranger = "00000000-0000-4000-8000-000000000023";
       expect((await loadProfitabilityRowsByProject(db, tenantId, [stranger])).get(stranger)).toMatchObject({ project: null, wbsRows: [], costRows: [] });
+    });
+  });
+
+  it("a plain statement sends its context once, even on a pooled client that once served a transaction; a transaction still gets it", async () => {
+    const db = (await getDb())!;
+    await runWithDbContext({ userId: ownerId, tenantIds: [tenantId], system: false }, async () => {
+      // every client of the pool serves a transaction first, so each one is the wrapped kind
+      await Promise.all(Array.from({ length: 10 }, () => db.transaction(async tx => tx.execute(sql`SELECT 1`))));
+      // POSITIVE: inside a transaction (a BEGIN without the settings) the context is installed, so this company's row is visible
+      const seen = await db.transaction(async tx => tx.execute(sql`SELECT count(*)::int AS n FROM companies WHERE id = ${tenantId}`));
+      expect((seen as unknown as { rows: { n: number }[] }).rows[0].n).toBe(1);
+      // NEGATIVE: a plain statement is exactly BEGIN-with-settings, the statement, COMMIT — never a second set_config (it used to vary with the pool)
+      for (let round = 0; round < 5; round++) expect(await statementsFor(() => db.execute(sql`SELECT 1`))).toBe(3);
     });
   });
 });
