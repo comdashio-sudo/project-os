@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { CheckedForm } from "@/components/CheckedForm";
-import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
+import { Badge, Breadcrumbs, Button, FileButton, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
 beforeAll(() => {
@@ -294,5 +294,28 @@ describe("D-75: a required ds list stops a checked form like a typed field", () 
     expect(container.querySelector<HTMLInputElement>("input[data-list-for='pick-role']")!.value).toBe("r1");
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(sent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("D-75: FileButton — the compact file control", () => {
+  it("one translated button holds the hidden input; choosing hands the file over and names it; nothing chosen is said in the language", async () => {
+    const chosen = vi.fn();
+    render(<LanguageProvider><FileButton label="Upload the plan" accept="image/png" onFile={chosen} /></LanguageProvider>);
+    const input = screen.getByLabelText("Upload the plan") as HTMLInputElement;
+    expect(input.type).toBe("file");
+    expect(input.className).toContain("sr-only");
+    expect(document.querySelector("[data-file-button]")!.textContent).toContain("Upload the plan");
+    const file = new File(["x"], "plan.png", { type: "image/png" });
+    await userEvent.upload(input, file);
+    expect(chosen).toHaveBeenCalledWith(file);
+    expect(screen.getByText("plan.png")).toBeTruthy();
+  });
+  it("disabled: the input refuses and nothing is handed over", async () => {
+    const chosen = vi.fn();
+    render(<LanguageProvider><FileButton label="Upload" accept="image/png" disabled onFile={chosen} /></LanguageProvider>);
+    const input = screen.getByLabelText("Upload") as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    await userEvent.upload(input, new File(["x"], "a.png", { type: "image/png" }));
+    expect(chosen).not.toHaveBeenCalled();
   });
 });

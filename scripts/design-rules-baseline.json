@@ -1,9 +1,5 @@
 {
- "client/src/components/DirectImportRunner.tsx": {
-  "raw-file-input": 1
- },
  "client/src/components/MasterPlanDrawing.tsx": {
-  "raw-file-input": 1,
   "raw-select": 5,
   "hardcoded-colour": 4
  },
@@ -76,7 +72,6 @@
   "hardcoded-colour": 6
  },
  "client/src/pages/PmcSitePlan.tsx": {
-  "raw-file-input": 2,
   "raw-select": 5,
   "hardcoded-colour": 8
  },
