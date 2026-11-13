@@ -13,8 +13,15 @@ describe("project invitation role rule", () => {
     expect(refusal("PLANNING_ENGINEER")).toBe("project.create"); // company-wide set-up (Q-12 d), and it invites in turn
     expect(refusal("PROJECT_MANAGER")).toBe("project.team.invite");
     expect(refusal("EXECUTIVE")).toBe("EXECUTIVE");
-    expect(refusal("HR_MANAGER")).toMatch(/^project\.(hr|payroll|attendance)\./);
+    expect(refusal("HR_MANAGER")).toMatch(/^project\.(hr|payroll)\./);
     expect(projectInviteRoleRefusal({ productCode: "PROJECT" }, ["project.read", "tenant.manage"])).toBe("tenant.manage");
+  });
+  it("Q-17 (205-5, G-162): a project's attendance is site work: any project inviter may give it (the site engineer carries it); HR and payroll stay out", () => {
+    expect(template("SITE_ENGINEER").permissions).toContain("project.attendance.manage");
+    expect(projectInviteRoleRefusal({ productCode: "PROJECT" }, ["project.read", "project.attendance.manage"])).toBeNull();
+    // NEGATIVE: staff identity and pay are still refused to a project inviter
+    expect(projectInviteRoleRefusal({ productCode: "PROJECT" }, ["project.read", "project.attendance.manage", "project.hr.sensitive.read"])).toBe("project.hr.sensitive.read");
+    expect(projectInviteRoleRefusal({ productCode: "PROJECT" }, ["project.read", "project.payroll.run"])).toBe("project.payroll.run");
   });
   it("Q-12 (d): whoever sets projects up may also give the project manager's role; never project.create, staff or pay data", () => {
     const setUp = { setsUpProjects: true };
