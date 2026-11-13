@@ -30,15 +30,17 @@
 
 ## القواعد التي يفحصها البناء
 
-`pnpm check` يشغّل `scripts/check-design-rules.mjs` (وهو في CI ضمن «check, build, test»). كل قاعدة **سقف يهبط ولا يصعد**: ملف لا يزيد عمّا في `scripts/design-rules-baseline.json`، وملف جديد يبدأ من صفر، ونظام التصميم نفسه (`components/ds` و`design` وصفحتا المعاينة) صفر بلا سقف.
+`pnpm check` يشغّل `scripts/check-design-rules.mjs` (وهو في CI ضمن «check, build, test»). **السقف صفر في كل ملف بلا أساس** (D-76): أصلح D-75 المخالفات القديمة كلها (630 ← 0)، فحُذف `scripts/design-rules-baseline.json` و`--update`، وأي مخالفة في أي ملف تُسقط البناء.
 
-| القاعدة | ما تمسكه | المسجَّل اليوم (قديم، لا يزيد) |
+| القاعدة | ما تمسكه | المسموح |
 |---|---|---|
-| `western-digits` | رقم هندي أو فارسي في الشيفرة (مثل «٢. أول مشروع») | 4 |
-| `raw-file-input` | `<input type="file">` خارج المكتبة | 5 |
-| `raw-select` | `<select>` و`<option>` خارج المكتبة | 394 |
-| `hardcoded-colour` | لون مكتوب قيمةً (`#hex` في class أو style، `rgb()`…) | 291 |
-| `number-format` | `toLocaleString` و`Intl` و`toFixed` لطباعة رقم خارج `format.ts` | 50 |
+| `western-digits` | رقم هندي أو فارسي في الشيفرة (مثل «٢. أول مشروع») | 0 |
+| `raw-file-input` | `<input type="file">` خارج المكتبة (`FileDropzone` و`FileButton`) | 0 |
+| `raw-select` | `<select>` و`<option>` خارج المكتبة (`<option>` داخل `<datalist>` اقتراحات لحقل نص حر، فلا يُعدّ) | 0 |
+| `hardcoded-colour` | لون مكتوب قيمةً (`#hex` في class أو style، `rgb()`…) | 0 |
+| `number-format` | `toLocaleString` و`Intl` و`toFixed` لطباعة رقم أو تاريخ خارج `format.ts` | 0 |
+
+الاستثناء الوحيد: لون لا يمكن أن يكون رمزًا (بكسل canvas، ورقة PDF، القيمة `#rrggbb` التي يتطلبها منتقي اللون) يُعلَّم في سطره بـ «`design-rules: allow hardcoded-colour — <السبب>`» (سبب من 10 أحرف على الأقل)، فيُعفى ذلك السطر من قاعدة الألوان وحدها. المستعمل اليوم ثلاثة مواضع: `pdfExport.ts` و`rasterFile.ts` والألوان الافتراضية في `ProjectMasterPlan.tsx`.
 
 وعلى ما **يُعرض** فعلًا (لا على الشيفرة): `client/src/design/screens/screens.test.tsx` يعرض الشاشتين في 3 اتجاهات × 3 لغات (90 اختبارًا) ويرفض أي رقم هندي، وأي select أصلي، وعبارة «Choose File»، وأي مقدمة تزيد عن 120 حرفًا (`PageIntro` يرمي خطأً). `directions.contrast.test.tsx` يقرأ ملف الرموز نفسه ويثبت أن كل زوج نص/خلفية ≥ 4.5:1 وكل حد حقل وحلقة تركيز ≥ 3:1 (161 اختبارًا).
 

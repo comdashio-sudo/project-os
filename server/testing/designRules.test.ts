@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 // The design rules of work order 19 are held by the build (scripts/check-design-rules.mjs, run by `pnpm check`). This proves the rules catch what they name, leave comments and the
-// component library's own internals alone, and that a NEW violation in a screen fails while the recorded legacy ones do not.
+// component library's own internals alone, and (D-76) that the ceiling is zero everywhere: there is no baseline left to excuse a violation.
 const script = path.resolve(import.meta.dirname, "../../scripts/check-design-rules.mjs");
 const load = async () => (await import(/* @vite-ignore */ script)) as { violationsOf: (file: string, source: string) => Record<string, number> };
 const run = (rootDir?: string) => spawnSync(process.execPath, [script], { env: { ...process.env, ...(rootDir ? { DESIGN_RULES_ROOT: rootDir } : {}) }, encoding: "utf8" });
@@ -56,10 +56,22 @@ describe("design rules: what each rule catches", () => {
 });
 
 describe("design rules: the build gate", () => {
-  it("passes on the tree as it is (the recorded legacy violations only, nothing new)", () => {
+  it("passes on the tree as it is, with zero violations (D-76: the ceiling is zero, no baseline)", () => {
     const result = run();
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/design rules ok/);
+    expect(result.stdout).toMatch(/design rules ok: 0 violations/);
+  });
+  it("NEGATIVE (D-76): an old baseline file excuses nothing — a recorded violation still fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "design-rules-"));
+    try {
+      mkdirSync(path.join(dir, "client/src/pages"), { recursive: true });
+      mkdirSync(path.join(dir, "scripts"), { recursive: true });
+      writeFileSync(path.join(dir, "client/src/pages/Old.tsx"), 'export const O = () => <p className="text-[#0e6b70]">x</p>;');
+      writeFileSync(path.join(dir, "scripts/design-rules-baseline.json"), JSON.stringify({ "client/src/pages/Old.tsx": { "hardcoded-colour": 1 } }));
+      const result = run(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/client\/src\/pages\/Old\.tsx: hardcoded-colour 1 \(allowed 0\)/);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("fails on a NEW violation in a screen, and names the file and the rule", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "design-rules-"));
