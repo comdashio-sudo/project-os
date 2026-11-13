@@ -5,8 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false }));
+const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false, linkMutate: vi.fn() }));
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
@@ -30,7 +31,7 @@ vi.mock("@/lib/trpc", () => {
       pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
     },
     navigation: { get: { useQuery: ({ tenantId, projectId }: { tenantId: string; projectId?: string }) => ({ data: projectId === "critical" ? [{ id: "project-controls", href: `/projects/${tenantId}/${projectId}/controls` }] : [] }) } },
-    pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: mutation }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
+    pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: () => ({ mutate: state.linkMutate, isPending: false, isSuccess: false, error: null }) }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
 });
 
@@ -127,5 +128,27 @@ describe("PmoDashboard checks its forms in the page's language (D-65)", () => {
     const forms = Array.from(document.querySelectorAll<HTMLFormElement>("form")).filter(node => node.querySelector("[required]"));
     expect(forms.length).toBeGreaterThan(0);
     expectEmptySubmitRefused(forms[0], "en", vi.fn());
+  });
+
+  it("links a project from the ds list, and an empty portfolio/programme sends neither (D-75)", () => {
+    cleanup(); state.linkMutate.mockReset();
+    render(<PmoDashboard />);
+    const project = document.getElementById("pmo-link-project") as HTMLSelectElement;
+    fireEvent.change(project, { target: { value: "critical" } });
+    fireEvent.submit(project.closest("form")!);
+    expect(state.linkMutate).toHaveBeenCalledTimes(1);
+    const sent = state.linkMutate.mock.calls[0][0] as Record<string, unknown>;
+    expect(sent.projectId).toBe("critical");
+    expect(sent).not.toHaveProperty("programId");
+    expect(sent).not.toHaveProperty("portfolioId");
+  });
+
+  it("refuses a project link with no project chosen: nothing is sent and the list is marked (D-75 negative)", () => {
+    cleanup(); state.linkMutate.mockReset();
+    render(<PmoDashboard />);
+    const project = document.getElementById("pmo-link-project") as HTMLSelectElement;
+    fireEvent.submit(project.closest("form")!);
+    expect(state.linkMutate).not.toHaveBeenCalled();
+    expect(project.getAttribute("aria-invalid")).toBe("true");
   });
 });

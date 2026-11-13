@@ -75,7 +75,6 @@
   "hardcoded-colour": 1
  },
  "client/src/pages/PmoDashboard.tsx": {
-  "raw-select": 24,
   "hardcoded-colour": 7
  },
  "client/src/pages/PortfolioCashFlowChart.tsx": {
