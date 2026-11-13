@@ -63,13 +63,17 @@ describe("the touch-target rule in index.css", () => {
     expect(ruleWith('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"])', /min-width:\s*44px/)).toBe(true);
   });
 
+  it("gives a range slider a 44px minimum height (Q-20: the master plan zoom)", () => {
+    expect(ruleWith(':where(input[type="range"])', /min-height:\s*44px/)).toBe(true);
+  });
+
   it("gives a checkbox or radio label row a 44px minimum height", () => {
     expect(coarse).toMatch(/:where\(label:has\(> input\[type="checkbox"\]\), label:has\(> input\[type="radio"\]\)\)\s*\{\s*min-height:\s*44px;/);
   });
 
   // Every literal input type written in client/src. A type that is not listed here fails, so a new kind of field must be added to
   // KNOWN_INPUT_TYPES together with a rule above that sizes it. An input with no type attribute is a text field.
-  const KNOWN_INPUT_TYPES = ["text", "password", "search", "number", "date", "file", "checkbox", "radio", "hidden"];
+  const KNOWN_INPUT_TYPES = ["text", "password", "search", "number", "date", "file", "checkbox", "radio", "hidden", "range"];
   function sourceFiles(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
       const path = join(dir, entry.name);
