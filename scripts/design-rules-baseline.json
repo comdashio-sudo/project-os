@@ -120,9 +120,6 @@
   "raw-select": 31,
   "hardcoded-colour": 30
  },
- "client/src/pages/ProjectProcurement.tsx": {
-  "raw-select": 15
- },
  "client/src/pages/ProjectProfitability.tsx": {
   "hardcoded-colour": 11
  },
@@ -139,7 +136,7 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectSubmittals.tsx": {
-  "raw-select": 17
+  "raw-select": 1
  },
  "client/src/pages/ProjectTenders.tsx": {
   "hardcoded-colour": 1

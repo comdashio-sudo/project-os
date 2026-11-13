@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ds";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -149,13 +150,13 @@ export default function ProjectSubmittals() {
         <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
           <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.create}</summary>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="block text-sm font-medium">{t.createType}<select className={`${fieldInput} mt-1`} value={form.type} onChange={event => setForm({ ...form, type: event.target.value as Type })}>{TYPES.map(value => <option key={value} value={value}>{typeName(value)}</option>)}</select></label>
+            <label className="block text-sm font-medium">{t.createType}<Select className="mt-1" value={form.type} onValueChange={value => setForm({ ...form, type: value as Type })} options={TYPES.map(value => ({ value, label: typeName(value) }))} /></label>
             <label className="block text-sm font-medium">{t.createNumber}<input className={`${fieldInput} mt-1`} value={form.number} onChange={event => setForm({ ...form, number: event.target.value })} /></label>
             <label className="block text-sm font-medium sm:col-span-2">{t.createTitle}<input className={`${fieldInput} mt-1`} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} /></label>
             <label className="block text-sm font-medium">{t.createConsultant}<input className={`${fieldInput} mt-1`} list="submittal-consultants" value={form.consultant} onChange={event => setForm({ ...form, consultant: event.target.value })} /></label>
             <datalist id="submittal-consultants">{consultants.filter(name => name !== NONE).map(name => <option key={name} value={name} />)}</datalist>
             <label className="block text-sm font-medium">{t.createDue}<input className={`${fieldInput} mt-1`} type="date" value={form.due} onChange={event => setForm({ ...form, due: event.target.value })} /></label>
-            {form.type === "material_approval" && <label className="block text-sm font-medium sm:col-span-2">{t.createMaterial}<select className={`${fieldInput} mt-1`} value={form.materialId} onChange={event => setForm({ ...form, materialId: event.target.value })}><option value="">{t.pickMaterial}</option>{(materials.data ?? []).map(material => <option key={material.id} value={material.id}>{material.code} — {material.description}</option>)}</select></label>}
+            {form.type === "material_approval" && <label className="block text-sm font-medium sm:col-span-2">{t.createMaterial}<Select className="mt-1" value={form.materialId} placeholder={t.pickMaterial} onValueChange={value => setForm({ ...form, materialId: value })} options={(materials.data ?? []).map(material => ({ value: material.id, label: `${material.code} — ${material.description}` }))} /></label>}
           </div>
           <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreate || create.isPending} onClick={() => { setMessage(null); create.mutate({ ...scope, submittalType: form.type, submittalNumber: form.number.trim(), title: form.title.trim(), consultant: form.consultant.trim() || undefined, dueAt: form.due ? new Date(`${form.due}T12:00:00Z`) : undefined, materialId: form.type === "material_approval" ? form.materialId : undefined }); }}>{create.isPending ? t.saving : t.save}</Button>
         </details>
@@ -165,9 +166,9 @@ export default function ProjectSubmittals() {
 
       <section aria-label={t.filters} className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-5">
         <label className="block text-sm font-medium sm:col-span-2">{t.search}<input className={`${fieldInput} mt-1`} type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>
-        <label className="block text-sm font-medium">{t.status}<select className={`${fieldInput} mt-1`} value={status} onChange={event => setStatus(event.target.value as Status | "all")}><option value="all">{t.all}</option>{STATUSES.map(value => <option key={value} value={value}>{statusName(value)}</option>)}</select></label>
-        <label className="block text-sm font-medium">{t.type}<select className={`${fieldInput} mt-1`} value={type} onChange={event => setType(event.target.value as Type | "all")}><option value="all">{t.all}</option>{TYPES.map(value => <option key={value} value={value}>{typeName(value)}</option>)}</select></label>
-        <label className="block text-sm font-medium">{t.consultant}<select className={`${fieldInput} mt-1`} value={consultant} onChange={event => setConsultant(event.target.value)}><option value="all">{t.all}</option>{consultants.map(name => <option key={name} value={name}>{name === NONE ? t.noConsultant : name}</option>)}</select></label>
+        <label className="block text-sm font-medium">{t.status}<Select className="mt-1" value={status} onValueChange={value => setStatus(value as Status | "all")} options={[{ value: "all", label: t.all }, ...STATUSES.map(value => ({ value, label: statusName(value) }))]} /></label>
+        <label className="block text-sm font-medium">{t.type}<Select className="mt-1" value={type} onValueChange={value => setType(value as Type | "all")} options={[{ value: "all", label: t.all }, ...TYPES.map(value => ({ value, label: typeName(value) }))]} /></label>
+        <label className="block text-sm font-medium">{t.consultant}<Select className="mt-1" value={consultant} onValueChange={setConsultant} options={[{ value: "all", label: t.all }, ...consultants.map(name => ({ value: name, label: name === NONE ? t.noConsultant : name }))]} /></label>
         <label className={`${tap} flex items-center gap-2 text-sm font-medium sm:col-span-5`}><input type="checkbox" checked={onlyOverdue} onChange={event => setOnlyOverdue(event.target.checked)} />{t.onlyOverdue}</label>
       </section>
 
@@ -203,7 +204,7 @@ export default function ProjectSubmittals() {
                 </div>
                 {replying?.id === row.id && (
                   <div className="space-y-2 rounded-lg bg-slate-50 p-2" data-reply-form>
-                    <label className="block text-sm font-medium">{t.replyCode}<select className={`${fieldInput} mt-1`} value={replying.code} onChange={event => setReplying({ ...replying, code: event.target.value })}>{replyCodes.map(code => <option key={code.code} value={code.code}>{code.code} — {pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelUr })} ({code.approved ? t.approvedCode : t.notApprovedCode})</option>)}</select></label>
+                    <label className="block text-sm font-medium">{t.replyCode}<Select className="mt-1" value={replying.code} onValueChange={value => setReplying({ ...replying, code: value })} options={replyCodes.map(code => ({ value: code.code, label: `${code.code} — ${pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelUr })} (${code.approved ? t.approvedCode : t.notApprovedCode})` }))} /></label>
                     <label className="block text-sm font-medium">{t.replyNote}<input className={`${fieldInput} mt-1`} value={replying.note} onChange={event => setReplying({ ...replying, note: event.target.value })} /></label>
                     <div className="grid grid-cols-2 gap-2"><Button className={tap} disabled={!replying.code || reply.isPending} onClick={() => reply.mutate({ ...scope, submittalId: row.id, replyCode: replying.code, replyNote: replying.note.trim() || undefined })}>{t.confirmReply}</Button><Button variant="outline" className={tap} onClick={() => setReplying(null)}>{t.cancel}</Button></div>
                   </div>
