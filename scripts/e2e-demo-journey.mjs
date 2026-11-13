@@ -294,13 +294,10 @@ try {
   await keeper.page.getByLabel(/Quantity/).fill("5");
   const unitBox = keeper.page.getByLabel("Unit number");
   await unitBox.fill(String(unitNumber));
-  // CI on 2026-10-25 (twice in a day, on different commits) found the unit box EMPTY a moment after it had been filled, with the rest of the screen intact: the typed value was lost. Whether that is
-  // a re-render on a slow runner or a screen that drops a keystroke is not known yet (docs/STATE.md, OPEN). So: check the box kept the value; if not, say so in the log (a loss is a finding, not
-  // noise) and type it once more, so one lost keystroke does not hide the rest of the journey.
-  if (!(await waitFor(async () => (await unitBox.inputValue()) === String(unitNumber), 3000))) {
-    console.log(`note the unit box lost its value after it was filled (it reads ${JSON.stringify(await unitBox.inputValue().catch(() => null))}); typing it again`);
-    await unitBox.fill(String(unitNumber));
-  }
+  // D-14 (#175): the unit box kept losing what was typed on a slow runner because choosing the material focused the quantity box from a timer that could run late and pull
+  // the focus back mid-entry (fixed in QuickIssue.tsx). The retype that used to hide it is gone: a box that does not keep its value is now a failed check, with what it reads.
+  const unitKept = await waitFor(async () => (await unitBox.inputValue()) === String(unitNumber), 3000);
+  check(`the unit box keeps the number typed into it (${unitNumber})`, unitKept, unitKept ? undefined : { unitBox: await unitBox.inputValue().catch(() => null), quantity: await keeper.page.getByLabel(/Quantity/).inputValue().catch(() => null) });
   // The Activity field exists only once the typed number is a unit of this project. If it never appears, say WHY (the screen's own words, a picture) instead of a bare 20 s timeout:
   // the one CI failure of this step (2026-10-25) left nothing to tell a slow runner from a screen that had lost what was typed.
   const activityField = keeper.page.getByLabel(/Activity/);
