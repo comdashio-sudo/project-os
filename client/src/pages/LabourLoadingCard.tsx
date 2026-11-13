@@ -26,10 +26,10 @@ const text = {
     dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
   }, ur: {
     title: "لوڈ شدہ مزدوری کی لاگت", factor: "مؤثر لوڈنگ فیکٹر", none: "پے رول سے ابھی تک کسی گھنٹے کی قیمت نہیں لگائی گئی", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
-    priced: (loaded: number, resource: number, hours: number) => `${loaded} time entries priced from payroll and ${resource} from the resource plan rate (no salary structure), ${hours} hours in all.`,
+    priced: (loaded: number, resource: number, hours: number) => `${loaded} وقت کے اندراجات کی قیمت پے رول سے اور ${resource} کی وسائل پلان کی شرح سے لگائی گئی (تنخواہ کا ڈھانچہ نہیں)، کل ${hours} گھنٹے۔`,
     settings: "کمپنی کی ترتیبات", gosi: "آجر کا بیمہ — سعودی (%)", gosiNon: "آجر کا بیمہ — غیر سعودی (%)", eosYears: "پہلی شرح پر سال", eosFirst: "اس مدت میں ہر سال کے مہینے", eosLater: "اس کے بعد ہر سال کے مہینے", estimateNote: "یہ لاگت کا تخمینہ ہے، قانونی حساب نہیں۔ بیمہ بنیادی تنخواہ اور ہاؤسنگ پر لاگو ہے؛ اختتامِ ملازمت تنخواہ اور مقررہ الاؤنسز پر سروس کی مدت کے حساب سے لاگو ہے۔", indirect: "بالواسطہ لوڈنگ (%)", hours: "یومیہ گھنٹے", days: "کام کے دن", edit: "ترمیم کریں", save: "محفوظ کریں", cancel: "منسوخ کریں", saved: "ترتیبات محفوظ ہو گئیں",
     defaults: "ڈیفالٹ ترتیبات: سعودی کے لیے بیمہ 11.75% اور دوسروں کے لیے 2%، اختتامِ ملازمت پہلے پانچ سال ہر سال آدھا مہینہ اور اس کے بعد ایک مہینہ، اتوار سے جمعرات، آٹھ گھنٹے۔", loadedCost: "منظور شدہ لوڈڈ لاگت", note: "یہ فیکٹر اسی مدت کے لیے لوڈڈ لاگت کو صرف تنخواہ اور الاؤنسز سے تقسیم کرنے کا نتیجہ ہے۔ کسی فرد کی تنخواہ نہیں دکھائی جاتی۔",
-    dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    dayNames: ["اتوار", "پیر", "منگل", "بدھ", "جمعرات", "جمعہ", "ہفتہ"],
   },
 };
 

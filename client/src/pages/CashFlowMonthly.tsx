@@ -19,8 +19,8 @@ const text = {
     lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
     basis: "Received = paid invoices (with VAT) on the day paid. Paid out = posted actual cost on the day it was incurred, the nearest the platform has to payments because payments to suppliers are not recorded.",
    monthlyTable: "Monthly cash-flow table" }, ur: {
-    title: "ماہانہ خالص نقد بہاؤ", month: "مہینہ", receipts: "وصول شدہ", outflows: "ادا کی گئی رقم", net: "Net", cumulative: "جمع شدہ", empty: "ابھی تک رقم کی کوئی حرکت درج نہیں ہوئی: وصولیاں اس وقت ظاہر ہوں گی جب انوائسز ادا ہوں گی۔", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
-    lowest: (month: string, amount: string) => `Lowest cumulative position: ${amount} in ${month}.`,
+    title: "ماہانہ خالص نقد بہاؤ", month: "مہینہ", receipts: "وصول شدہ", outflows: "ادا کی گئی رقم", net: "خالص", cumulative: "جمع شدہ", empty: "ابھی تک رقم کی کوئی حرکت درج نہیں ہوئی: وصولیاں اس وقت ظاہر ہوں گی جب انوائسز ادا ہوں گی۔", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
+    lowest: (month: string, amount: string) => `کم ترین جمع شدہ پوزیشن: ${month} میں ${amount}۔`,
     basis: "وصول شدہ = ادا شدہ انوائسز (VAT سمیت) اس دن جس دن ادا ہوئیں۔ ادا کی گئی رقم = درج شدہ اصل لاگت اس دن جس دن وہ ہوئی، کیونکہ سپلائرز کو ہونے والی ادائیگیاں درج نہیں ہوتیں اور یہ پلیٹ فارم کے پاس قریب ترین معلومات ہے۔",
    monthlyTable: "ماہانہ نقد بہاؤ کا جدول" },
 };

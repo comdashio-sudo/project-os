@@ -573,84 +573,84 @@
 
 | الملف | نصوص مفتوحة | نصوص مكتوبة | الحالة |
 |---|---|---|---|
-| components/DirectImportRunner.tsx | 17 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/dxf/dxfReader.ts (رسائل قراءة DXF) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/levels.ts (أسماء المستويات الأربعة) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/LevelDashboard.tsx (شريط المستويات) | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| components/DirectImportRunner.tsx | 17 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 6 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| lib/dxf/dxfReader.ts (رسائل قراءة DXF) | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/levels.ts (أسماء المستويات الأربعة) | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/LevelDashboard.tsx (شريط المستويات) | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | components/MasterPlanDrawing.tsx (الرسم التفاعلي للخطة) | 0 | 0 | مفتوح (قاموس الأردية نسخة من الإنجليزية) |
-| pages/LevelCompany.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
-| pages/LevelEntry.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
-| pages/LevelPortfolio.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
-| pages/LevelProject.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
-| pages/LevelWarehouse.tsx | 0 | 0 | مفتوح (قاموس النسخة الأردية نسخة من الإنجليزية) |
-| components/EnterpriseNavigation.tsx | 28 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/ImportDiffPreview.tsx | 8 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/MasterPlanTools.tsx | 28 | 2 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/OperationalRoleGuide.tsx | 5 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/PlanningControlCenter.tsx | 22 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/SectionResilience.tsx | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| components/TenantDataCard.tsx | 21 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/excelExport.ts | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/indicatorBasis.ts | 10 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/ledgerMessages.ts | 22 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/operationalRolePresentation.ts | 69 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/profitabilityView.ts | 5 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| lib/userGuide.ts | 75 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/AcceptInvitation.tsx | 7 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/BillingRegister.tsx | 18 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/CashFlowMonthly.tsx | 10 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/CommercialChain.tsx | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/EosLiabilityCard.tsx | 12 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/EvmCalculator.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/LevelCompany.tsx | 0 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/LevelEntry.tsx | 0 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/LevelPortfolio.tsx | 0 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/LevelProject.tsx | 0 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/LevelWarehouse.tsx | 0 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/EnterpriseNavigation.tsx | 28 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/ImportDiffPreview.tsx | 8 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 13 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| components/MasterPlanTools.tsx | 28 | 2 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/OperationalRoleGuide.tsx | 5 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/PlanningControlCenter.tsx | 22 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/SectionResilience.tsx | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| components/TenantDataCard.tsx | 21 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 5 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| lib/excelExport.ts | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/indicatorBasis.ts | 10 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/ledgerMessages.ts | 22 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/operationalRolePresentation.ts | 69 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/profitabilityView.ts | 5 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| lib/userGuide.ts | 75 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/AcceptInvitation.tsx | 7 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/BillingRegister.tsx | 18 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 1 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/CashFlowMonthly.tsx | 10 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 2 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/CommercialChain.tsx | 4 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/EosLiabilityCard.tsx | 12 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/EvmCalculator.tsx | 16 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 6 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ExecutiveDashboard.tsx | 34 | 0 | مغلق (D-67، 2026-11-13): النسخة الوحيدة كانت اسم المنتج «PROJECT OS»، وهو اسم لا عبارة فأُضيف إلى المصطلحات اللاتينية؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/FieldEntry.tsx | 2 | 62 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/Home.tsx | 53 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/LabourLoadingCard.tsx | 23 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/LicensingConsole.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/FieldEntry.tsx | 2 | 62 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/Home.tsx | 53 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 3 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/LabourLoadingCard.tsx | 23 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 8 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/LicensingConsole.tsx | 29 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | pages/MyPerformance.tsx | 24 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/NotFound.tsx | 3 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/PayrollPanel.tsx | 74 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/PayrollWorkspace.tsx | 2 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/NotFound.tsx | 3 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 3 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/PayrollPanel.tsx | 74 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 69 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/PayrollWorkspace.tsx | 2 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | pages/PmcProgramme.tsx | 20 | 0 | مغلق (D-66، 2026-11-13): 21 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PmcSitePlan.tsx | 25 | 0 | مغلق (D-66، 2026-11-13): 32 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/PmoControlLinks.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/PmoControlLinks.tsx | 16 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 13 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PmoDashboard.tsx | 106 | 0 | مغلق (D-67، 2026-11-13): 97 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/PortfolioProfitability.tsx | 12 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectAdvisor.tsx | 10 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/PortfolioProfitability.tsx | 12 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 12 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/ProjectAdvisor.tsx | 10 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 10 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectChanges.tsx | 19 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectClaims.tsx | 23 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectContracts.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectControls.tsx | 101 | 0 | مغلق (D-67، 2026-11-13): 91 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/ProjectDataExport.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectDesign.tsx | 63 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectDataExport.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 8 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/ProjectDesign.tsx | 63 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 63 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDocuments.tsx | 32 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectEmployees.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectFieldReports.tsx | 1 | 23 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectFpac.tsx | 61 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectFieldReports.tsx | 1 | 23 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
+| pages/ProjectFpac.tsx | 61 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 78 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، منها 8 في أزواج [البند، المعادلة] صارت البوابة تفحصها، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectGoodsReceipts.tsx | 27 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectHse.tsx | 19 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectImports.tsx | 84 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectImports.tsx | 84 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 87 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectInvoicesPanel.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectMasterPlan.tsx | 113 | 0 | مغلق (D-66، 2026-11-13): 108 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectMaterials.tsx | 20 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectNcrs.tsx | 22 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectNotifications.tsx | 12 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectNotifications.tsx | 12 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 9 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectOperationalImports.tsx | 10 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectPmc.tsx | 105 | 0 | مغلق (D-66، 2026-11-13): 113 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectProcurement.tsx | 36 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectPurchaseOrders.tsx | 25 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectQualityInspections.tsx | 1 | 22 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectQualityInspections.tsx | 1 | 22 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectRegistry.tsx | 27 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectResources.tsx | 20 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectRfis.tsx | 22 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectTenders.tsx | 61 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectTenders.tsx | 61 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 61 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectWarehouses.tsx | 41 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectWorkforce.tsx | 60 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/SetupWizard.tsx | 58 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectWorkforce.tsx | 60 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 56 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/SetupWizard.tsx | 58 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 57 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/SupportCenter.tsx | 35 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/SupportOwnerPanel.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/SupportOwnerPanel.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 11 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/TenantAdministration.tsx | 92 | 0 | مغلق (D-67، 2026-11-13): 85 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/UserGuide.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/UserGuide.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 11 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/UserProfile.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 
 ### 4.2 نصوص بالمنطق الشرطي `isArabic ? … : …` (لا تملك خانة أردية، فتظهر بالإنجليزية في الأردية)
