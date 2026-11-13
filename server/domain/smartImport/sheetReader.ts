@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { MAX_IMPORT_ROWS, readSpreadsheetSafely } from "../excelWorkbook";
+import { MAX_IMPORT_ROWS, parseRange, readSpreadsheetSafely } from "../excelWorkbook";
 import { readXls } from "./xlsReader";
 
 // Reads ANY workbook or CSV into plain grids, without asking the file to look like our template: every sheet, the merged cells filled the way Excel SHOWS them (vertical merges only —
@@ -9,11 +9,6 @@ export type Cell = string | number | Date | null;
 export type SheetGrid = { name: string; rows: Cell[][]; mergedFilled: number; mergeRanges: number };
 export type GridResult = { ok: true; sheets: SheetGrid[]; encoding: "utf-8" | "windows-1256" | "xlsx" | "xls" } | { ok: false; code: string };
 
-const columnNumber = (letters: string) => letters.split("").reduce((sum, ch) => sum * 26 + (ch.charCodeAt(0) - 64), 0);
-function parseRange(range: string): { top: number; left: number; bottom: number; right: number } | null {
-  const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range);
-  return match ? { left: columnNumber(match[1]), top: Number(match[2]), right: columnNumber(match[3]), bottom: Number(match[4]) } : null;
-}
 
 function plainValue(value: ExcelJS.CellValue): Cell {
   if (value === null || value === undefined) return null;
