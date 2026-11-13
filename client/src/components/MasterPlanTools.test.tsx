@@ -9,6 +9,7 @@ import { TYPING_TEST } from "@/test/typing";
 
 const hoisted = vi.hoisted(() => ({ state: { arabic: true, calls: {} as Record<string, ReturnType<typeof vi.fn>> }, mutation: (name: string) => ({ useMutation: () => ({ mutate: hoisted.state.calls[name] ?? (hoisted.state.calls[name] = vi.fn()), isPending: false, error: null }) }) }));
 const { state } = hoisted;
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { masterPlans: { setVersionGeometry: hoisted.mutation("setVersionGeometry"), updateEntityLayout: hoisted.mutation("updateEntityLayout"), setSnapshotSharing: hoisted.mutation("setSnapshotSharing") } } }));
@@ -46,7 +47,7 @@ describe("MasterPlanEntityTools", TYPING_TEST, () => {
     await user.selectOptions(screen.getByLabelText("الأب في الشجرة"), "other");
     await user.click(screen.getByRole("button", { name: "حفظ الأب" }));
     expect(state.calls.updateEntityLayout).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", entityId: "grand", parentEntityId: "other" });
-    await user.selectOptions(screen.getByLabelText("الأب في الشجرة"), "");
+    await user.selectOptions(screen.getByLabelText("الأب في الشجرة"), "__none"); // «no parent» (the list has no empty value)
     await user.click(screen.getByRole("button", { name: "حفظ الأب" }));
     expect(state.calls.updateEntityLayout).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", entityId: "grand", parentEntityId: null });
   });
