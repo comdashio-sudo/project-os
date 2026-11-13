@@ -1,6 +1,7 @@
 // Interactive master-plan drawing: read a DXF in the browser, match its shapes to the plan's units,
 // let a person confirm each link, colour the map by unit status, and export the confirmed links.
 // The file never leaves the browser, and nothing is saved on the server (G-189).
+import { FileButton } from "@/components/ds";
 import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { trpc } from "@/lib/trpc";
 import { latestVersionId } from "@/lib/masterPlanDrawingLayout";
@@ -311,8 +312,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     }
   };
 
-  async function onFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function onFileChosen(file: File | null) {
     if (!file) return;
     if (file.size > MAX_DXF_BYTES) {
       setError({ kind: "file", code: "FILE_TOO_LARGE", message: { ar: text.ar.tooLarge, en: text.en.tooLarge, ur: text.ur.tooLarge } });
@@ -476,10 +476,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       {plansQuery.data && hasVersion && units.length === 0 ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium">
-          {t.upload}
-          <input type="file" accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" className="sr-only" onChange={onFile} />
-        </label>
+        <FileButton label={t.upload} accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" showName={false} onFile={onFileChosen} />
         {pdfSource && pdfSource.pageCount > 1 ? (
           <label className="flex flex-col text-xs">
             {t.page}

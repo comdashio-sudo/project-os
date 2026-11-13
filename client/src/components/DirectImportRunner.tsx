@@ -2,7 +2,7 @@ import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 import { resolveLanguage } from "@/lib/language";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
 import { Button } from "@/components/ui/button";
-import { FileDropzone } from "@/components/ds";
+import { FileButton, FileDropzone } from "@/components/ds";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
@@ -130,7 +130,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
           items={file ? [{ id: "file", name: file.name, size: file.size, status: uploadPercent !== null ? "uploading" : importId ? "done" : "queued", progress: uploadPercent ?? undefined }] : []} />
         <Button type="button" className="min-h-[44px]" disabled={!file || busy || inFlight} onClick={() => void start()}><FileUp className="me-1 h-4 w-4" />{analyzeLabel}</Button>
       </div> : <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">{fileLabel}<input aria-label={fileLabel} type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-1 block min-h-[44px] rounded-xl border border-slate-200 p-2 text-sm" onChange={event => { setFile(event.target.files?.[0] ?? null); setLocalError(null); }} /></label>
+        <FileButton label={fileLabel} accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onFile={chosen => { setFile(chosen); setLocalError(null); }} />
         <Button type="button" className="min-h-[44px]" disabled={!file || busy || inFlight} onClick={() => void start()}><FileUp className="me-1 h-4 w-4" />{analyzeLabel}</Button>
       </div>}
       {localError && <p role="alert" className="text-sm text-red-700">{localError}</p>}
