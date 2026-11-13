@@ -6,6 +6,7 @@ import ExcelJS from "exceljs";
 import { appRouter } from "./routers";
 import { MAX_DIRECT_UPLOAD_BYTES } from "./storage";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
+import { seedOutsiderTenant } from "./testing/p6Isolation";
 
 // Work order 7, export → edit → re-import on a real database: ids and versions in the export, the differences preview, the stale-version refusal, the approval hash, and who may do what.
 // Synthetic fixtures only.
@@ -16,7 +17,7 @@ const P2 = "79100000-0000-4000-8000-0000000000b2";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;
 let s3: FakeS3;
-const users = { importer: 0, reader: 0 };
+const users = { importer: 0, reader: 0, outsider: 0 };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@jobs.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] });
 const scope = { tenantId: T, projectId: P };
 
@@ -73,6 +74,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("export → edit → re-i
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'icy-%'");
     const idOf = (openId: string) => rows.find(row => row.openId === openId)!.id;
     users.importer = idOf("icy-importer"); users.reader = idOf("icy-reader");
+    // 7.4 (D-25): the other company, really another company with its own project, and a user there who holds every WBS permission THERE
+    users.outsider = await seedOutsiderTenant(connection, { tenantId: T2, projectId: P2, prefix: "icy" });
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'cycle-tenant', 'cycle-tenant')", [T]);
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'CY-A', 'Cycle project', 'villas', 'SAR', 'active')", [P, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('icy-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
@@ -86,6 +89,17 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("export → edit → re-i
     await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES ('icy-w1', ?, ?, '1.1', 'Site setup', 1000), ('icy-w2', ?, ?, '1.2', 'Excavation', 2500.5), ('icy-w3', ?, ?, '1.3', 'Piling', 4000)", [T, P, T, P, T, P]);
   }, 60_000);
   afterAll(async () => { await clear(); await connection.end(); await s3.close(); });
+
+  it("NEGATIVE (7.4): a user of ANOTHER company, who may manage the WBS in his own, can neither export nor start an import in this project", async () => {
+    const outsider = callerFor(users.outsider, "icy-outsider");
+    await expect(outsider.dataImports.export({ ...scope, moduleCode: "wbs", format: "xlsx", locale: "en" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(outsider.dataImports.createUpload({ ...scope, moduleCode: "wbs", fileName: "wbs.xlsx", sourceFormat: "xlsx" })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // naming his own company with this project's id does not reach it either
+    await expect(outsider.dataImports.export({ tenantId: T2, projectId: P, moduleCode: "wbs", format: "xlsx", locale: "en" })).rejects.toThrow(/PROJECT_OS_/);
+    // and his own project is his to export: the refusal above is about the company, not about his permission
+    const own = await outsider.dataImports.export({ tenantId: T2, projectId: P2, moduleCode: "wbs", format: "xlsx", locale: "en" });
+    expect(own.fileName).toMatch(/\.xlsx$/);
+  });
 
   it("a reader may export (read only) but may not preview or confirm an import", async () => {
     const reader = callerFor(users.reader, "icy-reader");

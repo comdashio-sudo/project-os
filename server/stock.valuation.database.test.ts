@@ -5,8 +5,8 @@ import { appRouter } from "./routers";
 
 // Work order 3, decision 1 and 2: a goods receipt raises the shelf and the cost is charged when the material is issued to a WBS item;
 // a direct delivery to site charges the cost at the door. Stock is valued at the weighted average. Synthetic fixtures.
-const T = "78000000-0000-4000-8000-0000000000a1";
-const P = "78000000-0000-4000-8000-0000000000a2";
+const T = "7a000008-0000-4000-8000-0000000000a1";
+const P = "7a000016-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `78000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [WBS, CEM, SAND, COM, PO] = [101, 102, 103, 104, 105].map(uid);
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };

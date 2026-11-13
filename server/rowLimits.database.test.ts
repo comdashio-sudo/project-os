@@ -10,8 +10,8 @@ import { grantOperationalPermissions } from "./testing/grantOperational";
 // database directly (no row cap in the middle), but a LIMIT written into one of its own queries would do the same. This file builds a project of 1,200 units and 1,200 posted cost
 // lines (more than every LIMIT in the server: 100, 200, 300, 500, 2,000) and checks that progress, earned value, actual cost, forecast and profit are the ones a hand calculation gives.
 // Synthetic data only; the rows are inserted by the owner in bulk with generate_series and removed afterwards.
-const T = "70000000-0000-4000-8000-0000000000a1";
-const P = "70000000-0000-4000-8000-0000000000a2";
+const T = "7a000005-0000-4000-8000-0000000000a1";
+const P = "7a000013-0000-4000-8000-0000000000a2";
 const uid = (n: number) => `70000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [Z1, B1, G1, S1, D_WALLS, D_PAINT, WBS1] = [1, 2, 3, 4, 5, 6, 7].map(n => uid(100 + n));
 const UNITS = 1200;

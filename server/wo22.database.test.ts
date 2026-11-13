@@ -14,10 +14,10 @@ import { siteToday } from "./wo22Shared";
 // Work order 22, end to end on a real database: the monthly report (with its WIR row) builds the villas and the catalogue; the consultant's export gives the consultant's state
 // (twice: the second week's preview says what is new); the site's old workbook brings the site's history once; the owner confirms the links; the comparison shows the two kinds of
 // difference, the three percentages differ as the sources do, and an action on a difference changes the numbers. SYNTHETIC files only (domain/smartImport/wo22Fixture.ts).
-const T = "7b000000-0000-4000-8000-0000000000a1";
+const T = "7a000009-0000-4000-8000-0000000000a1";
 const P = "7b000000-0000-4000-8000-0000000000a2";
 /** Another company, whose own manager holds every PMC permission there — and none in T. */
-const T2 = "7b000000-0000-4000-8000-0000000000b1";
+const T2 = "7a000010-0000-4000-8000-0000000000b1";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;
 let s3: FakeS3;
