@@ -1,4 +1,4 @@
-import { beforeAll } from "vitest";
+import { beforeAll, expect } from "vitest";
 import { assertTestDatabaseUrl } from "./testDatabase";
 
 // Runs before every test file. With no database variables set, nothing
@@ -22,6 +22,10 @@ process.env.REGISTRATION = process.env.REGISTRATION ?? "open";
 // (Imported inside the hook, not at the top: a test file that replaces the driver with vi.mock must be the first to load the connection module.)
 beforeAll(async () => {
   if (process.env.TEST_DB_NO_FALLBACK === "true") return;
+  // G-141 (D-32): the suites listed in strictRlsSuites.ts never get the fallback (see that file).
+  const { STRICT_RLS_SUITES } = await import("./strictRlsSuites");
+  const file = (expect.getState().testPath ?? "").split(/[\\/]/).pop() ?? "";
+  if (STRICT_RLS_SUITES.includes(file)) return;
   const { useFallbackDbContextForTests } = await import("../_core/database");
   useFallbackDbContextForTests({ userId: null, tenantIds: [], system: true, reason: "test: direct call outside a request" });
 });
