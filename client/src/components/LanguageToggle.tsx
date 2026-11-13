@@ -47,7 +47,7 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
           );
         })}
       </div>
-      {showNote ? <p className={dark ? "text-xs text-white/80" : "text-xs text-slate-500"}>{note}</p> : null}
+      {showNote ? <p className={dark ? "text-xs text-white/80" : "text-xs text-slate-600"}>{note}</p> : null}
     </div>
   );
 }

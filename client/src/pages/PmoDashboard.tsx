@@ -133,7 +133,7 @@ export default function PmoDashboard() {
       <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link></OutsideShell>
-          <div className="flex gap-3"><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
+          <div className="flex gap-3"><span className="text-sm text-slate-600">{t.level}</span><LanguageToggle /></div>
         </div>
       </PageHeader>
       <div className="mx-auto max-w-7xl px-5 py-8">

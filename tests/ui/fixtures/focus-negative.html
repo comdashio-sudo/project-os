@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>focus negative control</title>
+<style>
+  /* Negative control for scripts/check-keyboard.mjs (G-180): the first button wears a permanent shadow and loses its outline on focus,
+     so nothing changes when it is focused. The old check accepted any shadow and passed it; the new one must report VISIBLE for it. */
+  .always-shadow { box-shadow: 0 0 0 3px #888; outline: none; }
+  .always-shadow:focus, .always-shadow:focus-visible { outline: none; box-shadow: 0 0 0 3px #888; }
+  .ring:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+</style></head>
+<body><main><h1>فحص سلبي</h1>
+<button class="always-shadow" type="button">ظل دائم بلا تركيز</button>
+<button class="ring" type="button">إطار تركيز ظاهر</button>
+</main></body></html>

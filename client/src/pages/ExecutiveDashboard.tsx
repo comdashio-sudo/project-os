@@ -187,7 +187,7 @@ export default function ExecutiveDashboard() {
             {t.back}
           </Link></OutsideShell>
           <div className="flex gap-3">
-            <span className="text-sm text-slate-500">{t.level}</span>
+            <span className="text-sm text-slate-600">{t.level}</span>
             <LanguageToggle />
           </div>
         </div>
