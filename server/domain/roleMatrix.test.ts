@@ -135,10 +135,12 @@ describe("role matrix: docs/ROLE_MATRIX.md is exactly what the code produces", (
     expect(rows).toHaveLength(2 + matrixRoles.length);
     for (const line of rows) expect(line.split(" | ").length).toBe(1 + matrixColumns.length);
   });
-  it("the project manager edits the project setup (profile, logos, companies); a site engineer sees nothing there (D-42 a)", () => {
+  it("the project manager edits the project setup (profile, logos, companies); a site engineer reads it since Q-17 (205-3) and never edits it (D-42 a)", () => {
     const setup = matrixColumns.find(column => column.id === "setup")!;
     expect(cellFor(setup, matrixRoles.find(role => role.code === "PROJECT_MANAGER")!.permissions)).toBe("edit");
-    expect(cellFor(setup, matrixRoles.find(role => role.code === "SITE_ENGINEER")!.permissions)).toBe("none");
+    expect(cellFor(setup, matrixRoles.find(role => role.code === "SITE_ENGINEER")!.permissions)).toBe("see");
+    // NEGATIVE: the warehouse keeper did not get project.read (205-3: not for money, HR or warehouse roles), so the setup stays closed to them
+    expect(cellFor(setup, matrixRoles.find(role => role.code === "WAREHOUSE_CUSTODIAN")!.permissions)).toBe("none");
   });
   it("the site engineer sees the reference lists (the daily report is filled from them) and does not edit them; the project manager edits them (D-44 a)", () => {
     const lists = matrixColumns.find(column => column.id === "referenceLists")!;
@@ -194,9 +196,32 @@ describe("role matrix: the claims the document makes about the code", () => {
     expect(read("drizzle/schema.ts")).not.toMatch(/beneficiar|مستفيد/i);
     expect(matrixColumns.find(column => column.id === "beneficiaries")?.actions).toEqual([]);
   });
-  it("section 1: eleven of the seventeen templates lack project.read (all but QA/QC and the five of work order 5 that open projects), as the document says", () => {
+  it("section 1 (Q-17, 205-3): nine of the seventeen templates lack project.read — the money, HR and warehouse roles, the planner, the project manager and the two company views; the field and technical roles carry it", () => {
     const without = operationalRoleDefinitions.filter(role => !(role.permissions as readonly string[]).includes("project.read")).map(role => role.code);
-    expect(without).toEqual(["WAREHOUSE_CUSTODIAN", "PROCUREMENT_OFFICER", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "PLANNING_ENGINEER", "SITE_ENGINEER", "HSE_MANAGER", "PROJECT_MANAGER", "EXECUTIVE", "PMO_LEAD"]);
+    expect(without).toEqual(["WAREHOUSE_CUSTODIAN", "PROCUREMENT_OFFICER", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "PLANNING_ENGINEER", "PROJECT_MANAGER", "EXECUTIVE", "PMO_LEAD"]);
+    for (const field of ["SITE_ENGINEER", "HSE_MANAGER", "QA_QC_MANAGER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL"]) expect(operationalRoleDefinitions.find(role => role.code === field)!.permissions, field).toContain("project.read");
     expect(operationalRoleDefinitions.length).toBe(17);
+  });
+  it("Q-17 (205-5, G-146): no ready-made template manages the company or reads the executive view, except the executive role's own executive.read", () => {
+    const holders = (code: string) => operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes(code)).map(role => role.code);
+    expect(holders("tenant.manage")).toEqual([]);
+    expect(holders("executive.read")).toEqual(["EXECUTIVE"]);
+    // the company owner holds both as base codes (db.ts ownerPermissions); a custom role gets them only from the owner, and tenant.manage counts at company scope only (D-19)
+    expect(ownerBaseCodes).toContain("tenant.manage");
+    expect(ownerBaseCodes).toContain("executive.read");
+  });
+  it("Q-17 (205-5, G-162): assignments are the project manager's (project.manage); attendance is the HR manager's and the site engineer's", () => {
+    const holders = (code: string) => operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes(code)).map(role => role.code).sort();
+    expect(holders("project.manage")).toEqual(["PROJECT_MANAGER"]);
+    expect(holders("project.attendance.manage")).toEqual(expect.arrayContaining(["HR_MANAGER", "SITE_ENGINEER"]));
+    // NEGATIVE: neither the warehouse nor the money roles record attendance
+    for (const code of ["WAREHOUSE_CUSTODIAN", "FINANCE_MANAGER", "ACCOUNTANT", "PROCUREMENT_OFFICER"]) expect(holders("project.attendance.manage"), code).not.toContain(code);
+    expect(read("server/db.ts")).toMatch(/export async function createEmployeeAssignmentForTenant[\s\S]{0,900}permission: "project\.manage"/);
+  });
+  it("section 3, point 3 (Q-17, 205-2): no ready-made template carries a power nothing checks (payment.prepare, payment.approve, schedule.write stay in the catalogue only)", () => {
+    for (const role of operationalRoleDefinitions) for (const code of unenforcedCodes) expect(role.permissions as readonly string[], `${role.code} carries ${code}`).not.toContain(code);
+    // NEGATIVE control: the check would see one if a template carried it
+    const tampered = [...operationalRoleDefinitions, { code: "X", name: "X", permissions: ["project.read", "payment.approve"] }];
+    expect(tampered.some(role => unenforcedCodes.some(code => (role.permissions as readonly string[]).includes(code)))).toBe(true);
   });
 });
