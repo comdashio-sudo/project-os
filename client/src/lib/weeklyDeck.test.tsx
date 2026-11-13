@@ -2,7 +2,7 @@
 // and the PowerPoint file opening with one slide per slide and native charts. Synthetic figures only.
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { buildWeeklyDeck, capacity, deckProblems, splitText, weeklyReportNumber, type DeckInput, type Slide } from "@/lib/weeklyDeck";
+import { buildWeeklyDeck, capacity, deckProblems, monthlyReportNumber, splitText, weeklyReportNumber, type DeckInput, type DeckMonthly, type Slide } from "@/lib/weeklyDeck";
 import { weeklyDeckPptx } from "@/lib/weeklyDeckPptx";
 
 const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -93,7 +93,7 @@ describe("weekly deck layout", () => {
     const base = input();
     const slides = buildWeeklyDeck(input({ figures: { ...base.figures, activities: [], equipment: [] } }));
     expect(deckProblems(slides)).toEqual([]);
-    expect(JSON.stringify(slides)).toContain("لا بيانات في هذا الأسبوع.");
+    expect(JSON.stringify(slides)).toContain("لا بيانات في هذه الفترة.");
     expect(slides.flatMap(slide => slide.items).filter(item => item.kind === "chart").map(item => (item.kind === "chart" ? item.chart.type : ""))).toEqual(["bar", "doughnut"]);
   });
 });
@@ -114,3 +114,48 @@ describe("weekly deck as PowerPoint", () => {
     expect(await zip.file("ppt/presentation.xml")!.async("string")).toContain('cx="12192000"'); // 16:9 wide
   });
 });
+
+describe("monthly deck (D-53 b)", () => {
+  const monthly: DeckMonthly = {
+    sCurve: { plannedSource: "p6", points: [{ month: "2026-09", planned: 25, actual: 20 }, { month: "2026-10", planned: 62.5, actual: 30 }, { month: "2026-11", planned: 90, actual: 55 }] },
+    milestones: Array.from({ length: 12 }, (_, i) => ({ code: `M-${i + 1}`, name: `Synthetic milestone ${i + 1}`, plannedDate: "2026-11-10", actualDate: i % 2 ? "2026-11-12" : null, state: i % 2 ? "done_late" : "late", varianceDays: 2 })),
+    earnedValue: { asOf: "2026-11-30", pv: 1000, ev: 900, ac: 950, bac: 5000, cv: -50, sv: -100, cpi: 0.947, spi: 0.9 },
+    financialHidden: false,
+  };
+  const month = (overrides: Partial<DeckMonthly> = {}) => input({ number: monthlyReportNumber("DEMO", "2026-11"), monthly: { ...monthly, ...overrides }, labels: {}, texts: {}, photos: [], mapImage: null });
+  const titles = (slides: Slide[]) => slides.map(slide => slide.items.find(item => item.kind === "text" && item.role === "title")).map(item => (item?.kind === "text" ? item.text : ""));
+
+  it("adds the S-curve (planned and actual), the milestones (10 a slide) and earned value, under the month's number on every slide", () => {
+    const slides = buildWeeklyDeck(month());
+    expect(deckProblems(slides)).toEqual([]);
+    expect(titles(slides)).toEqual(expect.arrayContaining(["أرقام الشهر", "منحنى S: المخطط (P6) والفعلي %", "المعالم", "المعالم (تابع)", "القيمة المكتسبة"]));
+    const curve = slides.flatMap(slide => slide.items).find(item => item.kind === "chart" && item.chart.type === "line" && item.chart.labels[0] === "2026-09");
+    expect(curve?.kind === "chart" ? curve.chart.series.map(series => series.values) : null).toEqual([[25, 62.5, 90], [20, 30, 55]]);
+    expect(JSON.stringify(slides)).toContain("منجز متأخرًا");
+    footers(slides).forEach(footer => expect(footer[0]).toContain("DEMO-MR-202611 · 2026-11-07 – 2026-11-13"));
+  });
+
+  it("NEGATIVE: no P6 schedule draws the actual line only and says why; hidden finance shows no figure; no snapshot says so", () => {
+    const noPlan = buildWeeklyDeck(month({ sCurve: { plannedSource: null, points: monthly.sCurve.points.map(point => ({ ...point, planned: null })) } }));
+    expect(deckProblems(noPlan)).toEqual([]);
+    const line = noPlan.flatMap(slide => slide.items).find(item => item.kind === "chart" && item.chart.labels[0] === "2026-09");
+    expect(line?.kind === "chart" ? line.chart.series.map(series => series.name) : null).toEqual(["الفعلي"]);
+    expect(JSON.stringify(noPlan)).toContain("لا جدول P6 مستورد");
+    const hidden = JSON.stringify(buildWeeklyDeck(month({ earnedValue: null, financialHidden: true })));
+    expect(hidden).toContain("مخفية: تحتاج صلاحية الاطلاع المالي.");
+    expect(hidden).not.toContain("\"CPI\"");
+    expect(JSON.stringify(buildWeeklyDeck(month({ earnedValue: null })))).toContain("لا لقطة قيمة مكتسبة");
+    expect(monthlyReportNumber(null, "2026-01")).toBe("MR-202601");
+  });
+
+  it("opens as a .pptx whose slides all carry the month's number, with the S-curve as a native line chart", async () => {
+    const slides = buildWeeklyDeck(month());
+    const zip = await JSZip.loadAsync(await weeklyDeckPptx(slides, "en"));
+    const slideFiles = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name));
+    expect(slideFiles).toHaveLength(slides.length);
+    for (const name of slideFiles) expect(await zip.file(name)!.async("string")).toContain("DEMO-MR-202611");
+    const charts = await Promise.all(Object.keys(zip.files).filter(name => /^ppt\/charts\/chart\d+\.xml$/.test(name)).map(name => zip.file(name)!.async("string")));
+    expect(charts.filter(xml => xml.includes("<c:lineChart>")).length).toBe(2); // the S-curve and the weekly cumulative %
+  });
+});
+

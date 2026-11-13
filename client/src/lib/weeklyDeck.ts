@@ -35,15 +35,25 @@ export type DeckInput = {
   logos: Array<string | null>; // client, consultant, contractor (a URL each, or none)
   parties: Array<string | null>;
   mapImage?: string | null;
+  /** D-53 (b): the monthly report — the same deck with the month's S-curve (P6 plan against the daily reports), its milestones and earned value */
+  monthly?: DeckMonthly;
+};
+export type DeckMonthly = {
+  sCurve: { plannedSource: "p6" | null; points: Array<{ month: string; planned: number | null; actual: number | null }> };
+  milestones: Array<{ code: string; name: string; plannedDate: string | null; actualDate: string | null; state: string; varianceDays: number | null }>;
+  earnedValue: { asOf: string | null; pv: number; ev: number; ac: number; bac: number; cv: number; sv: number; cpi: number | null; spi: number | null } | null;
+  financialHidden: boolean;
 };
 
 const words = {
-  ar: { title: "التقرير الأسبوعي", page: "صفحة", cont: "تابع", figures: "أرقام الأسبوع", activity: "النشاط", planned: "المخطط", actual: "الفعلي", variance: "الانحراف", ofPlan: "% من المخطط", completed: "وحدات اكتملت", reports: "تقارير يومية", workingDays: "أيام العمل", missing: "أيام بلا تقرير", direct: "مباشرة", indirect: "غير مباشرة", daily: "المخطط والفعلي يوميًا", sCurve: "التراكمي % من المخطط", labour: "العمالة يوميًا (رجل×يوم)", split: "مباشرة / غير مباشرة", equipment: "انتشار المعدات يوميًا", quality: "الجودة", safety: "السلامة", manHours: "ساعات العمل", wirPending: "WIR معلّقة", rfiPending: "RFI معلّقة", ncrOpened: "NCR فُتحت", ncrClosed: "NCR أُغلقت", ncrOpen: "NCR مفتوحة", photos: "صور الأسبوع", map: "المخطط الملوّن", none: "لا بيانات في هذا الأسبوع." },
-  en: { title: "Weekly report", page: "Page", cont: "continued", figures: "The week's figures", activity: "Activity", planned: "Planned", actual: "Actual", variance: "Variance", ofPlan: "% of plan", completed: "Units completed", reports: "Daily reports", workingDays: "Working days", missing: "Days without a report", direct: "Direct", indirect: "Indirect", daily: "Planned and actual per day", sCurve: "Cumulative % of plan", labour: "Labour per day (man-days)", split: "Direct / indirect", equipment: "Equipment per day", quality: "Quality", safety: "Safety", manHours: "Man-hours", wirPending: "WIR pending", rfiPending: "RFI pending", ncrOpened: "NCR opened", ncrClosed: "NCR closed", ncrOpen: "NCR open", photos: "The week's photos", map: "Coloured master plan", none: "No data this week." },
-  ur: { title: "ہفتہ وار رپورٹ", page: "صفحہ", cont: "جاری", figures: "ہفتے کے اعداد", activity: "سرگرمی", planned: "منصوبہ", actual: "اصل", variance: "فرق", ofPlan: "منصوبے کا %", completed: "مکمل یونٹس", reports: "روزانہ رپورٹیں", workingDays: "کام کے دن", missing: "رپورٹ کے بغیر دن", direct: "براہِ راست", indirect: "بالواسطہ", daily: "روزانہ منصوبہ اور اصل", sCurve: "مجموعی منصوبے کا %", labour: "روزانہ مزدوری (آدمی-دن)", split: "براہِ راست / بالواسطہ", equipment: "روزانہ آلات", quality: "معیار", safety: "حفاظت", manHours: "کام کے گھنٹے", wirPending: "زیر التوا WIR", rfiPending: "زیر التوا RFI", ncrOpened: "کھلی گئی NCR", ncrClosed: "بند NCR", ncrOpen: "کھلی NCR", photos: "ہفتے کی تصاویر", map: "رنگین ماسٹر پلان", none: "اس ہفتے کوئی ڈیٹا نہیں۔" },
+  ar: { title: "التقرير الأسبوعي", page: "صفحة", cont: "تابع", figures: "أرقام الأسبوع", activity: "النشاط", planned: "المخطط", actual: "الفعلي", variance: "الانحراف", ofPlan: "% من المخطط", completed: "وحدات اكتملت", reports: "تقارير يومية", workingDays: "أيام العمل", missing: "أيام بلا تقرير", direct: "مباشرة", indirect: "غير مباشرة", daily: "المخطط والفعلي يوميًا", sCurve: "التراكمي % من المخطط", labour: "العمالة يوميًا (رجل×يوم)", split: "مباشرة / غير مباشرة", equipment: "انتشار المعدات يوميًا", quality: "الجودة", safety: "السلامة", manHours: "ساعات العمل", wirPending: "WIR معلّقة", rfiPending: "RFI معلّقة", ncrOpened: "NCR فُتحت", ncrClosed: "NCR أُغلقت", ncrOpen: "NCR مفتوحة", photos: "صور الأسبوع", map: "المخطط الملوّن", none: "لا بيانات في هذه الفترة.", monthTitle: "التقرير الشهري", monthFigures: "أرقام الشهر", curve: "منحنى S: المخطط (P6) والفعلي %", plannedLine: "المخطط (P6)", actualLine: "الفعلي", noPlan: "لا جدول P6 مستورد، فلا خط مخطط.", milestones: "المعالم", code: "الرمز", name: "المعلم", plannedDate: "المخطط", actualDate: "الفعلي", state: "الحالة", days: "الفرق (أيام)", states: { done: "منجز", done_late: "منجز متأخرًا", late: "متأخر", due_this_month: "مستحق هذا الشهر", ahead: "لاحق" } as Record<string, string>, ev: "القيمة المكتسبة", evNone: "لا لقطة قيمة مكتسبة حتى نهاية الشهر.", evHidden: "مخفية: تحتاج صلاحية الاطلاع المالي." },
+  en: { title: "Weekly report", page: "Page", cont: "continued", figures: "The week's figures", activity: "Activity", planned: "Planned", actual: "Actual", variance: "Variance", ofPlan: "% of plan", completed: "Units completed", reports: "Daily reports", workingDays: "Working days", missing: "Days without a report", direct: "Direct", indirect: "Indirect", daily: "Planned and actual per day", sCurve: "Cumulative % of plan", labour: "Labour per day (man-days)", split: "Direct / indirect", equipment: "Equipment per day", quality: "Quality", safety: "Safety", manHours: "Man-hours", wirPending: "WIR pending", rfiPending: "RFI pending", ncrOpened: "NCR opened", ncrClosed: "NCR closed", ncrOpen: "NCR open", photos: "The week's photos", map: "Coloured master plan", none: "No data for this period.", monthTitle: "Monthly report", monthFigures: "The month's figures", curve: "S-curve: planned (P6) and actual %", plannedLine: "Planned (P6)", actualLine: "Actual", noPlan: "No P6 schedule imported, so no planned line.", milestones: "Milestones", code: "Code", name: "Milestone", plannedDate: "Planned", actualDate: "Actual", state: "State", days: "Variance (days)", states: { done: "Done", done_late: "Done late", late: "Late", due_this_month: "Due this month", ahead: "Ahead" } as Record<string, string>, ev: "Earned value", evNone: "No earned value snapshot up to the month's end.", evHidden: "Hidden: needs the financial permission." },
+  ur: { title: "ہفتہ وار رپورٹ", page: "صفحہ", cont: "جاری", figures: "ہفتے کے اعداد", activity: "سرگرمی", planned: "منصوبہ", actual: "اصل", variance: "فرق", ofPlan: "منصوبے کا %", completed: "مکمل یونٹس", reports: "روزانہ رپورٹیں", workingDays: "کام کے دن", missing: "رپورٹ کے بغیر دن", direct: "براہِ راست", indirect: "بالواسطہ", daily: "روزانہ منصوبہ اور اصل", sCurve: "مجموعی منصوبے کا %", labour: "روزانہ مزدوری (آدمی-دن)", split: "براہِ راست / بالواسطہ", equipment: "روزانہ آلات", quality: "معیار", safety: "حفاظت", manHours: "کام کے گھنٹے", wirPending: "زیر التوا WIR", rfiPending: "زیر التوا RFI", ncrOpened: "کھلی گئی NCR", ncrClosed: "بند NCR", ncrOpen: "کھلی NCR", photos: "ہفتے کی تصاویر", map: "رنگین ماسٹر پلان", none: "اس مدت میں کوئی ڈیٹا نہیں۔", monthTitle: "ماہانہ رپورٹ", monthFigures: "مہینے کے اعداد", curve: "S-کرو: منصوبہ (P6) اور اصل %", plannedLine: "منصوبہ (P6)", actualLine: "اصل", noPlan: "P6 شیڈول درآمد نہیں ہوا، اس لیے منصوبے کی لکیر نہیں۔", milestones: "سنگِ میل", code: "کوڈ", name: "سنگِ میل", plannedDate: "منصوبہ", actualDate: "اصل", state: "حالت", days: "فرق (دن)", states: { done: "مکمل", done_late: "تاخیر سے مکمل", late: "تاخیر", due_this_month: "اس مہینے واجب", ahead: "آگے" } as Record<string, string>, ev: "کمائی گئی قدر", evNone: "مہینے کے آخر تک کمائی گئی قدر کا کوئی ریکارڈ نہیں۔", evHidden: "پوشیدہ: مالی اجازت درکار ہے۔" },
 };
 
 /** The weekly report's number, from the system: the project's report prefix, WR and the week's first day (one week, one number). */
+/** The monthly report's number: the prefix, MR and the month (YYYYMM). */
+export const monthlyReportNumber = (prefix: string | null, month: string) => `${prefix ? `${prefix}-` : ""}MR-${month.replace("-", "")}`;
 export const weeklyReportNumber = (prefix: string | null, weekStart: string) => `${prefix ? `${prefix}-` : ""}WR-${weekStart.replaceAll("-", "")}`;
 
 const BODY = { x: 0.4, y: 1.15, w: SLIDE.w - 0.8, h: 5.7 };
@@ -71,9 +81,10 @@ export function splitText(text: string, limit: number): string[] {
 export function buildWeeklyDeck(input: DeckInput): Slide[] {
   const w = words[input.language];
   const f = input.figures;
+  const title = input.monthly ? w.monthTitle : w.title;
   const bodies: Array<{ heading: string; items: Item[] }> = [];
   const cover: Item[] = [
-    { kind: "text", role: "body", box: { x: 0.8, y: 1.6, w: 11.7, h: 0.9 }, text: w.title, size: 36, bold: true },
+    { kind: "text", role: "body", box: { x: 0.8, y: 1.6, w: 11.7, h: 0.9 }, text: title, size: 36, bold: true },
     { kind: "text", role: "body", box: { x: 0.8, y: 2.6, w: 11.7, h: 0.6 }, text: `${input.number} · ${f.period.start} – ${f.period.end}`, size: 20 },
     { kind: "text", role: "body", box: { x: 0.8, y: 3.3, w: 11.7, h: 0.6 }, text: input.parties.filter(Boolean).join(" · "), size: 16 },
   ];
@@ -85,7 +96,25 @@ export function buildWeeklyDeck(input: DeckInput): Slide[] {
   const head = [w.activity, w.planned, w.actual, w.variance, w.ofPlan, w.completed];
   const rows = f.activities.map(a => [`${a.code} · ${a.name}`, n(a.period.planned, 2), n(a.period.actual, 2), n(a.period.variance, 2), a.period.percentOfPlan === null ? "—" : `${formatNumber(a.period.percentOfPlan, 1)}%`, n(a.period.completedUnits)]);
   const chunks = rows.length ? Array.from({ length: Math.ceil(rows.length / 10) }, (_, i) => rows.slice(i * 10, i * 10 + 10)) : [[[w.none, "", "", "", "", ""]]];
-  chunks.forEach((chunk, index) => bodies.push({ heading: index ? `${w.figures} (${w.cont})` : w.figures, items: [...(index ? [] : tileItems), { kind: "table", box: { x: BODY.x, y: BODY.y + (index ? 0 : 1.1), w: BODY.w, h: 0.38 * (chunk.length + 1) }, rows: [head, ...chunk], size: 12 }] }));
+  chunks.forEach((chunk, index) => bodies.push({ heading: index ? `${input.monthly ? w.monthFigures : w.figures} (${w.cont})` : input.monthly ? w.monthFigures : w.figures, items: [...(index ? [] : tileItems), { kind: "table", box: { x: BODY.x, y: BODY.y + (index ? 0 : 1.1), w: BODY.w, h: 0.38 * (chunk.length + 1) }, rows: [head, ...chunk], size: 12 }] }));
+
+  if (input.monthly) {
+    const m = input.monthly;
+    const points = m.sCurve.points;
+    bodies.push({ heading: w.curve, items: [
+      { kind: "chart", box: { x: BODY.x, y: BODY.y, w: BODY.w, h: m.sCurve.plannedSource ? BODY.h : BODY.h - 0.6 }, title: w.curve, chart: { type: "line", labels: points.map(point => point.month), series: [
+        ...(m.sCurve.plannedSource ? [{ name: w.plannedLine, values: points.map(point => point.planned ?? 0) }] : []), { name: w.actualLine, values: points.map(point => point.actual ?? 0) }] } },
+      ...(m.sCurve.plannedSource ? [] : [{ kind: "text", role: "body", box: { x: BODY.x, y: BODY.y + BODY.h - 0.5, w: BODY.w, h: 0.45 }, text: w.noPlan, size: 12 } as Item]),
+    ] });
+    const rowsOf = m.milestones.map(item => [item.code, item.name, item.plannedDate ?? "—", item.actualDate ?? "—", w.states[item.state] ?? item.state, n(item.varianceDays)]);
+    for (let i = 0; i < Math.max(1, rowsOf.length); i += 10) {
+      const chunk = rowsOf.length ? rowsOf.slice(i, i + 10) : [[w.none, "", "", "", "", ""]];
+      bodies.push({ heading: i ? `${w.milestones} (${w.cont})` : w.milestones, items: [{ kind: "table", box: { x: BODY.x, y: BODY.y, w: BODY.w, h: 0.38 * (chunk.length + 1) }, size: 12, rows: [[w.code, w.name, w.plannedDate, w.actualDate, w.state, w.days], ...chunk] }] });
+    }
+    const ev = m.earnedValue;
+    bodies.push({ heading: w.ev, items: m.financialHidden || !ev ? [{ kind: "text", role: "body", box: { x: BODY.x, y: BODY.y, w: BODY.w, h: 0.6 }, text: m.financialHidden ? w.evHidden : w.evNone, size: 16 }]
+      : [{ kind: "table", box: { x: BODY.x, y: BODY.y, w: BODY.w / 2 - 0.15, h: 0.38 * 9 }, size: 14, rows: [[w.ev, ev.asOf ?? "—"], ["PV", n(ev.pv)], ["EV", n(ev.ev)], ["AC", n(ev.ac)], ["BAC", n(ev.bac)], ["CV", n(ev.cv)], ["SV", n(ev.sv)], ["CPI", n(ev.cpi, 2)], ["SPI", n(ev.spi, 2)]] }] });
+  }
 
   // the charts: daily planned and actual (the main activities, as each is in its own unit), and each one's cumulative % of its plan
   const days = f.labour.daily.map(item => item.date);
@@ -143,7 +172,7 @@ export function buildWeeklyDeck(input: DeckInput): Slide[] {
   const mirror = (item: Item): Item => (input.language === "en" ? item : { ...item, box: { ...item.box, x: Math.round((SLIDE.w - item.box.x - item.box.w) * 1000) / 1000 } });
   return bodies.map((body, index) => ({ items: ([
     ...input.logos.flatMap((url, i): Item[] => (url ? [{ kind: "image", box: { x: 0.3 + i * 1.5, y: 0.2, w: 1.35, h: 0.7 }, url }] : [])),
-    { kind: "text", role: "title", box: { x: 4.9, y: 0.2, w: 8.13, h: 0.7 }, text: body.heading || w.title, size: 22, bold: true },
+    { kind: "text", role: "title", box: { x: 4.9, y: 0.2, w: 8.13, h: 0.7 }, text: body.heading || title, size: 22, bold: true },
     ...body.items,
     { kind: "text", role: "footer", box: { x: 0.3, y: 7.0, w: 12.73, h: 0.35 }, text: `${input.number} · ${f.period.start} – ${f.period.end} · ${w.page} ${index + 1}/${bodies.length}`, size: 10 },
   ] as Item[]).map(mirror) }));
