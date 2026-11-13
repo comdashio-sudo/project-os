@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
 const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), readPdfPage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn() }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 7, name: "Planner" } }) })); // Q-20: the kept map view is per person
 vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/raster/rasterFile")>()), readRasterImage: raster.readRasterImage, readPdfPage: raster.readPdfPage }));
 vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWorker }));
 vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));

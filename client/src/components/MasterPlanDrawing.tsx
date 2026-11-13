@@ -16,12 +16,13 @@ import { matchDrawingToUnits, type ProjectUnit } from "@/lib/dxf/dxfMatch";
 import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
 import { rasterKind, readPdfPage, readRasterImage } from "@/lib/raster/rasterFile";
 import { PanZoomControls, usePanZoom } from "@/components/PanZoomMap";
+import { useAuth } from "@/_core/hooks/useAuth";
 import type { OcrWorker } from "@/lib/raster/ocrWorker";
 import { MeasureOverlay, MeasurePanel, drawingPointFromClient, type MeasureTool } from "@/components/MasterPlanMeasure";
 import type { DrawingCalibration, PlanPoint } from "@shared/masterPlanCalibration";
 import { ManualLinkPanel, useManualText, type LinkTool } from "@/components/MasterPlanManualLink";
 import { MasterPlanColourPanel, exportDrawingPng, useColourText } from "@/components/MasterPlanColourPanel";
-import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit } from "@/lib/masterPlanColouring";
+import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit, unitNumberOf } from "@/lib/masterPlanColouring";
 import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
 import {
   assignUnit,
@@ -78,7 +79,9 @@ const text = {
     map: "خريطة الرسم",
     zoomIn: "تكبير",
     zoomOut: "تصغير",
-    resetView: "إعادة ضبط العرض",
+    resetView: "ملاءمة الشاشة",
+    zoomSlider: "مستوى التكبير",
+    villaComplete: "مكتملة",
     page: "الصفحة",
     pageOption: (n: number, total: number) => `الصفحة ${n} من ${total}`,
     legend: "الألوان: حسب حالة الوحدة للمؤكَّد، أزرق للمقترح، رمادي لغير المربوط.",
@@ -128,7 +131,9 @@ const text = {
     map: "Drawing map",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
-    resetView: "Reset view",
+    resetView: "Fit to screen",
+    zoomSlider: "Zoom level",
+    villaComplete: "Complete",
     page: "Page",
     pageOption: (n: number, total: number) => `Page ${n} of ${total}`,
     legend: "Colours: confirmed shapes use the unit status; blue is proposed; grey is unlinked.",
@@ -178,7 +183,9 @@ const text = {
     map: "ڈرائنگ کا نقشہ",
     zoomIn: "زوم بڑھائیں",
     zoomOut: "زوم کم کریں",
-    resetView: "منظر دوبارہ ترتیب دیں",
+    resetView: "اسکرین کے مطابق",
+    zoomSlider: "زوم کی سطح",
+    villaComplete: "مکمل",
     page: "صفحہ",
     pageOption: (n: number, total: number) => `صفحہ ${n} از ${total}`,
     legend: "رنگ: تصدیق شدہ شکلیں یونٹ کی حیثیت کا رنگ لیتی ہیں؛ نیلا تجویز شدہ ہے؛ خاکستری غیر جڑا ہوا ہے۔",
@@ -304,7 +311,23 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   // A raster drawing is framed by its picture, so the picture and the shapes line up; a DXF by its shapes.
   const geometry = drawing ? (background ? { x: 0, y: 0, width: background.width, height: background.height, flipY: (y: number) => background.height - y } : mapGeometry(drawing)) : null;
   const ignoredCount = drawing ? Object.values(drawing.ignoredEntities).reduce((sum, value) => sum + value, 0) : 0;
-  const pan = usePanZoom(geometry);
+  // Q-20: the last zoom and position, kept on this device for this person and this project.
+  const { user } = useAuth();
+  const pan = usePanZoom(geometry, { storageKey: user ? `dashio-plan-view:${user.id}:${projectId}` : undefined });
+  // Q-20: inside each villa, at 150% and more, its number, current activity and weighted progress (from the site map); below that, the number only.
+  const detailOf = new Map((siteMap.data?.units ?? []).map(unit => [unit.unitNumber, unit as SiteUnit & { overallPercent?: number | null; currentActivity?: { code: string; name: string } | null }]));
+  // the villa a plan code names, from the site map itself (with or without an activity chosen for colouring)
+  const villaByCode = (code: string) => { const number = unitNumberOf(code); return number === null ? undefined : detailOf.get(number); };
+  const detailed = pan.percent >= 150;
+  // Q-20: choosing a block in the filter brings its villas into view.
+  useEffect(() => {
+    if (!blockFilter || !drawing || !geometry) return;
+    const points = drawing.polygons.flatMap(polygon => { const item = items.find(entry => entry.polygonId === polygon.id); const villa = item?.unitCode ? villaByCode(item.unitCode) : undefined; return villa?.blockCode === blockFilter ? polygon.points.map(p => ({ x: p.x, y: geometry.flipY(p.y) })) : []; });
+    if (!points.length) return;
+    const xs = points.map(p => p.x); const ys = points.map(p => p.y);
+    pan.focus({ x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new block choice moves the view, not every render
+  }, [blockFilter]);
 
   const applyResult = (result: ReviewResult) => {
     if (result.ok) {
@@ -503,7 +526,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
 
           {geometry ? (
             <div>
-              <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView }} />
+              <PanZoomControls pan={pan} labels={{ zoomIn: t.zoomIn, zoomOut: t.zoomOut, reset: t.resetView, hundred: "100%", slider: t.zoomSlider }} />
               <MeasurePanel
                 tool={tool}
                 onTool={next => { setTool(next); setPicks([]); setLinkTool(null); setLinkPicks([]); }}
@@ -569,7 +592,19 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
                         style={tool === "none" && !linkTool ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
-                      {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="var(--foreground)" pointerEvents="none">{item.unitCode}</text> : null}
+                      {item.unitCode ? (() => {
+                        const detail = villaByCode(item.unitCode);
+                        const xs = polygon.points.map(p => p.x); const ys = polygon.points.map(p => p.y); const boxHeight = Math.max(...ys) - Math.min(...ys); const boxWidth = Math.max(...xs) - Math.min(...xs);
+                        if (!detailed || !detail) return <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="var(--foreground)" pointerEvents="none">{item.unitCode}</text>;
+                        // three short lines sized to the villa's own shape, so they stay inside it however far the plan is zoomed
+                        const size = Math.max(Math.min(boxHeight / 4.2, boxWidth / 9, geometry.width / 60), geometry.width / 2000);
+                        const y = geometry.flipY(centre.y);
+                        return <text x={centre.x} y={y - size} fontSize={size} textAnchor="middle" fill="var(--foreground)" pointerEvents="none" data-villa-detail={item.unitCode}>
+                          <tspan x={centre.x} fontWeight={700}>{item.unitCode}</tspan>
+                          <tspan x={centre.x} dy={size * 1.15}>{detail.currentActivity ? detail.currentActivity.name.slice(0, 22) : t.villaComplete}</tspan>
+                          <tspan x={centre.x} dy={size * 1.15} direction="ltr">{`${Math.round(detail.overallPercent ?? 0)}%`}</tspan>
+                        </text>;
+                      })() : null}
                     </g>
                   );
                 })}

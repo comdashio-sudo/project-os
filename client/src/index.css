@@ -358,6 +358,10 @@
     }
 
     /* A file picker is the field itself: 36px by default, so it takes the 44px minimum height the other fields have. */
+    /* Q-20: the master plan's zoom slider: the whole 44px row is the target, not the thin track */
+    :where(input[type="range"]) {
+      min-height: 44px;
+    }
     :where(input[type="file"]) {
       min-height: 44px;
     }

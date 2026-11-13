@@ -134,6 +134,13 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(siteMap(ds, "NOPE").every(u => u.status === null)).toBe(true);
   });
 
+  it("Q-20: each unit also carries its overall progress and its current activity (the first, in order, not complete), with or without an activity chosen", () => {
+    const expected = [[1, 100, null], [2, 60, "PAINT"], [3, 60, "PAINT"], [4, 40, "WALLS"]];
+    for (const rows of [siteMap(ds), siteMap(ds, "WALLS")]) expect(rows.map(u => [u.unitNumber, u.overallPercent, u.currentActivity?.code ?? null])).toEqual(expected);
+    // NEGATIVE: unit 4 has PAINT complete but WALLS not started; the current activity is WALLS (first in order), not the next after the last complete one
+    expect(siteMap(ds)[3].currentActivity).toEqual({ code: "WALLS", name: "Walls" });
+  });
+
   it("the unit card lists every activity of the unit's model with its status, verification and engineer", () => {
     const card = unitCard(ds, 1)!;
     expect(card).toMatchObject({ unitNumber: 1, modelCode: "A", zoneCode: "Z1", blockCode: "B1", progressPercent: 100 });
