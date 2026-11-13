@@ -10,6 +10,7 @@
 //                       turn a network blip into a locked screen. The server still refuses what it must.
 import React, { createContext, useContext, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { NoPermission } from "@/components/ScreenStates";
 import { trpc } from "@/lib/trpc";
 import { pickLanguage } from "@/lib/language";
 
@@ -65,3 +66,26 @@ export function WriteGate({ permission, projectId, reason, children }: { permiss
   if (!reason || loading) return null;
   return <p role="note" data-write-gate="denied" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{pickLanguage(language, reason)}</p>;
 }
+
+/**
+ * D-20 (G-160/G-161): a whole project page opened by its address without the permission its server read needs. Instead of an empty page or a pile of failed sections,
+ * the translated «you do not have permission» page. Loading: nothing yet (no flash). No provider or a failed lookup: the page, as WriteGate does — the server still refuses.
+ */
+export function PageGate({ permission, projectId, children }: { permission: string | readonly string[]; projectId?: string; children: React.ReactNode }) {
+  const allowed = useCan(permission, projectId);
+  const loading = usePermissionsLoading();
+  const { isArabic } = useLanguage();
+  if (allowed) return <>{children}</>;
+  if (loading) return null;
+  return <main className="mx-auto max-w-3xl px-4 py-6" data-page-gate="denied"><NoPermission isArabic={isArabic} /></main>;
+}
+
+/** D-20 (G-144/G-163): what each page of «Project pages» needs to be read — the permission its server read checks. A link is drawn only for those who hold it. */
+export const PROJECT_PAGE_PERMISSIONS = {
+  baseline: ["project.read", "project.manage", "project.create"],
+  team: ["project.manage", "project.team.invite"],
+  pmc: ["project.pmc.read"],
+  stalled: ["project.pmc.read"],
+  profitability: ["project.read"],
+  commercial: ["project.read"],
+} as const satisfies Record<string, readonly string[]>;
