@@ -1,4 +1,5 @@
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { SiteWorkbookImport } from "@/components/SiteWorkbookImport";
 import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
@@ -309,6 +310,8 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
         <LabelledSelect label={t.importKind} className="text-sm" value={kind} onValueChange={value => setKind(value as typeof kind)} options={Object.entries(t.importKinds).map(([value, label]) => ({ value, label }))} />
         <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
       </div></WriteGate>
+      {/* D-59: the site's old workbook — what the site-update screen and the S-curve stand on; their empty states link here (?tab=import) */}
+      <WriteGate permission={"project.pmc.manage"} projectId={projectId}><SiteWorkbookImport tenantId={tenantId} projectId={projectId} /></WriteGate>
     </div>
   );
 }

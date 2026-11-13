@@ -20,6 +20,8 @@ const state = vi.hoisted(() => ({
   // the direct-upload import: the stand-in for `trpc.dataImports` the import screens share (client/src/test/importsTrpcMock.ts)
   imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() },
 }));
+// D-59: the site workbook import on the same tab has its own tests (SiteWorkbookImport.interaction.test.tsx); here it stands as a marker
+vi.mock("@/components/SiteWorkbookImport", () => ({ SiteWorkbookImport: () => <p data-site-workbook-import>site workbook import</p> }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/pdfExport", () => ({ exportElementToPdf: vi.fn(async () => "x.pdf") }));
@@ -195,6 +197,12 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     fireEvent.click(screen.getByText("Check the file"));
     expect(await screen.findByText("The file matches what is stored: nothing to save.")).toBeTruthy();
     expect(screen.queryByText("Save the approved file")).toBeNull();
+  });
+
+  it("D-59: the import tab also offers the site's old workbook (the next step the site update and the S-curve link to)", () => {
+    render(<ProjectPmc />);
+    open("Import");
+    expect(document.querySelector("[data-site-workbook-import]")).not.toBeNull();
   });
 
   it("refuses a file over 50 MB or of another type before any request", async () => {

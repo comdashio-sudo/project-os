@@ -1,7 +1,7 @@
 // Work order 22: the site engineer's update from the phone. One activity, several villas (a list, a range «268-272», or a whole block), one status and its date.
 // The server refuses the whole entry before writing anything when one villa is wrong, and says which; the entry is saved under the signed-in account, never a typed e-mail.
 import React, { useMemo, useState } from "react";
-import { useParams } from "wouter";
+import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, PageIntro, Segmented, Select, SkeletonRows, TextInput, notify } from "@/components/ds";
 import { PageMain } from "@/components/pageFrame";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -77,6 +77,13 @@ export default function PmcSiteUpdate() {
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
                 <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
+                {/* D-59: no site activities yet — the next step, not a dead «No options»: the import that brings them (the site workbook, PMC → import) */}
+                {activities.data && activities.data.length === 0 ? (
+                  <div className="flex flex-col gap-2 rounded-[var(--radius)] bg-muted p-3 text-sm" data-empty-next>
+                    <p>{t.noActivities}</p>
+                    <Link href={`/projects/${tenantId}/${projectId}/pmc?tab=import`} className="inline-flex min-h-11 items-center self-start rounded-[var(--radius)] border bg-card px-3 font-medium text-primary">{t.importSiteFile}</Link>
+                  </div>
+                ) : null}
                 <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityId} onValueChange={setActivityId} placeholder={t.update.activity} disabled={activities.data?.length === 0} />}</Field>
               </>
             )}
