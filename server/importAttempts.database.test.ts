@@ -9,9 +9,9 @@ import { syntheticXer } from "./testing/importFixtures";
 // Import attempts (owner order 2026-10-27, after the file 2234-21.xer was refused as "already imported" although nothing from it was ever written). Same real-database scaffold as importJobs.database.test.ts.
 // Work order 6, direct upload: a file goes browser → Storage by a signed URL (a REAL HTTP PUT against an S3-compatible server, through the real storage module),
 // is analysed and imported by background jobs whose progress the screen polls. Synthetic fixtures only; the files are 30 MB (XER) and 20,000 rows (Excel).
-const T = "7a000000-0000-4000-8000-0000000000a1";
-const T2 = "7a000000-0000-4000-8000-0000000000b1";
-const P = "7a000000-0000-4000-8000-0000000000a2";
+const T = "7a000002-0000-4000-8000-0000000000a1";
+const T2 = "7a000003-0000-4000-8000-0000000000b1";
+const P = "7a000011-0000-4000-8000-0000000000a2";
 const P2 = "7a000000-0000-4000-8000-0000000000b2";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;

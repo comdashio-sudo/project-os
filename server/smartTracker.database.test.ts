@@ -10,8 +10,8 @@ import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 // D-44 (b): the site's unit TRACKER through the smart import box, on a real database, as the restricted application role. The workbook is SYNTHETIC, generated here
 // (1,230 villas, two models, three phases, the phase and block written once per block in vertically merged cells) and never committed. It is stored as the monthly
 // report's cell status (pmc_unit_activity_progress), matched by name to the catalogue the project already has.
-const T = "79000000-0000-4000-8000-0000000000f1";
-const P = "79000000-0000-4000-8000-0000000000f2";
+const T = "7a000007-0000-4000-8000-0000000000a1";
+const P = "7a000015-0000-4000-8000-0000000000a2";
 const T2 = "79000000-0000-4000-8000-0000000000f3";
 const VILLAS = 1230;
 const ACTIVITIES = ["Excavation", "Foundations", "Columns", "Slab", "Block work", "Plaster"];

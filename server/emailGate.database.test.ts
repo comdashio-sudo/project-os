@@ -7,7 +7,7 @@ import { mailGateConfigFromEnv } from "./emailGate";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // Work order 20, items 1 and 9 (owner's decisions 2026-10-25) on a real database: the outbox is flushed through the gate. Synthetic fixtures and a fake sender.
-const T = "7b000000-0000-4000-8000-0000000000a1";
+const T = "7a000001-0000-4000-8000-0000000000a1";
 let connection: fixtureDb.Connection;
 const userIds: number[] = [];
 const sent: OutgoingMail[] = [];
