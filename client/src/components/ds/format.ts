@@ -48,3 +48,9 @@ export function formatWeekday(isoDay: string, language: Language): string {
   if (!day || Number.isNaN(day.getTime())) return "—";
   return new Intl.DateTimeFormat(LOCALE[language], { weekday: "long", timeZone: "UTC" }).format(day);
 }
+
+/** 2026-10-25T09:05 -> "25 Oct 2026, 09:05" in the month names of the language, digits Western, in the device's own zone (a moment someone did something). */
+export function formatDateTime(value: Date | string, language: Language): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return new Intl.DateTimeFormat(LOCALE[language], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
