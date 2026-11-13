@@ -34,7 +34,7 @@ async function authorizeDirectUpload(input: { userId: number; tenantId: string; 
   }
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.purpose === "sitePhoto" ? "project.field.manage" : input.purpose === "logo" ? "project.manage" : "project.write", scope: { type: "project", id: input.projectId } });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.purpose === "sitePhoto" ? "project.field.manage" : input.purpose === "logo" ? ["project.manage", "project.create"] /* Q-12 (d): the planner adds the logos while setting the project up */ : "project.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
 }
 

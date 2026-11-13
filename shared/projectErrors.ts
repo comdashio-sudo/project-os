@@ -1198,6 +1198,11 @@ export const projectErrorMessages = {
     en: "This report belongs to another engineer.",
     ur: "یہ رپورٹ کسی دوسرے انجینئر کی ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_SECTION_NOT_YOURS: {
+    ar: "هذا القسم من التقرير اليومي ليس من دورك في المشروع.",
+    en: "This section of the daily report is not your role's on this project.",
+    ur: "روزانہ رپورٹ کا یہ حصہ اس پروجیکٹ میں آپ کے کردار کا نہیں۔",
+  },
   PROJECT_OS_SITE_REPORT_PHOTO_INVALID: {
     ar: "الملف ليس صورة (PNG أو JPEG أو WebP).",
     en: "The file is not an image (PNG, JPEG or WebP).",
