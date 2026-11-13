@@ -17,6 +17,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: state.isArabic ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
+vi.mock("@/components/pmc/SourcePercentages", () => ({ SourcePercentages: (props: { projectId: string }) => <div data-three-percentages={props.projectId}>Three percentages</div> }));
 vi.mock("@/pages/ProjectFpac", () => ({ ProjectFpac: (props: { tenantId: string; projectId: string }) => <section data-fpac={props.projectId}>Profitability panel for {props.tenantId}</section> }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -36,6 +37,12 @@ describe("LevelProject (level 3, one project)", () => {
     state.deliveries = ok(DELIVERIES);
   });
   afterEach(() => { cleanup(); refetch.mockReset(); });
+
+  it("D-6: shows the three percentages (site, consultant, monthly report) of this project", () => {
+    const { container } = render(<LevelProject />);
+    expect(container.querySelector("[data-three-percentages]")?.getAttribute("data-three-percentages")).toBeTruthy();
+    expect(container.querySelector("[data-section='project-percentages']")).not.toBeNull();
+  });
 
   it("shows the project's progress, EVM and the existing profitability panel for this project", () => {
     const { container } = render(<LevelProject />);

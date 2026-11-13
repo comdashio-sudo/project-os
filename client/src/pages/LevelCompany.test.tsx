@@ -17,7 +17,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: state.isArabic ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
-vi.mock("@/lib/trpc", () => ({ trpc: { scopes: { company: { useQuery: () => state.query } }, levelReads: { companyCommitments: { useQuery: () => state.commitments } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { pmcSite: { percentagesByProject: { useQuery: () => ({ isSuccess: true, data: [] }) } }, scopes: { company: { useQuery: () => state.query } }, levelReads: { companyCommitments: { useQuery: () => state.commitments } } } }));
 
 const money = (value: number) => `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} SAR`;
 
