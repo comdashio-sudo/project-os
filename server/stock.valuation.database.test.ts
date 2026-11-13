@@ -45,7 +45,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("stock valuation and the 
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('stk-ent', ?, 'stk-sub', 'PROJECT', true, NOW())", [T]);
     for (const code of ["project.read", "project.inventory.manage"]) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('stk-r-keeper', ?, 'STK_KEEPER','Keeper','PROJECT')", [T]);
-    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'stk-r-keeper', id FROM permissions WHERE code IN ('project.read','project.inventory.manage')");
+    // Q-17 (205-1): the test reads the project's exposure through the controls read, which answers money to a cash-flow reader only
+    await connection.query("INSERT INTO role_permissions (roleId, permissionId) SELECT 'stk-r-keeper', id FROM permissions WHERE code IN ('project.read','project.inventory.manage','project.cashflow.read')");
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('stk-m-keeper', ?, ?, 'active')", [T, keeper]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('stk-mr-keeper','stk-m-keeper','stk-r-keeper','company')");
     await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES (?, ?, ?, 'ST-1', 'Foundations', 50000)", [WBS, T, P]);

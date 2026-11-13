@@ -43,7 +43,8 @@ const ROLES: Array<{ key: Key; code: string; permissions: string[]; project?: bo
   { key: "bidder", code: "TND_BIDDER", permissions: ["project.read", "project.tender.bids"] },
   { key: "leveller", code: "TND_LEVELLER", permissions: ["project.read", "project.tender.level"] },
   { key: "awarder", code: "TND_AWARDER", permissions: ["project.read", "project.tender.award"] },
-  { key: "reader", code: "TND_READER", permissions: ["project.read"] },
+  // Q-17 (205-1): bid prices are money, so the reader of the comparison holds the cash-flow read (project.read alone is refused: projectMoney.database.test.ts)
+  { key: "reader", code: "TND_READER", permissions: ["project.read", "project.cashflow.read"] },
   { key: "scoped", code: "TND_SCOPED", permissions: ["project.read", "project.tender.manage"], project: true },
 ];
 

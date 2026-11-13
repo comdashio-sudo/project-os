@@ -9,7 +9,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLogs, commitments, contracts, suppliers, tenderBidAdjustments, tenderBids, tenderInvitees, tenderPackages } from "../drizzle/schema";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { isUniqueViolation, rowsAffected } from "./_core/database";
-import { assertTenantAccess } from "./domain/authorization";
+import { assertTenantAccess, holdsPermission } from "./domain/authorization";
 import { levelBids, tenderTransitions, type AdjustmentKind, type TenderStatus } from "./domain/tenders";
 
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string) => new TRPCError({ code, message });
@@ -18,6 +18,13 @@ const duplicateAs = async <T>(work: () => Promise<T>): Promise<T> => { try { ret
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: { tenantId: string; projectId: string }) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
 /** The one gate of this module: active membership, licensed PROJECT product, the permission, the project scope, then the project must belong to the tenant. */
+/** Q-17 (205-1): the bids, their levelling and the estimate are money: for cash-flow readers and for whoever runs the tender. */
+export const TENDER_MONEY_READERS = ["project.cashflow.read", "project.tender.manage", "project.tender.bids", "project.tender.level", "project.tender.award"] as const;
+async function seesTenderMoney(input: { userId: number; tenantId: string; projectId: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  return snapshot !== null && holdsPermission(snapshot, TENDER_MONEY_READERS, { type: "project", id: input.projectId });
+}
+
 export async function assertTenderAccess(input: { userId: number; tenantId: string; projectId: string }, permission: string | readonly string[]) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -69,7 +76,8 @@ export async function listTenderPackages(input: { userId: number; tenantId: stri
   ]);
   const inviteeCount = new Map(invitees.map(row => [row.packageId, Number(row.total)]));
   const bidInfo = new Map(bids.map(row => [row.packageId, { total: Number(row.total), lowest: row.lowest === null ? null : Number(row.lowest) }]));
-  return { total: Number(total[0]?.total ?? 0), packages: rows.map(row => ({ ...row, invitees: inviteeCount.get(row.id) ?? 0, bids: bidInfo.get(row.id)?.total ?? 0, lowestLevelled: bidInfo.get(row.id)?.lowest ?? null })) };
+  const money = await seesTenderMoney(input);
+  return { total: Number(total[0]?.total ?? 0), packages: rows.map(row => ({ ...row, estimateAmount: money ? row.estimateAmount : null, invitees: inviteeCount.get(row.id) ?? 0, bids: bidInfo.get(row.id)?.total ?? 0, lowestLevelled: money ? bidInfo.get(row.id)?.lowest ?? null : null })), moneyVisible: money };
 }
 
 export async function listTenderInvitees(input: { userId: number; tenantId: string; projectId: string; packageId: string }) {
@@ -81,7 +89,7 @@ export async function listTenderInvitees(input: { userId: number; tenantId: stri
 
 /** The comparison: every bid of the package with its adjustments, levelled, ranked and flagged (domain/tenders.ts). */
 export async function getTenderComparison(input: { userId: number; tenantId: string; projectId: string; packageId: string }) {
-  const db = await assertTenderAccess(input, "project.read");
+  const db = await assertTenderAccess(input, TENDER_MONEY_READERS);
   const tender = await loadPackage(db, input, input.packageId);
   const [bids, adjustments] = await Promise.all([
     db.select({ id: tenderBids.id, supplierId: tenderBids.supplierId, supplierName: suppliers.legalName, status: tenderBids.status, statusReason: tenderBids.statusReason, amount: tenderBids.amount, currency: tenderBids.currency, durationDays: tenderBids.durationDays, validityDays: tenderBids.validityDays, notes: tenderBids.notes, enteredAt: tenderBids.enteredAt })

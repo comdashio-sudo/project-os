@@ -30,7 +30,9 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
   const packages = trpc.tenders.packages.useQuery({ ...scope, limit: 100 });
   const suppliers = trpc.tenders.suppliers.useQuery(scope);
   const invitees = trpc.tenders.invitees.useQuery({ ...scope, packageId: selected ?? "" }, { enabled: Boolean(selected) });
-  const comparison = trpc.tenders.comparison.useQuery({ ...scope, packageId: selected ?? "" }, { enabled: Boolean(selected) });
+  // Q-17 (205-1): the comparison is all money; it is asked only by whoever may see the tender's money (the package list says so)
+  const tenderMoney = packages.data?.moneyVisible !== false;
+  const comparison = trpc.tenders.comparison.useQuery({ ...scope, packageId: selected ?? "" }, { enabled: Boolean(selected) && tenderMoney });
   const refresh = () => { void packages.refetch(); if (selected) { void invitees.refetch(); void comparison.refetch(); } };
   const createPackage = trpc.tenders.createPackage.useMutation({ onSuccess: refresh });
   const invite = trpc.tenders.invite.useMutation({ onSuccess: refresh });
@@ -88,6 +90,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
       <SourceNotice query={packages} isArabic={isArabic} title={t.packagesTitle} />
       <SourceNotice query={suppliers} isArabic={isArabic} title={t.supplier} />
       <SourceNotice query={comparison} isArabic={isArabic} title={t.comparisonTitle} />
+      {selected && !tenderMoney ? <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{pickLanguage(language, { ar: "مقارنة العروض وأسعارها مخفية: تحتاج صلاحية قراءة التدفق النقدي أو صلاحية على المناقصة.", en: "The bid comparison and its prices are hidden: they need the cash-flow read permission or a tender permission.", ur: "بولیوں کا موازنہ اور ان کی قیمتیں پوشیدہ ہیں: نقد بہاؤ دیکھنے کی اجازت یا ٹینڈر کی اجازت درکار ہے۔" })}</p> : null}
       <SourceNotice query={invitees} isArabic={isArabic} title={t.inviteesTitle} />
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p> : null}
 

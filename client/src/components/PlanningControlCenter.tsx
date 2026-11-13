@@ -20,6 +20,9 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
   }, ur: {
     eyebrow: "منصوبہ بندی · لاگت · مقدار کا کنٹرول", title: "جڑے ہوئے ذرائع سے ایک فیصلہ کن منظر", note: "شیڈول، بجٹ، اصل لاگت، وعدے، BOQ، مواد کی درخواستوں اور گودام کے بقایا کو ایک جگہ جوڑتا ہے۔ غائب ڈیٹا کو گمراہ کن صفر میں تبدیل نہیں کیا جاتا۔", controlled: "کنٹرول میں", attention: "توجہ درکار ہے", budget: "موجودہ بجٹ", exposure: "مالی تعرض", variance: "تعرض کے بعد باقی", boq: "فعال BOQ کی قدر", quantities: "مقدار کی نقل و حرکت", issued: "جاری شدہ", remaining: "درخواست کا بقایا", onHand: "گودام میں موجود", schedule: "شیڈول", overdue: "تاخیر کا شکار سرگرمیاں", blocked: "رکی ہوئی سرگرمیاں", coverage: "عمل درآمد کی کوریج", gaps: "ڈیٹا کی کمیاں جو مکمل فیصلہ روکتی ہیں", noGaps: "اس منظر کے لیے بنیادی ذرائع مکمل ہیں", loading: "کنٹرول سینٹر کا حساب ہو رہا ہے…", sourceNote: "یہ اخذ شدہ صرف پڑھنے کے اشاریے ہیں؛ کوئی مالی یا مقداری ریکارڈ نہیں بنتا۔", lines: "سطر"
   } });
+  // Q-17 (205-1): without the right to see the project's money the three amounts say so, rather than showing zeroes
+  const hidden = pickLanguage(language, { ar: "مخفي: يحتاج صلاحية قراءة التدفق النقدي", en: "Hidden: needs the cash-flow read permission", ur: "پوشیدہ: نقد بہاؤ دیکھنے کی اجازت درکار ہے" });
+  const amount = (value: number) => (result.moneyVisible ? formatPlanningAmount(value, currency, language) : "—");
   const tone = result.riskLevel === "attention" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50";
   return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -28,9 +31,9 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
     </div>
     {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-slate-600">{t.loading}</p> : <>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Scale} label={t.budget} value={formatPlanningAmount(result.budget, currency, language)} />
-        <Metric icon={ClipboardCheck} label={t.exposure} value={formatPlanningAmount(result.exposure, currency, language)} detail={`${t.variance}: ${formatPlanningAmount(result.variance, currency, language)}`} />
-        <Metric icon={PackageSearch} label={t.boq} value={formatPlanningAmount(result.boqValue, currency, language)} detail={`${result.activeBoqLines} ${t.lines}`} />
+        <Metric icon={Scale} label={t.budget} value={amount(result.budget)} detail={result.moneyVisible ? undefined : hidden} />
+        <Metric icon={ClipboardCheck} label={t.exposure} value={amount(result.exposure)} detail={result.moneyVisible ? `${t.variance}: ${amount(result.variance)}` : hidden} />
+        <Metric icon={PackageSearch} label={t.boq} value={amount(result.boqValue)} detail={`${result.activeBoqLines} ${t.lines}`} />
         <Metric icon={TimerReset} label={t.coverage} value={formatPlanningPercent(result.progressCoverage)} detail={`${t.overdue}: ${result.overdueActivities} · ${t.blocked}: ${result.blockedActivities}`} />
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-3">

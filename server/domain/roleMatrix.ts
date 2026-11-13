@@ -99,7 +99,7 @@ export const matrixColumns: readonly MatrixColumn[] = [
     { tier: "approve", sources: [s(DESIGN, "approveDesignDrawing", "project.design.approve")] },
   ] },
   { id: "tenders", title: "المناقصات", kind: "screen", actions: [
-    { tier: "see", sources: [s(TENDER, "getTenderComparison", "project.read")] },
+    { tier: "see", sources: [s(TENDER, "listTenderPackages", "project.read"), s(TENDER, "getTenderComparison", "project.cashflow.read", "project.tender.manage", "project.tender.bids", "project.tender.level", "project.tender.award")] },
     { tier: "edit", sources: [s(TENDER, "createTenderPackage", "project.tender.manage"), s(TENDER, "enterTenderBid", "project.tender.bids"), s(TENDER, "addTenderBidAdjustment", "project.tender.level")] },
     { tier: "approve", sources: [s(TENDER, "awardTender", "project.tender.award")] },
   ] },
@@ -107,16 +107,16 @@ export const matrixColumns: readonly MatrixColumn[] = [
     { tier: "see", sources: [s(DB, "getProjectProfitabilityForTenant", "project.cashflow.read"), s(DB, "getPortfolioProfitabilityForTenant", "executive.read")] },
   ], note: "الربحية قراءة فقط؛ لا تُحرَّر ولا تُعتمد." },
   { id: "costs", title: "التكاليف والميزانية", kind: "data", actions: [
-    { tier: "see", sources: [s(DB, "getProjectControlsForTenant", "project.read"), s(DB, "getProjectCashFlowForTenant", "project.cashflow.read"), s(SITE, "pmcEarnedValue", "project.budget.manage")] },
+    { tier: "see", sources: [s(DB, "projectMoneyVisible", "project.cashflow.read", "project.budget.manage", "project.cost.enter", "project.evm.manage"), s(DB, "getProjectCashFlowForTenant", "project.cashflow.read"), s(SITE, "pmcEarnedValue", "project.budget.manage")] },
     { tier: "edit", sources: [s(DB, "createBudgetLine", "project.budget.manage"), s(DB, "createCostEntry", "project.cost.enter")] },
-  ], note: "«يرى» تأتي من project.read وحدها: getProjectControlsForTenant تُرجع الميزانية وقيود التكلفة والتدفق النقدي لكل من يفتح المشروع (انظر القسم الثالث في الوثيقة)." },
+  ], note: "Q-17 (205-1): getProjectControlsForTenant يفتحه project.read، والمبالغ فيه (الميزانية والتكلفة والتدفق النقدي وEVM، وميزانية المشروع في السجل) لا تُرجَع إلا لمن يمرّ بـprojectMoneyVisible: قارئ التدفق النقدي أو من يملك صلاحية على هذا المال نفسه." },
   { id: "contracts", title: "قيم العقود والالتزامات", kind: "data", actions: [
-    { tier: "see", sources: [s(DB, "getContractsCommitmentsForTenant", "project.read"), s(DB, "getBoqItemsForTenant", "project.read"), s(DB, "getSubcontractContractsForTenant", "project.read")] },
+    { tier: "see", sources: [s(DB, "contractMoneyVisible", "project.cashflow.read", "project.commitment.manage", "project.invoice.match"), s(DB, "boqMoneyVisible", "project.cashflow.read", "project.wbs.manage")] },
     { tier: "edit", sources: [
       s(DB, "createContractForTenant", "project.commitment.manage"), s(DB, "createCommitmentForTenant", "project.commitment.manage"),
       s(DB, "createProjectCommercialInvoiceForTenant", "project.invoice.match"), s(DB, "createBoqItemForTenant", "project.wbs.manage"),
     ] },
-  ] },
+  ], note: "Q-17 (205-1): العقود والالتزامات وBOQ والعقود من الباطن تُفتح بـproject.read، وقيمها (قيمة العقد، المبلغ الملتزم، سعر BOQ وإجماليه) لا تُرجَع إلا لمن يمرّ بـcontractMoneyVisible أو boqMoneyVisible؛ ولغيره تصل فارغة." },
   { id: "payroll", title: "الرواتب", kind: "data", actions: [
     { tier: "see", sources: [s(DB, "getSalaryStructureForTenant", "project.payroll.sensitive.read"), s(DB, "getPayrollRunDetailsForTenant", "project.payroll.sensitive.read")] },
     { tier: "edit", sources: [s(DB, "saveSalaryStructureForTenant", "project.payroll.structure"), s(DB, "createPayrollRunForTenant", "project.payroll.run")] },

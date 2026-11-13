@@ -1356,7 +1356,10 @@ export async function listProjectsForTenant(input: { userId: number; tenantId: s
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read" });
   // Only the projects the caller's own project.read assignment covers (G-143): a project-scoped person does not read the company's whole register.
   const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.read"] });
-  return (await db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId))).filter(project => covered.projectIds.has(project.id));
+  return (await db.select({ id: projects.id, code: projects.code, name: projects.name, projectType: projects.projectType, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost }).from(projects).where(eq(projects.tenantId, input.tenantId)))
+    .filter(project => covered.projectIds.has(project.id))
+    // Q-17 (205-1): a project's budget, actual cost and forecast only for whoever may see that project's money
+    .map(project => projectMoneyVisible(snapshot, project.id) ? project : { ...project, currentBudget: null, actualCost: null, forecastCost: null });
 }
 
 /** Per commitment, the cost already booked from goods received against its purchase orders (so exposure does not count it twice). */
@@ -1371,6 +1374,23 @@ async function settledAmountsByCommitment(db: NonNullable<Awaited<ReturnType<typ
     .where(and(eq(purchaseOrders.tenantId, tenantId), inArray(purchaseOrders.projectId, projectIds), isNotNull(purchaseOrders.commitmentId)));
   for (const row of rows) if (row.commitmentId && row.costStatus !== "void") settled.set(row.commitmentId, (settled.get(row.commitmentId) ?? 0) + Number((Number(row.quantity) * Number(row.unitCost)).toFixed(2)));
   return settled;
+}
+
+/** Q-17 (205-1): who sees a project's money: cash-flow readers, and whoever holds a power over that money (you cannot keep a budget you cannot read). */
+export const PROJECT_MONEY_READERS = ["project.cashflow.read", "project.budget.manage", "project.cost.enter", "project.evm.manage"] as const;
+/** Q-17 (205-1): who sees contract values and committed amounts. */
+export const CONTRACT_MONEY_READERS = ["project.cashflow.read", "project.commitment.manage", "project.invoice.match"] as const;
+/** Q-17 (205-1): a BOQ's quantities are the work, its rates and totals are money: cash-flow readers and whoever writes the BOQ. */
+export const BOQ_MONEY_READERS = ["project.cashflow.read", "project.wbs.manage"] as const;
+/** Q-17 (205-1): the three questions «may this person see this project's money» (the role matrix reads each one as the «see» of its column). */
+export function projectMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return holdsPermission(snapshot, PROJECT_MONEY_READERS, { type: "project", id: projectId });
+}
+export function contractMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return holdsPermission(snapshot, CONTRACT_MONEY_READERS, { type: "project", id: projectId });
+}
+export function boqMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return holdsPermission(snapshot, BOQ_MONEY_READERS, { type: "project", id: projectId });
 }
 
 export async function getProjectControlsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -1397,7 +1417,17 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
   const settledByCommitment = await settledAmountsByCommitment(db, input.tenantId, [input.projectId]);
   const inventoryValue = (await inventoryValueByProject(db, input.tenantId, [input.projectId])).get(input.projectId) ?? 0;
   const cashFlow = calculateOperationalCashFlow({ inventoryValue, budgetAmounts: budgets.map(row => Number(row.currentAmount)), costEntries: costs.map(row => ({ amount: Number(row.amount), status: row.status })), commitments: commitmentRows.map(row => ({ amount: Number(row.amount), status: row.status, settledAmount: settledByCommitment.get(row.id) ?? 0 })) });
-  return { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null, cashFlow };
+  const full = { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null, cashFlow };
+  // Q-17 (205-1): the money of the project (budget, cost, cash flow, earned value) is for project.cashflow.read, or for a power over that money itself.
+  // Without it the same read answers the schedule and progress only: the amounts are null and the money lists are empty, and moneyVisible says so.
+  if (projectMoneyVisible(snapshot, input.projectId)) return { ...full, moneyVisible: true as boolean };
+  return {
+    ...full,
+    project: { ...full.project, currentBudget: null, actualCost: null, forecastCost: null },
+    wbs: wbs.map(row => ({ ...row, plannedValue: null, earnedValue: null, actualCost: null })),
+    activities: activitiesForProject.map(row => ({ ...row, plannedValue: null, earnedValue: null })),
+    budgets: [], costs: [], latestEvm: null, cashFlow: null, moneyVisible: false as boolean,
+  };
 }
 
 type AdvisoryKind = "actual" | "calculated" | "forecast" | "assumption" | "recommendation";
@@ -1405,6 +1435,9 @@ const advisoryKinds: AdvisoryKind[] = ["actual", "calculated", "forecast", "assu
 
 export async function generateProjectAdvisoryForTenant(input: { userId: number; tenantId: string; projectId: string; locale: ExportLocale }) {
   const controls = await getProjectControlsForTenant(input);
+  // Q-17 (205-1): the advisor reads the project's money, so it answers only whoever may see that money
+  if (!controls.moneyVisible || !controls.cashFlow) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+  const cashFlow = controls.cashFlow;
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   await ensureDefaultCommercialCatalog(db);
@@ -1412,7 +1445,7 @@ export async function generateProjectAdvisoryForTenant(input: { userId: number; 
   if (!isLlmEnabled()) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PROJECT_OS_ADVISOR_UNAVAILABLE" });
   const facts = {
     actual: { currentBudget: Number(controls.project.currentBudget), actualCost: Number(controls.project.actualCost), latestEvmAc: controls.latestEvm ? Number(controls.latestEvm.ac) : null, healthStatus: controls.latestHealth?.status ?? null, healthScore: controls.latestHealth ? Number(controls.latestHealth.overallScore) : null },
-    calculated: { plannedBudget: controls.cashFlow.plannedBudget, totalExposure: controls.cashFlow.totalExposure, remainingBudget: controls.cashFlow.remainingBudget, committedAmount: controls.cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },
+    calculated: { plannedBudget: cashFlow.plannedBudget, totalExposure: cashFlow.totalExposure, remainingBudget: cashFlow.remainingBudget, committedAmount: cashFlow.committedAmount, cpi: controls.latestEvm ? Number(controls.latestEvm.cpi) : null, spi: controls.latestEvm ? Number(controls.latestEvm.spi) : null },
     forecast: { forecastCost: Number(controls.project.forecastCost), eac: controls.latestEvm ? Number(controls.latestEvm.eac) : null, etc: controls.latestEvm ? Number(controls.latestEvm.etc) : null, vac: controls.latestEvm ? Number(controls.latestEvm.vac) : null },
   };
   const language = ({ ar: "Arabic", en: "English", ur: "Urdu" } as const)[input.locale];
@@ -1581,7 +1614,9 @@ export async function getContractsCommitmentsForTenant(input: { userId: number; 
     db.select({ id: commitments.id, contractId: commitments.contractId, code: commitments.code, description: commitments.description, amount: commitments.amount, currency: commitments.currency, status: commitments.status, committedAt: commitments.committedAt }).from(commitments).where(and(eq(commitments.tenantId, input.tenantId), eq(commitments.projectId, input.projectId))).orderBy(desc(commitments.createdAt)),
     db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))).orderBy(asc(wbsItems.code)),
   ]);
-  return { contracts: contractRows, commitments: commitmentRows, wbsItems: wbsRows };
+  // Q-17 (205-1): contract values and committed amounts for cash-flow readers and for whoever manages the commitments or matches their invoices
+  const seesMoney = contractMoneyVisible(snapshot, input.projectId);
+  return { contracts: contractRows.map(row => ({ ...row, contractValue: seesMoney ? row.contractValue : null })), commitments: commitmentRows.map(row => ({ ...row, amount: seesMoney ? row.amount : null })), wbsItems: wbsRows, moneyVisible: seesMoney };
 }
 
 /** The bytes of a document's content: the base64 body of a small request, or the upload the browser made straight to Storage (`uploadKey`, up to 50 MB). */
@@ -4089,7 +4124,10 @@ export async function getBoqItemsForTenant(input: { userId: number; tenantId: st
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select().from(boqItems).where(and(eq(boqItems.tenantId, input.tenantId), eq(boqItems.projectId, input.projectId))).orderBy(boqItems.code);
+  const rows = await db.select().from(boqItems).where(and(eq(boqItems.tenantId, input.tenantId), eq(boqItems.projectId, input.projectId))).orderBy(boqItems.code);
+  // Q-17 (205-1): the quantities are the work, the rates and totals are money: for cash-flow readers and for whoever writes the BOQ (project.wbs.manage)
+  const seesMoney = boqMoneyVisible(snapshot, input.projectId);
+  return rows.map(row => ({ ...row, unitRate: seesMoney ? row.unitRate : null, totalAmount: seesMoney ? row.totalAmount : null }));
 }
 
 export async function createBoqItemForTenant(input: { userId: number; tenantId: string; projectId: string; wbsItemId?: string; code: string; description: string; unitOfMeasure: string; quantity: number; unitRate: number; currency?: string }) {
@@ -4138,7 +4176,10 @@ export async function getSubcontractContractsForTenant(input: { userId: number; 
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select().from(subcontractContracts).where(and(eq(subcontractContracts.tenantId, input.tenantId), eq(subcontractContracts.projectId, input.projectId))).orderBy(desc(subcontractContracts.createdAt));
+  const rows = await db.select().from(subcontractContracts).where(and(eq(subcontractContracts.tenantId, input.tenantId), eq(subcontractContracts.projectId, input.projectId))).orderBy(desc(subcontractContracts.createdAt));
+  // Q-17 (205-1): a subcontract's value for cash-flow readers and for whoever manages the commitments (the percentages are terms, not amounts)
+  const seesMoney = contractMoneyVisible(snapshot, input.projectId);
+  return rows.map(row => ({ ...row, contractValue: seesMoney ? row.contractValue : null }));
 }
 
 export async function createSubcontractContractForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; title: string; subcontractorName: string; supplierId?: string; contractValue: number; retentionPercent?: number; advancePercent?: number }) {
@@ -4194,9 +4235,12 @@ export async function getSubcontractCertificatesForTenant(input: { userId: numbe
   const certificates = await db.select().from(subcontractCertificates).where(and(...where)).orderBy(desc(subcontractCertificates.createdAt));
   const lines = await db.select().from(subcontractCertificateLines).where(inArray(subcontractCertificateLines.certificateId, certificates.map(c => c.id).length ? certificates.map(c => c.id) : ['none']));
   
+  // Q-17 (205-1): a certificate's amounts are sub-contract money: the quantities stay, the amounts only for whoever may see contract values
+  const seesMoney = contractMoneyVisible(snapshot, input.projectId);
   return certificates.map(cert => ({
     ...cert,
-    lines: lines.filter(l => l.certificateId === cert.id)
+    grossAmount: seesMoney ? cert.grossAmount : null, retentionAmount: seesMoney ? cert.retentionAmount : null, advanceRecoveryAmount: seesMoney ? cert.advanceRecoveryAmount : null, netAmount: seesMoney ? cert.netAmount : null,
+    lines: lines.filter(l => l.certificateId === cert.id).map(line => ({ ...line, unitRate: seesMoney ? line.unitRate : null, currentAmount: seesMoney ? line.currentAmount : null })),
   }));
 }
 
@@ -4286,7 +4330,10 @@ export async function getProjectCommercialInvoicesForTenant(input: { userId: num
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  return db.select().from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId))).orderBy(desc(projectCommercialInvoices.invoiceDate));
+  const rows = await db.select().from(projectCommercialInvoices).where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), eq(projectCommercialInvoices.projectId, input.projectId))).orderBy(desc(projectCommercialInvoices.invoiceDate));
+  // Q-17 (205-1): what was invoiced to the client is the project's incoming cash: for cash-flow readers and for whoever records the invoices
+  const seesMoney = contractMoneyVisible(snapshot, input.projectId);
+  return rows.map(row => ({ ...row, amount: seesMoney ? row.amount : null, vatAmount: seesMoney ? row.vatAmount : null, totalAmount: seesMoney ? row.totalAmount : null }));
 }
 
 const invoiceTransitions: Record<string, readonly string[]> = { draft: ["issued", "void"], issued: ["paid", "void"], paid: [], void: [] };
