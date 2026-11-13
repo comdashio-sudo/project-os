@@ -160,7 +160,7 @@ describe("role matrix: the claims the document makes about the code", () => {
   // the catalogue, the role templates, the matrix itself, the labels and a comment in paymentApproval.ts name the codes without checking them
   const mayNameWithoutChecking = new Set(["server/domain/operationalRoles.ts", "server/domain/roleMatrix.ts", "client/src/lib/labels.ts", "server/domain/paymentApproval.ts", "client/src/lib/operationalRolePresentation.ts"]);
 
-  it("section 3: payment.prepare, payment.approve, project.create and schedule.write are granted but checked by no server function and no screen", () => {
+  it("section 3: payment.prepare, payment.approve and schedule.write are granted but checked by no server function and no screen", () => {
     for (const code of unenforcedCodes) {
       const users = sourceFiles.filter(file => !mayNameWithoutChecking.has(file) && read(file).includes(`"${code}"`));
       expect(users, `${code} is now referenced outside the catalogue: update docs/ROLE_MATRIX.md section 3 and roleMatrix.ts`).toEqual([]);

@@ -158,7 +158,7 @@ import { paymentProviderFor, type PaymentOperation, type PaymentProviderCode } f
 import { requiresMandatoryHumanEscalation, validateKnowledgeBackedSupportReply } from "./domain/supportAutoReply";
 import { createInFlight } from "./inFlight";
 import { IMPORT_TABLES, refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
-import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions, projectInviteRoleRefusal } from "./domain/operationalRoles";
+import { assertOperationalRoleSeparation, operationalPermissionCatalog, operationalRoleDefinitions, projectInviteRoleRefusal, SETS_UP_PROJECTS } from "./domain/operationalRoles";
 import { decideTemplateRemovals, listTemplateRemovals, proposeRetiredTemplateRemovals } from "./roleTemplateSync";
 import { findPermissionConflict } from "./domain/operationalPermissions";
 import { anyImportPermission, importPermissionFor } from "@shared/importPermissions";
@@ -734,13 +734,13 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   if (!db) throw new Error("Database connection is not available");
   // A company manager (tenant.manage) invites anywhere in the company. Q-12 (c): someone holding project.team.invite on ONE project (the planning engineer, the
   // project manager) may invite onto that project only, with a project role that passes projectInviteRoleRefusal; anything else stays refused as before.
-  let projectInviter = false;
+  let projectInviter = false; let setsUpProjects = false;
   try { await assertTenantManager(input.actorUserId, input.tenantId); } catch (refusal) {
     if (input.scopeType !== "project" || !input.scopeId) throw refusal;
     const snapshot = await getTenantAccessSnapshot({ userId: input.actorUserId, tenantId: input.tenantId });
     if (!snapshot) throw refusal;
     assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.team.invite", scope: { type: "project", id: input.scopeId } });
-    projectInviter = true;
+    projectInviter = true; setsUpProjects = holdsPermission(snapshot, SETS_UP_PROJECTS.permission, SETS_UP_PROJECTS.scope);
   }
   await assertTenantScopeOwnership(db, input.tenantId, input.scopeType, input.scopeId);
   const email = input.email.trim().toLowerCase();
@@ -748,7 +748,7 @@ export async function createMembershipInvitation(input: { actorUserId: number; t
   if (!role || role.tenantId !== input.tenantId) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_ROLE_NOT_FOUND" });
   if (projectInviter) {
     const roleCodes = (await db.select({ code: permissions.code }).from(rolePermissions).innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId)).where(eq(rolePermissions.roleId, role.id))).map(row => row.code);
-    if (projectInviteRoleRefusal(role, roleCodes) !== null) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED" });
+    if (projectInviteRoleRefusal(role, roleCodes, { setsUpProjects }) !== null) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED" });
   }
   if (role.productCode) await assertRoleProductEntitled({ userId: input.actorUserId, tenantId: input.tenantId, productCode: role.productCode as ProductCode });
   const [existingMembership] = await db.select({ id: memberships.id }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(and(eq(memberships.tenantId, input.tenantId), eq(users.email, email))).limit(1);
@@ -1239,7 +1239,8 @@ export async function createProjectForTenant(input: {
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.write" });
+  // Q-12 (d): project.write as before, or project.create held for the whole company (the planning engineer)
+  if (!holdsPermission(snapshot, "project.write")) assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.create", scope: SETS_UP_PROJECTS.scope });
   await ensureDefaultCommercialCatalog(db);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {

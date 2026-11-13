@@ -74,7 +74,8 @@ export const operationalRoleDefinitions = [
   { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
   { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
-  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
+  // Q-12 (d): the planning engineer sets projects up (project.create, held at company scope): creates one, writes its profile and companies, and invites its team, the project manager included
+  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
@@ -141,7 +142,13 @@ export function assertOperationalRoleSeparation(existingRoleCodes: string[], nex
  * permissions all live inside a project — nothing company-wide (tenant.*, executive.*, pmo.*), no onward invitation (project.team.invite: no chain of delegation),
  * and no people's personal or pay data (project.hr.*, project.payroll.*, project.attendance.*). Returns the first permission that is refused, or null.
  */
-export function projectInviteRoleRefusal(role: { productCode: string | null }, codes: readonly string[]): string | null {
+export function projectInviteRoleRefusal(role: { productCode: string | null }, codes: readonly string[], inviter: { setsUpProjects?: boolean } = {}): string | null {
   if (role.productCode && role.productCode !== "PROJECT") return role.productCode;
-  return codes.find(code => !code.startsWith("project.") || code === "project.team.invite" || /^project\.(hr|payroll|attendance)\./.test(code)) ?? null;
+  // Q-12 (d): whoever sets projects up for the company (project.create at company scope: the planning engineer) may also give the project manager's role, which
+  // invites in turn and keeps the site's attendance; still never project.create itself (company-wide), nor staff or pay data
+  const setUpMay = (code: string) => inviter.setsUpProjects === true && (code === "project.team.invite" || code.startsWith("project.attendance."));
+  return codes.find(code => !code.startsWith("project.") || code === "project.create" || (!setUpMay(code) && (code === "project.team.invite" || /^project\.(hr|payroll|attendance)\./.test(code)))) ?? null;
 }
+
+/** Q-12 (d): project.create counts only when held for the whole company (a project-scoped grant of it sets up nothing). */
+export const SETS_UP_PROJECTS = { permission: "project.create", scope: { type: "company" as const } };

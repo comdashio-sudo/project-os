@@ -25,9 +25,12 @@ describe("catalog of the new codes", () => {
     }
   });
 
-  it("no ready-made template holds any of the four codes, so no existing company receives one from this change", () => {
+  it("no ready-made template holds any of the four codes, except project.create on the planning engineer (Q-12 d: the one who sets projects up)", () => {
     for (const definition of operationalRoleDefinitions) {
-      for (const code of addedCodes) expect(definition.permissions, `${definition.code} must not hold ${code}`).not.toContain(code);
+      for (const code of addedCodes) {
+        if (code === "project.create" && definition.code === "PLANNING_ENGINEER") expect(definition.permissions).toContain(code);
+        else expect(definition.permissions, `${definition.code} must not hold ${code}`).not.toContain(code);
+      }
     }
   });
 

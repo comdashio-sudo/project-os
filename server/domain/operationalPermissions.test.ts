@@ -28,7 +28,7 @@ describe("operational permissions are enforced by the server (G-120)", () => {
 
   // Codes added to the catalog before the check that uses them lands (AFTER_MIGRATION O-W3, R-2, R-3). Each must leave this list in the change
   // that moves its check: project.create and schedule.write when the project and master-plan writes switch; payment.* when the payments module exists.
-  const reservedUntilEnforced = ["project.create", "schedule.write", "payment.prepare", "payment.approve"];
+  const reservedUntilEnforced = ["schedule.write", "payment.prepare", "payment.approve"]; // project.create left in Q-12 (d): createProjectForTenant checks it
 
   it("every operational permission is enforced somewhere: by a governed action, a named check in db.ts, or a PMC service", () => {
     const missing = catalogCodes.filter(code => {
