@@ -16,6 +16,7 @@ import {
   warehouseInventoryTransactions,
 } from "../drizzle/schema";
 import { getDb } from "./db";
+import { logError } from "./_core/logger";
 import { calculateProjectProgress } from "./domain/pmc";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { unitProgressOf } from "./domain/pmcScreens";
@@ -94,13 +95,16 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
       else evm = { pv: round2(live.pv), ev: round2(live.ev), ac: round2(live.ac), bac: round2(live.bac), cpi: live.cpi, spi: live.spi, eac: round2(live.eac), vac: round2(live.vac) };
       const report = buildProfitabilityReport(reportInputFor(loaded, now, DEFAULT_EAC_METHOD));
       expectedProfit = report.headline.status === "ok" ? { value: report.headline.data.fpac } : unavailable(report.headline.reason);
-    } catch { /* both stay "unavailable": one project failing never blanks the rest */ }
+    } catch (error) {
+      // both stay "unavailable": one project failing never blanks the rest — but the failure is logged, never swallowed (D-23, delivery 3.6)
+      logError("levels.project_profitability_failed", error, { tenantId, projectId: project.id });
+    }
     let progress: ProjectKpis["progress"] = unavailable("NO_UNITS");
     try {
       const dataset = await loadPmcDataset(db, { userId: 0, tenantId, projectId: project.id }, now);
       const unitRows = dataset.units.flatMap(unit => { const percent = unitProgressOf(dataset, unit); return percent === null ? [] : [{ progressPercent: percent, unitWeight: unit.weight }]; });
       if (unitRows.length) progress = { percent: calculateProjectProgress(unitRows) };
-    } catch { progress = unavailable("PROGRESS_UNAVAILABLE"); }
+    } catch (error) { progress = unavailable("PROGRESS_UNAVAILABLE"); logError("levels.project_progress_failed", error, { tenantId, projectId: project.id }); }
     return {
       projectId: project.id, code: project.code, name: project.name, currency: project.currency,
       expectedProfit, evm, progress,

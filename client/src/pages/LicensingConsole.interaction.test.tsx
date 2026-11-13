@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import LicensingConsole from "./LicensingConsole";
 
 const state = vi.hoisted(() => ({ user: { role: "admin" } as { role: string }, override: vi.fn(), provision: vi.fn(), transition: vi.fn(), invalidate: vi.fn(), catalog: { plans: [{ id: "plan-1", code: "ALL_IN_ONE_STANDARD", name: "All-In-One Standard", active: true }], features: [], planFeatures: [] } }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: state.user, loading: false }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
