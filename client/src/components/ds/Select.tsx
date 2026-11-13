@@ -8,13 +8,20 @@ import { useDsText } from "./strings";
 export type SelectOption = { value: string; label: string; description?: string; disabled?: boolean };
 
 /** The custom list: never the browser's own select. Keyboard (arrows, type-ahead, Esc), screen-reader roles and RTL come from Radix; the look comes from the direction's tokens. */
-export function Select({ options, value, onValueChange, placeholder, id, invalid, disabled, className, "aria-label": ariaLabel, "aria-describedby": describedBy, "aria-required": ariaRequired }: {
-  options: SelectOption[]; value?: string; onValueChange: (value: string) => void; placeholder?: string; id?: string; invalid?: boolean; disabled?: boolean; className?: string; "aria-label"?: string; "aria-describedby"?: string; "aria-required"?: boolean;
+/**
+ * `required` (with an `id`): the list also writes its value into a hidden copy (data-list-for = the list's id) that the shared form check reads
+ * (client/src/lib/formValidation.ts through CheckedForm): an empty required list stops the submit with the same translated message as a typed
+ * field, under the list. The copy is out of the tab order and hidden from assistive technology; the list itself carries aria-required.
+ */
+export function Select({ options, value, onValueChange, placeholder, id, invalid, disabled, required, className, "aria-label": ariaLabel, "aria-describedby": describedBy, "aria-required": ariaRequired }: {
+  options: SelectOption[]; value?: string; onValueChange: (value: string) => void; placeholder?: string; id?: string; invalid?: boolean; disabled?: boolean; required?: boolean; className?: string; "aria-label"?: string; "aria-describedby"?: string; "aria-required"?: boolean;
 }) {
   const text = useDsText();
   return (
+    <>
+    {required && id ? <input id={`${id}-value`} data-list-for={id} required disabled={disabled} value={value ?? ""} onChange={() => undefined} tabIndex={-1} aria-hidden="true" className="sr-only" /> : null}
     <RadixSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
-      <RadixSelect.Trigger id={id} aria-label={ariaLabel} aria-describedby={describedBy} aria-required={ariaRequired || undefined} aria-invalid={invalid || undefined}
+      <RadixSelect.Trigger id={id} aria-label={ariaLabel} aria-describedby={describedBy} aria-required={ariaRequired || required || undefined} aria-invalid={invalid || undefined}
         className={cn(controlClass(invalid), "flex min-h-11 items-center justify-between gap-2 text-start data-[placeholder]:text-muted-foreground md:min-h-10 [&>span:first-child]:min-w-0 [&>span:first-child]:truncate", className)}>
         <RadixSelect.Value placeholder={placeholder ?? text.selectPlaceholder} />
         <RadixSelect.Icon><ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /></RadixSelect.Icon>
@@ -34,5 +41,6 @@ export function Select({ options, value, onValueChange, placeholder, id, invalid
         </RadixSelect.Content>
       </RadixSelect.Portal>
     </RadixSelect.Root>
+    </>
   );
 }
