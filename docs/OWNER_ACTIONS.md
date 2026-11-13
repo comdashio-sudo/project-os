@@ -216,6 +216,8 @@
    - `EMAIL_FROM` = `Dashio <no-reply@نطاقك>`
    - `EMAIL_NOTIFICATIONS_ENABLED` = `true`
    - `APP_BASE_URL` = عنوان المنصة كاملًا بلا شرطة في آخره
+   - (اختياري، D-22) `EMAIL_REPLY_TO` = بريد يقرؤه أحد (مثل `support@نطاقك`)، فيصل إليه ردّ من يرد على إشعار بدل `no-reply`
+   - تنبيه: اجعل نطاق `APP_BASE_URL` ونطاق `EMAIL_FROM` واحدًا؛ إن اختلفا كتب الخادم عند الإقلاع تحذير `mail.link_domain_mismatch` في سجل Vercel (بالأسماء فقط)
 
    ثم **Deployments** ← آخر نشر ← **Redeploy**.
 4. **Supabase** (كي يصل رمز الدخول من المرسل نفسه وبلا حدّ البريد المدمج): مشروع **dashio** ← **Authentication** ← **Emails** ← **SMTP Settings** ← **Enable Custom SMTP** ← القيم نفسها (الخادم والمنفذ والمستخدم والمفتاح، والمرسل `no-reply@نطاقك` واسم المرسل `Dashio`) ← **Save**.
