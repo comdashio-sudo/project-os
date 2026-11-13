@@ -69,6 +69,7 @@ const integrationSources = await Promise.all([
   readFile(new URL("../server/projectBaseline.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/dailyReportExport.database.test.ts", import.meta.url), "utf8"),
   readFile(new URL("../server/weeklyReports.database.test.ts", import.meta.url), "utf8"),
+  readFile(new URL("../server/monthlyReport.database.test.ts", import.meta.url), "utf8"),
 ]);
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));
