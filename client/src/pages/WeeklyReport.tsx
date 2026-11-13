@@ -9,6 +9,8 @@ import { useCan } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { suggestWeeklyTexts, type WeekFigures } from "@/lib/weeklySuggest";
+import { weeklyReportNumber, type DeckFigures } from "@/lib/weeklyDeck";
+import { WeeklyExports } from "@/components/WeeklyDeckSlides";
 
 // D-49 (b): the weekly report editor. Its FIGURES are the period engine's (reportPeriods.get, D-48) and are shown as text — there is no field for a number; its
 // WORDS (eleven texts) and the chosen daily-report photos are saved by reportPeriods.saveWeekly (D-49 a). «Suggest from the figures» fills only an empty text.
@@ -57,6 +59,7 @@ export default function WeeklyReport() {
   const canWrite = useCan(["project.field.manage", "project.manage"], projectId);
   const figures = trpc.reportPeriods.get.useQuery({ ...scope, kind: "week", anchor: weekStart }, { enabled: Boolean(tenantId && projectId && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) });
   const saved = trpc.reportPeriods.weekly.useQuery({ ...scope, weekStart }, { enabled: Boolean(tenantId && projectId && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) });
+  const profile = trpc.projects.profile.get.useQuery(scope, { enabled: Boolean(tenantId && projectId) });
   const utils = trpc.useUtils();
   const save = trpc.reportPeriods.saveWeekly.useMutation({ onSuccess: () => { setNotice(t.saved); void utils.reportPeriods.weekly.invalidate({ ...scope, weekStart }); } });
   const [texts, setTexts] = useState<Record<TextKey, string>>(() => Object.fromEntries(TEXTS.map(key => [key, ""])) as Record<TextKey, string>);
@@ -126,6 +129,12 @@ export default function WeeklyReport() {
             </label></li>))}</ul>
         )}</CardBody>
       </Card>
+      <WeeklyExports fileBase={`weekly-report-${weekStart}`} deck={data && profile.data !== undefined ? {
+        number: weeklyReportNumber(profile.data?.reportPrefix ?? null, data.period.start), figures: data as unknown as DeckFigures, labels: t.labels, texts,
+        photos: photos.filter(photo => photoIds.includes(photo.id)).map(photo => ({ url: photo.url, caption: photo.caption })),
+        logos: [profile.data?.logos.client?.url ?? null, profile.data?.logos.consultant?.url ?? null, profile.data?.logos.contractor?.url ?? null],
+        parties: [profile.data?.clientName ?? null, profile.data?.consultantName ?? null, profile.data?.contractorName ?? null],
+      } : null} />
       {canWrite ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button loading={save.isPending} onClick={() => { setNotice(null); save.mutate({ ...scope, weekStart, texts, photoIds }); }}>{save.isPending ? t.saving : t.save}</Button>
