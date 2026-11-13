@@ -10,9 +10,9 @@ import { buildSamples, type Sample } from "./domain/smartImport/fixtures";
 // Work order 20, smart import: the whole path on a real database and a real HTTP upload — the original file goes to Storage by a signed URL, is understood,
 // the person's approval writes it in the existing importer's template, the importer's own job validates it, and the original stays linked to what it wrote.
 // Synthetic files only (server/domain/smartImport/fixtures.ts); nothing here is a real company's data.
-const T = "79000000-0000-4000-8000-0000000000c1";
+const T = "7a000006-0000-4000-8000-0000000000a1";
 const T2 = "79000000-0000-4000-8000-0000000000d1";
-const P = "79000000-0000-4000-8000-0000000000c2";
+const P = "7a000014-0000-4000-8000-0000000000a2";
 const P2 = "79000000-0000-4000-8000-0000000000d2";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection;

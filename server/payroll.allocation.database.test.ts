@@ -5,8 +5,8 @@ import { appRouter } from "./routers";
 
 // Work order 3, decisions 3 to 5: the month's loaded pay is shared out by approved hours; a person may adjust a share only with a reason;
 // the employer's insurance depends on nationality; end of service follows the length of service. Synthetic fixtures; hand calculations in comments.
-const T = "79000000-0000-4000-8000-0000000000a1";
-const P1 = "79000000-0000-4000-8000-0000000000a2";
+const T = "7a000004-0000-4000-8000-0000000000a1";
+const P1 = "7a000012-0000-4000-8000-0000000000a2";
 const P2 = "79000000-0000-4000-8000-0000000000a3";
 const uid = (n: number) => `79000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [W1, W2, W3, RES, E1, E2, E3] = [101, 102, 103, 104, 105, 106, 107].map(uid);
