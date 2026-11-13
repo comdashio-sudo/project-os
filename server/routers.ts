@@ -1,6 +1,7 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
+import { getMonthlyReport } from "./monthlyReport";
 import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
 import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
@@ -479,6 +480,8 @@ export const appRouter = router({
   // Work order 12, items 4 to 7: the site's daily report, the consultant's submittals, the company's quality policy, and the card of a unit or an activity.
   // D-48 (§5): the period engine — a week (seven days from its first) or a calendar month, added up from the daily reports (server/reportPeriods.ts). Read only.
   reportPeriods: router({
+    // D-53 (a): the monthly report's data — the month's figures, the S-curve (P6 plan against the daily reports), the milestones, earned value (financial permission only)
+    monthly: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), month: z.string().regex(/^\d{4}-\d{2}$/), includeUnapproved: z.boolean().optional() })).query(({ ctx, input }) => getMonthlyReport({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(["week", "month"]), anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), includeUnapproved: z.boolean().optional() })).query(({ ctx, input }) => getReportPeriod({ userId: ctx.user.id, ...input })),
     // D-49 (a): the weekly report's own words and chosen photos (server/weeklyReports.ts); its figures stay the engine's above, never stored
     weekly: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(({ ctx, input }) => getWeeklyReport({ userId: ctx.user.id, ...input })),
