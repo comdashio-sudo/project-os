@@ -92,3 +92,58 @@ describe("ProjectImports confirm controls follow the module permission", () => {
     expect(await screen.findByRole("button", { name: "Confirm import" })).toBeTruthy();
   });
 });
+
+describe("D-27: a failed upload says nothing was written and can be retried; a missing import permission is named (G-152, G-153)", () => {
+  beforeEach(() => {
+    state.put.mockReset().mockResolvedValue(undefined);
+    state.mock.createUpload.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/t/p/pending/k/f", headers: {}, maxBytes: 1 });
+    state.mock.registerUpload.mockReset().mockResolvedValue({ id: JOB, status: "analyzing" });
+    state.mock.progress = analysisView();
+    state.permission = { data: summary(), error: null, isLoading: false };
+  });
+  afterEach(cleanup);
+
+  it("G-152: the server refuses the upload address; the alert says the file was not uploaded and «Try again» sends the same file again", async () => {
+    state.mock.createUpload.mockRejectedValueOnce(new Error("PROJECT_OS_STORAGE_NOT_CONFIGURED"));
+    await uploadAFile();
+    const failure = await screen.findByRole("alert");
+    expect(failure.textContent).toContain("Localized import error");
+    expect(failure.textContent).toContain("The file was not uploaded and nothing was written.");
+    expect(state.mock.registerUpload).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => expect(state.mock.registerUpload).toHaveBeenCalledTimes(1));
+    expect(state.mock.createUpload).toHaveBeenCalledTimes(2);
+    expect(state.mock.createUpload.mock.calls[1][0]).toMatchObject({ fileName: "wbs.csv", moduleCode: "wbs" });
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("G-152 sibling: storage refuses the file itself; the same box, with the storage reason", async () => {
+    const { UploadFailure } = await import("@/lib/uploadLimit");
+    state.put.mockRejectedValueOnce(new UploadFailure(0));
+    await uploadAFile();
+    const failure = await screen.findByRole("alert");
+    expect(failure.textContent).toContain("could not be uploaded to storage");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(state.mock.registerUpload).not.toHaveBeenCalled();
+  });
+
+  it("G-153: without the module's permission the upload step is replaced by a line naming it; the template stays", () => {
+    state.permission = { data: summary({ permissions: ["project.cost.enter"] }), error: null, isLoading: false };
+    render(page());
+    expect(screen.queryByLabelText("Choose a file")).toBeNull();
+    const note = document.querySelector('[data-write-gate="denied"]')!;
+    expect(note.textContent).toBe("You cannot import this kind of data. It needs “Manage the WBS”; ask the project manager for it. You can still download the template.");
+    expect(screen.getByRole("button", { name: /template/i })).toBeTruthy();
+  });
+
+  it("G-153 NEGATIVE: with the permission there is no such line; materials accept either of two permissions and the line says «or»", async () => {
+    render(page());
+    expect(screen.getByLabelText("Choose a file")).toBeTruthy();
+    expect(document.querySelector('[data-write-gate="denied"]')).toBeNull();
+    cleanup();
+    state.permission = { data: summary({ permissions: ["project.cost.enter"] }), error: null, isLoading: false };
+    render(page());
+    await userEvent.setup().click(screen.getByRole("button", { name: "Materials" }));
+    expect(document.querySelector('[data-write-gate="denied"]')!.textContent).toContain("“Manage procurement” or “Manage inventory”");
+  });
+});

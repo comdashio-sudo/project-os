@@ -70,6 +70,33 @@ describe("ExportExcelButton", EXPORT_TEST, () => {
     expect(screen.getByText("لا توجد صفوف لتصديرها").textContent).toBe("لا توجد صفوف لتصديرها");
   });
 
+  it("G-154: with no rows it names the next step from the screen's hint, keeps the button disabled, and two empty buttons do not share an id", () => {
+    window.localStorage.setItem("project-os-language", "ar");
+    render(<LanguageProvider><ExportExcelButton<Row> fileName="a" sheetName="a" title="a" rows={[]} columns={columns} emptyHint={{ ar: "أضف بندًا من «الميزانية»", en: "Add a line under “Budget”", ur: "«بجٹ» میں سطر شامل کریں" }} /><ExportExcelButton<Row> fileName="b" sheetName="b" title="b" rows={[]} columns={columns} /></LanguageProvider>);
+    const [first, second] = screen.getAllByRole("button", { name: /تصدير إلى Excel/ }) as HTMLButtonElement[];
+    expect(first.disabled).toBe(true);
+    expect(document.getElementById(first.getAttribute("aria-describedby")!)!.textContent).toBe("لا توجد صفوف لتصديرها. أضف بندًا من «الميزانية»");
+    expect(first.getAttribute("aria-describedby")).not.toBe(second.getAttribute("aria-describedby"));
+    expect(document.getElementById(second.getAttribute("aria-describedby")!)!.textContent).toBe("لا توجد صفوف لتصديرها");
+  });
+
+  it("G-158: while the file is being built the button is busy and a status line says so; it goes when the file is done", async () => {
+    stubObjectUrls();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    let finish: (bytes: ArrayBuffer) => void = () => undefined;
+    vi.mocked(buildTableWorkbook).mockImplementationOnce(() => new Promise<ArrayBuffer>(resolve => { finish = resolve; }));
+    renderButton();
+    expect(screen.queryByRole("status")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /تصدير إلى Excel/ }));
+    expect((await screen.findByRole("status")).textContent).toBe("جارٍ إنشاء ملف Excel…");
+    const button = screen.getByRole("button", { name: /تصدير إلى Excel/ }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    finish(new Uint8Array([1]).buffer);
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), EXPORT_WAIT);
+    expect(button.getAttribute("aria-busy")).toBeNull();
+  });
+
   it("builds the file from the visible rows and starts a download named with the export day", async () => {
     const { create: created, revoke: revoked } = stubObjectUrls();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);

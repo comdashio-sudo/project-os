@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
 import { GuardedPanels } from "@/components/SectionResilience";
+import { TableScroll } from "@/components/ds";
 import CashFlowMonthly from "./CashFlowMonthly";
 import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
@@ -137,8 +138,9 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
           <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-red-700" : "text-emerald-700"}`}>{money(headline.data.fpac)}</p>
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
           {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
-          <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} /></div>
-          <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={pickLanguage(language, { ar: "جدول التكلفة والقيمة", en: "Cost and value table", ur: "لاگت اور قدر کا جدول" })}>
+          <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} emptyHint={{ ar: "أدخل قيمة العقد والميزانية في «تحديث التخطيط والتكلفة» لتُحسب الربحية", en: "Enter the contract value and the budget in “Schedule & cost updates” to calculate profitability", ur: "منافع کے حساب کے لیے «شیڈول اور لاگت کی تازہ کاری» میں معاہدے کی قیمت اور بجٹ درج کریں" }} /></div>
+          {/* G-155: the ds frame shows the scroll cue when the table is wider than a phone, and the formula wraps instead of being cut */}
+          <TableScroll className="mt-2" label={pickLanguage(language, { ar: "جدول التكلفة والقيمة", en: "Cost and value table", ur: "لاگت اور قدر کا جدول" })}>
             <table className="w-full min-w-[34rem] text-start text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.figure}</th><th className="text-start">{t.value}</th><th className="text-start">{t.formula}</th><th className="text-start">{t.source}</th><th className="text-start">{t.asOf}</th></tr></thead>
               <tbody>
@@ -148,7 +150,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                     <tr key={row.key} className="border-t">
                       <td className="py-1.5 font-medium">{labels[0]}</td>
                       <td className="whitespace-nowrap pe-3">{row.key === "margin" ? formatPercent(row.value, isArabic) : row.value === null ? "—" : money(row.value)}</td>
-                      <td className="text-xs text-slate-600">{labels[1]}</td>
+                      <td data-formula className="min-w-[12rem] whitespace-normal break-words pe-3 text-xs text-slate-600">{labels[1]}</td>
                       <td className="text-xs text-slate-600">{t.sources[row.source] ?? row.source}</td>
                       <td className="text-xs text-slate-600">{row.asOf ? row.asOf.slice(0, 10) : "—"}</td>
                     </tr>
@@ -156,7 +158,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         </div>
       ) : <div className="mt-5"><Unavailable reason={headline.reason} t={t} /></div>}
 
@@ -207,10 +209,10 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
         {data.freshness.percentWbsUpdated !== null && <li className="rounded-xl bg-slate-50 px-3 py-2">{t.percentWbs(data.freshness.percentWbsUpdated)}</li>}
       </ul>
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.drill}</h3>{data.drill.status === "ok" && <ExportExcelButton fileName={`${data.project.code}-wbs-variance`} sheetName={t.drill} title={t.drill} project={projectTag} rows={drillItems} columns={drillColumns} />}</div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.drill}</h3>{data.drill.status === "ok" && <ExportExcelButton fileName={`${data.project.code}-wbs-variance`} sheetName={t.drill} title={t.drill} project={projectTag} rows={drillItems} columns={drillColumns} emptyHint={{ ar: "أضف بنود WBS بميزانياتها في «تحديث التخطيط والتكلفة» لتظهر انحرافاتها هنا", en: "Add WBS items with their budgets in “Schedule & cost updates” to see their variance here", ur: "یہاں فرق دیکھنے کے لیے «شیڈول اور لاگت کی تازہ کاری» میں بجٹ کے ساتھ WBS آئٹمز شامل کریں" }} />}</div>
       {data.drill.status === "ok" ? (
         data.drill.data.items.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
-          <div className="mt-2 overflow-x-auto">
+          <TableScroll className="mt-2" label={t.drill}>
             <table className="w-full min-w-[34rem] text-sm">
               <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.item}</th><th className="text-start">{t.planned}</th><th className="text-start">{t.actual}</th><th className="text-start">{t.committed}</th><th className="text-start">{t.forecast}</th><th className="text-start">{t.gap}</th><th><span className="sr-only">{pickLanguage(language, { ar: "التفاصيل", en: "Details", ur: "تفصیلات" })}</span></th></tr></thead>
               <tbody>
@@ -244,7 +246,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
             </table>
             {data.drill.data.unallocatedActual !== 0 && <p className="mt-2 text-xs text-slate-600">{t.unallocated}: <b>{money(data.drill.data.unallocatedActual)}</b></p>}
             {data.drill.data.reconciliationDifference !== null && data.drill.data.reconciliationDifference !== 0 && <p className="mt-1 text-xs text-amber-800">{t.reconciliation}: <b>{money(data.drill.data.reconciliationDifference)}</b></p>}
-          </div>
+          </TableScroll>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}
       <GuardedPanels isArabic={isArabic} titles={{ CashFlowMonthly: { ar: "التدفق النقدي الشهري", en: "Monthly cash flow", ur: "ماہانہ کیش فلو" }, ProjectInvoicesPanel: { ar: "فواتير المشروع", en: "Project invoices", ur: "پروجیکٹ کی انوائسز" }, LabourLoadingCard: { ar: "تكلفة العمالة المحمّلة", en: "Loaded labour cost", ur: "شامل شدہ لیبر لاگت" } }}>

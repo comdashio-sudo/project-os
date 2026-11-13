@@ -87,7 +87,7 @@ describe("EosLiabilityCard Excel export", EXPORT_TEST, () => {
     h.empty = true;
     show();
     expect(exportButton().disabled).toBe(true);
-    expect(screen.getByText("No rows to export")).toBeTruthy();
+    expect(screen.getByText("No rows to export. Approve a payroll run under “Payroll” to see its month here")).toBeTruthy();
     fireEvent.click(exportButton());
     expect(buildTableWorkbook).not.toHaveBeenCalled();
   });
