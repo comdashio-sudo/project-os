@@ -58,7 +58,8 @@ type Type = (typeof TYPES)[number];
 type Status = (typeof STATUSES)[number];
 const NONE = "__none__";
 const WRITE = ["project.field.manage", "project.design.manage", "project.manage"];
-const REPLY = ["project.design.approve", "project.manage"];
+// Q-17 (205-4): the same reply list as the server (server/consultantSubmittals.ts REPLY)
+const REPLY = ["project.design.approve", "project.consultant.respond"];
 
 export default function ProjectSubmittals() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
