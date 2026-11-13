@@ -2333,3 +2333,11 @@
 | الشاشة: بطاقة «تطبيق على مشروع» في الحاسبة (المشروع، شهر بدء التنفيذ، تطبيق) | `SOURCE_VERIFIED` | `DevPlanner.test.tsx` 2/2؛ لقطات 390 و1280 بالعربية والإنجليزية والأردية بلا ملاحظات |
 | فحوص | — | `pnpm check` نظيف، `pnpm build` نجح، `pnpm test` 3607 ناجحًا |
 | حدّ معلن | `OPEN` | التدفق النقدي من الحاسبة **مرجَّح بالعمالة** (لا تكلفة في المحرك)؛ الأدق رفع ملف التدفق النقدي الحقيقي. والجدول الزمني (أنشطة) لا يُكتب من الحاسبة بعد |
+
+### Q-16: البريد الفعلي — فحص المسار، وتقرير «البريد مهيّأ» في healthz بالأسماء فقط، وخطوات المالك (2026-11-13، المبرمج ج، من `main`، بلا ترحيلة)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| ماذا يُرسل اليوم (من الكود) | `SOURCE_VERIFIED` | رمز الدخول: Supabase Auth ببريده (المدمج ما لم يُضبط SMTP مخصص في لوحة Supabase). الدعوات (`server/invitationEmail.ts`) والملخّصات اليومية وملخّص الوحدات المتوقفة (`server/emailNotifications.ts` و`server/stalledUnitsDigest.ts`): SMTP عبر `nodemailer` (`server/_core/auth/mailer.ts`)، ولا يُرسل شيء ما لم تكتمل `SMTP_HOST/PORT/USER/PASSWORD` و`EMAIL_FROM` و`EMAIL_NOTIFICATIONS_ENABLED=true` و`APP_BASE_URL` (الدعوة تبقى صالحة ويُشارك رابطها باليد) |
+| `/healthz` يختم بـ«mail configured» أو «mail not configured, missing: <الأسماء>»، و`/api/readyz` يحمل `mail: { configured, missing }` (لا يؤثر في `ready`) | `PROVEN` (اختبار) | `server/_core/app.test.ts` حالتان: الكل مضبوط ⇒ مهيّأ، وكلمة مرور ناقصة ومفتاح مطفأ ⇒ الاسمان بالترتيب؛ ولا قيمة (المستخدم أو كلمة المرور أو الخادم) في أي رد |
+| الإرسال الفعلي | `BLOCKED_BY_OWNER` | `docs/OWNER_ACTIONS.md` §18: اختيار مزوّد SMTP بخطة مجانية على نطاق داشيو (لا Resend بحكم ADR-0002، ولا كلمة مرور Gmail)، والمتغيرات السبعة في Vercel، وSMTP المخصص في Supabase Auth، ثم التحقق بـ`/healthz` ودعوة تجريبية |
