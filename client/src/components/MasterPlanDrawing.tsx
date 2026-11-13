@@ -1,7 +1,10 @@
 // Interactive master-plan drawing: read a DXF in the browser, match its shapes to the plan's units,
 // let a person confirm each link, colour the map by unit status, and export the confirmed links.
 // The file never leaves the browser, and nothing is saved on the server (G-189).
-import { FileButton } from "@/components/ds";
+import { FileButton, Select } from "@/components/ds";
+
+/** Radix lists carry no empty value: "no unit chosen" is this sentinel, never a unit id. */
+const NO_CHOICE = "__none";
 import React, { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { trpc } from "@/lib/trpc";
 import { latestVersionId } from "@/lib/masterPlanDrawingLayout";
@@ -480,11 +483,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
         {pdfSource && pdfSource.pageCount > 1 ? (
           <label className="flex flex-col text-xs">
             {t.page}
-            <select className="min-h-[44px] rounded-lg border border-slate-300 px-2 text-sm" value={pdfSource.page} disabled={progress !== null} onChange={event => readRasterDrawing(pdfSource.file, "pdf", Number(event.target.value))}>
-              {Array.from({ length: pdfSource.pageCount }, (_, index) => (
-                <option key={index + 1} value={index + 1}>{t.pageOption(index + 1, pdfSource.pageCount)}</option>
-              ))}
-            </select>
+            <Select aria-label={t.page} value={String(pdfSource.page)} disabled={progress !== null} onValueChange={value => readRasterDrawing(pdfSource.file, "pdf", Number(value))}
+              options={Array.from({ length: pdfSource.pageCount }, (_, index) => ({ value: String(index + 1), label: t.pageOption(index + 1, pdfSource.pageCount) }))} />
           </label>
         ) : null}
       </div>
@@ -615,10 +615,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                           <>
                             <label className="flex flex-col text-xs">
                               {t.assignLabel}
-                              <select className="min-h-[44px] rounded-lg border border-slate-300 px-2 text-sm" value={choice[item.polygonId] ?? ""} onChange={event => setChoice(prev => ({ ...prev, [item.polygonId]: event.target.value }))}>
-                                <option value="">{t.noChoice}</option>
-                                {remaining.map(unit => <option key={unit.id} value={unit.id}>{unit.code}</option>)}
-                              </select>
+                              <Select aria-label={t.assignLabel} value={choice[item.polygonId] || NO_CHOICE} onValueChange={value => setChoice(prev => ({ ...prev, [item.polygonId]: value === NO_CHOICE ? "" : value }))}
+                                options={[{ value: NO_CHOICE, label: t.noChoice }, ...remaining.map(unit => ({ value: unit.id, label: unit.code }))]} />
                             </label>
                             <button
                               type="button"

@@ -1,5 +1,8 @@
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileButton } from "@/components/ds";
+import { FileButton, Select } from "@/components/ds";
+
+/** Radix lists carry no empty value: the whole-unit view is this sentinel, never sent to the server. */
+const OVERALL = "__overall";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -60,7 +63,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   return (
     <div className="space-y-4" data-testid="site-plan">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">{t.activity}<select aria-label={t.activity} className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" value={activityCode} onChange={event => { setActivityCode(event.target.value); setSelected(null); }}><option value="">{t.overall}</option>{activities.map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>
+        <label className="text-sm">{t.activity}<Select aria-label={t.activity} className="mt-1 min-w-48" value={activityCode || OVERALL} onValueChange={value => { setActivityCode(value === OVERALL ? "" : value); setSelected(null); }} options={[{ value: OVERALL, label: t.overall }, ...activities.map(a => ({ value: a.code, label: `${a.code} · ${a.name}` }))]} /></label>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadPlan} accept="image/png,image/jpeg" onFile={async file => { if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></WriteGate>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadGeo} accept=".geojson,.json,application/geo+json,application/json" onFile={async file => { if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></WriteGate>
       </div>
@@ -101,7 +104,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
                 {card.data && (<>
                   <p className="text-slate-600">{t.model}: {card.data.modelCode} · {t.zone}: {card.data.zoneCode} · {t.block}: {card.data.blockCode}</p>
                   <p className="mt-1">{t.progress}: <b>{card.data.progressPercent === null ? "—" : `${card.data.progressPercent}%`}</b></p>
-                  <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">{card.data.activities.map(a => <li key={a.code} className="flex flex-wrap justify-between gap-2 border-t pt-1"><span>{a.code} · {a.name}</span><span className="whitespace-nowrap"><span className="me-1 inline-block h-3 w-3 rounded" style={{ backgroundColor: COLORS[a.status] }} />{a.verificationStatus ? `${a.verificationStatus} · ` : ""}<select aria-label={`${t.changeStatus}: ${a.code}`} className="min-h-[44px] rounded-lg border bg-white px-1" value={a.status} disabled={change.isPending || !canUpdateStatus} onChange={event => change.mutate({ tenantId, projectId, unitId: card.data!.unitId, activityDefinitionId: a.definitionId, status: event.target.value as "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" })}>{Object.keys(COLORS).map(status => <option key={status} value={status}>{t.statuses[status]}</option>)}</select></span></li>)}</ul>
+                  <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">{card.data.activities.map(a => <li key={a.code} className="flex flex-wrap justify-between gap-2 border-t pt-1"><span>{a.code} · {a.name}</span><span className="whitespace-nowrap"><span className="me-1 inline-block h-3 w-3 rounded" style={{ backgroundColor: COLORS[a.status] }} />{a.verificationStatus ? `${a.verificationStatus} · ` : ""}<Select aria-label={`${t.changeStatus}: ${a.code}`} className="inline-flex w-auto" value={a.status} disabled={change.isPending || !canUpdateStatus} onValueChange={value => change.mutate({ tenantId, projectId, unitId: card.data!.unitId, activityDefinitionId: a.definitionId, status: value as "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" })} options={Object.keys(COLORS).map(status => ({ value: status, label: t.statuses[status] }))} /></span></li>)}</ul>
                   {evm && <p role="status" className="mt-2 rounded-lg bg-emerald-50 p-2 text-emerald-900" data-testid="evm-effect">{evm.moved ? <>{t.earned}: <bdi dir="ltr">{formatMoney(evm.evBefore, map.data.currency, isArabic)} → {formatMoney(evm.evAfter, map.data.currency, isArabic)}</bdi> · {t.linkedMoved(evm.moved)}</> : t.evNone}</p>}
                 </>)}
               </section>

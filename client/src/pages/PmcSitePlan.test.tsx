@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   save: vi.fn(),
   saveResult: undefined as undefined | { saved: number; errors: Array<{ index: number; unitNumber: number | null; code: string }> },
 }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 const square = (x: number, y: number) => ({ type: "Polygon", coordinates: [[[x, y], [x + 0.1, y], [x + 0.1, y + 0.1], [x, y + 0.1], [x, y]]] });
@@ -59,6 +60,14 @@ describe("PmcSitePlan", () => {
     expect(polygons()[0].getAttribute("points")).toBe("100,50 200,50 200,100 100,100 100,50");
     expect(screen.getByRole("img", { name: "Site plan" }).getAttribute("viewBox")).toBe("0 0 1000 500");
     expect(screen.getByText("1 units have no outline on the plan")).toBeTruthy();
+  });
+
+  it("returns to the whole-unit view without sending the list's sentinel as an activity (negative)", () => {
+    render(<PmcSitePlan tenantId="t" projectId="p" />);
+    fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "WALLS" } });
+    expect((h.inputs[h.inputs.length - 1] as { activityCode?: string }).activityCode).toBe("WALLS");
+    fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "__overall" } });
+    expect((h.inputs[h.inputs.length - 1] as { activityCode?: string }).activityCode).toBeUndefined();
   });
 
   it("colours by status for an activity and sends the activity with the query", () => {
