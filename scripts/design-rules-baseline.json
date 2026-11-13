@@ -60,7 +60,6 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/PayrollPanel.tsx": {
-  "raw-select": 18,
   "hardcoded-colour": 2
  },
  "client/src/pages/PayrollWorkspace.tsx": {
@@ -101,7 +100,6 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectDesign.tsx": {
-  "raw-select": 18,
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectDocuments.tsx": {

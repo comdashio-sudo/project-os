@@ -14,6 +14,7 @@ const hoisted = vi.hoisted(() => {
   return { state, mutation, query };
 });
 const { state } = hoisted;
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { design: {
