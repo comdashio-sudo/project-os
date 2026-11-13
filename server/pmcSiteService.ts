@@ -10,8 +10,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLogs, pmcActivityDefinitions, pmcActivityStages, pmcBlocks, pmcCellNotes, pmcConsultantCells, pmcConsultantColumns, pmcInspectionRequestUnits, pmcInspectionRequests, pmcInspectionSteps,
-  pmcPlanMonths, pmcSiteActivities, pmcSiteActivityLinks, pmcSiteCellEvents, pmcSiteCells, pmcStatusFactors, pmcUnitActivityProgress, pmcUnits, pmcZones,
+  pmcPlanMonths, pmcSiteActivities, pmcSiteActivityLinks, pmcSiteCellEvents, pmcSiteCells, pmcStatusFactors, pmcUnitActivityProgress, pmcUnits, pmcZones, projects,
 } from "../drizzle/schema";
+import { getDb } from "./db";
+import { resolveScopedAccess } from "./scopeAccess";
 import { effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 import { SITE_STATUSES, type SiteStatus } from "./domain/smartImport/siteWorkbook";
 import { PMC_INSPECTION_STEPS } from "./pmcService";
@@ -222,6 +224,31 @@ export async function pmcSourcePercentages(input: Scope) {
     byUnit: perUnit.map(row => ({ unitId: row.unitId, villa: row.villa, zone: row.zone, block: row.block, modelCode: row.modelCode, monthly: row.monthly, consultant: row.consultant, site: row.site })),
     readiness: { siteActivities: state.site.length, confirmedLinks: state.confirmedLinks, consultantColumns: state.columns.length, unlinkedColumns: state.unlinkedColumns },
   };
+}
+
+/**
+ * D-6: the three percentages of EVERY project of the company this person may read PMC on, for the company and portfolio levels. Each project passes the very same gate
+ * as the project's own read (pmcGate: licence feature, project.pmc.read on that project); a project refused there is left out, never named. Projects without villas are
+ * left out (nothing to average). portfolioId lets the portfolio level keep its own.
+ */
+export async function pmcSourcePercentagesByProject(input: { userId: number; tenantId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  // active membership, the PROJECT licence, and an assignment carrying project.pmc.read; its projects narrow the candidates (each still passes pmcGate below)
+  const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.pmc.read"] });
+  const withUnits = new Set((await db.select({ projectId: pmcUnits.projectId }).from(pmcUnits).where(eq(pmcUnits.tenantId, input.tenantId)).groupBy(pmcUnits.projectId)).map(row => row.projectId));
+  const candidates = (await db.select({ id: projects.id, code: projects.code, name: projects.name, portfolioId: projects.portfolioId }).from(projects).where(eq(projects.tenantId, input.tenantId))).filter(project => withUnits.has(project.id) && covered.projectIds.has(project.id));
+  const rows: Array<{ projectId: string; code: string; name: string; portfolioId: string | null; units: number; site: number; consultant: number; monthly: number; siteMinusConsultant: number; siteMinusMonthly: number; consultantMinusMonthly: number }> = [];
+  for (const project of candidates.sort((a, b) => a.code.localeCompare(b.code))) {
+    const scope = { ...input, projectId: project.id };
+    let gated: Db;
+    try { gated = await pmcGate(scope, "project.pmc.read"); } catch (error) { if (error instanceof TRPCError && error.code === "FORBIDDEN") continue; throw error; }
+    const state = await loadState(gated, scope);
+    const shares = state.units.map(unit => unitShares(state, unit)); const n = shares.length || 1;
+    const site = shares.reduce((sum, row) => sum + row.site, 0) / n; const consultant = shares.reduce((sum, row) => sum + row.consultant, 0) / n; const monthly = shares.reduce((sum, row) => sum + row.monthly, 0) / n;
+    rows.push({ projectId: project.id, code: project.code, name: project.name, portfolioId: project.portfolioId, units: shares.length, site, consultant, monthly, siteMinusConsultant: site - consultant, siteMinusMonthly: site - monthly, consultantMinusMonthly: consultant - monthly });
+  }
+  return rows;
 }
 
 // ------------------------------------------------------------------ site ↔ consultant

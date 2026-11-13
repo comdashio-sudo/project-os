@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ProjectPercentages } from "@/components/pmc/ProjectPercentages";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
@@ -64,6 +65,7 @@ export default function LevelCompany() {
         <Figure label={t.deviating} value={String(deviatingCount)} />
       </dl>
     </LevelSection>
+    <ProjectPercentages tenantId={tenantId} id="company-percentages" />
     <LevelSection id="company-projects" title={t.allProjects}>
       <ProjectTable rows={rows} currency={data.totals.currency} isArabic={isArabic} t={t} tenantId={tenantId} />
     </LevelSection>

@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ProjectPercentages } from "@/components/pmc/ProjectPercentages";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ScreenStates";
@@ -74,6 +75,7 @@ export default function LevelPortfolio() {
         <Figure label={t.waitingQuality} value={String(waitingQuality)} />
       </dl>
     </LevelSection>
+    <ProjectPercentages tenantId={tenantId} id="portfolio-percentages" />
     <LevelSection id="portfolio-comparison" title={t.comparison}>
       <TableScroll label={t.comparison}>
         <table className="w-full min-w-[640px] text-sm">

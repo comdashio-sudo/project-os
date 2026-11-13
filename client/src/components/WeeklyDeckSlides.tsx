@@ -83,7 +83,7 @@ async function deckPdf(slides: Slide[], rtl: boolean, fileName: string) {
   }
 }
 
-export function WeeklyExports({ deck, fileBase }: { deck: Omit<DeckInput, "mapImage" | "language"> | null; fileBase: string }) {
+export function WeeklyExports({ deck, fileBase, title }: { deck: Omit<DeckInput, "mapImage" | "language"> | null; fileBase: string; title?: string }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, text);
   const [map, setMap] = useState<{ name: string; size: number; url: string } | null>(null);
@@ -103,8 +103,8 @@ export function WeeklyExports({ deck, fileBase }: { deck: Omit<DeckInput, "mapIm
     }
   };
   return (
-    <section aria-label={t.title} className="flex flex-col gap-2 rounded-[var(--radius)] border p-3" data-weekly-exports>
-      <h2 className="text-sm font-semibold">{t.title}</h2>
+    <section aria-label={title ?? t.title} className="flex flex-col gap-2 rounded-[var(--radius)] border p-3" data-weekly-exports>
+      <h2 className="text-sm font-semibold">{title ?? t.title}</h2>
       <p className="text-sm">{t.map}</p>
       <FileDropzone accept={[".png", ".jpg", ".jpeg"]} maxBytes={8 * 1024 * 1024} hint={t.mapHint} items={map ? [{ id: "map", name: map.name, size: map.size, status: "done" }] : []} onRemove={() => setMap(null)}
         onFiles={([file]) => { const reader = new FileReader(); reader.onload = () => setMap(typeof reader.result === "string" ? { name: file.name, size: file.size, url: reader.result } : null); reader.readAsDataURL(file); }} />
