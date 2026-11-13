@@ -15,7 +15,7 @@
 //   node --import tsx scripts/e2e-demo-journey.mjs            OUT_DIR=./demo-journey-out for screenshots
 // Playwright is not a project dependency: PLAYWRIGHT_MODULE_DIR / PLAYWRIGHT_CHROMIUM locate it (as in scripts/e2e-roles.mjs).
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import pg from "pg";
@@ -311,8 +311,9 @@ try {
   await shot(keeper.page, "3a-issue-done-phone");
   await keeper.context.close();
   void cement;
-  const issue = await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 AND i.reference_number IS NOT DISTINCT FROM i.reference_number ORDER BY i.created_at DESC LIMIT 1", [tenantId]).catch(() => null)
-    ?? await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 ORDER BY i.created_at DESC LIMIT 1", [tenantId]);
+  // D-13: material_issues has no reference_number; the query that named it failed on every run (an ERROR in the database log) and was swallowed. The issue is read
+  // as the company's latest one, which is the one just saved: the journey's own company, made for this run.
+  const issue = await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 ORDER BY i.created_at DESC LIMIT 1", [tenantId]);
   const cost = money(5 * average);
   check(`the issue is charged at the shelf's average cost: 5 x ${money(average)} = ${cost}`, near(Number(issue.total_cost), cost, 0.05) && issue.status === "posted" && issue.entry_type === "actual" && near(Number(issue.amount), Number(issue.total_cost)), { issue, cost });
   const S3 = await levels(); const f3 = figures(S3);
@@ -350,6 +351,11 @@ try {
 function round(value, digits) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; }
 await browser.close(); stop();
 await pool.end();
+// D-13: the server's own log is kept beside the screenshots, and an error it logged during the journeys is a failed check (a journey that passes on screen while
+// the server logged a failure behind it is not a pass)
+writeFileSync(path.join(OUT_DIR, "server.log"), serverLog);
+const serverErrors = serverLog.split("\n").filter(line => /"level":"(error|fatal)"/.test(line));
+check("the server logged no error during the journeys", serverErrors.length === 0, serverErrors.slice(0, 5).map(line => line.slice(0, 240)));
 const failed = checks.filter(item => !item.ok);
 console.log(JSON.stringify({ checks: checks.length, failed: failed.length }));
 // leave the database as found: the demonstration company is erased, audited
