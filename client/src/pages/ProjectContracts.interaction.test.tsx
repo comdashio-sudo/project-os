@@ -9,6 +9,7 @@ import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ contractError: null as unknown, commitmentError: null as unknown, contractMutate: vi.fn(), commitmentMutate: vi.fn() }));
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({

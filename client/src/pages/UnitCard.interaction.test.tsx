@@ -18,6 +18,7 @@ const all = () => [
   event(4, "status_change", "— → IN_PROGRESS", { note: "Daily report 2026-10-20", activityDefinitionId: "a-walls" }),
   event(5, "submittal", "SD-1 r0", { submittalType: "shop_drawing", status: "replied", replyCode: "B", repliedAt: null }),
 ];
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", h.navigate], useParams: () => ({ tenantId: "t", projectId: "p", unitNumber: h.unit }), useSearch: () => h.search, Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
@@ -57,7 +58,7 @@ describe("UnitCard", () => {
   it("choosing an activity asks the card for that cell (only the unit's model is offered) and shows its status and quality", () => {
     const first = render(<UnitCard />);
     const select = screen.getByLabelText("Activity") as HTMLSelectElement;
-    expect(Array.from(select.options).map(option => option.value)).toEqual(["", "WALLS", "PAINT"]);
+    expect(Array.from(select.options).map(option => option.value)).toEqual(["__all", "WALLS", "PAINT"]);
     fireEvent.change(select, { target: { value: "WALLS" } });
     expect(h.navigate).toHaveBeenCalledWith("/m/t/p/unit/12?activity=WALLS");
     first.unmount(); h.search = "activity=WALLS";

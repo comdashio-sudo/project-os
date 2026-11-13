@@ -17,6 +17,7 @@ const helpers = vi.hoisted(() => {
 });
 const { state, query, mutation } = helpers;
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: true, language: (true) ? "ar" : "en", isRtl: true }) }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
