@@ -4,6 +4,7 @@
 // cells above it, stored with its computed result, so the file stays right when someone edits it and reads right before Excel recalculates. The file is written to
 // storage under the company's prefix and handed back as a signed link (a request body is capped at 4.5 MB on Vercel); an audit row records each export.
 // Word and PDF (the sections 0–10) are part (b).
+import { TRPCError } from "@trpc/server";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import { and, eq } from "drizzle-orm";
@@ -92,6 +93,8 @@ export async function buildLabourWorkbook(input: { reportNumber: string | null; 
 /** siteReports.export: the report read through the same gate as reading it, the file written to storage, a signed link back, an audit row. */
 export async function exportSiteDailyReport(input: Scope & { reportId: string; format: "xlsx"; locale: ExportLocale }) {
   const read = await getSiteDailyReportForTenant(input); // tenant, project and read permission are checked here
+  // Q-12: the export is the site's labour sheet — for whoever sees the site section (the site engineer, the planning engineer, the project manager)
+  if (!read.access.see.includes("site")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const companies = (await db.select({ id: projectCompanies.id, name: projectCompanies.name, role: projectCompanies.role }).from(projectCompanies)

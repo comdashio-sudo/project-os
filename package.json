@@ -97,6 +97,7 @@
     "nodemailer": "^10.2.0",
     "pdfjs-dist": "5.4.624",
     "pg": "8",
+    "pptxgenjs": "3.12.0",
     "qrcode": "1.5.4",
     "qs": "6.16.0",
     "react": "^19.2.1",

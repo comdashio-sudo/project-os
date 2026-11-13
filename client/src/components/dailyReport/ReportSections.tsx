@@ -94,7 +94,7 @@ function RowList<R extends { key: string }>({ name, rows, fields, onChange, make
   const update = (row: R, patch: Partial<R>) => onChange(rows.map(item => (item.key === row.key ? { ...item, ...patch } : item)));
   const input = (row: R, field: Field<R>) => {
     const value = String(row[field.name] ?? "");
-    if (field.options) return <Select className="mt-1" value={value || NONE} disabled={locked} onValueChange={next => update(row, { [field.name]: next === NONE ? "" : next } as Partial<R>)} options={field.options} />;
+    if (field.options) return <Select className="mt-1 md:min-h-11" value={value || NONE} disabled={locked} onValueChange={next => update(row, { [field.name]: next === NONE ? "" : next } as Partial<R>)} options={field.options} />;
     const common = { className: `${fieldInput} mt-1`, value, disabled: locked, required: field.required, maxLength: field.maxLength };
     if (field.kind === "area") return <textarea {...common} className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" onChange={event => update(row, { [field.name]: event.target.value } as Partial<R>)} />;
     return <input {...common} type={field.kind ?? "text"} inputMode={field.kind === "number" ? "decimal" : undefined} min={field.min} step={field.step} onChange={event => update(row, { [field.name]: event.target.value } as Partial<R>)} />;
