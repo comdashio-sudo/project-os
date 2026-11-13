@@ -331,13 +331,22 @@ const exportHeaders: Record<ExportModuleCode, Partial<Record<ExportLocale, Recor
   activities: { ar: { code: "رمز النشاط", name: "اسم النشاط", plannedValue: "القيمة المخططة", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" }, en: { code: "Activity Code", name: "Activity Name", plannedValue: "Planned Value", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", status: "Status" } },
 };
 
+const reservedExportHeaders: Record<ExportLocale, { id: string; version: string }> = {
+  ar: { id: `رقم السجل في المنصة — لا تعدّله [${EXPORT_ID_HEADER}]`, version: `نسخة السجل — لا تعدّلها [${EXPORT_VERSION_HEADER}]` },
+  en: { id: `Platform record id — do not edit [${EXPORT_ID_HEADER}]`, version: `Record version — do not edit [${EXPORT_VERSION_HEADER}]` },
+  ur: { id: `پلیٹ فارم میں ریکارڈ نمبر — اسے نہ بدلیں [${EXPORT_ID_HEADER}]`, version: `ریکارڈ کا ورژن — اسے نہ بدلیں [${EXPORT_VERSION_HEADER}]` },
+};
+
 export async function buildDataExportFile(input: { moduleCode: ExportModuleCode; format: "xlsx" | "csv"; locale: ExportLocale; rows: Record<string, unknown>[] }) {
   const headers = headersIn(exportHeaders[input.moduleCode], input.locale);
-  // A module that takes part in the export → edit → re-import cycle carries each row's platform id and version in two reserved columns, hidden in Excel (and kept in CSV).
+  // A module that takes part in the export → edit → re-import cycle carries each row's platform id and version in two reserved columns.
+  // Q-17 item 7 (decision 210-2): they stay visible, under a header that says what they are in the reader's language, grey and locked against typing;
+  // they are what makes a re-import an update and not a duplicate. The header ends with the machine key in brackets, which the reader maps back (canonicalHeader).
   const cycle = (CYCLE_MODULES as readonly string[]).includes(input.moduleCode) || isLedgerModule(input.moduleCode);
   const exportRows = input.rows.map(row => [...Object.keys(headers).map(key => safeSpreadsheetValue(row[key] ?? "")), ...(cycle ? [String(row[EXPORT_ID_HEADER] ?? ""), String(row[EXPORT_VERSION_HEADER] ?? "")] : [])]);
-  const columnHeaders = [...Object.values(headers), ...(cycle ? [EXPORT_ID_HEADER, EXPORT_VERSION_HEADER] : [])];
-  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: columnHeaders, rows: exportRows, format: input.format, hiddenColumns: cycle ? [columnHeaders.length - 1, columnHeaders.length] : [] });
+  const reserved = headersIn(reservedExportHeaders, input.locale);
+  const columnHeaders = [...Object.values(headers), ...(cycle ? [reserved.id, reserved.version] : [])];
+  const bytes = await buildSpreadsheet({ sheetName: input.moduleCode.toUpperCase(), headers: columnHeaders, rows: exportRows, format: input.format, lockedColumns: cycle ? [columnHeaders.length - 1, columnHeaders.length] : [] });
   const extension = input.format === "csv" ? "csv" : "xlsx";
   return { bytes, fileName: `${input.moduleCode}-export.${extension}`, contentType: input.format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 }
