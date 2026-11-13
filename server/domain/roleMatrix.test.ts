@@ -177,10 +177,13 @@ describe("role matrix: the claims the document makes about the code", () => {
   it("section 3, point 2: contract values, the BOQ, sub-contracts and the tender comparison are all readable with project.read alone", () => {
     for (const [file, fn] of [["server/db.ts", "getContractsCommitmentsForTenant"], ["server/db.ts", "getBoqItemsForTenant"], ["server/db.ts", "getSubcontractContractsForTenant"], ["server/tenderService.ts", "getTenderComparison"]]) expect(codesInFunction(file, fn), fn).toEqual(["project.read"]);
   });
-  it("section 3, point 4: the consultant-submittal reply and write lists accept project.manage", () => {
+  it("section 3, point 4 (closed by Q-17, 205-4): the consultant-submittal reply has its own power; project.manage still writes submittals but no longer replies", () => {
     const text = read("server/consultantSubmittals.ts");
-    expect(text).toMatch(/const REPLY = \[[^\]]*"project\.manage"/);
+    expect(text).toMatch(/const REPLY = \["project\.design\.approve", "project\.consultant\.respond"\]/);
+    // NEGATIVE: project.manage is not in the reply list
+    expect(text.match(/const REPLY = \[[^\]]*\]/)![0]).not.toContain("project.manage");
     expect(text).toMatch(/const WRITE = \[[^\]]*"project\.manage"/);
+    expect(operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes("project.consultant.respond")).map(role => role.code).sort()).toEqual(["PLANNING_ENGINEER", "PROJECT_MANAGER"]);
   });
   it("section 3, point 5: the schema stores no beneficiary data (the column of that name is empty for that reason)", () => {
     expect(read("drizzle/schema.ts")).not.toMatch(/beneficiar|مستفيد/i);
