@@ -79,6 +79,7 @@
 | `OWNER_EMAIL` | بريدك؛ أول دخول به يجعلك مدير المنصة | Vercel |
 | `APP_BASE_URL` | رابط المشروع بعد أول نشر: Vercel ← `dashio` ← **Domains** ← انسخ `https://….vercel.app` | Vercel |
 | `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASSWORD` · `EMAIL_FROM` | لوحة مزود البريد الذي تملك نطاقه (إشعارات المنصة؛ اختياري حتى تفعّلها) | Vercel |
+| `EMAIL_REPLY_TO` (اختياري، D-22) | بريد يقرؤه أحد على النطاق نفسه، يذهب إليه الرد على الإشعار | Vercel |
 | `EMAIL_NOTIFICATIONS_ENABLED` | اكتب `false` الآن، و`true` حين يجهز البريد | Vercel |
 | `VERCEL_GIT_COMMIT_SHA` | **لا تضعه بيدك:** يضعه Vercel بنفسه في كل نشر من Git ما دام **Settings ← Environment Variables ← Automatically expose System Environment Variables** مفعّلًا (الافتراضي). يُعرض أول 12 حرفًا منه في `/api/readyz` لتتأكد الخطوة 6b من الإطلاق أن الإنتاج يخدم الالتزام المدفوع (D-85b) | Vercel (تلقائي) |
 
