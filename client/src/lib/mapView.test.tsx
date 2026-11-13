@@ -1,6 +1,6 @@
 // Pure geometry only: no DOM. The drawing bounds here are invented numbers, not a real drawing.
 import { describe, expect, it } from "vitest";
-import { MAX_ZOOM, MIN_ZOOM, clampCenter, clampZoom, gestureStep, initialView, panBy, resetView, viewBoxOf, zoomAt, type Bounds, type MapView } from "./mapView";
+import { MAX_ZOOM, MIN_ZOOM, clampCenter, clampZoom, fitRegion, gestureStep, initialView, panBy, resetView, restoreView, stepZoom, viewBoxOf, withZoomPercent, zoomAt, zoomPercent, type Bounds, type MapView } from "./mapView";
 
 const BOUNDS: Bounds = { x: 0, y: 0, width: 400, height: 200 };
 const BOX = { width: 800, height: 400 };
@@ -142,5 +142,30 @@ describe("gestureStep", () => {
     const same = [{ x: 100, y: 100 }, { x: 100, y: 100 }];
     const result = gestureStep(BOUNDS, view, same, [{ x: 90, y: 100 }, { x: 110, y: 100 }], BOX);
     expect(result.zoom).toBe(1);
+  });
+});
+
+describe("Q-20: 25% steps, percent, fit to a block, a kept view", () => {
+  const B: Bounds = { x: 0, y: 0, width: 400, height: 200 };
+  it("steps to the next multiple of 25% in each direction, from on or off a step, within 25%–800%", () => {
+    const at = (zoom: number) => ({ zoom, centerX: 200, centerY: 100 });
+    expect(zoomPercent(stepZoom(B, at(1), 1))).toBe(125);
+    expect(zoomPercent(stepZoom(B, at(1.8), 1))).toBe(200);
+    expect(zoomPercent(stepZoom(B, at(1.8), -1))).toBe(175);
+    expect(zoomPercent(stepZoom(B, at(0.25), -1))).toBe(25);
+    expect(zoomPercent(stepZoom(B, at(8), 1))).toBe(800);
+    expect(withZoomPercent(B, { zoom: 3, centerX: 50, centerY: 40 }, 100)).toEqual({ zoom: 1, centerX: 50, centerY: 40 });
+  });
+  it("fits a region with a margin, centred on it", () => {
+    const view = fitRegion(B, { x: 0, y: 0, width: 100, height: 50 });
+    expect(view.centerX).toBe(50); expect(view.centerY).toBe(25);
+    expect(view.zoom).toBeCloseTo(4 * 0.9, 6);
+  });
+  it("NEGATIVE: a stored view that is not a view (missing or non-numeric fields) is not used", () => {
+    expect(restoreView(B, { zoom: 2, centerX: 100, centerY: 50 })).toEqual({ zoom: 2, centerX: 100, centerY: 50 });
+    expect(restoreView(B, null)).toBeNull();
+    expect(restoreView(B, { zoom: "2", centerX: 1, centerY: 1 })).toBeNull();
+    expect(restoreView(B, { zoom: Number.NaN, centerX: 1, centerY: 1 })).toBeNull();
+    expect(restoreView(B, { zoom: 50, centerX: 9999, centerY: -9 })).toEqual({ zoom: MAX_ZOOM, centerX: 400, centerY: 0 }); // clamped, not trusted as is
   });
 });

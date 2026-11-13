@@ -8,10 +8,13 @@ export type Point = { x: number; y: number };
 export type BoxSize = { width: number; height: number };
 export type ViewBox = { x: number; y: number; width: number; height: number };
 
-export const MIN_ZOOM = 0.5;
+// Q-20: 25% to 800% of the drawing fitted to the map box (zoom 1 = 100% = the whole drawing in view).
+export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 8;
-// One press of the zoom buttons. The buttons and the pinch both use the same steps as the map did before panning existed.
+// The factor of one double tap (and of the older button steps, kept for callers that still use it).
 export const ZOOM_STEP = 1.5;
+// Q-20: the buttons and the slider move in steps of 25 percentage points.
+export const ZOOM_STEP_PERCENT = 25;
 
 export function initialView(bounds: Bounds): MapView {
   return { zoom: 1, centerX: bounds.x + bounds.width / 2, centerY: bounds.y + bounds.height / 2 };
@@ -95,4 +98,40 @@ function distance(a: Point, b: Point): number {
 
 function midpoint(a: Point, b: Point): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+// Q-20: the zoom as the whole percent the toolbar shows (100 = the drawing fitted to the box).
+export function zoomPercent(view: MapView): number {
+  return Math.round(view.zoom * 100);
+}
+
+// Q-20: set the zoom to a percent, keeping the centre where it is (the "100%" button and the slider), within 25%–800%.
+export function withZoomPercent(bounds: Bounds, view: MapView, percent: number): MapView {
+  if (!Number.isFinite(percent)) return view;
+  return clampCenter(bounds, { ...view, zoom: clampZoom(percent / 100) });
+}
+
+// Q-20: one press of + or −: to the next multiple of 25% in that direction (175% → 200%, and 180% → 200% too), keeping the centre.
+export function stepZoom(bounds: Bounds, view: MapView, direction: 1 | -1): MapView {
+  const percent = view.zoom * 100;
+  const onStep = Math.abs(percent / ZOOM_STEP_PERCENT - Math.round(percent / ZOOM_STEP_PERCENT)) < 1e-6;
+  const next = direction > 0
+    ? (onStep ? Math.round(percent / ZOOM_STEP_PERCENT) + 1 : Math.ceil(percent / ZOOM_STEP_PERCENT)) * ZOOM_STEP_PERCENT
+    : (onStep ? Math.round(percent / ZOOM_STEP_PERCENT) - 1 : Math.floor(percent / ZOOM_STEP_PERCENT)) * ZOOM_STEP_PERCENT;
+  return withZoomPercent(bounds, view, next);
+}
+
+// Q-20: the view that shows `region` (a part of the drawing, e.g. one block's villas) with a margin, within the zoom limits.
+export function fitRegion(bounds: Bounds, region: Bounds, margin = 0.1): MapView {
+  if (!(region.width > 0) || !(region.height > 0)) return clampCenter(bounds, { zoom: clampZoom(MAX_ZOOM / 2), centerX: region.x + (region.width || 0) / 2, centerY: region.y + (region.height || 0) / 2 });
+  const zoom = clampZoom(Math.min(bounds.width / region.width, bounds.height / region.height) * (1 - margin));
+  return clampCenter(bounds, { zoom, centerX: region.x + region.width / 2, centerY: region.y + region.height / 2 });
+}
+
+// Q-20: a stored view is used only if it is a real view of these bounds (a different drawing, or a damaged entry, falls back to the whole drawing).
+export function restoreView(bounds: Bounds, stored: unknown): MapView | null {
+  if (!stored || typeof stored !== "object") return null;
+  const { zoom, centerX, centerY } = stored as Record<string, unknown>;
+  if (typeof zoom !== "number" || typeof centerX !== "number" || typeof centerY !== "number" || ![zoom, centerX, centerY].every(Number.isFinite)) return null;
+  return clampCenter(bounds, { zoom: clampZoom(zoom), centerX, centerY });
 }
