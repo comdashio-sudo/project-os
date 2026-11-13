@@ -6,6 +6,7 @@ import { riyalLabel } from "@/lib/profitabilityView";
 // including the rule about people (whoever entered a bid of the package does not award it).
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ds";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,6 @@ import type { ExportColumn } from "@/lib/excelExport";
 import { WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
 
-const field = "mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 text-sm";
 const KINDS = ["scope_gap", "exclusion", "correction", "discount"] as const;
 const noWrite = (ar: string, en: string, ur: string) => ({ ar: `لا تملك صلاحية ${ar}، فالقسم للعرض فقط.`, en: `You do not have permission to ${en}; this section is read-only for you.`, ur: `آپ کو ${ur} کی اجازت نہیں ہے؛ یہ حصہ آپ کے لیے صرف دیکھنے کے لیے ہے۔` });
 
@@ -120,14 +120,14 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         {sheet(t.inviteesTitle, <>
           <ul className="grid gap-1 text-sm md:grid-cols-2">{(invitees.data ?? []).map(item => <li key={item.id} className="flex justify-between gap-2 rounded-lg bg-white/80 px-3 py-2"><span>{item.supplierName}</span><span className="text-xs text-slate-500">{label(item.status)}</span></li>)}</ul>
           {status === "draft" || status === "open" ? <WriteGate permission="project.tender.manage" projectId={projectId}><div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-48 flex-1"><Label htmlFor="ti-supplier">{t.supplier}</Label><select id="ti-supplier" className={field} value={supplierId} onChange={event => setSupplierId(event.target.value)}><option value="">{t.pickSupplier}</option>{(suppliers.data ?? []).filter(item => !(invitees.data ?? []).some(other => other.supplierId === item.id)).map(item => <option key={item.id} value={item.id}>{item.legalName}</option>)}</select></div>
+            <div className="min-w-48 flex-1"><Label htmlFor="ti-supplier">{t.supplier}</Label><Select id="ti-supplier" value={supplierId} placeholder={t.pickSupplier} onValueChange={setSupplierId} options={(suppliers.data ?? []).filter(item => !(invitees.data ?? []).some(other => other.supplierId === item.id)).map(item => ({ value: item.id, label: item.legalName }))} /></div>
             <Button disabled={!supplierId || invite.isPending} className="min-h-[44px]" onClick={() => invite.mutate({ ...scope, packageId: selected, supplierId }, { onSuccess: () => setSupplierId("") })}>{t.invite}</Button>
           </div></WriteGate> : null}
         </>)}
 
         {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId} reason={noWrite("إدخال العروض", "enter bids", "بولیاں درج کرنے")}>{sheet(t.bidEntry,
           <CheckedForm className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => enterBid.mutate({ ...scope, packageId: selected, supplierId: bid.supplierId, amount: Number(bid.amount), ...(bid.durationDays ? { durationDays: Number(bid.durationDays) } : {}), ...(bid.validityDays ? { validityDays: Number(bid.validityDays) } : {}), ...(bid.notes ? { notes: bid.notes } : {}) }, { onSuccess: () => setBid({ supplierId: "", amount: "", durationDays: "", validityDays: "", notes: "" }) }))}>
-            <div><Label htmlFor="tb-supplier">{t.supplier}</Label><select id="tb-supplier" className={field} value={bid.supplierId} onChange={event => setBid({ ...bid, supplierId: event.target.value })} required><option value="">{t.pickSupplier}</option>{biddable.map(item => <option key={item.supplierId} value={item.supplierId}>{item.supplierName}</option>)}</select></div>
+            <div><Label htmlFor="tb-supplier">{t.supplier}</Label><Select id="tb-supplier" value={bid.supplierId} placeholder={t.pickSupplier} onValueChange={value => setBid({ ...bid, supplierId: value })} required options={biddable.map(item => ({ value: item.supplierId, label: item.supplierName }))} /></div>
             <div><Label htmlFor="tb-amount">{t.amount}</Label><Input id="tb-amount" type="number" min="0.01" step="0.01" value={bid.amount} onChange={event => setBid({ ...bid, amount: event.target.value })} required /></div>
             <div><Label htmlFor="tb-duration">{t.duration}</Label><Input id="tb-duration" type="number" min="1" value={bid.durationDays} onChange={event => setBid({ ...bid, durationDays: event.target.value })} /></div>
             <div><Label htmlFor="tb-validity">{t.validity}</Label><Input id="tb-validity" type="number" min="1" value={bid.validityDays} onChange={event => setBid({ ...bid, validityDays: event.target.value })} /></div>
@@ -151,8 +151,8 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
               <td className="p-2 text-xs">{item.flags.map(flag => flagText(flag)).join("، ") || "—"}</td></tr>)}</tbody></table></div>
           {status === "closed" && live.length ? <WriteGate permission="project.tender.level" projectId={projectId} reason={noWrite("تسوية العروض", "level bids", "بولیوں کا موازنہ ہم وار کرنے")}>
             <CheckedForm className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => addAdjustment.mutate({ ...scope, bidId: adjustment.bidId, kind: adjustment.kind as never, description: adjustment.description, amount: Number(adjustment.amount) }, { onSuccess: () => setAdjustment({ bidId: adjustment.bidId, kind: "scope_gap", description: "", amount: "" }) }))}>
-              <div><Label htmlFor="ta-bid">{t.supplier}</Label><select id="ta-bid" className={field} value={adjustment.bidId} onChange={event => setAdjustment({ ...adjustment, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.supplierName}</option>)}</select></div>
-              <div><Label htmlFor="ta-kind">{t.kind}</Label><select id="ta-kind" className={field} value={adjustment.kind} onChange={event => setAdjustment({ ...adjustment, kind: event.target.value })}>{KINDS.map(code => <option key={code} value={code}>{label(code)}</option>)}</select></div>
+              <div><Label htmlFor="ta-bid">{t.supplier}</Label><Select id="ta-bid" value={adjustment.bidId} placeholder={t.pickBid} onValueChange={value => setAdjustment({ ...adjustment, bidId: value })} required options={live.map(item => ({ value: item.id, label: item.supplierName }))} /></div>
+              <div><Label htmlFor="ta-kind">{t.kind}</Label><Select id="ta-kind" value={adjustment.kind} onValueChange={value => setAdjustment({ ...adjustment, kind: value })} options={KINDS.map(code => ({ value: code, label: label(code) }))} /></div>
               <div className="md:col-span-2"><Label htmlFor="ta-description">{t.description}</Label><Input id="ta-description" value={adjustment.description} onChange={event => setAdjustment({ ...adjustment, description: event.target.value })} required minLength={3} /></div>
               <div><Label htmlFor="ta-amount">{t.adjAmount}</Label><Input id="ta-amount" type="number" step="0.01" value={adjustment.amount} onChange={event => setAdjustment({ ...adjustment, amount: event.target.value })} required /></div>
               <Button type="submit" disabled={addAdjustment.isPending} className="min-h-[44px] md:col-span-5">{t.addAdj}</Button>
@@ -162,7 +162,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-emerald-800">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
         {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders", "ٹینڈرز کا ایوارڈ دینے")}>{sheet(t.awardTitle,
           <CheckedForm className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => award.mutate({ ...scope, packageId: selected, bidId: winning.bidId, contractCode: winning.contractCode, ...(winning.justification ? { justification: winning.justification } : {}) }))}>
-            <div className="md:col-span-2"><Label htmlFor="aw-bid">{t.supplier}</Label><select id="aw-bid" className={field} value={winning.bidId} onChange={event => setWinning({ ...winning, bidId: event.target.value })} required><option value="">{t.pickBid}</option>{live.map(item => <option key={item.id} value={item.id}>{item.rank}. {item.supplierName} — {money(item.levelledTotal)}</option>)}</select></div>
+            <div className="md:col-span-2"><Label htmlFor="aw-bid">{t.supplier}</Label><Select id="aw-bid" value={winning.bidId} placeholder={t.pickBid} onValueChange={value => setWinning({ ...winning, bidId: value })} required options={live.map(item => ({ value: item.id, label: `${item.rank}. ${item.supplierName} — ${money(item.levelledTotal)}` }))} /></div>
             <div><Label htmlFor="aw-code">{t.contractCode}</Label><Input id="aw-code" value={winning.contractCode} onChange={event => setWinning({ ...winning, contractCode: event.target.value })} required /></div>
             <div className="md:col-span-4"><Label htmlFor="aw-justification">{t.justification}</Label><Input id="aw-justification" value={winning.justification} onChange={event => setWinning({ ...winning, justification: event.target.value })} /></div>
             <Button type="submit" disabled={award.isPending} className="min-h-[44px] md:col-span-4">{t.awardButton}</Button>

@@ -61,7 +61,8 @@ export function formFieldErrors(form: HTMLFormElement, language: Language): Reco
     if (!element.id || element.disabled) continue;
     if (element instanceof HTMLInputElement && UNCHECKED_INPUT_TYPES.includes(element.type)) continue;
     const problem = fieldProblem(element, language);
-    if (problem) errors[element.id] = problem;
+    // a design-system list's hidden value copy (data-list-for) reports under the list's own id, where its FieldError sits
+    if (problem) errors[element.dataset.listFor ?? element.id] = problem;
   }
   return errors;
 }

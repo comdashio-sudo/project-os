@@ -14,6 +14,7 @@ const connections = [
   { id: "c1", system: "odoo", name: "Main Odoo", baseUrl: "https://odoo.example.test", database: "db1", username: "svc", active: true, scheduledDaily: false, lastRunAt: null, connector: { status: "PROVEN_IN_CI", pulls: ["supplier"], pushes: ["purchase_order"] } },
   { id: "c2", system: "sap_b1", name: "Old SAP", baseUrl: "https://sap.example.test", database: null, username: null, active: true, scheduledDaily: true, lastRunAt: new Date().toISOString(), connector: { status: "UNVERIFIED", pulls: ["supplier"], pushes: [] } },
 ];
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));

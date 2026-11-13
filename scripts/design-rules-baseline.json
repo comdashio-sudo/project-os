@@ -51,7 +51,6 @@
   "hardcoded-colour": 6
  },
  "client/src/pages/IntegrationSettings.tsx": {
-  "raw-select": 13,
   "hardcoded-colour": 1
  },
  "client/src/pages/LicensingConsole.tsx": {
@@ -61,7 +60,6 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/PayrollPanel.tsx": {
-  "raw-select": 18,
   "hardcoded-colour": 2
  },
  "client/src/pages/PayrollWorkspace.tsx": {
@@ -102,7 +100,6 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectDesign.tsx": {
-  "raw-select": 18,
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectDocuments.tsx": {
@@ -117,24 +114,14 @@
  "client/src/pages/ProjectFpac.tsx": {
   "hardcoded-colour": 4
  },
- "client/src/pages/ProjectGoodsReceipts.tsx": {
-  "raw-select": 15
- },
  "client/src/pages/ProjectMasterPlan.tsx": {
   "raw-select": 31,
   "hardcoded-colour": 30
  },
- "client/src/pages/ProjectProcurement.tsx": {
-  "raw-select": 15
- },
  "client/src/pages/ProjectProfitability.tsx": {
   "hardcoded-colour": 11
  },
- "client/src/pages/ProjectPurchaseOrders.tsx": {
-  "raw-select": 12
- },
  "client/src/pages/ProjectQuality.tsx": {
-  "raw-select": 14,
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectRegistry.tsx": {
@@ -147,10 +134,9 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectSubmittals.tsx": {
-  "raw-select": 17
+  "raw-select": 1
  },
  "client/src/pages/ProjectTenders.tsx": {
-  "raw-select": 14,
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectWarehouses.tsx": {
@@ -160,7 +146,6 @@
   "hardcoded-colour": 3
  },
  "client/src/pages/SetupWizard.tsx": {
-  "raw-select": 12,
   "hardcoded-colour": 5
  },
  "client/src/pages/SupportCenter.tsx": {

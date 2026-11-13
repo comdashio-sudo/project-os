@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   structureQuery: vi.fn(), detailsQuery: vi.fn(), save: vi.fn(), createRun: vi.fn(), transition: vi.fn(), allocate: vi.fn(), byHours: vi.fn(), adjust: vi.fn(), shares: [] as Array<{ id: string; projectCode: string; wbsCode: string | null; amount: number; source: "manual" | "auto_hours"; hoursBasis: number | null; sharePercent: number | null }>,
 }));
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized payroll error" }));
 vi.mock("@/lib/trpc", () => ({
@@ -101,6 +102,23 @@ describe("PayrollPanel", () => {
     fireEvent.change(screen.getByLabelText("Incurred date"), { target: { value: "2026-09-30" } });
     fireEvent.click(screen.getByRole("button", { name: "Post cost" }));
     expect(state.allocate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", payrollEntryId: "entry-1", projectId: "project-1", wbsItemId: "wbs-1", activityId: "activity-1", amount: 13750, incurredAt: new Date("2026-09-30T00:00:00Z") }));
+  });
+
+  it("a payroll allocation with the WBS and activity lists put back on \"—\" posts neither: the sentinel never reaches the server (D-75 negative)", () => {
+    state.capabilities = { canManageStructure: false, canRunPayroll: false, canApprovePayroll: true, canReadSensitivePayroll: true };
+    state.runs = [{ id: "run-1", periodStart: new Date("2026-09-01T00:00:00Z"), periodEnd: new Date("2026-09-30T00:00:00Z"), status: "approved", entryCount: 1 }];
+    render(<PayrollPanel tenantId="tenant-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "View protected details & payslips" }));
+    fireEvent.change(screen.getByLabelText("Payroll entry"), { target: { value: "entry-1" } });
+    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "project-1" } });
+    fireEvent.change(screen.getByLabelText("WBS item"), { target: { value: "wbs-1" } });
+    fireEvent.change(screen.getByLabelText("WBS item"), { target: { value: "__none" } });
+    fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "activity-1" } });
+    fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "__none" } });
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "13750" } });
+    fireEvent.change(screen.getByLabelText("Incurred date"), { target: { value: "2026-09-30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Post cost" }));
+    expect(state.allocate.mock.calls.at(-1)?.[0]).toMatchObject({ projectId: "project-1", wbsItemId: undefined, activityId: undefined });
   });
 
   it("lets the approver share an approved month by hours, and adjust a share only with a reason that is sent with the new amount", () => {

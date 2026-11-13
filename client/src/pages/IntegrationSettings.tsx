@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -135,7 +136,7 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.create}</summary>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <label className="block text-sm font-medium">{t.system}<select className={`${fieldInput} mt-1`} value={form.system} onChange={event => setForm({ ...form, system: event.target.value })}>{SYSTEMS.map(value => <option key={value} value={value}>{SYSTEM_NAME[value]}</option>)}</select></label>
+          <label className="block text-sm font-medium">{t.system}<Select className="mt-1" value={form.system} onValueChange={value => setForm({ ...form, system: value })} options={SYSTEMS.map(value => ({ value, label: SYSTEM_NAME[value] }))} /></label>
           <label className="block text-sm font-medium">{t.name}<input className={`${fieldInput} mt-1`} value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /></label>
           <label className="block text-sm font-medium sm:col-span-2">{t.baseUrl}<input className={`${fieldInput} mt-1`} inputMode="url" value={form.baseUrl} onChange={event => setForm({ ...form, baseUrl: event.target.value })} /></label>
           <label className="block text-sm font-medium">{t.database}<input className={`${fieldInput} mt-1`} value={form.database} onChange={event => setForm({ ...form, database: event.target.value })} /></label>
@@ -161,8 +162,7 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
               {row.connector && <p className="text-xs text-slate-600">{t.reads}: {row.connector.pulls.join(", ")} · {t.writes}: {row.connector.pushes.length ? row.connector.pushes.join(", ") : t.readOnly}</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" className={tap} disabled={test.isPending} onClick={() => test.mutate({ tenantId, connectionId: row.id })}>{test.isPending && test.variables?.connectionId === row.id ? t.testing : t.test}</Button>
-                <select aria-label={t.direction} className={`${tap} rounded-xl border bg-white px-2 text-sm`} value={direction[row.id] ?? "in"} onChange={event => setDirection({ ...direction, [row.id]: event.target.value as "in" | "out" | "both" })}>
-                  <option value="in">{t.dirIn}</option>{row.connector && row.connector.pushes.length > 0 && <option value="out">{t.dirOut}</option>}{row.connector && row.connector.pushes.length > 0 && <option value="both">{t.dirBoth}</option>}</select>
+                <Select aria-label={t.direction} className="w-auto" value={direction[row.id] ?? "in"} onValueChange={value => setDirection({ ...direction, [row.id]: value as "in" | "out" | "both" })} options={[{ value: "in", label: t.dirIn }, ...(row.connector && row.connector.pushes.length > 0 ? [{ value: "out", label: t.dirOut }, { value: "both", label: t.dirBoth }] : [])]} />
                 <Button className={tap} disabled={run.isPending || !row.active} onClick={() => run.mutate({ tenantId, connectionId: row.id, direction: direction[row.id] ?? "in" })}>{run.isPending && run.variables?.connectionId === row.id ? t.running : t.run}</Button>
                 <Button variant="outline" className={tap} disabled={setActive.isPending} onClick={() => setActive.mutate({ tenantId, connectionId: row.id, active: !row.active })}>{row.active ? t.deactivate : t.activate}</Button>
                 <Button variant="outline" className={tap} disabled={setActive.isPending} onClick={() => setActive.mutate({ tenantId, connectionId: row.id, active: row.active, scheduledDaily: !row.scheduledDaily })}>{row.scheduledDaily ? t.dailyOff : t.dailyOn}</Button>
@@ -265,8 +265,8 @@ function Mappings({ tenantId, t, tt, isArabic, onMessage, utils }: Common & { tt
     <section aria-label={t.tabMappings} className="space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-2">
-        <label className="block text-sm font-medium">{t.system}<select className={`${fieldInput} mt-1`} value={system} onChange={event => setSystem(event.target.value)}>{["generic", ...SYSTEMS].map(value => <option key={value} value={value}>{SYSTEM_NAME[value] ?? value}</option>)}</select></label>
-        <label className="block text-sm font-medium">{t.mapType}<select className={`${fieldInput} mt-1`} value={form.type} onChange={event => setForm({ ...form, type: event.target.value as (typeof MAP_TYPES)[number] })}>{MAP_TYPES.map(value => <option key={value} value={value}>{tt[value]}</option>)}</select></label>
+        <label className="block text-sm font-medium">{t.system}<Select className="mt-1" value={system} onValueChange={setSystem} options={["generic", ...SYSTEMS].map(value => ({ value, label: SYSTEM_NAME[value] ?? value }))} /></label>
+        <label className="block text-sm font-medium">{t.mapType}<Select className="mt-1" value={form.type} onValueChange={value => setForm({ ...form, type: value as (typeof MAP_TYPES)[number] })} options={MAP_TYPES.map(value => ({ value, label: tt[value] }))} /></label>
         <label className="block text-sm font-medium">{t.externalId}<input className={`${fieldInput} mt-1`} dir="ltr" value={form.externalId} onChange={event => setForm({ ...form, externalId: event.target.value })} /></label>
         <label className="block text-sm font-medium">{t.ours}<input className={`${fieldInput} mt-1`} dir="ltr" value={form.ref} onChange={event => setForm({ ...form, ref: event.target.value })} /></label>
         {needsProject && <label className="block text-sm font-medium sm:col-span-2">{t.forProject}<input className={`${fieldInput} mt-1`} dir="ltr" value={form.project} onChange={event => setForm({ ...form, project: event.target.value })} /></label>}
@@ -301,7 +301,7 @@ function SyncLog({ tenantId, t, tt, isArabic, language }: Common & { tt: Record<
       {openRun && (
         <div className="space-y-2" data-items>
           <div className="flex items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.items}</h2>
-            <label className="flex items-center gap-2 text-sm font-medium">{t.outcome}<select className={`${tap} rounded-xl border bg-white px-2`} value={outcome} onChange={event => setOutcome(event.target.value)}><option value="all">{t.all}</option>{Object.keys(outcomeKey).map(value => <option key={value} value={value}>{tt[outcomeKey[value]]}</option>)}</select></label></div>
+            <label className="flex items-center gap-2 text-sm font-medium">{t.outcome}<Select className="w-auto" value={outcome} onValueChange={setOutcome} options={[{ value: "all", label: t.all }, ...Object.keys(outcomeKey).map(value => ({ value, label: tt[outcomeKey[value]] }))]} /></label></div>
           <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.record}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2 text-start">{t.reason}</th></tr></thead>
             <tbody>{(items.data ?? []).map(item => <tr key={item.id} className="border-t" data-outcome={item.outcome}><td className="p-2" dir="ltr">{item.entityType} {item.externalId ?? ""}</td><td className="p-2">{tt[outcomeKey[item.outcome]] ?? item.outcome}</td><td className="p-2" dir="ltr">{item.reason ?? ""}{item.detail ? ` — ${item.detail}` : ""}</td></tr>)}</tbody></table></div>
         </div>
