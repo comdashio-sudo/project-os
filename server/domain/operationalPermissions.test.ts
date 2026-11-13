@@ -5,7 +5,7 @@ import { operationalPermissionCatalog, operationalRoleDefinitions } from "./oper
 
 const db = readFileSync(new URL("../db.ts", import.meta.url), "utf8");
 const importJobs = readFileSync(new URL("../importJobs.ts", import.meta.url), "utf8");
-const pmcSources = ["../pmcService.ts", "../pmcScreensService.ts", "../pmcPlanService.ts", "../pmcImportService.ts", "../pmcProgrammeService.ts", "../designService.ts", "./designCoordination.ts", "../tenderService.ts"].map(file => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
+const pmcSources = ["../pmcService.ts", "../pmcScreensService.ts", "../pmcPlanService.ts", "../pmcImportService.ts", "../pmcProgrammeService.ts", "../designService.ts", "./designCoordination.ts", "../tenderService.ts", "../consultantSubmittals.ts"].map(file => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 const catalogCodes = operationalPermissionCatalog.map(permission => permission.code) as string[];
 
 /** The text of one exported function of db.ts. */

@@ -182,10 +182,13 @@ describe("role matrix: the claims the document makes about the code", () => {
     }
     expect(codesInFunction("server/tenderService.ts", "getTenderComparison")).not.toContain("project.read");
   });
-  it("section 3, point 4: the consultant-submittal reply and write lists accept project.manage", () => {
+  it("section 3, point 4 (closed by Q-17, 205-4): the consultant-submittal reply has its own power; project.manage still writes submittals but no longer replies", () => {
     const text = read("server/consultantSubmittals.ts");
-    expect(text).toMatch(/const REPLY = \[[^\]]*"project\.manage"/);
+    expect(text).toMatch(/const REPLY = \["project\.design\.approve", "project\.consultant\.respond"\]/);
+    // NEGATIVE: project.manage is not in the reply list
+    expect(text.match(/const REPLY = \[[^\]]*\]/)![0]).not.toContain("project.manage");
     expect(text).toMatch(/const WRITE = \[[^\]]*"project\.manage"/);
+    expect(operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes("project.consultant.respond")).map(role => role.code).sort()).toEqual(["PLANNING_ENGINEER", "PROJECT_MANAGER"]);
   });
   it("section 3, point 5: the schema stores no beneficiary data (the column of that name is empty for that reason)", () => {
     expect(read("drizzle/schema.ts")).not.toMatch(/beneficiar|مستفيد/i);
