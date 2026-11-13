@@ -2,7 +2,7 @@
 // re-runnable (CREATE ... IF NOT EXISTS, «EXCEPTION WHEN duplicate_object», «IF NOT EXISTS (SELECT 1 FROM pg_constraint ...)»): on a database where an object
 // already existed in another shape, they pass and leave it as it was. This reads every table, column (with its type and nullability), enum (with its values),
 // index, named constraint, function and trigger they declare; scripts/verify-migration-results.mjs then asks the database for each.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const unquote = name => name.replace(/^"|"$/g, "");
 
@@ -43,8 +43,38 @@ export function expectationsOf(sql) {
 }
 
 export const CHECKED_MIGRATIONS = ["0002_warehouse_operations.sql", "0003_field_links.sql", "0004_integrations.sql", "0007_wo16_g189_master_plan_drawing.sql"];
+
+/**
+ * What a LATER migration changed of an earlier one's objects, applied to its expectations: a column whose type was changed or whose NOT NULL was dropped, and a
+ * column, table, index, constraint or type that was dropped. (0005 turned consultant_submittals.reply_note from varchar(500) into text, for one.) Comments are
+ * stripped first, so a rollback plan written in a comment is not read as a change.
+ */
+export function applyLaterChanges(expected, laterSql) {
+  const body = laterSql.replace(/--[^\n]*/g, "");
+  const drop = (list, name) => { const index = list.indexOf(name); if (index >= 0) list.splice(index, 1); };
+  for (const match of body.matchAll(/ALTER TABLE "?([a-z_0-9]+)"? ALTER COLUMN "?([a-z_0-9]+)"? (?:SET DATA )?TYPE ([^;\n]+?)(?:\s+USING [^;]+)?;/g)) {
+    const column = expected.columns.find(item => item.table === match[1] && item.column === match[2]);
+    if (column) Object.assign(column, { length: undefined, precision: undefined, scale: undefined, udt: undefined }, expectedType(match[3]));
+  }
+  for (const match of body.matchAll(/ALTER TABLE "?([a-z_0-9]+)"? ALTER COLUMN "?([a-z_0-9]+)"? DROP NOT NULL/g)) {
+    const column = expected.columns.find(item => item.table === match[1] && item.column === match[2]);
+    if (column) column.notNull = false;
+  }
+  for (const match of body.matchAll(/ALTER TABLE "?([a-z_0-9]+)"? DROP COLUMN (?:IF EXISTS )?"?([a-z_0-9]+)"?/g)) expected.columns = expected.columns.filter(item => !(item.table === match[1] && item.column === match[2]));
+  for (const match of body.matchAll(/DROP TABLE (?:IF EXISTS )?"?([a-z_0-9]+)"?/g)) { drop(expected.tables, match[1]); expected.columns = expected.columns.filter(item => item.table !== match[1]); }
+  for (const match of body.matchAll(/DROP INDEX (?:IF EXISTS )?"?([a-z_0-9]+)"?/g)) drop(expected.indexes, match[1]);
+  for (const match of body.matchAll(/DROP CONSTRAINT (?:IF EXISTS )?"?([a-z_0-9]+)"?/g)) drop(expected.constraints, match[1]);
+  for (const match of body.matchAll(/DROP TYPE (?:IF EXISTS )?(?:"?public"?\.)?"?([a-z_0-9]+)"?/g)) expected.enums = expected.enums.filter(item => item.name !== match[1]);
+  return expected;
+}
+
 export function expectationsOfFiles(dir, names = CHECKED_MIGRATIONS) {
-  return names.map(name => ({ migration: name, ...expectationsOf(readFileSync(`${dir}/${name}`, "utf8")) }));
+  const all = readdirSync(dir).filter(name => /^\d{4}_.*\.sql$/.test(name) && !name.startsWith("0000_")).sort();
+  return names.map(name => {
+    const expected = { migration: name, ...expectationsOf(readFileSync(`${dir}/${name}`, "utf8")) };
+    for (const later of all.filter(other => other > name)) applyLaterChanges(expected, readFileSync(`${dir}/${later}`, "utf8"));
+    return expected;
+  });
 }
 
 /** Reads the database and lists every expectation it does not meet. `query(sql, params)` returns rows. */
