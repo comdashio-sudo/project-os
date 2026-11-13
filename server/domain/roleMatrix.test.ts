@@ -167,15 +167,20 @@ describe("role matrix: the claims the document makes about the code", () => {
     }
     for (const code of unenforcedCodes) expect(knownCodes.has(code)).toBe(true);
   });
-  it("section 3, point 1: getProjectControlsForTenant demands only project.read yet returns budgets, costs and the cash flow", () => {
-    const text = read("server/db.ts");
-    const start = text.indexOf("export async function getProjectControlsForTenant");
-    const body = text.slice(start, text.indexOf("type AdvisoryKind", start));
+  it("section 3, point 1 (closed by Q-17, 205-1): getProjectControlsForTenant opens with project.read and returns the money only through projectMoneyVisible", () => {
     expect(codesInFunction("server/db.ts", "getProjectControlsForTenant")).toEqual(["project.read"]);
-    for (const returned of ["budgets", "costs", "cashFlow"]) expect(body).toMatch(new RegExp(`return \\{[^\\n]*\\b${returned}\\b`));
+    const body = functionText("server/db.ts", "getProjectControlsForTenant")!;
+    expect(body).toMatch(/if \(projectMoneyVisible\(snapshot, input\.projectId\)\) return/);
+    // NEGATIVE: the other answer empties every money list and amount
+    for (const emptied of ["budgets: \\[\\]", "costs: \\[\\]", "latestEvm: null", "cashFlow: null", "currentBudget: null"]) expect(body).toMatch(new RegExp(emptied));
+    expect(codesInFunction("server/db.ts", "projectMoneyVisible")).toEqual(["project.budget.manage", "project.cashflow.read", "project.cost.enter", "project.evm.manage"]);
   });
-  it("section 3, point 2: contract values, the BOQ, sub-contracts and the tender comparison are all readable with project.read alone", () => {
-    for (const [file, fn] of [["server/db.ts", "getContractsCommitmentsForTenant"], ["server/db.ts", "getBoqItemsForTenant"], ["server/db.ts", "getSubcontractContractsForTenant"], ["server/tenderService.ts", "getTenderComparison"]]) expect(codesInFunction(file, fn), fn).toEqual(["project.read"]);
+  it("section 3, point 2 (closed by Q-17, 205-1): contract values, BOQ rates, sub-contract values and the tender comparison need a money power, not project.read alone", () => {
+    for (const fn of ["getContractsCommitmentsForTenant", "getBoqItemsForTenant", "getSubcontractContractsForTenant"]) {
+      expect(codesInFunction("server/db.ts", fn)).toEqual(["project.read"]);
+      expect(functionText("server/db.ts", fn)!).toMatch(/(contract|boq)MoneyVisible\(snapshot, input\.projectId\)/);
+    }
+    expect(codesInFunction("server/tenderService.ts", "getTenderComparison")).not.toContain("project.read");
   });
   it("section 3, point 4 (closed by Q-17, 205-4): the consultant-submittal reply has its own power; project.manage still writes submittals but no longer replies", () => {
     const text = read("server/consultantSubmittals.ts");

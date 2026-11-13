@@ -4,13 +4,15 @@ import { riyalLabel } from "./profitabilityView";
 
 export type PlanningControlInput = {
   activities: Array<{ id: string; code: string; name: string; status: string; plannedStartAt?: Date | string | null; plannedFinishAt?: Date | string | null }>;
-  boq: Array<{ id: string; code: string; description: string; quantity: string | number; unitRate: string | number; totalAmount: string | number; status: string; wbsItemId?: string | null }>;
+  boq: Array<{ id: string; code: string; description: string; quantity: string | number; unitRate: string | number | null; totalAmount: string | number | null; status: string; wbsItemId?: string | null }>;
   requisitions: Array<{ id: string; requisitionNumber: string; requestedQuantity: string | number; issuedQuantity: number; remainingQuantity: number; status: string; wbsItemId?: string | null; activityId?: string | null }>;
   budgets: Array<{ currentAmount: string | number }>;
   costs: Array<{ amount: string | number; status: string; wbsItemId?: string | null }>;
-  commitments: Array<{ amount: string | number; status: string }>;
+  commitments: Array<{ amount: string | number | null; status: string }>;
   warehouseBalances: Array<{ quantityOnHand: string | number }>;
   asOf?: Date;
+  /** Q-17 (205-1): false when the reader may not see the project's money (the amounts arrive empty): no money gap is reported then. */
+  moneyVisible?: boolean;
 };
 
 const number = (value: string | number | null | undefined) => {
@@ -39,7 +41,7 @@ export function calculatePlanningControl(input: PlanningControlInput) {
   const costUtilization = budget > 0 ? exposure / budget : null;
   const progressCoverage = input.activities.length > 0 ? input.activities.filter(item => item.status !== "not_started").length / input.activities.length : null;
   const dataGaps = [
-    ...(budget <= 0 ? ["missing_budget"] : []),
+    ...(budget <= 0 && input.moneyVisible !== false ? ["missing_budget"] : []),
     ...(input.activities.length === 0 ? ["missing_schedule"] : []),
     ...(undatedActivities.length > 0 ? ["undated_activities"] : []),
     ...(unlinkedBoq.length > 0 ? ["unlinked_boq"] : []),
@@ -68,6 +70,7 @@ export function calculatePlanningControl(input: PlanningControlInput) {
     progressCoverage,
     dataGaps,
     riskLevel,
+    moneyVisible: input.moneyVisible !== false,
   } as const;
 }
 

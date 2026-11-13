@@ -16,16 +16,34 @@ async function reimport(bytes: Buffer, moduleCode: CycleModuleCode, stored: Map<
 }
 
 describe("export → edit → re-import through the real workbook", () => {
-  it("exports the reserved id/version columns hidden, and re-importing the untouched file gives zero changes", async () => {
+  it("Q-17 item 7 (210-2): the id/version columns stay, under an Arabic header that explains them, grey and locked; the untouched file re-imports with zero changes", async () => {
     const rows = wbsRows(25);
     const file = await buildDataExportFile({ moduleCode: "wbs", format: "xlsx", locale: "ar", rows: exportRows(rows) });
     const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(file.bytes as unknown as ArrayBuffer);
     const sheet = workbook.worksheets[0]!;
-    expect(sheet.getRow(1).values).toEqual([undefined, "رمز WBS", "اسم WBS", "القيمة المخططة", EXPORT_ID_HEADER, EXPORT_VERSION_HEADER]);
-    expect(sheet.getColumn(4).hidden).toBe(true); expect(sheet.getColumn(5).hidden).toBe(true); expect(sheet.getColumn(1).hidden).toBeFalsy();
+    expect(sheet.getRow(1).values).toEqual([undefined, "رمز WBS", "اسم WBS", "القيمة المخططة", `رقم السجل في المنصة — لا تعدّله [${EXPORT_ID_HEADER}]`, `نسخة السجل — لا تعدّلها [${EXPORT_VERSION_HEADER}]`]);
+    for (const column of [4, 5]) {
+      expect(sheet.getColumn(column).hidden).toBeFalsy();
+      expect(sheet.getCell(2, column).protection?.locked ?? true).toBe(true); // Excel's default is locked, so a locked cell carries no flag
+      expect(sheet.getCell(2, column).font?.color?.argb).toBe("FF5F6D8A");
+    }
+    // NEGATIVE: the columns the reader edits stay unlocked, and the sheet is protected (so the lock means something)
+    for (const column of [1, 2, 3]) expect(sheet.getCell(2, column).protection?.locked).toBe(false);
+    expect((sheet as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
     const { analysis, diff } = await reimport(file.bytes, "wbs", storedFrom(rows));
-    expect(analysis.errors).toEqual([]); // the reserved columns are not "unsupported columns"
+    expect(analysis.errors).toEqual([]); // the explained headers read back as the reserved keys, not as "unsupported columns"
     expect(summariseDiff(diff)).toEqual({ new: 0, modified: 0, unchanged: 25, conflict: 0, missing: 0, total: 25 });
+  });
+
+  it("a file exported before the explained headers (bare __id / __version) still re-imports as an update, not a duplicate", async () => {
+    const rows = wbsRows(5);
+    const file = await buildDataExportFile({ moduleCode: "wbs", format: "xlsx", locale: "en", rows: exportRows(rows) });
+    const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(file.bytes as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0]!; sheet.unprotect(); sheet.getCell(1, 4).value = EXPORT_ID_HEADER; sheet.getCell(1, 5).value = EXPORT_VERSION_HEADER;
+    const older = Buffer.from(await workbook.xlsx.writeBuffer());
+    const { analysis, diff } = await reimport(older, "wbs", storedFrom(rows));
+    expect(analysis.errors).toEqual([]);
+    expect(summariseDiff(diff)).toMatchObject({ new: 0, unchanged: 5, conflict: 0 });
   });
 
   it("editing one cell of the exported file gives exactly one change", async () => {

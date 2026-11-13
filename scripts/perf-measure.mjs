@@ -42,7 +42,7 @@ for (let i = 0; i < 100; i++) {
   if (i === 99) { console.error("server did not start:\n" + serverLog.slice(-500)); process.exit(1); }
 }
 
-const SCREENS = [
+const ALL_SCREENS = [
   { name: "الصفحة الرئيسية", path: "/" },
   { name: "سجل المشاريع (50 مشروعًا)", path: "/projects/:t" },
   { name: "لوحة المشروع الثقيل", path: "/projects/:t/:p/controls", open: true },
@@ -55,6 +55,12 @@ const SCREENS = [
   { name: "إدخال الجوال", path: "/m/:t/:p" },
   { name: "ضبط المشروع PMC", path: "/projects/:t/:p/pmc" },
 ];
+// PERF_SCREENS=<path>,<path> measures only those screens (the weekly check on main, .github/workflows/perf-weekly.yml, measures three). A path that is not
+// in the list stops the run (exit 2) instead of measuring nothing and passing.
+const wanted = (process.env.PERF_SCREENS ?? "").split(",").map(item => item.trim()).filter(Boolean);
+const unknown = wanted.filter(path => !ALL_SCREENS.some(screen => screen.path === path));
+if (unknown.length) { console.error(`PERF_SCREENS names screens that are not measured here: ${unknown.join(", ")}`); server.kill(); process.exit(2); }
+const SCREENS = wanted.length ? ALL_SCREENS.filter(screen => wanted.includes(screen.path)) : ALL_SCREENS;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: "ar-SA" });
 await context.addCookies([{ name: "app_session_id", value: await sdk.issueSession(owner.openId, { name: owner.name }), url: BASE_URL }]);

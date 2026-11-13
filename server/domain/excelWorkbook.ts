@@ -68,7 +68,7 @@ export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLim
   const headerRow = sheet.getRow(1);
   const headers = Array.from({ length: Math.min(sheet.columnCount, limits.maxColumns + 1) }, (_unused, index) => {
     const cell = headerRow.getCell(index + 1);
-    return String(cell.text ?? "").trim();
+    return canonicalHeader(String(cell.text ?? "").trim());
   });
   const rows: Record<string, unknown>[] = [];
   const covered = horizontalMergeCover(sheet);
@@ -94,9 +94,19 @@ export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<st
   return undefined;
 }
 
+/**
+ * Q-17 item 7 (decision 210-2, G-156): an exported row's platform id and version travel in two columns whose header explains them in the reader's
+ * language and ends with the machine key in brackets («… [__id]»). Reading a file back, such a header counts as the bare key, so a file exported with
+ * the explained header and one exported before it (bare «__id») re-import the same way.
+ */
+export const RESERVED_HEADER_KEY = /\[(__id|__version)\]\s*$/;
+export const canonicalHeader = (header: string): string => RESERVED_HEADER_KEY.exec(header)?.[1] ?? header;
+
 export type SpreadsheetOptions = {
   /** 1-based columns kept in the file but hidden in Excel (row id / version of an exported row). */
   hiddenColumns?: number[];
+  /** 1-based columns shown grey and locked: the sheet is protected so only these cannot be typed over (every other cell, new rows included, stays editable). */
+  lockedColumns?: number[];
   /** 1-based column → allowed values, applied to rows 2..200 so the template offers a drop-down. */
   validations?: Array<{ column: number; list: string[] }>;
 };
@@ -109,6 +119,19 @@ export async function buildSpreadsheet(input: { sheetName: string; headers: stri
   input.rows.forEach(row => sheet.addRow(row));
   input.headers.forEach((header, index) => { sheet.getColumn(index + 1).width = Math.max(14, Math.min(40, header.length + 6)); });
   for (const column of input.hiddenColumns ?? []) sheet.getColumn(column).hidden = true;
+  if (input.lockedColumns?.length && input.format === "xlsx") {
+    const locked = new Set(input.lockedColumns); const grey = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFEEF1F6" } };
+    for (let column = 1; column <= Math.max(input.headers.length, 1); column += 1) {
+      const isLocked = locked.has(column); const sheetColumn = sheet.getColumn(column);
+      sheetColumn.protection = { locked: isLocked }; // the column style: rows the reader adds below take it too
+      if (isLocked) { sheetColumn.font = { color: { argb: "FF5F6D8A" } }; sheetColumn.fill = grey; }
+      for (let row = 1; row <= input.rows.length + 1; row += 1) {
+        const cell = sheet.getCell(row, column); cell.protection = { locked: isLocked };
+        if (isLocked) { cell.font = { ...(row === 1 ? { bold: true } : {}), color: { argb: "FF5F6D8A" } }; cell.fill = grey; }
+      }
+    }
+    await sheet.protect("", { selectLockedCells: true, selectUnlockedCells: true, formatCells: true, formatColumns: true, formatRows: true, insertRows: true, deleteRows: true, sort: true, autoFilter: true });
+  }
   for (const validation of input.validations ?? []) {
     const formula = `"${validation.list.join(",")}"`; // an inline list is capped at 255 characters by Excel
     if (formula.length > 255) continue;

@@ -592,15 +592,15 @@ export const appRouter = router({
     getControls: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectControlsForTenant({ userId: ctx.user.id, ...input })),
     getControlsSchedule: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
-      return { project: controls.project, wbs: controls.wbs, activities: controls.activities };
+      return { project: controls.project, wbs: controls.wbs, activities: controls.activities, moneyVisible: controls.moneyVisible };
     }),
     getControlsFinancials: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
-      return { wbs: controls.wbs, budgets: controls.budgets, costs: controls.costs, progress: controls.progress };
+      return { wbs: controls.wbs, budgets: controls.budgets, costs: controls.costs, progress: controls.progress, moneyVisible: controls.moneyVisible };
     }),
     getControlsPerformance: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const controls = await getProjectControlsForTenant({ userId: ctx.user.id, ...input });
-      return { latestEvm: controls.latestEvm, latestHealth: controls.latestHealth, cashFlow: controls.cashFlow };
+      return { latestEvm: controls.latestEvm, latestHealth: controls.latestHealth, cashFlow: controls.cashFlow, moneyVisible: controls.moneyVisible };
     }),
     create: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(),

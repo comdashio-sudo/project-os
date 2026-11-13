@@ -1,0 +1,76 @@
+name: Weekly performance check
+
+# Q-17 item 15 (decision 210-10, 2026-11-13): a light performance budget, measured once a week on main only. Actions are rationed (CI header in
+# ci.yml), so this is one run a week, three screens, a time limit on the job, and nothing on pull requests or other branches.
+# What it does: builds the schema on a throw-away PostgreSQL container, seeds the synthetic volume (scripts/perf-seed.mjs: 50 projects,
+# 20,000 activities, 100,000 movements), builds the app, and times three critical screens in a real browser with scripts/perf-measure.mjs.
+# It fails when a screen's cold load is over LIMIT_MS. No secret is used: the session signing key is a random value made for the run and masked;
+# the database password belongs to the container alone. It reads the repository and writes nothing.
+on:
+  schedule:
+    - cron: "17 3 * * 0" # Sundays 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-weekly
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: three screens within the budget
+    # a manual run from another branch is refused: the budget is a statement about main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres # secret-scan:allow container-local throw-away value
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PLAYWRIGHT_VERSION: 1.56.1
+      # the project board (heaviest project), the PMO board, and the field entry on a phone's route
+      PERF_SCREENS: /projects/:t/:p/controls,/pmo/:t,/m/:t/:p
+      LIMIT_MS: "4000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Schema from the migrations, restricted application role
+        run: node scripts/setup-integration-test-db.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/postgres # secret-scan:allow container-local throw-away value
+      - name: Synthetic volume
+        run: node --import tsx scripts/perf-seed.mjs
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
+      - name: Production build
+        run: pnpm build
+      - name: Playwright and Chromium (pinned version, installed outside the repo)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+          chromium="$(node -p "require('$RUNNER_TEMP/playwright/node_modules/playwright').chromium.executablePath()")"
+          test -x "$chromium"
+          echo "PLAYWRIGHT_MODULE_DIR=$RUNNER_TEMP/playwright/node_modules/" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_CHROMIUM=$chromium" >> "$GITHUB_ENV"
+      - name: Time the three screens
+        run: |
+          set -o pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          JWT_SECRET="$secret" node --import tsx scripts/perf-measure.mjs | tee "$RUNNER_TEMP/perf.out"
+          { echo "## Weekly performance (limit ${LIMIT_MS} ms, cold load)"; echo '```'; tail -n 40 "$RUNNER_TEMP/perf.out"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
+          SERVER_DATABASE_URL: postgres://project_os_app:project-os-local-test-only@127.0.0.1:5432/project_os_integration_test # secret-scan:allow the local-only password setup-integration-test-db.mjs gives the role

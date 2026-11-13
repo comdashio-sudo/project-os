@@ -143,7 +143,7 @@ export default function EvmCalculator() {
         <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(330px,430px)_1fr]">
           <section className="rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-sm sm:p-6">
             <div className="mb-7 flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--dashio-aqua)]/12 text-[var(--dashio-aqua-deep)]"><BrandIcon className="h-5 w-5" alt="" /></span>
+              <span className="grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] bg-[var(--dashio-aqua)]/12 text-[var(--dashio-aqua-text)]"><BrandIcon className="h-5 w-5" alt="" /></span>
               <div><h2 className="text-xl font-semibold">{t.inputTitle}</h2><p className="text-sm text-muted-foreground">{t.engineSub}</p></div>
             </div>
             <div className="space-y-4">
