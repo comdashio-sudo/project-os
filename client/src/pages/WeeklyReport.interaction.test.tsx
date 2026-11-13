@@ -7,7 +7,7 @@ import { suggestWeeklyTexts, type WeekFigures } from "@/lib/weeklySuggest";
 
 // D-49 (b): the weekly report editor on reportPeriods.get (D-48, the figures) and reportPeriods.weekly / saveWeekly (D-49 a, the words and photos).
 const h = vi.hoisted(() => ({
-  language: "en" as "ar" | "en" | "ur", canWrite: true, save: vi.fn(), asked: [] as Array<{ anchor?: string; weekStart?: string }>, saveError: null as unknown,
+  language: "en" as "ar" | "en" | "ur", canWrite: true, profileError: null as unknown, profile: { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null } as unknown, save: vi.fn(), asked: [] as Array<{ anchor?: string; weekStart?: string }>, saveError: null as unknown,
   saved: { week: { start: "2026-11-07", end: "2026-11-13" }, report: null as null | Record<string, unknown>, photos: [] as Array<Record<string, unknown>>, candidates: [] as Array<Record<string, unknown>> },
 }));
 const figures: WeekFigures & Record<string, unknown> = {
@@ -23,6 +23,7 @@ vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string;
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/lib/permissions", () => ({ useCan: () => h.canWrite }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
+  projects: { profile: { get: { useQuery: () => ({ data: h.profile, error: h.profileError }) } } },
   useUtils: () => ({ reportPeriods: { weekly: { invalidate: vi.fn() } } }),
   reportPeriods: {
     get: { useQuery: (input: { anchor: string }) => { h.asked.push({ anchor: input.anchor }); return { data: figures, error: null, refetch: vi.fn() }; } },
@@ -31,7 +32,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   },
 } }));
 
-beforeEach(() => { h.language = "en"; h.canWrite = true; h.save.mockReset(); h.asked = []; h.saveError = null; h.saved = { week: { start: "2026-11-07", end: "2026-11-13" }, report: null, photos: [], candidates: [{ id: "f1", reportDate: "2026-11-08", fileName: "f1.jpg", caption: "Block B1", url: "https://storage.example.test/f1" }, { id: "f2", reportDate: "2026-11-09", fileName: "f2.jpg", caption: null, url: null }] }; });
+beforeEach(() => { h.language = "en"; h.canWrite = true; h.profileError = null; h.profile = { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null }; h.save.mockReset(); h.asked = []; h.saveError = null; h.saved = { week: { start: "2026-11-07", end: "2026-11-13" }, report: null, photos: [], candidates: [{ id: "f1", reportDate: "2026-11-08", fileName: "f1.jpg", caption: "Block B1", url: "https://storage.example.test/f1" }, { id: "f2", reportDate: "2026-11-09", fileName: "f2.jpg", caption: null, url: null }] }; });
 afterEach(cleanup);
 
 describe("the weekly report editor (D-49 b)", () => {
@@ -43,7 +44,7 @@ describe("the weekly report editor (D-49 b)", () => {
     const paint = Array.from(card.querySelectorAll("tbody tr")).find(row => row.textContent?.includes("Paint"))!;
     expect(Array.from(paint.querySelectorAll("td")).map(cell => cell.textContent)).toEqual(["—", "12.00", "—", "—", "0"]);
     // every field on the page is a text or the week's date: none holds a figure
-    expect(Array.from(document.querySelectorAll("input:not([type=checkbox])")).map(input => (input as HTMLInputElement).type)).toEqual(["date"]);
+    expect(Array.from(document.querySelectorAll("input:not([type=checkbox]):not([type=file])")).map(input => (input as HTMLInputElement).type)).toEqual(["date"]); // the file input is the map picture (D-50), not a number
   });
 
   it("suggests the summary, the analysis and the issues from the figures, only into empty texts; then saves the words and the chosen photos", async () => {
@@ -107,5 +108,25 @@ describe("the proposed texts (D-49 b)", () => {
   it("the week holding a day starts on its Saturday", () => {
     expect(currentWeekStart(new Date("2026-11-12T10:00:00Z"))).toBe("2026-11-07"); // a Thursday
     expect(currentWeekStart(new Date("2026-11-07T10:00:00Z"))).toBe("2026-11-07"); // the Saturday itself
+  });
+
+  it("D-50: the export bar offers PowerPoint and PDF once the figures and the profile are in; while the profile loads both wait", () => {
+    const { unmount } = render(<WeeklyReport />);
+    const bar = document.querySelector("[data-weekly-exports]")!;
+    const buttons = Array.from(bar.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
+    expect(buttons.map(button => [button.textContent, (button as HTMLButtonElement).disabled])).toEqual([["PowerPoint", false], ["PDF", false]]);
+    unmount();
+    h.profile = undefined;
+    render(<WeeklyReport />);
+    const again = Array.from(document.querySelector("[data-weekly-exports]")!.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
+    expect(again.every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("D-50: a profile that failed to load is said, and the export still works without logos or prefix", () => {
+    h.profile = undefined; h.profileError = new Error("down");
+    render(<WeeklyReport />);
+    expect(screen.getByRole("note").textContent).toContain("without logos");
+    const buttons = Array.from(document.querySelector("[data-weekly-exports]")!.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
+    expect(buttons.every(button => !(button as HTMLButtonElement).disabled)).toBe(true);
   });
 });
