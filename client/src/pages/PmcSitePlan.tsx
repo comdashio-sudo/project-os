@@ -26,11 +26,11 @@ const text = {
     statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
     unit: "Unit", model: "Model", zone: "Zone", block: "Block", progress: "Progress", close: "Close", engineer: "Engineer", verification: "Verification", weight: "Weight", errors: "Problems in the file", planAlt: "Site plan", noNumber: "no number", changeStatus: "Change status", earned: "Earned value", linkedMoved: (n: number) => `${n} WBS item(s) moved`, evNone: "No linked WBS item changed its progress",
   }, ur: {
-    activity: "Activity", overall: "Overall unit progress", loading: "Loading…", retry: "Retry", noPlan: "No site plan has been uploaded yet. Upload the plan image (PNG or JPEG), then a GeoJSON file with the unit outlines.",
-    uploadPlan: "Upload plan image", uploadGeo: "Upload unit GeoJSON", saved: (n: number) => `Saved outlines for ${n} units`, uploaded: "Plan uploaded",
-    withoutPolygon: (n: number) => `${n} units have no outline on the plan`, legend: "Colour key", notInModel: "The activity is not in this unit's model",
-    statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
-    unit: "Unit", model: "Model", zone: "Zone", block: "Block", progress: "Progress", close: "Close", engineer: "Engineer", verification: "Verification", weight: "Weight", errors: "Problems in the file", planAlt: "Site plan", noNumber: "no number", changeStatus: "Change status", earned: "Earned value", linkedMoved: (n: number) => `${n} WBS item(s) moved`, evNone: "No linked WBS item changed its progress",
+    activity: "سرگرمی", overall: "یونٹ کی مجموعی پیش رفت", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں", noPlan: "ابھی تک سائٹ کا نقشہ اپ لوڈ نہیں ہوا۔ نقشے کی تصویر (PNG یا JPEG) اپ لوڈ کریں، پھر یونٹوں کی حدود والی GeoJSON فائل۔",
+    uploadPlan: "نقشے کی تصویر اپ لوڈ کریں", uploadGeo: "یونٹوں کی GeoJSON اپ لوڈ کریں", saved: (n: number) => `${n} یونٹوں کی حدود محفوظ ہو گئیں`, uploaded: "نقشہ اپ لوڈ ہو گیا",
+    withoutPolygon: (n: number) => `${n} یونٹوں کی نقشے پر کوئی حد نہیں`, legend: "رنگوں کی کلید", notInModel: "یہ سرگرمی اس یونٹ کے ماڈل میں شامل نہیں",
+    statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیرِ جائزہ", COMPLETE: "مکمل" } as Record<string, string>,
+    unit: "یونٹ", model: "ماڈل", zone: "زون", block: "بلاک", progress: "پیش رفت", close: "بند کریں", engineer: "انجینئر", verification: "تصدیق", weight: "وزن", errors: "فائل میں مسائل", planAlt: "سائٹ کا نقشہ", noNumber: "نمبر نہیں", changeStatus: "حیثیت تبدیل کریں", earned: "کمائی گئی قدر", linkedMoved: (n: number) => `${n} WBS آئٹم آگے بڑھے`, evNone: "کسی منسلک WBS آئٹم کی پیش رفت تبدیل نہیں ہوئی",
   },
 };
 // D-75: the status colours are the tokens of client/src/index.css (light and dark themes), not fixed hex values
