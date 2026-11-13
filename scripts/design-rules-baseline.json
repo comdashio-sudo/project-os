@@ -116,9 +116,6 @@
  "client/src/pages/ProjectFpac.tsx": {
   "hardcoded-colour": 4
  },
- "client/src/pages/ProjectGoodsReceipts.tsx": {
-  "raw-select": 15
- },
  "client/src/pages/ProjectMasterPlan.tsx": {
   "raw-select": 31,
   "hardcoded-colour": 30
@@ -145,7 +142,6 @@
   "raw-select": 17
  },
  "client/src/pages/ProjectTenders.tsx": {
-  "raw-select": 14,
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectWarehouses.tsx": {
