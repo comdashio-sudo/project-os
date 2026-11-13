@@ -1971,6 +1971,14 @@
 | المسارات الشقيقة (القاعدة 18) | `SOURCE_VERIFIED` | `readMatrix` (التأكيد) يستعمل `detectTracker` نفسه فيقبل الملف الصغير ويرفض غيره بـ`MATRIX_NOT_RECOGNISED`؛ `confirmSmartUpload` يرفض النوع غير الجدولي قبل `understand`؛ الملف المحفوظ يُعاد بنوعه فقط إن كان في `KINDS`. `detectMatrix` و`detectConsultantExport` يبقيان بحد خمس وحدات: مع نوعهما المختار يُرفض الملف الصغير بالرمز نفسه (لا 500)، وبلا نوع يُقرأ جدولًا — `OPEN`، لم يُغيَّر لأنه خارج الأمر |
 | الأعداد (2026-11-12) | `PROVEN` | `pnpm test:db` ← 641 ناجحًا، 0 فاشل، 20 متخطى (خادم خاص 5438) · `pnpm test` ← 3387 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 · `coverage:trpc` 69 غير مصنّف كما على `main` نفسه، ولا جديد |
 
+### D-15: قاعدة الاختبار تُبنى من جديد كل تشغيل وترفض أي اسم آخر، وبلا deadlock في كنس الاتفاقيات (2026-11-13، المبرمج ج ضمن Q-15)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| (2) `scripts/setup-integration-test-db.mjs` صار **يحذف** `project_os_integration_test` ويعيد إنشاءها كل تشغيل (كانت تُنشأ عند غيابها فقط، فسبّبت بقايا تشغيل سابق — شركة عرض، تشغيل منقطع — فشلًا كاذبًا)، و**يرفض قبل أي اتصال** رابطًا يسمّي قاعدة غير `postgres` أو `project_os_integration_test`؛ ولا يُحذف إلا الاسم الحرفي `project_os_integration_test` | `PROVEN` | `server/testing/setupIntegrationDb.test.ts` 3/3: أربعة أسماء أخرى تُرفض بـexit 2 ورسالة السكربت وبلا محاولة اتصال (سالب)، والاسمان المسموحان يتجاوزان الرفض ثم يصطدمان بالمنفذ المغلق، و`DROP DATABASE` الوحيد في الملف هو للقاعدة الحرفية. مستدعو السكربت في CI وodoo وrun-integration يسمّون `postgres` أو قاعدة الاختبار |
+| (1) شريك الـdeadlock كان autovacuum (`VACUUM ANALYZE public.audit_logs` مقابل `project_os_apply_conventions()` الذي يقفل كل جدول): قاعدة الاختبار وحدها صارت بلا autovacuum (`autovacuum_enabled = false` لكل جدول بعد الترحيلات)، و**أُزيلت إعادة المحاولة** من `tenantData.database.test.ts` (الكنس مرة واحدة). ملفات القاعدة تعمل واحدًا واحدًا أصلًا (`--no-file-parallelism`) | `PROVEN` | `test:db` الكامل **3 مرات متتالية** على `65109ee` في شجرة عمل مستقلة: 756 ناجحًا و0 فاشل ×3، و`grep -ci deadlock` = **0** ×3، و`tenantData.database.test.ts` 12/12 في كل تشغيل |
+| لا لمس لأي قاعدة غير `project_os_integration_test`؛ والإنتاج يبقى بـautovacuum (التعديل في سكربت قاعدة الاختبار وحده) | `SOURCE_VERIFIED` | — |
+
 ### D-13: سكربت رحلات العرض بلا خطأ SQL، وسجل الخادم فحصٌ في الرحلة (2026-11-13، المبرمج ج ضمن Q-15)
 
 | البند | الحالة | الدليل |
