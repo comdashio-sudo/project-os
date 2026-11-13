@@ -29,6 +29,7 @@
     "check:a11y": "pnpm check:keyboard && pnpm check:contrast",
     "check:pdf-export": "node --import tsx scripts/check-pdf-export.mjs",
     "check:offline-read": "node --import tsx scripts/check-offline-read.mjs",
+    "check:offline-start": "node --import tsx scripts/check-offline-start.mjs",
     "e2e:setup-wizard": "node --import tsx scripts/e2e-setup-wizard.mjs",
     "e2e:quick-issue": "node --import tsx scripts/e2e-quick-issue.mjs",
     "e2e:quick-issue:camera": "MODE=camera PACE=ordinary node --import tsx scripts/e2e-quick-issue.mjs",

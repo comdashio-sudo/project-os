@@ -1,7 +1,7 @@
 // Live proof of the offline read cache (G-100) in a real browser, with the limit stated plainly: the browser is made to start the page with
 // the network down for the API (navigator.onLine=false and every /api/trpc request refused) while the page's own files are still served —
-// which is what a service worker or a warm browser cache would give. There is no service worker in this product yet, so a truly cold offline
-// start is NOT covered and not claimed.
+// which is what the shell worker gives. The truly cold offline start (the whole browser offline, the page from the worker) is
+// scripts/check-offline-start.mjs (D-33).
 //   1. ONLINE visit to "/" fills the cache with the two allowlisted reads for this user.
 //   2. OFFLINE start: the company list and the "offline copy" notice appear from the cache.
 //   3. NEGATIVE: with the cache emptied, the same offline start shows no company and no notice (nothing is invented).

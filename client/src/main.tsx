@@ -8,6 +8,7 @@ import { OfflineCopyNotice } from "@/components/OfflineCopyNotice";
 import { shouldRetryQuery } from "@/components/ScreenStates";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { installCachedReads } from "@/lib/cachedReads";
+import { registerShellCache } from "@/lib/shellCache";
 import "./index.css";
 
 // A refused or rejected query is final (G-160): a page shows its no-permission sentence at once, not after three retries of "loading".
@@ -38,3 +39,6 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// D-33: in the built app only (the dev server's files change on every save), the shell worker keeps the page and its files for an offline start.
+if (import.meta.env.PROD) window.addEventListener("load", () => { void registerShellCache(); });
