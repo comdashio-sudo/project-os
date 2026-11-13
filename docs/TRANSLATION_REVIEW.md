@@ -602,7 +602,7 @@
 | pages/CommercialChain.tsx | 4 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/EosLiabilityCard.tsx | 12 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/EvmCalculator.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ExecutiveDashboard.tsx | 34 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ExecutiveDashboard.tsx | 34 | 0 | مغلق (D-67، 2026-11-13): النسخة الوحيدة كانت اسم المنتج «PROJECT OS»، وهو اسم لا عبارة فأُضيف إلى المصطلحات اللاتينية؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/FieldEntry.tsx | 2 | 62 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/Home.tsx | 53 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/LabourLoadingCard.tsx | 23 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
@@ -614,13 +614,13 @@
 | pages/PmcProgramme.tsx | 20 | 0 | مغلق (D-66، 2026-11-13): 21 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PmcSitePlan.tsx | 25 | 0 | مغلق (D-66، 2026-11-13): 32 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PmoControlLinks.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/PmoDashboard.tsx | 106 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/PmoDashboard.tsx | 106 | 0 | مغلق (D-67، 2026-11-13): 97 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PortfolioProfitability.tsx | 12 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectAdvisor.tsx | 10 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectChanges.tsx | 19 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectClaims.tsx | 23 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectContracts.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectControls.tsx | 101 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectControls.tsx | 101 | 0 | مغلق (D-67، 2026-11-13): 91 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDataExport.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectDesign.tsx | 63 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectDocuments.tsx | 32 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
@@ -649,7 +649,7 @@
 | pages/SetupWizard.tsx | 58 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/SupportCenter.tsx | 35 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/SupportOwnerPanel.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/TenantAdministration.tsx | 92 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/TenantAdministration.tsx | 92 | 0 | مغلق (D-67، 2026-11-13): 85 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/UserGuide.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/UserProfile.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 

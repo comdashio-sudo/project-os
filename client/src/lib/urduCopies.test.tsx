@@ -6,7 +6,9 @@ import { isLanguageNeutral, urduCopiesOf } from "./urduCopies";
 
 // D-66 (D-12 a): the screens of this batch hold no Urdu text that is a copy of its English twin. A file joins the list when its batch is done
 // (D-67 and D-68 add theirs), so a translated screen cannot slide back to English unnoticed.
-const TRANSLATED = ["pages/ProjectPmc.tsx", "pages/ProjectMasterPlan.tsx", "pages/PmcSitePlan.tsx", "pages/PmcProgramme.tsx"];
+const TRANSLATED = ["pages/ProjectPmc.tsx", "pages/ProjectMasterPlan.tsx", "pages/PmcSitePlan.tsx", "pages/PmcProgramme.tsx",
+  // D-67: the level dashboards and the company administration
+  "pages/ExecutiveDashboard.tsx", "pages/PmoDashboard.tsx", "pages/ProjectControls.tsx", "pages/TenantAdministration.tsx"];
 
 describe("D-66: Urdu copies of English", () => {
   it("finds a copied Urdu text in a dictionary, in a nested `as Record` dictionary, and in an inline pick", () => {
@@ -20,6 +22,9 @@ const p = pickLanguage(language, { ar: "حفظ", en: "Save", ur: "Save" });`;
     expect(urduCopiesOf(source)).toEqual([]);
     expect(isLanguageNeutral("Export Excel")).toBe(false);
     expect(isLanguageNeutral("PMC · EVM")).toBe(true);
+    // D-67: the product name "PROJECT OS" is a name, not a phrase; a real English phrase around it is still a copy
+    expect(isLanguageNeutral("PROJECT OS")).toBe(true);
+    expect(isLanguageNeutral("PROJECT MANAGER COMMAND CENTER")).toBe(false);
   });
 
   it.each(TRANSLATED)("%s has no Urdu text copied from English", file => {
