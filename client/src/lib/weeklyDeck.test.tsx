@@ -9,7 +9,7 @@ const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcS
 const days = ["2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"];
 const activity = (i: number) => ({
   code: `A-${String(i).padStart(2, "0")}`, name: `Synthetic activity ${i}`,
-  period: { planned: 70 + i, actual: 60 + i, variance: -10, percentOfPlan: 0.86, completedUnits: i },
+  period: { planned: 70 + i, actual: 60 + i, variance: -10, percentOfPlan: 86, completedUnits: i },
   cumulative: { planned: 200 + i, actual: 180 + i },
   daily: days.map(date => ({ date, planned: 10, actual: 9 })),
 });
@@ -30,7 +30,7 @@ function input(overrides: Partial<DeckInput> = {}): DeckInput {
     },
     labels: { summary: "الملخص", analysis: "التحليل", outlook: "النظرة للأسبوعين القادمين" },
     texts: { summary: "أسبوع مختلق للاختبار.", analysis: "تحليل طويل ".repeat(300), outlook: "" },
-    photos: Array.from({ length: 7 }, (_, i) => ({ url: PIXEL, caption: `صورة ${i + 1}` })).concat([{ url: null, caption: "بلا رابط" }]),
+    photos: Array.from({ length: 7 }, (_, i): { url: string | null; caption: string } => ({ url: PIXEL, caption: `صورة ${i + 1}` })).concat([{ url: null, caption: "بلا رابط" }]),
     logos: [PIXEL, null, PIXEL],
     parties: ["Client Co (example)", "Consultant Co (example)", null],
     mapImage: PIXEL,
@@ -69,6 +69,16 @@ describe("weekly deck layout", () => {
     expect(problems.some(problem => problem.includes("overlap"))).toBe(true);
     expect(problems.some(problem => problem.includes("outside"))).toBe(true);
     expect(problems.some(problem => problem.includes("longer than its box"))).toBe(true);
+  });
+
+  it("reads from the right in Arabic and from the left in English; % of plan is the engine's percentage as it is", () => {
+    const firstTwo = (slides: Slide[]) => { const slide = slides.find(item => item.items.some(box => box.kind === "text" && box.role === "heading"))!; return slide.items.filter(box => box.kind === "text" && box.role === "heading").map(box => box.box.x); };
+    const [arFirst, arSecond] = firstTwo(buildWeeklyDeck(input()));
+    expect(arFirst).toBeGreaterThan(arSecond);
+    const [enFirst, enSecond] = firstTwo(buildWeeklyDeck(input({ language: "en" })));
+    expect(enFirst).toBeLessThan(enSecond);
+    expect(JSON.stringify(buildWeeklyDeck(input()))).toContain("86.0%");
+    expect(JSON.stringify(buildWeeklyDeck(input()))).not.toContain("8,600");
   });
 
   it("splits at a space within the limit, and the number is the prefix, WR and the week's first day", () => {

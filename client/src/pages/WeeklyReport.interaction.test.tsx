@@ -7,7 +7,7 @@ import { suggestWeeklyTexts, type WeekFigures } from "@/lib/weeklySuggest";
 
 // D-49 (b): the weekly report editor on reportPeriods.get (D-48, the figures) and reportPeriods.weekly / saveWeekly (D-49 a, the words and photos).
 const h = vi.hoisted(() => ({
-  language: "en" as "ar" | "en" | "ur", canWrite: true, profile: { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null } as unknown, save: vi.fn(), asked: [] as Array<{ anchor?: string; weekStart?: string }>, saveError: null as unknown,
+  language: "en" as "ar" | "en" | "ur", canWrite: true, profileError: null as unknown, profile: { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null } as unknown, save: vi.fn(), asked: [] as Array<{ anchor?: string; weekStart?: string }>, saveError: null as unknown,
   saved: { week: { start: "2026-11-07", end: "2026-11-13" }, report: null as null | Record<string, unknown>, photos: [] as Array<Record<string, unknown>>, candidates: [] as Array<Record<string, unknown>> },
 }));
 const figures: WeekFigures & Record<string, unknown> = {
@@ -23,7 +23,7 @@ vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string;
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/lib/permissions", () => ({ useCan: () => h.canWrite }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
-  projects: { profile: { get: { useQuery: () => ({ data: h.profile, error: null }) } } },
+  projects: { profile: { get: { useQuery: () => ({ data: h.profile, error: h.profileError }) } } },
   useUtils: () => ({ reportPeriods: { weekly: { invalidate: vi.fn() } } }),
   reportPeriods: {
     get: { useQuery: (input: { anchor: string }) => { h.asked.push({ anchor: input.anchor }); return { data: figures, error: null, refetch: vi.fn() }; } },
@@ -32,7 +32,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   },
 } }));
 
-beforeEach(() => { h.language = "en"; h.canWrite = true; h.profile = { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null }; h.save.mockReset(); h.asked = []; h.saveError = null; h.saved = { week: { start: "2026-11-07", end: "2026-11-13" }, report: null, photos: [], candidates: [{ id: "f1", reportDate: "2026-11-08", fileName: "f1.jpg", caption: "Block B1", url: "https://storage.example.test/f1" }, { id: "f2", reportDate: "2026-11-09", fileName: "f2.jpg", caption: null, url: null }] }; });
+beforeEach(() => { h.language = "en"; h.canWrite = true; h.profileError = null; h.profile = { reportPrefix: "DEMO", logos: { client: null, consultant: null, contractor: null }, clientName: null, consultantName: null, contractorName: null }; h.save.mockReset(); h.asked = []; h.saveError = null; h.saved = { week: { start: "2026-11-07", end: "2026-11-13" }, report: null, photos: [], candidates: [{ id: "f1", reportDate: "2026-11-08", fileName: "f1.jpg", caption: "Block B1", url: "https://storage.example.test/f1" }, { id: "f2", reportDate: "2026-11-09", fileName: "f2.jpg", caption: null, url: null }] }; });
 afterEach(cleanup);
 
 describe("the weekly report editor (D-49 b)", () => {
@@ -120,5 +120,13 @@ describe("the proposed texts (D-49 b)", () => {
     render(<WeeklyReport />);
     const again = Array.from(document.querySelector("[data-weekly-exports]")!.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
     expect(again.every(button => (button as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("D-50: a profile that failed to load is said, and the export still works without logos or prefix", () => {
+    h.profile = undefined; h.profileError = new Error("down");
+    render(<WeeklyReport />);
+    expect(screen.getByRole("note").textContent).toContain("without logos");
+    const buttons = Array.from(document.querySelector("[data-weekly-exports]")!.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
+    expect(buttons.every(button => !(button as HTMLButtonElement).disabled)).toBe(true);
   });
 });

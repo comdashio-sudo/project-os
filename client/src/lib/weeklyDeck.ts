@@ -83,7 +83,7 @@ export function buildWeeklyDeck(input: DeckInput): Slide[] {
   const tiles: Array<[string, string]> = [[w.reports, n(f.reports.length)], [w.workingDays, n(f.period.workingDayCount)], [w.missing, n(f.missingWorkingDays.length)], [w.direct, n(f.labour.period.direct)], [w.indirect, n(f.labour.period.indirect)], [w.ncrOpen, n(f.quality.ncr.open)]];
   const tileItems: Item[] = tiles.map(([label, value], index) => ({ kind: "text", role: "body", box: { x: BODY.x + index * 2.09, y: BODY.y, w: 1.95, h: 0.9 }, text: `${value}\n${label}`, size: 14, bold: true }));
   const head = [w.activity, w.planned, w.actual, w.variance, w.ofPlan, w.completed];
-  const rows = f.activities.map(a => [`${a.code} · ${a.name}`, n(a.period.planned, 2), n(a.period.actual, 2), n(a.period.variance, 2), a.period.percentOfPlan === null ? "—" : `${formatNumber(a.period.percentOfPlan * 100, 1)}%`, n(a.period.completedUnits)]);
+  const rows = f.activities.map(a => [`${a.code} · ${a.name}`, n(a.period.planned, 2), n(a.period.actual, 2), n(a.period.variance, 2), a.period.percentOfPlan === null ? "—" : `${formatNumber(a.period.percentOfPlan, 1)}%`, n(a.period.completedUnits)]);
   const chunks = rows.length ? Array.from({ length: Math.ceil(rows.length / 10) }, (_, i) => rows.slice(i * 10, i * 10 + 10)) : [[[w.none, "", "", "", "", ""]]];
   chunks.forEach((chunk, index) => bodies.push({ heading: index ? `${w.figures} (${w.cont})` : w.figures, items: [...(index ? [] : tileItems), { kind: "table", box: { x: BODY.x, y: BODY.y + (index ? 0 : 1.1), w: BODY.w, h: 0.38 * (chunk.length + 1) }, rows: [head, ...chunk], size: 12 }] }));
 
@@ -139,12 +139,14 @@ export function buildWeeklyDeck(input: DeckInput): Slide[] {
   if (input.mapImage) bodies.push({ heading: w.map, items: [{ kind: "image", box: BODY, url: input.mapImage }] });
 
   // the frame of every slide: the logos and the heading on top, the number, the period and the page at the bottom — from the system, the same on every slide
-  return bodies.map((body, index) => ({ items: [
+  // Arabic and Urdu read from the right: the slide is mirrored, so the first box of a row (a tile, a text, a chart) stands on the right
+  const mirror = (item: Item): Item => (input.language === "en" ? item : { ...item, box: { ...item.box, x: Math.round((SLIDE.w - item.box.x - item.box.w) * 1000) / 1000 } });
+  return bodies.map((body, index) => ({ items: ([
     ...input.logos.flatMap((url, i): Item[] => (url ? [{ kind: "image", box: { x: 0.3 + i * 1.5, y: 0.2, w: 1.35, h: 0.7 }, url }] : [])),
     { kind: "text", role: "title", box: { x: 4.9, y: 0.2, w: 8.13, h: 0.7 }, text: body.heading || w.title, size: 22, bold: true },
     ...body.items,
     { kind: "text", role: "footer", box: { x: 0.3, y: 7.0, w: 12.73, h: 0.35 }, text: `${input.number} · ${f.period.start} – ${f.period.end} · ${w.page} ${index + 1}/${bodies.length}`, size: 10 },
-  ] }));
+  ] as Item[]).map(mirror) }));
 }
 
 const overlap = (a: Box, b: Box) => a.x < b.x + b.w - 1e-6 && b.x < a.x + a.w - 1e-6 && a.y < b.y + b.h - 1e-6 && b.y < a.y + a.h - 1e-6;

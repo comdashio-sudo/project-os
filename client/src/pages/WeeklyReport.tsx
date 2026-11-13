@@ -23,7 +23,7 @@ const text = {
     reports: "تقارير يومية معدودة", workingDays: "أيام العمل", missing: "أيام بلا تقرير", labour: "العمالة (رجل×يوم)", direct: "مباشرة", indirect: "غير مباشرة", ncrOpen: "NCR مفتوحة", incidents: "حوادث",
     activity: "النشاط", planned: "المخطط", actual: "الفعلي", variance: "الانحراف", ofPlan: "من المخطط", completed: "وحدات اكتملت", noActivities: "لا أسطر عمل في يوميات هذا الأسبوع.",
     words: "نصوص التقرير", suggest: "اقترح من الأرقام", suggested: "مُلئت النصوص الفارغة من الأرقام؛ عدّلها كما تشاء.", photos: "صور الأسبوع", chosen: (n: number) => `${formatNumber(n)} من ${MAX_PHOTOS} مختارة`, noPhotos: "لا صور في يوميات هذا الأسبوع.",
-    save: "احفظ التقرير", saving: "جارٍ الحفظ…", saved: "حُفظ التقرير الأسبوعي.", readOnly: "للعرض فقط: لا تملك صلاحية كتابة التقرير.",
+    noProfile: "تعذّر تحميل بيانات المشروع؛ يُصدَّر التقرير بلا شعارات ولا بادئة ترقيم.", save: "احفظ التقرير", saving: "جارٍ الحفظ…", saved: "حُفظ التقرير الأسبوعي.", readOnly: "للعرض فقط: لا تملك صلاحية كتابة التقرير.",
     labels: { summary: "الملخص", analysis: "التحليل", correctiveActions: "الإجراءات التصحيحية", milestones: "المعالم", outlook: "النظرة للأسبوعين القادمين", engineering: "الهندسة", procurement: "المشتريات", commercial: "التجاري", interfaces: "الواجهات", issues: "المشكلات", decisions: "القرارات المطلوبة" } as Record<TextKey, string>,
   },
   en: {
@@ -31,7 +31,7 @@ const text = {
     reports: "Daily reports counted", workingDays: "Working days", missing: "Days without a report", labour: "Labour (man-days)", direct: "Direct", indirect: "Indirect", ncrOpen: "Open NCRs", incidents: "Incidents",
     activity: "Activity", planned: "Planned", actual: "Actual", variance: "Variance", ofPlan: "Of plan", completed: "Units completed", noActivities: "No work lines in this week's daily reports.",
     words: "Report texts", suggest: "Suggest from the figures", suggested: "Empty texts were filled from the figures; edit them as you wish.", photos: "The week's photos", chosen: (n: number) => `${formatNumber(n)} of ${MAX_PHOTOS} chosen`, noPhotos: "No photos in this week's daily reports.",
-    save: "Save the report", saving: "Saving…", saved: "The weekly report was saved.", readOnly: "View only: you cannot write the report.",
+    noProfile: "The project profile could not be loaded; the report is exported without logos or number prefix.", save: "Save the report", saving: "Saving…", saved: "The weekly report was saved.", readOnly: "View only: you cannot write the report.",
     labels: { summary: "Summary", analysis: "Analysis", correctiveActions: "Corrective actions", milestones: "Milestones", outlook: "Outlook for the next two weeks", engineering: "Engineering", procurement: "Procurement", commercial: "Commercial", interfaces: "Interfaces", issues: "Issues", decisions: "Decisions required" } as Record<TextKey, string>,
   },
   ur: {
@@ -39,7 +39,7 @@ const text = {
     reports: "شمار شدہ روزانہ رپورٹیں", workingDays: "کام کے دن", missing: "رپورٹ کے بغیر دن", labour: "مزدوری (آدمی-دن)", direct: "براہِ راست", indirect: "بالواسطہ", ncrOpen: "کھلی NCR", incidents: "حادثات",
     activity: "سرگرمی", planned: "منصوبہ", actual: "اصل", variance: "فرق", ofPlan: "منصوبے کا", completed: "مکمل یونٹس", noActivities: "اس ہفتے کی روزانہ رپورٹوں میں کام کی کوئی سطر نہیں۔",
     words: "رپورٹ کی تحریریں", suggest: "اعداد سے تجویز کریں", suggested: "خالی تحریریں اعداد سے بھری گئیں؛ جیسے چاہیں ترمیم کریں۔", photos: "ہفتے کی تصاویر", chosen: (n: number) => `${MAX_PHOTOS} میں سے ${formatNumber(n)} منتخب`, noPhotos: "اس ہفتے کی روزانہ رپورٹوں میں کوئی تصویر نہیں۔",
-    save: "رپورٹ محفوظ کریں", saving: "محفوظ ہو رہا ہے…", saved: "ہفتہ وار رپورٹ محفوظ ہو گئی۔", readOnly: "صرف دیکھنے کے لیے: آپ رپورٹ نہیں لکھ سکتے۔",
+    noProfile: "پروجیکٹ کی معلومات لوڈ نہیں ہو سکیں؛ رپورٹ لوگو اور نمبر کے سابقے کے بغیر برآمد ہوگی۔", save: "رپورٹ محفوظ کریں", saving: "محفوظ ہو رہا ہے…", saved: "ہفتہ وار رپورٹ محفوظ ہو گئی۔", readOnly: "صرف دیکھنے کے لیے: آپ رپورٹ نہیں لکھ سکتے۔",
     labels: { summary: "خلاصہ", analysis: "تجزیہ", correctiveActions: "اصلاحی اقدامات", milestones: "سنگِ میل", outlook: "اگلے دو ہفتوں کا منظر", engineering: "انجینئرنگ", procurement: "خریداری", commercial: "تجارتی", interfaces: "انٹرفیسز", issues: "مسائل", decisions: "مطلوبہ فیصلے" } as Record<TextKey, string>,
   },
 };
@@ -129,7 +129,8 @@ export default function WeeklyReport() {
             </label></li>))}</ul>
         )}</CardBody>
       </Card>
-      <WeeklyExports fileBase={`weekly-report-${weekStart}`} deck={data && profile.data !== undefined ? {
+      {profile.error ? <p role="note" className="text-sm text-muted-foreground">{t.noProfile}</p> : null}
+      <WeeklyExports fileBase={`weekly-report-${weekStart}`} deck={data && (profile.data !== undefined || profile.error) ? {
         number: weeklyReportNumber(profile.data?.reportPrefix ?? null, data.period.start), figures: data as unknown as DeckFigures, labels: t.labels, texts,
         photos: photos.filter(photo => photoIds.includes(photo.id)).map(photo => ({ url: photo.url, caption: photo.caption })),
         logos: [profile.data?.logos.client?.url ?? null, profile.data?.logos.consultant?.url ?? null, profile.data?.logos.contractor?.url ?? null],

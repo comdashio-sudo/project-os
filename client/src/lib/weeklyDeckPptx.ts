@@ -1,11 +1,29 @@
 // D-50: the weekly report's slides (weeklyDeck.ts) written as a PowerPoint file, 16:9, with NATIVE charts (bar, line, doughnut) that stay editable in PowerPoint.
 // The library is loaded on first use only. A PowerPoint file cannot read the screen's CSS tokens, so the few colours it needs are written here as plain
-// six-digit values (the deck's palette: ink, rule and four series colours close to the screen's tokens).
+// six-digit values: ink and rule; the series take the screen's chart tokens at the moment of export (tokenPalette), with this fixed set where there is no canvas.
 import type { Item, Slide } from "@/lib/weeklyDeck";
 
 const INK = "1F2937";
 const RULE = "BFC5CC";
 const SERIES = ["1F6F6B", "C77C1E", "4C6FB3", "8A5A9E", "5E8C3A", "B4473A"];
+
+/** The screen's chart colours (--chart-1 … --chart-5) as six-digit values, so the file and the PDF share one palette; the fixed palette where there is no canvas. */
+function tokenPalette(): string[] {
+  try {
+    const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+    if (!context) return SERIES;
+    const style = getComputedStyle(document.documentElement);
+    return [1, 2, 3, 4, 5].map((index, i) => {
+      const value = style.getPropertyValue(`--chart-${index}`).trim();
+      if (!value) return SERIES[i];
+      context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = Array.from(context.getImageData(0, 0, 1, 1).data);
+      return a ? [r, g, b].map(channel => channel.toString(16).padStart(2, "0")).join("").toUpperCase() : SERIES[i];
+    });
+  } catch {
+    return SERIES;
+  }
+}
 
 type Writer = { addSlide: () => any; write: (options: { outputType: "arraybuffer" | "blob" }) => Promise<unknown>; layout: string; rtlMode: boolean; ChartType: Record<string, unknown> };
 
@@ -22,7 +40,7 @@ async function dataUrl(url: string): Promise<string | null> {
   }
 }
 
-async function place(writer: Writer, slide: any, item: Item, rtl: boolean) {
+async function place(writer: Writer, slide: any, item: Item, rtl: boolean, palette: string[]) {
   const at = { x: item.box.x, y: item.box.y, w: item.box.w, h: item.box.h };
   if (item.kind === "text") {
     slide.addText(item.text, { ...at, fontSize: item.size, bold: Boolean(item.bold), color: INK, fontFace: "Arial", valign: item.role === "body" ? "top" : "middle", align: rtl ? "right" : "left", rtlMode: rtl, lang: rtl ? "ar-SA" : "en-US", margin: 2 });
@@ -32,7 +50,7 @@ async function place(writer: Writer, slide: any, item: Item, rtl: boolean) {
     const { chart } = item;
     const type = writer.ChartType[chart.type];
     const data = chart.series.map(series => ({ name: series.name, labels: chart.labels, values: series.values }));
-    slide.addChart(type, data, { ...at, showTitle: true, title: item.title, titleFontSize: 14, titleColor: INK, showLegend: true, legendPos: "b", legendFontSize: 10, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9, chartColors: SERIES, barGrouping: chart.stacked ? "stacked" : "clustered", lineDataSymbol: "circle", holeSize: 55, showPercent: chart.type === "doughnut", dataLabelColor: INK });
+    slide.addChart(type, data, { ...at, showTitle: true, title: item.title, titleFontSize: 14, titleColor: INK, showLegend: true, legendPos: "b", legendFontSize: 10, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9, chartColors: palette, barGrouping: chart.stacked ? "stacked" : "clustered", lineDataSymbol: "circle", holeSize: 55, showPercent: chart.type === "doughnut", dataLabelColor: INK });
   } else {
     const data = await dataUrl(item.url);
     if (data) slide.addImage({ data, ...at, sizing: { type: "contain", w: at.w, h: at.h } });
@@ -46,9 +64,10 @@ export async function weeklyDeckPptx(slides: Slide[], language: "ar" | "en" | "u
   writer.layout = "LAYOUT_WIDE"; // 13.333 × 7.5 in, the deck's frame
   const rtl = language !== "en";
   writer.rtlMode = rtl;
+  const palette = tokenPalette();
   for (const spec of slides) {
     const slide = writer.addSlide();
-    for (const item of spec.items) await place(writer, slide, item, rtl);
+    for (const item of spec.items) await place(writer, slide, item, rtl, palette);
   }
   return (await writer.write({ outputType: "arraybuffer" })) as ArrayBuffer;
 }
