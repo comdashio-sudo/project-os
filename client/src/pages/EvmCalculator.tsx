@@ -128,7 +128,7 @@ export default function EvmCalculator() {
         </Link>
 
         <section className="relative mt-6 overflow-hidden rounded-[24px] bg-[var(--dashio-bg-dark)] px-6 py-7 text-white shadow-xl shadow-[var(--dashio-indigo)]/10 sm:px-8">
-          <div aria-hidden="true" className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(46,211,198,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(46,211,198,.06)_1px,transparent_1px)] [background-size:38px_38px]" />
+          <div aria-hidden="true" className="absolute inset-0 opacity-50 [background-image:linear-gradient(color-mix(in_oklab,var(--dashio-aqua)_6%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklab,var(--dashio-aqua)_6%,transparent)_1px,transparent_1px)] [background-size:38px_38px]" />
           <div aria-hidden="true" className="absolute -end-20 -top-16 h-56 w-56 rounded-full bg-[var(--dashio-indigo)]/30 blur-[100px]" />
           <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
