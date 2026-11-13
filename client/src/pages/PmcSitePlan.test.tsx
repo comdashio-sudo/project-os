@@ -56,7 +56,7 @@ describe("PmcSitePlan", () => {
   it("draws one clickable polygon per unit that has one, scaled to the plan, and counts those without", () => {
     render(<PmcSitePlan tenantId="t" projectId="p" />);
     expect(polygons().map(p => p.getAttribute("data-unit"))).toEqual(["1", "2"]);
-    expect(polygons()[0].getAttribute("points")).toBe("100.0,50.0 200.0,50.0 200.0,100.0 100.0,100.0 100.0,50.0");
+    expect(polygons()[0].getAttribute("points")).toBe("100,50 200,50 200,100 100,100 100,50");
     expect(screen.getByRole("img", { name: "Site plan" }).getAttribute("viewBox")).toBe("0 0 1000 500");
     expect(screen.getByText("1 units have no outline on the plan")).toBeTruthy();
   });

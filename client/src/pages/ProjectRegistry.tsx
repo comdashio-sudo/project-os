@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { formatAmount } from "@/components/ds/format";
 import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +41,7 @@ export function lifecycleFeedbackTargetsProject(feedbackProjectId: string | unde
 }
 
 /** The registry's figures come as decimal strings ("380000000.00"); a person reads 380,000,000. */
-const money = (value: string | number | null | undefined) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const money = (value: string | number | null | undefined) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? "—" : formatAmount(Number(value), 2));
 
 export default function ProjectRegistry() {
   const { tenantId } = useParams<{ tenantId: string }>();
