@@ -150,7 +150,6 @@
   "hardcoded-colour": 1
  },
  "client/src/pages/TenantAdministration.tsx": {
-  "raw-select": 37,
   "hardcoded-colour": 18
  },
  "client/src/pages/UserGuide.tsx": {
