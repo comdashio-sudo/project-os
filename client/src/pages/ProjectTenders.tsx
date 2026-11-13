@@ -1,5 +1,5 @@
-import { latnLocale } from "@/components/ds/format";
 import { CheckedForm } from "@/components/CheckedForm";
+import { formatAmount } from "@/components/ds/format";
 import { riyalLabel } from "@/lib/profitabilityView";
 // Tenders before award (work order 5, item 8): packages, the invitation list, bid entry, the levelled comparison and the award that creates the
 // contract and the commitment. Every write is shown only to someone who holds its power (WriteGate); the server judges every call anyway,
@@ -56,7 +56,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         invite: "Invite supplier", pickSupplier: "Pick a supplier…", inviteesTitle: "Invitee list", bidEntry: "Enter a bid", amount: "Price", duration: "Duration (days)", validity: "Bid validity (days)", notes: "Notes", enter: "Record bid", withdraw: "Withdraw", comparisonTitle: "Bid comparison and levelling", rank: "Rank", supplier: "Supplier", adjustments: "Adjustments", levelled: "Levelled total", abovePct: "Above lowest", vsEstimate: "Vs estimate", durationShort: "Duration", flags: "Flags", lowestFlag: "Lowest", belowFlag: "30% below median", aboveFlag: "30% above median", medianLine: "Median", comparable: "comparable bids",
         addAdj: "Add adjustment", pickBid: "Pick a bid…", kind: "Kind", description: "Description", adjAmount: "Amount (positive adds, negative deducts)", disqualify: "Disqualify", reason: "Reason", remove: "Remove", awardTitle: "Award", contractCode: "Contract code", justification: "Award justification (required with fewer than two comparable bids)", awardButton: "Award and create contract and commitment", awarded: "Awarded", contract: "Contract", commitment: "Commitment", created: "created" } });
   const label = (code: string) => enumLabel(code, language);
-  const money = (value: number | null | undefined) => value === null || value === undefined ? "—" : new Intl.NumberFormat(latnLocale(pickLanguage(language, { ar: "ar-SA", en: "en-US", ur: "ur-PK" })), { maximumFractionDigits: 2 }).format(value);
+  const money = (value: number | null | undefined) => value === null || value === undefined ? "—" : formatAmount(value, 2);
   const pct = (value: number | null) => value === null ? "—" : `${value > 0 ? "+" : ""}${value}%`;
   const submit = (action: () => void) => (event: React.FormEvent) => { event.preventDefault(); action(); };
   const list = packages.data?.packages ?? [];

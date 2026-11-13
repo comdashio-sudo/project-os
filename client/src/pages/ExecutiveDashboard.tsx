@@ -1,5 +1,5 @@
-import { latnLocale } from "@/components/ds/format";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { formatAmount } from "@/components/ds/format";
 import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,7 +131,7 @@ export default function ExecutiveDashboard() {
     decisions: decisionsQuery.data?.decisions ?? [],
   };
   const money = (value: number) =>
-    value.toLocaleString(latnLocale(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" })), { maximumFractionDigits: 0 });
+    formatAmount(value, 0);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate({ tenantId, ...form });

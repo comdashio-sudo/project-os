@@ -6,7 +6,7 @@
 //   raw-file-input    <input type="file"> outside the component library: the browser's own "Choose File" is never shown; FileDropzone is the one place.
 //   raw-select        <select> and <option> outside the component library: the custom Select is the one list.
 //   hardcoded-colour  a colour written as a value in a screen (a #hex in a class or style, rgb()/hsl()/oklch()): colours come from the tokens in client/src/design/directions.css.
-//   number-format     toLocaleString / Intl.NumberFormat / toFixed used to PRINT a figure outside client/src/components/ds/format.ts: one place formats numbers.
+//   number-format     toLocaleString / toLocaleDateString / toLocaleTimeString / Intl.NumberFormat / toFixed used to PRINT a figure or a date outside client/src/components/ds/format.ts: one place formats numbers.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -22,7 +22,7 @@ const rules = {
   "raw-file-input": { test: text => count(text, /<input\b[^>]*\btype=["']file["']/g), inLibrary: false },
   "raw-select": { test: text => count(text, /<select[\s>]/g) + count(text, /<option[\s>]/g), inLibrary: false },
   "hardcoded-colour": { test: text => count(text, /\[#[0-9a-fA-F]{3,8}\]/g) + count(text, /(?:fill|stroke|color|background(?:Color)?|borderColor)\s*[:=]\s*\{?["'`]#[0-9a-fA-F]{3,8}["'`]/g) + count(text, /["'`]#[0-9a-fA-F]{6}["'`]/g) + count(text, /\b(?:rgb|rgba|hsl|hsla|oklch)\(/g), inLibrary: true },
-  "number-format": { test: (text, file) => (file === FORMAT_MODULE ? 0 : count(text, /\.toLocaleString\(/g) + count(text, /\bIntl\.(?:NumberFormat|DateTimeFormat)\b/g) + count(text, /\.toFixed\(/g)), inLibrary: true },
+  "number-format": { test: (text, file) => (file === FORMAT_MODULE ? 0 : count(text, /\.toLocaleString\(/g) + count(text, /\bIntl\.(?:NumberFormat|DateTimeFormat)\b/g) + count(text, /\.toFixed\(/g) + count(text, /\.toLocale(?:Date|Time)String\(/g)), inLibrary: true },
 };
 function count(text, pattern) { return (text.match(pattern) ?? []).length; }
 

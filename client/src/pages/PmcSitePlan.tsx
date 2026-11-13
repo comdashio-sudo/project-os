@@ -33,7 +33,7 @@ const COLORS: Record<string, string> = { NOT_STARTED: "#cbd5e1", IN_PROGRESS: "#
 type Ring = Array<[number, number]>;
 type Geometry = { type: "Polygon"; coordinates: Ring[] } | { type: "MultiPolygon"; coordinates: Ring[][] };
 const polygonsOf = (geometry: Geometry): Ring[][] => (geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates);
-const pointsOf = (ring: Ring, w: number, h: number) => ring.map(([x, y]) => `${(x * w).toFixed(1)},${(y * h).toFixed(1)}`).join(" ");
+const pointsOf = (ring: Ring, w: number, h: number) => ring.map(([x, y]) => `${Math.round(x * w * 10) / 10},${Math.round(y * h * 10) / 10}`).join(" ");
 const fillFor = (status: string | null, progress: number | null) => (status ? COLORS[status] : progress === null ? "#e5e7eb" : `rgba(14, 107, 112, ${0.12 + (progress / 100) * 0.7})`);
 
 export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; projectId: string }) {

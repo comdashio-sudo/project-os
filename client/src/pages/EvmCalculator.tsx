@@ -1,5 +1,5 @@
-import { latnLocale } from "@/components/ds/format";
 import React, { useState } from "react";
+import { formatAmount } from "@/components/ds/format";
 import { BrandIcon, BrandMark } from "@/components/BrandMark";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,7 @@ export default function EvmCalculator() {
   const update = (key: keyof Values, value: string) => setValues(current => ({ ...current, [key]: value }));
   const metric = (key: typeof metrics[number]) => {
     const value = query.data?.[key.toLowerCase() as keyof typeof query.data];
-    return typeof value === "number" ? value.toLocaleString(latnLocale(pickLanguage(language, { ar: "ar", en: "en", ur: "ur-PK" })), { maximumFractionDigits: 2 }) : "—";
+    return typeof value === "number" ? formatAmount(value, 2) : "—";
   };
   const varianceAlert = (query.data?.cpi !== null && query.data?.cpi !== undefined && query.data.cpi < 0.9)
     || (query.data?.spi !== null && query.data?.spi !== undefined && query.data.spi < 0.9);

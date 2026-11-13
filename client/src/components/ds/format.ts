@@ -3,13 +3,6 @@
 import type { Language } from "@/lib/language";
 
 const LOCALE: Record<Language, string> = { ar: "ar-u-nu-latn", en: "en-US-u-nu-latn", ur: "ur-u-nu-latn" };
-/** D-26 (6.4): a locale that writes Western digits (0-9), whatever the language — for a date or number formatted with Intl or toLocale*String outside the
- *  helpers here. «ar» → «ar-u-nu-latn», «ar-SA» → «ar-SA-u-nu-latn», a locale with other extensions keeps them; no locale → «en-US». */
-export function latnLocale(locale?: string): string {
-  if (!locale) return "en-US";
-  if (/-u-(?:.*-)?nu-/.test(locale)) return locale;
-  return locale.includes("-u-") ? locale.replace("-u-", "-u-nu-latn-") : `${locale}-u-nu-latn`;
-}
 
 /** 1234567.891 -> "1,234,567.89". The grouping mark is a comma and the decimal mark a dot, in all three languages. */
 export function formatNumber(value: number, decimals = 0): string {
@@ -54,4 +47,10 @@ export function formatWeekday(isoDay: string, language: Language): string {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(isoDay) ? new Date(`${isoDay}T00:00:00Z`) : null;
   if (!day || Number.isNaN(day.getTime())) return "—";
   return new Intl.DateTimeFormat(LOCALE[language], { weekday: "long", timeZone: "UTC" }).format(day);
+}
+
+/** 2026-10-25T09:05 -> "25 Oct 2026, 09:05" in the month names of the language, digits Western, in the device's own zone (a moment someone did something). */
+export function formatDateTime(value: Date | string, language: Language): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return new Intl.DateTimeFormat(LOCALE[language], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
 }
