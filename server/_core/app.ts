@@ -1,4 +1,4 @@
-import { mailSetup } from "./auth/mailer";
+import { mailSetup, warnOnMailLinkDomainMismatch } from "./auth/mailer";
 import { integrationApiRouter } from "../integrations/api";
 import { ENV } from "./env";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -50,6 +50,7 @@ function failureKind(status: number): ErrorPageKind {
  * Call `finish(app)` after the client is mounted: the error handler must be last.
  */
 export function createApp(options: AppOptions) {
+  warnOnMailLinkDomainMismatch(); // D-22: once at start, by name only
   const app = express();
   // Behind the host's proxy (Vercel): one hop, so req.ip is the client address.
   app.set("trust proxy", 1);

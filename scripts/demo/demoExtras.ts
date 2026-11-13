@@ -12,7 +12,7 @@ export const KNOWLEDGE_ARTICLES = [
   { title: "السلامة في الموقع: خمس قواعد يومية (مقال عرض)", content: "الخوذة والحذاء في كل وقت، حواجز حول الحفر المفتوحة، فحص السقالات قبل كل وردية، عدم العمل على ارتفاع دون حزام، والإبلاغ الفوري عن أي حادث أو شبه حادث. هذا مقال توضيحي لأغراض العرض." },
 ];
 
-const EXTRA_STAFF = ["عامل موقع (عرض) ١", "عامل موقع (عرض) ٢", "فني كهرباء (عرض)", "فني سباكة (عرض)", "مشغّل معدات (عرض)", "حارس موقع (عرض)"].map((name, index) => ({ name, title: ["عامل", "عامل", "فني كهرباء", "فني سباكة", "مشغّل معدات", "حارس"][index], department: "الموقع" }));
+const EXTRA_STAFF = ["عامل موقع (عرض) 1", "عامل موقع (عرض) 2", "فني كهرباء (عرض)", "فني سباكة (عرض)", "مشغّل معدات (عرض)", "حارس موقع (عرض)"].map((name, index) => ({ name, title: ["عامل", "عامل", "فني كهرباء", "فني سباكة", "مشغّل معدات", "حارس"][index], department: "الموقع" }));
 
 /** A small synthetic site scene as a PNG: sky, ground, rows of block-built "villas" in stages of completion, and a hatched band marking it as synthetic. */
 export async function syntheticSitePhoto(seed: number): Promise<Buffer> {
