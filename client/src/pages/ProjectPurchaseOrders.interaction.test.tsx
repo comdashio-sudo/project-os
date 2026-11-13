@@ -11,6 +11,7 @@ import { TYPING_TEST } from "@/test/typing";
 const typist = () => userEvent.setup({ delay: null });
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn(), contractsError: null as unknown, contractsRefetch: vi.fn(), listRefetch: vi.fn() }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized procurement error" }));
 vi.mock("@/lib/trpc", () => ({

@@ -12,6 +12,7 @@ const hoisted = vi.hoisted(() => {
   return { state, mutation };
 });
 const { state } = hoisted;
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useParams: () => (state.tenantId ? { tenantId: state.tenantId } : {}), useLocation: () => ["/", (to: string) => { state.navigated.push(to); }] }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
@@ -43,6 +44,18 @@ describe("SetupWizard", TYPING_TEST, () => {
     await user.click(screen.getByRole("button", { name: "إنشاء الشركة" }));
     expect(state.calls.signup).toHaveBeenCalledWith({ legalName: "شركة الاختبار", slug: "test-co", planCode: "starter", seats: 5 });
     expect(state.navigated).toEqual(["/setup/11111111-1111-4111-8111-111111111111#project"]);
+  });
+
+  it("step 1 without a plan cannot be sent: the button waits for a plan from the list, and nothing is created (D-75 negative)", async () => {
+    const user = userEvent.setup(); render(<SetupWizard />);
+    await user.type(screen.getByLabelText("الاسم القانوني"), "شركة الاختبار");
+    await user.type(screen.getByLabelText(/المعرّف/), "test-co");
+    const create = screen.getByRole("button", { name: "إنشاء الشركة" }) as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    await user.click(create);
+    expect(state.calls.signup).toBeUndefined();
+    await user.selectOptions(screen.getByLabelText("الخطة"), "starter");
+    expect(create.disabled).toBe(false);
   });
 
   it("step 2 creates the first project inside the chosen company and offers existing ones", async () => {

@@ -130,9 +130,6 @@
  "client/src/pages/ProjectProfitability.tsx": {
   "hardcoded-colour": 11
  },
- "client/src/pages/ProjectPurchaseOrders.tsx": {
-  "raw-select": 12
- },
  "client/src/pages/ProjectQuality.tsx": {
   "raw-select": 14,
   "hardcoded-colour": 1
@@ -160,7 +157,6 @@
   "hardcoded-colour": 3
  },
  "client/src/pages/SetupWizard.tsx": {
-  "raw-select": 12,
   "hardcoded-colour": 5
  },
  "client/src/pages/SupportCenter.tsx": {
