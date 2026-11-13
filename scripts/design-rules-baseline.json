@@ -51,7 +51,6 @@
   "hardcoded-colour": 6
  },
  "client/src/pages/IntegrationSettings.tsx": {
-  "raw-select": 13,
   "hardcoded-colour": 1
  },
  "client/src/pages/LicensingConsole.tsx": {
@@ -131,7 +130,6 @@
   "hardcoded-colour": 11
  },
  "client/src/pages/ProjectQuality.tsx": {
-  "raw-select": 14,
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectRegistry.tsx": {

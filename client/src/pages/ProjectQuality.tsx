@@ -7,6 +7,10 @@ import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
 import { useParams } from "wouter";
+import { Select } from "@/components/ds";
+
+/** Radix lists carry no empty value: "no activity" is this sentinel, sent to the server as an empty choice, never as an id. */
+const NONE = "__none";
 
 // Quality (work order 14, item 1): the inspection requests of a project — who asked, for which units and activity, where each one stands on its five steps, how long it has
 // waited, what the consultant answered — and the non-conformance reports (NCR) with their closure. Two company rules are shown beside them, because they decide what an
@@ -140,7 +144,7 @@ export default function ProjectQuality() {
 
   const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-[#0e6b70] text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes } : null);
-  const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<select className={`${fieldInput} mt-1`} value={draft[key]} disabled={!isManager} onChange={event => setRules({ ...draft, [key]: event.target.value as Mode })}>{MODES.map(mode => <option key={mode} value={mode}>{(t as Record<string, string>)[mode]}</option>)}</select></label>;
+  const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<Select className="mt-1" value={draft[key]} disabled={!isManager} onValueChange={value => setRules({ ...draft, [key]: value as Mode })} options={MODES.map(mode => ({ value: mode, label: (t as Record<string, string>)[mode] }))} /></label>;
 
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}>
@@ -160,15 +164,14 @@ export default function ProjectQuality() {
                 {typed.length === 0 && <p className="text-sm text-slate-600 sm:col-span-2">{t.needUnits}</p>}
                 {unitsUnknown && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
                 {unitsMixed && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsMixed}</p>}
-                <label className="block text-sm font-medium sm:col-span-2">{t.activity}<select className={`${fieldInput} mt-1`} value={form.activityId} disabled={activityChoices.length === 0} onChange={event => setForm({ ...form, activityId: event.target.value })}><option value="">{t.pickActivity}</option>{activityChoices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}</select></label>
+                <label className="block text-sm font-medium sm:col-span-2">{t.activity}<Select className="mt-1" value={form.activityId} placeholder={t.pickActivity} disabled={activityChoices.length === 0} onValueChange={value => setForm({ ...form, activityId: value })} options={activityChoices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))} /></label>
                 <label className="block text-sm font-medium">{t.consultant}<input className={`${fieldInput} mt-1`} value={form.consultant} onChange={event => setForm({ ...form, consultant: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.contractor}<input className={`${fieldInput} mt-1`} value={form.contractor} onChange={event => setForm({ ...form, contractor: event.target.value })} /></label>
               </div>
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateInspection || createInspection.isPending} onClick={() => { setMessage(null); createInspection.mutate({ ...scope, requestCode: form.code.trim(), activityDefinitionId: form.activityId, unitIds: typedUnits.map(unit => unit!.id), consultantLabel: form.consultant.trim() || undefined, contractorLabel: form.contractor.trim() || undefined, requestedAt: new Date() }); }}>{createInspection.isPending ? t.creating : t.create}</Button>
             </details>
           </WriteGate>
-          <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<select className={`${fieldInput} mt-1`} value={view} onChange={event => setView(event.target.value as typeof view)}>
-            <option value="all">{t.all}</option><option value="awaiting">{t.awaiting}</option><option value="answered">{t.answered}</option><option value="accepted">{t.accepted}</option><option value="notAccepted">{t.notAccepted}</option></select></label>
+          <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<Select className="mt-1" value={view} onValueChange={value => setView(value as typeof view)} options={[{ value: "all", label: t.all }, { value: "awaiting", label: t.awaiting }, { value: "answered", label: t.answered }, { value: "accepted", label: t.accepted }, { value: "notAccepted", label: t.notAccepted }]} /></label>
           {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noInspections}</p>
             : shown.length === 0 ? <p role="status" className="text-sm text-slate-600">{t.noMatch}</p>
             : <ul className="space-y-2">{shown.map(request => {
@@ -211,7 +214,7 @@ export default function ProjectQuality() {
                 <label className="block text-sm font-medium sm:col-span-2">{t.ncrTitle}<input className={`${fieldInput} mt-1`} value={ncr.title} onChange={event => setNcr({ ...ncr, title: event.target.value })} /></label>
                 <label className="block text-sm font-medium sm:col-span-2">{t.ncrDescription}<textarea className="mt-1 min-h-[72px] w-full rounded-xl border bg-white p-3 text-base" value={ncr.description} onChange={event => setNcr({ ...ncr, description: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.ncrUnit}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={ncr.unit} onChange={event => setNcr({ ...ncr, unit: event.target.value, activityId: "" })} /></label>
-                <label className="block text-sm font-medium">{t.ncrActivity}<select className={`${fieldInput} mt-1`} value={ncr.activityId} disabled={ncrChoices.length === 0} onChange={event => setNcr({ ...ncr, activityId: event.target.value })}><option value="">{t.none}</option>{ncrChoices.map(activity => <option key={activity.id} value={activity.id}>{activity.code} — {activity.name}</option>)}</select></label>
+                <label className="block text-sm font-medium">{t.ncrActivity}<Select className="mt-1" value={ncr.activityId || NONE} disabled={ncrChoices.length === 0} onValueChange={value => setNcr({ ...ncr, activityId: value === NONE ? "" : value })} options={[{ value: NONE, label: t.none }, ...ncrChoices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))]} /></label>
                 {ncr.unit.trim() && !ncrUnit && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
               </div>
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateNcr || createNcr.isPending} onClick={() => { setMessage(null); createNcr.mutate({ ...scope, ncrNumber: ncr.number.trim(), title: ncr.title.trim(), description: ncr.description.trim(), dueAt: ncr.due ? new Date(`${ncr.due}T12:00:00Z`) : undefined, pmcUnitId: ncrUnit?.id, pmcActivityDefinitionId: ncr.activityId || undefined }); }}>{t.createNcr}</Button>
