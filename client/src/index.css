@@ -13,6 +13,8 @@
   --dashio-indigo-soft:   #7B78F0;
   --dashio-aqua:          #2ED3C6;
   --dashio-aqua-deep:     #16A79C;
+  /* G-175 (Q-17 item 8, 210-3 approved): the teal for text and small icons on light surfaces; aqua and aqua-deep stay for fills and dark surfaces. 7.0:1 on white, 6.5:1 on paper. */
+  --dashio-aqua-text:     #0E6B70;
   --dashio-ink:           #0C1023;
   /* neutrals — light */
   --dashio-paper:         #F5F7FC;

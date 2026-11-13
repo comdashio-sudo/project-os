@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AA_LARGE_TEXT_AND_CONTROL, AA_TEXT, contrastRatio } from "./contrast";
@@ -122,5 +122,23 @@ describe("static check: the text colours that failed on the screens are the ones
 
   it("fills the active step number with 10% white, which keeps white text at 4.5:1 or more on the teal", () => {
     expect(page("SetupWizard.tsx")).toContain("rounded-full bg-white/10 text-xs");
+  });
+});
+
+describe("Q-17 item 8 (decision 210-3, G-175/G-176): the approved status colours are the tokens, and they read", () => {
+  const surfaces = ["#ffffff", lightToken("--dashio-paper")];
+  it("the error red (--destructive #D62839) and the teal for text (--dashio-aqua-text #0E6B70) reach 4.5:1 on white and on paper", () => {
+    expect(lightToken("--destructive").toUpperCase()).toBe("#D62839");
+    expect(lightToken("--dashio-aqua-text").toUpperCase()).toBe("#0E6B70");
+    for (const surface of surfaces) {
+      expect(contrastRatio(lightToken("--destructive"), surface), `--destructive on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(lightToken("--dashio-aqua-text"), surface), `--dashio-aqua-text on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+  it("NEGATIVE: the brand aqua-deep fails even the 3:1 of an icon on paper, so no screen colours text or an icon with it", () => {
+    expect(contrastRatio(lightToken("--dashio-aqua-deep"), lightToken("--dashio-paper"))).toBeLessThan(AA_LARGE_TEXT_AND_CONTROL);
+    const root = join(__dirname, "..");
+    const users = (readdirSync(root, { recursive: true }) as string[]).filter(name => name.endsWith(".tsx") && !name.endsWith(".test.tsx")).filter(name => readFileSync(join(root, name), "utf8").includes("text-[var(--dashio-aqua-deep)]"));
+    expect(users).toEqual([]);
   });
 });
