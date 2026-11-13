@@ -9,6 +9,7 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { companies, users } from "../drizzle/schema.ts";
+import { DEMO_PROJECT_CODE, DEMO_TENANT_SLUG } from "./lib/demoTenant.mjs";
 import { createProjectForTenant, createTenantForUser, createWbsItem, getDb, upsertUser } from "../server/db.ts";
 
 const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL?.trim().toLowerCase() || "demo.admin@example.test";
@@ -39,8 +40,8 @@ const openId = `email:${createHash("sha256").update(DEMO_EMAIL).digest("hex").sl
 await upsertUser({ openId, name: "مدير العرض التجريبي", email: DEMO_EMAIL, loginMethod: "email" });
 const [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
-const { tenantId } = await createTenantForUser({ userId: user.id, legalName: "شركة العرض التجريبي", slug: "co-1001", packageCode: "ALL-IN-ONE" });
-const { id: projectId } = await createProjectForTenant({ userId: user.id, tenantId, code: "PRJ-1001", name: "مشروع العرض التجريبي", projectType: "سكني", currency: "SAR" });
+const { tenantId } = await createTenantForUser({ userId: user.id, legalName: "شركة العرض التجريبي", slug: DEMO_TENANT_SLUG, packageCode: "ALL-IN-ONE" });
+const { id: projectId } = await createProjectForTenant({ userId: user.id, tenantId, code: DEMO_PROJECT_CODE, name: "مشروع العرض التجريبي", projectType: "سكني", currency: "SAR" });
 const foundation = await createWbsItem({ userId: user.id, tenantId, projectId, code: "1", name: "الأساسات", plannedValue: 400000 });
 await createWbsItem({ userId: user.id, tenantId, projectId, code: "2", name: "الهيكل الإنشائي", plannedValue: 900000 });
 await createWbsItem({ userId: user.id, tenantId, projectId, code: "1.1", name: "أعمال الحفر", parentId: foundation.id, plannedValue: 150000 });

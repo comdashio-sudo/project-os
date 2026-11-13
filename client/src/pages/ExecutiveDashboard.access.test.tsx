@@ -67,6 +67,15 @@ describe("ExecutiveDashboard access", () => {
     expect(screen.getAllByText("EX-01 · Executive evidence").length).toBeGreaterThan(0);
   });
 
+  it("D-28 (G-170): an empty cash-flow section says where the figures come from and links to the projects", () => {
+    state.error = null;
+    state.data = { totals: { budget: 100, actual: 60, forecast: 90 }, projects: [], decisions: [] };
+    state.cashData = { cashFlow: null, cashFlowByPortfolio: [], cashFlowByProject: [] };
+    render(<ExecutiveDashboard />);
+    expect(screen.getByText("It appears once a project's planned cash flow is entered in the project baseline.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open the projects" }).getAttribute("href")).toBe("/projects/tenant-1");
+  });
+
   it("keeps executive indicators and decisions available when only the cash-flow source fails", () => {
     state.error = null;
     state.data = { totals: { budget: 100, actual: 60, forecast: 90 }, projects: [{ id: "project-1", code: "EX-01", name: "Executive evidence", status: "active", health: { status: "green" }, forecastCost: 90 }], decisions: [{ id: "decision-1", problem: "Approve recovery", status: "open" }] };

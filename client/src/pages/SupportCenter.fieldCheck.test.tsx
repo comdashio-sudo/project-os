@@ -13,7 +13,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ support: { tickets: { invalidate: vi.fn() } } }),
   support: {
     tickets: { useQuery: () => ({ isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() }) },
-    knowledge: { list: { useQuery: () => ({ isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() }) } },
+    knowledge: { list: { useQuery: () => ({ isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() }) }, sources: { useQuery: () => ({ data: undefined, error: null }) } },
     ticket: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: vi.fn() }) },
     create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) },
     reply: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
