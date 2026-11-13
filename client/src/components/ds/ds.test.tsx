@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
+import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
 beforeAll(() => {
@@ -249,5 +249,21 @@ describe("formatWeekday", () => {
     expect(formatWeekday("2026-11-09", "en")).toBe("Monday");
     expect(formatWeekday("2026-11-09", "ar")).toBe("الاثنين");
     for (const value of ["", "2026-11", "2026-02-30x", "not a date", "2026-13-45"]) expect(formatWeekday(value, "en")).toBe("—");
+  });
+});
+
+describe("D-75: formatDateTime — a moment, in the language's month names, Western digits only", () => {
+  it("writes the date and the time with digits 0-9 in all three languages", () => {
+    const moment = new Date(2026, 9, 25, 9, 5);
+    for (const language of ["ar", "en", "ur"] as const) {
+      const text = formatDateTime(moment, language);
+      expect(text, language).toMatch(/2026/);
+      expect(text, language).toMatch(/09:05/);
+      expect(text, language).not.toMatch(/[٠-٩۰-۹]/);
+    }
+    expect(formatDateTime(moment, "en")).toMatch(/Oct/);
+  });
+  it("accepts the ISO string the server sends", () => {
+    expect(formatDateTime("2026-10-25T09:05:00", "en")).toBe(formatDateTime(new Date(2026, 9, 25, 9, 5), "en"));
   });
 });

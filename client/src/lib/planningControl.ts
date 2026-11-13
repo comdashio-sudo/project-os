@@ -1,4 +1,5 @@
 import { resolveLanguage, type Language } from "./language";
+import { formatAmount, formatPercent } from "@/components/ds/format";
 import { riyalLabel } from "./profitabilityView";
 
 export type PlanningControlInput = {
@@ -73,13 +74,13 @@ export function calculatePlanningControl(input: PlanningControlInput) {
 export type PlanningControlResult = ReturnType<typeof calculatePlanningControl>;
 
 export function formatPlanningPercent(value: number | null) {
-  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+  return value === null ? "—" : formatPercent(value * 100, 1);
 }
 
 /** V1 shows the riyal (see formatMoney): the stored code is ignored, and the label follows the language. */
 export function formatPlanningAmount(value: number, currency: string, language: Language | boolean = false) {
   void currency;
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value) + ` ${riyalLabel(language)}`;
+  return formatAmount(value, 2) + ` ${riyalLabel(language)}`;
 }
 
 export function planningControlLabel(code: string, language: Language | boolean) {
