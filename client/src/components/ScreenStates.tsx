@@ -29,6 +29,15 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
   return failureCount < 3;
 }
 
+/**
+ * D-28: whether «Try again» on a failed submit can help — a dropped connection, a timeout or a server error. A rejected input, a refusal,
+ * a duplicate (CONFLICT) or something gone is answered the same way the second time, so there the reason alone is shown.
+ */
+export function isRetryable(error: unknown): boolean {
+  const code = (error as ErrorLike)?.data?.code;
+  return !(code && (FINAL_CODES.has(code) || code === "CONFLICT"));
+}
+
 /** Loading: a short line that names what is being read, so the place is never blank. */
 export function LoadingState({ isArabic, label }: { isArabic: boolean; label?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
