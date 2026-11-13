@@ -1,6 +1,6 @@
 /** @vitest-environment node */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isLanguageNeutral, urduCopiesOf } from "./urduCopies";
 
@@ -74,6 +74,19 @@ const TRANSLATED = ["pages/ProjectPmc.tsx", "pages/ProjectMasterPlan.tsx", "page
   "pages/ProjectGoodsReceipts.tsx",
   "pages/ProjectRegistry.tsx"];
 
+// D-68 (closing): every source file under client/src, not only the batches above. A file that keeps English in its Urdu on purpose is named
+// here with its reason; anything else with a copied Urdu text fails, so a new screen cannot arrive untranslated either.
+const EXEMPT: Record<string, string> = {
+  "components/dailyReport/DailyReportDocument.tsx": "Urdu takes the English headings, as the daily report's Excel export and the import templates do (STATE: declared limit)",
+  "pages/ComponentShowcase.tsx": "the component gallery's sample data: date masks (MM, YYYY), initials, invoice codes, package and brand names",
+  "pages/DesignPreview.tsx": "the English font sample shown in the English card, and the WCAG level name AA",
+};
+const sourceFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+  const path = join(dir, entry.name);
+  if (entry.isDirectory()) return sourceFiles(path);
+  return /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts") ? [path] : [];
+});
+
 describe("D-66: Urdu copies of English", () => {
   it("finds a copied Urdu text in a dictionary, in a nested `as Record` dictionary, and in an inline pick", () => {
     const source = `const t = { ar: { a: "أ" }, en: { title: "Plan", s: { x: "Open" } as Record<string, string>, f: (n: number) => \`\${n} units\` }, ur: { title: "Plan", s: { x: "Open" } as Record<string, string>, f: (n: number) => \`\${n} units\` } };
@@ -105,5 +118,17 @@ const p = pickLanguage(language, { ar: "حفظ", en: "Save", ur: "Save" });`;
 
   it.each(TRANSLATED)("%s has no Urdu text copied from English", file => {
     expect(urduCopiesOf(readFileSync(join(__dirname, "..", file), "utf8"), file)).toEqual([]);
+  });
+
+  it("D-68: no source file under client/src has an Urdu text copied from English, apart from the named exceptions", () => {
+    const root = join(__dirname, "..");
+    const copies = sourceFiles(root).map(path => relative(root, path)).filter(file => !(file in EXEMPT))
+      .flatMap(file => urduCopiesOf(readFileSync(join(root, file), "utf8"), file).map(copy => `${file}:${copy.line} ${copy.key}`));
+    expect(copies).toEqual([]);
+  });
+
+  it("NEGATIVE: each exception still has a copy (an exception that no longer needs it is removed)", () => {
+    const root = join(__dirname, "..");
+    for (const file of Object.keys(EXEMPT)) expect(urduCopiesOf(readFileSync(join(root, file), "utf8"), file).length, file).toBeGreaterThan(0);
   });
 });

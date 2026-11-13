@@ -619,12 +619,12 @@
 | pages/ProjectAdvisor.tsx | 10 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 10 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectChanges.tsx | 19 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 18 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectClaims.tsx | 23 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 22 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/ProjectContracts.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectContracts.tsx | 29 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 27 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectControls.tsx | 101 | 0 | مغلق (D-67، 2026-11-13): 91 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDataExport.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 8 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDesign.tsx | 63 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 63 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/ProjectDocuments.tsx | 32 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectEmployees.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectDocuments.tsx | 32 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 32 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
+| pages/ProjectEmployees.tsx | 40 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 38 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectFieldReports.tsx | 1 | 23 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectFpac.tsx | 61 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 78 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، منها 8 في أزواج [البند، المعادلة] صارت البوابة تفحصها، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectGoodsReceipts.tsx | 27 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 25 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
@@ -637,21 +637,21 @@
 | pages/ProjectNotifications.tsx | 12 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 9 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectOperationalImports.tsx | 10 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 19 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ومنها رسالة الرفض في WriteGate كانت `text.en.denied`، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectPmc.tsx | 105 | 0 | مغلق (D-66، 2026-11-13): 113 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/ProjectProcurement.tsx | 36 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectProcurement.tsx | 36 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 34 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectPurchaseOrders.tsx | 25 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 24 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectQualityInspections.tsx | 1 | 22 | مغلق (D-68 دفعة 2، 2026-11-13): الصف قديم — القاموس الأردي مترجم من قبل، والفاحص `urduCopies` يجد 0 نسخة؛ ويحرسه `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectRegistry.tsx | 27 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 26 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectResources.tsx | 20 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 18 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectRfis.tsx | 22 | 0 | مغلق (D-68 دفعة 3، 2026-11-13): 21 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectTenders.tsx | 61 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 61 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/ProjectWarehouses.tsx | 41 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectWarehouses.tsx | 41 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 37 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectWorkforce.tsx | 60 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 56 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/SetupWizard.tsx | 58 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 57 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/SupportCenter.tsx | 35 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/SupportCenter.tsx | 35 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 35 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/SupportOwnerPanel.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 11 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/TenantAdministration.tsx | 92 | 0 | مغلق (D-67، 2026-11-13): 85 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/UserGuide.tsx | 11 | 0 | مغلق (D-68 دفعة 2، 2026-11-13): 11 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
-| pages/UserProfile.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/UserProfile.tsx | 40 | 0 | مغلق (D-68 دفعة 4، 2026-11-13): 40 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 
 ### 4.2 نصوص بالمنطق الشرطي `isArabic ? … : …` (لا تملك خانة أردية، فتظهر بالإنجليزية في الأردية)
 
