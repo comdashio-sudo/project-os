@@ -18,6 +18,7 @@ import { sdk } from "../../server/_core/sdk.ts";
 import { getDb, upsertUser } from "../../server/db.ts";
 import { appRouter } from "../../server/routers.ts";
 import { DEMO_PROJECT_CODE, DEMO_TENANT_SLUG } from "../../scripts/lib/demoTenant.mjs";
+import { getOperationalRoleName } from "../../client/src/lib/operationalRolePresentation.ts";
 import { DEMO_EMAIL, TEST_DATABASE, VIEWER_ROLE, emailOpenId, visitPeople } from "./roleUsers.mjs";
 
 const fail = message => { console.error(message); process.exit(2); };
@@ -60,7 +61,8 @@ for (const person of visitPeople()) {
     userRow = demo;
     counts.demo += 1;
   } else {
-    await upsertUser({ openId, name: `UI visit: ${person.name}`, email: person.email, loginMethod: "email" });
+    // G-166 (D-30): the person is named in Arabic, as the screens they visit are (the audit counts English left on screen).
+    await upsertUser({ openId, name: `زيارة الواجهة: ${getOperationalRoleName({ code: person.code, name: person.name }, "ar")}`, email: person.email, loginMethod: "email" });
     [userRow] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
     const [member] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.tenantId, tenantId), eq(memberships.userId, userRow.id))).limit(1);
     if (member) {
