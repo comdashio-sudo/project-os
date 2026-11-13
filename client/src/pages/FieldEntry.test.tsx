@@ -7,7 +7,7 @@ import FieldEntry from "./FieldEntry";
 const state = vi.hoisted(() => ({
   arabic: false, query: {} as Record<string, unknown>, progress: vi.fn(), issue: vi.fn(), refetch: vi.fn(), issueError: null as unknown,
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
-  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null,
+  teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null, variables: {} as Record<string, unknown>,
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
@@ -21,8 +21,8 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
     sheet: { useQuery: (input: unknown) => { state.sheetCalls(input); return { ...state.sheet, refetch: state.sheetRefetch }; } },
     save: { useMutation: (options: { onSuccess: (result: unknown, variables: unknown) => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.team(input); if (state.teamError) options.onError(state.teamError, input); else options.onSuccess(state.teamResult, input); }, isPending: false, error: state.teamError }) },
   },
-  progress: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.progress(input); if (state.progressError) options.onError(state.progressError, input); else options.onSuccess(); }, isPending: false, error: state.progressError }) } },
-  warehouses: { issueToWork: { useMutation: (options: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { state.issue(input); if (!state.issueError) options.onSuccess(); }, isPending: false, error: state.issueError }) } },
+  progress: { create: { useMutation: (options: { onSuccess: () => void; onError: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { state.progress(input); if (state.progressError) options.onError(state.progressError, input); else options.onSuccess(); }, isPending: false, error: state.progressError, variables: state.variables.progress }) } },
+  warehouses: { issueToWork: { useMutation: (options: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { state.issue(input); if (!state.issueError) options.onSuccess(); }, isPending: false, error: state.issueError, variables: state.variables.issue }) } },
 } }));
 
 const context = {
@@ -36,7 +36,7 @@ const context = {
   can: { logProgress: true, issueMaterial: true },
 };
 const load = (data: unknown = context) => { state.query = { data, isLoading: false, error: null }; render(<FieldEntry />); };
-afterEach(() => { cleanup(); state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.me = { id: 7 }; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
+afterEach(() => { cleanup(); state.variables = {}; state.arabic = false; state.query = {}; state.issueError = null; state.progressError = null; state.teamError = null; state.receiptError = null; state.sendError = null; state.me = { id: 7 }; state.sheet = { data: undefined, isLoading: false, error: null }; state.teamResult = { saved: 0, errors: [] }; vi.clearAllMocks(); try { localStorage.clear(); } catch { /* jsdom storage */ } });
 
 describe("FieldEntry (phone entry)", () => {
   it("outside the product frame keeps its own language switch", () => {
@@ -517,4 +517,37 @@ describe("FieldEntry: what is kept on the phone belongs to a person (names are p
     setOnline(true);
   });
 });
+
+  describe("D-28 (G-171): a failure the server answered has «Retry» when sending again can help", () => {
+    const serverError = { message: "PROJECT_OS_INTERNAL", data: { code: "INTERNAL_SERVER_ERROR" } };
+    it("a failed progress save is re-sent with the same input, so its request identifier keeps it from being written twice", () => {
+      const sent = { tenantId: "t", projectId: "p", wbsItemId: "x1", percentComplete: 75, reportedAt: new Date(), clientRequestId: "req-1" };
+      state.progressError = serverError; state.variables.progress = sent;
+      load();
+      expect(document.querySelector("[data-field-failure]")!.getAttribute("role")).toBe("alert");
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(state.progress).toHaveBeenCalledWith(sent);
+    });
+
+    it("a failed material issue is re-sent the same way, and the button is 44px", () => {
+      const sent = { tenantId: "t", projectId: "p", materialId: "m1", quantity: 2 };
+      state.issueError = serverError; state.variables.issue = sent;
+      load();
+      fireEvent.click(screen.getByText("Issue material"));
+      const retry = screen.getByRole("button", { name: "Retry" });
+      expect(retry.className).toContain("min-h-[44px]");
+      fireEvent.click(retry);
+      expect(state.issue).toHaveBeenCalledWith(sent);
+    });
+
+    it("NEGATIVE: an input the server rejected (BAD_REQUEST) or a duplicate (CONFLICT) shows the reason with no «Retry», since sending it again changes nothing", () => {
+      for (const code of ["BAD_REQUEST", "CONFLICT"]) {
+        state.progressError = { message: "PROJECT_OS_PROGRESS_INVALID", data: { code } }; state.variables.progress = { wbsItemId: "x1" };
+        load();
+        expect(document.querySelector("[data-field-failure]")).not.toBeNull();
+        expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+        cleanup();
+      }
+    });
+  });
 });

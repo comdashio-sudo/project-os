@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Link, useParams } from "wouter";
 import { SourceNotice } from "@/components/SectionResilience";
+import { isRetryable } from "@/components/ScreenStates";
 import { type Language, pickLanguage } from "@/lib/language";
 
 // Phone entry for the two things a site engineer does all day: log progress and
@@ -65,6 +66,14 @@ const readCache = <V,>(key: string): V | null => { const raw = remembered(key); 
 const attempt = { networkMode: "always" as const };
 const localized = (code: string, language: Language) => pickLanguage(language, getProjectError(code).messages);
 
+/**
+ * D-28 (G-171): a failure the server answered (a dropped connection goes to the offline queue instead) — the reason, and «Retry» when sending
+ * again can help: a submit is re-sent with the same input, so its clientRequestId keeps a second send from writing twice; a read is fetched again.
+ */
+function FieldFailure({ error, isArabic, retryLabel, onRetry }: { error: unknown; isArabic: boolean; retryLabel: string; onRetry?: () => void }) {
+  return <div role="alert" data-field-failure className="text-sm text-danger-soft-foreground"><p>{getLocalizedProjectError(error as Parameters<typeof getLocalizedProjectError>[0], isArabic)}</p>{onRetry && isRetryable(error) && <Button type="button" variant="outline" className={`${tap} mt-2`} onClick={onRetry}>{retryLabel}</Button>}</div>;
+}
+
 function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
@@ -106,7 +115,7 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
         ))}
       </ul>
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
-      {create.error && !isNetworkError(create.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(create.error, isArabic)}</p>}
+      {create.error && !isNetworkError(create.error) && <FieldFailure error={create.error} isArabic={isArabic} retryLabel={t.retry} onRetry={create.variables ? () => create.mutate(create.variables!) : undefined} />}
       <Button className={`${tap} w-full text-base`} disabled={itemId === null || percent === null || create.isPending} onClick={() => create.mutate({ tenantId, projectId, wbsItemId: itemId!, percentComplete: percent!, reportedAt: new Date(), clientRequestId: requestId.current })}>{create.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -170,7 +179,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
         <label className="mt-2 block">{t.workItem}<Select aria-label={t.workItem} className={`${tap} mt-1`} value={wbsItemId} onValueChange={setWbsItemId} options={context.wbs.map(w => ({ value: w.id, label: `${w.code} · ${w.name}` }))} /></label>
       </details>
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
-      {issue.error && !isNetworkError(issue.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(issue.error, isArabic)}</p>}
+      {issue.error && !isNetworkError(issue.error) && <FieldFailure error={issue.error} isArabic={isArabic} retryLabel={t.retry} onRetry={issue.variables ? () => issue.mutate(issue.variables!) : undefined} />}
       <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: averageCost === null ? cost : undefined, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -238,7 +247,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
         </>
       )}
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
-      {receive.error && !isNetworkError(receive.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(receive.error, isArabic)}</p>}
+      {receive.error && !isNetworkError(receive.error) && <FieldFailure error={receive.error} isArabic={isArabic} retryLabel={t.retry} onRetry={receive.variables ? () => receive.mutate(receive.variables!) : undefined} />}
       <Button className={`${tap} w-full text-base`} disabled={!ready || receive.isPending} onClick={submit}>{receive.isPending ? t.saving : t.save}</Button>
     </div>
   );
@@ -274,7 +283,7 @@ function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, language, 
       <label className="block text-sm font-semibold text-muted-foreground">{t.workDate}<input type="date" aria-label={t.workDate} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} value={date} onChange={event => { if (event.target.value) { setDate(event.target.value); setDone(null); setRowErrors([]); setHours({}); setUnticked(new Set()); requestId.current = newId(); } }} /></label>
       {cached && <p role="status" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.cachedNotice}</p>}
       {sheet.isLoading && !rows && <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>}
-      {sheet.error && !rows && !isNetworkError(sheet.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(sheet.error, isArabic)}</p>}
+      {sheet.error && !rows && !isNetworkError(sheet.error) && <FieldFailure error={sheet.error} isArabic={isArabic} retryLabel={t.retry} onRetry={() => void sheet.refetch()} />}
       {rows && rows.length === 0 && <p className="text-sm text-muted-foreground">{t.teamEmpty}</p>}
       {rows && rows.length > 0 && (
         <ul className="space-y-2">
@@ -292,7 +301,7 @@ function TeamHoursEntry({ tenantId, projectId, personId, t, isArabic, language, 
       )}
       {rowErrors.length > 0 && <div role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-soft-foreground"><p className="font-semibold">{t.rowErrors}</p><ul className="mt-1 list-disc ps-5">{rowErrors.map(error => <li key={`${error.index}-${error.assignmentId}`}>{label(error.assignmentId)}: {localized(error.code, language)}</li>)}</ul></div>}
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
-      {save.error && !isNetworkError(save.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(save.error, isArabic)}</p>}
+      {save.error && !isNetworkError(save.error) && <FieldFailure error={save.error} isArabic={isArabic} retryLabel={t.retry} onRetry={save.variables ? () => save.mutate(save.variables!) : undefined} />}
       {done && <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{done.queued ? t.queuedSaved : t.teamSaved}: {done.count} {t.rows}</p>}
       <Button className={`${tap} w-full text-base`} disabled={entries.length === 0 || save.isPending} onClick={() => { setDone(null); save.mutate({ tenantId, projectId, workDate: dayOf(date), entries, clientRequestId: requestId.current }); }}>{save.isPending ? t.saving : `${t.saveTeam}${entries.length ? ` (${entries.length})` : ""}`}</Button>
     </div>

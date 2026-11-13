@@ -5,12 +5,12 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FieldError } from "@/components/FieldError";
 import { formFieldErrors } from "@/lib/formValidation";
-import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import React from "react";
 import { Link, useSearch } from "wouter";
 import { pickLanguage } from "@/lib/language";
+import { ErrorState, isRetryable } from "@/components/ScreenStates";
 
 export default function AcceptInvitation() {
   const { isArabic, language } = useLanguage();
@@ -25,5 +25,5 @@ export default function AcceptInvitation() {
     setFieldErrors(errors);
     if (Object.keys(errors).length === 0) acceptance.mutate({ inviteToken: inviteToken.trim() });
   };
-  return <main className="min-h-screen bg-[#f4f6f8] p-5 sm:p-8"><div className="mx-auto max-w-xl"><Link href="/" className="text-sm font-semibold text-[#0e6b70]">{t.back}</Link><Card className="mt-5"><CardHeader><ShieldCheck className="h-7 w-7 text-[#0e6b70]" /><h1 data-slot="card-title" className="mt-2 text-2xl font-semibold leading-none">{t.title}</h1><p className="text-sm leading-6 text-slate-500">{t.sub}</p></CardHeader><CardContent><form noValidate className="space-y-4" onSubmit={submit}><div className="space-y-2"><Label htmlFor="invite-token">{t.token}</Label><Input id="invite-token" required minLength={32} value={inviteToken} onChange={event => setInviteToken(event.target.value)} /><FieldError id="invite-token-error" message={fieldErrors["invite-token"]} /></div><Button type="submit" disabled={acceptance.isPending}>{acceptance.isPending ? t.submitting : t.submit}</Button>{acceptance.error ? <p role="alert" className="text-sm font-medium text-red-700">{getLocalizedProjectError(acceptance.error, isArabic)}</p> : null}{acceptance.isSuccess ? <p role="status" className="flex items-center gap-2 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" />{t.success}</p> : null}</form></CardContent></Card></div></main>;
+  return <main className="min-h-screen bg-[#f4f6f8] p-5 sm:p-8"><div className="mx-auto max-w-xl"><Link href="/" className="text-sm font-semibold text-[#0e6b70]">{t.back}</Link><Card className="mt-5"><CardHeader><ShieldCheck className="h-7 w-7 text-[#0e6b70]" /><h1 data-slot="card-title" className="mt-2 text-2xl font-semibold leading-none">{t.title}</h1><p className="text-sm leading-6 text-slate-500">{t.sub}</p></CardHeader><CardContent><form noValidate className="space-y-4" onSubmit={submit}><div className="space-y-2"><Label htmlFor="invite-token">{t.token}</Label><Input id="invite-token" required minLength={32} value={inviteToken} onChange={event => setInviteToken(event.target.value)} /><FieldError id="invite-token-error" message={fieldErrors["invite-token"]} /></div><Button type="submit" disabled={acceptance.isPending}>{acceptance.isPending ? t.submitting : t.submit}</Button>{acceptance.error ? <ErrorState isArabic={isArabic} error={acceptance.error} retrying={acceptance.isPending} onRetry={acceptance.variables && isRetryable(acceptance.error) ? () => acceptance.mutate(acceptance.variables!) : undefined} /> : null}{acceptance.isSuccess ? <p role="status" className="flex items-center gap-2 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" />{t.success}</p> : null}</form></CardContent></Card></div></main>;
 }

@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, Calculator, ChevronLeft, ChevronRight, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { Calculator, ChevronLeft, ChevronRight, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { pickLanguage } from "@/lib/language";
+import { ErrorState, isRetryable } from "@/components/ScreenStates";
 
 type Values = {
   pv: string;
@@ -156,7 +156,7 @@ export default function EvmCalculator() {
 
           <section className="space-y-6">
             <div><p className="text-sm font-semibold tracking-[.16em] text-[#0e6b70]">{t.outcome}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{t.title}</h2></div>
-            {query.isError ? <div role="alert" className="rounded-[var(--radius-lg)] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><AlertTriangle className="mb-2 h-5 w-5" />{getLocalizedProjectError(query.error, isArabic)}</div> : null}
+            {query.isError ? <ErrorState isArabic={isArabic} error={query.error} retrying={query.isFetching} onRetry={isRetryable(query.error) ? () => query.refetch() : undefined} /> : null}
             {!submitted ? <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-card px-8 py-16 text-center text-muted-foreground">{t.empty}</div> : null}
             {submitted && query.isLoading ? <div className="rounded-[var(--radius-lg)] bg-card px-8 py-16 text-center text-muted-foreground">{t.loading}</div> : null}
             {query.data ? <>
