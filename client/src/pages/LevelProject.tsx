@@ -12,6 +12,9 @@ import { Figure } from "@/pages/LevelCompany";
 import { enumLabel } from "@/lib/labels";
 import { ProjectFpac } from "@/pages/ProjectFpac";
 import { TableScroll } from "@/components/ds/TableScroll";
+import { SourcePercentages } from "@/components/pmc/SourcePercentages";
+import { WriteGate } from "@/lib/permissions";
+import { wo22Text } from "@/lib/wo22Text";
 
 // Level 3, one project: profitability, EVM, progress, the daily report, handovers and inspections. The figures come from `scopes.project`
 // (scopeDashboards.ts); the profitability panel is the existing ProjectFpac; the daily reports and the inspections are the existing
@@ -97,6 +100,7 @@ export default function LevelProject() {
           </dl>
         : <p className="text-sm text-muted-foreground">{t.evmUnavailable}</p>}
     </LevelSection>
+    <WriteGate permission="project.pmc.read" projectId={projectId}><LevelSection id="project-percentages" title={pickLanguage(language, wo22Text).percentagesTitle}><SourcePercentages tenantId={tenantId} projectId={projectId} /></LevelSection></WriteGate>
     <ProjectFpac tenantId={tenantId} projectId={projectId} />
     <LevelSection id="project-daily" title={t.daily}>
       <SourceNotice query={reports} isArabic={isArabic} title={t.daily} fallback={t.dailyFailed} />

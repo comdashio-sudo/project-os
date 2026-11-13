@@ -17,7 +17,7 @@ vi.mock("wouter", () => ({
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: state.isArabic ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
-vi.mock("@/lib/trpc", () => ({ trpc: { scopes: { portfolio: { useQuery: () => state.query } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { pmcSite: { percentagesByProject: { useQuery: () => ({ isSuccess: true, data: [] }) } }, scopes: { portfolio: { useQuery: () => state.query } } } }));
 
 describe("LevelPortfolio (level 2, projects management)", () => {
   beforeEach(() => { state.isArabic = true; state.query = ok(PORTFOLIO); });
