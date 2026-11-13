@@ -39,7 +39,8 @@ export function PayrollPanel({ tenantId }: { tenantId: string }) {
   const canApprovePayroll = Boolean(capabilities.data?.canApprovePayroll);
   const canReadSensitive = Boolean(capabilities.data?.canReadSensitivePayroll);
   const employees = api.list.useQuery({ tenantId }, { enabled: canManageStructure });
-  const runs = api.payroll.runs.useQuery({ tenantId }, { enabled: Boolean(capabilities.data) });
+  // G-212: the run list is asked for only by someone the server lets read it (any payroll permission), never to be refused in the background.
+  const runs = api.payroll.runs.useQuery({ tenantId }, { enabled: canManageStructure || canRunPayroll || canApprovePayroll || canReadSensitive });
   const structureQuery = api.payroll.salaryStructure.get.useQuery({ tenantId, employeeId: salaryEmployeeId ?? emptyId }, { enabled: canManageStructure && Boolean(salaryEmployeeId) });
   const detailsQuery = api.payroll.details.useQuery({ tenantId, payrollRunId: detailsRunId ?? emptyId }, { enabled: canReadSensitive && Boolean(detailsRunId) });
   const allocationProjects = api.payroll.allocationProjects.useQuery({ tenantId }, { enabled: canApprovePayroll });

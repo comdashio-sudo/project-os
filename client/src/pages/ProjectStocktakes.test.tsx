@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Approved by the same person who opened it" }));
-vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children, reason }: { children: React.ReactNode; reason: { en: string } }) => state.allowed ? <>{children}</> : <p role="note">{reason.en}</p> }));
+vi.mock("@/lib/permissions", () => ({ useCan: () => state.allowed, usePermissionsLoading: () => false, WriteGate: ({ children, reason }: { children: React.ReactNode; reason: { en: string } }) => state.allowed ? <>{children}</> : <p role="note">{reason.en}</p> }));
 vi.mock("@/lib/trpc", () => ({ trpc: { stocktakes: {
   list: { useQuery: () => ({ isLoading: false, refetch: state.listRefetch, data: [{ id: ST, stocktakeNumber: "ST-001", warehouseId: WH, status: state.status, createdAt: new Date("2026-11-01T08:00:00Z"), approvedAt: null }] }) },
   get: { useQuery: (_input: unknown, options: { enabled: boolean }) => { state.getEnabled.push(options.enabled); return options.enabled ? { isLoading: false, refetch: state.getRefetch, data: { id: ST, stocktakeNumber: "ST-001", warehouseId: WH, status: state.status, lines: [
@@ -78,11 +78,10 @@ describe("ProjectStocktakes (D-32)", () => {
     expect(screen.getByText(/cannot be changed/)).toBeTruthy();
   });
 
-  it("NEGATIVE: without project.inventory.manage the forms are replaced by the read-only line", async () => {
-    state.allowed = false; const user = userEvent.setup(); render(<ProjectStocktakes tenantId="tenant-1" projectId="project-1" warehouses={warehouses} />);
+  it("NEGATIVE: without project.inventory.manage: no stocktake is read (G-212) and the section says why in one line", () => {
+    state.allowed = false; state.getEnabled = []; render(<ProjectStocktakes tenantId="tenant-1" projectId="project-1" warehouses={warehouses} />);
     expect(screen.queryByRole("button", { name: "Open stocktake" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: /Show/ }));
-    expect(screen.queryByRole("button", { name: "Approve and post differences" })).toBeNull();
-    expect(screen.getAllByRole("note").map(note => note.textContent).join(" ")).toMatch(/read-only/);
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
+    expect(screen.getByRole("note").textContent).toMatch(/manage inventory/);
   });
 });

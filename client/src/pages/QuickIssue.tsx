@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { useCan, usePermissionsLoading } from "@/lib/permissions";
+import { NoPermission } from "@/components/ScreenStates";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Link, useParams } from "wouter";
@@ -67,7 +69,13 @@ export default function QuickIssue() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const options = trpc.warehouses.cellOptions.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), networkMode: "always", retry: 1 });
+  // G-212: the cells are asked for only by someone who may issue (project.inventory.manage); someone known not to is told so and no refused call
+  // is made. Online, the screen waits the moment it takes to learn the permissions; offline the answer cannot come, so the call goes as before
+  // (the field screen keeps working without a network) and the server refuses on its own anyway.
+  const canIssue = useCan("project.inventory.manage", projectId); const permissionsLoading = usePermissionsLoading();
+  const issueDenied = !canIssue && !permissionsLoading;
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const options = trpc.warehouses.cellOptions.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) && (canIssue || (permissionsLoading && offline)), networkMode: "always", retry: 1 });
   const key = (name: string) => `quickIssue:${projectId}:${name}`;
   const [warehouseId, setWarehouseId] = useState("");
   const [query, setQuery] = useState("");
@@ -119,6 +127,7 @@ export default function QuickIssue() {
       <div className="mx-auto max-w-md space-y-4">
         <Link href={`/m/${tenantId}/${projectId}`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
         <h1 className="text-xl font-semibold">{t.title}</h1>
+        {issueDenied && <NoPermission isArabic={isArabic} scope="section" />}
         {options.isLoading && <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>}
         {options.error && <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(options.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => options.refetch()}>{t.retry}</Button></div>}
         {data && data.activities.length === 0 && <p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noActivities}</p>}

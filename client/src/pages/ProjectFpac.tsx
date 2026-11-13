@@ -5,6 +5,7 @@ import { type ExportColumn } from "@/lib/excelExport";
 import { ageSentence, formatMoney, formatPercent, sourceAnchor, sourceRoute, sparklinePoints, trend, type Source } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { useCan, usePermissionsLoading } from "@/lib/permissions";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import React, { useState } from "react";
 import { GuardedPanels } from "@/components/SectionResilience";
@@ -14,7 +15,7 @@ import LabourLoadingCard from "./LabourLoadingCard";
 import ProjectInvoicesPanel from "./ProjectInvoicesPanel";
 import { SourceNotice } from "@/components/SectionResilience";
 import { pickLanguage } from "@/lib/language";
-import { ErrorState } from "@/components/ScreenStates";
+import { ErrorState, NoPermission } from "@/components/ScreenStates";
 
 const text = {
   ar: {
@@ -76,12 +77,15 @@ function Unavailable({ reason, t }: { reason: string; t: T }) {
 export function ProjectFpac({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const report = trpc.profitability.project.useQuery({ tenantId, projectId });
-  const history = trpc.profitability.history.useQuery({ tenantId, projectId });
+  // G-212: the report is read only by who may read it (the server checks project.cashflow.read); anyone else sees why, and no refused call is made.
+  const canRead = useCan("project.cashflow.read", projectId); const permissionsLoading = usePermissionsLoading();
+  const report = trpc.profitability.project.useQuery({ tenantId, projectId }, { enabled: canRead });
+  const history = trpc.profitability.history.useQuery({ tenantId, projectId }, { enabled: canRead });
   const [openItem, setOpenItem] = useState<string | null>(null);
   const breakdown = trpc.profitability.costBreakdown.useQuery({ tenantId, projectId, wbsItemId: openItem ?? undefined }, { enabled: openItem !== null });
 
-  if (report.isLoading) return <section aria-busy="true" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><p role="status" className="text-sm text-slate-500">{t.loading}</p></section>;
+  if (!canRead && !permissionsLoading) return <section aria-label={t.title} data-fpac-denied className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><h2 className="mb-3 font-semibold">{t.title}</h2><NoPermission isArabic={isArabic} scope="section" /></section>;
+  if (report.isLoading || !canRead) return <section aria-busy="true" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><p role="status" className="text-sm text-slate-500">{t.loading}</p></section>;
   if (!report.data) {
     return (
       // the failed section keeps its name, so the reader knows which one failed (D-3 part 3 design review)
