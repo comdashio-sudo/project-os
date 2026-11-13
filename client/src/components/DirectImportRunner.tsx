@@ -55,10 +55,10 @@ const text = {
     failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
     rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
   }, ur: {
-    noFile: "تجزیہ سے پہلے ایک فائل منتخب کریں۔", typeError: "قابلِ قبول فارمیٹ XLSX یا CSV ہیں۔", sizeError: `The file is larger than the ${MAX_IMPORT_UPLOAD_MB} MB limit.`,
+    noFile: "تجزیہ سے پہلے ایک فائل منتخب کریں۔", typeError: "قابلِ قبول فارمیٹ XLSX یا CSV ہیں۔", sizeError: `فائل ${MAX_IMPORT_UPLOAD_MB} MB کی حد سے بڑی ہے۔`,
     uploadFailed: "فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ اپنا کنکشن دیکھیں اور دوبارہ کوشش کریں۔",
     uploading: "فائل اپ لوڈ ہو رہی ہے", analyzing: "فائل کا تجزیہ ہو رہا ہے", importing: "ریکارڈ لکھے جا رہے ہیں", progressLabel: "کارروائی کی پیش رفت",
-    stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" } as Record<string, string>,
+    stage: { queued: "شروع ہونے کا انتظار", downloading: "اسٹوریج سے فائل پڑھی جا رہی ہے", parsing: "قطاریں پڑھی جا رہی ہیں", validating: "قطاروں کی توثیق ہو رہی ہے", writing: "نتیجہ محفوظ ہو رہا ہے" } as Record<string, string>,
     failedTitle: "کارروائی ناکام ہو گئی", errors: "توثیق کی غلطیاں", row: "قطار", moreErrors: "صرف پہلی غلطیاں دکھائی گئی ہیں؛ مکمل تعداد اوپر ہے۔",
     rows: "قطاریں", created: "بنائے گئے ریکارڈ", updated: "اپ ڈیٹ ہونے والے ریکارڈ", skipped: "چھوڑے گئے ریکارڈ", nothingToConfirm: "فائل درست ہے مگر اس سے کچھ تبدیل نہیں ہوتا: پروجیکٹ میں یہ ڈیٹا پہلے سے موجود ہے۔", done: "محفوظ ہو گیا",
   },

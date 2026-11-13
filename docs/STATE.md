@@ -2526,6 +2526,14 @@
 
 **Q-14 منجز** (أ + ب). التلوين بالتوقف في الماستر بلان للمبرمج ج (Q-8) من `pmc.stalledUnits`.
 
+### D-68 دفعة 2 (D-12 د): الأردية في المناقصات والقوى العاملة ومعالج المشروع و16 شاشة صغيرة — وإغلاق 27 صفًا قديمًا (2026-11-13، المبرمج ب ضمن Q-15، واجهة فقط)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| 295 نصًّا أردويًا كان نسخة حرفية من الإنجليزية صار مكتوبًا بالأردية في 19 ملفًا: `ProjectTenders` (61)، `ProjectWorkforce` (56)، `SetupWizard` (57)، و16 شاشة بين 1 و13 نصًّا (`Home` و`NotFound` و`BillingRegister` و`CashFlowMonthly` و`EvmCalculator` و`LabourLoadingCard` و`TenantDataCard` و`DirectImportRunner` و`ProjectDataExport` و`ProjectNotifications` و`ProjectAdvisor` و`SupportOwnerPanel` و`UserGuide` و`PortfolioProfitability` و`ImportDiffPreview` و`PmoControlLinks`)؛ و«award» = «ٹھیکہ دینا» بالمسرد في عنوان قسم المناقصات أيضًا (كان «ایوارڈ») | `PROVEN` (اختبار) / ترجمة آلية «تحتاج مراجعة بشرية» | بوابة `urduCopies.test.tsx` تشمل الملفات الـ19؛ والفاحص صار يعدّ `ur: enText` (القاموس الإنجليزي باسمه) نسخة كاملة: موجب وسالب؛ `pnpm check` ناجح، `pnpm test` ← 3849 ناجحًا و0 فاشل؛ حيًا بالأردية: المناقصات والقوى العاملة ومعالج المشروع والرئيسية على 390 و1280 بلا تمرير أفقي ولا أرقام شرقية |
+| 27 صفًا في جدول 4.1 كانت «مفتوح» وقاموسها الأردي مترجم من قبل (مثل `EnterpriseNavigation` المترجم في #123، و`lib/userGuide.ts` و`lib/levels.ts` وشاشات المستويات الخمس) | `PROVEN` (اختبار) | الفاحص يجد 0 نسخة في كل منها، وفُحص بالعين عيّنة (MasterPlanTools وLicensingConsole وoperationalRolePresentation وFieldEntry)؛ أُغلقت صفوفها بعبارة «الصف قديم» وأُضيفت إلى البوابة فلا تعود |
+| حدود | `OPEN` | الترجمة آلية فتُراجَع بشريًا؛ بقي في جدول 4.1 نحو 523 نصًّا في 21 ملفًا (`MasterPlanDrawing` و`ProjectResources` و`ProjectChanges`… حتى `UserProfile`) لدفعتين تاليتين؛ والجدول 4.2 (نصوص `isArabic ? … : …` بلا خانة أردية) خارج هذه البوابة ولم يُمسّ |
+
 ### D-68 دفعة 1 (D-12 ج): الأردية في شاشات رحلات العرض — الرواتب والاستيراد والتصميم وFPAC (2026-11-13، المبرمج ب ضمن Q-15، واجهة فقط)
 
 | البند | الحالة | الدليل |

@@ -45,6 +45,8 @@ export function urduCopiesOf(sourceText: string, fileName = "file.tsx"): UrduCop
     }
     const a = textOf(en, source), b = textOf(ur, source);
     if (a !== null && b !== null && a === b) add(ur, key, b);
+    // D-68: `ur: englishDictionary` (the same name as `en`) is a whole dictionary copied by reference
+    else if (a === null && b === null && (ts.isIdentifier(ur) || ts.isPropertyAccessExpression(ur)) && en.getText(source) === ur.getText(source)) found.push({ line: source.getLineAndCharacterOfPosition(ur.getStart(source)).line + 1, key: key || "(whole)", text: `= ${ur.getText(source)}` });
   };
   const visit = (node: ts.Node) => {
     if (ts.isObjectLiteralExpression(node)) {

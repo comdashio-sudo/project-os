@@ -49,16 +49,16 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
         leftover: "Files that were not deleted:", home: "Back to the home page",
       }, ur: {
         title: "کمپنی کا ڈیٹا: مکمل نقل اور مستقل حذف", note: "صرف کمپنی کے مالک کے لیے۔ ایکسپورٹ ایک فائل ہے جس میں کمپنی کی ہر چیز ہے؛ حذف سب کچھ مستقل طور پر مٹا دیتا ہے اور اسے واپس نہیں کیا جا سکتا۔",
-        loading: "آپ کے ڈیٹا کا سائز پڑھا جا رہا ہے…", size: (rows: number, tables: number, files: number) => `Your company owns ${rows} records in ${tables} tables and ${files} stored files.`,
+        loading: "آپ کے ڈیٹا کا سائز پڑھا جا رہا ہے…", size: (rows: number, tables: number, files: number) => `آپ کی کمپنی کے ${tables} جدولوں میں ${rows} ریکارڈ اور ${files} محفوظ فائلیں ہیں۔`,
         download: "کمپنی کے ڈیٹا کی مکمل نقل ڈاؤن لوڈ کریں", downloadNote: "ایک کمپریس شدہ (NDJSON) فائل۔ ڈاؤن لوڈ مکمل ہونے کے بعد ریفریش دبائیں تاکہ وہ شمار ہو۔", refresh: "تازہ کریں",
-        lastExport: (at: string) => `Last full export: ${at}`, noExport: "ابھی تک کوئی مکمل ایکسپورٹ نہیں۔",
+        lastExport: (at: string) => `آخری مکمل ایکسپورٹ: ${at}`, noExport: "ابھی تک کوئی مکمل ایکسپورٹ نہیں۔",
         danger: "مستقل حذف", needExport: "حذف صرف اس وقت دستیاب ہے جب پچھلے 7 دنوں میں مکمل نقل ڈاؤن لوڈ کی گئی ہو۔",
         ask: "میں کمپنی کا ڈیٹا مستقل طور پر حذف کرنا چاہتا ہوں", asking: "تیار کیا جا رہا ہے…",
         warn: (rows: number, files: number, people: number) => `${rows} ریکارڈ اور ${files} فائلیں حذف ہوں گی، اور اس میں شامل ${people} افراد کی رکنیت ہٹا دی جائے گی؛ ان کے اکاؤنٹس اور شناخت حذف نہیں ہوں گے، اور وہ اب بھی سائن ان کر سکتے ہیں۔ آڈٹ ٹریل باقی رہتا ہے (یہ ریکارڈ کرتا ہے کہ حذف ہوا)، جس میں حذف شدہ نام کے تحت ایک خالی خول ہوتا ہے۔`,
-        typeName: (name: string) => `Type the company name exactly: ${name}`, nameLabel: "کمپنی کا نام", understand: "میں سمجھتا ہوں کہ حذف مستقل ہے اور اسے واپس نہیں کیا جا سکتا۔",
+        typeName: (name: string) => `کمپنی کا نام بالکل اسی طرح لکھیں: ${name}`, nameLabel: "کمپنی کا نام", understand: "میں سمجھتا ہوں کہ حذف مستقل ہے اور اسے واپس نہیں کیا جا سکتا۔",
         deleteNow: "کمپنی کا ڈیٹا مستقل طور پر حذف کریں", deleting: "حذف کیا جا رہا ہے…", expires: "یہ تصدیق 15 منٹ میں ختم ہو جائے گی۔",
         done: "حذف مکمل ہو گیا", pass: "تصدیق: کامیاب — کسی جدول میں کوئی ریکارڈ باقی نہیں۔", fail: "تصدیق: نامکمل — نیچے درج کچھ چیزیں باقی ہیں۔ دوبارہ کوشش کریں یا سپورٹ سے رابطہ کریں۔",
-        report: (deleted: number, tables: number) => `${deleted} records deleted after checking ${tables} tables.`, files: (deleted: number, found: number) => `Files deleted: ${deleted} of ${found}.`,
+        report: (deleted: number, tables: number) => `${tables} جدولوں کی جانچ کے بعد ${deleted} ریکارڈ حذف کیے گئے۔`, files: (deleted: number, found: number) => `حذف شدہ فائلیں: ${found} میں سے ${deleted}۔`,
         leftover: "وہ فائلیں جو حذف نہیں ہوئیں:", home: "ہوم پیج پر واپس جائیں",
       } });
 
