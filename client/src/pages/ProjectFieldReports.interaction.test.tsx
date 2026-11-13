@@ -8,6 +8,7 @@ import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), transition: vi.fn() }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized field report error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { fieldReports: {
