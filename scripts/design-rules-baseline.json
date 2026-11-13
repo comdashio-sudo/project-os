@@ -108,7 +108,6 @@
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectContracts.tsx": {
-  "raw-select": 7,
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectDataExport.tsx": {
@@ -125,7 +124,6 @@
   "hardcoded-colour": 2
  },
  "client/src/pages/ProjectFieldReports.tsx": {
-  "raw-select": 7,
   "hardcoded-colour": 1
  },
  "client/src/pages/ProjectFpac.tsx": {
@@ -133,9 +131,6 @@
  },
  "client/src/pages/ProjectGoodsReceipts.tsx": {
   "raw-select": 15
- },
- "client/src/pages/ProjectImports.tsx": {
-  "raw-select": 5
  },
  "client/src/pages/ProjectMasterPlan.tsx": {
   "raw-select": 31,
@@ -192,9 +187,6 @@
  "client/src/pages/TenantAdministration.tsx": {
   "raw-select": 37,
   "hardcoded-colour": 18
- },
- "client/src/pages/UnitCard.tsx": {
-  "raw-select": 6
  },
  "client/src/pages/UserGuide.tsx": {
   "hardcoded-colour": 9
