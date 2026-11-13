@@ -9,6 +9,7 @@ import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 import { EXPORT_TEST, EXPORT_WAIT } from "@/test/exportWait";
 import { TYPING_TEST } from "@/test/typing";
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/lib/excelExport", async importOriginal => { const actual = await importOriginal<typeof import("@/lib/excelExport")>(); return { ...actual, buildTableWorkbook: vi.fn(actual.buildTableWorkbook) }; });
 
 const hoisted = vi.hoisted(() => {
