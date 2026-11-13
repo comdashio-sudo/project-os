@@ -20,7 +20,7 @@ const text = {
   ur: { title: "پروجیکٹ ٹیم", intro: "اس پروجیکٹ پر کون کس کردار میں کام کرتا ہے۔ یہاں سے دعوت موجودہ کمپنی میں اسی پروجیکٹ کے لیے ہوتی ہے۔", members: "اراکین", none: "ابھی کوئی پروجیکٹ پر نہیں۔", company: "پوری کمپنی پر", invited: "دعوت قبول نہیں ہوئی", pending: "زیر التوا دعوتیں", until: "تک", invite: "اس پروجیکٹ میں مدعو کریں", email: "ای میل", role: "کردار", pick: "کردار منتخب کریں", send: "دعوت بھیجیں", sending: "بھیجی جا رہی ہے…", emailed: "دعوت ای میل کر دی گئی۔", copy: "ای میل نہیں بھیجی گئی؛ یہ لنک خود بھیجیں:" },
 };
 
-function InviteForm({ tenantId, projectId }: { tenantId: string; projectId: string }) {
+export function InviteForm({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { language } = useLanguage(); const t = pickLanguage(language, text);
   const utils = trpc.useUtils();
   const admin = trpc.projects.team.invitableRoles.useQuery({ tenantId, projectId });
