@@ -14,12 +14,12 @@ const contrast = (a: number[], b: number[]) => { const [x, y] = [luminance(a), l
 const over = (fg: number[], bg: number[], alpha: number) => fg.map((v, i) => v * alpha + bg[i] * (1 - alpha));
 const token = (css: string, name: string) => { const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1]; if (!value) throw new Error(`no ${name}`); return value; };
 /** The lowest opacity the primary button classes put on the fill (hover/active «bg-primary/NN»). */
-const lowestAlpha = () => Math.min(...[read("../components/ds/Button.tsx"), read("../components/ui/button.tsx")].flatMap(source => [...source.matchAll(/(?:hover|active):bg-primary\/(\d+)/g)].map(match => Number(match[1]) / 100)));
+const lowestAlpha = () => Math.min(...[read("../components/ds/Button.tsx"), read("../components/ui/button.tsx")].flatMap(source => Array.from(source.matchAll(/(?:hover|active):bg-primary\/(\d+)/g)).map(match => Number(match[1]) / 100)));
 
 // the app's own theme (index.css): light and dark, the fill and the text from the brand tokens; and the design directions (directions.css)
 const app = { light: { fill: token(indexCss, "dashio-indigo"), text: token(indexCss, "dashio-white"), surfaces: [token(indexCss, "dashio-white")] },
   dark: { fill: token(indexCss, "dashio-indigo-soft"), text: token(indexCss, "dashio-ink"), surfaces: [token(indexCss, "dashio-bg-dark"), token(indexCss, "dashio-surface-dark")] } };
-const blocks = [...directions.matchAll(/(\[data-direction="[abc]"\](?:\[data-mode="dark"\])?)\s*\{([^}]*)\}/g)].filter(block => /--primary:\s*#/.test(block[2]));
+const blocks = Array.from(directions.matchAll(/(\[data-direction="[abc]"\](?:\[data-mode="dark"\])?)\s*\{([^}]*)\}/g)).filter(block => /--primary:\s*#/.test(block[2]));
 
 describe("primary button contrast (D-26, 6.6)", () => {
   it("the app theme: text on the fill is at least 4.5:1 at rest, and at the faded hover/press over every surface", () => {

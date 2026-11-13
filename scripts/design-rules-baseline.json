@@ -31,10 +31,6 @@
  "client/src/components/ui/calendar.tsx": {
   "number-format": 1
  },
- "client/src/components/ui/chart.tsx": {
-  "hardcoded-colour": 5,
-  "number-format": 1
- },
  "client/src/lib/dxf/dxfReview.ts": {
   "hardcoded-colour": 7
  },
