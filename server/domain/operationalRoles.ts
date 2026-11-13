@@ -79,8 +79,9 @@ export const operationalRoleDefinitions = [
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   // Q-12 (d): the planning engineer sets projects up (project.create, held at company scope): creates one, writes its profile and companies, and invites its team, the project manager included
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.consultant.respond", "project.performance.read_own"] },
-  // Q-17 (205-3): the field and technical roles open the project page (project.read); its money stays behind project.cashflow.read (205-1)
-  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
+  // Q-17 (205-3): the field and technical roles open the project page (project.read); its money stays behind project.cashflow.read (205-1).
+  // Q-17 (205-5, G-162): the site engineer records attendance on site, as the HR manager does.
+  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.attendance.manage", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.read", "project.hse.manage", "project.field.manage", "project.performance.read_own"] },
   {
@@ -145,14 +146,15 @@ export function assertOperationalRoleSeparation(existingRoleCodes: string[], nex
 /**
  * Q-12 (c): a person who invites with project.team.invite (not tenant.manage) puts the invitee on ONE project. The role offered must be a PROJECT role whose
  * permissions all live inside a project — nothing company-wide (tenant.*, executive.*, pmo.*), no onward invitation (project.team.invite: no chain of delegation),
- * and no people's personal or pay data (project.hr.*, project.payroll.*, project.attendance.*). Returns the first permission that is refused, or null.
+ * and no people's personal or pay data (project.hr.*, project.payroll.*; attendance is site work since Q-17, G-162). Returns the first permission that is refused, or null.
  */
 export function projectInviteRoleRefusal(role: { productCode: string | null }, codes: readonly string[], inviter: { setsUpProjects?: boolean } = {}): string | null {
   if (role.productCode && role.productCode !== "PROJECT") return role.productCode;
   // Q-12 (d): whoever sets projects up for the company (project.create at company scope: the planning engineer) may also give the project manager's role, which
-  // invites in turn and keeps the site's attendance; still never project.create itself (company-wide), nor staff or pay data
-  const setUpMay = (code: string) => inviter.setsUpProjects === true && (code === "project.team.invite" || code.startsWith("project.attendance."));
-  return codes.find(code => !code.startsWith("project.") || code === "project.create" || (!setUpMay(code) && (code === "project.team.invite" || /^project\.(hr|payroll|attendance)\./.test(code)))) ?? null;
+  // invites in turn; still never project.create itself (company-wide), nor staff or pay data.
+  // Q-17 (205-5, G-162): a project's attendance is site work (the site engineer records it), so any project inviter may give it; HR and payroll stay out.
+  const setUpMay = (code: string) => inviter.setsUpProjects === true && code === "project.team.invite";
+  return codes.find(code => !code.startsWith("project.") || code === "project.create" || (!setUpMay(code) && (code === "project.team.invite" || /^project\.(hr|payroll)\./.test(code)))) ?? null;
 }
 
 /** Q-12 (d): project.create counts only when held for the whole company (a project-scoped grant of it sets up nothing). */

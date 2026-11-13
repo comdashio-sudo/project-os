@@ -202,6 +202,22 @@ describe("role matrix: the claims the document makes about the code", () => {
     for (const field of ["SITE_ENGINEER", "HSE_MANAGER", "QA_QC_MANAGER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL"]) expect(operationalRoleDefinitions.find(role => role.code === field)!.permissions, field).toContain("project.read");
     expect(operationalRoleDefinitions.length).toBe(17);
   });
+  it("Q-17 (205-5, G-146): no ready-made template manages the company or reads the executive view, except the executive role's own executive.read", () => {
+    const holders = (code: string) => operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes(code)).map(role => role.code);
+    expect(holders("tenant.manage")).toEqual([]);
+    expect(holders("executive.read")).toEqual(["EXECUTIVE"]);
+    // the company owner holds both as base codes (db.ts ownerPermissions); a custom role gets them only from the owner, and tenant.manage counts at company scope only (D-19)
+    expect(ownerBaseCodes).toContain("tenant.manage");
+    expect(ownerBaseCodes).toContain("executive.read");
+  });
+  it("Q-17 (205-5, G-162): assignments are the project manager's (project.manage); attendance is the HR manager's and the site engineer's", () => {
+    const holders = (code: string) => operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes(code)).map(role => role.code).sort();
+    expect(holders("project.manage")).toEqual(["PROJECT_MANAGER"]);
+    expect(holders("project.attendance.manage")).toEqual(expect.arrayContaining(["HR_MANAGER", "SITE_ENGINEER"]));
+    // NEGATIVE: neither the warehouse nor the money roles record attendance
+    for (const code of ["WAREHOUSE_CUSTODIAN", "FINANCE_MANAGER", "ACCOUNTANT", "PROCUREMENT_OFFICER"]) expect(holders("project.attendance.manage"), code).not.toContain(code);
+    expect(read("server/db.ts")).toMatch(/export async function createEmployeeAssignmentForTenant[\s\S]{0,900}permission: "project\.manage"/);
+  });
   it("section 3, point 3 (Q-17, 205-2): no ready-made template carries a power nothing checks (payment.prepare, payment.approve, schedule.write stay in the catalogue only)", () => {
     for (const role of operationalRoleDefinitions) for (const code of unenforcedCodes) expect(role.permissions as readonly string[], `${role.code} carries ${code}`).not.toContain(code);
     // NEGATIVE control: the check would see one if a template carried it
