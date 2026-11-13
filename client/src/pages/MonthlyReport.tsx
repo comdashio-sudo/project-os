@@ -44,7 +44,7 @@ export default function MonthlyReport() {
       </div>
       {report.error ? <SectionFailed title={t.figures} error={report.error} isArabic={language === "ar"} onRetry={() => report.refetch()} /> : data ? (
         <Card aria-label={t.figures} data-month-figures>
-          <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi dir="ltr">{formatDate(data.period.start, language)} – {formatDate(data.period.end, language)}</bdi></p></CardHeader>
+          <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi>{formatDate(data.period.start, language)}</bdi> – <bdi>{formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-6">{([[t.reports, data.reports.length], [t.workingDays, data.period.workingDayCount], [t.missing, data.missingWorkingDays.length], [t.direct, data.labour.period.direct], [t.indirect, data.labour.period.indirect], [t.ncrOpen, data.quality.ncr.open]] as const).map(([label, figure]) => (
               <div key={label} className="rounded-[var(--radius)] bg-muted p-2"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="text-lg font-semibold">{formatNumber(figure)}</dd></div>))}</dl>
@@ -52,7 +52,7 @@ export default function MonthlyReport() {
             {data.sCurve.plannedSource ? null : <p role="note" className="text-sm text-muted-foreground">{t.noPlan}</p>}
             <TableScroll label={t.curve}>
               <table className="w-full text-sm" data-s-curve><thead className="text-xs text-muted-foreground"><tr>{[t.point, t.planned, t.actual, t.deviation].map(head => <th key={head} scope="col" className="p-2 text-start">{head}</th>)}</tr></thead>
-                <tbody className="divide-y">{data.sCurve.points.map(point => <tr key={point.month}><th scope="row" className="p-2 text-start font-normal"><bdi dir="ltr">{point.month}</bdi></th><td className="p-2">{value(point.planned)}</td><td className="p-2">{value(point.actual)}</td><td className="p-2">{value(point.deviation)}</td></tr>)}</tbody></table>
+                <tbody className="divide-y">{data.sCurve.points.map(point => <tr key={point.month}><th scope="row" className="whitespace-nowrap p-2 text-start font-normal"><bdi dir="ltr">{point.month}</bdi></th><td className="p-2">{value(point.planned)}</td><td className="p-2">{value(point.actual)}</td><td className="p-2">{value(point.deviation)}</td></tr>)}</tbody></table>
             </TableScroll>
             <p className="text-sm">{t.milestones(data.milestones.length)}</p>
           </CardBody>
