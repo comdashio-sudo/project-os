@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { CheckedForm } from "@/components/CheckedForm";
 import { Badge, Breadcrumbs, Button, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
@@ -265,5 +266,33 @@ describe("D-75: formatDateTime — a moment, in the language's month names, West
   });
   it("accepts the ISO string the server sends", () => {
     expect(formatDateTime("2026-10-25T09:05:00", "en")).toBe(formatDateTime(new Date(2026, 9, 25, 9, 5), "en"));
+  });
+});
+
+describe("D-75: a required ds list stops a checked form like a typed field", () => {
+  const form = (value: string | undefined, onSubmit: () => void) => (
+    <LanguageProvider><CheckedForm onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+      <label htmlFor="pick-role">Role</label>
+      <Select id="pick-role" required value={value} onValueChange={() => undefined} options={[{ value: "r1", label: "Site engineer" }]} />
+      <button type="submit">Send</button>
+    </CheckedForm></LanguageProvider>
+  );
+  it("empty: nothing is sent, and the message sits under the list, which is marked required", () => {
+    const sent = vi.fn();
+    const { container } = render(form(undefined, sent));
+    expect(screen.getByRole("combobox").getAttribute("aria-required")).toBe("true");
+    const copy = container.querySelector<HTMLInputElement>("input[data-list-for='pick-role']")!;
+    expect(copy.required).toBe(true);
+    expect(copy.tabIndex).toBe(-1);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sent).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-checked-error]")).not.toBeNull();
+  });
+  it("chosen: the copy carries the value and the form is sent", () => {
+    const sent = vi.fn();
+    const { container } = render(form("r1", sent));
+    expect(container.querySelector<HTMLInputElement>("input[data-list-for='pick-role']")!.value).toBe("r1");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sent).toHaveBeenCalledTimes(1);
   });
 });

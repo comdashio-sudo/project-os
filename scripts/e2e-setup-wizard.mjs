@@ -111,7 +111,7 @@ for (const [view, viewport, options] of [["desktop", { width: 1280, height: 900 
 
   // 3. import (WBS CSV, then the XER schedule)
   await page.getByRole("button", { name: "التالي" }).click();
-  await page.getByRole("heading", { name: "٣. استيراد بيانات المشروع" }).waitFor();
+  await page.getByRole("heading", { name: "3. استيراد بيانات المشروع" }).waitFor();
   await page.getByRole("button", { name: "WBS", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "wizard-wbs.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) });
   await page.getByRole("button", { name: "تحليل الملف" }).click();
