@@ -22,6 +22,9 @@ describe("design rules: what each rule catches", () => {
     expect(violationsOf("client/src/pages/X.tsx", '<input type="file" onChange={f} />')).toEqual({ "raw-file-input": 1 });
     expect(violationsOf("client/src/pages/X.tsx", "<select value={a}><option value=\"1\">x</option></select>")).toEqual({ "raw-select": 2 });
     expect(violationsOf("client/src/components/ds/FileDropzone.tsx", '<input type="file" className="sr-only" />')).toEqual({});
+    // D-75: a <datalist> (suggestions under a free-text field) is not a select; NEGATIVE: a select beside it still counts
+    expect(violationsOf("client/src/pages/X.tsx", '<input list="d" /><datalist id="d">{names.map(n => <option key={n} value={n} />)}</datalist>')).toEqual({});
+    expect(violationsOf("client/src/pages/X.tsx", '<datalist id="d"><option value="a" /></datalist><select><option value="1">x</option></select>')).toEqual({ "raw-select": 2 });
   });
   it("colours: a hex in a class or style, and rgb()/hsl()/oklch(), are violations; a token is not", async () => {
     const { violationsOf } = await load();
@@ -29,6 +32,16 @@ describe("design rules: what each rule catches", () => {
     expect(violationsOf("client/src/pages/X.tsx", '<p style={{ color: "#112233" }}>x</p>')["hardcoded-colour"]).toBeGreaterThan(0);
     expect(violationsOf("client/src/pages/X.tsx", 'const c = "rgb(1, 2, 3)";')).toEqual({ "hardcoded-colour": 1 });
     expect(violationsOf("client/src/pages/X.tsx", '<p className="text-primary bg-card" style={{ color: "var(--primary)" }}>x</p>')).toEqual({});
+  });
+  it("D-75: a colour that cannot be a token is allowed on its own line only with the mark and a reason, and only for the colour rule", async () => {
+    const { violationsOf } = await load();
+    expect(violationsOf("client/src/lib/X.ts", 'ctx.fillStyle = "#ffffff"; // design-rules: allow hardcoded-colour — a canvas pixel needs a real colour')).toEqual({});
+    // NEGATIVE: the mark without a reason exempts nothing
+    expect(violationsOf("client/src/lib/X.ts", 'ctx.fillStyle = "#ffffff"; // design-rules: allow hardcoded-colour')).toEqual({ "hardcoded-colour": 1 });
+    // NEGATIVE: the mark covers its own line only, not the next one
+    expect(violationsOf("client/src/lib/X.ts", 'a = "#ffffff"; // design-rules: allow hardcoded-colour — paper of the PDF page\nb = "#000000";')).toEqual({ "hardcoded-colour": 1 });
+    // NEGATIVE: the mark never exempts another rule on the same line
+    expect(violationsOf("client/src/pages/X.tsx", 'const a = n.toFixed(2); // design-rules: allow hardcoded-colour — not a colour at all here')).toEqual({ "number-format": 1 });
   });
   it("number format: toLocaleString / Intl / toFixed to print a figure are violations everywhere but the format module", async () => {
     const { violationsOf } = await load();

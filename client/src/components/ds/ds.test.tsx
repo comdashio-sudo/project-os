@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { CheckedForm } from "@/components/CheckedForm";
-import { Badge, Breadcrumbs, Button, FileButton, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
+import { Badge, Breadcrumbs, Button, FileButton, DataTable, DirectionProvider, EmptyState, Field, FileDropzone, PageIntro, Segmented, Select, SkeletonRows, Stepper, TextInput, formatAmount, formatBytes, formatDate, formatShortDate, formatDateTime, formatMonthShort, formatWeekday, TableScroll, formatNumber, formatPercent, INTRO_MAX_CHARS } from "./index";
 
 // The shared component library: states, accessibility wiring, translated text, Western digits. Everything renders inside the same providers a screen has.
 beforeAll(() => {
@@ -317,5 +317,16 @@ describe("D-75: FileButton — the compact file control", () => {
     expect(input.disabled).toBe(true);
     await userEvent.upload(input, new File(["x"], "a.png", { type: "image/png" }));
     expect(chosen).not.toHaveBeenCalled();
+  });
+});
+
+describe("D-75: formatMonthShort — the calendar's month list in the page's language", () => {
+  it("names the month in each language, with no Eastern digit and never the browser's own locale", () => {
+    const november = new Date(Date.UTC(2026, 10, 15));
+    expect(formatMonthShort(november, "en")).toBe("Nov");
+    expect(formatMonthShort(november, "ar")).toMatch(/نوفمبر/);
+    for (const language of ["ar", "en", "ur"] as const) expect(formatMonthShort(november, language)).not.toMatch(/[٠-٩۰-۹]/);
+    // NEGATIVE: two different months never print the same name
+    expect(formatMonthShort(new Date(Date.UTC(2026, 0, 15)), "ar")).not.toBe(formatMonthShort(november, "ar"));
   });
 });

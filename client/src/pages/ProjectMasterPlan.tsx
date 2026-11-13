@@ -26,9 +26,9 @@ type VisualizationRulesByMetric = {
   cost: { favorableMax: number; warningMax: number; favorableColor: string; warningColor: string; unfavorableColor: string };
 };
 const defaultVisualizationRules: VisualizationRulesByMetric = {
-  progress: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" },
-  status: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" },
-  cost: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" },
+  progress: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, // design-rules: allow hardcoded-colour — saved defaults of the colour pickers, which only accept #rrggbb; the person changes them
+  status: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, // design-rules: allow hardcoded-colour — saved defaults of the colour pickers, which only accept #rrggbb; the person changes them
+  cost: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, // design-rules: allow hardcoded-colour — saved defaults of the colour pickers, which only accept #rrggbb; the person changes them
 };
 type VisualizationLabels = { visualization: string; visualizationNote: string; lowMax: string; mediumMax: string; favorableMax: string; warningMax: string; lowColor: string; mediumColor: string; highColor: string; notStartedColor: string; inProgressColor: string; completedColor: string; blockedColor: string; favorableColor: string; warningColor: string; unfavorableColor: string; saveVisualization: string; visualizationSaved: string };
 function VisualizationRulesPanel({ metric, rules, labels, isSaving, isSaved, onChange, onSave }: { metric: keyof VisualizationRulesByMetric; rules: VisualizationRulesByMetric; labels: VisualizationLabels; isSaving: boolean; isSaved: boolean; onChange: (next: VisualizationRulesByMetric) => void; onSave: () => void }) {

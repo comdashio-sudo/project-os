@@ -54,3 +54,8 @@ export function formatDateTime(value: Date | string, language: Language): string
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat(LOCALE[language], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
 }
+
+/** 2026-11-01 -> "Nov" / "نوفمبر" / "نومبر": the short month name of a calendar's month list, in the language, never Eastern digits. */
+export function formatMonthShort(value: Date, language: Language): string {
+  return new Intl.DateTimeFormat(LOCALE[language], { month: "short" }).format(value);
+}
