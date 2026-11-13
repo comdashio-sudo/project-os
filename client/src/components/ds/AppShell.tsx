@@ -60,11 +60,11 @@ export function AppShell(props: Props) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-card px-3 md:px-4">
         <Dialog.Root open={drawer} onOpenChange={setDrawer}>
-          <Dialog.Trigger asChild><button type="button" aria-label={text.menu} className="grid h-10 w-10 place-items-center rounded-[var(--radius)] hover:bg-muted md:hidden"><MenuIcon className="h-5 w-5" aria-hidden="true" /></button></Dialog.Trigger>
+          <Dialog.Trigger asChild><button type="button" aria-label={text.menu} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted md:hidden"><MenuIcon className="h-5 w-5" aria-hidden="true" /></button></Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-40 bg-foreground/50 md:hidden" />
             <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 start-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 border-e border-sidebar-border bg-sidebar p-4 text-sidebar-foreground md:hidden">
-              <div className="flex items-center justify-between"><Dialog.Title asChild><span><Logo variant="horizontal" size={28} /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-10 w-10 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
+              <div className="flex items-center justify-between"><Dialog.Title asChild><span><Logo variant="horizontal" size={28} /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
               <Switchers {...props} vertical />
               <NavList nav={props.nav} activeId={props.activeId} onNavigate={item => { props.onNavigate?.(item); setDrawer(false); }} />
             </Dialog.Content>
@@ -74,19 +74,19 @@ export function AppShell(props: Props) {
         <div className="ms-3 hidden md:block"><Switchers {...props} /></div>
         <div className="ms-auto flex items-center gap-1">
           <Menu.Root>
-            <Menu.Trigger aria-label={text.language} className="grid h-10 w-10 place-items-center rounded-[var(--radius)] hover:bg-muted"><Languages className="h-5 w-5" aria-hidden="true" /></Menu.Trigger>
+            <Menu.Trigger aria-label={text.language} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted"><Languages className="h-5 w-5" aria-hidden="true" /></Menu.Trigger>
             <Menu.Portal><Menu.Content align="end" sideOffset={6} className="z-50 min-w-40 rounded-[var(--radius)] border border-border bg-popover p-1 text-popover-foreground shadow-lg">
-              {LANGUAGES.map(code => <Menu.Item key={code} onSelect={() => setLanguage(code)} className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><span>{LANGUAGE_NAMES[code]}</span>{code === language ? <Check className="h-4 w-4" aria-hidden="true" /> : null}</Menu.Item>)}
+              {LANGUAGES.map(code => <Menu.Item key={code} onSelect={() => setLanguage(code)} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><span>{LANGUAGE_NAMES[code]}</span>{code === language ? <Check className="h-4 w-4" aria-hidden="true" /> : null}</Menu.Item>)}
             </Menu.Content></Menu.Portal>
           </Menu.Root>
           <Menu.Root>
-            <Menu.Trigger aria-label={text.userMenu} className="grid h-10 w-10 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground hover:opacity-90"><span aria-hidden="true">{initials}</span></Menu.Trigger>
+            <Menu.Trigger aria-label={text.userMenu} className="grid h-11 w-11 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground hover:opacity-90"><span aria-hidden="true">{initials}</span></Menu.Trigger>
             <Menu.Portal><Menu.Content align="end" sideOffset={6} className="z-50 min-w-56 rounded-[var(--radius)] border border-border bg-popover p-1 text-popover-foreground shadow-lg">
               <div className="px-3 py-2"><p className="text-sm font-semibold">{props.user.name}</p><p dir="ltr" className="text-xs text-muted-foreground">{props.user.email}</p></div>
               <Menu.Separator className="my-1 h-px bg-border" />
-              {canDark && props.onModeChange ? <Menu.Item onSelect={() => props.onModeChange?.(mode === "dark" ? "light" : "dark")} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground">{mode === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}{text.theme}: {mode === "dark" ? text.light : text.dark}</Menu.Item> : null}
-              {props.onMyCompanies ? <Menu.Item onSelect={() => props.onMyCompanies?.()} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><Building2 className="h-4 w-4" aria-hidden="true" />{text.myCompanies}</Menu.Item> : null}
-              <Menu.Item onSelect={() => props.onSignOut?.()} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><LogOut className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{text.signOut}</Menu.Item>
+              {canDark && props.onModeChange ? <Menu.Item onSelect={() => props.onModeChange?.(mode === "dark" ? "light" : "dark")} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground">{mode === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}{text.theme}: {mode === "dark" ? text.light : text.dark}</Menu.Item> : null}
+              {props.onMyCompanies ? <Menu.Item onSelect={() => props.onMyCompanies?.()} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><Building2 className="h-4 w-4" aria-hidden="true" />{text.myCompanies}</Menu.Item> : null}
+              <Menu.Item onSelect={() => props.onSignOut?.()} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"><LogOut className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{text.signOut}</Menu.Item>
             </Menu.Content></Menu.Portal>
           </Menu.Root>
         </div>
