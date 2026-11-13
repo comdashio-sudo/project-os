@@ -2243,6 +2243,51 @@ export const projectErrorMessages = {
     en: "A supplier was chosen from the register but the counterparty type is not \"supplier\".",
     ur: "رجسٹر سے سپلائر منتخب کیا گیا ہے مگر فریق کی قسم “سپلائر” نہیں ہے۔",
   },
+  PROJECT_OS_STOCKTAKE_ALREADY_OPEN: {
+    ar: "لهذا المستودع جرد مفتوح لم يُعتمد بعد؛ أكمله أو اعتمده قبل فتح جرد جديد.",
+    en: "This warehouse already has a stocktake being counted; finish or approve it before opening another.",
+    ur: "اس گودام کی ایک گنتی ابھی کھلی ہے؛ نئی کھولنے سے پہلے اسے مکمل یا منظور کریں۔",
+  },
+  PROJECT_OS_STOCKTAKE_COUNT_INVALID: {
+    ar: "الكمية المعدودة رقم لا يقل عن صفر.",
+    en: "A counted quantity is a number of zero or more.",
+    ur: "گنی گئی مقدار صفر یا اس سے زیادہ عدد ہونی چاہیے۔",
+  },
+  PROJECT_OS_STOCKTAKE_EMPTY_WAREHOUSE: {
+    ar: "لا مواد في هذا المستودع بعد، فلا شيء يُجرد.",
+    en: "Nothing has moved in this warehouse yet, so there is nothing to count.",
+    ur: "اس گودام میں ابھی کوئی مواد نہیں، اس لیے گنتی کے لیے کچھ نہیں۔",
+  },
+  PROJECT_OS_STOCKTAKE_LINE_NOT_FOUND: {
+    ar: "سطر الجرد غير موجود في هذا المستند.",
+    en: "That line is not on this stocktake.",
+    ur: "یہ سطر اس گنتی میں نہیں ہے۔",
+  },
+  PROJECT_OS_STOCKTAKE_NOT_FOUND: {
+    ar: "مستند الجرد غير موجود في هذا المشروع.",
+    en: "That stocktake is not in this project.",
+    ur: "یہ گنتی اس پروجیکٹ میں نہیں ہے۔",
+  },
+  PROJECT_OS_STOCKTAKE_NOT_FULLY_COUNTED: {
+    ar: "لا يُعتمد الجرد قبل عدّ كل سطوره.",
+    en: "A stocktake can be approved only when every line is counted.",
+    ur: "گنتی تب منظور ہو سکتی ہے جب ہر سطر گنی جا چکی ہو۔",
+  },
+  PROJECT_OS_STOCKTAKE_NOT_OPEN: {
+    ar: "هذا الجرد معتمد، فلا يُعدَّل ولا يُعتمد مرة أخرى.",
+    en: "This stocktake is already approved; it cannot be changed or approved again.",
+    ur: "یہ گنتی پہلے ہی منظور ہے؛ اسے بدلا یا دوبارہ منظور نہیں کیا جا سکتا۔",
+  },
+  PROJECT_OS_STOCKTAKE_NUMBER_EXISTS: {
+    ar: "رقم الجرد مستعمل في هذا المشروع.",
+    en: "That stocktake number is already used in this project.",
+    ur: "یہ گنتی نمبر اس پروجیکٹ میں پہلے سے استعمال ہے۔",
+  },
+  PROJECT_OS_STOCKTAKE_SAME_APPROVER: {
+    ar: "من فتح الجرد لا يعتمده: يعتمده شخص آخر يملك صلاحية المخزون.",
+    en: "The person who opened the stocktake cannot approve it: someone else with inventory permission must.",
+    ur: "جس نے گنتی کھولی وہ اسے منظور نہیں کر سکتا: انوینٹری کی اجازت والا کوئی اور منظور کرے۔",
+  },
   PROJECT_OS_INVENTORY_REASON_REQUIRED: {
     ar: "اكتب سبب التحويل أو التسوية (3 أحرف على الأقل).",
     en: "Give the reason for the transfer or adjustment (at least 3 characters).",

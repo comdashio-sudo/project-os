@@ -111,6 +111,7 @@ CREATE TYPE "public"."salary_structures_eos_accrual_mode" AS ENUM('computed', 'm
 CREATE TYPE "public"."scheduled_jobs_purpose" AS ENUM('license_lifecycle');--> statement-breakpoint
 CREATE TYPE "public"."site_daily_report_lines_line_type" AS ENUM('labour', 'equipment', 'work');--> statement-breakpoint
 CREATE TYPE "public"."site_daily_reports_status" AS ENUM('draft', 'submitted', 'approved', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."stocktakes_status" AS ENUM('counting', 'approved');--> statement-breakpoint
 CREATE TYPE "public"."subcontract_certificates_status" AS ENUM('draft', 'submitted', 'approved', 'paid', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."subcontract_contracts_status" AS ENUM('draft', 'active', 'suspended', 'closed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."subscriptions_package_code" AS ENUM('EXECUTIVE', 'PMO', 'PROJECT', 'EXECUTIVE + PMO', 'PMO + PROJECT', 'EXECUTIVE + PROJECT', 'ALL-IN-ONE');--> statement-breakpoint
@@ -2343,6 +2344,36 @@ CREATE TABLE "smart_reading_usage" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "stocktake_lines" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"stocktake_id" varchar(36) NOT NULL,
+	"material_id" varchar(36) NOT NULL,
+	"system_quantity" numeric(18, 3) NOT NULL,
+	"counted_quantity" numeric(18, 3),
+	"adjustment_transaction_id" varchar(36),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "stocktakes" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"warehouse_id" varchar(36) NOT NULL,
+	"stocktake_number" varchar(60) NOT NULL,
+	"status" "stocktakes_status" DEFAULT 'counting' NOT NULL,
+	"note" varchar(500),
+	"approval_reason" varchar(500),
+	"created_by_user_id" integer NOT NULL,
+	"approved_by_user_id" integer,
+	"approved_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "stocktakes_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
+);
+--> statement-breakpoint
 CREATE TABLE "stored_files" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -3250,6 +3281,15 @@ ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_prepared_by_
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_reports" ADD CONSTRAINT "site_daily_reports_checked_by_user_id_users_id_fk" FOREIGN KEY ("checked_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "smart_reading_usage" ADD CONSTRAINT "smart_reading_usage_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktake_lines" ADD CONSTRAINT "stocktake_lines_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktake_lines" ADD CONSTRAINT "stocktake_lines_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktake_lines" ADD CONSTRAINT "stocktake_lines_material_id_material_masters_id_fk" FOREIGN KEY ("material_id") REFERENCES "public"."material_masters"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktake_lines" ADD CONSTRAINT "stocktake_lines_stocktake_fk" FOREIGN KEY ("stocktake_id","tenant_id","project_id") REFERENCES "public"."stocktakes"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktakes" ADD CONSTRAINT "stocktakes_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktakes" ADD CONSTRAINT "stocktakes_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktakes" ADD CONSTRAINT "stocktakes_warehouse_id_project_warehouses_id_fk" FOREIGN KEY ("warehouse_id") REFERENCES "public"."project_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktakes" ADD CONSTRAINT "stocktakes_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stocktakes" ADD CONSTRAINT "stocktakes_approved_by_user_id_users_id_fk" FOREIGN KEY ("approved_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stored_files" ADD CONSTRAINT "stored_files_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3627,6 +3667,9 @@ CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_d
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_number_unique" ON "site_daily_reports" USING btree ("project_id","report_number") WHERE "site_daily_reports"."report_number" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint
+CREATE UNIQUE INDEX "stocktake_lines_stocktake_material_unique" ON "stocktake_lines" USING btree ("stocktake_id","material_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "stocktakes_project_number_unique" ON "stocktakes" USING btree ("project_id","stocktake_number");--> statement-breakpoint
+CREATE INDEX "stocktakes_tenant_project_idx" ON "stocktakes" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "stored_files_key_unique" ON "stored_files" USING btree ("key");--> statement-breakpoint
 CREATE INDEX "stored_files_tenant_idx" ON "stored_files" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
