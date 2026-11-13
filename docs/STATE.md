@@ -2709,3 +2709,11 @@
 | 3.6: لا `catch {}` بلا `logError` في `server/scopeDashboards.ts` — فشل ربحية مشروع أو تقدمه يُسجَّل (`levels.project_profitability_failed` / `levels.project_progress_failed` بمعرّف المشروع)، ويبقى المشروع «غير متاح» دون أن يُفرغ البقية | `PROVEN` | `grep -c "catch {" server/scopeDashboards.ts` = 0 |
 | 3.5: القياس | `PROVEN` (قاعدة) | `server/levelQueryCount.database.test.ts` (يعدّ كل جملة يرسلها التطبيق عند عميل pg، بسياق RLS): **10 مشاريع ← 846 جملة، 50 مشروعًا ← 4038** — نحو 80 جملة لكل مشروع، فالعدد **يزيد** بزيادة المشاريع |
 | 3.5: عدد ثابت | `OPEN` — نقطة استئناف | السبب: `kpisFor` يشغّل `loadProfitabilityRows` و`loadPmcDataset` لكل مشروع على حدة. الإصلاح: تحميلهما مجمّعَين لقائمة المشاريع (`inArray`) ثم التوزيع في الذاكرة، والاختبار نفسه يصير حدًّا أعلى ثابتًا |
+
+### D-39: جرد متغيرات البيئة — `docs/ENV_INVENTORY.md` (2026-11-13، المبرمج أ ضمن Q-15، وثيقة فقط)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| كل متغير يقرؤه الكود (التطبيق، والبناء والسكربتات وسير GitHub، والاختبارات) بأين يُقرأ، بلا أي قيمة | `SOURCE_VERIFIED` | `grep` على `process.env.*` وعلى الاسم في `scripts/` و`.github/` |
+| بقايا Manus: `JWT_SECRET` و`APP_ID` **مستعملان** (الجلسة والتخزين)؛ `PROJECT_OS_USE_ADMIN_DATABASE_URL` مذكور في `CLAUDE.md` ولا يقرؤه أي ملف؛ `VITE_APP_ID` و`OAUTH_*` و`OWNER_OPEN_ID` و`BUILT_IN_FORGE_*` و`RESEND_API_KEY` و`R2_*` لا يقرؤها شيء | `SOURCE_VERIFIED` | الوثيقة §3 |
+| قائمة الحذف للمالك (متغيرات Vercel والحسابات القديمة، مع إبقاء Resend حتى قرارك) | `BLOCKED_BY_OWNER` | الوثيقة §4 |
