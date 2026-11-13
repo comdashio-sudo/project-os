@@ -40,16 +40,16 @@ const text = {
     template: "Download the template", export: "Export the current data", chooseFile: "Excel or CSV file", analyze: "Upload and analyse", confirm: "Save what the preview showed", columns: "Columns", required: "required",
     denied: "You may not import this kind of data; this section offers the export and the template only.",
   }, ur: {
-    title: "Excel for operational data", note: "Template → export → edit → re-upload, with a differences preview before anything is saved. The file writes only what you saw in the preview and never goes around an existing approval path.",
-    modules: { costs: "Actual costs", purchaseOrders: "Purchase orders", employees: "Employees", timeEntries: "Hours" } as Record<LedgerModule, string>,
+    title: "آپریشنل ڈیٹا کے لیے Excel", note: "ٹیمپلیٹ ← ایکسپورٹ ← ترمیم ← دوبارہ اپ لوڈ، کچھ بھی محفوظ کرنے سے پہلے فرق کے پیش منظر کے ساتھ۔ فائل صرف وہی لکھتی ہے جو آپ نے پیش منظر میں دیکھا، اور کبھی موجودہ منظوری کے راستے کو نظرانداز نہیں کرتی۔",
+    modules: { costs: "اصل لاگت", purchaseOrders: "خریداری کے آرڈر", employees: "ملازمین", timeEntries: "گھنٹے" } as Record<LedgerModule, string>,
     rules: {
-      costs: "Every row is tied to an existing WBS item or to a budget line linked to one, or it is refused with its reason. Amounts are in riyals. A posted cost is not edited from a file: an edited exported row is refused.",
-      purchaseOrders: "Every order is tied to an existing contract or supplier. Orders are always created as drafts and only a draft can be changed. The Status column is for display: submitting and approving happen in the order's workflow.",
-      employees: "The working record only (number, name, title, department, hire date, status). No nationality or identity documents in the file, and termination is done on the HR screen. Every read of these records is written to the audit trail.",
-      timeEntries: "One row per employee per day against their assignment on this project, under the hours screen's own rule: a day without approved attendance is refused. Hours are created as drafts and a booked day is not edited from a file.",
+      costs: "ہر قطار کسی موجودہ WBS آئٹم سے، یا اس سے منسلک بجٹ لائن سے جڑی ہوتی ہے، ورنہ وجہ کے ساتھ مسترد کر دی جاتی ہے۔ رقوم ریال میں ہیں۔ درج شدہ لاگت فائل سے تبدیل نہیں کی جاتی: ایکسپورٹ کی گئی قطار میں ترمیم ہو تو وہ مسترد کر دی جاتی ہے۔",
+      purchaseOrders: "ہر آرڈر کسی موجودہ معاہدے یا سپلائر سے جڑا ہوتا ہے۔ آرڈر ہمیشہ مسودے کے طور پر بنتے ہیں اور صرف مسودہ ہی تبدیل کیا جا سکتا ہے۔ حیثیت کا کالم صرف دکھانے کے لیے ہے: جمع کرانا اور منظوری آرڈر کے ورک فلو میں ہوتی ہے۔",
+      employees: "صرف ملازمت کا ریکارڈ (نمبر، نام، عہدہ، شعبہ، تقرری کی تاریخ، حیثیت)۔ فائل میں نہ قومیت ہے نہ شناختی دستاویزات، اور ملازمت کا خاتمہ HR اسکرین پر ہوتا ہے۔ ان ریکارڈز کو ہر بار پڑھنا آڈٹ لاگ میں درج ہوتا ہے۔",
+      timeEntries: "ہر ملازم کے لیے فی دن ایک قطار، اس پروجیکٹ پر اس کی تفویض کے مقابل، گھنٹوں کی اسکرین کے اپنے اصول کے تحت: منظور شدہ حاضری کے بغیر دن مسترد کر دیا جاتا ہے۔ گھنٹے مسودے کے طور پر بنتے ہیں اور درج شدہ دن فائل سے تبدیل نہیں کیا جاتا۔",
     } as Record<LedgerModule, string>,
-    template: "Download the template", export: "Export the current data", chooseFile: "Excel or CSV file", analyze: "Upload and analyse", confirm: "Save what the preview showed", columns: "Columns", required: "required",
-    denied: "You may not import this kind of data; this section offers the export and the template only.",
+    template: "ٹیمپلیٹ ڈاؤن لوڈ کریں", export: "موجودہ ڈیٹا ایکسپورٹ کریں", chooseFile: "Excel یا CSV فائل", analyze: "اپ لوڈ اور تجزیہ کریں", confirm: "پیش منظر میں دکھایا گیا محفوظ کریں", columns: "کالم", required: "لازمی",
+    denied: "آپ اس قسم کا ڈیٹا امپورٹ نہیں کر سکتے؛ یہ حصہ صرف ایکسپورٹ اور ٹیمپلیٹ فراہم کرتا ہے۔",
   },
 };
 
@@ -76,7 +76,7 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="mt-5 border-t border-border pt-4">
-        <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.en.denied }}>
+        <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.ur.denied }}>
           <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} />
         </WriteGate>
       </div>
