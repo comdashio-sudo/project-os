@@ -19,7 +19,9 @@ import { pickLanguage } from "@/lib/language";
 import { useCan, WriteGate } from "@/lib/permissions";
 
 const today = new Date().toISOString().slice(0, 10);
-const money = (value: unknown, isArabic: boolean) => formatMoney(Number(value ?? 0), "SAR", isArabic, 2);
+// Q-17 (205-1): a null amount is one the reader may not see (not zero), so it shows as «—»
+const money = (value: unknown, isArabic: boolean) => (value === null || value === undefined ? "—" : formatMoney(Number(value), "SAR", isArabic, 2));
+const sumOrHidden = <T,>(rows: readonly T[], amount: (row: T) => number | null) => (rows.some(row => amount(row) === null) ? null : rows.reduce((sum, row) => sum + (amount(row) ?? 0), 0));
 
 export default function CommercialChain() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
@@ -46,7 +48,7 @@ export default function CommercialChain() {
   const createCertificate = trpc.subcontracts.createCertificate.useMutation({ onSuccess: async () => { setNotice(copy.saved); setCertificateDraft({ number: "", start: today, end: today, boqItemId: "", quantity: "" }); await utils.subcontracts.listCertificates.invalidate(input); } });
   const createInvoice = trpc.projectInvoices.create.useMutation({ onSuccess: async () => { setNotice(copy.saved); setInvoiceDraft({ number: "", date: today, clientName: "", amount: "", vatAmount: "", currency: "SAR" }); await utils.projectInvoices.list.invalidate(input); } });
   const anyError = boq.error || contracts.error || certificates.error || invoices.error || createBoq.error || createContract.error || createCertificate.error || createInvoice.error;
-  const totals = useMemo(() => ({ boq: (boq.data ?? []).reduce((sum, row) => sum + Number(row.totalAmount ?? Number(row.quantity) * Number(row.unitRate)), 0), contracts: (contracts.data ?? []).reduce((sum, row) => sum + Number(row.contractValue), 0), invoices: (invoices.data ?? []).reduce((sum, row) => sum + Number(row.totalAmount ?? Number(row.amount) + Number(row.vatAmount)), 0) }), [boq.data, contracts.data, invoices.data]);
+  const totals = useMemo(() => ({ boq: sumOrHidden(boq.data ?? [], row => (row.totalAmount === null && row.unitRate === null ? null : Number(row.totalAmount ?? Number(row.quantity) * Number(row.unitRate)))), contracts: sumOrHidden(contracts.data ?? [], row => (row.contractValue === null ? null : Number(row.contractValue))), invoices: sumOrHidden(invoices.data ?? [], row => (row.amount === null ? null : Number(row.totalAmount ?? Number(row.amount) + Number(row.vatAmount)))) }), [boq.data, contracts.data, invoices.data]);
   return <PageMain className="min-h-screen bg-muted px-4 py-6 text-slate-900 sm:px-8" dir={isRtl ? "rtl" : "ltr"}>
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader className="flex flex-wrap items-center justify-between gap-4"><div><Link href={`/projects/${tenantId}`} className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" />{copy.back}</Link><p className="mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-primary">{copy.eyebrow}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{copy.title}</h1><p className="mt-2 max-w-2xl text-sm text-slate-600">{copy.subtitle}</p></div><div className="flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-white"><ShieldCheck className="h-5 w-5 text-secondary" /><span className="text-sm">{copy.governed}</span></div></PageHeader>
