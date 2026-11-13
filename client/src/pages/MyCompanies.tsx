@@ -9,6 +9,7 @@ import { formFieldErrors, slugFieldError } from "@/lib/formValidation";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { SkeletonBar } from "@/components/ShellSkeleton";
 import { putToStorage } from "@/lib/uploadLimit";
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
@@ -46,6 +47,8 @@ export default function MyCompanies() {
             {item.status === "active" && <Link href={`/projects/${item.tenantId}`} className="inline-flex min-h-[44px] items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent">{t.open}</Link>}
           </li>
         ))}
+        {/* Q-18: while the list is on its way, one row of its own size (most people have one company), so the form below does not jump when it lands */}
+        {tenants.isLoading && <li aria-hidden="true" className="flex items-center justify-between gap-3 p-3"><div className="min-w-0 flex-1"><SkeletonBar className="h-5 w-48 max-w-full" /><SkeletonBar className="mt-1.5 h-3 w-20" /></div><SkeletonBar className="h-11 w-20" /></li>}
         {tenants.isSuccess && !tenants.data.length && <li className="p-3 text-sm text-muted-foreground">{t.none}</li>}
       </ul>
       {tenantId && <CompanyDetails tenantId={tenantId} t={t} isArabic={isArabic} onSaved={() => void utils.tenant.mine.invalidate()} />}

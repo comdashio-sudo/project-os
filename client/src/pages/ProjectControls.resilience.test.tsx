@@ -95,15 +95,19 @@ describe("ProjectControls section resilience", () => {
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
   });
 
-  it("shows local loading and empty states for independent project sources", () => {
+  it("Q-18: while a main read (the schedule) is on its way, the page shows its grey shape once instead of a half page that jumps when it lands", () => {
     state.scheduleLoading = true;
+    const { container } = render(<ProjectControls />);
+    expect(container.querySelector('[data-skeleton="content"]')).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Project delivery board" })).toBeNull();
+  });
+
+  it("shows local empty states for independent project sources once the page is drawn", () => {
     state.financialsEmpty = true;
     state.performanceEmpty = true;
     render(<ProjectControls />);
-    expect(within(screen.getAllByLabelText("Schedule and WBS")[0]).getByText("Loading this section…")).toBeTruthy();
     expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No budget, cost or progress recorded yet. Add a line or upload a file.")).toBeTruthy();
     expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Project delivery board" })).toBeTruthy();
   });
 
   it("keeps an empty PROJECT source distinct from a source error", () => {

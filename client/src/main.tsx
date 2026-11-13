@@ -10,6 +10,13 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { installCachedReads } from "@/lib/cachedReads";
 import "./index.css";
 
+// Q-18: the web font is fetched after the first paint instead of blocking it (index.html used to hold this stylesheet in its head, so a slow second
+// host held back every paint). The text shows in the system Arabic font until it arrives (display=swap). Added once.
+export const FONT_STYLESHEET = "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap";
+if (typeof document !== "undefined" && !document.querySelector(`link[href="${FONT_STYLESHEET}"]`)) {
+  const link = document.createElement("link"); link.rel = "stylesheet"; link.href = FONT_STYLESHEET; document.head.appendChild(link);
+}
+
 // A refused or rejected query is final (G-160): a page shows its no-permission sentence at once, not after three retries of "loading".
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery } } });
 // G-100: the shell's two allowlisted reads (who am I, which companies) survive an offline start; nothing financial is ever kept.
