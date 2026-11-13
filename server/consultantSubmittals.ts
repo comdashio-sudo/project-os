@@ -16,7 +16,8 @@ const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "FORBIDDEN", me
 export const SUBMITTAL_TYPES = ["shop_drawing", "material_approval", "method_statement", "sample"] as const;
 export type SubmittalType = (typeof SUBMITTAL_TYPES)[number];
 const WRITE = ["project.field.manage", "project.design.manage", "project.manage"] as const;
-const REPLY = ["project.design.approve", "project.manage"] as const;
+// Q-17 (205-4): the consultant's reply has its own power; project.manage no longer answers it
+const REPLY = ["project.design.approve", "project.consultant.respond"] as const;
 const READ = ["project.read", "project.field.manage", "project.design.manage", "project.design.approve", "project.manage"] as const;
 const DAY = 86_400_000;
 

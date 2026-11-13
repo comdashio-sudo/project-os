@@ -40,6 +40,9 @@ export const operationalPermissionCatalog = [
   { code: "project.design.architectural", name: "Coordinate architectural drawings (architecture, interior, landscape)", productCode: "PROJECT" as const },
   { code: "project.design.technical", name: "Coordinate technical drawings (structure, civil, MEP, fire)", productCode: "PROJECT" as const },
   { code: "project.design.approve", name: "Approve drawings for construction and record consultant replies", productCode: "PROJECT" as const },
+  // Q-17 (205-4): recording the consultant's reply to a submittal is a contractual record of its own, so it can go to a consultant coordinator without
+  // handing over the whole project (project.manage no longer answers it). The project manager and the planning engineer carry it.
+  { code: "project.consultant.respond", name: "Record the consultant's reply to a submittal", productCode: "PROJECT" as const },
   // Tenders before award (work order 5): packages and invitations, bids, levelling, award.
   { code: "project.tender.manage", name: "Manage tender packages and invitations", productCode: "PROJECT" as const },
   { code: "project.tender.bids", name: "Enter and correct bids", productCode: "PROJECT" as const },
@@ -75,7 +78,7 @@ export const operationalRoleDefinitions = [
   { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   // Q-12 (d): the planning engineer sets projects up (project.create, held at company scope): creates one, writes its profile and companies, and invites its team, the project manager included
-  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
+  { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.consultant.respond", "project.performance.read_own"] },
   // Q-17 (205-3): the field and technical roles open the project page (project.read); its money stays behind project.cashflow.read (205-1)
   { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
@@ -86,6 +89,7 @@ export const operationalRoleDefinitions = [
     permissions: [
       "project.manage",
       "project.team.invite",
+      "project.consultant.respond",
       "project.pmc.read",
       "project.pmc.update",
       "project.pmc.manage",
