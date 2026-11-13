@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { FileButton } from "@/components/ds";
 import { formatMoney } from "@/lib/profitabilityView";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
@@ -60,8 +61,8 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
     <div className="space-y-4" data-testid="site-plan">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">{t.activity}<select aria-label={t.activity} className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" value={activityCode} onChange={event => { setActivityCode(event.target.value); setSelected(null); }}><option value="">{t.overall}</option>{activities.map(a => <option key={a.code} value={a.code}>{a.code} · {a.name}</option>)}</select></label>
-        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadPlan}<input aria-label={t.uploadPlan} type="file" accept="image/png,image/jpeg" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></label></WriteGate>
-        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><label className="text-sm">{t.uploadGeo}<input aria-label={t.uploadGeo} type="file" accept=".geojson,.json,application/geo+json,application/json" className="mt-1 block min-h-[44px] rounded-lg border bg-white px-2" onChange={async event => { const file = event.target.files?.[0]; if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></label></WriteGate>
+        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadPlan} accept="image/png,image/jpeg" onFile={async file => { if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></WriteGate>
+        <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadGeo} accept=".geojson,.json,application/geo+json,application/json" onFile={async file => { if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></WriteGate>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       {geometries.data && geometries.data.errors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><b>{t.errors}:</b><ul className="mt-1 list-disc ps-5">{geometries.data.errors.slice(0, 20).map((e, i) => <li key={i}>#{e.index + 1} · {e.unitNumber ?? t.noNumber} · {e.code}</li>)}</ul></div>}
