@@ -120,7 +120,7 @@ describe("ProjectFpac export", EXPORT_TEST, () => {
     expect(button.disabled).toBe(false);
     const drillButton = exportButtons()[1];
     expect(drillButton.disabled).toBe(true);
-    expect(screen.getAllByText("No rows to export").length).toBeGreaterThan(0);
+    expect(screen.getByText("No rows to export. Add WBS items with their budgets in “Schedule & cost updates” to see their variance here")).toBeTruthy();
   });
 
   it("uses the Arabic headers when the screen is in Arabic", async () => {

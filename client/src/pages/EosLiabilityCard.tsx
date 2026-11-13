@@ -36,7 +36,7 @@ export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
     <section aria-label={t.title} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 className="font-semibold">{t.title}</h2>
-        {liability.data && <ExportExcelButton fileName="eos-liability" sheetName={t.sheet} title={t.title} rows={rows} columns={columns} />}
+        {liability.data && <ExportExcelButton fileName="eos-liability" sheetName={t.sheet} title={t.title} rows={rows} columns={columns} emptyHint={{ ar: "اعتمد مسير رواتب في «الرواتب» ليظهر استحقاق شهره هنا", en: "Approve a payroll run under “Payroll” to see its month here", ur: "یہاں اس مہینے کو دیکھنے کے لیے «تنخواہیں» میں پے رول منظور کریں" }} />}
       </div>
       <p className="mt-1 max-w-3xl text-xs text-slate-500">{t.basis}</p>
       {liability.isLoading && <p role="status" className="mt-3 text-sm text-slate-500">{t.loading}</p>}

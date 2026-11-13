@@ -34,7 +34,7 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
       {query.data && (
         <div className="mt-3">
           <div className="flex justify-end">
-            <ExportExcelButton fileName="portfolio-profitability" sheetName={t.title} title={t.title} rows={projects} columns={exportColumns} />
+            <ExportExcelButton fileName="portfolio-profitability" sheetName={t.title} title={t.title} rows={projects} columns={exportColumns} emptyHint={{ ar: "أضف مشروعًا بقيمة عقد وميزانية من «المشاريع» لتظهر ربحيته هنا", en: "Add a project with a contract value and a budget under “Projects” to see its profitability here", ur: "یہاں منافع دیکھنے کے لیے «پروجیکٹس» میں معاہدے کی قیمت اور بجٹ کے ساتھ پروجیکٹ شامل کریں" }} />
           </div>
           {query.data.projects.length === 0 && query.data.unavailable.length === 0 ? <p className="text-sm text-slate-500">{t.empty}</p> : (
             <table className="w-full text-sm">

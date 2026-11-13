@@ -75,7 +75,7 @@ describe("PortfolioProfitability export", EXPORT_TEST, () => {
     render(<PortfolioProfitability tenantId="t" />);
     const button = screen.getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(screen.getByText("No rows to export")).toBeTruthy();
+    expect(screen.getByText("No rows to export. Add a project with a contract value and a budget under “Projects” to see its profitability here")).toBeTruthy();
   });
 
   it("uses the Arabic headers when the screen is in Arabic", async () => {
