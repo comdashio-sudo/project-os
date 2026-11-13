@@ -203,7 +203,7 @@ export default function ExecutiveDashboard() {
             {t.projectOs}
           </p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
-          <p className="mt-2 text-slate-300">{t.sub}</p>
+          <p className="mt-2 text-primary-foreground/90">{t.sub}</p>
         </section>
         <SectionErrorBoundary title={t.title} isArabic={isArabic}>
         {metricsQuery.isLoading ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="loading" /></div> : metricsQuery.error || !metricsQuery.data ? <div className="mt-6"><SectionMessage title={t.title} isArabic={isArabic} kind="error" detail={metricsQuery.error ? getLocalizedProjectError(metricsQuery.error, isArabic) : undefined} onRetry={() => void metricsQuery.refetch()} /></div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
