@@ -558,7 +558,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
                         fillOpacity={colouring && item.unitCode && !passesFilter(colouring.villaOf(item.unitCode), blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
                         data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
-                        stroke={isSelected ? "#111827" : "#475569"}
+                        stroke={isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
                         strokeWidth={isSelected ? 0.4 : 0.15}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
                         role="button"
@@ -569,7 +569,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                         // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
                         style={tool === "none" && !linkTool ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
-                      {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="#111827" pointerEvents="none">{item.unitCode}</text> : null}
+                      {item.unitCode ? <text x={centre.x} y={geometry.flipY(centre.y)} fontSize={geometry.width / 60} textAnchor="middle" fill="var(--foreground)" pointerEvents="none">{item.unitCode}</text> : null}
                     </g>
                   );
                 })}

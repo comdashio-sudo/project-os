@@ -7,6 +7,8 @@ import {
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
+import { formatMonthShort } from "@/components/ds/format";
+import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 function Calendar({
@@ -22,6 +24,7 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const language = useOptionalLanguage() ?? "en";
 
   return (
     <DayPicker
@@ -34,8 +37,8 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: date =>
-          date.toLocaleString("default", { month: "short" }),
+        // D-75: the month list speaks the page's language through the one format module (it was the browser's own locale)
+        formatMonthDropdown: date => formatMonthShort(date, language),
         ...formatters,
       }}
       classNames={{

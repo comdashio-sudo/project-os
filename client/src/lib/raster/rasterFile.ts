@@ -61,7 +61,7 @@ async function drawToGray(width: number, height: number, draw: (context: CanvasR
   canvas.height = height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("2D canvas is not available");
-  context.fillStyle = "#ffffff";
+  context.fillStyle = "#ffffff"; // design-rules: allow hardcoded-colour — a canvas pixel needs a real colour: the white page behind a transparent drawing
   context.fillRect(0, 0, width, height);
   await draw(context);
   const pixels = context.getImageData(0, 0, width, height);
