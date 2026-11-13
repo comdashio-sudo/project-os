@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Link, useParams } from "wouter";
 import { pickLanguage } from "@/lib/language";
@@ -99,7 +99,18 @@ export default function QuickIssue() {
       requestId.current = globalThis.crypto.randomUUID();
     },
   });
-  const choose = (item: { id: string; code: string; description: string; unit: string; onHand: number }) => { setPicked(item); setQuantity("1"); setTimeout(() => { quantityBox.current?.focus(); quantityBox.current?.select(); }, 0); };
+  const choose = (item: { id: string; code: string; description: string; unit: string; onHand: number }) => { setPicked(item); setQuantity("1"); };
+  // D-14 (#175): the quantity box takes the focus (its «1» selected) in the same commit that shows it — not from a timer. A timer that ran late on a busy page pulled the
+  // focus back from the unit box the person had already moved to, so the digits typed there replaced the selected quantity and the unit box stayed empty. And it never
+  // takes the focus from another field of the form.
+  const pickedId = picked?.id ?? null;
+  useLayoutEffect(() => {
+    const box = quantityBox.current;
+    if (!pickedId || !box) return;
+    const current = document.activeElement;
+    if (current && current !== document.body && current !== box && current.closest("input, textarea, select, [role=combobox]")) return;
+    box.focus(); box.select();
+  }, [pickedId]);
   const again = () => { setDone(null); setPicked(null); setQuery(""); setQuantity("1"); };
 
   return (

@@ -46,6 +46,28 @@ describe("QuickIssue", () => {
     expect(screen.getByRole("status").textContent).toContain("Cost charged: 250");
   });
 
+  // D-14 (#175): choosing a material moved the focus to the quantity box from a timer. A timer that ran late (a busy page, a slow runner) pulled the focus back
+  // from the unit box the person had already moved to, with the quantity selected, so the next digits replaced the quantity and the unit box stayed empty.
+  it("D-14: choosing a material focuses and selects the quantity at once, and a late tick never takes the focus back from the unit box", () => {
+    vi.useFakeTimers();
+    try {
+      render(<QuickIssue />);
+      type("Search by code or name", "cem");
+      fireEvent.click(screen.getByText("CEM-1"));
+      const quantity = screen.getByLabelText(/Quantity/) as HTMLInputElement;
+      expect(document.activeElement).toBe(quantity); // focused in the same commit, not later
+      const unit = screen.getByLabelText("Unit number") as HTMLInputElement;
+      unit.focus(); // the person moves on before any pending tick runs
+      vi.runAllTimers();
+      expect(document.activeElement).toBe(unit);
+      type("Unit number", "12");
+      expect(unit.value).toBe("12");
+      expect(quantity.value).toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not offer Save for an unknown unit, an unpicked activity, or more than is on the shelf", () => {
     render(<QuickIssue />);
     type("Search by code or name", "cem"); fireEvent.click(screen.getByText("CEM-1"));
