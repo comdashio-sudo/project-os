@@ -17,7 +17,7 @@ import { ArrowLeft, CheckSquare, CircleAlert, Clock3, FolderTree, ShieldAlert, T
 import React, { FormEvent, useState } from "react";
 import { Link, useParams } from "wouter";
 import { enumLabel } from "@/lib/labels";
-import { WriteGate } from "@/lib/permissions";
+import { useCan, WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
 import type { Language } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -40,6 +40,7 @@ export default function PmoDashboard() {
   const { isArabic, language } = useLanguage();
   const utils = trpc.useUtils();
   const setupQuery = trpc.dashboards.pmoPortfolioSetup.useQuery({ tenantId });
+  const canCreateProject = useCan("project.write"); // D-28 (G-170): the empty setup leads to the new-project wizard for whoever may use it
   const risksQuery = trpc.dashboards.pmoRisks.useQuery({ tenantId });
   const issuesQuery = trpc.dashboards.pmoIssues.useQuery({ tenantId });
   const actionsQuery = trpc.dashboards.pmoActions.useQuery({ tenantId });
@@ -157,7 +158,7 @@ export default function PmoDashboard() {
           {issuesQuery.error && <SectionMessage title={t.issues} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(issuesQuery.error, isArabic)} onRetry={() => void issuesQuery.refetch()} />}
           {actionsQuery.isLoading && <SectionMessage title={t.actions} isArabic={isArabic} kind="loading" />}
           {actionsQuery.error && <SectionMessage title={t.actions} isArabic={isArabic} kind="error" detail={getLocalizedProjectError(actionsQuery.error, isArabic)} onRetry={() => void actionsQuery.refetch()} />}
-          {setupQuery.data && !data.portfolios.length && !data.programs.length && !data.projects.length && <SectionMessage title={pickLanguage(language, { ar: "إعداد المحفظة والبرنامج", en: "Portfolio and program setup", ur: "پورٹ فولیو اور پروگرام کی ترتیب" })} isArabic={isArabic} kind="empty" />}
+          {setupQuery.data && !data.portfolios.length && !data.programs.length && !data.projects.length && <SectionMessage title={pickLanguage(language, { ar: "إعداد المحفظة والبرنامج", en: "Portfolio and program setup", ur: "پورٹ فولیو اور پروگرام کی ترتیب" })} isArabic={isArabic} kind="empty" detail={pickLanguage(language, { ar: "تبدأ المحفظة بأول مشروع: أنشئه، ثم اربطه بمحفظة وبرنامج من هنا.", en: "The portfolio starts with the first project: create it, then link it to a portfolio and a program here.", ur: "پورٹ فولیو پہلے پروجیکٹ سے شروع ہوتا ہے: اسے بنائیں، پھر یہاں پورٹ فولیو اور پروگرام سے جوڑیں۔" })} actions={canCreateProject ? <Link href={`/projects/${tenantId}/new`} className="inline-flex min-h-[44px] items-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground">{pickLanguage(language, { ar: "أنشئ أول مشروع", en: "Create the first project", ur: "پہلا پروجیکٹ بنائیں" })}</Link> : undefined} />}
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">

@@ -100,7 +100,9 @@ describe("PmoDashboard planning control center", () => {
   it("shows an empty portfolio setup state at the setup source", () => {
     state.setupEmpty = true;
     render(<PmoDashboard />);
-    expect(within(screen.getByLabelText("Portfolio and program setup")).getByText("No data is available for this section in the current access scope.")).toBeTruthy();
+    expect(within(screen.getByLabelText("Portfolio and program setup")).getByText("The portfolio starts with the first project: create it, then link it to a portfolio and a program here.")).toBeTruthy();
+    // D-28 (G-170): the next step, for someone who may create a project (no permission provider here, so allowed)
+    expect(within(screen.getByLabelText("Portfolio and program setup")).getByRole("link", { name: "Create the first project" }).getAttribute("href")).toMatch(/^\/projects\/.+\/new$/);
     expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
   });
 
@@ -108,7 +110,7 @@ describe("PmoDashboard planning control center", () => {
     state.setupEmpty = true;
     state.risksError = { message: "risks unavailable" };
     render(<PmoDashboard />);
-    expect(screen.getByText("No data is available for this section in the current access scope.")).toBeTruthy();
+    expect(screen.getByText("The portfolio starts with the first project: create it, then link it to a portfolio and a program here.")).toBeTruthy();
     expect(screen.getAllByText("safe error").length).toBeGreaterThan(0);
   });
 

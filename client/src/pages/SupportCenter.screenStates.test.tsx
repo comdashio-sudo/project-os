@@ -11,6 +11,7 @@ const forbidden = { message: "PROJECT_OS_PERMISSION_DENIED", data: { code: "FORB
 const state = vi.hoisted(() => ({
   tickets: { isLoading: false, isFetching: false, error: null as unknown, data: [] as unknown[] | undefined, refetch: vi.fn() },
   knowledge: { isLoading: false, isFetching: false, error: null as unknown, data: [] as unknown[] | undefined, refetch: vi.fn() },
+  ownerSources: undefined as unknown[] | undefined,
 }));
 const mutation = vi.hoisted(() => () => ({ mutate: vi.fn(), isPending: false, error: null }));
 
@@ -21,13 +22,14 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ support: { tickets: { invalidate: vi.fn() } } }),
   support: {
     tickets: { useQuery: () => state.tickets },
-    knowledge: { list: { useQuery: () => state.knowledge } },
+    knowledge: { list: { useQuery: () => state.knowledge }, sources: { useQuery: () => ({ data: state.ownerSources, error: null }) } },
     ticket: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: vi.fn() }) },
     create: { useMutation: mutation }, reply: { useMutation: mutation }, transition: { useMutation: mutation },
   },
 } }));
 
 beforeEach(() => {
+  state.ownerSources = undefined;
   state.tickets = { isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() };
   state.knowledge = { isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() };
 });
@@ -46,6 +48,16 @@ describe("SupportCenter screen states", () => {
     render(<SupportCenter />);
     expect(screen.getByText("No published knowledge articles exist in this workspace.")).toBeTruthy();
     expect(screen.getByText("Articles are published from the support owner panel once they are tied to an approved document.")).toBeTruthy();
+  });
+
+  it("D-28 (G-170): the empty knowledge list links to the support owner panel only for someone that panel answers", () => {
+    state.ownerSources = [];
+    const first = render(<SupportCenter />);
+    expect(screen.getByRole("link", { name: "Publish the first article" }).getAttribute("href")).toBe("#support-owner");
+    first.unmount();
+    state.ownerSources = undefined;
+    render(<SupportCenter />);
+    expect(screen.queryByRole("link", { name: "Publish the first article" })).toBeNull();
   });
 
   it("a failed read offers a retry that refetches the tickets and the knowledge list", () => {

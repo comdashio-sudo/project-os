@@ -312,7 +312,7 @@ export default function ExecutiveDashboard() {
               ) : null}
             </CardContent>
           </Card>
-        ) : <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="empty" /></div>}
+        ) : <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="empty" detail={pickLanguage(language, { ar: "يظهر هنا حين يُدخَل التدفق النقدي المخطط لمشروع في «ملف المشروع الأساسي».", en: "It appears once a project's planned cash flow is entered in the project baseline.", ur: "یہ تب ظاہر ہوتا ہے جب کسی پروجیکٹ کا منصوبہ بند نقد بہاؤ «پروجیکٹ کی بنیادی فائل» میں درج ہو۔" })} actions={<Link href={`/projects/${tenantId}`} className="inline-flex min-h-[44px] items-center rounded-[var(--radius)] border border-primary bg-card px-4 text-sm font-semibold text-primary">{pickLanguage(language, { ar: "افتح المشاريع", en: "Open the projects", ur: "پروجیکٹس کھولیں" })}</Link>} /></div>}
         </SectionErrorBoundary>
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
           <SectionErrorBoundary title={t.attention} isArabic={isArabic}>

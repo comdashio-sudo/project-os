@@ -17,6 +17,7 @@ import { companies, memberships, projects, roles as rolesTable, users } from "..
 import { sdk } from "../../server/_core/sdk.ts";
 import { getDb, upsertUser } from "../../server/db.ts";
 import { appRouter } from "../../server/routers.ts";
+import { DEMO_PROJECT_CODE, DEMO_TENANT_SLUG } from "../../scripts/lib/demoTenant.mjs";
 import { DEMO_EMAIL, TEST_DATABASE, VIEWER_ROLE, emailOpenId, visitPeople } from "./roleUsers.mjs";
 
 const fail = message => { console.error(message); process.exit(2); };
@@ -33,11 +34,11 @@ const db = await getDb();
 if (!db) fail("the database is not available");
 const [demo] = await db.select().from(users).where(eq(users.openId, emailOpenId(DEMO_EMAIL))).limit(1);
 if (!demo) fail("the demo administrator is not seeded: run scripts/seed-demo-tenant.mjs first.");
-const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, "demo-construction")).limit(1);
+const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, DEMO_TENANT_SLUG)).limit(1);
 if (!company) fail("the demo tenant is not seeded: run scripts/seed-demo-tenant.mjs first.");
 const tenantId = company.id;
-const [project] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.tenantId, tenantId), eq(projects.code, "DEMO-001"))).limit(1);
-if (!project) fail("the demo project DEMO-001 is not seeded.");
+const [project] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.tenantId, tenantId), eq(projects.code, DEMO_PROJECT_CODE))).limit(1);
+if (!project) fail(`the demo project ${DEMO_PROJECT_CODE} is not seeded.`);
 
 const callerFor = user => appRouter.createCaller({ user, req: { protocol: "https", headers: {} }, res: {} });
 const asAdmin = callerFor(demo);

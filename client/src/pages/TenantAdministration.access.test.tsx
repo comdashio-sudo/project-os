@@ -115,3 +115,23 @@ describe("TenantAdministration checks its forms in the page's language (D-65)", 
     expectEmptySubmitRefused(forms[0], "en", vi.fn());
   });
 });
+
+describe("D-28 (G-170): an empty member list leads a manager to the invitation form", () => {
+  beforeEach(() => { state.administration = { isLoading: false, error: null, data: { ...administrationData, memberships: [], members: [] } }; });
+  afterEach(cleanup);
+
+  it("a person with tenant.manage gets «Invite the first member», which puts the cursor in the invitation e-mail", () => {
+    state.permission = { data: summary(), error: null, isLoading: false };
+    render(page());
+    const button = screen.getByRole("button", { name: "Invite the first member" });
+    button.click();
+    expect(document.activeElement?.id).toBe("invite-email");
+  });
+
+  it("NEGATIVE: without tenant.manage the line stays and there is no button to a form that is not there", () => {
+    state.permission = { data: summary({ permissions: ["project.read"] }), error: null, isLoading: false };
+    render(page());
+    expect(screen.getByText("No memberships are visible in this organization.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Invite the first member" })).toBeNull();
+  });
+});
