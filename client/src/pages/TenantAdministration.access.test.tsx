@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PermissionProvider } from "@/lib/permissions";
 import TenantAdministration from "./TenantAdministration";
@@ -9,8 +9,10 @@ import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 const state = vi.hoisted(() => ({
   administration: { isLoading: false, error: { message: "forbidden" } as unknown, data: undefined as unknown },
   permission: { data: undefined as unknown, error: null as unknown, isLoading: false },
+  invite: vi.fn(),
 }));
 
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "tenant-1" }),
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
@@ -41,7 +43,7 @@ vi.mock("@/lib/trpc", () => {
       updateRole: { useMutation: mutation },
       assignMembershipRole: { useMutation: mutation },
       revokeMembershipRole: { useMutation: mutation },
-      createInvitation: { useMutation: mutation },
+      createInvitation: { useMutation: () => ({ mutate: state.invite, isPending: false, error: null, isSuccess: false }) },
       transitionMembershipStatus: { useMutation: mutation },
     },
   } };
@@ -133,5 +135,40 @@ describe("D-28 (G-170): an empty member list leads a manager to the invitation f
     render(page());
     expect(screen.getByText("No memberships are visible in this organization.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Invite the first member" })).toBeNull();
+  });
+});
+
+describe("D-75: the invitation's role is a design-system list", () => {
+  beforeEach(() => { state.administration = { isLoading: false, error: null, data: administrationData }; state.permission = { data: { permissions: ["tenant.manage"] }, error: null, isLoading: false }; state.invite.mockReset(); });
+  afterEach(cleanup);
+
+  it("invites with the role chosen from the list, at company scope", () => {
+    render(<TenantAdministration />);
+    fireEvent.change(document.getElementById("invite-email")!, { target: { value: "new.member@example.test" } });
+    fireEvent.change(document.getElementById("invite-role")!, { target: { value: ROLE } });
+    fireEvent.submit(document.getElementById("invite-role")!.closest("form")!);
+    expect(state.invite).toHaveBeenCalledTimes(1);
+    expect(state.invite.mock.calls[0][0]).toMatchObject({ email: "new.member@example.test", roleId: ROLE, scopeType: "company" });
+  });
+
+  it("NEGATIVE: without a role nothing is sent and the role list is marked", () => {
+    render(<TenantAdministration />);
+    fireEvent.change(document.getElementById("invite-email")!, { target: { value: "new.member@example.test" } });
+    const role = document.getElementById("invite-role")!;
+    fireEvent.submit(role.closest("form")!);
+    expect(state.invite).not.toHaveBeenCalled();
+    expect(role.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("D-75: on a phone the page's grid keeps one column the width of the screen and long permission names wrap (they once widened a card past 390px and clipped it)", () => {
+    state.administration = { isLoading: false, error: null, data: { ...administrationData, roles: [{ ...administrationData.roles[0], permissions: [{ code: "project.design.manage", name: "Manage the drawing register, transmittals and consultant comments" }] }] } };
+    render(<TenantAdministration />);
+    const grid = document.querySelector(".mt-6.grid") as HTMLElement;
+    expect(grid.className).toContain("grid-cols-1");
+    expect(grid.className).toContain("[&>*]:min-w-0");
+    const badges = Array.from(document.querySelectorAll<HTMLElement>('[title="project.design.manage"]'));
+    expect(badges.length).toBeGreaterThan(0);
+    // NEGATIVE: no permission badge keeps the no-wrap that forced the width
+    for (const badge of badges) { expect(badge.className).toContain("whitespace-normal"); expect(badge.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/); }
   });
 });
