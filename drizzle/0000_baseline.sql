@@ -2280,7 +2280,8 @@ CREATE TABLE "site_daily_report_photos" (
 	"zone" varchar(80),
 	"pmc_unit_id" varchar(36),
 	"created_by_user_id" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_report_photos_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "site_daily_report_tomorrow" (
@@ -2729,6 +2730,39 @@ CREATE TABLE "webhook_endpoints" (
 	"created_by_user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "weekly_report_photos" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"weekly_report_id" varchar(36) NOT NULL,
+	"photo_id" varchar(36) NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "weekly_reports" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"week_start" date NOT NULL,
+	"summary" text,
+	"analysis" text,
+	"corrective_actions" text,
+	"milestones" text,
+	"outlook" text,
+	"engineering" text,
+	"procurement" text,
+	"commercial" text,
+	"interfaces" text,
+	"issues" text,
+	"decisions" text,
+	"created_by_user_id" integer NOT NULL,
+	"updated_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "weekly_reports_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
 ALTER TABLE "actions" ADD CONSTRAINT "actions_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3298,6 +3332,14 @@ ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_tenant_id_co
 ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_endpoint_id_webhook_endpoints_id_fk" FOREIGN KEY ("endpoint_id") REFERENCES "public"."webhook_endpoints"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook_endpoints" ADD CONSTRAINT "webhook_endpoints_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook_endpoints" ADD CONSTRAINT "webhook_endpoints_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_report_photos" ADD CONSTRAINT "weekly_report_photos_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_report_photos" ADD CONSTRAINT "weekly_report_photos_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_report_photos" ADD CONSTRAINT "weekly_report_photos_report_fk" FOREIGN KEY ("weekly_report_id","tenant_id","project_id") REFERENCES "public"."weekly_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_report_photos" ADD CONSTRAINT "weekly_report_photos_photo_fk" FOREIGN KEY ("photo_id","tenant_id","project_id") REFERENCES "public"."site_daily_report_photos"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "actions_tenant_project_due_idx" ON "actions" USING btree ("tenant_id","project_id","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "activities_project_code_unique" ON "activities" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "activities_tenant_project_idx" ON "activities" USING btree ("tenant_id","project_id");--> statement-breakpoint
@@ -3633,7 +3675,10 @@ CREATE UNIQUE INDEX "wbs_items_project_code_unique" ON "wbs_items" USING btree (
 CREATE INDEX "wbs_items_tenant_project_idx" ON "wbs_items" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "webhook_deliveries_due_idx" ON "webhook_deliveries" USING btree ("status","next_attempt_at");--> statement-breakpoint
 CREATE INDEX "webhook_deliveries_tenant_idx" ON "webhook_deliveries" USING btree ("tenant_id","created_at");--> statement-breakpoint
-CREATE INDEX "webhook_endpoints_tenant_idx" ON "webhook_endpoints" USING btree ("tenant_id","active");
+CREATE INDEX "webhook_endpoints_tenant_idx" ON "webhook_endpoints" USING btree ("tenant_id","active");--> statement-breakpoint
+CREATE UNIQUE INDEX "weekly_report_photos_report_photo_unique" ON "weekly_report_photos" USING btree ("weekly_report_id","photo_id");--> statement-breakpoint
+CREATE INDEX "weekly_report_photos_report_idx" ON "weekly_report_photos" USING btree ("weekly_report_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "weekly_reports_project_week_unique" ON "weekly_reports" USING btree ("project_id","week_start");
 --> statement-breakpoint
 -- PROJECT OS baseline, hand-written part (appended to the generated tables by scripts/build-baseline.mjs; do not apply on its own).
 --

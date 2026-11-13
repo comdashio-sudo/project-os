@@ -1,5 +1,6 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { getReportPeriod } from "./reportPeriods";
+import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { actOnDifferences, canSeeFinancials, confirmSiteActivityLinks, listCatalogActivities, listSiteActivities, pmcComparison, pmcEarnedValue, pmcSiteCurve, pmcSourcePercentages, savePmcCellNote, siteCellHistory, updateSiteStatus } from "./pmcSiteService";
 import { linkConsultantColumns, listConsultantColumns } from "./consultantImport";
 import { exportComparisonWorkbook, exportMonthlyReportWorkbook } from "./wo22Exports";
@@ -479,6 +480,11 @@ export const appRouter = router({
   // D-48 (§5): the period engine — a week (seven days from its first) or a calendar month, added up from the daily reports (server/reportPeriods.ts). Read only.
   reportPeriods: router({
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(["week", "month"]), anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), includeUnapproved: z.boolean().optional() })).query(({ ctx, input }) => getReportPeriod({ userId: ctx.user.id, ...input })),
+    // D-49 (a): the weekly report's own words and chosen photos (server/weeklyReports.ts); its figures stay the engine's above, never stored
+    weekly: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(({ ctx, input }) => getWeeklyReport({ userId: ctx.user.id, ...input })),
+    saveWeekly: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      texts: z.object(Object.fromEntries(WEEKLY_TEXTS.map(key => [key, z.string().max(8000).nullable().optional()])) as Record<(typeof WEEKLY_TEXTS)[number], z.ZodOptional<z.ZodNullable<z.ZodString>>>).strict(),
+      photoIds: z.array(z.string().uuid()).max(MAX_WEEKLY_PHOTOS) })).mutation(({ ctx, input }) => saveWeeklyReport({ userId: ctx.user.id, ...input })),
   }),
   siteReports: router({
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),

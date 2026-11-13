@@ -2341,3 +2341,14 @@
 | ماذا يُرسل اليوم (من الكود) | `SOURCE_VERIFIED` | رمز الدخول: Supabase Auth ببريده (المدمج ما لم يُضبط SMTP مخصص في لوحة Supabase). الدعوات (`server/invitationEmail.ts`) والملخّصات اليومية وملخّص الوحدات المتوقفة (`server/emailNotifications.ts` و`server/stalledUnitsDigest.ts`): SMTP عبر `nodemailer` (`server/_core/auth/mailer.ts`)، ولا يُرسل شيء ما لم تكتمل `SMTP_HOST/PORT/USER/PASSWORD` و`EMAIL_FROM` و`EMAIL_NOTIFICATIONS_ENABLED=true` و`APP_BASE_URL` (الدعوة تبقى صالحة ويُشارك رابطها باليد) |
 | `/healthz` يختم بـ«mail configured» أو «mail not configured, missing: <الأسماء>»، و`/api/readyz` يحمل `mail: { configured, missing }` (لا يؤثر في `ready`) | `PROVEN` (اختبار) | `server/_core/app.test.ts` حالتان: الكل مضبوط ⇒ مهيّأ، وكلمة مرور ناقصة ومفتاح مطفأ ⇒ الاسمان بالترتيب؛ ولا قيمة (المستخدم أو كلمة المرور أو الخادم) في أي رد |
 | الإرسال الفعلي | `BLOCKED_BY_OWNER` | `docs/OWNER_ACTIONS.md` §18: اختيار مزوّد SMTP بخطة مجانية على نطاق داشيو (لا Resend بحكم ADR-0002، ولا كلمة مرور Gmail)، والمتغيرات السبعة في Vercel، وSMTP المخصص في Supabase Auth، ثم التحقق بـ`/healthz` ودعوة تجريبية |
+
+### D-49 (أ + ب): التقرير الأسبوعي — حفظ النصوص والصور (الخادم) وشاشة المحرر (2026-11-13، المبرمج ج ضمن Q-15، من `main` @ `3e114b3`؛ يحل محل #259 و#261)
+
+أُخذت commits الطلبين #259 (`8837d46`) و#261 (`6d14f4b`) كما هي إلى فرع من `main` (كانا مكدّسين على فرع #248 قبل دمجه بـsquash، فلا يندمجان)، وأُعيد ترقيم الترحيلة **`0028_weekly_reports` ← `0034_weekly_reports`** (أول رقم حر بعد 0033)، مع `schemaReady.ts` والأساس (`pnpm db:baseline:check` مطابق)، وأُضيف رابط «التقرير الأسبوعي» إلى مجموعة «التسليم في الموقع» بجانب ما أضيف لها بعد #261، ومساره في `App.tsx`. لا تغيير في منطق الطلبين؛ وصفهما الكامل (العقد، الأرقام من المحرك لا تُخزَّن، الحقل الوحيد غير النصي تاريخ الأسبوع، الاقتراح لا يكتب فوق نص مكتوب) في #259 و#261.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| الخادم: `reportPeriods.weekly` و`reportPeriods.saveWeekly` بالصلاحيات والمفاتيح المركّبة والتدقيق | `PROVEN` (قاعدة) | `server/weeklyReports.database.test.ts` 5/5 بحساب `project_os_app` على قاعدة أُنشئت من الصفر بالترحيلات حتى 0034؛ `pnpm test:db` ← 720 ناجحًا و0 فاشل و20 متخطى |
+| الشاشة `/projects/:t/:p/weekly-report` | `PROVEN` (اختبار) | `WeeklyReport.interaction.test.tsx` ضمن `pnpm test` ← 3625 ناجحًا و0 فاشل؛ لقطات اللغات الثلاث على 390 و1280 في #261 (`screens/d-3`، `d-49/b/6d14f4b/`) — لم تُعَد بعد النقل |
+| فحوص | — | `pnpm check` نظيف؛ `check:secrets` 0 |
+| حدود | `OPEN` | تصدير الأسبوعي PowerPoint/PDF هو D-50 (لم يُبنَ)؛ الرحلات الثلاث لم تُشغَّل |
