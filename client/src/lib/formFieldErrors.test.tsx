@@ -19,6 +19,16 @@ describe("formFieldErrors: what the browser would have refused, in the screen's 
     expect(formFieldErrors(form, "ur")).toEqual({ name: "یہ فیلڈ ضروری ہے۔" });
   });
 
+  it("reports an empty required design-system list under the list's own id, where its FieldError sits (D-75)", () => {
+    // the ds Select writes its value into a hidden copy (id = <list>-value, data-list-for = <list>)
+    const empty = formOf('<input id="setup-plan-value" data-list-for="setup-plan" required value=""><button id="setup-plan" type="button"></button>');
+    expect(formFieldErrors(empty, "en")).toEqual({ "setup-plan": "This field is required." });
+    // NEGATIVE: a chosen value raises nothing, and the copy's own id never carries a message
+    const chosen = formOf('<input id="setup-plan-value" data-list-for="setup-plan" required value="starter">');
+    expect(formFieldErrors(chosen, "en")).toEqual({});
+    expect(formFieldErrors(empty, "en")).not.toHaveProperty("setup-plan-value");
+  });
+
   it("names a number outside its min and max, and accepts one inside them", () => {
     expect(formFieldErrors(formOf('<input id="seats" type="number" min="1" max="10" value="12">'), "en"))
       .toEqual({ seats: "The value is outside the allowed range." });
