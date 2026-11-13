@@ -44,6 +44,23 @@ export async function readSpreadsheetSafely(input: Uint8Array | string, format: 
   }
 }
 
+const columnNumber = (letters: string) => letters.split("").reduce((sum, ch) => sum * 26 + (ch.charCodeAt(0) - 64), 0);
+/** «B2:B6» as its corners (1-based); null for anything else. Shared by both readers. */
+export function parseRange(range: string): { top: number; left: number; bottom: number; right: number } | null {
+  const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range);
+  return match ? { left: columnNumber(match[1]), top: Number(match[2]), right: columnNumber(match[3]), bottom: Number(match[4]) } : null;
+}
+/**
+ * D-25: merged cells read the way Excel SHOWS them — the same rule as the smart import's reader (smartImport/sheetReader.ts): a VERTICAL merge (one column,
+ * several rows: a section code written once beside many lines) gives every row its value; a horizontal or block merge (a title across columns) does not spread
+ * its text into the other columns, which stay empty. Returns whether a cell of the sheet is a covered cell of a merge that is NOT vertical.
+ */
+export function horizontalMergeCover(sheet: ExcelJS.Worksheet): (row: number, column: number) => boolean {
+  const merges = ((sheet.model as unknown as { merges?: string[] }).merges ?? []).map(parseRange).filter((range): range is NonNullable<typeof range> => range !== null)
+    .filter(range => !(range.left === range.right && range.bottom > range.top));
+  return (row, column) => merges.some(range => row >= range.top && row <= range.bottom && column >= range.left && column <= range.right && !(row === range.top && column === range.left));
+}
+
 export type SpreadsheetLimits = { maxRows: number; maxColumns: number };
 const defaultLimits: SpreadsheetLimits = { maxRows: MAX_IMPORT_ROWS, maxColumns: MAX_IMPORT_COLUMNS };
 
@@ -54,10 +71,12 @@ export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLim
     return String(cell.text ?? "").trim();
   });
   const rows: Record<string, unknown>[] = [];
+  const covered = horizontalMergeCover(sheet);
   const lastRow = Math.min(sheet.rowCount, limits.maxRows + 2);
   for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     const values = Object.fromEntries(headers.map((header, index) => {
+      if (covered(rowNumber, index + 1)) return [header, ""];
       const cell = row.getCell(index + 1);
       const value = typeof cell.value === "object" && cell.value !== null && "result" in cell.value
         ? cell.value.result
