@@ -76,9 +76,10 @@ export const operationalRoleDefinitions = [
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   // Q-12 (d): the planning engineer sets projects up (project.create, held at company scope): creates one, writes its profile and companies, and invites its team, the project manager included
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.performance.read_own"] },
-  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
+  // Q-17 (205-3): the field and technical roles open the project page (project.read); its money stays behind project.cashflow.read (205-1)
+  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.performance.read_own"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
-  { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.hse.manage", "project.field.manage", "project.performance.read_own"] },
+  { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.read", "project.hse.manage", "project.field.manage", "project.performance.read_own"] },
   {
     code: "PROJECT_MANAGER",
     name: "Project Manager",
