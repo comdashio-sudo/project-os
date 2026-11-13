@@ -44,7 +44,6 @@
   "hardcoded-colour": 3
  },
  "client/src/pages/CommercialChain.tsx": {
-  "raw-select": 9,
   "hardcoded-colour": 8
  },
  "client/src/pages/EmployeeRegistry.tsx": {
@@ -85,7 +84,6 @@
   "hardcoded-colour": 8
  },
  "client/src/pages/PmoControlLinks.tsx": {
-  "raw-select": 9,
   "hardcoded-colour": 1
  },
  "client/src/pages/PmoDashboard.tsx": {
