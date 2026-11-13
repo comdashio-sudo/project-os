@@ -3,7 +3,8 @@
 // pages, horizontal page scroll, touch targets under 44px, and English text that is left on screen in Arabic mode.
 //
 // Hard failures (console error, uncaught error, 5xx, blank page, horizontal scroll on phone) make the run exit 1.
-// Soft findings (touch targets, English text) are written to the report for the audit document and do not fail the run.
+// Soft findings (touch targets, English text) are written to the report for the audit document and do not fail the run — except a touch target under
+// 44px on the pages in TOUCH_STRICT_ROUTES (D-76: the project controls, PMC with its tabs, the site update), which is hard.
 //
 // Each page record also lists the API procedures the server refused with 403 (`refusals`) and whether the page says so in words
 // (`noPermissionText`). tests/ui/runRoleVisits.mjs runs this once per role and summarises the results.
@@ -53,8 +54,13 @@ const VIEWPORTS = [
 
 // The routes of the app (client/src/App.tsx), with the synthetic tenant and project in place of the parameters.
 const APP_SOURCE = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
+const ROUTE_FILTER = String(process.env.ROUTE_FILTER ?? "").split(",").map(item => item.trim()).filter(Boolean);
+// D-76: the PMC page's tabs open from the address (?tab=), and its Excel exports live in them, so each tab is a page of its own here
+const PMC_TABS = ["approvals", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "editors", "import"];
 const ROUTES = [...new Set([...APP_SOURCE.matchAll(/path="([^"]+)"/g)].map(match => match[1]))]
-  .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID).replace(":unitNumber", "101"));
+  .flatMap(pattern => (pattern.endsWith("/pmc") ? [pattern, ...PMC_TABS.map(tab => `${pattern}?tab=${tab}`)] : [pattern]))
+  .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID).replace(":unitNumber", "101"))
+  .filter(route => !ROUTE_FILTER.length || ROUTE_FILTER.some(fragment => route.includes(fragment)));
 
 // Words that are allowed to stay in English: product codes, units and standard acronyms the Arabic glossary keeps.
 const ALLOWED_ENGLISH = new Set(["WBS", "EVM", "PV", "EV", "AC", "SPI", "CPI", "EAC", "ETC", "VAC", "TCPI", "FPAC", "PMC", "PMO", "XER", "XLSX", "CSV", "PDF", "Excel", "Dashio", "SAR", "USD", "API", "ID", "OK", "RFI", "NCR", "HSE", "BOQ", "GRN", "PO", "MRN", "EOS", "AI", "ZATCA", "Power", "BI", "Primavera", "Microsoft", "Google", "Gmail", "Supabase", "Vercel", "Resend", "Chrome", "Edge", "Safari", "Firefox",
@@ -107,13 +113,21 @@ async function auditPage(browser, route, vp, token) {
       const text = raw.replace(/[\w.+-]+@[\w.-]+/g, " ").replace(/PROJECT OS/g, " ");
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const targets = [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")].filter(visible);
-      const small = vpMobile ? targets.filter(element => { const box = element.getBoundingClientRect(); return box.height < 44 || box.width < 44; }).length : 0;
+      // D-76: what a finger hits. A checkbox, a radio or a visually hidden input inside its <label> (or named by one) is tapped through that label, so the label's box is the target; an input the
+      // keyboard and the screen reader skip (a hidden file input behind its own button) is not a target at all.
+      const hiddenInput = element => { const box = element.getBoundingClientRect(); return element.matches("input") && (box.width <= 2 || box.height <= 2); };
+      const tapArea = element => { if (element.matches("input[type=checkbox], input[type=radio]") || hiddenInput(element)) { const label = element.closest("label") ?? (element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`) : null); if (label) return label; } return element; };
+      const skipped = element => element.getAttribute("aria-hidden") === "true" || element.tabIndex < 0 && element.matches("input[type=file]");
+      const smallOnes = vpMobile ? targets.filter(element => !skipped(element)).filter(element => { const box = tapArea(element).getBoundingClientRect(); return box.height < 44 || box.width < 44; }) : [];
+      const small = smallOnes.length;
+      // D-76: which ones, so a failure names them (tag, its words or label, and its size)
+      const smallSample = smallOnes.slice(0, 20).map(element => { const box = tapArea(element).getBoundingClientRect(); return `${element.tagName.toLowerCase()}${element.getAttribute("type") ? `[${element.getAttribute("type")}]` : ""} «${(element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 30)}» ${Math.round(box.width)}×${Math.round(box.height)}`; });
       // Every distinct word of four or more Latin letters on the screen (not only the first forty), so a long page is read whole.
       const latin = [...new Set(text.match(/\b[A-Za-z]{4,}\b/g) ?? [])];
       const denied = new RegExp(denialSource).test(text);
       // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
       const loading = /جارٍ|جاري/.test(text);
-      return { textLength: raw.trim().length, overflow, targets: targets.length, small, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
+      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
     }, [vp.mobile, NO_PERMISSION_TEXT.source, LANGUAGE_NAMES]);
     let screenshot = null;
     if (SCREENSHOTS) {
@@ -127,7 +141,7 @@ async function auditPage(browser, route, vp, token) {
     if (serverFailures.length) note("server-failure", route, vp.name, [...new Set(serverFailures)].slice(0, 5));
     if (measured.textLength < 30) note("blank-page", route, vp.name, `text length ${measured.textLength}`);
     if (vp.mobile && measured.overflow > 1) note("horizontal-scroll", route, vp.name, `overflow ${measured.overflow}px`);
-    if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, `${measured.small} of ${measured.targets} controls under 44px`);
+    if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, { summary: `${measured.small} of ${measured.targets} controls under 44px`, sample: measured.smallSample });
     if (measured.dir !== EXPECTED_DIR) note("not-rtl", route, vp.name, `dir=${measured.dir}, expected ${EXPECTED_DIR} in ${LANGUAGE}`);
     const unexpected = measured.latin.filter(word => !ALLOWED_ENGLISH.has(word));
     // Arabic: English words on the screen are a hard finding. Urdu: they are the open fallback, reported as soft. English: not a finding.
@@ -156,7 +170,11 @@ try {
 // forbids touching them, so the finding is recorded and handed over instead of being fixed here (docs/STATE.md). Remove the entry when they are fixed.
 const advisory = String(process.env.ADVISORY_ROUTES ?? "").split(",").map(item => item.trim()).filter(Boolean);
 for (const finding of findings) if (advisory.some(fragment => finding.route.includes(fragment)) && ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(finding.kind)) finding.kind = `advisory-${finding.kind}`;
-const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(f.kind));
+// D-76: on the pages named here a control under 44px on a phone (measured where the finger lands) fails the run; elsewhere it stays a soft finding until
+// those pages are brought to 44px too. TOUCH_STRICT_ROUTES (comma-separated route fragments) replaces the list.
+const TOUCH_STRICT = String(process.env.TOUCH_STRICT_ROUTES ?? "/pmc,/controls,/site-update").split(",").map(item => item.trim()).filter(Boolean);
+for (const finding of findings) if (finding.kind === "small-touch-target" && TOUCH_STRICT.some(fragment => finding.route.includes(fragment))) finding.kind = "small-touch-target-strict";
+const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
 const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));
