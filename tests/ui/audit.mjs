@@ -2,7 +2,7 @@
 // administrator, and records what a person would hit: console errors, uncaught page errors, server failures (5xx and API 404), blank
 // pages, horizontal page scroll, touch targets under 44px, and English text that is left on screen in Arabic mode.
 //
-// Hard failures (console error, uncaught error, 5xx, blank page, horizontal scroll on phone) make the run exit 1.
+// Hard failures (console error, uncaught error, 5xx, blank page, horizontal scroll on phone, an Arabic-Indic or Persian digit on the screen) make the run exit 1.
 // Soft findings (touch targets, English text) are written to the report for the audit document and do not fail the run — except a touch target under
 // 44px on the pages in TOUCH_STRICT_ROUTES (D-76: the project controls, PMC with its tabs, the site update), which is hard.
 //
@@ -124,10 +124,12 @@ async function auditPage(browser, route, vp, token) {
       const smallSample = smallOnes.slice(0, 20).map(element => { const box = tapArea(element).getBoundingClientRect(); return `${element.tagName.toLowerCase()}${element.getAttribute("type") ? `[${element.getAttribute("type")}]` : ""} «${(element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 30)}» ${Math.round(box.width)}×${Math.round(box.height)}`; });
       // Every distinct word of four or more Latin letters on the screen (not only the first forty), so a long page is read whole.
       const latin = [...new Set(text.match(/\b[A-Za-z]{4,}\b/g) ?? [])];
+      // D-26 (6.4): numbers are written in Western digits in every language; an Arabic-Indic (٠-٩) or Persian (۰-۹) digit on the screen is a hard finding
+      const easternDigits = [...new Set(raw.match(/[\u0660-\u0669\u06F0-\u06F9]+/g) ?? [])];
       const denied = new RegExp(denialSource).test(text);
       // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
       const loading = /جارٍ|جاري/.test(text);
-      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
+      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, easternDigits, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
     }, [vp.mobile, NO_PERMISSION_TEXT.source, LANGUAGE_NAMES]);
     let screenshot = null;
     if (SCREENSHOTS) {
@@ -143,6 +145,7 @@ async function auditPage(browser, route, vp, token) {
     if (vp.mobile && measured.overflow > 1) note("horizontal-scroll", route, vp.name, `overflow ${measured.overflow}px`);
     if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, { summary: `${measured.small} of ${measured.targets} controls under 44px`, sample: measured.smallSample });
     if (measured.dir !== EXPECTED_DIR) note("not-rtl", route, vp.name, `dir=${measured.dir}, expected ${EXPECTED_DIR} in ${LANGUAGE}`);
+    if (measured.easternDigits.length) note("eastern-digits", route, vp.name, measured.easternDigits.slice(0, 10));
     const unexpected = measured.latin.filter(word => !ALLOWED_ENGLISH.has(word));
     // Arabic: English words on the screen are a hard finding. Urdu: they are the open fallback, reported as soft. English: not a finding.
     if (unexpected.length && LANGUAGE === "ar") note("english-text", route, vp.name, unexpected.slice(0, 12));
@@ -174,7 +177,7 @@ for (const finding of findings) if (advisory.some(fragment => finding.route.incl
 // those pages are brought to 44px too. TOUCH_STRICT_ROUTES (comma-separated route fragments) replaces the list.
 const TOUCH_STRICT = String(process.env.TOUCH_STRICT_ROUTES ?? "/pmc,/controls,/site-update").split(",").map(item => item.trim()).filter(Boolean);
 for (const finding of findings) if (finding.kind === "small-touch-target" && TOUCH_STRICT.some(fragment => finding.route.includes(fragment))) finding.kind = "small-touch-target-strict";
-const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict"].includes(f.kind));
+const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict", "eastern-digits"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
 const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));
