@@ -1,3 +1,4 @@
+import { latnLocale } from "@/components/ds/format";
 import { CheckedForm } from "@/components/CheckedForm";
 import { formatMoney } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export function PayrollPanel({ tenantId }: { tenantId: string }) {
   const allocateCost = api.payroll.allocateCost.useMutation({ onSuccess: () => { setNotice(""); setAllocation({ entryId: "", projectId: "", wbsItemId: "", activityId: "", amount: "", incurredAt: "" }); if (detailsRunId) detailsQuery.refetch(); } });
   const error = capabilities.error ?? employees.error ?? runs.error ?? structureQuery.error ?? detailsQuery.error ?? allocationProjects.error ?? allocationOptions.error ?? saveStructure.error ?? createRun.error ?? transition.error ?? allocateCost.error ?? allocateByHours.error ?? adjustAllocation.error;
   const money = (value: number, currency: string) => formatMoney(value, currency, isArabic, 2);
-  const date = (value: Date) => new Date(value).toLocaleDateString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK" }));
+  const date = (value: Date) => new Date(value).toLocaleDateString(latnLocale(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK" })));
   const statusLabel = (status: "draft" | "review" | "approved" | "paid") => t[status];
 
   if (capabilities.isLoading) return <section aria-busy="true" className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">{t.loading}</section>;

@@ -228,7 +228,6 @@
   "hardcoded-colour": 3
  },
  "client/src/pages/SetupWizard.tsx": {
-  "western-digits": 4,
   "raw-select": 12,
   "hardcoded-colour": 5
  },

@@ -1,3 +1,4 @@
+import { latnLocale } from "@/components/ds/format";
 import { CheckedForm } from "@/components/CheckedForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +96,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
           <a href={`/api/tenant-export/${tenantId}`} download className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">{t.download}</a>
           <Button type="button" variant="outline" onClick={() => void preview.refetch()}>{t.refresh}</Button>
         </div>
-        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" }))) : t.noExport}</p>
+        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(new Date(data.lastExportAt).toLocaleString(latnLocale(pickLanguage(language, { ar: "ar-SA", en: "en-GB", ur: "ur-PK-u-nu-latn" })))) : t.noExport}</p>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <h3 className="flex items-center gap-2 font-semibold text-red-800"><ShieldAlert className="h-5 w-5" />{t.danger}</h3>
           {!data.exportFresh ? <p className="mt-2 text-sm text-red-900">{t.needExport}</p> : !asked ? (

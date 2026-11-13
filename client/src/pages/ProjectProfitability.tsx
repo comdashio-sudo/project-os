@@ -1,3 +1,4 @@
+import { latnLocale } from "@/components/ds/format";
 import React, { useMemo } from "react";
 import { PageMain, PageHeader } from "@/components/pageFrame";
 import { ArrowLeft, Calculator, CircleDollarSign, FileCheck2, ShieldCheck } from "lucide-react";
@@ -8,7 +9,7 @@ import { ErrorState, LoadingState } from "@/components/ScreenStates";
 import { ProjectFpac } from "./ProjectFpac";
 import { pickLanguage } from "@/lib/language";
 
-const amount = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const amount = (value: number) => value.toLocaleString(latnLocale(), { maximumFractionDigits: 2 });
 const ur = {
   legacyCaption: "آپریشنل مالی پل — یہ اعداد متوقع منافع نہیں ہیں؛ متوقع منافع اوپر کے پینل میں ہے۔",
   eyebrow: "پروجیکٹ FPAC",
