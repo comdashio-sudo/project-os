@@ -20,9 +20,9 @@ const text = {
     statuses: { draft: "Draft", issued: "Issued", paid: "Paid", void: "Void" } as Record<string, string>, issue: "Issue", pay: "Record payment", void: "Void", payDate: "Payment date", confirm: "Confirm",
     note: "Receipts in the cash flow come from paid invoices, on the day they were paid.",
   }, ur: {
-    title: "Client invoices", number: "Number", date: "Date", client: "Client", total: "Total", status: "Status", paidOn: "Paid on", empty: "No invoices yet.", loading: "Loading…", retry: "Retry",
-    statuses: { draft: "Draft", issued: "Issued", paid: "Paid", void: "Void" } as Record<string, string>, issue: "Issue", pay: "Record payment", void: "Void", payDate: "Payment date", confirm: "Confirm",
-    note: "Receipts in the cash flow come from paid invoices, on the day they were paid.",
+    title: "کلائنٹ کی انوائسز", number: "نمبر", date: "تاریخ", client: "کلائنٹ", total: "کل", status: "حیثیت", paidOn: "ادائیگی کی تاریخ", empty: "ابھی کوئی انوائس نہیں۔", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
+    statuses: { draft: "مسودہ", issued: "جاری شدہ", paid: "ادا شدہ", void: "منسوخ" } as Record<string, string>, issue: "جاری کریں", pay: "ادائیگی درج کریں", void: "منسوخ کریں", payDate: "ادائیگی کی تاریخ", confirm: "تصدیق کریں",
+    note: "کیش فلو میں وصولیاں ادا شدہ انوائسز سے آتی ہیں، اسی دن جس دن ان کی ادائیگی ہوئی۔",
   },
 };
 

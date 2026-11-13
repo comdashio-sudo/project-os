@@ -57,7 +57,22 @@ const TRANSLATED = ["pages/ProjectPmc.tsx", "pages/ProjectMasterPlan.tsx", "page
   "pages/ProjectWorkforce.tsx",
   "pages/SetupWizard.tsx",
   "pages/SupportOwnerPanel.tsx",
-  "pages/UserGuide.tsx"];
+  "pages/UserGuide.tsx",
+  // D-68 (batch 3)
+  "components/MasterPlanDrawing.tsx",
+  "pages/ProjectChanges.tsx",
+  "pages/ProjectHse.tsx",
+  "pages/ProjectMaterials.tsx",
+  "pages/ProjectResources.tsx",
+  "pages/ProjectOperationalImports.tsx",
+  "pages/ProjectInvoicesPanel.tsx",
+  "pages/ProjectNcrs.tsx",
+  "pages/ProjectRfis.tsx",
+  "pages/ProjectClaims.tsx",
+  "pages/MyPerformance.tsx",
+  "pages/ProjectPurchaseOrders.tsx",
+  "pages/ProjectGoodsReceipts.tsx",
+  "pages/ProjectRegistry.tsx"];
 
 describe("D-66: Urdu copies of English", () => {
   it("finds a copied Urdu text in a dictionary, in a nested `as Record` dictionary, and in an inline pick", () => {
