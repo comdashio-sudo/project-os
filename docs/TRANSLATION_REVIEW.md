@@ -609,7 +609,7 @@
 | pages/LicensingConsole.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/MyPerformance.tsx | 24 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/NotFound.tsx | 3 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/PayrollPanel.tsx | 74 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/PayrollPanel.tsx | 74 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 69 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PayrollWorkspace.tsx | 2 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/PmcProgramme.tsx | 20 | 0 | مغلق (D-66، 2026-11-13): 21 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/PmcSitePlan.tsx | 25 | 0 | مغلق (D-66، 2026-11-13): 32 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
@@ -622,14 +622,14 @@
 | pages/ProjectContracts.tsx | 29 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectControls.tsx | 101 | 0 | مغلق (D-67، 2026-11-13): 91 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDataExport.tsx | 11 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectDesign.tsx | 63 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectDesign.tsx | 63 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 63 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectDocuments.tsx | 32 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectEmployees.tsx | 40 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectFieldReports.tsx | 1 | 23 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectFpac.tsx | 61 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectFpac.tsx | 61 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 78 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، منها 8 في أزواج [البند، المعادلة] صارت البوابة تفحصها، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectGoodsReceipts.tsx | 27 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectHse.tsx | 19 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
-| pages/ProjectImports.tsx | 84 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
+| pages/ProjectImports.tsx | 84 | 0 | مغلق (D-68 دفعة 1، 2026-11-13): 87 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectInvoicesPanel.tsx | 16 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |
 | pages/ProjectMasterPlan.tsx | 113 | 0 | مغلق (D-66، 2026-11-13): 108 نصًّا أردويًا مكتوبًا بدل نسخة الإنجليزية، ترجمة آلية «تحتاج مراجعة بشرية»؛ ويحرسها `client/src/lib/urduCopies.test.tsx` |
 | pages/ProjectMaterials.tsx | 20 | 0 | مفتوح (النص المفتوح نسخة من الإنجليزية) |

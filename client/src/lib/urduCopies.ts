@@ -5,7 +5,7 @@
 import * as ts from "typescript";
 
 /** Words the glossary keeps in Latin in every language (rule 5), and file formats/units that are names, not words. */
-export const LATIN_TERMS = new Set(["PMC", "PMO", "EVM", "WBS", "BOQ", "CPI", "SPI", "BAC", "EAC", "ETC", "PV", "EV", "AC", "VAC", "SV", "CV", "QC", "NCR", "RFI", "WIR", "HSE", "KPI", "ID", "Excel", "CSV", "XLSX", "XER", "P6", "PDF", "DXF", "DWG", "PNG", "JPEG", "JPG", "GeoJSON", "SVG", "Dashio", "PROJECT", "OS", "SAR", "m", "m2", "m²", "km"]);
+export const LATIN_TERMS = new Set(["PMC", "PMO", "EVM", "TCPI", "FPAC", "PO", "WBS", "BOQ", "CPI", "SPI", "BAC", "EAC", "ETC", "PV", "EV", "AC", "VAC", "SV", "CV", "QC", "NCR", "RFI", "WIR", "HSE", "KPI", "ID", "Excel", "CSV", "XLSX", "XER", "P6", "PDF", "DXF", "DWG", "PNG", "JPEG", "JPG", "GeoJSON", "SVG", "Dashio", "PROJECT", "OS", "SAR", "m", "m2", "m²", "km"]);
 
 export type UrduCopy = { line: number; key: string; text: string };
 
@@ -37,6 +37,10 @@ export function urduCopiesOf(sourceText: string, fileName = "file.tsx"): UrduCop
         const twin = english.get(nameOf(property, source));
         if (twin) compare(twin, property.initializer, `${key}${key ? "." : ""}${nameOf(property, source)}`);
       }
+      return;
+    }
+    if (ts.isArrayLiteralExpression(en) && ts.isArrayLiteralExpression(ur)) { // D-68: [label, formula] pairs are texts too
+      ur.elements.forEach((element, index) => { const twin = en.elements[index]; if (twin) compare(twin, element, `${key}[${index}]`); });
       return;
     }
     const a = textOf(en, source), b = textOf(ur, source);

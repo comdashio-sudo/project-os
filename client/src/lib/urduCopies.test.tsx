@@ -8,13 +8,22 @@ import { isLanguageNeutral, urduCopiesOf } from "./urduCopies";
 // (D-67 and D-68 add theirs), so a translated screen cannot slide back to English unnoticed.
 const TRANSLATED = ["pages/ProjectPmc.tsx", "pages/ProjectMasterPlan.tsx", "pages/PmcSitePlan.tsx", "pages/PmcProgramme.tsx",
   // D-67: the level dashboards and the company administration
-  "pages/ExecutiveDashboard.tsx", "pages/PmoDashboard.tsx", "pages/ProjectControls.tsx", "pages/TenantAdministration.tsx"];
+  "pages/ExecutiveDashboard.tsx", "pages/PmoDashboard.tsx", "pages/ProjectControls.tsx", "pages/TenantAdministration.tsx",
+  // D-68 (batch 1): the demo-journey screens
+  "pages/PayrollPanel.tsx", "pages/ProjectImports.tsx", "pages/ProjectDesign.tsx", "pages/ProjectFpac.tsx"];
 
 describe("D-66: Urdu copies of English", () => {
   it("finds a copied Urdu text in a dictionary, in a nested `as Record` dictionary, and in an inline pick", () => {
     const source = `const t = { ar: { a: "أ" }, en: { title: "Plan", s: { x: "Open" } as Record<string, string>, f: (n: number) => \`\${n} units\` }, ur: { title: "Plan", s: { x: "Open" } as Record<string, string>, f: (n: number) => \`\${n} units\` } };
 const p = pickLanguage(language, { ar: "حفظ", en: "Save", ur: "Save" });`;
     expect(urduCopiesOf(source).map(copy => copy.key).sort()).toEqual(["", "f", "s.x", "title"]);
+  });
+
+  it("D-68: finds a copied text inside an array value ([label, formula] pairs), and NEGATIVE: not a translated one", () => {
+    const copied = `const t = { en: { rows: { cpi: ["Cost index", "EV ÷ AC"] } }, ur: { rows: { cpi: ["Cost index", "EV ÷ AC"] } } };`;
+    expect(urduCopiesOf(copied).map(copy => copy.key)).toEqual(["rows.cpi[0]"]);
+    const translated = `const t = { en: { rows: { cpi: ["Cost index", "EV ÷ AC"] } }, ur: { rows: { cpi: ["لاگت کا اشاریہ", "EV ÷ AC"] } } };`;
+    expect(urduCopiesOf(translated)).toEqual([]);
   });
 
   it("NEGATIVE: a translated text, a glossary term kept in Latin, a number or a single letter is not a copy", () => {
