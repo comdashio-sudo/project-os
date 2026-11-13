@@ -20,8 +20,8 @@ import { logError } from "./_core/logger";
 import { calculateProjectProgress } from "./domain/pmc";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { unitProgressOf } from "./domain/pmcScreens";
-import { DEFAULT_EAC_METHOD, liveEvm, loadProfitabilityRows, reportInputFor } from "./profitability";
-import { loadPmcDataset } from "./pmcScreensService";
+import { DEFAULT_EAC_METHOD, liveEvm, loadProfitabilityRows, loadProfitabilityRowsByProject, reportInputFor } from "./profitability";
+import { loadPmcDataset, loadPmcDatasets } from "./pmcScreensService";
 import { assertProjectInScope, resolveScopedAccess } from "./scopeAccess";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -83,13 +83,17 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
   for (const row of await db.select({ projectId: warehouseInventoryTransactions.projectId, value: sql<string>`COALESCE(SUM(${warehouseInventoryTransactions.valueDelta}), 0)` }).from(warehouseInventoryTransactions)
     .where(and(eq(warehouseInventoryTransactions.tenantId, tenantId), inArray(warehouseInventoryTransactions.projectId, projectIds))).groupBy(warehouseInventoryTransactions.projectId)) stockValue.set(row.projectId, Math.max(0, Number(row.value)));
   const below = await materialsBelowReorder(db, tenantId, projectIds);
+  // D-23 (delivery 3.5): the profitability and PMC inputs of every project in one round of statements, not one round per project. If a batch
+  // read fails, each project falls back to its own read below, so one bad project still never blanks the rest.
+  const profitabilityBatch = await loadProfitabilityRowsByProject(db, tenantId, projectIds).catch(error => { logError("levels.profitability_batch_failed", error, { tenantId }); return null; });
+  const pmcBatch = await loadPmcDatasets(db, tenantId, projectIds, now).catch(error => { logError("levels.pmc_batch_failed", error, { tenantId }); return null; });
 
   return Promise.all(rows.map(async (project): Promise<ProjectKpis> => {
     const unavailable = (reason: string): Unavailable => ({ value: null, reason });
     let expectedProfit: ProjectKpis["expectedProfit"] = unavailable("PROFITABILITY_UNAVAILABLE");
     let evm: ProjectKpis["evm"] = unavailable("EVM_UNAVAILABLE");
     try {
-      const loaded = await loadProfitabilityRows(db, { tenantId, projectId: project.id });
+      const loaded = profitabilityBatch?.get(project.id) ?? await loadProfitabilityRows(db, { tenantId, projectId: project.id });
       const live = liveEvm(loaded, now, DEFAULT_EAC_METHOD);
       if ("error" in live) evm = unavailable(live.error);
       else evm = { pv: round2(live.pv), ev: round2(live.ev), ac: round2(live.ac), bac: round2(live.bac), cpi: live.cpi, spi: live.spi, eac: round2(live.eac), vac: round2(live.vac) };
@@ -101,7 +105,7 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
     }
     let progress: ProjectKpis["progress"] = unavailable("NO_UNITS");
     try {
-      const dataset = await loadPmcDataset(db, { userId: 0, tenantId, projectId: project.id }, now);
+      const dataset = pmcBatch?.get(project.id) ?? await loadPmcDataset(db, { userId: 0, tenantId, projectId: project.id }, now);
       const unitRows = dataset.units.flatMap(unit => { const percent = unitProgressOf(dataset, unit); return percent === null ? [] : [{ progressPercent: percent, unitWeight: unit.weight }]; });
       if (unitRows.length) progress = { percent: calculateProjectProgress(unitRows) };
     } catch (error) { progress = unavailable("PROGRESS_UNAVAILABLE"); logError("levels.project_progress_failed", error, { tenantId, projectId: project.id }); }
