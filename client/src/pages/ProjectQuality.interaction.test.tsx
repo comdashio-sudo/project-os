@@ -23,6 +23,7 @@ const options = {
   units: [{ id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1" }, { id: "u13", number: 13, modelCode: "A", block: "B1", zone: "Z1" }, { id: "u14", number: 14, modelCode: "A", block: "B1", zone: "Z1" }, { id: "u21", number: 21, modelCode: "B", block: "B2", zone: "Z1" }],
   activities: [{ id: "a-walls", modelCode: "A", code: "WALLS", name: "Walls" }, { id: "a-paint", modelCode: "A", code: "PAINT", name: "Paint" }, { id: "b-walls", modelCode: "B", code: "WALLS", name: "Walls" }],
 };
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
@@ -135,11 +136,30 @@ describe("ProjectQuality — NCRs and the company's rules", () => {
     expect(create.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Unit number (optional)"), { target: { value: "21" } });
     const activity = screen.getByLabelText("Activity (optional)") as HTMLSelectElement;
-    expect(Array.from(activity.options).map(option => option.value)).toEqual(["", "b-walls"]);
+    expect(Array.from(activity.options).map(option => option.value)).toEqual(["__none", "b-walls"]);
     fireEvent.change(activity, { target: { value: "b-walls" } });
     expect(create.disabled).toBe(false);
     fireEvent.click(create);
     expect(h.createNcr).toHaveBeenCalledWith(expect.objectContaining({ ncrNumber: "NCR-9", pmcUnitId: "u21", pmcActivityDefinitionId: "b-walls" }));
+  });
+
+  it("an NCR with the list back on \"no activity\" sends no activity: the sentinel never reaches the server (D-75 negative)", () => {
+    render(<ProjectQuality />);
+    open(/Non-conformances/);
+    const create = screen.getAllByText("Create NCR").map(node => node.closest("button")).find(Boolean) as HTMLButtonElement;
+    fireEvent.change(screen.getByLabelText("NCR number"), { target: { value: "NCR-9" } });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Misaligned" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Frame is misaligned" } });
+    fireEvent.change(screen.getByLabelText("Unit number (optional)"), { target: { value: "99" } });
+    expect(create.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Unit number (optional)"), { target: { value: "21" } });
+    const activity = screen.getByLabelText("Activity (optional)") as HTMLSelectElement;
+    expect(Array.from(activity.options).map(option => option.value)).toEqual(["__none", "b-walls"]);
+    fireEvent.change(activity, { target: { value: "b-walls" } });
+    fireEvent.change(screen.getByLabelText("Activity (optional)"), { target: { value: "__none" } });
+    expect(create.disabled).toBe(false);
+    fireEvent.click(create);
+    expect(h.createNcr.mock.calls.at(-1)?.[0]).toMatchObject({ ncrNumber: "NCR-9", pmcUnitId: "u21", pmcActivityDefinitionId: undefined });
   });
 
   it("the rules are shown to everyone and changed only by the company manager", () => {
