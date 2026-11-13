@@ -65,7 +65,9 @@ const ROUTES = [...new Set([...APP_SOURCE.matchAll(/path="([^"]+)"/g)].map(match
 // Words that are allowed to stay in English: product codes, units and standard acronyms the Arabic glossary keeps.
 const ALLOWED_ENGLISH = new Set(["WBS", "EVM", "PV", "EV", "AC", "SPI", "CPI", "EAC", "ETC", "VAC", "TCPI", "FPAC", "PMC", "PMO", "XER", "XLSX", "CSV", "PDF", "Excel", "Dashio", "SAR", "USD", "API", "ID", "OK", "RFI", "NCR", "HSE", "BOQ", "GRN", "PO", "MRN", "EOS", "AI", "ZATCA", "Power", "BI", "Primavera", "Microsoft", "Google", "Gmail", "Supabase", "Vercel", "Resend", "Chrome", "Edge", "Safari", "Firefox",
   // Added with the English-leftovers pass (sanctioned by the owner's list): the product name in capitals, and an image file format named in upload hints.
-  "DASHIO", "WEBP"]);
+  "DASHIO", "WEBP",
+  // D-30 (G-165): image and drawing formats named in upload hints, like WEBP above, and BAC (budget at completion) beside EAC.
+  "PNG", "JPG", "JPEG", "SVG", "DXF", "DWG", "BAC"]);
 
 const findings = [];
 const pages = [];
@@ -124,12 +126,17 @@ async function auditPage(browser, route, vp, token) {
       const smallSample = smallOnes.slice(0, 20).map(element => { const box = tapArea(element).getBoundingClientRect(); return `${element.tagName.toLowerCase()}${element.getAttribute("type") ? `[${element.getAttribute("type")}]` : ""} «${(element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 30)}» ${Math.round(box.width)}×${Math.round(box.height)}`; });
       // Every distinct word of four or more Latin letters on the screen (not only the first forty), so a long page is read whole.
       const latin = [...new Set(text.match(/\b[A-Za-z]{4,}\b/g) ?? [])];
+      // G-165 (D-30): the short button words the four-letter rule misses, and the words a screen reader says or a hover shows — title, placeholder,
+      // aria-label and alt on what is on screen. Read as their own finding (soft) so the hard rule above keeps its meaning. A value that is a whole identifier — a
+      // permission code (tenant.manage) or a role code (ACCOUNTANT), which the administration page shows on hover on purpose (permissionCodeVisibility.test.tsx) — is skipped.
+      const shortWords = [...new Set(text.match(/\b(?:Add|Go|OK|Ok|Yes|No|New|All|Off|Log)\b/g) ?? [])];
+      const attributeWords = [...new Set([...document.querySelectorAll("[title], [placeholder], [aria-label], img[alt]")].filter(element => visible(element) && !switchers.includes(element)).flatMap(element => ["title", "placeholder", "aria-label", "alt"].map(name => element.getAttribute(name) ?? "")).filter(value => !/^[a-z]+(?:\.[a-z_]+)+$|^[A-Z][A-Z_]+$/.test(value.trim())).join(" ").replace(/[\w.+-]+@[\w.-]+/g, " ").match(/\b[A-Za-z]{3,}\b/g) ?? [])];
       // D-26 (6.4): numbers are written in Western digits in every language; an Arabic-Indic (٠-٩) or Persian (۰-۹) digit on the screen is a hard finding
       const easternDigits = [...new Set(raw.match(/[\u0660-\u0669\u06F0-\u06F9]+/g) ?? [])];
       const denied = new RegExp(denialSource).test(text);
       // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
       const loading = /جارٍ|جاري/.test(text);
-      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, easternDigits, latin, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
+      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, easternDigits, latin, shortWords, attributeWords, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
     }, [vp.mobile, NO_PERMISSION_TEXT.source, LANGUAGE_NAMES]);
     let screenshot = null;
     if (SCREENSHOTS) {
@@ -150,6 +157,13 @@ async function auditPage(browser, route, vp, token) {
     // Arabic: English words on the screen are a hard finding. Urdu: they are the open fallback, reported as soft. English: not a finding.
     if (unexpected.length && LANGUAGE === "ar") note("english-text", route, vp.name, unexpected.slice(0, 12));
     if (unexpected.length && LANGUAGE === "ur") note("english-text-open-fallback", route, vp.name, unexpected.slice(0, 12));
+    // G-165: short English button words and English in title / placeholder / aria-label / alt — soft until a measured run shows them at zero.
+    if (LANGUAGE !== "en") {
+      const shortWords = measured.shortWords.filter(word => !ALLOWED_ENGLISH.has(word));
+      if (shortWords.length) note("english-short-words", route, vp.name, shortWords);
+      const attributes = measured.attributeWords.filter(word => !ALLOWED_ENGLISH.has(word));
+      if (attributes.length) note("english-attributes", route, vp.name, attributes.slice(0, 12));
+    }
   } catch (error) {
     note("navigation-failed", route, vp.name, String(error.message ?? error).slice(0, 240));
   } finally {

@@ -26,7 +26,17 @@ const MESSAGES = {
   },
 } as const;
 
+// G-150 (D-30): a missing required column was named by its internal key (zoneCode, blockCode…). The keys of server/domain/pmcImport.ts FIELDS, named
+// in the page's language. An unknown column keeps the file's own header as written: that is the person's word, not a key.
+export const PMC_FIELD_LABELS = {
+  ar: { consultant: "الاستشاري", contractor: "المقاول", csi: "رمز CSI", endDate: "تاريخ النهاية", notes: "ملاحظات", period: "الفترة", plannedPercent: "النسبة المخططة", requestCode: "رقم الطلب", requestedAt: "تاريخ الطلب", responseCode: "رمز الرد", startDate: "تاريخ البداية", sub: "البند الفرعي", unitNumbers: "أرقام الفلل", weight: "الوزن", zoneCode: "رمز المنطقة", zoneName: "اسم المنطقة", blockCode: "رمز البلوك", blockName: "اسم البلوك", unitNumber: "رقم الفيلا", modelCode: "النموذج", saleStatus: "حالة البيع", unitWeight: "وزن الفيلا", groupCode: "رمز المجموعة", groupName: "اسم المجموعة", stageCode: "رمز المرحلة", stageName: "اسم المرحلة", activityCode: "رمز النشاط", activityName: "اسم النشاط", weightPercent: "نسبة الوزن", wbsCode: "رمز WBS", status: "الحالة", verificationStatus: "حالة التحقق", changedAt: "تاريخ التغيير", engineerEmail: "بريد المهندس" },
+  en: { consultant: "Consultant", contractor: "Contractor", csi: "CSI code", endDate: "End date", notes: "Notes", period: "Period", plannedPercent: "Planned percent", requestCode: "Request number", requestedAt: "Requested on", responseCode: "Response code", startDate: "Start date", sub: "Sub-item", unitNumbers: "Villa numbers", weight: "Weight", zoneCode: "Zone code", zoneName: "Zone name", blockCode: "Block code", blockName: "Block name", unitNumber: "Villa number", modelCode: "Model", saleStatus: "Sale status", unitWeight: "Villa weight", groupCode: "Group code", groupName: "Group name", stageCode: "Stage code", stageName: "Stage name", activityCode: "Activity code", activityName: "Activity name", weightPercent: "Weight percent", wbsCode: "WBS code", status: "Status", verificationStatus: "Verification status", changedAt: "Changed on", engineerEmail: "Engineer e-mail" },
+  ur: { consultant: "کنسلٹنٹ", contractor: "ٹھیکیدار", csi: "CSI کوڈ", endDate: "اختتامی تاریخ", notes: "نوٹس", period: "مدت", plannedPercent: "منصوبہ بند فیصد", requestCode: "درخواست نمبر", requestedAt: "درخواست کی تاریخ", responseCode: "جواب کا کوڈ", startDate: "آغاز کی تاریخ", sub: "ذیلی آئٹم", unitNumbers: "ولا نمبرز", weight: "وزن", zoneCode: "زون کوڈ", zoneName: "زون کا نام", blockCode: "بلاک کوڈ", blockName: "بلاک کا نام", unitNumber: "ولا نمبر", modelCode: "ماڈل", saleStatus: "فروخت کی حالت", unitWeight: "ولا کا وزن", groupCode: "گروپ کوڈ", groupName: "گروپ کا نام", stageCode: "مرحلے کا کوڈ", stageName: "مرحلے کا نام", activityCode: "سرگرمی کوڈ", activityName: "سرگرمی کا نام", weightPercent: "وزن فیصد", wbsCode: "WBS کوڈ", status: "حالت", verificationStatus: "تصدیق کی حالت", changedAt: "تبدیلی کی تاریخ", engineerEmail: "انجینئر کی ای میل" },
+} as const;
+
 export function pmcImportReason(error: { code: string; field?: string; detail?: string }, language: Language): string {
   const messages = pickLanguage<Record<string, string>>(language, MESSAGES);
-  return [messages[error.code] ?? error.code, error.field, error.detail].filter(Boolean).join(" · ");
+  const labels = pickLanguage<Record<string, string>>(language, PMC_FIELD_LABELS);
+  const field = error.field && error.code !== "IMPORT_UNSUPPORTED_COLUMN" ? labels[error.field] ?? error.field : error.field;
+  return [messages[error.code] ?? error.code, field, error.detail].filter(Boolean).join(" · ");
 }
