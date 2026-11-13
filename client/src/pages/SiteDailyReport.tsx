@@ -3,7 +3,7 @@ import { CameraCapture, Select } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
-import { useCan, WriteGate } from "@/lib/permissions";
+import { useCan, usePermissionsLoading, WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
@@ -15,6 +15,7 @@ import { DailyReportDocument, ReportExports } from "@/components/dailyReport/Dai
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
+import { SectionOnlyReport, useReportSections } from "@/components/dailyReport/SectionOnlyReport";
 import React, { useMemo, useRef, useState } from "react";
 import { useParams } from "wouter";
 
@@ -96,6 +97,10 @@ export default function SiteDailyReport() {
   const list = trpc.siteReports.list.useQuery(scope, { enabled });
   const canWrite = useCan("project.field.manage", projectId);
   const canReview = useCan("project.manage", projectId);
+  // Q-12: who does not hold the site's part (the HSE and QA/QC engineers, the planning engineer) gets their own section only, below
+  const reportSections = useReportSections(projectId); const permissionsLoading = usePermissionsLoading();
+  const planner = useCan(["project.pmc.manage", "project.schedule.manage"], projectId);
+  const sectionOnly = !permissionsLoading && !reportSections.edit.includes("site") && (reportSections.edit.length > 0 || planner);
   // D-44 (a), #233: the labour roles and the equipment the report chooses from (active ones only); the project manager can seed the default roles
   const roles = trpc.projects.labourRoles.list.useQuery(scope, { enabled });
   const machines = trpc.projects.equipment.list.useQuery(scope, { enabled });
@@ -253,6 +258,7 @@ export default function SiteDailyReport() {
     );
   };
 
+  if (sectionOnly) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><SectionOnlyReport tenantId={tenantId} projectId={projectId} access={reportSections} /></FieldShell>;
   if (options.isLoading || list.isLoading) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   const loadError = options.error ?? list.error;
   if (loadError) return <FieldShell tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void list.refetch(); }}>{t.retry}</Button></FieldShell>;
