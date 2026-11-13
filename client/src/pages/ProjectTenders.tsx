@@ -108,7 +108,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         </div>)}</div></> : <p className="text-sm text-slate-500">{packages.isLoading ? t.loading : t.empty}</p>}
       </>)}
 
-      {selected && current ? <section aria-label={`${current.package.packageCode} ${current.package.title}`} className="space-y-4 rounded-xl bg-[#e6f4f3] p-4">
+      {selected && current ? <section aria-label={`${current.package.packageCode} ${current.package.title}`} className="space-y-4 rounded-xl bg-accent p-4">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{current.package.packageCode} · {current.package.title}</h3><span className="text-sm">{label(current.package.status)}</span></div>
         <WriteGate permission="project.tender.manage" projectId={projectId}><div className="flex flex-wrap gap-2">
           {status === "draft" ? <Button size="sm" disabled={movePackage.isPending} onClick={() => movePackage.mutate({ ...scope, packageId: selected, nextStatus: "open" })}>{t.open}</Button> : null}

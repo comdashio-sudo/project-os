@@ -46,6 +46,14 @@ describe("static check: the colour tokens meet WCAG AA", () => {
     expect(contrastRatio(muted, "#f5f7fc")).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
+  it("D-75: the primary token that replaced the dark teal literal keeps AA text contrast on the same surfaces", () => {
+    const primary = /--primary:\s*(#[0-9a-fA-F]{6})/.exec(read("design", "directions.css"))![1];
+    for (const surface of ["#f5f7fc", "#eafbf9", "#f7f8fc", "#ffffff", "#e8e7fd"])
+      expect(contrastRatio(primary, surface), `${primary} on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
+    // NEGATIVE: the aqua the screens once used fails the same check, so the check can fail
+    expect(contrastRatio("#0e8f9a", "#eafbf9")).toBeLessThan(AA_TEXT);
+  });
+
   it("uses the dark teal #0e6b70 (the colour these screens already use for headings) for the teal text that failed", () => {
     for (const surface of ["#f5f7fc", "#eafbf9", "#f7f8fc", "#ffffff"])
       expect(contrastRatio("#0e6b70", surface), `#0e6b70 on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT);
@@ -99,13 +107,13 @@ describe("static check: every field on the controls and HSE screens has a name, 
 });
 
 describe("static check: the text colours that failed on the screens are the ones the screens already use", () => {
-  it("draws the EVM outcome heading in the dark teal, not the aqua that measured 2.78:1", () => {
-    expect(page("EvmCalculator.tsx")).toContain(`text-[#0e6b70]">{t.outcome}`);
+  it("draws the EVM outcome heading in the primary token (D-75: was the dark teal literal), not the aqua that measured 2.78:1", () => {
+    expect(page("EvmCalculator.tsx")).toContain(`text-primary">{t.outcome}`);
   });
 
-  it("draws the commercial chain and profitability eyebrows in the dark teal, not #0e8f9a (3.65:1)", () => {
-    expect(page("CommercialChain.tsx")).toContain(`text-[#0e6b70]">{copy.eyebrow}`);
-    expect(page("ProjectProfitability.tsx")).toContain(`text-[#0e6b70]">{t.eyebrow}`);
+  it("draws the commercial chain and profitability eyebrows in the primary token (D-75: was the dark teal literal), not #0e8f9a (3.65:1)", () => {
+    expect(page("CommercialChain.tsx")).toContain(`text-primary">{copy.eyebrow}`);
+    expect(page("ProjectProfitability.tsx")).toContain(`text-primary">{t.eyebrow}`);
   });
 
   it("draws the setup step count in slate-600 (4.4:1 on the tinted panel before)", () => {

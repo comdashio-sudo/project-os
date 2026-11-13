@@ -122,7 +122,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
 
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
-      <div className="flex items-center gap-3"><TrendingUp className="text-[#0e6b70]" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.subtitle}</p></div></div>
+      <div className="flex items-center gap-3"><TrendingUp className="text-primary" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.subtitle}</p></div></div>
 
       {stale && (
         <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
@@ -235,7 +235,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                         {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-slate-500">{t.noBreakdown}</p> : (
                           <>
                             <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-white px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
-                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (pickLanguage(language, route.label)) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-[#0e6b70] underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
+                            <ul className="mt-2 text-xs text-slate-600">{breakdown.data.lines.slice(0, 20).map(line => <li key={line.id}>{line.incurredAt.toISOString().slice(0, 10)} · {money(line.amount)} · {t.sourceDoc}: {(() => { const route = sourceRoute(line.sourceType, tenantId, projectId); const label = route ? (pickLanguage(language, route.label)) : (line.sourceType ?? "—"); const id = line.sourceId ? ` ${line.sourceId.slice(0, 8)}` : ""; return route ? <a className="font-semibold text-primary underline" href={route.href}>{label}{id}</a> : <>{label}{id}</>; })()}</li>)}</ul>
                           </>
                         ))}
                       </td></tr>

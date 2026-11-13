@@ -87,7 +87,7 @@ export default function IntegrationSettings() {
   const [message, setMessage] = useState<string | null>(null);
   const back = `/tenants/${tenantId}/administration`;
 
-  const tabButton = (value: Tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-[#0e6b70] text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
+  const tabButton = (value: Tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   if (!isManager) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="note" className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">{t.managersOnly}</p></FieldShell>;
   if (meta.isLoading) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
   if (meta.error || !meta.data) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(meta.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => void meta.refetch()}>{t.retry}</Button></FieldShell>;
