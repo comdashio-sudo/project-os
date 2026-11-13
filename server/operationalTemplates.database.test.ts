@@ -57,7 +57,7 @@ function expectTemplatesInstalled(byRole: Map<string, Set<string>>) {
   }
   expect(byRole.get("PLANNING_ENGINEER")).not.toContain("project.write");
   for (const code of ["project.create", "payment.prepare", "payment.approve", "schedule.write"]) {
-    for (const [roleCode, held] of byRole) if (roleCode !== "TENANT_OWNER") expect(held.has(code), `${roleCode} holds ${code}`).toBe(false);
+    for (const [roleCode, held] of byRole) if (roleCode !== "TENANT_OWNER") expect(held.has(code), `${roleCode} holds ${code}`).toBe(code === "project.create" && roleCode === "PLANNING_ENGINEER"); // Q-12 (d)
   }
 }
 
