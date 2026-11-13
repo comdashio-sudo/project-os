@@ -119,7 +119,7 @@ describe("PmcEditors — wide tables (review of #252)", () => {
   it("the weights and the status matrix each sit in the scrolling frame that says when it scrolls", async () => {
     render(<PmcEditors tenantId="t" projectId="p" />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Show" })); });
-    for (const name of ["Activity weights", "Status matrix"]) expect(screen.getAllByRole("region", { name }).some(region => region.parentElement?.hasAttribute("data-table-scroll"))).toBe(true);
+    for (const name of ["Activity weights", "Status matrix"]) expect(screen.getAllByRole("region", { name }).some(region => Boolean(region.closest("[data-table-scroll]")))).toBe(true);
   });
 });
 

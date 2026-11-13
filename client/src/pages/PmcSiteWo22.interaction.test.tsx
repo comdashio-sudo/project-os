@@ -4,7 +4,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, curve: null as unknown }));
+const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, noActivities: false, curve: null as unknown }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => state.canAct }));
@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ pmcSite: new Proxy({}, { get: () => ({ invalidate: () => Promise.resolve() }) }) }),
   pmcSite: {
-    activities: { useQuery: h.ok([{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }]) },
+    activities: { useQuery: () => ({ isLoading: false, error: null, data: state.noActivities ? [] : [{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }] }) },
     update: { useMutation: (options: { onError?: (error: unknown) => void }) => ({ isPending: false, mutate: (input: unknown) => { state.update(input); if (state.updateError) options.onError?.(state.updateError); } }) },
     percentages: { useQuery: h.ok({ project: h.shares, byZone: [{ key: "Z1", ...h.shares }], byBlock: [{ key: "B1", ...h.shares }], byUnit: [], readiness: { siteActivities: 1, confirmedLinks: 1, consultantColumns: 1, unlinkedColumns: 0 } }) },
     comparison: { useQuery: () => ({ isLoading: false, error: null, data: state.noDifferences ? { summary: [], notCompared: 0, totals: { siteDoneNotReceived: 0, receivedNotDone: 0 }, total: 0, rows: [], readiness: {} } : { summary: [{ section: "Civil", compared: 4, bothDone: 1, neither: 1, siteDoneNotReceived: 1, receivedNotDone: 1 }], notCompared: 0, totals: { siteDoneNotReceived: 1, receivedNotDone: 1 }, total: 2, rows: [h.row("268", "site_done_not_received"), h.row("270", "received_not_done")], readiness: {} } }) },
@@ -32,13 +32,25 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 import PmcSiteUpdate, { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 import PmcSiteConsultant, { curvePath, itemsForAction } from "./PmcSiteConsultant";
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; state.noDifferences = false; state.curve = null; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; state.noDifferences = false; state.noActivities = false; state.curve = null; });
 
 describe("site update from the phone", () => {
   it("reads the refusal details and the site's day", () => {
     expect(issuesOf({ data: { issues: [{ code: "SITE_VILLA_UNKNOWN", villa: "999" }, { nope: 1 }] } })).toEqual([{ code: "SITE_VILLA_UNKNOWN", villa: "999" }]);
     expect(issuesOf(new Error("x"))).toEqual([]);
     expect(siteTodayInBrowser(new Date("2026-10-27T22:30:00Z"))).toBe("2026-10-28");
+  });
+
+  it("D-59: with no site activities yet the screen says so and offers the next step — the import of the site workbook — not a dead empty list", () => {
+    state.noActivities = true;
+    const { unmount } = render(<PmcSiteUpdate />);
+    const next = document.querySelector("[data-empty-next]")!;
+    expect(next.textContent).toContain("No site activities yet");
+    expect(within(next as HTMLElement).getByRole("link", { name: "Import the site workbook" }).getAttribute("href")).toBe("/projects/t/p/pmc?tab=import");
+    unmount();
+    state.noActivities = false;
+    render(<PmcSiteUpdate />);
+    expect(document.querySelector("[data-empty-next]")).toBeNull();
   });
 
   it("keeps Save disabled until an activity is chosen, whatever villas are typed", () => {

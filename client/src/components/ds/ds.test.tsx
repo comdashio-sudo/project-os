@@ -195,6 +195,55 @@ describe("TableScroll", () => {
   });
 });
 
+// D-76: the three notes from the review of #222
+describe("TableScroll (D-76)", () => {
+  const sizes = () => {
+    const widths = { scrollWidth: 300, clientWidth: 300 };
+    const scroll = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(() => widths.scrollWidth);
+    const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => widths.clientWidth);
+    return { widths, restore: () => { scroll.mockRestore(); client.mockRestore(); } };
+  };
+  it("(a) notices a table that grows after it was drawn (rows arriving later), and says it scrolls", async () => {
+    const { widths, restore } = sizes();
+    const observed: Element[] = []; const callbacks: Array<() => void> = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(callback: () => void) { callbacks.push(callback); } observe(target: Element) { observed.push(target); } unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    try {
+      const Grows = ({ rows }: { rows: number }) => <TableScroll label="Units"><table><tbody>{Array.from({ length: rows }, (_, i) => <tr key={i}><td>{i}</td></tr>)}</tbody></table></TableScroll>;
+      const view = inApp(<Grows rows={0} />);
+      expect(screen.getByRole("region", { name: "Units" }).closest("[data-table-scroll]")!.getAttribute("data-table-scroll")).toBe("fits");
+      const table = view.container.querySelector("table")!;
+      expect(observed).toContain(table); // the content is watched, not only the frame
+      widths.scrollWidth = 900; // the rows came in and the table is now wider than its frame
+      view.rerender(<LanguageProvider><DirectionProvider direction="a"><Grows rows={40} /></DirectionProvider></LanguageProvider>);
+      await act(async () => { callbacks.forEach(callback => callback()); });
+      expect(screen.getByRole("region", { name: "Units" }).closest("[data-table-scroll]")!.getAttribute("data-table-scroll")).toBe("overflows");
+    } finally {
+      globalThis.ResizeObserver = original; restore();
+    }
+  });
+  it("(b) the edge fade covers the table's frame only, never the hint line under it", () => {
+    const { widths, restore } = sizes();
+    widths.scrollWidth = 900;
+    inApp(<TableScroll label="Units"><table><tbody><tr><td>1</td></tr></tbody></table></TableScroll>);
+    const fade = document.querySelector("[data-table-fade]")!;
+    const hint = screen.getByText("Swipe the table sideways to see every column");
+    expect(fade.parentElement!.contains(hint)).toBe(false);
+    expect(fade.parentElement!.contains(screen.getByRole("region", { name: "Units" }))).toBe(true);
+    restore();
+  });
+  it("(c) is a keyboard stop only while there is something to scroll", () => {
+    const { widths, restore } = sizes();
+    inApp(<TableScroll label="Units"><table><tbody><tr><td>1</td></tr></tbody></table></TableScroll>);
+    expect(screen.getByRole("region", { name: "Units" }).hasAttribute("tabindex")).toBe(false);
+    cleanup();
+    widths.scrollWidth = 900;
+    inApp(<TableScroll label="Units"><table><tbody><tr><td>1</td></tr></tbody></table></TableScroll>);
+    expect(screen.getByRole("region", { name: "Units" }).getAttribute("tabindex")).toBe("0");
+    restore();
+  });
+});
+
 describe("formatWeekday", () => {
   it("names the day in Western digits' locales, and gives a dash for an empty or impossible day instead of throwing", () => {
     expect(formatWeekday("2026-11-09", "en")).toBe("Monday");

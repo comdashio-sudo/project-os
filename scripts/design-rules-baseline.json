@@ -138,8 +138,7 @@
   "raw-select": 15
  },
  "client/src/pages/ProjectImports.tsx": {
-  "raw-select": 5,
-  "hardcoded-colour": 1
+  "raw-select": 5
  },
  "client/src/pages/ProjectMasterPlan.tsx": {
   "raw-select": 31,

@@ -15,7 +15,7 @@
 //   node --import tsx scripts/e2e-demo-journey.mjs            OUT_DIR=./demo-journey-out for screenshots
 // Playwright is not a project dependency: PLAYWRIGHT_MODULE_DIR / PLAYWRIGHT_CHROMIUM locate it (as in scripts/e2e-roles.mjs).
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import pg from "pg";
@@ -294,13 +294,10 @@ try {
   await keeper.page.getByLabel(/Quantity/).fill("5");
   const unitBox = keeper.page.getByLabel("Unit number");
   await unitBox.fill(String(unitNumber));
-  // CI on 2026-10-25 (twice in a day, on different commits) found the unit box EMPTY a moment after it had been filled, with the rest of the screen intact: the typed value was lost. Whether that is
-  // a re-render on a slow runner or a screen that drops a keystroke is not known yet (docs/STATE.md, OPEN). So: check the box kept the value; if not, say so in the log (a loss is a finding, not
-  // noise) and type it once more, so one lost keystroke does not hide the rest of the journey.
-  if (!(await waitFor(async () => (await unitBox.inputValue()) === String(unitNumber), 3000))) {
-    console.log(`note the unit box lost its value after it was filled (it reads ${JSON.stringify(await unitBox.inputValue().catch(() => null))}); typing it again`);
-    await unitBox.fill(String(unitNumber));
-  }
+  // D-14 (#175): the unit box kept losing what was typed on a slow runner because choosing the material focused the quantity box from a timer that could run late and pull
+  // the focus back mid-entry (fixed in QuickIssue.tsx). The retype that used to hide it is gone: a box that does not keep its value is now a failed check, with what it reads.
+  const unitKept = await waitFor(async () => (await unitBox.inputValue()) === String(unitNumber), 3000);
+  check(`the unit box keeps the number typed into it (${unitNumber})`, unitKept, unitKept ? undefined : { unitBox: await unitBox.inputValue().catch(() => null), quantity: await keeper.page.getByLabel(/Quantity/).inputValue().catch(() => null) });
   // The Activity field exists only once the typed number is a unit of this project. If it never appears, say WHY (the screen's own words, a picture) instead of a bare 20 s timeout:
   // the one CI failure of this step (2026-10-25) left nothing to tell a slow runner from a screen that had lost what was typed.
   const activityField = keeper.page.getByLabel(/Activity/);
@@ -314,8 +311,9 @@ try {
   await shot(keeper.page, "3a-issue-done-phone");
   await keeper.context.close();
   void cement;
-  const issue = await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 AND i.reference_number IS NOT DISTINCT FROM i.reference_number ORDER BY i.created_at DESC LIMIT 1", [tenantId]).catch(() => null)
-    ?? await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 ORDER BY i.created_at DESC LIMIT 1", [tenantId]);
+  // D-13: material_issues has no reference_number; the query that named it failed on every run (an ERROR in the database log) and was swallowed. The issue is read
+  // as the company's latest one, which is the one just saved: the journey's own company, made for this run.
+  const issue = await one("SELECT i.issued_quantity, i.unit_cost, i.total_cost, c.amount, c.status, c.entry_type FROM material_issues i JOIN cost_entries c ON c.id = i.cost_entry_id WHERE i.tenant_id = $1 ORDER BY i.created_at DESC LIMIT 1", [tenantId]);
   const cost = money(5 * average);
   check(`the issue is charged at the shelf's average cost: 5 x ${money(average)} = ${cost}`, near(Number(issue.total_cost), cost, 0.05) && issue.status === "posted" && issue.entry_type === "actual" && near(Number(issue.amount), Number(issue.total_cost)), { issue, cost });
   const S3 = await levels(); const f3 = figures(S3);
@@ -353,6 +351,11 @@ try {
 function round(value, digits) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; }
 await browser.close(); stop();
 await pool.end();
+// D-13: the server's own log is kept beside the screenshots, and an error it logged during the journeys is a failed check (a journey that passes on screen while
+// the server logged a failure behind it is not a pass)
+writeFileSync(path.join(OUT_DIR, "server.log"), serverLog);
+const serverErrors = serverLog.split("\n").filter(line => /"level":"(error|fatal)"/.test(line));
+check("the server logged no error during the journeys", serverErrors.length === 0, serverErrors.slice(0, 5).map(line => line.slice(0, 240)));
 const failed = checks.filter(item => !item.ok);
 console.log(JSON.stringify({ checks: checks.length, failed: failed.length }));
 // leave the database as found: the demonstration company is erased, audited

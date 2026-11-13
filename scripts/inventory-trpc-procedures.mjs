@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { appRouter } from "../server/routers.ts";
 
 const allowedFrameworkExceptions = new Map([
@@ -7,6 +9,7 @@ const allowedFrameworkExceptions = new Map([
   ["auth.logout", "إلغاء جلسة في الخادم ثم مسح ملف الارتباط؛ اختبار وحدة مستقل واختبار حي في auth.session.database.test.ts."],
   ["auth.logoutEverywhere", "إنهاء كل جلسات المستخدم؛ اختبار حي في auth.session.database.test.ts (يتحقق أن كل نسخ ملف الارتباط تموت)."],
   ["system.health", "فحص مراقبة عام بلا نطاق أعمال أو كتابة."],
+  ["mfa.verify", "الخطوة الثانية (MFA) أُزيلت من الدخول (D-81) والإجراء باقٍ لمن فعّلها؛ منطقه verifySecondStep مختبَر مباشرة على القاعدة في mfa.database.test.ts (الرمز الصحيح، ومنع إعادة الاستعمال في جلسة أخرى، والقفل)."],
 ]);
 const validate = process.argv.includes("--validate");
 
@@ -15,68 +18,22 @@ const procedures = Object.entries(appRouter._def.procedures)
     path,
     type: procedure._def.type,
   }))
+  .concat(process.env.TRPC_COVERAGE_EXTRA_PROCEDURE ? [{ path: process.env.TRPC_COVERAGE_EXTRA_PROCEDURE, type: "query" }] : [])
   .sort((left, right) => left.path.localeCompare(right.path));
 
-const integrationSources = await Promise.all([
-  readFile(new URL("../server/integration.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/companyProfile.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/projectInvite.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/q12Journey.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/devPlanner.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/commercial_chain.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/profitability.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/fieldEntry.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmc.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmc.import.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmc.screens.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmc.plan.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmc.programme.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/operational.permissions.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/labour.cost.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/cashflow.drill.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/teamhours.offline.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/stock.valuation.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/payroll.allocation.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/email.notifications.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/contracts.supplier.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/tenantData.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/design.coordination.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/tender.award.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/role.templates.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/masterPlan.tools.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/masterPlanDrawing.database.test.ts", import.meta.url), "utf8"),
-
-  readFile(new URL("../server/masterPlanVision.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/importJobs.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/importAttempts.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/userLanguage.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/smartImport.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/smartMatrix.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/smartP6.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/smartP6Update.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/accessGrants.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/projectProfile.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/projectApprovers.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/pmcEditor.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/projectReferenceLists.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/mfa.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/smartTracker.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/equipmentImport.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/dailyReportCore.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/dailyReportSections.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/dailyReportApproval.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/reportPeriods.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/projectBaseline.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/dailyReportExport.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/weeklyReports.database.test.ts", import.meta.url), "utf8"),
-  readFile(new URL("../server/monthlyReport.database.test.ts", import.meta.url), "utf8"),
-]);
+// D-17: every database test of the server counts (a hand-kept list of files fell behind: 62, then 82 procedures read as «unclassified» although tested).
+// TRPC_COVERAGE_EXTRA_PROCEDURE names a procedure that does not exist in the router, to prove the check fails on an unclassified one (server/trpcCoverage.test.ts).
+const testFiles = [];
+const walk = async dir => { for (const entry of await readdir(dir, { withFileTypes: true })) { const full = path.join(dir, entry.name); if (entry.isDirectory()) await walk(full); else if (entry.name.endsWith(".database.test.ts")) testFiles.push(full); } };
+await walk(fileURLToPath(new URL("../server/", import.meta.url)));
+const integrationSources = await Promise.all(testFiles.sort().map(file => readFile(file, "utf8")));
 const integrationSource = integrationSources.join("\n");
 const procedurePaths = new Set(procedures.map(({ path }) => path));
 const references = new Set();
 for (const path of procedurePaths) {
   const escapedPath = path.replaceAll(".", "\\.");
-  const expression = new RegExp(`\\b[A-Za-z_$][A-Za-z0-9_$]*(?:\\.${escapedPath})\\s*\\(`, "g");
+  // `caller.x.y(`, and also `manager().x.y(` / `callers[key].x.y(` (a call or an index before the path)
+  const expression = new RegExp(`(?:\\b[A-Za-z_$][A-Za-z0-9_$]*|[)\\]])\\.${escapedPath}\\s*\\(`, "g");
   const callerExpression = new RegExp(`createCaller\\([^)]*\\)(?:\\.${escapedPath})\\s*\\(`, "g");
   if (expression.test(integrationSource) || callerExpression.test(integrationSource)) references.add(path);
 }
