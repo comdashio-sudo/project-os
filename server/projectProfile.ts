@@ -14,8 +14,9 @@ import { takeDirectUpload } from "./directUploadKeys";
 import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
-const READ = ["project.read", "project.manage"] as const;
-const WRITE = ["project.manage"] as const;
+const READ = ["project.read", "project.manage", "project.create"] as const; // Q-12 (d): the planner reads what they set up
+// Q-12 (d): the planning engineer (project.create) writes the profile and the companies while setting the project up
+const WRITE = ["project.manage", "project.create"] as const;
 export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 export const LOGO_PARTIES = ["client", "consultant", "contractor"] as const;
 export type LogoParty = (typeof LOGO_PARTIES)[number];

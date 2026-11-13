@@ -31,11 +31,11 @@ const LISTS = "server/projectReferenceLists.ts";
 export const matrixColumns: readonly MatrixColumn[] = [
   { id: "projects", title: "المشاريع والضوابط", kind: "screen", actions: [
     { tier: "see", sources: [s(DB, "listProjectsForTenant", "project.read"), s(DB, "getProjectControlsForTenant", "project.read")] },
-    { tier: "edit", sources: [s(DB, "createProjectForTenant", "project.write")] },
+    { tier: "edit", sources: [s(DB, "createProjectForTenant", "project.write", "project.create")] },
   ] },
   { id: "setup", title: "تفعيل المشروع", kind: "screen", actions: [
-    { tier: "see", sources: [s(PROFILE, "getProjectProfile", "project.read", "project.manage"), s(PROFILE, "listProjectCompanies", "project.read", "project.manage")] },
-    { tier: "edit", sources: [s(PROFILE, "saveProjectProfile", "project.manage"), s(PROFILE, "saveProjectCompany", "project.manage"), s(PROFILE, "deactivateProjectCompany", "project.manage")] },
+    { tier: "see", sources: [s(PROFILE, "getProjectProfile", "project.read", "project.manage", "project.create"), s(PROFILE, "listProjectCompanies", "project.read", "project.manage", "project.create")] },
+    { tier: "edit", sources: [s(PROFILE, "saveProjectProfile", "project.manage", "project.create"), s(PROFILE, "saveProjectCompany", "project.manage", "project.create"), s(PROFILE, "deactivateProjectCompany", "project.manage", "project.create")] },
   ], note: "بيانات المشروع وشعاراته والشركات المشاركة (D-42 أ). سلسلة الاعتماد (D-42 ب، #227) تُضاف بعد دمجها." },
   { id: "referenceLists", title: "القوائم المرجعية", kind: "screen", actions: [
     { tier: "see", sources: [s(LISTS, "listLabourRoles", "project.read", "project.field.manage", "project.manage"), s(LISTS, "listEquipment", "project.read", "project.field.manage", "project.manage"), s(LISTS, "listSiteActivityMeasures", "project.read", "project.field.manage", "project.manage")] },
@@ -133,7 +133,7 @@ export const matrixColumns: readonly MatrixColumn[] = [
 ];
 
 /** Permission codes that exist in the catalogue and are granted to roles, yet no server function checks them (the test proves it by searching the server sources). */
-export const unenforcedCodes: readonly string[] = ["payment.prepare", "payment.approve", "project.create", "schedule.write"];
+export const unenforcedCodes: readonly string[] = ["payment.prepare", "payment.approve", "schedule.write"];
 
 /**
  * Codes the server checks, but in places that are not a column of the matrix (yet). Each is named with its reason; the coverage guard in roleMatrix.test.ts fails when a
