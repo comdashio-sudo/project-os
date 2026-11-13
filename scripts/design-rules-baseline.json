@@ -138,9 +138,6 @@
  "client/src/pages/ProjectTenders.tsx": {
   "hardcoded-colour": 1
  },
- "client/src/pages/ProjectWarehouses.tsx": {
-  "raw-select": 31
- },
  "client/src/pages/ProjectWorkforce.tsx": {
   "hardcoded-colour": 3
  },
