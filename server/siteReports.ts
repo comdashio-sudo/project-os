@@ -9,7 +9,8 @@ import { auditLogs, memberships, pmcInspectionRequests, projectReportApprovers, 
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
-import { assertTenantAccess } from "./domain/authorization";
+import { assertTenantAccess, holdsPermission } from "./domain/authorization";
+import { reportSectionAccess, type ReportSection, type ReportSectionAccess } from "../shared/dailyReportSections";
 import type { PmcUnitActivityStatus } from "./domain/pmc";
 import { takeDirectUpload } from "./directUploadKeys";
 import { applyCellStatus, type CellWarning } from "./pmcService";
@@ -45,6 +46,13 @@ export async function authorize(input: Scope, permission: string | readonly stri
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return db;
 }
+/** Q-12: the sections of the daily report this person sees and edits on this project (server/domain/dailyReportSections.ts). Called after authorize. */
+async function sectionsOf(input: Scope): Promise<ReportSectionAccess> {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw refuse("FORBIDDEN", "PROJECT_OS_TENANT_ACCESS_DENIED");
+  return reportSectionAccess(code => holdsPermission(snapshot, code, { type: "project", id: input.projectId }));
+}
+const notYours = () => refuse("FORBIDDEN", "PROJECT_OS_SITE_REPORT_SECTION_NOT_YOURS");
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 /**
  * One report per preparer, project and day (and contractor, from work order 22): the unique index decides. The check before the transaction answers the usual case;
@@ -144,6 +152,9 @@ async function validateLines(db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
 
 export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   const db = await authorize(input, "project.field.manage");
+  // Q-12: the whole report is the site engineer's; it may carry the HSE list and the materials only from someone who also holds those sections
+  const access = await sectionsOf(input);
+  if (!access.edit.includes("site") || (input.hse?.length && !access.edit.includes("hse")) || (input.materials?.length && !access.edit.includes("qc"))) throw notYours();
   if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
   await validateLines(db, input, input.lines);
@@ -306,7 +317,8 @@ export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: 
 
 // ------------------------------------------------------------------------------------------------------------------------------ reading
 
-export const READ_PERMISSIONS = ["project.read", "project.field.manage", "project.manage"] as const;
+// Q-12: the planning engineer gathers and exports the daily and weekly reports (project.pmc.manage / project.schedule.manage), and the HSE and QA/QC engineers read theirs
+export const READ_PERMISSIONS = ["project.read", "project.field.manage", "project.manage", "project.pmc.manage", "project.schedule.manage", "project.hse.manage", "project.quality.manage", "project.qc.receive"] as const;
 
 export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number }) {
   const db = await authorize(input, READ_PERMISSIONS);
@@ -317,6 +329,35 @@ export async function listSiteDailyReportsForTenant(input: Scope & { status?: "d
 
 export async function getSiteDailyReportForTenant(input: Scope & { reportId: string }) {
   const db = await authorize(input, READ_PERMISSIONS);
+  const access = await sectionsOf(input);
+  return hideSections(await readReport(db, input), access);
+}
+
+/**
+ * Q-12: a section the reader does not hold is not sent at all (its lists empty, its header fields null, its totals zero) — the screen hides it, and a reader who
+ * opens the network tab finds nothing more. The approval chain and the report's state stay visible to every reader.
+ */
+function hideSections<T extends Awaited<ReturnType<typeof readReport>>>(read: T, access: ReportSectionAccess): T & { access: ReportSectionAccess } {
+  const sees = (section: ReportSection) => access.see.includes(section);
+  const site = sees("site"), hse = sees("hse"), qc = sees("qc");
+  return {
+    ...read,
+    report: site ? read.report : { ...read.report, weather: null, temperatureC: null, wind: null, workHours: null, summary: null, obstacles: null },
+    lines: site ? read.lines : [], labour: site ? read.labour : [], equipment: site ? read.equipment : [], obstacleItems: site ? read.obstacleItems : [], tomorrow: site ? read.tomorrow : [], photos: site ? read.photos : [],
+    hse: hse ? read.hse : [],
+    materials: qc ? read.materials : [],
+    inspections: qc ? read.inspections : { wir: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] }, rfi: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] } },
+    totals: {
+      hse: hse ? read.totals.hse : (Object.fromEntries(HSE_KINDS.map(kind => [kind, 0])) as T["totals"]["hse"]),
+      labour: site ? read.totals.labour : { total: 0, direct: 0, indirect: 0, day: 0, night: 0, byCompany: [] },
+      equipment: site ? read.totals.equipment : { count: 0, hours: 0 },
+      cumulativeManDays: site ? read.totals.cumulativeManDays : 0,
+    },
+    access,
+  };
+}
+
+async function readReport(db: Db, input: Scope & { reportId: string }) {
   const report = await ownReport(db, input);
   const section = <T extends typeof siteDailyReportMaterials | typeof siteDailyReportHse | typeof siteDailyReportObstacles | typeof siteDailyReportTomorrow>(table: T) => db.select().from(table as never).where(and(mine(table, input), eq(table.reportId, report.id))).orderBy(asc(table.sortOrder));
   const [materials, hse, obstacleItems, tomorrow] = await Promise.all([section(siteDailyReportMaterials), section(siteDailyReportHse), section(siteDailyReportObstacles), section(siteDailyReportTomorrow)]) as [
@@ -445,4 +486,34 @@ export async function checkSiteDailyReportForTenant(input: Scope & { reportId: s
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: input.decision === "pass" ? "site_report.reviewed" : "site_report.returned", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, note }) });
   });
   return { id: report.id, status: input.decision === "pass" ? ("submitted" as const) : ("rejected" as const), reviewed: input.decision === "pass" };
+}
+
+// ------------------------------------------------------------------------------------------------------------------------------ Q-12: a section of the day's report
+
+/**
+ * The HSE engineer writes the safety events, and the QA/QC engineer the materials received, into the site engineer's report of the day — their section only,
+ * while the report is a draft or was returned. The section's list is replaced whole (an empty list clears it); the rest of the report is not touched.
+ * Who: project.hse.manage for «hse», project.quality.manage or project.qc.receive for «qc», on this project.
+ */
+export async function saveSiteDailyReportSectionForTenant(input: Scope & { reportId: string; section: "hse" | "qc"; hse?: ReportHseInput[]; materials?: ReportMaterialInput[] }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw refuse("FORBIDDEN", "PROJECT_OS_TENANT_ACCESS_DENIED");
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: input.section === "hse" ? "project.hse.manage" : ["project.quality.manage", "project.qc.receive"], scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const sections: Sections = input.section === "hse" ? { hse: input.hse ?? [] } : { materials: input.materials ?? [] };
+  // a save carries one section only: a list of the other one is refused, never silently dropped
+  if ((input.section === "hse" && input.materials !== undefined) || (input.section === "qc" && input.hse !== undefined)) throw notYours();
+  const report = await ownReport(db, input);
+  if (report.status !== "draft" && report.status !== "rejected") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
+  await validateSections(db, input, sections);
+  await db.transaction(async tx => {
+    // the state is read again under the transaction: a report submitted in between is not written into
+    const [still] = await tx.select({ status: siteDailyReports.status }).from(siteDailyReports).where(and(mine(siteDailyReports, input), eq(siteDailyReports.id, report.id))).for("update");
+    if (!still || (still.status !== "draft" && still.status !== "rejected")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
+    await writeSections(tx, input, report.id, sections, true);
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.section_updated", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, section: input.section, rows: (sections.hse ?? sections.materials ?? []).length }) });
+  });
+  return { id: report.id, section: input.section, rows: (sections.hse ?? sections.materials ?? []).length };
 }
