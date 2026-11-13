@@ -5,6 +5,7 @@ import type { Language } from "./language";
 // no entry falls back to its own words (never a blank), and labels.test.ts checks that every value of every enum in the schema has one.
 
 const STATUS_AR: Record<string, string> = {
+  counting: "قيد العدّ", // D-32: a stocktake being counted
   // generic states
   active: "نشط", inactive: "غير نشط", suspended: "موقوف", archived: "مؤرشف", invited: "مدعو", revoked: "مسحوب", ended: "منتهٍ", terminated: "مُنهى",
   draft: "مسودة", submitted: "مُرسل", under_review: "قيد المراجعة", for_review: "للمراجعة", reviewed: "تمت مراجعته", review: "مراجعة", approved: "معتمد", rejected: "مرفوض",
@@ -38,6 +39,7 @@ const STATUS_AR: Record<string, string> = {
 
 // Urdu labels. Every key of the Arabic map has an Urdu label too (labels.test.tsx checks it), so Urdu never falls back to an English code.
 const STATUS_UR: Record<string, string> = {
+  counting: "گنتی جاری ہے", // D-32: a stocktake being counted
   "delivered": "فراہم کیا گیا", "running": "جاری", "ok": "ٹھیک", "partial": "جزوی",
   "active": "فعال", "inactive": "غیر فعال", "suspended": "معطل", "archived": "محفوظ شدہ",
   "invited": "مدعو", "revoked": "منسوخ", "ended": "ختم شدہ", "terminated": "ختم کیا گیا",

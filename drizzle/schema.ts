@@ -1525,6 +1525,53 @@ export const materialReturns = pgTable(
   table => [foreignKey({ columns: [table.inventoryTransactionId], foreignColumns: [warehouseInventoryTransactions.id], name: "material_returns_tx_fk" }), uniqueIndex("material_returns_tx_unique").on(table.inventoryTransactionId), uniqueIndex("material_returns_cost_unique").on(table.costEntryId), index("material_returns_issue_idx").on(table.materialIssueId), index("material_returns_tenant_project_idx").on(table.tenantId, table.projectId, table.returnedAt)],
 );
 
+// G-104 (D-32 part 2): a stocktake is its own document — one warehouse, the system quantity of every material on its shelf when the count began, the quantity
+// counted, and the variance. While it is being counted nothing moves in the books; approving it (by someone other than the person who opened it) posts one
+// adjustment per material that differs, with the stocktake's number and reason, in the same transaction as the approval and its audit row.
+export const stocktakesStatusEnum = pgEnum("stocktakes_status", ["counting", "approved"]);
+export const stocktakes = pgTable(
+  "stocktakes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    warehouseId: varchar("warehouse_id", { length: 36 }).notNull().references(() => projectWarehouses.id),
+    stocktakeNumber: varchar("stocktake_number", { length: 60 }).notNull(),
+    status: stocktakesStatusEnum("status").default("counting").notNull(),
+    note: varchar("note", { length: 500 }),
+    approvalReason: varchar("approval_reason", { length: 500 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("stocktakes_project_number_unique").on(table.projectId, table.stocktakeNumber),
+    unique("stocktakes_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    index("stocktakes_tenant_project_idx").on(table.tenantId, table.projectId),
+  ],
+);
+export const stocktakeLines = pgTable(
+  "stocktake_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    stocktakeId: varchar("stocktake_id", { length: 36 }).notNull(),
+    materialId: varchar("material_id", { length: 36 }).notNull().references(() => materialMasters.id),
+    systemQuantity: numeric("system_quantity", { precision: 18, scale: 3 }).notNull(),
+    countedQuantity: numeric("counted_quantity", { precision: 18, scale: 3 }),
+    adjustmentTransactionId: varchar("adjustment_transaction_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "stocktake_lines_stocktake_fk", columns: [table.stocktakeId, table.tenantId, table.projectId], foreignColumns: [stocktakes.id, stocktakes.tenantId, stocktakes.projectId] }),
+    uniqueIndex("stocktake_lines_stocktake_material_unique").on(table.stocktakeId, table.materialId),
+  ],
+);
+
 // A stock count: what the books said, what was counted, and the adjustment each difference became (work order 12, item 3).
 export const warehouseStocktakes = pgTable(
   "warehouse_stocktakes",

@@ -72,6 +72,7 @@ export const STRICT_RLS_SUITES: readonly string[] = [
   "stalledUnits.database.test.ts",
   "stalledUnitsDigest.database.test.ts",
   "stock.valuation.database.test.ts",
+  "stocktakes.database.test.ts",
   "tender.award.database.test.ts",
   "trpcCoverage.database.test.ts",
   "userLanguage.database.test.ts",

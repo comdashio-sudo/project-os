@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -810,6 +811,14 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMaterialCatalogForTenant({ userId: ctx.user.id, ...input })),
     createMaster: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(120), description: z.string().trim().min(2).max(255), unitOfMeasure: z.string().trim().min(1).max(40), category: z.string().trim().min(2).max(120), referenceSpecification: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createMaterialMasterForTenant({ userId: ctx.user.id, ...input })),
     saveProjectOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), materialId: z.string().uuid(), projectDescription: z.string().trim().max(255).optional(), referenceSpecification: z.string().trim().max(255).optional(), reorderLevel: z.number().finite().positive().nullable().optional(), active: z.boolean() })).mutation(({ ctx, input }) => saveProjectMaterialOverrideForTenant({ userId: ctx.user.id, ...input, reorderLevel: input.reorderLevel ?? undefined })),
+  }),
+  // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
+  stocktakes: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listStocktakes({ userId: ctx.user.id, ...input })),
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), stocktakeId: z.string().uuid() })).query(({ ctx, input }) => getStocktake({ userId: ctx.user.id, ...input })),
+    open: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid(), stocktakeNumber: z.string().trim().min(1).max(60), note: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => openStocktake({ userId: ctx.user.id, ...input })),
+    count: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), stocktakeId: z.string().uuid(), counts: z.array(z.object({ lineId: z.string().uuid(), countedQuantity: z.number() })).min(1).max(5000) })).mutation(({ ctx, input }) => recordStocktakeCounts({ userId: ctx.user.id, ...input })),
+    approve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), stocktakeId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => approveStocktake({ userId: ctx.user.id, ...input })),
   }),
   warehouses: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectWarehousesForTenant({ userId: ctx.user.id, ...input })),
