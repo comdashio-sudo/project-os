@@ -125,6 +125,7 @@ const ur: Text = {
   tabs: { compare: "موازنہ", matching: "مطابقت", curve: "S-منحنی", exports: "برآمد" },
   sources: { site: "سائٹ", consultant: "مشیر", monthly: "ماہانہ رپورٹ" },
   difference: "فرق", units: "ولاز", byZone: "زون کے لحاظ سے", byBlock: "بلاک کے لحاظ سے",
+  siteMinusConsultant: "سائٹ − مشیر", siteMinusMonthly: "سائٹ − رپورٹ", consultantMinusMonthly: "مشیر − رپورٹ", // D-66: they were English through ...en
   kinds: { site_done_not_received: "سائٹ پر مکمل، مشیر کو حوالے نہیں ہوا", received_not_done: "مشیر نے وصول کیا، سائٹ پر اپ ڈیٹ نہیں ہوا" },
   listTitle: "فرق", summaryTitle: "شعبے کے لحاظ سے خلاصہ", section: "شعبہ", received: "موصول", notReceived: "موصول نہیں", days: (n: number) => `${n} دن`,
   createInspection: "معائنے کی درخواست بنائیں", updateSite: "سائٹ کی حالت اپ ڈیٹ کریں",

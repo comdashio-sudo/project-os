@@ -26,12 +26,12 @@ const text = {
     chart: "Planned vs actual (cumulative)", planned: "Planned", actual: "Actual", variance: "Variance", plannedMonth: "Planned in month", actualMonth: "Actual in month", month: "Month", empty: "No data",
     basis: "Amounts are before VAT. Paid = paid invoices; confirmed = issued and paid (not drafts or void).",
   }, ur: {
-    table: "Programme table", sheet: "Programme",
-    loading: "Loading…", retry: "Retry", noBaseline: "No baseline has been imported yet, so the planned curve is not shown. Import the baseline file from the Import tab.",
-    noHistory: (n: number, actual: string, cells: string) => `${n} cells have a status but no history, so the actual curve (from history) reads ${actual} while project progress from the statuses is ${cells}.`,
-    contract: "Contract value", paid: "Paid", confirmed: "Confirmed invoicing", target: "Target invoicing", targetHint: "Planned progress to date × contract value", needs: "Needs a baseline and a contract value",
-    chart: "Planned vs actual (cumulative)", planned: "Planned", actual: "Actual", variance: "Variance", plannedMonth: "Planned in month", actualMonth: "Actual in month", month: "Month", empty: "No data",
-    basis: "Amounts are before VAT. Paid = paid invoices; confirmed = issued and paid (not drafts or void).",
+    table: "پروگرام کا جدول", sheet: "پروگرام",
+    loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں", noBaseline: "ابھی تک کوئی بیس لائن درآمد نہیں ہوئی، اس لیے منصوبہ بند خم نہیں دکھایا جا رہا۔ بیس لائن کی فائل درآمد کے ٹیب سے درآمد کریں۔",
+    noHistory: (n: number, actual: string, cells: string) => `${n} خانوں کی حیثیت موجود ہے مگر ان کی تاریخچہ نہیں، اس لیے اصل خم (تاریخچے سے) ${actual} دکھاتا ہے جبکہ حیثیتوں سے منصوبے کی پیش رفت ${cells} ہے۔`,
+    contract: "معاہدے کی مالیت", paid: "ادا شدہ", confirmed: "تصدیق شدہ بلنگ", target: "ہدف بلنگ", targetHint: "آج تک کی منصوبہ بند پیش رفت × معاہدے کی مالیت", needs: "بیس لائن اور معاہدے کی مالیت درکار ہے",
+    chart: "منصوبہ بند بمقابلہ اصل (مجموعی)", planned: "منصوبہ بند", actual: "اصل", variance: "فرق", plannedMonth: "مہینے میں منصوبہ بند", actualMonth: "مہینے میں اصل", month: "مہینہ", empty: "کوئی ڈیٹا نہیں",
+    basis: "رقوم VAT سے پہلے کی ہیں۔ ادا شدہ = ادا کردہ انوائسز؛ تصدیق شدہ = جاری اور ادا شدہ (مسودے یا منسوخ شامل نہیں)۔",
   },
 };
 
