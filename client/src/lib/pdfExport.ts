@@ -33,7 +33,7 @@ export async function exportElementToPdf(element: HTMLElement, fileBase: string,
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
   const canvas = await html2canvas(element, {
     scale: 2,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#ffffff", // design-rules: allow hardcoded-colour — the PDF page is paper, white whatever the screen theme
     useCORS: false,
     logging: false,
     // The screen's own tools (filters, tabs, buttons) are not part of the report, exactly as in the print stylesheet.

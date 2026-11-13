@@ -124,7 +124,7 @@ export default function ExecutiveDashboard() {
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
        projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
-    return <PageMain className="min-h-screen bg-[#f4f6f8] p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
+    return <PageMain className="min-h-screen bg-muted p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
   }
   const data = {
     totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
@@ -176,12 +176,12 @@ export default function ExecutiveDashboard() {
         projects: "پروجیکٹس",
       } });
   return (
-    <PageMain className="min-h-screen bg-[#f4f6f8] text-slate-900">
+    <PageMain className="min-h-screen bg-muted text-slate-900">
       <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <OutsideShell><Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#0e6b70]"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
             {t.back}
@@ -198,8 +198,8 @@ export default function ExecutiveDashboard() {
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_projects" state={projectsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_decisions" state={decisionsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="EXECUTIVE" sectionKey="executive_cash_flow" state={cashFlowQuery.error ? "error" : null} />
-        <section className="rounded-3xl bg-[#123a4a] p-7 text-white">
-          <p className="text-xs font-bold tracking-[.16em] text-[#74d0c1]">
+        <section className="rounded-3xl bg-primary p-7 text-white">
+          <p className="text-xs font-bold tracking-[.16em] text-secondary">
             {t.projectOs}
           </p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
@@ -454,7 +454,7 @@ function Metric({
     <SectionErrorBoundary title={label} isArabic={isArabic}>
       <Card>
         <CardContent className="p-5">
-          <Icon className="h-5 w-5 text-[#0e6b70]" />
+          <Icon className="h-5 w-5 text-primary" />
           <p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">
             {label}
           </p>

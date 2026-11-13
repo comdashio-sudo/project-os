@@ -54,7 +54,7 @@ export type NextAction = { label: string; href: string };
  * that adds the first item). A screen without a next action passes none and says so in `body`.
  */
 export function EmptyState({ isArabic, title, body, action }: { isArabic: boolean; title: string; body: string; action?: NextAction }) {
-  const className = "inline-flex min-h-[44px] items-center rounded-lg bg-[#0e6b70] px-4 text-sm font-semibold text-white";
+  const className = "inline-flex min-h-[44px] items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white";
   return <div role="status" data-screen-state="empty" className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
     <Inbox className="mx-auto h-6 w-6 text-slate-400" aria-hidden="true" />
     <p className="mt-3 font-semibold text-slate-900">{title}</p>

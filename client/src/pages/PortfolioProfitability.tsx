@@ -28,7 +28,7 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
   ];
   return (
     <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-label={t.title}>
-      <div className="flex items-center gap-3"><TrendingUp className="text-[#0e6b70]" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.note}</p></div></div>
+      <div className="flex items-center gap-3"><TrendingUp className="text-primary" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-slate-500">{t.note}</p></div></div>
       {query.isLoading && <p role="status" className="mt-3 text-sm text-slate-500">{t.loading}</p>}
       {query.error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p>}
       {query.data && (
@@ -47,7 +47,7 @@ export function PortfolioProfitability({ tenantId }: { tenantId: string }) {
                       <td className="py-1.5">{project.code} · {project.name}</td>
                       <td className={project.fpac < 0 ? "font-bold text-red-700" : "font-semibold text-emerald-700"}>{formatMoney(project.fpac, project.currency, isArabic)}</td>
                       <td className={tr ? { good: "text-emerald-700", bad: "text-red-700", flat: "text-slate-600" }[tr.tone] : "text-xs text-slate-400"}>{tr && project.movement !== null ? `${tr.arrow} ${formatMoney(project.movement, project.currency, isArabic)}` : t.none}</td>
-                      <td><Link className="text-[#0e6b70] underline" href={`/projects/${tenantId}/${project.projectId}/profitability`}>{t.open}</Link></td>
+                      <td><Link className="text-primary underline" href={`/projects/${tenantId}/${project.projectId}/profitability`}>{t.open}</Link></td>
                     </tr>
                   );
                 })}

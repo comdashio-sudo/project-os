@@ -120,7 +120,7 @@ export default function EvmCalculator() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-7 lg:py-10">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[#0e6b70] hover:underline">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
           <BackChevron className="h-4 w-4" />
           {t.workspace}
           <span className="text-muted-foreground">/</span>
@@ -128,7 +128,7 @@ export default function EvmCalculator() {
         </Link>
 
         <section className="relative mt-6 overflow-hidden rounded-[24px] bg-[var(--dashio-bg-dark)] px-6 py-7 text-white shadow-xl shadow-[var(--dashio-indigo)]/10 sm:px-8">
-          <div aria-hidden="true" className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(46,211,198,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(46,211,198,.06)_1px,transparent_1px)] [background-size:38px_38px]" />
+          <div aria-hidden="true" className="absolute inset-0 opacity-50 [background-image:linear-gradient(color-mix(in_oklab,var(--dashio-aqua)_6%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklab,var(--dashio-aqua)_6%,transparent)_1px,transparent_1px)] [background-size:38px_38px]" />
           <div aria-hidden="true" className="absolute -end-20 -top-16 h-56 w-56 rounded-full bg-[var(--dashio-indigo)]/30 blur-[100px]" />
           <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
@@ -155,13 +155,13 @@ export default function EvmCalculator() {
           </section>
 
           <section className="space-y-6">
-            <div><p className="text-sm font-semibold tracking-[.16em] text-[#0e6b70]">{t.outcome}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{t.title}</h2></div>
+            <div><p className="text-sm font-semibold tracking-[.16em] text-primary">{t.outcome}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{t.title}</h2></div>
             {query.isError ? <ErrorState isArabic={isArabic} error={query.error} retrying={query.isFetching} onRetry={isRetryable(query.error) ? () => query.refetch() : undefined} /> : null}
             {!submitted ? <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-card px-8 py-16 text-center text-muted-foreground">{t.empty}</div> : null}
             {submitted && query.isLoading ? <div className="rounded-[var(--radius-lg)] bg-card px-8 py-16 text-center text-muted-foreground">{t.loading}</div> : null}
             {query.data ? <>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{metrics.map(key => <article key={key} className="rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-sm"><p className="text-xs font-bold tracking-[0.16em] text-muted-foreground">{key}</p><p className="mt-3 text-2xl font-semibold tabular-nums">{metric(key)}</p></article>)}</div>
-              <div className={`rounded-[var(--radius-lg)] p-6 ${varianceAlert ? "bg-[#fff5ee] text-[#7b341e]" : "bg-[#eaf6f0] text-[#14532d]"}`}><div className="flex items-start gap-3">{varianceAlert ? <TrendingDown className="mt-0.5 h-5 w-5" /> : <TrendingUp className="mt-0.5 h-5 w-5" />}<div><h3 className="font-semibold">{t.guidance}</h3><p className="mt-2 text-sm leading-6">{query.data.meaning}</p><p className="mt-3 text-sm font-medium">{t.action} {query.data.recommendedAction}</p></div></div></div>
+              <div className={`rounded-[var(--radius-lg)] p-6 ${varianceAlert ? "bg-warning-soft text-warning-soft-foreground" : "bg-accent text-success-soft-foreground"}`}><div className="flex items-start gap-3">{varianceAlert ? <TrendingDown className="mt-0.5 h-5 w-5" /> : <TrendingUp className="mt-0.5 h-5 w-5" />}<div><h3 className="font-semibold">{t.guidance}</h3><p className="mt-2 text-sm leading-6">{query.data.meaning}</p><p className="mt-3 text-sm font-medium">{t.action} {query.data.recommendedAction}</p></div></div></div>
             </> : null}
           </section>
         </div>

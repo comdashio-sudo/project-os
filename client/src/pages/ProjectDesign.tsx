@@ -82,7 +82,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       <SourceNotice query={submittals} isArabic={isArabic} title={t.submittalsTitle} />
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p> : null}
 
-      {b ? <section aria-label={t.board} className="rounded-xl bg-[#e6f4f3] p-4">
+      {b ? <section aria-label={t.board} className="rounded-xl bg-accent p-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Metric label={t.complete} value={b.drawings.completionPercent === null ? t.notStarted : `${b.drawings.completionPercent}%`} />
           <Metric label={`${t.approvedCount} / ${t.drawingsCount}`} value={`${b.drawings.approved} / ${b.drawings.total}`} />
@@ -191,5 +191,5 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-slate-600">{label}</p><p className="mt-1 text-lg font-semibold text-[#0e6b70]">{value}</p></div>;
+  return <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-slate-600">{label}</p><p className="mt-1 text-lg font-semibold text-primary">{value}</p></div>;
 }

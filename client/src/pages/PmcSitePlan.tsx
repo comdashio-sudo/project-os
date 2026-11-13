@@ -33,12 +33,13 @@ const text = {
     unit: "Unit", model: "Model", zone: "Zone", block: "Block", progress: "Progress", close: "Close", engineer: "Engineer", verification: "Verification", weight: "Weight", errors: "Problems in the file", planAlt: "Site plan", noNumber: "no number", changeStatus: "Change status", earned: "Earned value", linkedMoved: (n: number) => `${n} WBS item(s) moved`, evNone: "No linked WBS item changed its progress",
   },
 };
-const COLORS: Record<string, string> = { NOT_STARTED: "#cbd5e1", IN_PROGRESS: "#fbbf24", UNDER_REVIEW: "#60a5fa", COMPLETE: "#34d399" };
+// D-75: the status colours are the tokens of client/src/index.css (light and dark themes), not fixed hex values
+const COLORS: Record<string, string> = { NOT_STARTED: "var(--status-todo)", IN_PROGRESS: "var(--status-late)", UNDER_REVIEW: "var(--status-review)", COMPLETE: "var(--status-done)" };
 type Ring = Array<[number, number]>;
 type Geometry = { type: "Polygon"; coordinates: Ring[] } | { type: "MultiPolygon"; coordinates: Ring[][] };
 const polygonsOf = (geometry: Geometry): Ring[][] => (geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates);
 const pointsOf = (ring: Ring, w: number, h: number) => ring.map(([x, y]) => `${Math.round(x * w * 10) / 10},${Math.round(y * h * 10) / 10}`).join(" ");
-const fillFor = (status: string | null, progress: number | null) => (status ? COLORS[status] : progress === null ? "#e5e7eb" : `rgba(14, 107, 112, ${0.12 + (progress / 100) * 0.7})`);
+const fillFor = (status: string | null, progress: number | null) => (status ? COLORS[status] : progress === null ? "var(--muted)" : `color-mix(in oklab, var(--primary) ${Math.round((0.12 + (progress / 100) * 0.7) * 100)}%, transparent)`);
 
 export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
@@ -85,7 +86,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
                 points={pointsOf(rings[0], plan.widthPx, plan.heightPx)}
                 fill={fillFor(unit.status, unit.progressPercent)}
                 fillOpacity={0.75}
-                stroke={selected === unit.unitNumber ? "#0e6b70" : "#475569"}
+                stroke={selected === unit.unitNumber ? "var(--primary)" : "var(--muted-foreground)"}
                 strokeWidth={selected === unit.unitNumber ? plan.widthPx / 150 : plan.widthPx / 600}
                 strokeDasharray={activityCode && !unit.status ? "6 4" : undefined}
                 style={{ cursor: "pointer" }}

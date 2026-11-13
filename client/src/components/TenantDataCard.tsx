@@ -74,7 +74,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
           <p>{t.files(report.files.deleted, report.files.found)}</p>
           {report.remaining.length ? <p>{report.remaining.map(item => `${item.table}: ${item.rows}`).join("، ")}</p> : null}
           {report.files.failedKeys.length ? <div><p>{t.leftover}</p><ul className="list-disc ps-5" dir="ltr">{report.files.failedKeys.map(key => <li key={key}>{key}</li>)}</ul></div> : null}
-          <a href="/" className="inline-block font-semibold text-[#0e6b70] underline">{t.home}</a>
+          <a href="/" className="inline-block font-semibold text-primary underline">{t.home}</a>
         </CardContent>
       </Card>
     );
@@ -89,7 +89,7 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
 
   return (
     <Card className="mt-6">
-      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-[#0e6b70]" />{t.title}</CardTitle><p className="text-sm leading-6 text-slate-500">{t.note}</p></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-primary" />{t.title}</CardTitle><p className="text-sm leading-6 text-slate-500">{t.note}</p></CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm">{t.size(data.totalRows, data.tables.filter(item => item.rows > 0).length, data.files)}</p>
         <div className="flex flex-wrap items-center gap-3">
