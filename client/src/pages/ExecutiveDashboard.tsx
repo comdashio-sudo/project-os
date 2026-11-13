@@ -1,4 +1,5 @@
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { Select } from "@/components/ds";
 import { formatAmount } from "@/components/ds/format";
 import { OutsideShell, PageMain, PageHeader } from "@/components/pageFrame";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ export default function ExecutiveDashboard() {
     formatAmount(value, 0);
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (!form.projectId) return; // the list has no native «required»: no project, no decision
     mutation.mutate({ tenantId, ...form });
   };
   const cash = pickLanguage(language, { ar: {
@@ -377,21 +379,15 @@ export default function ExecutiveDashboard() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Label>
                   {t.project}
-                  <select
-                    value={form.projectId}
-                    onChange={e =>
-                      setForm({ ...form, projectId: e.target.value })
-                    }
-                    required
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                  >
-                    <option value="">{t.select}</option>
-                    {data.projects.map(project => (
-                      <option key={project.id} value={project.id}>
-                        {project.code} · {project.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    className="mt-1"
+                    aria-label={t.project}
+                    aria-required
+                    placeholder={t.select}
+                    value={form.projectId || undefined}
+                    onValueChange={value => setForm({ ...form, projectId: value })}
+                    options={data.projects.map(project => ({ value: project.id, label: `${project.code} · ${project.name}` }))}
+                  />
                 </Label>
                 <Label>
                   {t.problem}

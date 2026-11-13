@@ -2,6 +2,9 @@
 // entity in the parent tree and editing its geometry (G-136), and the entity's alerts with jumps to the sections that hold its WBS item and
 // activity (G-137). The rules and arithmetic are shared/masterPlanTools.ts; every write is shown only to someone who may make it, and the
 // server judges every call anyway.
+import { Select } from "@/components/ds";
+/** The ds list has no empty value: «no parent» is this sentinel on screen and "" in the state. */
+const NO_PARENT = "__none";
 import { CheckedForm } from "@/components/CheckedForm";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -92,7 +95,7 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
     </section>
     <WriteGate permission="project.write" projectId={projectId}>
       <CheckedForm className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, parentEntityId: parent || null }); }}>
-        <Label className="min-w-48 flex-1">{t.parentTitle}<select aria-label={t.parentTitle} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" value={parent} onChange={event => setParent(event.target.value)}><option value="">{t.noParent}</option>{candidates.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></Label>
+        <Label className="min-w-48 flex-1">{t.parentTitle}<Select aria-label={t.parentTitle} className="mt-1" value={parent || NO_PARENT} onValueChange={value => setParent(value === NO_PARENT ? "" : value)} options={[{ value: NO_PARENT, label: t.noParent }, ...candidates.map(item => ({ value: item.id, label: `${item.code} · ${item.name}` }))]} /></Label>
         <Button size="sm" disabled={update.isPending || parent === (entity.parentEntityId ?? "")}>{t.saveParent}</Button>
       </CheckedForm>
       <CheckedForm className="grid grid-cols-2 gap-2 md:grid-cols-5" onSubmit={event => { event.preventDefault(); update.mutate({ tenantId, projectId, entityId: entity.id, geometry: { x: Number(draft.x), y: Number(draft.y), width: Number(draft.width), height: Number(draft.height) } }); }}>
