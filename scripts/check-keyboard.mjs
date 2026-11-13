@@ -1,7 +1,8 @@
 // Automated keyboard-operability audit (G-132, the part a machine can do). For every screen, in Arabic, at desktop width and at 390px, it
 // walks the page with the Tab key exactly as a keyboard user would and checks:
 //   1. TRAP     — focus is never stuck: Tab keeps moving to a new element until it leaves the page or comes back round.
-//   2. VISIBLE  — every element that takes focus shows it (an outline, ring or shadow different from when it is not focused).
+//   2. VISIBLE  — every element that takes focus shows it: its outline, ring, shadow, border or background differs from its own resting look
+//                 (G-180: a permanent shadow is not a focus indicator; each control is compared with itself unfocused, transitions off).
 //   3. NAMED    — every focusable control has an accessible name (text, aria-label, aria-labelledby, title, or an associated label).
 //   4. ORDER    — no positive tabindex (it breaks the natural order) and no focusable element hidden from assistive technology (aria-hidden).
 //   5. LANDMARK — exactly one <main>, exactly one <h1> on the screen (none for the public sign-in pages is also reported).
@@ -50,6 +51,7 @@ for (const view of VIEWS) {
     try {
       await page.goto(path.startsWith("file:") ? path : `${BASE_URL}${path.split("#")[0]}?lang=ar${path.includes("#") ? `#${path.split("#")[1]}` : ""}`, { waitUntil: "load", timeout: 45_000 }); // the query goes before the hash, or "#pmc?lang=ar" opens nothing
       await page.waitForTimeout(2200);
+      await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; animation: none !important; }" }); // G-180: the resting look is read at once, not mid-transition
       await page.evaluate(() => document.querySelectorAll("details").forEach(element => { element.open = true; }));
       await page.waitForTimeout(700);
       // Tab presses come from the driver, one at a time, and the focused element is inspected in the page after each.
@@ -74,7 +76,18 @@ for (const view of VIEWS) {
             const key = (el.__kb ??= `kb${Math.random().toString(36).slice(2)}`);
             return {
               key, described: describe(el), named: Boolean(nameOf(el)), hidden: Boolean(el.closest("[aria-hidden=true]")), composite: el.matches("input[type=date], input[type=time], input[type=datetime-local], input[type=month], input[type=week], input[type=file]"),
-              visible: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) || Boolean(style.boxShadow && style.boxShadow !== "none") || el.matches("input[type=file]"),
+              // G-180 (D-29): the indicator is what CHANGES on focus, not whatever outline or shadow the control always wears. The focused look is
+              // read, the control is blurred and read again (transitions are off for the walk, so the second read is the settled resting look),
+              // then focus goes back — Chromium keeps :focus-visible for a focus that follows keyboard use, and the next Tab continues from here.
+              ...(() => {
+                const look = s => [s.outlineStyle === "none" || parseFloat(s.outlineWidth) === 0 ? "" : `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} ${s.outlineOffset}`, s.boxShadow === "none" ? "" : s.boxShadow, s.borderColor, s.backgroundColor, s.textDecorationLine];
+                // A native date/time/file input is several stops inside one element: blurring and refocusing it sends focus back to its first part,
+                // so Tab would never leave it. For those the old reading stays (an outline or shadow on focus), with no blur.
+                if (el.matches("input[type=date], input[type=time], input[type=datetime-local], input[type=month], input[type=week], input[type=file]")) return { visible: (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) || style.boxShadow !== "none" || el.matches("input[type=file]"), indicator: "composite" };
+                const focused = look(style); el.blur(); const resting = look(getComputedStyle(el)); el.focus();
+                const changed = focused.some((value, index) => value !== resting[index]);
+                return { visible: changed || el.matches("input[type=file]"), indicator: focused[0] || focused[1] ? "outline/shadow" : changed ? "colour" : "none" };
+              })(),
             };
           });
           if (!info) { left = true; break; }

@@ -24,6 +24,8 @@
   /* neutrals — dark */
   --dashio-surface-dark:  #141A32;
   --dashio-line-dark:     #242C4C;
+  /* border of a form control in the dark theme: 3.86:1 on the dark card and 4.32:1 on the dark page (WCAG 1.4.11; D-29, G-177). */
+  --dashio-control-dark:  #6B7799;
   --dashio-bg-dark:       #0A0E1E;
   /* project status */
   --status-todo:          #6B7A99;
@@ -202,7 +204,7 @@
   --destructive: var(--status-blocked);
   --destructive-foreground: var(--dashio-white);
   --border: var(--dashio-line-dark);
-  --input: var(--dashio-line-dark);
+  --input: var(--dashio-control-dark);
   --ring: var(--dashio-aqua);
   --chart-1: var(--dashio-indigo-soft);
   --chart-2: var(--dashio-aqua);

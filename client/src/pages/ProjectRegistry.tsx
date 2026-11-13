@@ -81,7 +81,7 @@ export default function ProjectRegistry() {
       <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <OutsideShell><Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#0e6b70]"><ArrowLeft className="h-4 w-4" />{t.workspace}</Link></OutsideShell>
-          <div className="flex items-center gap-3"><Link href={`/planner/${tenantId}`} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-sm font-medium text-primary">{pickLanguage(language, { ar: "حاسبة مدد التطوير", en: "Development planner", ur: "ترقی کا منصوبہ ساز" })}</Link><span className="text-sm text-slate-500">{t.level}</span><LanguageToggle /></div>
+          <div className="flex items-center gap-3"><Link href={`/planner/${tenantId}`} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-sm font-medium text-primary">{pickLanguage(language, { ar: "حاسبة مدد التطوير", en: "Development planner", ur: "ترقی کا منصوبہ ساز" })}</Link><span className="text-sm text-slate-600">{t.level}</span><LanguageToggle /></div>
         </div>
       </PageHeader>
       <div className="mx-auto max-w-6xl px-5 py-10">
