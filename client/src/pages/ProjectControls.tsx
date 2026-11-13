@@ -49,7 +49,8 @@ import { ProjectStart } from "@/components/ProjectStart";
 import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
-import { WriteGate, useCan } from "@/lib/permissions";
+import { PROJECT_PAGE_PERMISSIONS, WriteGate, useCan } from "@/lib/permissions";
+import { ProjectPageLink } from "@/components/ProjectPageLink";
 import { pickLanguage } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
 import { GridEditor, gridNumber } from "@/components/GridEditor";
@@ -233,9 +234,9 @@ export default function ProjectControls() {
           <PageHeader className="print:hidden">
           <nav aria-label={pickLanguage(language, { ar: "صفحات المشروع", en: "Project pages", ur: "پروجیکٹ کے صفحات" })} className="flex flex-wrap gap-2 print:hidden">
             {([["baseline", pickLanguage(language, { ar: "ملف المشروع الأساسي", en: "Project base file", ur: "پروجیکٹ کی بنیادی فائل" })], ["team", pickLanguage(language, { ar: "فريق المشروع", en: "Project team", ur: "پروجیکٹ ٹیم" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "Project control (PMC)", ur: "پروجیکٹ کنٹرول (PMC)" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "السلسلة التجارية", en: "Commercial chain", ur: "کمرشل چین" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
-              <Link key={path} href={`/projects/${tenantId}/${projectId}/${path}`} className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-input px-3 md:min-h-10 text-sm font-medium text-foreground hover:bg-muted">{label}</Link>
+              <ProjectPageLink key={path} tenantId={tenantId} projectId={projectId} path={path} label={label} />
             ))}
-            <StalledUnitsLink tenantId={tenantId} projectId={projectId} />
+            <WriteGate permission={PROJECT_PAGE_PERMISSIONS.stalled} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
           </nav>
           </PageHeader>
         </section>

@@ -52,11 +52,11 @@ import ProjectQuality from "./pages/ProjectQuality";
 import UnitCard from "./pages/UnitCard";
 import IntegrationSettings from "./pages/IntegrationSettings";
 import RequireAuth from "./components/RequireAuth";
-import { PermissionProvider } from "./lib/permissions";
+import { PageGate, PermissionProvider, PROJECT_PAGE_PERMISSIONS } from "./lib/permissions";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { ProductShell, isFramedPath } from "./components/ProductShell";
 import { Suspense, lazy, type ComponentType } from "react";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, useParams } from "wouter";
 
 // The design preview (work order 19) is its own chunk: the fonts and the component library it loads are not part of the main bundle.
 const DesignPreview = lazy(() => import("./pages/DesignPreview"));
@@ -87,21 +87,28 @@ const ProtectedPayroll = withAuth(PayrollWorkspace);
 const ProtectedAdministration = withAuth(TenantAdministration);
 const ProtectedMyPerformance = withAuth(MyPerformance);
 const ProtectedControls = withAuth(ProjectControls);
-const ProtectedCommercial = withAuth(CommercialChain);
-const ProtectedProfitability = withAuth(ProjectProfitability);
+// D-20 (G-160/G-161): a project page opened by its address without what its server read needs shows the translated «no permission» page (PageGate)
+function gatedPage<P extends object>(Page: React.ComponentType<P>, page: keyof typeof PROJECT_PAGE_PERMISSIONS) {
+  return function GatedPage(props: P) {
+    const { projectId } = useParams<{ projectId: string }>();
+    return <PageGate permission={PROJECT_PAGE_PERMISSIONS[page]} projectId={projectId}><Page {...props} /></PageGate>;
+  };
+}
+const ProtectedCommercial = withAuth(gatedPage(CommercialChain, "commercial"));
+const ProtectedProfitability = withAuth(gatedPage(ProjectProfitability, "profitability"));
 const ProtectedFieldEntry = withAuth(FieldEntry);
 const ProtectedQuickIssue = withAuth(QuickIssue);
-const ProtectedPmc = withAuth(ProjectPmc);
-const ProtectedBaseline = withAuth(ProjectBaseline);
+const ProtectedPmc = withAuth(gatedPage(ProjectPmc, "pmc"));
+const ProtectedBaseline = withAuth(gatedPage(ProjectBaseline, "baseline"));
 const ProtectedSiteConsultant = withAuth(PmcSiteConsultant);
 const ProtectedSiteUpdate = withAuth(PmcSiteUpdate);
 const ProtectedProgressUpdate = withAuth(PmcProgressUpdate);
 const ProtectedQcReceipt = withAuth(PmcQcReceipt);
-const ProtectedStalledUnits = withAuth(StalledUnits);
+const ProtectedStalledUnits = withAuth(gatedPage(StalledUnits, "stalled"));
 const ProtectedProjects = withAuth(ProjectRegistry);
 const ProtectedSetup = withAuth(SetupWizard);
 const ProtectedMyCompanies = withAuth(MyCompanies);
-const ProtectedTeam = withAuth(ProjectTeam);
+const ProtectedTeam = withAuth(gatedPage(ProjectTeam, "team"));
 const ProtectedSetupWizard = withAuth(ProjectSetupWizard);
 const ProtectedPlanner = withAuth(DevPlanner);
 const ProtectedGuide = withAuth(UserGuide);
