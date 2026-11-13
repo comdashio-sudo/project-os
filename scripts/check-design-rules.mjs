@@ -1,19 +1,17 @@
-// The design rules of work order 19, held by the build (`pnpm check`). Four rules, each a ratchet: a file may not get WORSE than scripts/design-rules-baseline.json records,
-// and a file that is not in the baseline starts at zero. The design system itself (client/src/components/ds, client/src/design, client/src/pages/DesignPreview*.tsx) is held to zero
-// with no baseline at all. Fixing a violation lowers the number; `--update` rewrites the baseline from the current tree (run it only after FIXING, never to hide a new violation).
+// The design rules of work order 19, held by the build (`pnpm check`). D-76: the ceiling is ZERO for every file, with no baseline: the legacy violations recorded in
+// scripts/design-rules-baseline.json were all fixed by D-75 (630 -> 0), so that file and its `--update` are gone, and one violation anywhere fails the build.
+// The only way past a rule is the marked colour exemption below (a canvas pixel, PDF paper, an <input type=color> default), with its reason on the same line.
 //
 //   western-digits    Arabic-Indic (U+0660-0669) and Persian (U+06F0-06F9) digits in screen code: every figure is 0-9 (docs/TASLEEM_LESSONS.md section 6). "٢. أول مشروع" is the example.
 //   raw-file-input    <input type="file"> outside the component library: the browser's own "Choose File" is never shown; FileDropzone is the one place.
 //   raw-select        <select> and <option> outside the component library: the custom Select is the one list.
 //   hardcoded-colour  a colour written as a value in a screen (a #hex in a class or style, rgb()/hsl()/oklch()): colours come from the tokens in client/src/design/directions.css.
 //   number-format     toLocaleString / toLocaleDateString / toLocaleTimeString / Intl.NumberFormat / toFixed used to PRINT a figure or a date outside client/src/components/ds/format.ts: one place formats numbers.
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const root = process.env.DESIGN_RULES_ROOT ? path.resolve(process.env.DESIGN_RULES_ROOT) : path.resolve(import.meta.dirname, "..");
-const BASELINE = path.join(root, "scripts/design-rules-baseline.json");
 const SCAN = ["client/src"];
-const STRICT = [/^client\/src\/components\/ds\//, /^client\/src\/design\//, /^client\/src\/pages\/DesignPreview(Frame)?\.tsx$/];
 const LIBRARY = /^client\/src\/components\/ds\//;
 const FORMAT_MODULE = "client/src/components/ds/format.ts";
 
@@ -63,27 +61,11 @@ export function scan() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const current = scan();
-  if (process.argv.includes("--update")) {
-    const kept = Object.fromEntries(Object.entries(current).filter(([file]) => !STRICT.some(pattern => pattern.test(file))));
-    writeFileSync(BASELINE, JSON.stringify(kept, null, 1) + "\n");
-    console.log(`design-rules baseline written: ${Object.keys(kept).length} files`);
-    process.exit(0);
-  }
-  const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
-  const failures = []; let improved = 0;
-  for (const [file, found] of Object.entries(current)) {
-    const strict = STRICT.some(pattern => pattern.test(file));
-    for (const [rule, n] of Object.entries(found)) {
-      const allowed = strict ? 0 : (baseline[file]?.[rule] ?? 0);
-      if (n > allowed) failures.push(`${file}: ${rule} ${n} (allowed ${allowed})`);
-    }
-  }
-  for (const [file, was] of Object.entries(baseline)) for (const [rule, n] of Object.entries(was)) if ((current[file]?.[rule] ?? 0) < n) improved += 1;
+  const failures = Object.entries(current).flatMap(([file, found]) => Object.entries(found).map(([rule, n]) => `${file}: ${rule} ${n} (allowed 0)`));
   if (failures.length) {
     console.error("design rules (work order 19) violated:\n" + failures.map(line => `  - ${line}`).join("\n"));
     console.error("\nUse the shared components (client/src/components/ds), the tokens (client/src/design/directions.css) and the format module (client/src/components/ds/format.ts).");
     process.exit(1);
   }
-  const total = Object.values(baseline).reduce((sum, was) => sum + Object.values(was).reduce((a, b) => a + b, 0), 0);
-  console.log(`design rules ok: ${Object.keys(current).length} files carry the ${total} recorded legacy violations, none new${improved ? `; ${improved} entries improved -- run with --update to lock the gain in` : ""}`);
+  console.log("design rules ok: 0 violations (the ceiling is zero, no baseline)");
 }
