@@ -1,3 +1,4 @@
+import { mailSetup } from "./auth/mailer";
 import { integrationApiRouter } from "../integrations/api";
 import { ENV } from "./env";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -67,7 +68,10 @@ export function createApp(options: AppOptions) {
     const readiness = await Promise.race([schemaReadiness(), new Promise<null>(resolve => setTimeout(() => resolve(null), 4000))]);
     const storageMissing = partialS3Setup();
     const note = (readiness === null ? "; schema unknown" : readiness.ready ? "" : `; schema behind: ${pendingMigrations(readiness).join(", ")}`) + (storageMissing.length ? `; storage partly configured, missing: ${storageMissing.join(", ")}` : "");
-    res.set("Cache-Control", "no-store").status(200).type("text/plain").send(`ok${note}`);
+    // Q-16: whether mail can go out, by variable name only (never a value)
+    const mail = mailSetup();
+    const mailNote = mail.configured ? "; mail configured" : `; mail not configured, missing: ${mail.missing.join(", ")}`;
+    res.set("Cache-Control", "no-store").status(200).type("text/plain").send(`ok${note}${mailNote}`);
   });
   // Readiness: 200 when the database has what this release's code names, 503 with the migrations still to apply. The post-deploy check reads it (a warning, not a rollback: the code tolerates it).
   app.get("/api/readyz", async (_req, res) => {
@@ -78,7 +82,7 @@ export function createApp(options: AppOptions) {
     // D-85b: the commit this deployment was built from (Vercel's system variable, first 12 characters; null elsewhere). The release workflow waits for it after advancing
     // the production branch without the CLI. A commit hash is public in the repository; nothing secret is said.
     const commit = (process.env.VERCEL_GIT_COMMIT_SHA ?? "").trim().slice(0, 12) || null;
-    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready, commit, pendingMigrations: pendingMigrations(readiness), ...(storageMissing.length ? { storagePartlyConfigured: storageMissing } : {}) });
+    res.set("Cache-Control", "no-store").status(ready ? 200 : 503).json({ ready, commit, pendingMigrations: pendingMigrations(readiness), ...(storageMissing.length ? { storagePartlyConfigured: storageMissing } : {}), mail: mailSetup() });
   });
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.use(apiRateLimit({ perMinute: options.apiRequestsPerMinute ?? apiRateLimitFromEnvironment(), now: options.now }));

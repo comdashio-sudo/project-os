@@ -239,3 +239,29 @@ describe("failures", () => {
     expect(line).not.toContain("Database connection");
   });
 });
+
+describe("Q-16: /healthz and /api/readyz say whether mail can go out, by variable name only", () => {
+  const MAIL = { SMTP_HOST: "smtp.mail.example.test", SMTP_PORT: "587", SMTP_USER: "sender-user-xyz", SMTP_PASSWORD: "p4ss-never-shown", EMAIL_FROM: "Dashio <no-reply@mail.example.test>", EMAIL_NOTIFICATIONS_ENABLED: "true", APP_BASE_URL: "https://app.example.test" };
+  it("all seven set ⇒ «mail configured», and no value is ever said", async () => {
+    const { base } = await start();
+    for (const [name, value] of Object.entries(MAIL)) vi.stubEnv(name, value);
+    const text = await (await fetch(base + "/healthz")).text();
+    expect(text).toContain("; mail configured");
+    const body = await (await fetch(base + "/api/readyz")).json();
+    expect(body.mail).toEqual({ configured: true, missing: [] });
+    for (const value of [MAIL.SMTP_PASSWORD, MAIL.SMTP_USER, MAIL.SMTP_HOST]) { expect(text).not.toContain(value); expect(JSON.stringify(body)).not.toContain(value); }
+    for (const name of Object.keys(MAIL)) vi.stubEnv(name, "");
+  }, 30_000);
+
+  it("a missing password and the switch left off are named, and readiness does not depend on mail", async () => {
+    const { base } = await start();
+    for (const [name, value] of Object.entries(MAIL)) vi.stubEnv(name, value);
+    vi.stubEnv("SMTP_PASSWORD", ""); vi.stubEnv("EMAIL_NOTIFICATIONS_ENABLED", "false");
+    const text = await (await fetch(base + "/healthz")).text();
+    expect(text).toContain("; mail not configured, missing: SMTP_PASSWORD, EMAIL_NOTIFICATIONS_ENABLED");
+    const body = await (await fetch(base + "/api/readyz")).json();
+    expect(body.mail).toEqual({ configured: false, missing: ["SMTP_PASSWORD", "EMAIL_NOTIFICATIONS_ENABLED"] });
+    expect(text).not.toContain(MAIL.SMTP_USER);
+    for (const name of Object.keys(MAIL)) vi.stubEnv(name, "");
+  }, 30_000);
+});

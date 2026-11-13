@@ -35,3 +35,16 @@ export function createSmtpMailer(options: SmtpMailerOptions): Mailer {
     },
   };
 }
+
+// Q-16: whether the platform can actually send mail (invitations, the daily digests, the stalled-units digest), said by variable NAME only — never a value.
+// All seven are needed: the five SMTP ones, the switch, and the address the links in a mail point to.
+export const MAIL_VARIABLES = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "EMAIL_FROM", "EMAIL_NOTIFICATIONS_ENABLED", "APP_BASE_URL"] as const;
+export function mailSetup(env: NodeJS.ProcessEnv = process.env): { configured: boolean; missing: string[] } {
+  const missing: string[] = [];
+  for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "EMAIL_FROM", "APP_BASE_URL"] as const) if (!(env[name] ?? "").trim()) missing.push(name);
+  const port = Number(env.SMTP_PORT ?? "");
+  if (!Number.isInteger(port) || port <= 0) missing.push("SMTP_PORT");
+  if (env.EMAIL_NOTIFICATIONS_ENABLED !== "true") missing.push("EMAIL_NOTIFICATIONS_ENABLED");
+  const ordered = MAIL_VARIABLES.filter(name => missing.includes(name));
+  return { configured: ordered.length === 0, missing: ordered };
+}
