@@ -28,3 +28,26 @@ export async function insertChunked<T extends PgTable>(executor: unknown, table:
 export function anyOf(column: AnyPgColumn, values: readonly string[]): SQL {
   return sql`${column} = ANY(${sql.param(values as string[])}::text[])`;
 }
+
+/** Rows per UPDATE (G-140, D-32). 500 rows × a few columns is far under the parameter ceiling and keeps one statement's lock short. */
+export const UPDATE_CHUNK_ROWS = 500;
+
+type ExecuteExecutor = { execute: (query: SQL) => PromiseLike<unknown> };
+
+/**
+ * G-140 (D-32): `UPDATE … SET col = v.col FROM (VALUES …) v WHERE t.id = v.id AND t.tenant_id = $tenant`, 500 rows a statement, instead of one
+ * statement a row. Same rows, same values, same tenant filter (and row-level security still applies to every row it touches); the values travel
+ * as parameters and are cast to the column's own type. `scope` is the tenant (and project) every touched row must belong to. Runs inside the caller's transaction.
+ */
+export async function updateChunked<T extends PgTable>(executor: unknown, table: T, scope: readonly (readonly [AnyPgColumn, string])[], columns: readonly AnyPgColumn[], rows: readonly { id: string; values: readonly (string | number | null)[] }[]): Promise<void> {
+  if (!rows.length || !columns.length) return;
+  if (!scope.length) throw new Error("updateChunked needs the tenant (and project) it may touch");
+  const where = sql.join(scope.map(([column, value]) => sql`t.${sql.identifier(column.name)} = ${value}`), sql` AND `);
+  const names = columns.map(column => column.name);
+  const setClause = sql.join(columns.map(column => sql`${sql.identifier(column.name)} = v.${sql.identifier(column.name)}::${sql.raw(column.getSQLType())}`), sql`, `);
+  const alias = sql.raw(`v(id, ${names.map(name => `"${name.replace(/"/g, '""')}"`).join(", ")})`);
+  for (const part of chunk(rows, UPDATE_CHUNK_ROWS)) {
+    const values = sql.join(part.map(row => sql`(${row.id}::text, ${sql.join(row.values.map(value => sql`${value === null ? null : String(value)}::text`), sql`, `)})`), sql`, `);
+    await (executor as ExecuteExecutor).execute(sql`UPDATE ${table} AS t SET ${setClause} FROM (VALUES ${values}) AS ${alias} WHERE t.id = v.id AND ${where}`);
+  }
+}
