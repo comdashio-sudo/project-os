@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
 import { orderProjectsByRisk, portfolioFpac, round2 } from "./domain/profitability";
-import { DEFAULT_EAC_METHOD, loadProfitabilityRows, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
+import { DEFAULT_EAC_METHOD, loadProfitabilityRows, loadProfitabilityRowsByProject, reportInputFor, snapshotExtension, type Db as ProfitabilityDb } from "./profitability";
 import { createHash, randomBytes } from "node:crypto";
 import { sendInvitationEmail } from "./invitationEmail";
 import { logError } from "./_core/logger";
@@ -3506,10 +3506,12 @@ export async function getPortfolioProfitabilityForTenant(input: { userId: number
   const visible = all.filter(project => holdsPermission(snapshot, "executive.read", { type: "project", id: project.id }));
   const now = input.now ?? new Date();
   type Entry = { projectId: string; code: string; name: string; currency: string; fpac: number; movement: number | null };
+  // D-23: every visible project's inputs in one round of statements; on a failed batch each project falls back to its own read
+  const batch = await loadProfitabilityRowsByProject(db, input.tenantId, visible.map(project => project.id)).catch(error => { logError("portfolio.profitability_batch_failed", error, { tenantId: input.tenantId }); return null; });
   const settled = await Promise.all(visible.map(async (project): Promise<{ entry: Entry } | { failure: { projectId: string; code: string; name: string; reason: string } }> => {
     const failure = (reason: string) => ({ failure: { projectId: project.id, code: project.code, name: project.name, reason } });
     try {
-      const report = buildProfitabilityReport(reportInputFor(await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: project.id }), now, DEFAULT_EAC_METHOD));
+      const report = buildProfitabilityReport(reportInputFor(batch?.get(project.id) ?? await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: project.id }), now, DEFAULT_EAC_METHOD));
       if (report.headline.status !== "ok") return failure(report.headline.reason);
       return { entry: { projectId: project.id, code: project.code, name: project.name, currency: project.currency, fpac: report.headline.data.fpac, movement: report.movement.status === "ok" ? report.movement.data.delta : null } };
     } catch {
