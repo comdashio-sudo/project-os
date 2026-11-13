@@ -255,7 +255,8 @@ export async function getTenantNavigationForUser(input: { userId: number; tenant
 export async function assertTenantManager(userId: number, tenantId: string): Promise<void> {
   const snapshot = await getTenantAccessSnapshot({ userId, tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage" });
+  // D-19 (G-143): managing the company is a company-wide power — tenant.manage carried by a project-scoped assignment manages nothing of the company
+  assertTenantAccess(snapshot, { tenantId, product: "EXECUTIVE", permission: "tenant.manage", scope: { type: "company" } });
 }
 
 async function assertRoleProductEntitled(input: { userId: number; tenantId: string; productCode: ProductCode }): Promise<void> {
@@ -1458,8 +1459,10 @@ async function computeExecutiveDashboard(input: { userId: number; tenantId: stri
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "executive.read" });
+  // D-19 (G-143): only the projects the caller's own executive.read assignment covers (all of them for a company-wide one), and the rows that belong to them
+  const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "EXECUTIVE", permissions: ["executive.read"] });
 
-  const [projectRows, healthRows, decisionRows, budgetRows, costRows, commitmentRows, portfolioRows] = await Promise.all([
+  const [allProjectRows, allHealthRows, allDecisionRows, allBudgetRows, allCostRows, allCommitmentRows, allPortfolioRows] = await Promise.all([
     db.select({ id: projects.id, portfolioId: projects.portfolioId, code: projects.code, name: projects.name, status: projects.status, currentBudget: projects.currentBudget, actualCost: projects.actualCost, forecastCost: projects.forecastCost, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
     db.select({ projectId: projectHealthSnapshots.projectId, status: projectHealthSnapshots.status, overallScore: projectHealthSnapshots.overallScore, confidence: projectHealthSnapshots.confidence, periodAt: projectHealthSnapshots.periodAt }).from(projectHealthSnapshots).where(eq(projectHealthSnapshots.tenantId, input.tenantId)).orderBy(desc(projectHealthSnapshots.periodAt)),
     db.select({ id: decisions.id, projectId: decisions.projectId, problem: decisions.problem, status: decisions.status, costImpact: decisions.costImpact, scheduleImpactDays: decisions.scheduleImpactDays, createdAt: decisions.createdAt }).from(decisions).where(eq(decisions.tenantId, input.tenantId)).orderBy(desc(decisions.createdAt)),
@@ -1469,6 +1472,10 @@ async function computeExecutiveDashboard(input: { userId: number; tenantId: stri
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
   ]);
 
+  const mine = <T extends { projectId: string | null }>(rows: T[]) => (covered.company ? rows : rows.filter(row => row.projectId !== null && covered.projectIds.has(row.projectId)));
+  const projectRows = allProjectRows.filter(project => covered.projectIds.has(project.id));
+  const [healthRows, decisionRows, budgetRows, costRows, commitmentRows] = [mine(allHealthRows), mine(allDecisionRows), mine(allBudgetRows), mine(allCostRows), mine(allCommitmentRows)];
+  const portfolioRows = covered.company ? allPortfolioRows : allPortfolioRows.filter(portfolio => projectRows.some(project => project.portfolioId === portfolio.id));
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>();
   healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
   const projectsWithHealth = projectRows.map(project => ({ ...project, health: latestHealthByProject.get(project.id) ?? null }));
@@ -1492,8 +1499,10 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.read" });
+  // D-19 (G-143): only the projects the caller's own pmo.read assignment covers (all of them for a company-wide one), and the rows that belong to them
+  const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PMO", permissions: ["pmo.read"] });
 
-  const [portfolioRows, programRows, projectRows, riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows, changeRows, materialOverrideRows, inventoryTransactionRows] = await Promise.all([
+  const [allPortfolioRows, allProgramRows, allProjectRows, allRiskRows, allIssueRows, allActionRows, allDecisionRows, allRfiRows, allNcrRows, allEvmRows, allHealthRows, allChangeRows, allMaterialOverrideRows, allInventoryTransactionRows] = await Promise.all([
     db.select({ id: portfolios.id, code: portfolios.code, name: portfolios.name, status: portfolios.status }).from(portfolios).where(eq(portfolios.tenantId, input.tenantId)),
     db.select({ id: programs.id, portfolioId: programs.portfolioId, code: programs.code, name: programs.name, status: programs.status }).from(programs).where(eq(programs.tenantId, input.tenantId)),
     db.select({ id: projects.id, portfolioId: projects.portfolioId, programId: projects.programId, code: projects.code, name: projects.name, lifecycleStage: projects.lifecycleStage, status: projects.status, currency: projects.currency, plannedFinishAt: projects.plannedFinishAt, forecastFinishAt: projects.forecastFinishAt }).from(projects).where(eq(projects.tenantId, input.tenantId)),
@@ -1515,6 +1524,11 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
       .where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), isNotNull(projectMaterialOverrides.reorderLevel)))
       .groupBy(warehouseInventoryTransactions.projectId, warehouseInventoryTransactions.materialId),
   ]);
+  const mine = <T extends { projectId: string | null }>(rows: T[]) => (covered.company ? rows : rows.filter(row => row.projectId !== null && covered.projectIds.has(row.projectId)));
+  const projectRows = allProjectRows.filter(project => covered.projectIds.has(project.id));
+  const [riskRows, issueRows, actionRows, decisionRows, rfiRows, ncrRows, evmRows, healthRows, changeRows, materialOverrideRows, inventoryTransactionRows] = [mine(allRiskRows), mine(allIssueRows), mine(allActionRows), mine(allDecisionRows), mine(allRfiRows), mine(allNcrRows), mine(allEvmRows), mine(allHealthRows), mine(allChangeRows), mine(allMaterialOverrideRows), mine(allInventoryTransactionRows)];
+  const portfolioRows = covered.company ? allPortfolioRows : allPortfolioRows.filter(portfolio => projectRows.some(project => project.portfolioId === portfolio.id));
+  const programRows = covered.company ? allProgramRows : allProgramRows.filter(program => projectRows.some(project => project.programId === program.id));
   const latestEvmByProject = new Map<string, (typeof evmRows)[number]>(); evmRows.forEach(item => { if (!latestEvmByProject.has(item.projectId)) latestEvmByProject.set(item.projectId, item); });
   const latestHealthByProject = new Map<string, (typeof healthRows)[number]>(); healthRows.forEach(item => { if (!latestHealthByProject.has(item.projectId)) latestHealthByProject.set(item.projectId, item); });
   const visibleProjectIds = new Set(projectRows.map(project => project.id));
