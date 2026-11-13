@@ -114,7 +114,6 @@
   "hardcoded-colour": 4
  },
  "client/src/pages/ProjectMasterPlan.tsx": {
-  "raw-select": 31,
   "hardcoded-colour": 30
  },
  "client/src/pages/ProjectProfitability.tsx": {

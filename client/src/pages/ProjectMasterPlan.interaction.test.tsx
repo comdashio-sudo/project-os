@@ -10,6 +10,7 @@ import { TYPING_TEST } from "@/test/typing";
 // the master-plan files go browser → Storage on a signed URL and are applied by a background job (G-139); `imp` stands in for the dataImports hooks they use
 const imp = vi.hoisted(() => ({ put: vi.fn(), state: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() } }));
 const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, visualizationRules: [{ id: null, metric: "progress", rules: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, configured: false, updatedAt: null }, { id: null, metric: "status", rules: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, configured: false, updatedAt: null }, { id: null, metric: "cost", rules: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, configured: false, updatedAt: null }], refetch: vi.fn(), snapshotRefetch: vi.fn(), visualizationRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn(), visualizationMutate: vi.fn() }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1 } }) }));
@@ -188,6 +189,16 @@ describe("ProjectMasterPlan", TYPING_TEST, () => {
     await user.selectOptions(entityForm.getByLabelText("Parent entity"), "entity-parent"); await user.selectOptions(entityForm.getByLabelText("WBS item"), "wbs-1"); await user.selectOptions(entityForm.getByLabelText("Activity"), "activity-1");
     fireEvent.submit(form);
     await waitFor(() => expect(state.entityMutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", projectId: "project-1", masterPlanVersionId: "version-1", code: "UNIT-1", parentEntityId: "entity-parent", wbsItemId: "wbs-1", activityId: "activity-1" })));
+  });
+
+  it("a new entity whose parent, WBS and activity lists are put back on \"no link\" sends none of them: the sentinel never reaches the server (D-75 negative)", async () => {
+    state.data.versions[0] = { ...state.data.versions[0], sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png" }; state.entityMutate.mockClear(); const user = userEvent.setup(); render(<ProjectMasterPlan tenantId="tenant-1" projectId="project-1" />);
+    const form = screen.getAllByRole("button", { name: "Add entity" }).at(-1)?.closest("form"); if (!form) throw new Error("Entity form was not rendered"); const entityForm = within(form);
+    await user.type(entityForm.getByLabelText("Code"), "UNIT-2"); await user.type(entityForm.getByLabelText("Name"), "Unit two");
+    for (const [label, id] of [["Parent entity", "entity-parent"], ["WBS item", "wbs-1"], ["Activity", "activity-1"]] as const) { await user.selectOptions(entityForm.getByLabelText(label), id); await user.selectOptions(entityForm.getByLabelText(label), "__none"); }
+    fireEvent.submit(form);
+    await waitFor(() => expect(state.entityMutate).toHaveBeenCalled());
+    expect(state.entityMutate.mock.calls.at(-1)?.[0]).toMatchObject({ code: "UNIT-2", parentEntityId: undefined, wbsItemId: undefined, activityId: undefined });
   });
 
   it("draws a large plan on a canvas instead of one button per entity (G-135)", () => {
