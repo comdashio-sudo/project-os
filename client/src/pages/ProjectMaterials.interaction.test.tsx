@@ -7,6 +7,7 @@ import { ProjectMaterials } from "./ProjectMaterials";
 import { TYPING_TEST } from "@/test/typing";
 
 const state = vi.hoisted(() => ({ error: null as unknown, isArabic: false, create: vi.fn(), override: vi.fn(), refetch: vi.fn() }));
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized material error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { materials: { list: { useQuery: () => ({ isLoading: false, error: null, refetch: state.refetch, data: [{ id: "11111111-1111-4111-8111-111111111111", code: "MAT-01", description: "Concrete", unitOfMeasure: "m3", category: "Concrete", override: null }] }) }, createMaster: { useMutation: () => ({ mutate: state.create, isPending: false, error: state.error }) }, saveProjectOverride: { useMutation: () => ({ mutate: state.override, isPending: false, error: null }) } } } }));
@@ -32,6 +33,12 @@ describe("ProjectMaterials interaction", TYPING_TEST, () => {
     const user = userEvent.setup(); state.error = {}; render(<ProjectMaterials tenantId="tenant-1" projectId="project-1" />);
     await user.type(screen.getByLabelText("Material code"), "MAT-FAIL"); await user.type(screen.getByLabelText("Description"), "Cable"); await user.type(screen.getByLabelText("Unit of measure"), "m"); await user.type(screen.getByLabelText("Category"), "Electrical"); await user.click(screen.getByRole("button", { name: "Save material" }));
     expect(screen.getByRole("alert").textContent).toBe("Localized material error");
+  });
+
+  it("D-75: the material list has no native «required»: saving an override with no material chosen sends nothing", async () => {
+    const user = userEvent.setup(); state.override.mockClear(); render(<ProjectMaterials tenantId="tenant-1" projectId="project-1" />);
+    await user.click(screen.getByRole("button", { name: "Save override" }));
+    expect(state.override).not.toHaveBeenCalled();
   });
 
   it("sends null to remove a reorder level and keeps its Arabic validation message local", async () => {
