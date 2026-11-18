@@ -95,11 +95,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-33 (P0-04): every page
     });
   }
 
-  it("the gates are not vacuous: the owner sees every page, the viewer is refused the PMC and team pages, the project manager the controls page", async () => {
+  it("the gates are not vacuous: the owner sees every page, the viewer is refused the PMC and team pages, the keeper the controls page; the project manager now opens it (adviser 18-11)", async () => {
     expect((Object.keys(PAGE_ACCESS) as PageKey[]).every(page => pageAllowed(page, group => group.some(code => codesOf.owner.includes(code))))).toBe(true);
     expect(pageAllowed("pmc", group => group.some(code => codesOf.viewer.includes(code)))).toBe(false);
     expect(pageAllowed("team", group => group.some(code => codesOf.viewer.includes(code)))).toBe(false);
-    expect(pageAllowed("controls", group => group.some(code => codesOf.pm.includes(code)))).toBe(false);
-    expect(await serverAnswers("pm", "controls")).toBe(false);
+    expect(pageAllowed("controls", group => group.some(code => codesOf.keeper.includes(code)))).toBe(false);
+    expect(await serverAnswers("keeper", "controls")).toBe(false);
+    expect(pageAllowed("controls", group => group.some(code => codesOf.pm.includes(code)))).toBe(true);
+    expect(await serverAnswers("pm", "controls")).toBe(true);
   });
 });
