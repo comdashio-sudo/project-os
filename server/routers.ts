@@ -19,7 +19,7 @@ import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { boqTemplate, cashFlowTemplate, getBaselineStatus, labourTemplate, previewProjectLabour, saveProjectLabour, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
-import { applyPlannerToProject, exportDevPlanner, plannerInputSchema, runDevPlanner } from "./devPlannerService";
+import { applyPlannerToProject, exportDevPlanner, listPlannerProjects, plannerInputSchema, runDevPlanner } from "./devPlannerService";
 import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProjectInvitations, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
@@ -586,6 +586,8 @@ export const appRouter = router({
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), plan: plannerInputSchema, locale: z.enum(["ar", "en", "ur"]) })).mutation(({ ctx, input }) => exportDevPlanner({ userId: ctx.user.id, ...input })),
     // Q-11 (c): the likely plan written into a project's base file — planned labour and the planned cash flow (project.manage on that project)
     applyToProject: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), plan: plannerInputSchema, constructionStart: z.string().max(7) })).mutation(({ ctx, input }) => applyPlannerToProject({ userId: ctx.user.id, ...input })),
+    // Q-34: the projects «apply to a project» may write into (project.manage), not the company register
+    projects: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listPlannerProjects({ userId: ctx.user.id, ...input })),
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
