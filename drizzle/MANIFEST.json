@@ -36,6 +36,6 @@
     "0033_stall_settings.sql": "1dcf190591eaa26f49031384c1c64acd4453203301f204f65d0c690307776c41",
     "0034_weekly_reports.sql": "2bb34759997a87172e4af72d2da947950427911317b162e5473d65d6d77bdc01",
     "0035_stocktakes.sql": "260bf76874b69f1d22cfe987cf73cd501675eb38f11ebcf61080b208d5fa67e5",
-    "0037_material_request_warehouse.sql": "96a972d71c4e23faab2ad04b0b5e6eab834cb923b7f047333d1ed88940540521"
+    "0036_material_request_warehouse.sql": "96a972d71c4e23faab2ad04b0b5e6eab834cb923b7f047333d1ed88940540521"
   }
 }
