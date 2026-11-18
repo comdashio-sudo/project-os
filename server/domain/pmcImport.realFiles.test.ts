@@ -101,3 +101,32 @@ describe("weights as people write them (Q-31)", () => {
     expect(out.errors.map(error => `${error.rowNumber}:${error.code}`)).toEqual(["2:IMPORT_INVALID_NUMBER", "3:IMPORT_INVALID_NUMBER"]);
   });
 });
+
+describe("a person's column mapping (Q-31, P0-02)", () => {
+  const villas = async (rows: unknown[][], mappingOverride?: Record<string, string>) => parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: await workbook([{ name: "V", rows }]), mappingOverride });
+
+  it("POSITIVE: columns no alias names are read once a person maps them, and the report says which column each field came from", async () => {
+    const unmapped = await villas([["Plot Block", "House", "Kind"], ["B1", 1, "A"]]);
+    expect(codes(unmapped)).toEqual(expect.arrayContaining(["IMPORT_REQUIRED_COLUMN_MISSING"]));
+    expect(unmapped.columns?.fields.find(field => field.key === "blockCode")).toEqual({ key: "blockCode", required: true, header: null });
+    const mapped = await villas([["Plot Block", "House", "Kind"], ["B1", 1, "A"]], { blockCode: "Plot Block", unitNumber: "House", modelCode: "Kind" });
+    expect(mapped.errors).toEqual([]);
+    expect(mapped.rows[0].cells).toMatchObject({ blockCode: "B1", modelCode: "A" });
+    expect(mapped.columns).toMatchObject({ overridden: true, headers: ["Plot Block", "House", "Kind"] });
+  });
+
+  it("POSITIVE: a mapping settles an ambiguity — the person says which of two weight columns is the weight", async () => {
+    const parsed = await weights([["بند CSI", "النشاط", "الوزن", "Weight"], ["03", "Columns", 100, 7]].map(row => row), []);
+    expect(codes(parsed)).toEqual(["IMPORT_COLUMN_AMBIGUOUS"]);
+    const settled = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: await workbook([{ name: "W", rows: [["بند CSI", "النشاط", "الوزن", "Weight"], ["03", "Columns", 100, 7]] }]), mappingOverride: { weight: "الوزن" } });
+    expect(settled.errors).toEqual([]);
+    expect(settled.rows[0].cells.weight).toBe("100");
+  });
+
+  it("NEGATIVE: a header the file does not have, a field the kind does not have, or one header for two fields is refused whole", async () => {
+    const rows = [["البلوك", "الفيلا", "النموذج"], ["B1", 1, "A"]];
+    expect((await villas(rows, { blockCode: "Block X" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "Block X" }]);
+    expect((await villas(rows, { salary: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "salary" }]);
+    expect((await villas(rows, { blockCode: "البلوك", modelCode: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "البلوك" }]);
+  });
+});

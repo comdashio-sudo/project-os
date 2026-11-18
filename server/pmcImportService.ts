@@ -88,13 +88,16 @@ function decode(base64: string) {
 
 const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => ({ kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 });
 
-async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
+async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
   // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
   const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
-  const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes });
+  const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride });
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
-  if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none), apply: null };
-  return prepareRows(db, input, parsed, fileHash);
+  // Q-31 (P0-02): the report says which column each field was read from (and whether a person chose it), so the screen can show it and offer to change it
+  const columns = parsed.columns ? { columns: parsed.columns } : {};
+  if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none, columns), apply: null };
+  const prepared = await prepareRows(db, input, parsed, fileHash);
+  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns } } };
 }
 
 /** The checks and the plan for rows that are already read (a file's rows, or the rows a unit-completion matrix was turned into). `db` may be a transaction: later kinds then see what earlier ones wrote. */
@@ -280,7 +283,7 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }
 
 /** Reads and checks a file; writes nothing. */
 /** `bytes` instead of `base64`: the file came through the direct-upload path (read from Storage by the background job). */
-export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv" } & ({ base64: string } | { bytes: Buffer })): Promise<PmcImportReport> {
+export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })): Promise<PmcImportReport> {
   const db = await authorize(input);
   return (await prepare(db, input)).report;
 }
@@ -290,7 +293,7 @@ export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; for
  * that report: if the bytes differ, or the project changed so that the file no
  * longer passes, nothing is saved.
  */
-export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; approvedHash: string } & ({ base64: string } | { bytes: Buffer })) {
+export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; approvedHash: string; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })) {
   const db = await authorize(input);
   const prepared = await prepare(db, input);
   if (prepared.report.fileHash !== input.approvedHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
