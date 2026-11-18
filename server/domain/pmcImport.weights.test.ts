@@ -19,6 +19,18 @@ describe("weightsToCatalogRows (Q-3)", () => {
     expect(out.rows.map(item => `${item.cells.modelCode}:${item.cells.stageCode}:${item.cells.weightPercent}`)).toEqual(["A:03 / Frame:60", "B:03 / Frame:60", "A:03 / 03:40", "B:03 / 03:40"]);
   });
 
+  it("normalizes fractions independently for each model", () => {
+    const out = weightsToCatalogRows([
+      row(2, { csi: "03", activityName: "Columns", modelCode: "A", weight: 0.6 }),
+      row(3, { csi: "03", activityName: "Slabs", modelCode: "A", weight: 0.4 }),
+      row(4, { csi: "03", activityName: "Columns", modelCode: "B", weight: 0.25 }),
+      row(5, { csi: "03", activityName: "Slabs", modelCode: "B", weight: 0.75 }),
+      row(6, { csi: "03", activityName: "Columns", modelCode: "C", weight: "1٪" }),
+    ], []);
+    expect(out.rows.map(item => item.cells.weightPercent)).toEqual([60, 40, 25, 75, 1]);
+    expect(planCatalog(out.rows, emptyContext).errors.map(error => error.detail)).toEqual(["C totals 1 (missing 99)"]);
+  });
+
   it("an activity without a code gets the same code every time; a table with no model and a project with no villas is refused", () => {
     expect(weightActivityCode(" Paint ")).toBe(weightActivityCode("paint"));
     expect(weightActivityCode("Paint")).not.toBe(weightActivityCode("Plaster"));
