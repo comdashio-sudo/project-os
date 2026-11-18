@@ -94,9 +94,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("development planner: run
     expect((await callers.pm.devPlanner.projects({ tenantId })).map(project => project.code)).toEqual(["DP-1"]);
     expect(await callers.planner.devPlanner.projects({ tenantId })).toEqual([]);
     expect((await callers.planner.devPlanner.run({ tenantId, plan: exampleInput() })).labour.peak).toBe(629);
-    // the reason the page failed: neither holds project.read, so the company register refuses them
+    // the reason the page failed: the planning engineer holds no project.read, so the company register refuses him; the project manager carries it
+    // since Q-33 (adviser 18-11) and the register names his own project only
     expect(await code(callers.planner.projects.list({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
-    expect(await code(callers.pm.projects.list({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect((await callers.pm.projects.list({ tenantId })).map(project => project.code)).toEqual(["DP-1"]);
   });
 
   it("Q-34 NEGATIVE: the list is refused without a planning permission (a site engineer) and across companies, and never names another company's project", async () => {
