@@ -3392,16 +3392,90 @@ export async function transitionActionEscalation(input: { userId: number; tenant
   return { id: input.actionId, previousStatus: action.escalationStatus, status: input.nextStatus };
 }
 
-export async function createDecision(input: { userId: number; tenantId: string; projectId: string; problem: string; options: string; recommendation?: string }) {
+/** Q-45 (a, adviser 18-11): who records a decision — the project manager or the PMO on the project, or the company manager. Each code is checked with its own product. */
+function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string, projectId: string) {
+  const attempts: Array<{ product: ProductCode; permission: string; scope: { type: "project"; id: string } | { type: "company" } }> = [
+    { product: "PROJECT", permission: "project.manage", scope: { type: "project", id: projectId } },
+    { product: "PMO", permission: "pmo.write", scope: { type: "project", id: projectId } },
+    { product: "EXECUTIVE", permission: "tenant.manage", scope: { type: "company" } },
+  ];
+  let refusal: unknown = null;
+  for (const attempt of attempts) {
+    try { assertTenantAccess(snapshot, { tenantId, ...attempt }); return; } catch (error) { refusal ??= error; }
+  }
+  throw refusal;
+}
+
+/** Q-45 (a): taking part in a decision (submitting, deciding, implementing) needs an active membership of a company that holds a licensed product; the
+ *  step's own rule (recorder / owner) is checked by the caller. */
+function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
+  if (snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!(["EXECUTIVE", "PMO", "PROJECT"] as const).some(product => snapshot.entitledProducts.includes(product))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
+}
+
+/** Q-45 (a): the decision owner is an active member of THIS company. */
+async function assertDecisionOwner(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string) {
+  const [owner] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, tenantId))).limit(1);
+  if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DECISION_OWNER_INVALID" });
+}
+
+export async function createDecision(input: { userId: number; tenantId: string; projectId: string; problem: string; options: string; recommendation?: string; decisionOwnerMembershipId?: string; costImpact?: number; scheduleImpactDays?: number; riskImpact?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "EXECUTIVE", permission: "tenant.manage", scope: { type: "project", id: input.projectId } });
+  // Q-45 (a): recorded by the project manager or the PMO on this project, or the company manager (was the company manager alone)
+  assertDecisionRecorder(snapshot, input.tenantId, input.projectId);
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  if (input.decisionOwnerMembershipId) await assertDecisionOwner(db, input.tenantId, input.decisionOwnerMembershipId);
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(decisions).values({ id, tenantId: input.tenantId, projectId: input.projectId, problem: input.problem, options: input.options, recommendation: input.recommendation, status: "draft" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "executive.decision_created", entityType: "decision", entityId: id, metadata: JSON.stringify({ projectId: input.projectId }) }); });
+  await db.transaction(async tx => {
+    await tx.insert(decisions).values({ id, tenantId: input.tenantId, projectId: input.projectId, problem: input.problem, options: input.options, recommendation: input.recommendation, decisionOwnerMembershipId: input.decisionOwnerMembershipId, costImpact: input.costImpact === undefined ? undefined : String(input.costImpact), scheduleImpactDays: input.scheduleImpactDays, riskImpact: input.riskImpact, status: "draft" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "executive.decision_created", entityType: "decision", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, decisionOwnerMembershipId: input.decisionOwnerMembershipId ?? null }) });
+  });
   return { id };
+}
+
+/** Q-45 (a): the simplified cycle — draft → submitted → approved | rejected → implemented (from approved). Nothing goes back. */
+const decisionTransitions: Record<string, readonly string[]> = { draft: ["submitted"], submitted: ["approved", "rejected"], approved: ["implemented"], rejected: [], implemented: [] };
+
+/**
+ * Q-45 (a, adviser 18-11): moves a decision one step, with an audit row in the same transaction.
+ *  - submit: whoever recorded it (the creation audit row's actor), once it names its owner;
+ *  - approve / reject: the decision owner ALONE, with the decision's text — a rejection's reason is mandatory; the date is the server's;
+ *  - implement: the recorder or the owner, once approved.
+ */
+export async function transitionDecision(input: { userId: number; tenantId: string; projectId: string; decisionId: string; nextStatus: "submitted" | "approved" | "rejected" | "implemented"; decision?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertDecisionParticipant(snapshot);
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [caller] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.userId))).limit(1);
+  const text = input.decision?.trim() ?? "";
+  return db.transaction(async tx => {
+    const [record] = await tx.select({ id: decisions.id, status: decisions.status, ownerId: decisions.decisionOwnerMembershipId }).from(decisions)
+      .where(and(eq(decisions.id, input.decisionId), eq(decisions.tenantId, input.tenantId), eq(decisions.projectId, input.projectId))).limit(1).for("update");
+    if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_DECISION_NOT_FOUND" });
+    if (!decisionTransitions[record.status]?.includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DECISION_TRANSITION_INVALID" });
+    const [created] = await tx.select({ actorUserId: auditLogs.actorUserId }).from(auditLogs).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.action, "executive.decision_created"), eq(auditLogs.entityId, record.id))).limit(1);
+    const isRecorder = created?.actorUserId === input.userId;
+    const isOwner = Boolean(caller && record.ownerId && caller.id === record.ownerId);
+    if (input.nextStatus === "submitted") {
+      if (!isRecorder) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+      if (!record.ownerId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DECISION_OWNER_REQUIRED" });
+    } else if (input.nextStatus === "approved" || input.nextStatus === "rejected") {
+      if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_DECISION_OWNER_ONLY" });
+      if (text.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: input.nextStatus === "rejected" ? "PROJECT_OS_DECISION_REASON_REQUIRED" : "PROJECT_OS_DECISION_TEXT_REQUIRED" });
+    } else if (!isRecorder && !isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+    const deciding = input.nextStatus === "approved" || input.nextStatus === "rejected";
+    const updated = await tx.update(decisions).set({ status: input.nextStatus, ...(deciding ? { decision: text, decidedAt: new Date() } : {}), updatedAt: new Date() })
+      .where(and(eq(decisions.id, record.id), eq(decisions.status, record.status))).returning({ id: decisions.id });
+    if (updated.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_DECISION_TRANSITION_INVALID" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "executive.decision_transitioned", entityType: "decision", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: record.status, nextStatus: input.nextStatus }) });
+    return { id: record.id, previousStatus: record.status, status: input.nextStatus };
+  });
 }
 
 export async function saveEvmSnapshot(input: EvmInput & { userId: number; tenantId: string; projectId: string; periodAt: Date }) {
