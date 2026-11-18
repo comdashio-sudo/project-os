@@ -7,6 +7,7 @@ import { Select } from "@/components/ds";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formFieldErrors, slugFieldError } from "@/lib/formValidation";
 import { pickLanguage } from "@/lib/language";
+import { planLabel } from "@/lib/planNames";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { SkeletonBar } from "@/components/ShellSkeleton";
@@ -112,7 +113,7 @@ function NewCompany({ t, isArabic, onCreated }: { t: (typeof T)["ar"]; isArabic:
       <form noValidate className="mt-3 grid gap-4 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); const slugProblem = slugFieldError(slug, language); if (slugProblem) errors["new-slug"] = slugProblem; setFieldErrors(errors); if (Object.keys(errors).length === 0) signup.mutate({ legalName, slug, planCode, seats: Number(seats) }); }}>
         <div><Label htmlFor="new-legal">{t.legal}</Label><Input id="new-legal" className="mt-2 min-h-[44px]" value={legalName} onChange={event => setLegalName(event.target.value)} required minLength={2} /><FieldError id="new-legal-error" message={fieldErrors["new-legal"]} /></div>
         <div><Label htmlFor="new-slug">{t.newSlug}</Label><Input id="new-slug" dir="ltr" className="mt-2 min-h-[44px]" value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required /><FieldError id="new-slug-error" message={fieldErrors["new-slug"] ?? (slug !== "" ? slugFieldError(slug, language) : null)} /></div>
-        <div><Label htmlFor="new-plan">{t.plan}</Label><Select id="new-plan" className="mt-2 md:min-h-11" aria-required placeholder={t.pick} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: `${plan.name} · ${plan.packageCode}` }))} value={planCode || undefined} onValueChange={setPlanCode} /><FieldError id="new-plan-error" message={fieldErrors["new-plan"]} /></div>
+        <div><Label htmlFor="new-plan">{t.plan}</Label><Select id="new-plan" className="mt-2 md:min-h-11" aria-required placeholder={t.pick} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: language === "en" ? `${plan.name} · ${plan.packageCode}` : planLabel(plan, language) }))} value={planCode || undefined} onValueChange={setPlanCode} /><FieldError id="new-plan-error" message={fieldErrors["new-plan"]} /></div>
         <div><Label htmlFor="new-seats">{t.seats}</Label><Input id="new-seats" type="number" min={1} max={100000} className="mt-2 min-h-[44px]" value={seats} onChange={event => setSeats(event.target.value)} required /><FieldError id="new-seats-error" message={fieldErrors["new-seats"]} /></div>
         {signup.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
         <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={signup.isPending || !planCode}>{signup.isPending ? t.creating : t.create}</Button></div>

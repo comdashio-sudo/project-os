@@ -5,6 +5,7 @@ import { Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { pickLanguage } from "@/lib/language";
+import { planLabel } from "@/lib/planNames";
 import { trpc } from "@/lib/trpc";
 
 // The platform owner creates companies (registration is by invitation: server assertMayCreateCompany); the company's administrator then invites the staff.
@@ -28,7 +29,7 @@ export function NewCompanyCard({ onCreated }: { onCreated?: () => void }) {
       <CardBody className="grid gap-5 sm:grid-cols-2">
         <Field label={t.legal} required>{props => <TextInput {...props} value={legalName} onChange={event => setLegalName(event.target.value)} />}</Field>
         <Field label={t.slug} required error={slugOk ? undefined : t.slugError}>{props => <TextInput {...props} dir="ltr" invalid={!slugOk} value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} />}</Field>
-        <Field label={t.plan} required>{props => <Select {...props} placeholder={t.choose} value={planCode || undefined} onValueChange={setPlanCode} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: `${plan.name} · ${plan.packageCode}` }))} />}</Field>
+        <Field label={t.plan} required>{props => <Select {...props} placeholder={t.choose} value={planCode || undefined} onValueChange={setPlanCode} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: language === "en" ? `${plan.name} · ${plan.packageCode}` : planLabel(plan, language) }))} />}</Field>
         <Field label={t.seats} required>{props => <TextInput {...props} type="number" min={1} max={100000} value={seats} onChange={event => setSeats(event.target.value)} />}</Field>
         <div className="sm:col-span-2"><SourceNotice query={plans} isArabic={isArabic} title={t.plan} /></div>
         <div className="flex flex-col gap-3 sm:col-span-2">
