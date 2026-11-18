@@ -1,5 +1,5 @@
 {
-  "id": "28c21e21-867b-45c8-9d90-f97d3c683b1d",
+  "id": "0d40af83-96a0-4e8d-99a1-48a4df09e8a2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -19552,6 +19552,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subcontract_id": {
+          "name": "subcontract_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "procurement_requisitions_status",
@@ -19650,9 +19662,68 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "prq_tenant_project_warehouse_required_idx": {
+          "name": "prq_tenant_project_warehouse_required_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "warehouse_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "required_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
+        "prq_warehouse_fk": {
+          "name": "prq_warehouse_fk",
+          "tableFrom": "procurement_requisitions",
+          "tableTo": "project_warehouses",
+          "columnsFrom": [
+            "warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "prq_subcontract_fk": {
+          "name": "prq_subcontract_fk",
+          "tableFrom": "procurement_requisitions",
+          "tableTo": "subcontract_contracts",
+          "columnsFrom": [
+            "subcontract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "prq_tenant_fk": {
           "name": "prq_tenant_fk",
           "tableFrom": "procurement_requisitions",

@@ -1613,6 +1613,11 @@ export const projectErrorMessages = {
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
   },
+  PROJECT_OS_REQUISITION_REQUIRED_AT_PAST: {
+    ar: "تاريخ الحاجة مضى. اختر اليوم أو تاريخًا قادمًا.",
+    en: "The date the material is needed has passed. Choose today or a later date.",
+    ur: "ضرورت کی تاریخ گزر چکی ہے۔ آج یا آنے والی تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND: {
     ar: "لا مستلم مؤهل لهذا التنبيه في الشركة.",
     en: "No eligible recipient for this alert was found in the company.",
