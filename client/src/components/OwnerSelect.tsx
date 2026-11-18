@@ -13,8 +13,8 @@ const NONE = "__none";
  */
 export function OwnerSelect({ tenantId, projectId, value, onChange, id }: { tenantId: string; projectId: string; value: string; onChange: (membershipId: string) => void; id: string }) {
   const { language } = useLanguage();
-  const t = pickLanguage(language, { ar: { none: "بلا مالك بعد" }, en: { none: "No owner yet" }, ur: { none: "ابھی کوئی مالک نہیں" } });
+  const t = pickLanguage(language, { ar: { none: "بلا مالك بعد", failed: "تعذّر تحميل قائمة الأعضاء." }, en: { none: "No owner yet", failed: "The member list could not be loaded." }, ur: { none: "ابھی کوئی مالک نہیں", failed: "اراکین کی فہرست لوڈ نہیں ہو سکی۔" } });
   const options = trpc.executive.ownerOptions.useQuery({ tenantId, projectId }, { enabled: Boolean(projectId) });
-  return <Select id={id} value={value || NONE} disabled={!projectId || options.isLoading} onValueChange={next => onChange(next === NONE ? "" : next)}
-    options={[{ value: NONE, label: t.none }, ...(options.data ?? []).map(member => ({ value: member.membershipId, label: member.name ?? member.membershipId }))]} />;
+  return <>{options.error ? <p role="alert" className="text-xs text-destructive">{t.failed}</p> : null}<Select id={id} value={value || NONE} disabled={!projectId || options.isLoading} onValueChange={next => onChange(next === NONE ? "" : next)}
+    options={[{ value: NONE, label: t.none }, ...(options.data ?? []).map(member => ({ value: member.membershipId, label: member.name ?? member.membershipId }))]} /></>;
 }
