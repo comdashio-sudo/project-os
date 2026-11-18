@@ -3013,3 +3013,12 @@
 | كل متغير يقرؤه الكود (التطبيق، والبناء والسكربتات وسير GitHub، والاختبارات) بأين يُقرأ، بلا أي قيمة | `SOURCE_VERIFIED` | `grep` على `process.env.*` وعلى الاسم في `scripts/` و`.github/` |
 | بقايا Manus: `JWT_SECRET` و`APP_ID` **مستعملان** (الجلسة والتخزين)؛ `PROJECT_OS_USE_ADMIN_DATABASE_URL` مذكور في `CLAUDE.md` ولا يقرؤه أي ملف؛ `VITE_APP_ID` و`OAUTH_*` و`OWNER_OPEN_ID` و`BUILT_IN_FORGE_*` و`RESEND_API_KEY` و`R2_*` لا يقرؤها شيء | `SOURCE_VERIFIED` | الوثيقة §3 |
 | قائمة الحذف للمالك (متغيرات Vercel والحسابات القديمة، مع إبقاء Resend حتى قرارك) | `BLOCKED_BY_OWNER` | الوثيقة §4 |
+
+### Q-39 (P1-07): دور «المشاهد» للإدارة — تقرير قدرات واختبارات سالبة (2026-11-18، المبرمج أ، بلا تغيير صلاحية)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| لا قالب باسم «مشاهد»؛ الدور الإداري للقراءة = `executive.read` (قالب EXECUTIVE) و`pmo.read` و`project.read`، كلٌّ بنطاق تعيينه | `SOURCE_VERIFIED` | `docs/proposals/viewer-role.md` §2 |
+| لا يعدّل ولا يعتمد: لا عمود في مصفوفة الأدوار يعطي الثلاث «يعدّل» أو «يعتمد»؛ ولا رواتب ولا موظفين ولا مستفيدين ولا تكاليف ولا عقود لـ`project.read`+`pmo.read` | `PROVEN` (وحدة) | `server/domain/viewerRole.test.ts` (5) |
+| مشاهد إداري حقيقي يقرأ السجل ولوحتي التنفيذي وPMO، ويُرفض في 8 كتابات/إدارة ولا يُكتب صف | `PROVEN` (قاعدة) | `server/viewerRole.database.test.ts` (2) |
+| ملاحظة: EXECUTIVE يكشف الأرقام المالية؛ اقتراح قالب `MANAGEMENT_VIEWER` بلا مال | `OPEN` — للموافقة | الوثيقة §4 |
