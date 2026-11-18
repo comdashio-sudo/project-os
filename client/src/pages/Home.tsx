@@ -17,6 +17,7 @@ import { FIELD_LANDING_KEY, fieldLandingPath, singleActiveTenant } from "@/lib/f
 import { SourceNotice } from "@/components/SectionResilience";
 import { enumLabel, permissionLabel, productLabel } from "@/lib/labels";
 import { pickLanguage } from "@/lib/language";
+import { planLabel } from "@/lib/planNames";
 
 function GuestLanding() {
   const { isArabic, language } = useLanguage();
@@ -123,7 +124,7 @@ export default function Home() {
               <Field label={t.slug} required hint={t.slugHint} error={(submitAttempted || slug !== "") && slugError ? slugError : undefined}>{props => <TextInput {...props} dir="ltr" value={slug} onChange={event => { setSlugEdited(true); setSlug(event.target.value.toLowerCase()); }} />}</Field>
               <Field label={t.plan} required>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} aria-required={props["aria-required"]} invalid={props["aria-invalid"]} value={planCode} onValueChange={setPlanCode} disabled={plans.isLoading || !plans.data?.length}
                 placeholder={plans.isLoading ? t.loadingPlans : plans.error ? t.plansFailed : plans.data?.length === 0 ? t.plansEmpty : t.choosePlan}
-                options={(plans.data ?? []).map(plan => ({ value: plan.code, label: `${plan.name} · ${plan.packageCode}` }))} />}</Field>
+                options={(plans.data ?? []).map(plan => ({ value: plan.code, label: language === "en" ? `${plan.name} · ${plan.packageCode}` : planLabel(plan, language) }))} />}</Field>
               <SourceNotice query={plans} isArabic={isArabic} title={t.planList} />
               {!plans.isLoading && !plans.error && plans.data?.length === 0 ? <p role="alert" className="rounded-[var(--radius)] bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.plansEmpty}</p> : null}
               <Field label={t.seats} required error={submitAttempted && seatsError ? seatsError : undefined}>{props => <TextInput {...props} type="number" min="1" max="100000" value={seats} onChange={event => setSeats(event.target.value)} />}</Field>
