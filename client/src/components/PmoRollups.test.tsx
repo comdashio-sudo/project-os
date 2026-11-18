@@ -10,6 +10,7 @@ afterEach(() => cleanup());
 const totals = { projects: 2, overdueActivities: 3, criticalActivities: 2, openHighRisks: 1, criticalIssues: 0, overdueActions: 4 };
 const data = {
   activitySignals: [{ projectId: "p1", overdueActivities: 2, criticalActivities: 2 }, { projectId: "p2", overdueActivities: 1, criticalActivities: null }],
+  commercialSignals: [{ projectId: "p1", currency: "SAR", openPurchaseOrders: 3, openPurchaseOrderAmount: 1200, budget: 9000, actualCost: 4000 }, { projectId: "p2", currency: "SAR", openPurchaseOrders: 1, openPurchaseOrderAmount: null, budget: null, actualCost: null }],
   programTotals: [{ programId: "g1", ...totals }],
   portfolioTotals: [{ portfolioId: "f1", ...totals, criticalActivities: null }],
   programs: [{ id: "g1", code: "PG-1", name: "Villas" }],
@@ -20,7 +21,7 @@ const data = {
 describe("Q-45 (b): PMO roll-ups", () => {
   it("per project and per program/portfolio, with «Not available» instead of 0 where no float exists", () => {
     render(<PmoRollups data={data} />);
-    const byHand = screen.getByText("P-2 · By hand").closest("tr")!;
+    const byHand = screen.getAllByText("P-2 · By hand")[0].closest("tr")!;
     expect(within(byHand).getByText("Not available")).toBeTruthy();
     const program = screen.getByText("PG-1 · Villas").closest("tr")!;
     expect(Array.from(program.querySelectorAll("td")).map(cell => cell.textContent)).toEqual(["PG-1 · Villas", "2", "3", "2", "1", "0", "4"]);
@@ -31,5 +32,14 @@ describe("Q-45 (b): PMO roll-ups", () => {
   it("no project in scope says so", () => {
     render(<PmoRollups data={{ ...data, activitySignals: [], programTotals: [], portfolioTotals: [] }} />);
     expect(screen.getByText("No project in your scope.")).toBeTruthy();
+  });
+  it("procurement and cost: the order count for everyone, the amounts only where the server returned them — «Hidden», never 0", () => {
+    render(<PmoRollups data={data} />);
+    const table = screen.getByRole("region", { name: "Procurement and cost" });
+    const hidden = within(table).getAllByText("P-2 · By hand")[0].closest("tr")!;
+    expect(Array.from(hidden.querySelectorAll("td")).map(cell => cell.textContent)).toEqual(["P-2 · By hand", "1", "Hidden", "Hidden", "Hidden"]);
+    const shown = within(table).getByText("P-1 · From P6").closest("tr")!;
+    expect(shown.textContent).toMatch(/1,?200/);
+    expect(screen.getByText(/amounts only for whoever holds/)).toBeTruthy();
   });
 });

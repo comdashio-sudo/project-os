@@ -21,7 +21,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["activities", "actions", "risks", "issues", "audit_logs"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["activities", "actions", "risks", "issues", "purchase_orders", "cost_entries", "budget_lines", "audit_logs"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
       await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
       await connection.query("UPDATE projects SET programId = NULL, portfolioId = NULL WHERE tenantId = ?", [id]).catch(() => undefined);
@@ -82,5 +82,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-45 (b): PMO overdue an
     expect(planning.activitySignals.map(row => row.projectId)).toEqual([P1]);
     expect(planning.programTotals.find(row => row.programId === programId)).toMatchObject({ projects: 1, overdueActivities: 2, criticalActivities: 2 });
     expect(await code(callerFor("ownerB").dashboards.pmoPlanning({ tenantId }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+  });
+  it("procurement and cost (third batch): the order COUNT for every reader; the amounts only for whoever may see the project's money — the PMO lead gets null, never 0", async () => {
+    await connection.query("INSERT INTO purchase_orders (id, tenantId, projectId, purchaseOrderNumber, supplierName, orderDate, amount, currency, summary, status, createdByUserId) VALUES (?, ?, ?, 'PO-1', 'Supplier A', now(), 1200, 'SAR', 'Rebar', 'issued', ?), (?, ?, ?, 'PO-2', 'Supplier B', now(), 800, 'SAR', 'Cement', 'received', ?)", [crypto.randomUUID(), tenantId, P1, ids.owner, crypto.randomUUID(), tenantId, P1, ids.owner]);
+    await connection.query("INSERT INTO budget_lines (id, tenantId, projectId, costCode, originalAmount, currentAmount) VALUES (?, ?, ?, 'B1', 9000, 9000)", [crypto.randomUUID(), tenantId, P1]);
+    await connection.query("INSERT INTO cost_entries (id, tenantId, projectId, amount, entryType, status, incurredAt) VALUES (?, ?, ?, 4000, 'actual', 'posted', now()), (?, ?, ?, 999, 'actual', 'draft', now())", [crypto.randomUUID(), tenantId, P1, crypto.randomUUID(), tenantId, P1]);
+    const ownerRow = (await callerFor("owner").dashboards.pmoPlanning({ tenantId })).commercialSignals.find(row => row.projectId === P1)!;
+    expect(ownerRow).toMatchObject({ openPurchaseOrders: 1, openPurchaseOrderAmount: 1200, budget: 9000, actualCost: 4000 }); // the received order and the draft cost do not count
+    const pmoRow = (await callerFor("pmoOne").dashboards.pmoPlanning({ tenantId })).commercialSignals.find(row => row.projectId === P1)!;
+    expect(pmoRow).toMatchObject({ openPurchaseOrders: 1, openPurchaseOrderAmount: null, budget: null, actualCost: null });
   });
 });

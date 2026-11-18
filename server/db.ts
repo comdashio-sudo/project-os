@@ -1611,6 +1611,30 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     : [];
   const activitySignalByProject = new Map(activitySignalRows.map(row => [row.projectId, { overdue: Number(row.overdue), critical: Number(row.withFloat) > 0 ? Number(row.critical) : null }]));
   const activitySignals = projectRows.map(project => ({ projectId: project.id, overdueActivities: activitySignalByProject.get(project.id)?.overdue ?? 0, criticalActivities: activitySignalByProject.get(project.id)?.critical ?? null }));
+  // Q-45 (b, third batch): open purchase orders and cost against budget per project. The COUNT of open orders is not money and is shown to every reader;
+  // the amounts — the orders' value, the current budget and the posted actual cost — only to whoever may see that project's money (205-1), and the
+  // orders' value also to whoever manages its procurement. Everyone else gets null, which the screen says as «hidden», never 0.
+  const visibleIds = projectRows.map(project => project.id);
+  const [openOrderRows, budgetRows, actualRows] = visibleIds.length ? await Promise.all([
+    db.select({ projectId: purchaseOrders.projectId, n: sql<string>`count(*)`, amount: sql<string>`COALESCE(SUM(${purchaseOrders.amount}), 0)` }).from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, input.tenantId), inArray(purchaseOrders.projectId, visibleIds), inArray(purchaseOrders.status, ["submitted", "approved", "issued"]))).groupBy(purchaseOrders.projectId),
+    db.select({ projectId: budgetLines.projectId, amount: sql<string>`COALESCE(SUM(${budgetLines.currentAmount}), 0)` }).from(budgetLines)
+      .where(and(eq(budgetLines.tenantId, input.tenantId), inArray(budgetLines.projectId, visibleIds))).groupBy(budgetLines.projectId),
+    db.select({ projectId: costEntries.projectId, amount: sql<string>`COALESCE(SUM(${costEntries.amount}), 0)` }).from(costEntries)
+      .where(and(eq(costEntries.tenantId, input.tenantId), inArray(costEntries.projectId, visibleIds), eq(costEntries.entryType, "actual"), eq(costEntries.status, "posted"))).groupBy(costEntries.projectId),
+  ]) : [[], [], []];
+  const commercialSignals = projectRows.map(project => {
+    const seesMoney = projectMoneyVisible(snapshot, project.id);
+    const seesOrders = seesMoney || holdsPermission(snapshot, "project.procurement.manage", { type: "project", id: project.id });
+    const orders = openOrderRows.find(row => row.projectId === project.id);
+    return {
+      projectId: project.id, currency: project.currency,
+      openPurchaseOrders: Number(orders?.n ?? 0),
+      openPurchaseOrderAmount: seesOrders ? Number(orders?.amount ?? 0) : null,
+      budget: seesMoney ? Number(budgetRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+      actualCost: seesMoney ? Number(actualRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+    };
+  });
   const planningByProject = new Map(planningOverview.projects.map(item => [item.id, item]));
   const rollUp = (members: typeof projectRows) => {
     const signals = members.map(project => activitySignals.find(item => item.projectId === project.id)!);
@@ -1626,7 +1650,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   };
   const programTotals = programRows.map(program => ({ programId: program.id, ...rollUp(projectRows.filter(project => project.programId === program.id)) }));
   const portfolioTotals = portfolioRows.map(portfolio => ({ portfolioId: portfolio.id, ...rollUp(projectRows.filter(project => project.portfolioId === portfolio.id)) }));
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions, activitySignals, programTotals, portfolioTotals };
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions, activitySignals, programTotals, portfolioTotals, commercialSignals };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
