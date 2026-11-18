@@ -81,7 +81,8 @@ export const matrixColumns: readonly MatrixColumn[] = [
     ] },
   ] },
   { id: "supply", title: "المشتريات والمستودع", kind: "screen", actions: [
-    { tier: "see", sources: [s(DB, "getProcurementRegisterForTenant", "project.read"), s(DB, "getProjectWarehousesForTenant", "project.read")] },
+    // Q-32: the material request is read by who asks, who buys and who issues against it; the warehouse list as the warehouse level reads it
+    { tier: "see", sources: [s(DB, "getProcurementRegisterForTenant", "project.read", "project.material.request", "project.procurement.manage", "project.inventory.manage"), s(DB, "getProjectWarehousesForTenant", "project.read", "project.inventory.manage", "project.manage")] },
     { tier: "edit", sources: [
       s(DB, "createPurchaseOrderForTenant", "project.procurement.manage"), s(DB, "createGoodsReceiptNoteForTenant", "project.inventory.manage"),
       s(DB, "createMaterialIssueForTenant", "project.inventory.manage"), s(DB, "createProcurementRequisitionForTenant", "project.material.request", "project.procurement.manage"),
