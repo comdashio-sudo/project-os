@@ -3408,7 +3408,7 @@ function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string
 
 /** Q-45 (a): taking part in a decision (submitting, deciding, implementing) needs an active membership of a company that holds a licensed product; the
  *  step's own rule (recorder / owner) is checked by the caller. */
-function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
+export function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
   if (snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   if (!(["EXECUTIVE", "PMO", "PROJECT"] as const).some(product => snapshot.entitledProducts.includes(product))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 }

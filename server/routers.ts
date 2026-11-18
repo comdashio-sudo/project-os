@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
@@ -582,6 +583,8 @@ export const appRouter = router({
   }),
   executive: router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional(), decisionOwnerMembershipId: z.string().uuid().optional(), costImpact: z.number().finite().optional(), scheduleImpactDays: z.number().int().min(-3650).max(3650).optional(), riskImpact: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
+    myWork: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getMyWorkForTenant({ userId: ctx.user.id, ...input })),
+    completeMyAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), actionId: z.string().uuid() })).mutation(({ ctx, input }) => completeMyActionForTenant({ userId: ctx.user.id, ...input })),
     transitionDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), decisionId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "implemented"]), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => transitionDecision({ userId: ctx.user.id, ...input })),
   }),
   // Q-11 (b): the residential development planner (server/devPlannerService.ts). Nothing is stored; a project planning permission in the company.

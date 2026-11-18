@@ -1138,6 +1138,16 @@ export const projectErrorMessages = {
     en: "Write the decision's text.",
     ur: "فیصلے کا متن لکھیں۔",
   },
+  PROJECT_OS_ACTION_OWNER_ONLY: {
+    ar: "لا يُنجز المهمة إلا صاحبها.",
+    en: "Only the action's owner can mark it done.",
+    ur: "صرف کام کا مالک ہی اسے مکمل کر سکتا ہے۔",
+  },
+  PROJECT_OS_ACTION_NOT_OPEN: {
+    ar: "المهمة ليست مفتوحة (منجزة أو ملغاة).",
+    en: "The action is not open (already done or cancelled).",
+    ur: "یہ کام کھلا نہیں ہے (مکمل یا منسوخ)۔",
+  },
   PROJECT_OS_STOCKTAKE_QUANTITY_INVALID: {
     ar: "الكمية المعدودة يجب أن تكون صفرًا أو أكثر.",
     en: "A counted quantity must be zero or more.",
