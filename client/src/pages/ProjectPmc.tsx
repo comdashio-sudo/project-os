@@ -8,6 +8,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { ErrorState } from "@/components/ScreenStates";
 import { trpc } from "@/lib/trpc";
+import { PmcImportKindList, PmcImportTemplateGuide } from "@/components/PmcImportGuide";
+import type { PmcGuideKind } from "@/lib/pmcImportGuide";
 import { ArrowLeft, Download, FileUp, Printer } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { exportElementToPdf } from "@/lib/pdfExport";
@@ -282,7 +284,9 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
 
 function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; projectId: string; t: T; isArabic: boolean }) {
   const { language } = useLanguage();
-  const [kind, setKind] = useState<"weights" | "locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("weights");
+  const [kind, setKind] = useState<PmcGuideKind>("weights");
+  // asked again every few seconds while an import is on its way, so «analysing» turns into «waiting for confirmation» or «import complete» by itself
+  const importStatus = trpc.pmc.importStatus.useQuery({ tenantId, projectId }, { refetchInterval: query => (query.state.data?.some(row => row.state === "analyzing" || row.state === "pending") ? 5000 : false) });
   // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
   type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { ignoredZeroWeight?: number; scaledFromFractions?: boolean } };
   const renderReport = (view: DirectImportView) => {
@@ -307,7 +311,9 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t.nothingSaved}</p>
       <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="space-y-3">
-        <LabelledSelect label={t.importKind} className="text-sm" value={kind} onValueChange={value => setKind(value as typeof kind)} options={Object.entries(t.importKinds).map(([value, label]) => ({ value, label }))} />
+        {/* Q-35: the kinds with what the saved imports say about each, and the chosen template explained */}
+        <PmcImportKindList kind={kind} onChange={setKind} labels={t.importKinds} statuses={importStatus.data} statusFailed={Boolean(importStatus.error)} language={language} />
+        <PmcImportTemplateGuide kind={kind} language={language} />
         <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
       </div></WriteGate>
       {/* D-59: the site's old workbook — what the site-update screen and the S-curve stand on; their empty states link here (?tab=import) */}
