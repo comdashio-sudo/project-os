@@ -157,7 +157,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     expect(state.put).toHaveBeenCalledTimes(1); // the file went to storage, not inside a request
     expect(state.imports.registerUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.status", uploadKey: "imports/t/p/pending/k/f" }));
     const report = await screen.findByTestId("import-report");
-    expect(report.textContent).toContain("PMC_UNIT_NOT_FOUND");
+    expect(report.textContent).toContain("The villa is not in the project"); // Q-31: said in words, no longer the raw code
     expect(report.textContent).toContain("Rejected rows: 2");
     expect(screen.queryByText("Save the approved file")).toBeNull();
   });
