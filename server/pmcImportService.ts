@@ -97,11 +97,13 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   const columns = parsed.columns ? { columns: parsed.columns } : {};
   if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none, columns), apply: null };
   const prepared = await prepareRows(db, input, parsed, fileHash);
-  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns } } };
+  // what the reader did quietly is said in the report too: totals lines skipped, sections filled down (Q-31 review of #370, Q-47)
+  const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown) ? parsed.notes : {};
+  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes } } };
 }
 
 /** The checks and the plan for rows that are already read (a file's rows, or the rows a unit-completion matrix was turned into). `db` may be a transaction: later kinds then see what earlier ones wrote. */
-export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }, parsed: ParsedFile, fileHash: string): Promise<Prepared> {
+export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; totalTolerance?: number }, parsed: ParsedFile, fileHash: string): Promise<Prepared> {
   const total = parsed.rows.length;
   const scope = input;
 
@@ -111,8 +113,11 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }
     const translated = weightsToCatalogRows(parsed.rows, models);
     const extra = { ignoredZeroWeight: translated.ignoredZeroWeight, scaledFromFractions: translated.scaledFromFractions, models };
     if (translated.errors.length) return { report: report("weights", fileHash, total, translated.errors, { create: 0, update: 0, unchanged: 0 }, extra), apply: null };
-    const prepared = await prepareRows(db, { ...input, kind: "catalog" }, { headers: parsed.headers, rows: translated.rows, errors: [] }, fileHash);
-    return { ...prepared, report: { ...prepared.report, kind: "weights", totalRows: total, details: { ...prepared.report.details, ...extra } } };
+    // Q-47 (owner decision 18-11): a weights total of 99.99–100.01 (rounded for display) is accepted as 100, and the report names those models
+    const prepared = await prepareRows(db, { ...input, kind: "catalog", totalTolerance: 0.01 }, { headers: parsed.headers, rows: translated.rows, errors: [] }, fileHash);
+    const planned = (prepared.report.details as { models?: Array<{ modelCode: string; totalWeight: number }> } | undefined)?.models ?? [];
+    const roundedTotals = planned.filter(model => Math.abs(model.totalWeight - 100) > 0.0001).map(model => ({ modelCode: model.modelCode, totalWeight: model.totalWeight }));
+    return { ...prepared, report: { ...prepared.report, kind: "weights", totalRows: total, details: { ...prepared.report.details, ...extra, ...(roundedTotals.length ? { roundedTotals } : {}) } } };
   }
 
   if (input.kind === "locations") {
@@ -160,6 +165,7 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind }
       definitions: new Map(definitions.map(definition => [pmcDefinitionKey(definition.modelCode, definition.code), { id: definition.id, weightPercent: Number(definition.weightPercent), groupCode: groupCodeById.get(definition.groupId) ?? "", stageCode: stageCodeById.get(definition.stageId) ?? "", name: definition.name, wbsItemId: definition.wbsItemId }])),
       activityCodesByModel,
       wbsItems: new Map(wbs.map(item => [item.code, item.id])),
+      totalTolerance: input.totalTolerance,
     });
     const details = { models: plan.models, groups: plan.newGroups.length, stages: plan.newStages.length };
     if (plan.errors.length) return { report: report("catalog", fileHash, total, plan.errors, plan.counts, details), apply: null };

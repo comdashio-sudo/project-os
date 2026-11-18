@@ -137,7 +137,7 @@ export function parseUnitList(value: unknown): { units: number[]; error?: "PMC_U
 export type ParsedRow = { rowNumber: number; cells: Record<string, unknown> };
 /** Q-31 (P0-02): which column each field was read from, so the report can show it and a person can change it. */
 export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number } };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -146,7 +146,9 @@ export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImpo
 export const pmcHeaderKey = (value: unknown) => normalizeHeader(String(value ?? "").replace(/^\uFEFF/, "").replace(/[%٪]/g, " "));
 const HEADER_SEARCH_ROWS = 10;
 // a totals line at the foot of the table («الإجمالي … 100»): skipped, never read as an activity (narrow on purpose: «خصم» or «صافي» can be real activity names)
-const TOTAL_LINE = /^(?:ال)?(?:مجموع|اجمالي|المجموع الكلي)(?:\s|$)|^(?:sub ?total|grand total|total|totals)(?:\s|$)/;
+// The WHOLE label must be total words («الإجمالي», «المجموع الكلي», «Grand total»): a label that only starts with one («Total station survey») is an activity
+// (review of #370). Matched on pmcHeaderKey, which strips punctuation, so «Total:» counts.
+const TOTAL_LINE = /^(?:ال)?(?:مجموع|اجمالي)(?: (?:ال)?(?:كلي|عام))?$|^(?:sub ?total|grand total|total|totals)$/;
 
 type HeaderMatch = { mapping: Map<string, string>; missing: string[]; ambiguous: Array<{ field: string; headers: string[] }>; unsupported: string[] };
 
@@ -197,8 +199,7 @@ function findHeaderRow(sheet: ExcelJS.Worksheet, fields: Field[]): { row: number
     const match = matchHeaders(fields, headers);
     const candidate = { row, match, headers };
     if (!first) first = candidate;
-    if (match.missing.length === 0 && match.ambiguous.length === 0) return candidate;
-    if (match.missing.length === 0) return candidate; // every field found, but some twice: report the ambiguity on this row
+    if (match.missing.length === 0) return candidate; // every field found (an ambiguity, if any, is reported on this row)
   }
   return first!;
 }
@@ -271,17 +272,22 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   if (errors.length) return { headers, rows: [], errors, columns };
   const mapping = match.mapping;
   const out: ParsedRow[] = [];
+  const notes = { skippedTotals: 0, filledDown: 0 };
+  let lastCsi = "";
   rows.forEach((row, index) => {
     const cells = Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined]));
     if (input.kind === "weights") {
-      // a totals line: the first filled label says «total», and the activity cell is empty or says the same
-      const [label] = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
-      const activity = pmcHeaderKey(cells.activityName);
-      if (label && TOTAL_LINE.test(label) && (!activity || activity === label || TOTAL_LINE.test(activity))) return;
+      // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
+      const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
+      if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { notes.skippedTotals += 1; return; }
+      // Q-47 (owner decision 18-11): a section written once above its activities — the empty section cells below it take it, counted and shown in the preview
+      const csi = String(cells.csi ?? "").trim();
+      if (csi) lastCsi = csi;
+      else if (lastCsi && String(cells.activityName ?? "").trim()) { cells.csi = lastCsi; notes.filledDown += 1; }
     }
     out.push({ rowNumber: rowNumbers[index], cells });
   });
-  return { headers, errors, rows: out, columns };
+  return { headers, errors, rows: out, columns, notes };
 }
 
 // ------------------------------------------------------------------ stage 2
@@ -355,6 +361,8 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
 // ---- catalogue (activities, groups, stages, weights)
 
 export type CatalogContext = {
+  /** How far from 100 a model's total may be. The catalogue: 0.0001. The weights table (Q-47, owner decision 18-11): 0.01, accepted with a note. */
+  totalTolerance?: number;
   groups: Map<string, { id: string }>;
   stages: Map<string, { id: string; groupCode: string }>;
   definitions: Map<string, { id: string; weightPercent: number; groupCode: string; stageCode: string; name: string; wbsItemId: string | null }>;
@@ -417,7 +425,7 @@ export function planCatalog(rows: ParsedRow[], context: CatalogContext): Catalog
     const totalWeight = round4(modelRows.reduce((sum, row) => sum + row.weightPercent, 0));
     models.push({ modelCode, activities: modelRows.length, totalWeight });
     if (modelsWithRowErrors.has(modelCode)) return;
-    if (Math.abs(totalWeight - 100) > 0.0001) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight} (${totalWeight < 100 ? "missing" : "over by"} ${round4(Math.abs(100 - totalWeight))})` }); }
+    if (Math.abs(totalWeight - 100) > (context.totalTolerance ?? 0.0001) + 1e-9) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight} (${totalWeight < 100 ? "missing" : "over by"} ${round4(Math.abs(100 - totalWeight))})` }); }
     const fileCodes = new Set(modelRows.map(row => row.code));
     context.activityCodesByModel.get(modelCode)?.forEach(existingCode => { if (!fileCodes.has(existingCode)) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_ACTIVITY_OMITTED", field: modelCode, detail: `${modelCode}/${existingCode}` }); } });
   });

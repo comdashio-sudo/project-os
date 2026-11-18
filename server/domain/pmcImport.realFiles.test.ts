@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { parsePmcImportFile, pmcHeaderKey, weightsToCatalogRows } from "./pmcImport";
+import { parsePmcImportFile, planCatalog, pmcHeaderKey, weightsToCatalogRows } from "./pmcImport";
 
 // Q-31 (P0-01): a weights table or a villa list as people really keep them — a title above the table, other sheets beside it, Arabic letter variants and
 // brackets in the headers, Arabic digits, a totals line — is read; what cannot be read safely is refused with a reason that names the row and the column,
@@ -128,5 +128,33 @@ describe("a person's column mapping (Q-31, P0-02)", () => {
     expect((await villas(rows, { blockCode: "Block X" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "Block X" }]);
     expect((await villas(rows, { salary: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "salary" }]);
     expect((await villas(rows, { blockCode: "البلوك", modelCode: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "البلوك" }]);
+
+describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
+  it("POSITIVE (review of #370): an activity whose name starts with «Total» is an activity, not a totals line; its empty section takes the one above (Q-47), counted", async () => {
+    const parsed = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["", "Total station survey", 40]]);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows.map(row => [row.cells.csi, row.cells.activityName])).toEqual([["03", "Concrete"], ["03", "Total station survey"]]);
+    expect(parsed.notes).toEqual({ skippedTotals: 0, filledDown: 1 });
+  });
+
+  it("NEGATIVE: an empty section with nothing above it is not invented — the row is kept and refused on its own line", async () => {
+    const parsed = await weights([["CSI", "Activity", "Weight"], ["", "Footings", 60], ["03", "Slabs", 40]]);
+    expect(parsed.rows.map(row => row.rowNumber)).toEqual([2, 3]);
+    expect(weightsToCatalogRows(parsed.rows, ["A"]).errors).toEqual([{ rowNumber: 2, code: "PMC_CLASSIFICATION_BLANK", field: "groupCode" }]);
+  });
+
+  it("a real totals line (every filled label is total words) is skipped and COUNTED, never silent", async () => {
+    const parsed = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 100], ["الإجمالي", "", 100], ["", "Grand total", 100]]);
+    expect(parsed.rows.map(row => row.cells.activityName)).toEqual(["Concrete"]);
+    expect(parsed.notes).toEqual({ skippedTotals: 2, filledDown: 0 });
+  });
+
+  it("Q-47: a weights total rounded for display (99.99–100.01) is accepted; 99.98 is still refused; the catalogue's own tolerance is unchanged", () => {
+    const rows = (weights: number[]) => weights.map((weight, index) => ({ rowNumber: index + 2, cells: { modelCode: "A", groupCode: "03", groupName: "03", stageCode: "03 / 03", stageName: "03", activityCode: `A${index}`, activityName: `Activity ${index}`, weightPercent: weight } }));
+    const context = (totalTolerance?: number) => ({ groups: new Map(), stages: new Map(), definitions: new Map(), activityCodesByModel: new Map(), wbsItems: new Map(), totalTolerance });
+    expect(planCatalog(rows([33.33, 33.33, 33.33]), context(0.01)).errors).toEqual([]);
+    expect(planCatalog(rows([33.34, 33.34, 33.33]), context(0.01)).errors).toEqual([]);
+    expect(planCatalog(rows([33.33, 33.33, 33.32]), context(0.01)).errors.map(error => error.code)).toEqual(["PMC_MODEL_WEIGHTS_NOT_100"]);
+    expect(planCatalog(rows([33.33, 33.33, 33.33]), context()).errors.map(error => error.code)).toEqual(["PMC_MODEL_WEIGHTS_NOT_100"]);
   });
 });
