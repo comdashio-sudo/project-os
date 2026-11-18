@@ -27,18 +27,27 @@ describe("PmcColumnMapping (Q-31)", () => {
     expect(screen.getAllByText("Optional")).toHaveLength(1);
   });
 
-  it("POSITIVE: picking the columns and asking again sends exactly the chosen mapping (fields left without a column are not sent)", () => {
+  it("POSITIVE: picking the columns and asking again sends every field — «no column» as an empty header — and asks to ignore the columns no field takes", () => {
     view();
     fireEvent.change(screen.getByLabelText("Block code"), { target: { value: "Plot Block" } });
     fireEvent.change(screen.getByLabelText("Villa number"), { target: { value: "House" } });
     fireEvent.click(screen.getByRole("button", { name: "Analyse again with these columns" }));
-    expect(state.mutate).toHaveBeenCalledWith({ tenantId: "t-1", projectId: "p-1", importId: "i-1", mappingOverride: { blockCode: "Plot Block", unitNumber: "House", modelCode: "Kind" } });
+    expect(state.mutate).toHaveBeenCalledWith({ tenantId: "t-1", projectId: "p-1", importId: "i-1", mappingOverride: { blockCode: "Plot Block", unitNumber: "House", modelCode: "Kind", zoneCode: "", __others__: "ignore" } });
   });
 
-  it("NEGATIVE: one column for two fields is said and cannot be sent; nothing changed cannot be sent either", () => {
+  it("review of #371: «no column» for a field the reader had found is SENT (empty), so the column is no longer read", () => {
+    view();
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "__none" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these columns" }));
+    expect(state.mutate.mock.calls[0][0].mappingOverride).toMatchObject({ modelCode: "" });
+  });
+
+  it("NEGATIVE: one column for two fields is said and cannot be sent; once the person's columns are applied, nothing changed cannot be sent again", () => {
+    const overridden = render(<PmcColumnMapping tenantId="t-1" projectId="p-1" importId="i-1" columns={{ ...columns, overridden: true }} language="en" isArabic={false} />);
+    expect((overridden.getByRole("button", { name: "Analyse again with these columns" }) as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
     view();
     const button = screen.getByRole("button", { name: "Analyse again with these columns" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Block code"), { target: { value: "Kind" } });
     expect(screen.getByRole("alert").textContent).toContain("One column for two fields");
     expect(button.disabled).toBe(true);

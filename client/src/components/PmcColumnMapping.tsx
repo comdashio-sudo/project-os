@@ -13,9 +13,9 @@ export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string;
 const NONE = "__none";
 
 const text = {
-  ar: { title: "أعمدة الملف", hint: "كل حقل وعموده في ملفك. إن لم يُعرف عمود أو اختير الخطأ، اختر الصحيح ثم أعد التحليل. لا يُحفظ شيء قبل أن تعتمد التقرير الجديد.", required: "مطلوب", optional: "اختياري", none: "— لا عمود —", reanalyze: "أعد التحليل بهذه الأعمدة", twice: "عمود واحد لحقلين: اختر عمودًا لكل حقل", chosen: "الأعمدة مختارة يدويًا", missing: "ناقص" },
-  en: { title: "File columns", hint: "Each field and the column of your file it is read from. If a column was not recognised or the wrong one was taken, pick the right one and analyse again. Nothing is saved before you confirm the new report.", required: "Required", optional: "Optional", none: "— No column —", reanalyze: "Analyse again with these columns", twice: "One column for two fields: pick a column for each field", chosen: "Columns chosen by hand", missing: "Missing" },
-  ur: { title: "فائل کے کالم", hint: "ہر فیلڈ اور آپ کی فائل کا وہ کالم جس سے وہ پڑھی گئی۔ اگر کوئی کالم پہچانا نہیں گیا یا غلط لیا گیا تو درست کالم چنیں اور دوبارہ تجزیہ کریں۔ نئی رپورٹ کی تصدیق سے پہلے کچھ محفوظ نہیں ہوتا۔", required: "لازمی", optional: "اختیاری", none: "— کوئی کالم نہیں —", reanalyze: "ان کالموں کے ساتھ دوبارہ تجزیہ کریں", twice: "دو فیلڈز کے لیے ایک کالم: ہر فیلڈ کے لیے الگ کالم چنیں", chosen: "کالم ہاتھ سے چنے گئے", missing: "موجود نہیں" },
+  ar: { title: "أعمدة الملف", hint: "كل حقل وعموده في ملفك. إن لم يُعرف عمود أو اختير الخطأ، اختر الصحيح ثم أعد التحليل؛ والأعمدة التي لا يأخذها أي حقل تُتجاهل. لا يُحفظ شيء قبل أن تعتمد التقرير الجديد.", required: "مطلوب", optional: "اختياري", none: "— لا عمود —", reanalyze: "أعد التحليل بهذه الأعمدة", twice: "عمود واحد لحقلين: اختر عمودًا لكل حقل", chosen: "الأعمدة مختارة يدويًا", missing: "ناقص" },
+  en: { title: "File columns", hint: "Each field and the column of your file it is read from. If a column was not recognised or the wrong one was taken, pick the right one and analyse again; columns no field takes are ignored. Nothing is saved before you confirm the new report.", required: "Required", optional: "Optional", none: "— No column —", reanalyze: "Analyse again with these columns", twice: "One column for two fields: pick a column for each field", chosen: "Columns chosen by hand", missing: "Missing" },
+  ur: { title: "فائل کے کالم", hint: "ہر فیلڈ اور آپ کی فائل کا وہ کالم جس سے وہ پڑھی گئی۔ اگر کوئی کالم پہچانا نہیں گیا یا غلط لیا گیا تو درست کالم چنیں اور دوبارہ تجزیہ کریں؛ جو کالم کسی فیلڈ نے نہیں لیے وہ نظر انداز ہوں گے۔ نئی رپورٹ کی تصدیق سے پہلے کچھ محفوظ نہیں ہوتا۔", required: "لازمی", optional: "اختیاری", none: "— کوئی کالم نہیں —", reanalyze: "ان کالموں کے ساتھ دوبارہ تجزیہ کریں", twice: "دو فیلڈز کے لیے ایک کالم: ہر فیلڈ کے لیے الگ کالم چنیں", chosen: "کالم ہاتھ سے چنے گئے", missing: "موجود نہیں" },
 };
 
 export function PmcColumnMapping({ tenantId, projectId, importId, columns, language, isArabic }: { tenantId: string; projectId: string; importId: string; columns: PmcImportColumns; language: Language; isArabic: boolean }) {
@@ -27,9 +27,12 @@ export function PmcColumnMapping({ tenantId, projectId, importId, columns, langu
   const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: () => utils.dataImports.progress.invalidate() });
   const picked = Object.values(choice).filter(header => header !== NONE);
   const usedTwice = new Set(picked).size !== picked.length;
+  // the first analysis with the person's own columns may change no field at all: it still says «ignore the columns no field takes»
   const changed = columns.fields.some(field => choice[field.key] !== found[field.key]);
   const options = [{ value: NONE, label: t.none }, ...columns.headers.map(header => ({ value: header, label: header }))];
-  const submit = () => reanalyze.mutate({ tenantId, projectId, importId, mappingOverride: Object.fromEntries(Object.entries(choice).filter(([, header]) => header !== NONE)) });
+  // every field is sent: «no column» as an empty header (it clears what the reader found — review of #371), and the columns no field uses are ignored:
+  // the person has just seen the whole list (an extra «Notes» column no longer blocks a villa list)
+  const submit = () => reanalyze.mutate({ tenantId, projectId, importId, mappingOverride: { ...Object.fromEntries(Object.entries(choice).map(([key, header]) => [key, header === NONE ? "" : header])), __others__: "ignore" } });
   return (
     <section className="space-y-3 rounded-xl border p-3" aria-label={t.title} data-testid="pmc-column-mapping">
       <div>
@@ -51,7 +54,7 @@ export function PmcColumnMapping({ tenantId, projectId, importId, columns, langu
       </ul>
       {usedTwice && <p role="alert" className="text-sm text-destructive">{t.twice}</p>}
       {reanalyze.error && <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(reanalyze.error, isArabic)}</p>}
-      <Button type="button" className="min-h-[44px]" disabled={!changed || usedTwice || reanalyze.isPending} onClick={submit}>{t.reanalyze}</Button>
+      <Button type="button" className="min-h-[44px]" disabled={(!changed && columns.overridden) || usedTwice || reanalyze.isPending} onClick={submit}>{t.reanalyze}</Button>
     </section>
   );
 }

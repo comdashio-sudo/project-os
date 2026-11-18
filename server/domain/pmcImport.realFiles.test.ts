@@ -128,6 +128,8 @@ describe("a person's column mapping (Q-31, P0-02)", () => {
     expect((await villas(rows, { blockCode: "Block X" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "Block X" }]);
     expect((await villas(rows, { salary: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "salary" }]);
     expect((await villas(rows, { blockCode: "البلوك", modelCode: "البلوك" })).errors).toEqual([{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", detail: "البلوك" }]);
+  });
+});
 
 describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
   it("POSITIVE (review of #370): an activity whose name starts with «Total» is an activity, not a totals line; its empty section takes the one above (Q-47), counted", async () => {
@@ -156,5 +158,32 @@ describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
     expect(planCatalog(rows([33.34, 33.34, 33.33]), context(0.01)).errors).toEqual([]);
     expect(planCatalog(rows([33.33, 33.33, 33.32]), context(0.01)).errors.map(error => error.code)).toEqual(["PMC_MODEL_WEIGHTS_NOT_100"]);
     expect(planCatalog(rows([33.33, 33.33, 33.33]), context()).errors.map(error => error.code)).toEqual(["PMC_MODEL_WEIGHTS_NOT_100"]);
+  });
+});
+
+describe("review of #371: «no column» and the columns no field takes", () => {
+  it("NEGATIVE→fixed: «no column» (empty) for a field the reader found clears it — the column is no longer read", async () => {
+    const book = await workbook([{ name: "W", rows: [["بند CSI", "Sub item", "النشاط", "Weight"], ["03", "Pour", "Columns", 100]] }]);
+    const auto = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: book });
+    expect(auto.rows[0].cells.sub).toBe("Pour");
+    const cleared = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: book, mappingOverride: { sub: "", weight: "Weight" } });
+    expect(cleared.errors).toEqual([]);
+    expect(cleared.rows[0].cells.sub).toBeUndefined();
+    expect(cleared.columns?.fields.find(field => field.key === "sub")?.header).toBeNull();
+  });
+
+  it("clearing a REQUIRED field makes it missing, as any missing column", async () => {
+    const book = await workbook([{ name: "V", rows: [["البلوك", "الفيلا", "النموذج"], ["B1", 1, "A"]] }]);
+    expect(codes(await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: book, mappingOverride: { modelCode: "" } }))).toEqual(["IMPORT_REQUIRED_COLUMN_MISSING"]);
+  });
+
+  it("an extra column a villa list does not know is refused — unless the person, having seen the list, asks to ignore the columns no field takes", async () => {
+    const book = await workbook([{ name: "V", rows: [["البلوك", "الفيلا", "النموذج", "Notes"], ["B1", 1, "A", "x"]] }]);
+    expect(codes(await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: book }))).toEqual(["IMPORT_UNSUPPORTED_COLUMN"]);
+    const ignored = await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: book, mappingOverride: { __others__: "ignore" } });
+    expect(ignored.errors).toEqual([]);
+    expect(ignored.rows[0].cells).toMatchObject({ blockCode: "B1", modelCode: "A" });
+    // any other value of the marker is refused, never guessed
+    expect(codes(await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: book, mappingOverride: { __others__: "yes" } }))).toEqual(["IMPORT_MAPPING_INVALID"]);
   });
 });

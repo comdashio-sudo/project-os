@@ -216,26 +216,34 @@ function filledColumns(sheet: ExcelJS.Worksheet, headerRow: number) {
 export const pmcImportFields = (kind: PmcImportKind) => FIELDS[kind].map(field => ({ key: field.key, required: field.required }));
 
 /**
- * A person's choice of columns (field key → the header as the file writes it) replaces what was found for those fields. A field the kind does not have,
- * a header the file does not have, or one header for two fields is refused (IMPORT_MAPPING_INVALID): a mapping is never half applied.
+ * A person's choice of columns (field key → the header as the file writes it) replaces what was found for those fields. An EMPTY header clears a field the
+ * reader had found (the person chose «no column»; a required field then reads as missing — review of #371). The key `__others__` set to "ignore" says the
+ * person saw the whole column list and the columns no field uses are to be ignored, not refused (an extra «Notes» column in a villa list). A field the kind
+ * does not have, a header the file does not have, or one header for two fields is refused (IMPORT_MAPPING_INVALID): a mapping is never half applied.
  */
+export const IGNORE_OTHER_COLUMNS = "__others__";
 function applyOverride(fields: Field[], headers: string[], match: HeaderMatch, override: Record<string, string>): HeaderMatch | { invalid: string } {
   const keys = new Set(fields.map(field => field.key));
   const used = new Map<string, string>();
-  for (const [key, header] of Object.entries(override)) {
+  const ignoreOthers = override[IGNORE_OTHER_COLUMNS] === "ignore";
+  const chosen = Object.entries(override).filter(([key]) => key !== IGNORE_OTHER_COLUMNS);
+  if (IGNORE_OTHER_COLUMNS in override && !ignoreOthers) return { invalid: IGNORE_OTHER_COLUMNS };
+  for (const [key, header] of chosen) {
     if (!keys.has(key)) return { invalid: key };
+    if (header === "") continue;
     if (!headers.includes(header)) return { invalid: header };
     if (used.has(header)) return { invalid: header };
     used.set(header, key);
   }
-  const mapping = new Map<string, string>(Array.from(match.mapping.entries()).filter(([key, header]) => !(key in override) && !used.has(header)));
-  for (const [key, header] of Object.entries(override)) mapping.set(key, header);
+  const named = new Set(chosen.map(([key]) => key));
+  const mapping = new Map<string, string>(Array.from(match.mapping.entries()).filter(([key, header]) => !named.has(key) && !used.has(header)));
+  for (const [key, header] of chosen) if (header !== "") mapping.set(key, header);
   const mapped = new Set(mapping.values());
   return {
     mapping,
-    ambiguous: match.ambiguous.filter(item => !(item.field in override) && !mapping.has(item.field)),
-    missing: fields.filter(field => field.required && !mapping.has(field.key)).map(field => field.key).filter(key => !match.ambiguous.some(item => item.field === key && !(key in override))),
-    unsupported: match.unsupported.filter(header => !mapped.has(header)),
+    ambiguous: match.ambiguous.filter(item => !named.has(item.field) && !mapping.has(item.field)),
+    missing: fields.filter(field => field.required && !mapping.has(field.key)).map(field => field.key).filter(key => !match.ambiguous.some(item => item.field === key && !named.has(key))),
+    unsupported: ignoreOthers ? [] : match.unsupported.filter(header => !mapped.has(header)),
   };
 }
 
