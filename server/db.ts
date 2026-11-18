@@ -1599,7 +1599,34 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     materialShortages,
     today,
   });
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions };
+  // Q-45 (b, adviser 18-11): overdue and critical activities per project, and the same signals added up per program and portfolio — every number from the
+  // database. «Critical» is total float ≤ 0 as P6 computed it; a project none of whose activities carries a float (scheduled by hand) is null: «غير متاح».
+  const activitySignalRows = projectRows.length
+    ? await db.select({
+      projectId: activities.projectId,
+      overdue: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.plannedFinishAt} IS NOT NULL AND ${activities.plannedFinishAt} < now())`,
+      critical: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.totalFloatHours} IS NOT NULL AND ${activities.totalFloatHours} <= 0)`,
+      withFloat: sql<string>`COUNT(${activities.totalFloatHours})`,
+    }).from(activities).where(and(eq(activities.tenantId, input.tenantId), inArray(activities.projectId, projectRows.map(project => project.id)))).groupBy(activities.projectId)
+    : [];
+  const activitySignalByProject = new Map(activitySignalRows.map(row => [row.projectId, { overdue: Number(row.overdue), critical: Number(row.withFloat) > 0 ? Number(row.critical) : null }]));
+  const activitySignals = projectRows.map(project => ({ projectId: project.id, overdueActivities: activitySignalByProject.get(project.id)?.overdue ?? 0, criticalActivities: activitySignalByProject.get(project.id)?.critical ?? null }));
+  const planningByProject = new Map(planningOverview.projects.map(item => [item.id, item]));
+  const rollUp = (members: typeof projectRows) => {
+    const signals = members.map(project => activitySignals.find(item => item.projectId === project.id)!);
+    const knownCritical = signals.filter(item => item.criticalActivities !== null);
+    return {
+      projects: members.length,
+      overdueActivities: signals.reduce((total, item) => total + item.overdueActivities, 0),
+      criticalActivities: knownCritical.length ? knownCritical.reduce((total, item) => total + (item.criticalActivities ?? 0), 0) : null,
+      openHighRisks: members.reduce((total, project) => total + (planningByProject.get(project.id)?.openRiskCount ?? 0), 0),
+      criticalIssues: members.reduce((total, project) => total + (planningByProject.get(project.id)?.criticalIssueCount ?? 0), 0),
+      overdueActions: members.reduce((total, project) => total + (planningByProject.get(project.id)?.overdueActionCount ?? 0), 0),
+    };
+  };
+  const programTotals = programRows.map(program => ({ programId: program.id, ...rollUp(projectRows.filter(project => project.programId === program.id)) }));
+  const portfolioTotals = portfolioRows.map(portfolio => ({ portfolioId: portfolio.id, ...rollUp(projectRows.filter(project => project.portfolioId === portfolio.id)) }));
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions, activitySignals, programTotals, portfolioTotals };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
