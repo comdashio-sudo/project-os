@@ -82,8 +82,12 @@ export function WriteGate({ permission, projectId, reason, children }: { permiss
  * D-20 (G-160/G-161): a whole project page opened by its address without the permission its server read needs. Instead of an empty page or a pile of failed sections,
  * the translated «you do not have permission» page. Loading: nothing yet (no flash). No provider or a failed lookup: the page, as WriteGate does — the server still refuses.
  */
-export function PageGate({ page, projectId, children }: { page: PageKey; projectId?: string; children: React.ReactNode }) {
-  const allowed = useCanPage(page, projectId);
+/** A page by its row in shared/pageAccess.ts (`page`), or a page outside that table by the permission its server read checks (`permission`, e.g. the planner). */
+export function PageGate(props: ({ page: PageKey } | { permission: string | readonly string[] }) & { projectId?: string; children: React.ReactNode }) {
+  const { projectId, children } = props;
+  const byPage = useCanPage("page" in props ? props.page : "registry", projectId);
+  const byPermission = useCan("permission" in props ? props.permission : [], projectId);
+  const allowed = "page" in props ? byPage : byPermission;
   const loading = usePermissionsLoading();
   const { isArabic } = useLanguage();
   if (allowed) return <>{children}</>;

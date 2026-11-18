@@ -4,9 +4,9 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { useCan } from "@/lib/permissions";
 import { Briefcase, FolderKanban, Gauge, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, Wallet, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
-import { useCanPage } from "@/lib/permissions";
 import React from "react";
 import { useLocation } from "wouter";
 
@@ -67,10 +67,11 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const [location, setLocation] = useLocation();
   const navigation = trpc.navigation.get.useQuery(projectId ? { tenantId, projectId } : { tenantId });
   const tenants = trpc.tenant.mine.useQuery();
-  // Q-33: the project list (switcher, breadcrumb) is read only by whoever holds project.read; for anyone else its refusal is the expected answer, not a
-  // failed source, so no «could not load the project list» notice stands above every page they open (the project manager, the keeper, finance)
-  const canListProjects = useCanPage("registry");
-  const projects = trpc.projects.list.useQuery({ tenantId }, { enabled: canListProjects });
+  // Q-34: the project register is read only by who holds project.read (the server's own check): asking without it put «could not load: project list — you do not
+  // have permission» above every page of a planning engineer or a project manager scoped to their project (the planner opened on it). Unknown permissions
+  // (no provider, failed lookup) still ask, and the server still refuses.
+  const canReadProjects = useCan("project.read");
+  const projects = trpc.projects.list.useQuery({ tenantId }, { enabled: canReadProjects });
 
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
@@ -94,7 +95,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     <>
       <SourceNotice query={navigation} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.navigation)} />
       <SourceNotice query={tenants} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.companies)} />
-      {canListProjects && <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />}
+      {canReadProjects && <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />}
     </>
   );
   const crumbs: Crumb[] = [{ label: pickLanguage(language, WORKSPACE), href: "/" }];
