@@ -10,12 +10,13 @@ const SLUG = "q11-planner";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@dp.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const code = (promise: Promise<unknown>) => promise.then(() => "no error", (error: { message?: string }) => error.message ?? "error");
-const KEYS = ["owner", "site", "outsider"] as const;
+const KEYS = ["owner", "site", "outsider", "planner", "pm"] as const;
 type Key = (typeof KEYS)[number];
 const ids = {} as Record<Key, number>;
 const callers = {} as Record<Key, ReturnType<typeof callerFor>>;
 let connection: fixtureDb.Connection; let tenantId = ""; let otherTenantId = "";
 const PROJECT = "c1500000-0000-4000-8000-000000000001";
+const SECOND = "c1500000-0000-4000-8000-000000000002";
 
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug LIKE ?", [`${SLUG}%`]);
@@ -38,10 +39,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("development planner: run
     for (const key of KEYS) { ids[key] = rows.find(row => row.openId === `dp-${key}`)!.id; callers[key] = callerFor(ids[key], `dp-${key}`); }
     ({ tenantId } = await callers.owner.tenant.create({ legalName: "Planner Co.", slug: SLUG, packageCode: "ALL-IN-ONE" }));
     ({ tenantId: otherTenantId } = await callers.outsider.tenant.create({ legalName: "Other Planner Co.", slug: `${SLUG}-other`, packageCode: "ALL-IN-ONE" }));
-    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'DP-1', 'Planner Villas', 'villas', 'SAR', 'active')", [PROJECT, tenantId]);
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'DP-1', 'Planner Villas', 'villas', 'SAR', 'active'), (?, ?, 'DP-2', 'Planner Towns', 'villas', 'SAR', 'active')", [PROJECT, tenantId, SECOND, tenantId]);
     await callers.owner.tenant.administration({ tenantId });
     const [[site]] = await connection.query<{ id: string }[]>("SELECT id FROM roles WHERE tenantId = ? AND code = 'SITE_ENGINEER'", [tenantId]) as unknown as [{ id: string }[]];
     await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.site, roleId: site.id, scopeType: "company" });
+    // Q-34: a planning engineer and a project manager, each scoped to the first project only (the templates as they are: neither carries project.read)
+    const roleId = async (roleCode: string) => ((await connection.query<{ id: string }[]>("SELECT id FROM roles WHERE tenantId = ? AND code = ?", [tenantId, roleCode]))[0] as unknown as Array<{ id: string }>)[0].id;
+    await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.planner, roleId: await roleId("PLANNING_ENGINEER"), scopeType: "project", scopeId: PROJECT });
+    await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.pm, roleId: await roleId("PROJECT_MANAGER"), scopeType: "project", scopeId: PROJECT });
     await connection.query("UPDATE memberships SET status = 'active' WHERE tenantId = ?", [tenantId]);
   });
   afterAll(async () => { if (connection) { await clear(); await connection.end(); } });
@@ -83,5 +88,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("development planner: run
     expect(await count()).toBe(before);
     expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM project_planned_labour WHERE tenant_id = ?", [otherTenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(0);
   });
-});
 
+  it("Q-34 POSITIVE: «apply to a project» lists the projects the caller manages — all of them for the owner, only their own for a project-scoped manager, none for a planning engineer (who may still plan)", async () => {
+    expect((await callers.owner.devPlanner.projects({ tenantId })).map(project => project.code)).toEqual(["DP-1", "DP-2"]);
+    expect((await callers.pm.devPlanner.projects({ tenantId })).map(project => project.code)).toEqual(["DP-1"]);
+    expect(await callers.planner.devPlanner.projects({ tenantId })).toEqual([]);
+    expect((await callers.planner.devPlanner.run({ tenantId, plan: exampleInput() })).labour.peak).toBe(629);
+    // the reason the page failed: neither holds project.read, so the company register refuses them
+    expect(await code(callers.planner.projects.list({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.pm.projects.list({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+  });
+
+  it("Q-34 NEGATIVE: the list is refused without a planning permission (a site engineer) and across companies, and never names another company's project", async () => {
+    expect(await code(callers.site.devPlanner.projects({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.outsider.devPlanner.projects({ tenantId }))).not.toBe("no error");
+    expect(await callers.outsider.devPlanner.projects({ tenantId: otherTenantId })).toEqual([]);
+    expect(await code(callers.pm.devPlanner.applyToProject({ tenantId, projectId: SECOND, plan: exampleInput(), constructionStart: "2027-11" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+  });
+});
