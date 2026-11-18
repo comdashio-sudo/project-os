@@ -320,7 +320,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const villaByCode = (code: string) => { const number = unitNumberOf(code); return number === null ? undefined : detailOf.get(number); };
   const [colourByModel, setColourByModel] = useState(false);
   const modelCodes = Array.from(new Set((siteMap.data?.units ?? []).map(unit => unit.modelCode))).filter(Boolean).sort();
-  const modelColours = new Map(modelCodes.map((code, index) => [code, `hsl(${Math.round(index * 137.508) % 360}, 65%, 54%)`]));
+  const modelColours = new Map(modelCodes.map((code, index) => [code, `hsl(${Math.round(index * 137.508) % 360}, 65%, 54%)`])); // design-rules: allow hardcoded-colour — categorical map colours are generated from the model list
   const mappedVillas = items.filter(item => item.state === "confirmed" && item.unitCode);
   function focusVilla(polygonId: string) {
     setSelectedId(polygonId);
