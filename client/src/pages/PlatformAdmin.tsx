@@ -6,6 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { NewCompanyCard } from "@/components/NewCompanyCard";
 import { enumLabel } from "@/lib/labels";
 import { pickLanguage } from "@/lib/language";
+import { planLabel } from "@/lib/planNames";
 import { trpc } from "@/lib/trpc";
 import { Building2, KeyRound, Layers3, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
@@ -35,14 +36,14 @@ export default function PlatformAdmin() {
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="h-5 w-5 text-primary" />{t.companies} <span className="text-sm font-normal text-slate-500">({t.total}: {data.totalCompanies})</span></h2>
         {data.truncated ? <p role="status" className="mt-2 text-sm text-amber-800">{t.truncated} {data.shownCompanies} {t.of} {data.totalCompanies}</p> : null}
         {data.companies.length === 0 ? <p className="mt-3 text-slate-600">{t.none}</p> : <div className="mt-3 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-start text-slate-500"><th className="p-2 text-start">{t.companies}</th><th className="p-2 text-start">{t.plan}</th><th className="p-2 text-start">{t.status}</th><th className="p-2 text-start">{t.seats}</th><th className="p-2" /></tr></thead><tbody>
-          {data.companies.map(company => <tr key={company.id} className="border-t"><td className="p-2"><p className="font-semibold">{company.legalName}</p><p dir="ltr" className="text-xs text-slate-500">{company.slug}</p></td><td className="p-2">{company.license ? company.license.planName : t.noLicense}</td><td className="p-2">{enumLabel(company.license ? company.license.status : company.status, language)}</td><td className="p-2">{company.license?.seats ?? "—"}</td>
+          {data.companies.map(company => <tr key={company.id} className="border-t"><td className="p-2"><p className="font-semibold">{company.legalName}</p><p dir="ltr" className="text-xs text-slate-500">{company.slug}</p></td><td className="p-2">{company.license ? planLabel({ code: company.license.planCode, name: company.license.planName }, language) : t.noLicense}</td><td className="p-2">{enumLabel(company.license ? company.license.status : company.status, language)}</td><td className="p-2">{company.license?.seats ?? "—"}</td>
             <td className="p-2"><div className="flex flex-wrap gap-2"><Link href={`/licensing/${company.id}`} className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border px-3 font-semibold text-primary"><KeyRound className="h-4 w-4" />{t.openLicense}</Link><Link href={`/projects/${company.id}`} className="inline-flex min-h-[44px] items-center rounded-lg border px-3 font-semibold">{t.openCompany}</Link></div></td></tr>)}
         </tbody></table></div>}
       </section>
       <section aria-label={t.plans} className="rounded-2xl border bg-white p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Layers3 className="h-5 w-5 text-primary" />{t.plans} <span className="text-sm font-normal text-slate-500">({data.plans.length})</span></h2>
         <p className="mt-1 text-sm text-slate-600">{t.planNote}</p>
-        {data.plans.length === 0 ? <p className="mt-3 text-slate-600">{t.noPlans}</p> : <ul className="mt-3 grid gap-2 sm:grid-cols-2">{data.plans.map(plan => <li key={plan.code} className="flex items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-semibold">{plan.name}</p><p dir="ltr" className="text-xs text-slate-500">{plan.code} · {t.package}: {plan.packageCode}</p></div><span className={`rounded-full px-3 py-1 text-xs font-semibold ${plan.active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{plan.active ? t.active : t.inactive}</span></li>)}</ul>}
+        {data.plans.length === 0 ? <p className="mt-3 text-slate-600">{t.noPlans}</p> : <ul className="mt-3 grid gap-2 sm:grid-cols-2">{data.plans.map(plan => <li key={plan.code} className="flex items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-semibold">{planLabel(plan, language)}</p><p dir="ltr" className="text-xs text-slate-500">{plan.code} · {t.package}: {plan.packageCode}</p></div><span className={`rounded-full px-3 py-1 text-xs font-semibold ${plan.active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{plan.active ? t.active : t.inactive}</span></li>)}</ul>}
       </section>
     </> : null}
   </div></main>;
