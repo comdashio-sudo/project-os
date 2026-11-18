@@ -318,6 +318,19 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const detailOf = new Map((siteMap.data?.units ?? []).map(unit => [unit.unitNumber, unit as SiteUnit & { overallPercent?: number | null; currentActivity?: { code: string; name: string } | null }]));
   // the villa a plan code names, from the site map itself (with or without an activity chosen for colouring)
   const villaByCode = (code: string) => { const number = unitNumberOf(code); return number === null ? undefined : detailOf.get(number); };
+  const [colourByModel, setColourByModel] = useState(false);
+  const modelCodes = Array.from(new Set((siteMap.data?.units ?? []).map(unit => unit.modelCode))).filter(Boolean).sort();
+  const modelColours = new Map(modelCodes.map((code, index) => [code, `hsl(${Math.round(index * 137.508) % 360}, 65%, 54%)`]));
+  const mappedVillas = items.filter(item => item.state === "confirmed" && item.unitCode);
+  function focusVilla(polygonId: string) {
+    setSelectedId(polygonId);
+    const polygon = drawing?.polygons.find(shape => shape.id === polygonId);
+    if (!polygon?.points.length || !geometry) return;
+    const xs = polygon.points.map(point => point.x);
+    const ys = polygon.points.map(point => geometry.flipY(point.y));
+    const x = Math.min(...xs), y = Math.min(...ys);
+    pan.focus({ x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y });
+  }
   const detailed = pan.percent >= 150;
   // Q-20: choosing a block in the filter brings its villas into view.
   useEffect(() => {
@@ -555,8 +568,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); }}
                 source={colourSource}
                 onSource={setColourSource}
-                blocks={Array.from(new Set(villas.map(villa => villa.blockCode))).sort()}
-                models={Array.from(new Set(villas.map(villa => villa.modelCode))).sort()}
+                blocks={Array.from(new Set((siteMap.data?.units ?? []).map(villa => villa.blockCode))).sort()}
+                models={modelCodes}
                 block={blockFilter}
                 model={modelFilter}
                 onBlock={setBlockFilter}
@@ -565,6 +578,25 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 failed={Boolean(colourSource === "qc" ? qcMap.error : siteMap.error)}
                 onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode ? `${activityCode}-${colourSource}` : "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
               />
+              <div className="flex flex-wrap items-center gap-3">
+                {mappedVillas.length > 0 && <Select
+                  aria-label={pickLanguage(language, { ar: "الفلل المرتبطة بالمخطط", en: "Mapped villas", ur: "منسلک ولاز" })}
+                  value={mappedVillas.some(item => item.polygonId === selectedId) ? selectedId ?? "" : ""}
+                  placeholder={pickLanguage(language, { ar: "اختر فيلا من القائمة", en: "Select a villa", ur: "ولا منتخب کریں" })}
+                  options={mappedVillas.map(item => ({ value: item.polygonId, label: item.unitCode! }))}
+                  onValueChange={focusVilla}
+                />}
+                {modelCodes.length > 0 && <label className="inline-flex min-h-11 items-center gap-2 text-sm">
+                  <input type="checkbox" checked={colourByModel} onChange={event => setColourByModel(event.target.checked)} />
+                  {pickLanguage(language, { ar: "التلوين حسب نوع الفيلا", en: "Colour by villa model", ur: "ولا ماڈل کے لحاظ سے رنگ" })}
+                </label>}
+              </div>
+              {colourByModel && <ul className="flex flex-wrap gap-3 text-xs">
+                {modelCodes.map(code => <li key={code} className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: modelColours.get(code) }} />
+                  {code}
+                </li>)}
+              </ul>}
               <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
@@ -574,21 +606,24 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                   const points = polygon.points.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ");
                   const centre = polygon.points.reduce((acc, p) => ({ x: acc.x + p.x / polygon.points.length, y: acc.y + p.y / polygon.points.length }), { x: 0, y: 0 });
                   const isSelected = selectedId === polygon.id;
+                  const villa = item.state === "confirmed" && item.unitCode ? villaByCode(item.unitCode) : undefined;
+                  const modelFill = colourByModel && villa ? modelColours.get(villa.modelCode) : undefined;
                   return (
                     <g key={polygon.id}>
                       <polygon
                         points={points}
-                        fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
-                        fillOpacity={colouring && item.unitCode && !passesFilter(colouring.villaOf(item.unitCode), blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
+                        fill={modelFill ?? (colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null))}
+                        fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
                         data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
                         stroke={isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
                         strokeWidth={isSelected ? 0.4 : 0.15}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
                         role="button"
+                        aria-pressed={isSelected}
                         tabIndex={0}
                         aria-label={`${t.shape(items.indexOf(item) + 1)}: ${item.unitCode ?? t.state[item.state]}`}
                         onClick={() => { if (tool === "none") setSelectedId(polygon.id); }}
-                        onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setSelectedId(polygon.id); }}
+                        onKeyDown={event => { if (tool === "none" && !linkTool && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedId(polygon.id); } }}
                         // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
                         style={tool === "none" && !linkTool ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
