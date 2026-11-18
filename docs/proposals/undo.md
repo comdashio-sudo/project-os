@@ -42,7 +42,7 @@
 
 قرار المستشار (I46): موافق على §4 كما هو. نُفِّذ:
 - `server/pmcUndo.ts`.
-- الترحيلة `0037`.
+- الترحيلة `0036`.
 - `client/src/components/UndoLastSave.tsx`.
 
 **فرق واحد عن §2:** صلاحية تراجع الإنجاز هي `project.pmc.update`، وهي الصلاحية التي يحفظ بها الإجراء في الكود، لا `project.progress.manage`.

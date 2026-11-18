@@ -3108,7 +3108,7 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| ترحيلة `0037_qc_receipt_batch_id.sql`: عمود `batch_id` يقبل الفراغ وفهرس جزئي على `pmc_qc_receipt_events` (توسعة فقط، مع خطة رجوع). حفظ QC يكتب معرّف الدفعة في كل حدث وفي صف التدقيق ويعيده | `PROVEN` | `drizzle/0037_qc_receipt_batch_id.sql`، `db:baseline:check`، `server/pmcQcReceipts.ts` |
+| ترحيلة `0036_qc_receipt_batch_id.sql`: عمود `batch_id` يقبل الفراغ وفهرس جزئي على `pmc_qc_receipt_events` (توسعة فقط، مع خطة رجوع). حفظ QC يكتب معرّف الدفعة في كل حدث وفي صف التدقيق ويعيده | `PROVEN` | `drizzle/0036_qc_receipt_batch_id.sql`، `db:baseline:check`، `server/pmcQcReceipts.ts` |
 | `pmc.undoProgressBatch` و`pmc.undoQcReceiptBatch` (`server/pmcUndo.ts`). صاحب الحفظ وحده، بالصلاحية التي حفظ بها، خلال 15 دقيقة بساعة الخادم. **لا حذف:** حفظ عكسي، صفوف تاريخ بملاحظة `undo <batchId>` / حدث QC جديد، وصف تدقيق `*_batch_undone`، والسجل الأصلي يبقى. الخلية التي أنشأتها الدفعة تعود «لم يبدأ» (الإنجاز) أو «غير مستلم» (QC)، وهي ما يُحسب للغائب | `PROVEN` | `server/pmcUndo.database.test.ts` (5)، قاعدة حقيقية بدور التطبيق المقيَّد |
 | سالب، وكلٌّ يُرفض ولا يُكتب صف: شخص آخر، بعد 15 دقيقة، خلية تغيّرت بعده (حفظ آخر، أو استلام QC على خلية إنجاز) ويسمّي الفلل، تراجع ثانٍ، معرّف غير موجود، شركة أخرى، دور بلا الصلاحية. التراجع المتزامن يتسلسل بقفل استشاري على الدفعة | `PROVEN` | المصدر نفسه |
 | الواجهة: بعد الحفظ في «تحديث الإنجاز» و«استلام QC»: «حُفظ — تراجع عن هذا الحفظ» لمدة السماح ثم يختفي؛ والرفض بلغة الصفحة | `PROVEN` | `client/src/components/UndoLastSave.tsx`؛ `PmcProgressUpdate.test.tsx` و`PmcQcReceipt.test.tsx` (+1 لكل) |
