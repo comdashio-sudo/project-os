@@ -1584,7 +1584,8 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     return {
       ...project,
       health: health ? { status: health.status, overallScore: Number(health.overallScore), periodAt: health.periodAt } : null,
-      evm: evm ? { cpi: evm.cpi === null ? null : Number(evm.cpi), spi: evm.spi === null ? null : Number(evm.spi), eac: Number(evm.eac), vac: Number(evm.vac), periodAt: evm.periodAt } : null,
+      // Q-39 review (money): EAC and VAC are amounts — only for whoever may see this project's money (205-1); CPI and SPI are ratios and stay
+      evm: evm ? { cpi: evm.cpi === null ? null : Number(evm.cpi), spi: evm.spi === null ? null : Number(evm.spi), eac: projectMoneyVisible(snapshot, project.id) ? Number(evm.eac) : null, vac: projectMoneyVisible(snapshot, project.id) ? Number(evm.vac) : null, periodAt: evm.periodAt } : null,
       openRiskCount: riskRows.filter(item => item.projectId === project.id && item.status !== "closed" && item.probability * item.severity >= 15).length,
       criticalIssueCount: issueRows.filter(item => item.projectId === project.id && !["resolved", "closed"].includes(item.status) && item.priority === "critical").length,
       overdueActionCount: actionRows.filter(item => item.projectId === project.id && !["completed", "cancelled"].includes(item.status) && item.dueAt !== null && item.dueAt < today).length,
@@ -1595,7 +1596,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     risks: riskRows,
     issues: issueRows,
     actions: actionRows,
-    changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost) })),
+    changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost), costVisible: projectMoneyVisible(snapshot, change.projectId) })),
     materialShortages,
     today,
   });

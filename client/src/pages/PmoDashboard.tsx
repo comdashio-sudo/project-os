@@ -28,7 +28,7 @@ const NONE = "__none";
 type Priority = "low" | "medium" | "high" | "critical";
 type EscalationStatus = "none" | "pending" | "escalated";
 
-type PlanningTraceProject = { id: string; code: string; evm: { spi: number | null; cpi: number | null; eac?: number; vac?: number; periodAt?: Date } | null; health: { overallScore?: number; periodAt?: Date } | null };
+type PlanningTraceProject = { id: string; code: string; evm: { spi: number | null; cpi: number | null; eac?: number | null; vac?: number | null; periodAt?: Date } | null; health: { overallScore?: number; periodAt?: Date } | null };
 
 function PlanningIndicatorTrace({ projects, isArabic, language }: { projects: PlanningTraceProject[]; isArabic: boolean; language: Language }) {
   const copy = pickLanguage(language, { ar: { title: "مصدر ومعادلة المؤشرات", evm: "EVM", health: "الصحة", unavailable: "تاريخ المصدر غير متاح", formula: "SPI = EV/PV · CPI = EV/AC" }, en: { title: "Indicator source & formula", evm: "EVM", health: "Health", unavailable: "Source date unavailable", formula: "SPI = EV/PV · CPI = EV/AC" }, ur: { title: "اشاریے کا ماخذ اور فارمولا", evm: "EVM", health: "صحت", unavailable: "ماخذ کی تاریخ دستیاب نہیں", formula: "SPI = EV/PV · CPI = EV/AC" } });

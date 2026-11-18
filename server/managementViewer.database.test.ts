@@ -23,7 +23,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["progress_entries", "cost_entries", "budget_lines", "activities", "field_reports", "wbs_items", "audit_logs", "membership_invitations", "risks", "decisions"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["progress_entries", "cost_entries", "budget_lines", "activities", "field_reports", "wbs_items", "audit_logs", "membership_invitations", "risks", "decisions", "evm_snapshots", "change_requests"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
       await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -90,6 +90,24 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-39: the «مشاهد �
     expect(controls.costs).toEqual([]);
     expect(await code(viewer.dashboards.executive({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(viewer.profitability.portfolio({ tenantId }))).not.toBe("no error");
+  });
+
+  it("NEGATIVE (money, review on #385): the PMO dashboard gives the viewer no EAC or VAC and no cost in an open change's line; the company owner still sees both", async () => {
+    await connection.query("INSERT INTO evm_snapshots (id, tenantId, projectId, periodAt, pv, ev, ac, bac, cv, sv, eac, etc, vac, cpi, spi, eacMethod) VALUES (?, ?, ?, now(), 100, 90, 95, 1000, -5, -10, 1055, 960, -55, 0.947, 0.9, ?)", [crypto.randomUUID(), tenantId, P, "manual"]);
+    await connection.query("INSERT INTO change_requests (id, tenantId, projectId, changeNumber, title, description, impactScheduleDays, impactCost, currency, status, createdByUserId) VALUES (?, ?, ?, 'CR-1', 'Extra slab', 'A synthetic change', 20, 50000, 'SAR', 'submitted', ?)", [crypto.randomUUID(), tenantId, P, ids.owner]);
+    const read = async (key: Key) => { const dashboard = await callerFor(key).dashboards.pmo({ tenantId }); return { evm: dashboard.planningOverview.projects.find(project => project.id === P)!.evm, change: dashboard.todayExceptions.find(item => item.id.startsWith("change:")) }; };
+    const viewer = await read("viewer");
+    expect([viewer.evm?.eac, viewer.evm?.vac]).toEqual([null, null]);
+    expect(viewer.evm?.cpi).toBeCloseTo(0.947, 3); // ratios stay
+    expect(viewer.change?.detail).toBe("CR-1 · Extra slab · 20d");
+    const owner = await read("owner");
+    expect([owner.evm?.eac, owner.evm?.vac]).toEqual([1055, -55]);
+    expect(owner.change?.detail).toContain("50000");
+    // sibling path (same review): the levels opened with pmo.read / project.read carry no amounts for the viewer — EVM, expected profit, stock value
+    for (const level of [(await callerFor("viewer").scopes.portfolio({ tenantId })).projects[0], (await callerFor("viewer").scopes.project({ tenantId, projectId: P })).project]) {
+      expect([level.evm, level.expectedProfit, level.stock.value]).toEqual([{ value: null, reason: "MONEY_HIDDEN" }, { value: null, reason: "MONEY_HIDDEN" }, null]);
+    }
+    expect((await callerFor("owner").scopes.project({ tenantId, projectId: P })).project.stock.value).toBe(0);
   });
 
   it("NEGATIVE: every write and approval is refused, and nothing is written", async () => {
