@@ -52,6 +52,7 @@ import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmc
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { getPmcProjectSummaryForTenant } from "./db";
+import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
 import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
@@ -189,6 +190,8 @@ export const appRouter = router({
   }),
   pmc: router({
     summary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProjectSummaryForTenant({ userId: ctx.user.id, ...input })),
+    // Q-35: per PMC import kind, what the saved imports say (imported, waiting for confirmation, analysing, failed, never) — read from data_imports
+    importStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcImportStatus({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgress({ userId: ctx.user.id, ...input })),
     setUnitActivityStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid(), status: z.enum(PMC_STATUSES), verificationStatusId: z.string().uuid().nullable().optional(), note: z.string().trim().max(1000).optional() })).mutation(({ ctx, input }) => setPmcUnitActivityStatus({ userId: ctx.user.id, ...input })),
     // D-80 (work order 21): the PMC table editors (server/pmcEditorService.ts). Read: project.pmc.read; write: project.pmc.manage; the PMC licence feature on both.
