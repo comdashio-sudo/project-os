@@ -7,11 +7,14 @@
 import ExcelJS from "exceljs";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { assertProjectWithinTenant, getTenantAccessSnapshot } from "./db";
+import { asc, eq } from "drizzle-orm";
+import { projects } from "../drizzle/schema";
+import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { planDevelopment, type PlannerInput } from "./domain/devPlanner";
 import { getBaselineStatus, writePlanMonthsAudited, writePlannedLabourAudited } from "./projectBaseline";
 import { projectGate } from "./projectProfile";
+import { resolveScopedAccess } from "./scopeAccess";
 
 const MONTH = 30.44;
 const n = (max: number, min = 0) => z.number().finite().min(min).max(max);
@@ -50,6 +53,24 @@ export function summarizePlan(input: PlannerInput) {
     labour: { months: plan.labour.hist, peak: plan.labour.peak },
     sales: { launchMonth: Math.round(plan.sales.launchMonth * 10) / 10, sellingMonths: plan.sales.sellingMonths, endMonth: Math.round(plan.sales.endMonth * 10) / 10, curve: plan.sales.curve },
   };
+}
+
+/**
+ * Q-34: the projects the planner's «apply to a project» may write into — those where the caller holds project.manage (the permission applyPlannerToProject checks),
+ * in this company only. Before, the page asked for the company's project register (project.read), which a planning engineer or a project manager scoped to their
+ * project may not read: the page opened on «could not load: project list — you do not have permission». A planner with no project to manage gets an empty list.
+ */
+export async function listPlannerProjects(input: { userId: number; tenantId: string }) {
+  assertTenantAccess(await snapshotOf(input.userId, input.tenantId), { tenantId: input.tenantId, product: "PROJECT", permission: PLANNING });
+  const covered = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.manage"] }).catch((error: unknown) => {
+    if (error instanceof TRPCError && error.message === "PROJECT_OS_PERMISSION_DENIED") return null; // a planner who manages no project
+    throw error;
+  });
+  if (!covered?.projectIds.size) return [];
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const rows = await db.select({ id: projects.id, code: projects.code, name: projects.name }).from(projects).where(eq(projects.tenantId, input.tenantId)).orderBy(asc(projects.code));
+  return rows.filter(row => covered.projectIds.has(row.id));
 }
 
 export async function runDevPlanner(input: { userId: number; tenantId: string; plan: PlannerInput }) {

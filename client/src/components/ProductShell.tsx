@@ -4,6 +4,7 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { useCan } from "@/lib/permissions";
 import { Briefcase, FolderKanban, Gauge, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, Wallet, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
@@ -66,7 +67,11 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const [location, setLocation] = useLocation();
   const navigation = trpc.navigation.get.useQuery(projectId ? { tenantId, projectId } : { tenantId });
   const tenants = trpc.tenant.mine.useQuery();
-  const projects = trpc.projects.list.useQuery({ tenantId });
+  // Q-34: the project register is read only by who holds project.read (the server's own check): asking without it put «could not load: project list — you do not
+  // have permission» above every page of a planning engineer or a project manager scoped to their project (the planner opened on it). Unknown permissions
+  // (no provider, failed lookup) still ask, and the server still refuses.
+  const canReadProjects = useCan("project.read");
+  const projects = trpc.projects.list.useQuery({ tenantId }, { enabled: canReadProjects });
 
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,

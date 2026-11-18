@@ -6,9 +6,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { ProductShell, isFramedPath, projectSwitchHref } from "./ProductShell";
 import { PageHeader, PageMain } from "./pageFrame";
 import { LanguageToggle } from "./LanguageToggle";
+import { PermissionProvider } from "@/lib/permissions";
 
 // One frame for every company screen (work order 21, step 1): one top bar, the modules the server allows, one breadcrumb trail.
-const state = vi.hoisted(() => ({ setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string }> }));
+const state = vi.hoisted(() => ({ listOptions: [] as Array<{ enabled?: boolean } | undefined>, summary: undefined as unknown, setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string }> }));
 
 vi.mock("wouter", () => ({ useLocation: () => [state.location, state.setLocation] }));
 vi.mock("@/contexts/accountLanguage", () => ({ useAccountLanguage: () => ({ signedIn: true, save: vi.fn() }) }));
@@ -18,7 +19,8 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     navigation: { get: { useQuery: () => ({ data: state.nav }) } },
     tenant: { mine: { useQuery: () => ({ data: [{ tenantId: "t1", legalName: "Pilot Company" }] }) } },
-    projects: { list: { useQuery: () => ({ data: state.projects }) } },
+    projects: { list: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.listOptions.push(options); return options?.enabled === false ? { data: undefined, error: null } : { data: state.projects, error: null }; } } },
+    accessSummary: { mine: { useQuery: () => ({ data: state.summary, error: null }) } },
   },
 }));
 
@@ -30,7 +32,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => undefined);
   globalThis.ResizeObserver = globalThis.ResizeObserver ?? class { observe() {} unobserve() {} disconnect() {} };
 });
-afterEach(() => { cleanup(); state.location = "/pmo/t1"; state.projects = []; state.setLocation.mockReset(); });
+afterEach(() => { cleanup(); state.listOptions = []; state.summary = undefined; state.location = "/pmo/t1"; state.projects = []; state.setLocation.mockReset(); });
 
 describe("ProductShell", () => {
   it("draws one top bar and the modules the server allows, and marks the current one", () => {
@@ -151,5 +153,22 @@ describe("which routes are framed", () => {
   });
   it("leaves the phone screens and the setup wizard unframed", () => {
     for (const path of ["/m/t1/p1", "/m/t1/p1/issue", "/m/t1/p1/unit/12", "/setup/t1", "/setup"]) expect(isFramedPath(path)).toBe(false);
+  });
+
+  it("Q-34: the project register is asked for only by who holds project.read — a planning engineer scoped to a project gets no «could not load: project list» above every page", () => {
+    state.summary = { member: true, products: ["PROJECT"], permissions: ["project.schedule.manage", "project.pmc.manage"], scopes: [{ scopeType: "project", scopeId: "p1" }] };
+    state.location = "/planner/t1";
+    render(<PermissionProvider tenantId="t1"><ProductShell tenantId="t1"><p>screen</p></ProductShell></PermissionProvider>);
+    expect(state.listOptions.every(options => options?.enabled === false)).toBe(true);
+    expect(screen.queryByText(/Could not load/)).toBeNull();
+  });
+
+  it("Q-34: with project.read (or no permission answer at all) the register is still asked for", () => {
+    state.summary = { member: true, products: ["PROJECT"], permissions: ["project.read"], scopes: [{ scopeType: "company", scopeId: null }] };
+    render(<PermissionProvider tenantId="t1"><ProductShell tenantId="t1"><p>screen</p></ProductShell></PermissionProvider>);
+    expect(state.listOptions.at(-1)?.enabled).toBe(true);
+    cleanup(); state.listOptions = [];
+    render(<ProductShell tenantId="t1"><p>screen</p></ProductShell>);
+    expect(state.listOptions.at(-1)?.enabled).toBe(true);
   });
 });
