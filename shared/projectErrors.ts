@@ -1623,6 +1623,11 @@ export const projectErrorMessages = {
     en: "The certificate was not found in this project.",
     ur: "یہ سرٹیفکیٹ اس پروجیکٹ میں نہیں ملا۔",
   },
+  PROJECT_OS_CERTIFICATE_SELF_APPROVAL: {
+    ar: "لا يعتمد المستخلص من أعدّه أو أرسله. يعتمده شخص آخر يملك صلاحية الالتزامات (فصل المهام).",
+    en: "A certificate is not approved by the person who prepared or submitted it. Someone else who manages commitments approves it (separation of duties).",
+    ur: "سرٹیفکیٹ وہ شخص منظور نہیں کرتا جس نے اسے تیار یا جمع کیا۔ اسے کوئی اور شخص منظور کرے جس کے پاس وابستگیوں کا اختیار ہو (فرائض کی علیحدگی)۔",
+  },
   PROJECT_OS_CERTIFICATE_TRANSITION_INVALID: {
     ar: "لا يمكن نقل المستخلص إلى هذه الحالة من حالته الحالية. المسار: مسودة ← مُرسَل ← معتمد ← مدفوع، والإلغاء قبل الاعتماد فقط.",
     en: "The certificate cannot move to this status from its current one. The path is draft → submitted → approved → paid, and it can be cancelled only before approval.",

@@ -4334,12 +4334,18 @@ export async function transitionSubcontractCertificateForTenant(input: { userId:
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   let previousStatus = "";
   await db.transaction(async tx => {
-    const [record] = await tx.select({ id: subcontractCertificates.id, status: subcontractCertificates.status, subcontractId: subcontractCertificates.subcontractId }).from(subcontractCertificates)
+    const [record] = await tx.select({ id: subcontractCertificates.id, status: subcontractCertificates.status, subcontractId: subcontractCertificates.subcontractId, createdByUserId: subcontractCertificates.createdByUserId }).from(subcontractCertificates)
       .where(and(eq(subcontractCertificates.id, input.certificateId), eq(subcontractCertificates.tenantId, input.tenantId), eq(subcontractCertificates.projectId, input.projectId))).limit(1).for("update");
     if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_CERTIFICATE_NOT_FOUND" });
     if (!certificateTransitions[record.status]?.includes(input.nextStatus)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CERTIFICATE_TRANSITION_INVALID" });
     previousStatus = record.status;
     const approving = input.nextStatus === "approved";
+    // G-214 (adviser 19-11): separation of duties — whoever prepared the certificate or submitted it does not approve it. The submitter is read from the
+    // audit row this function writes in the same transaction as the move to «submitted» (no new column).
+    if (approving) {
+      const [submitted] = await tx.select({ actorUserId: auditLogs.actorUserId }).from(auditLogs).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.action, "project.subcontract_certificate_transitioned"), eq(auditLogs.entityId, record.id), sql`${auditLogs.metadata}::jsonb ->> 'nextStatus' = 'submitted'`)).orderBy(desc(auditLogs.createdAt)).limit(1);
+      if (record.createdByUserId === input.userId || submitted?.actorUserId === input.userId) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_CERTIFICATE_SELF_APPROVAL" });
+    }
     await tx.update(subcontractCertificates).set({ status: input.nextStatus, ...(approving ? { approvedByUserId: input.userId, approvedAt: new Date() } : {}), updatedAt: new Date() }).where(eq(subcontractCertificates.id, record.id));
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.subcontract_certificate_transitioned", entityType: "subcontract_certificate", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, subcontractId: record.subcontractId, previousStatus: record.status, nextStatus: input.nextStatus }) });
   });

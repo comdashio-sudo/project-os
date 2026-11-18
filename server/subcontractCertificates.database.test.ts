@@ -74,9 +74,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("G-214: a subcontract cer
 
   it("POSITIVE: draft → submitted → approved → paid, each with an audit row, and the approval names its approver", async () => {
     const first = await byNumber("G214-C1");
-    for (const next of ["submitted", "approved", "paid"] as const) expect((await move(first.id, next)).status).toBe(next);
+    expect((await move(first.id, "submitted")).status).toBe("submitted");
+    // separation of duties (adviser 19-11): the finance manager prepared and submitted it, so the owner approves it
+    expect(await code(move(first.id, "approved"))).toBe("PROJECT_OS_CERTIFICATE_SELF_APPROVAL");
+    expect((await move(first.id, "approved", "owner")).status).toBe("approved");
+    expect((await move(first.id, "paid")).status).toBe("paid");
     const [row] = (await connection.query<{ approvedByUserId: number | null; approvedAt: Date | null }[]>("SELECT approvedByUserId, approvedAt FROM subcontract_certificates WHERE id = ?", [first.id]))[0];
-    expect([row.approvedByUserId, row.approvedAt !== null]).toEqual([ids.finance, true]);
+    expect([row.approvedByUserId, row.approvedAt !== null]).toEqual([ids.owner, true]);
     const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_certificate_transitioned' ORDER BY createdAt", [tenantId]);
     expect(audit.map(item => (JSON.parse(item.metadata) as { nextStatus: string }).nextStatus)).toEqual(["submitted", "approved", "paid"]);
   });
@@ -102,9 +106,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("G-214: a subcontract cer
 
   it("CONCURRENCY: two certificates sent at the same moment — exactly one is written", async () => {
     const third = await byNumber("G214-C3");
-    await move(third.id, "submitted"); await move(third.id, "approved");
+    await move(third.id, "submitted"); await move(third.id, "approved", "owner");
     const results = await Promise.all([code(certificate("G214-C4", 50)), code(certificate("G214-C5", 50))]);
     expect(results.sort()).toEqual(["PROJECT_OS_CERTIFICATE_OPEN_EXISTS", "no error"]);
+  });
+
+  it("SEPARATION OF DUTIES: neither who prepared a certificate nor who submitted it approves it", async () => {
+    // the owner prepares C6, the finance manager submits it: both are refused the approval, and it stays submitted
+    const [approvedOpen] = (await certificates()).filter(item => item.status === "draft");
+    if (approvedOpen) await move(approvedOpen.id, "cancelled");
+    await callerFor("owner").subcontracts.createCertificate({ ...scope(), subcontractId, certificateNumber: "G214-C6", periodStart: new Date("2026-11-01T00:00:00Z"), periodEnd: new Date("2026-11-30T00:00:00Z"), lines: [{ boqItemId: boqId, currentQuantity: 10 }] });
+    const sixth = await byNumber("G214-C6");
+    await move(sixth.id, "submitted");
+    expect(await code(move(sixth.id, "approved", "owner"))).toBe("PROJECT_OS_CERTIFICATE_SELF_APPROVAL"); // prepared it
+    expect(await code(move(sixth.id, "approved"))).toBe("PROJECT_OS_CERTIFICATE_SELF_APPROVAL"); // submitted it
+    expect((await byNumber("G214-C6")).status).toBe("submitted");
   });
 
   it("SCOPE: a certificate on this project cannot use another project's subcontract; ISOLATION: another company reaches nothing", async () => {
