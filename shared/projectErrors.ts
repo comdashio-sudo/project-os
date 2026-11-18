@@ -1148,6 +1148,11 @@ export const projectErrorMessages = {
     en: "The action is not open (already done or cancelled).",
     ur: "یہ کام کھلا نہیں ہے (مکمل یا منسوخ)۔",
   },
+  PROJECT_OS_ACTION_OWNER_INVALID: {
+    ar: "صاحب المهمة يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The action's owner must be an active member of the company.",
+    ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
   PROJECT_OS_STOCKTAKE_QUANTITY_INVALID: {
     ar: "الكمية المعدودة يجب أن تكون صفرًا أو أكثر.",
     en: "A counted quantity must be zero or more.",

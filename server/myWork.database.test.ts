@@ -96,4 +96,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-45 (c): «مهامي»
     expect(await code(callerFor("site").executive.completeMyAction({ tenantId, actionId: shoring.id }))).toBe("PROJECT_OS_ACTION_NOT_OPEN");
     expect(await audits()).toBe(1);
   });
+  it("Q-45 (c): the owner list is for whoever may record on the project (names of active members only); an action can be created straight onto its owner, who must be of this company", async () => {
+    const names = (await callerFor("pm").executive.ownerOptions({ tenantId, projectId: P })).map(member => member.name);
+    expect(names).toEqual(expect.arrayContaining(["Q45 pm", "Q45 site", "Q45 decider"]));
+    expect(names).not.toContain("Q45 ownerB");
+    expect(await code(callerFor("site").executive.ownerOptions({ tenantId, projectId: P }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callerFor("ownerB").executive.ownerOptions({ tenantId, projectId: P }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await callerFor("owner").pmo.createAction({ tenantId, projectId: P, title: "Assigned at creation", priority: "medium", ownerMembershipId: siteMembership });
+    expect((await callerFor("site").executive.myWork({ tenantId })).actions.map(action => action.title)).toContain("Assigned at creation");
+    const [[other]] = await connection.query<{ id: string }[]>("SELECT id FROM memberships WHERE tenantId = ? LIMIT 1", [tenantB]);
+    expect(await code(callerFor("owner").pmo.createAction({ tenantId, projectId: P, title: "Wrong company owner", priority: "medium", ownerMembershipId: other.id }))).toBe("PROJECT_OS_ACTION_OWNER_INVALID");
+    expect((await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM actions WHERE tenantId = ? AND title = 'Wrong company owner'", [tenantId]))[0][0].n).toBe(0);
+  });
 });

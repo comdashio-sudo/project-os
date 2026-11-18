@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
 
+vi.mock("@/components/OwnerSelect", () => ({ OwnerSelect: () => null }));
 vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "tenant-1" }),
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
