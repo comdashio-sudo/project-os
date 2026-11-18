@@ -18,10 +18,10 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     // Q-3: a villa list often has no zone column (البلوك | الفيلا | النموذج); the units then go to one zone, DEFAULT_ZONE_CODE
     { key: "zoneCode", required: false, aliases: ["zone code", "zone", "رمز المنطقة", "المنطقة", "الزون"] },
     { key: "zoneName", required: false, aliases: ["zone name", "اسم المنطقة"] },
-    { key: "blockCode", required: true, aliases: ["block code", "block", "رمز البلوك", "البلوك", "رمز الكتلة"] },
+    { key: "blockCode", required: true, aliases: ["block code", "block", "رمز البلوك", "البلوك", "رمز الكتلة", "block no", "block number", "رقم البلوك"] },
     { key: "blockName", required: false, aliases: ["block name", "اسم البلوك", "اسم الكتلة"] },
-    { key: "unitNumber", required: true, aliases: ["unit number", "unit no", "unit", "رقم الوحدة", "الوحدة", "villa", "villa no", "villa number", "الفيلا", "رقم الفيلا"] },
-    { key: "modelCode", required: true, aliases: ["model", "model code", "type", "النموذج", "رمز النموذج", "الطراز"] },
+    { key: "unitNumber", required: true, aliases: ["unit number", "unit no", "unit", "رقم الوحدة", "الوحدة", "villa", "villa no", "villa number", "الفيلا", "رقم الفيلا", "villa id", "unit id", "كود الفيلا"] },
+    { key: "modelCode", required: true, aliases: ["model", "model code", "type", "النموذج", "رمز النموذج", "الطراز", "villa type", "unit type", "نوع الفيلا", "نوع الوحدة"] },
     { key: "saleStatus", required: false, aliases: ["sale status", "حالة البيع"] },
     { key: "unitWeight", required: false, aliases: ["unit weight", "وزن الوحدة"] },
   ],
@@ -64,11 +64,11 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
   // Q-3: the project's weights table as the owner keeps it (Excel, CSV, or an export from Google Sheets / AppSheet): section (CSI) | sub-item | activity | weight.
   // It is translated into catalogue rows (weightsToCatalogRows) and checked and saved by the catalogue's own rules; columns it does not know are ignored.
   weights: [
-    { key: "csi", required: true, aliases: ["csi", "csi section", "section", "division", "بند csi", "القسم", "قسم csi"] },
+    { key: "csi", required: true, aliases: ["csi", "csi section", "section", "division", "بند csi", "القسم", "قسم csi", "csi code", "csi division", "رمز القسم"] },
     { key: "sub", required: false, aliases: ["sub", "sub item", "subitem", "sub-item", "البند الفرعي", "بند فرعي"] },
     { key: "activityCode", required: false, aliases: ["activity code", "code", "wir", "wir code", "رمز النشاط"] },
     { key: "activityName", required: true, aliases: ["activity", "activity name", "description", "النشاط", "اسم النشاط", "البند"] },
-    { key: "weight", required: true, aliases: ["weight", "weight percent", "percentage", "new percentage", "الوزن", "نسبة الوزن", "النسبة"] },
+    { key: "weight", required: true, aliases: ["weight", "weight percent", "percentage", "new percentage", "weight %", "weight percentage", "الوزن %", "الوزن", "نسبة الوزن", "النسبة"] },
     { key: "modelCode", required: false, aliases: ["model", "model code", "النموذج", "رمز النموذج"] },
   ],
   baselineDates: [
@@ -80,6 +80,11 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
 };
 
 const normalize = (value: unknown) => String(value ?? "").replace(/^﻿/, "").trim().toLowerCase().replace(/[_\s-]+/g, " ");
+const normalizeHeader = (value: string) => normalize(value.normalize("NFKC")
+  .replace(/[\u200e\u200f\u061c\u0640\u064b-\u065f]/g, "")
+  .replace(/[أإآٱ]/g, "ا")
+  .replace(/[%٪]/g, " % ")
+  .replace(/[.()]/g, " ")).trim();
 const text = (value: unknown) => String(value ?? "").trim();
 
 const STATUS_ALIASES: Record<string, PmcStatus> = {
@@ -144,16 +149,24 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const bounds = spreadsheetBoundsError(sheet, rows, PMC_IMPORT_LIMITS);
   if (bounds) return { headers, rows: [], errors: [{ rowNumber: 0, code: bounds }] };
   const fields = FIELDS[input.kind];
-  const known = new Set(fields.flatMap(field => field.aliases));
+  const normalizedHeaders = headers.map(normalizeHeader);
   const mapping = new Map<string, string>();
-  for (const field of fields) {
-    const header = headers.find(candidate => field.aliases.includes(normalize(candidate)));
-    if (header) mapping.set(field.key, header);
-  }
   const errors: PmcImportError[] = [];
+  const known = new Set<string>();
+  for (const field of fields) {
+    const aliases = new Set(field.aliases.map(normalizeHeader));
+    aliases.forEach(alias => known.add(alias));
+    const matches = headers.filter((_header, index) => aliases.has(normalizedHeaders[index]));
+    if (matches.length > 1) {
+      errors.push({ rowNumber: 0, code: "IMPORT_AMBIGUOUS_COLUMN", field: field.key, detail: matches.join(" / ") });
+    } else if (matches[0]) {
+      mapping.set(field.key, matches[0]);
+    } else if (field.required) {
+      errors.push({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key });
+    }
+  }
   // a weights table exported from a spreadsheet tool carries its own extra columns (ids, totals, notes): they are ignored, not refused
-  if (input.kind !== "weights") for (const header of headers) if (header && !known.has(normalize(header))) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
-  for (const field of fields) if (field.required && !mapping.has(field.key)) errors.push({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key });
+  if (input.kind !== "weights") for (const header of headers) if (header && !known.has(normalizeHeader(header))) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
   if (errors.length) return { headers, rows: [], errors };
   return {
     headers,
@@ -548,7 +561,7 @@ export const DEFAULT_ZONE_CODE = "Z1";
 export type WeightsTranslation = { rows: ParsedRow[]; errors: PmcImportError[]; ignoredZeroWeight: number; scaledFromFractions: boolean };
 const weightNumber = (value: unknown): number | undefined => {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  const raw = text(value).replace(/,/g, "").replace(/%$/, "").trim();
+  const raw = text(value).replace(/,/g, "").replace(/[%٪]$/, "").trim();
   if (!raw) return undefined;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : undefined;
@@ -567,7 +580,7 @@ export function weightActivityCode(name: string): string {
  */
 export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[]): WeightsTranslation {
   const errors: PmcImportError[] = [];
-  const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; weight: number; modelCode: string }> = [];
+  const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; weight: number; explicitPercent: boolean; modelCode: string }> = [];
   let ignoredZeroWeight = 0;
   for (const { rowNumber, cells } of rows) {
     const weightCell = text(cells.weight);
@@ -578,20 +591,33 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[])
     if (weight === undefined || weight < 0) { errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "weightPercent" }); continue; }
     if (!csi) { errors.push({ rowNumber, code: "PMC_CLASSIFICATION_BLANK", field: "groupCode" }); continue; }
     if (!name) { errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "activityName" }); continue; }
-    kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, weight, modelCode: text(cells.modelCode) });
+    kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, weight, explicitPercent: /[%٪]$/.test(weightCell), modelCode: text(cells.modelCode) });
   }
-  const total = kept.reduce((sum, row) => sum + row.weight, 0);
-  const scaledFromFractions = kept.length > 0 && kept.every(row => row.weight <= 1) && Math.abs(total - 1) <= 0.0001 * kept.length + 0.0001;
-  const models = projectModels.length ? projectModels : [];
-  const withoutModel = kept.some(row => !row.modelCode);
-  if (withoutModel && !models.length) errors.push({ rowNumber: 0, code: "PMC_WEIGHTS_NEED_VILLAS" });
+  const targetModels = (row: (typeof kept)[number]) => row.modelCode ? [row.modelCode] : projectModels;
+  if (kept.some(row => !row.modelCode) && !projectModels.length) errors.push({ rowNumber: 0, code: "PMC_WEIGHTS_NEED_VILLAS" });
+
+  const modelTotals = new Map<string, { total: number; count: number; fractions: boolean }>();
+  for (const row of kept) {
+    for (const modelCode of targetModels(row)) {
+      const summary = modelTotals.get(modelCode) ?? { total: 0, count: 0, fractions: true };
+      summary.total += row.weight;
+      summary.count += 1;
+      summary.fractions &&= row.weight <= 1 && !row.explicitPercent;
+      modelTotals.set(modelCode, summary);
+    }
+  }
+  const fractionModels = new Set<string>();
+  modelTotals.forEach(({ total, count, fractions }, modelCode) => {
+    if (fractions && Math.abs(total - 1) <= 0.0001 * count + 0.0001) fractionModels.add(modelCode);
+  });
+
   const out: ParsedRow[] = [];
   for (const row of kept) {
-    const weightPercent = scaledFromFractions ? Math.round(row.weight * 100 * 10000) / 10000 : row.weight;
     const stage = row.sub || row.csi;
-    for (const modelCode of row.modelCode ? [row.modelCode] : models) {
+    for (const modelCode of targetModels(row)) {
+      const weightPercent = fractionModels.has(modelCode) ? Math.round(row.weight * 100 * 10000) / 10000 : row.weight;
       out.push({ rowNumber: row.rowNumber, cells: { modelCode, groupCode: row.csi.slice(0, 80), groupName: row.csi, stageCode: `${row.csi} / ${stage}`.slice(0, 80), stageName: stage, activityCode: row.code.slice(0, 80), activityName: row.name, weightPercent } });
     }
   }
-  return { rows: out, errors, ignoredZeroWeight, scaledFromFractions };
+  return { rows: out, errors, ignoredZeroWeight, scaledFromFractions: fractionModels.size > 0 };
 }

@@ -21,6 +21,23 @@ describe("PMC import: reading files", () => {
     expect(parsed.rows[0].cells).toMatchObject({ activityCode: "WALLS", status: "Complete" });
   });
 
+  it("maps villa variants and formatted weight headers in Excel", async () => {
+    const villas = await buildSpreadsheet({ sheetName: "Villas", headers: ["Block No.", "Villa ID", "نوع الفِيلا"], rows: [["B1", 7, "A"]], format: "xlsx" });
+    const weights = await buildSpreadsheet({ sheetName: "Weights", headers: ["CSI Code", "Activity", "Weight (%)"], rows: [["03", "Walls", 100]], format: "xlsx" });
+    const locations = await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: villas });
+    const weighted = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: weights });
+    expect(locations.errors).toEqual([]);
+    expect(locations.rows[0].cells).toMatchObject({ blockCode: "B1", unitNumber: "7", modelCode: "A" });
+    expect(weighted.errors).toEqual([]);
+    expect(weighted.rows[0].cells).toMatchObject({ csi: "03", activityName: "Walls", weight: "100" });
+  });
+
+  it("rejects ambiguous headers before producing any rows", async () => {
+    const parsed = await parsePmcImportFile({ kind: "locations", format: "csv", bytes: csv("Block,Villa No.,Villa ID,Model\nB1,7,8,A\n") });
+    expect(parsed.errors).toEqual([{ rowNumber: 0, code: "IMPORT_AMBIGUOUS_COLUMN", field: "unitNumber", detail: "Villa No. / Villa ID" }]);
+    expect(parsed.rows).toEqual([]);
+  });
+
   it("rejects a missing required column, an unknown column and an unreadable file before any row is read", async () => {
     expect(codes((await parsePmcImportFile({ kind: "status", format: "csv", bytes: csv("Unit,Status\n1,Complete\n") })).errors)).toEqual(["IMPORT_REQUIRED_COLUMN_MISSING"]);
     expect(codes((await parsePmcImportFile({ kind: "status", format: "csv", bytes: csv("Unit,Activity,Status,Colour\n1,W,Complete,red\n") })).errors)).toEqual(["IMPORT_UNSUPPORTED_COLUMN"]);

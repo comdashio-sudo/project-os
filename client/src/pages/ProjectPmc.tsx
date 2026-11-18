@@ -280,6 +280,44 @@ function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: 
   )}</Frame>;
 }
 
+const importGuide = {
+  locations: {
+    ar: "ابدأ بقائمة الفلل. استخدم صفًا لكل فيلا مع رمز البلوك ورقم الفيلا ونوعها. رمز المنطقة اختياري.",
+    en: "Start with the villa list. Use one row per villa with its block code, villa number and model. Zone code is optional.",
+    ur: "ولاز کی فہرست سے شروع کریں۔ ہر ولا کے لیے بلاک کوڈ، ولا نمبر اور ماڈل درج کریں۔ زون کوڈ اختیاری ہے۔",
+  },
+  weights: {
+    ar: "استخدم صفًا لكل نشاط مع القسم واسم النشاط والوزن. إذا لم تحدد النموذج، استورد قائمة الفلل أولًا. مجموع الأوزان لكل نموذج 100٪.",
+    en: "Use one row per activity with its section, name and weight. If the file has no model column, import the villa list first. Weights for each model must total 100%.",
+    ur: "ہر سرگرمی کے لیے سیکشن، نام اور وزن درج کریں۔ ماڈل کا کالم نہ ہو تو پہلے ولاز کی فہرست امپورٹ کریں۔ ہر ماڈل کے وزن کا مجموعہ 100٪ ہونا چاہیے۔",
+  },
+  catalog: {
+    ar: "يعرّف الأنشطة لكل نموذج. أدخل رمز المجموعة والمرحلة ورمز النشاط واسمه والوزن.",
+    en: "Defines activities by model. Enter group and stage codes, the activity code and name, and its weight.",
+    ur: "ہر ماڈل کی سرگرمیاں متعین کریں۔ گروپ اور مرحلے کے کوڈ، سرگرمی کا کوڈ، نام اور وزن درج کریں۔",
+  },
+  status: {
+    ar: "يحدّث حالة نشاط في وحدة. استخدم رقم الوحدة ورمز النشاط والحالة في كل صف.",
+    en: "Updates an activity's status in a unit. Enter the unit number, activity code and status on each row.",
+    ur: "یونٹ میں سرگرمی کی حالت اپ ڈیٹ کریں۔ ہر قطار میں یونٹ نمبر، سرگرمی کوڈ اور حالت درج کریں۔",
+  },
+  requests: {
+    ar: "يسجل طلبات الأنشطة والردود عليها. أدخل رقم الطلب ورمز النشاط وأرقام الوحدات وتاريخ الطلب.",
+    en: "Records activity requests and replies. Enter the request number, activity code, unit numbers and request date.",
+    ur: "سرگرمی کی درخواستیں اور جوابات درج کریں۔ درخواست نمبر، سرگرمی کوڈ، یونٹ نمبرز اور درخواست کی تاریخ درج کریں۔",
+  },
+  baseline: {
+    ar: "يسجل نسبة الإنجاز المخططة لكل نشاط ونموذج في كل شهر.",
+    en: "Records the planned completion percentage for each activity and model by month.",
+    ur: "ہر ماڈل اور سرگرمی کے لیے ماہانہ منصوبہ بند تکمیل کا فیصد درج کریں۔",
+  },
+  baselineDates: {
+    ar: "يدخل تاريخي البداية والنهاية المخططين لكل نشاط ونموذج لحساب النسب الشهرية.",
+    en: "Uses planned start and finish dates for each activity and model to calculate the monthly percentages.",
+    ur: "ماہانہ فیصد نکالنے کے لیے ہر سرگرمی اور ماڈل کی منصوبہ بند آغاز اور تکمیل کی تاریخیں درج کریں۔",
+  },
+};
+
 function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; projectId: string; t: T; isArabic: boolean }) {
   const { language } = useLanguage();
   const [kind, setKind] = useState<"weights" | "locations" | "catalog" | "status" | "requests" | "baseline" | "baselineDates">("weights");
@@ -308,6 +346,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
       <p className="text-sm text-muted-foreground">{t.nothingSaved}</p>
       <WriteGate permission={"project.pmc.manage"} projectId={projectId}><div className="space-y-3">
         <LabelledSelect label={t.importKind} className="text-sm" value={kind} onValueChange={value => setKind(value as typeof kind)} options={Object.entries(t.importKinds).map(([value, label]) => ({ value, label }))} />
+        <p className="text-sm text-muted-foreground">{pickLanguage(language, importGuide[kind])}</p>
         <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
       </div></WriteGate>
       {/* D-59: the site's old workbook — what the site-update screen and the S-curve stand on; their empty states link here (?tab=import) */}
