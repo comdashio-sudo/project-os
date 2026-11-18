@@ -286,6 +286,22 @@ export const projectErrorMessages = {
     en: "This employee number is already in use in this workspace.",
     ur: "یہ ملازم نمبر اس ورک اسپیس میں پہلے ہی استعمال ہو رہا ہے۔",
   },
+  // Q-17 (205-5, G-147): the direct manager of an employee
+  PROJECT_OS_EMPLOYEE_MANAGER_SELF: {
+    ar: "لا يكون الموظف مديرًا مباشرًا لنفسه.",
+    en: "An employee cannot be their own direct manager.",
+    ur: "کوئی ملازم اپنا براہِ راست مینیجر خود نہیں ہو سکتا۔",
+  },
+  PROJECT_OS_EMPLOYEE_MANAGER_INVALID: {
+    ar: "المدير المباشر يجب أن يكون موظفًا نشطًا في الشركة نفسها.",
+    en: "The direct manager must be an active employee of the same company.",
+    ur: "براہِ راست مینیجر اسی کمپنی کا فعال ملازم ہونا چاہیے۔",
+  },
+  PROJECT_OS_EMPLOYEE_MANAGER_LOOP: {
+    ar: "هذا الاختيار يجعل الموظف مديرًا لمديره، فيدور خط التبعية على نفسه.",
+    en: "This choice would make the employee their own manager's manager: the reporting line would loop.",
+    ur: "اس انتخاب سے ملازم اپنے ہی مینیجر کا مینیجر بن جائے گا اور رپورٹنگ لائن دائرے میں گھوم جائے گی۔",
+  },
   PROJECT_OS_EMPLOYEE_LINKED_USER_INVALID: {
     ar: "يمكن ربط بطاقة الموظف بحساب عضو في مساحة العمل فقط.",
     en: "An employee record can only be linked to a workspace member account.",
@@ -989,9 +1005,9 @@ export const projectErrorMessages = {
     ur: "انفرادی اشاریے دیکھنے کے لیے آپ کا اکاؤنٹ کسی فعال ملازم کے ریکارڈ سے جڑا ہونا چاہیے۔",
   },
   PROJECT_OS_PERFORMANCE_SELF_ONLY: {
-    ar: "لا يمكن عرض مؤشرات موظف آخر هنا. تُعرض مؤشراتك الفردية فقط.",
-    en: "Another employee's indicators cannot be viewed here. Only your own individual indicators are shown.",
-    ur: "یہاں کسی دوسرے ملازم کے اشاریے نہیں دیکھے جا سکتے۔ صرف آپ کے اپنے انفرادی اشاریے دکھائے جاتے ہیں۔",
+    ar: "لا يمكن عرض مؤشرات موظف آخر هنا. تُعرض مؤشراتك، ومؤشرات من يتبعك مباشرة إن كنت تدير الأداء في هذا المشروع.",
+    en: "Another employee's indicators cannot be viewed here. You see your own, and those of the people who report to you directly if you manage performance on this project.",
+    ur: "یہاں کسی دوسرے ملازم کے اشاریے نہیں دیکھے جا سکتے۔ آپ اپنے اشاریے دیکھتے ہیں، اور اگر آپ اس منصوبے میں کارکردگی کا انتظام کرتے ہیں تو اپنے براہِ راست ماتحتوں کے بھی۔",
   },
   PROJECT_OS_PERFORMANCE_EXCLUSION_REASON_REQUIRED: {
     ar: "أدخل سببًا موثقًا وواضحًا لاستبعاد هذا السجل من المؤشر.",

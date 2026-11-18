@@ -1,5 +1,5 @@
 {
-  "id": "28c21e21-867b-45c8-9d90-f97d3c683b1d",
+  "id": "03ab14d3-e192-4ca5-876f-e1c388355d83",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -7537,6 +7537,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reports_to_employee_id": {
+          "name": "reports_to_employee_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "retention_policy": {
           "name": "retention_policy",
           "type": "employees_retention_policy",
@@ -7635,6 +7641,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "employees_tenant_reports_to_idx": {
+          "name": "employees_tenant_reports_to_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reports_to_employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -7670,6 +7697,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_reports_to_employee_id_employees_id_fk": {
+          "name": "employees_reports_to_employee_id_employees_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "reports_to_employee_id"
           ],
           "columnsTo": [
             "id"
