@@ -79,13 +79,13 @@ export default function LevelWarehouse() {
     <LevelSection id="warehouse-balance" title={t.balance}>
       <dl className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
         <Figure label={t.materials} value={String(data.totals.materials)} />
-        <Figure label={t.stockValue} value={amount(data.totals.stockValue)} />
+        {data.totals.stockValue === null ? null : <Figure label={t.stockValue} value={amount(data.totals.stockValue)} />}
         <Figure label={t.belowReorder} value={String(data.totals.materialsBelowReorder)} />
       </dl>
       {data.stock.length === 0 ? <p className="text-sm text-muted-foreground">{t.noMovements}</p> : <TableScroll label={t.balance}><table className="w-full min-w-[640px] text-sm">
         <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.code}</th><th scope="col" className="py-2 text-start">{t.description}</th><th scope="col" className="py-2 text-start">{t.quantity}</th><th scope="col" className="py-2 text-start">{t.unit}</th><th scope="col" className="py-2 text-start">{t.value}</th><th scope="col" className="py-2 text-start">{t.reorder}</th></tr></thead>
         <tbody className="divide-y divide-border">{data.stock.map(line => <tr key={line.materialId} data-material-row={line.materialId} className={line.belowReorder ? "bg-warning-soft" : undefined}>
-          <th scope="row" className="py-3 text-start font-medium">{line.code}</th><td className="py-3">{line.description}</td><td className="py-3">{line.quantity}</td><td className="py-3">{line.unit}</td><td className="py-3">{amount(line.value)}</td><td className="py-3">{line.reorderLevel ?? "—"}</td>
+          <th scope="row" className="py-3 text-start font-medium">{line.code}</th><td className="py-3">{line.description}</td><td className="py-3">{line.quantity}</td><td className="py-3">{line.unit}</td><td className="py-3">{line.value === null ? "—" : amount(line.value)}</td><td className="py-3">{line.reorderLevel ?? "—"}</td>
         </tr>)}</tbody>
       </table></TableScroll>}
     </LevelSection>

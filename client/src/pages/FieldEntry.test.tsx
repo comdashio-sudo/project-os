@@ -369,7 +369,7 @@ describe("FieldEntry: receiving against a purchase order (G-031)", () => {
   });
 
   it("issues priced stock at its average and asks for no cost; stock nobody priced still asks for one", () => {
-    load({ ...context, materials: [{ ...context.materials[0], onHand: [{ warehouseId: "w1", quantity: 120, averageCost: 15 }] }, { ...context.materials[1], onHand: [{ warehouseId: "w1", quantity: 5, averageCost: null }] }] });
+    load({ ...context, materials: [{ ...context.materials[0], onHand: [{ warehouseId: "w1", quantity: 120, averageCost: 15, priced: true }] }, { ...context.materials[1], onHand: [{ warehouseId: "w1", quantity: 5, averageCost: null, priced: false }] }] });
     fireEvent.click(screen.getByText("Issue material"));
     fireEvent.click(screen.getByText(/CEM · Cement/));
     expect(screen.queryByLabelText("Unit cost")).toBeNull();
@@ -383,6 +383,19 @@ describe("FieldEntry: receiving against a purchase order (G-031)", () => {
     expect(screen.getByLabelText("Unit cost")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
     expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true); // no average and no typed cost
+  });
+
+  it("Q-32: priced stock shown to someone who may not see money asks for no cost and shows no average or total", () => {
+    load({ ...context, materials: [{ ...context.materials[0], lastUnitCost: null, onHand: [{ warehouseId: "w1", quantity: 120, averageCost: null, priced: true }] }] });
+    fireEvent.click(screen.getByText("Issue material"));
+    fireEvent.click(screen.getByText(/CEM · Cement/));
+    expect(screen.queryByLabelText("Unit cost")).toBeNull();
+    expect(screen.queryByText(/Average cost/)).toBeNull();
+    expect(screen.getByText(/Issued at the stock's average cost/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "10" } });
+    expect(screen.queryByText(/Total/)).toBeNull();
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.issue).toHaveBeenLastCalledWith(expect.objectContaining({ materialId: "m1", issuedQuantity: 10, unitCost: undefined }));
   });
 
   it("cannot save without a quantity, and a typed cost beats the last price", () => {

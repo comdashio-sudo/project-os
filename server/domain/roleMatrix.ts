@@ -87,7 +87,7 @@ export const matrixColumns: readonly MatrixColumn[] = [
       s(DB, "createPurchaseOrderForTenant", "project.procurement.manage"), s(DB, "createGoodsReceiptNoteForTenant", "project.inventory.manage"),
       s(DB, "createMaterialIssueForTenant", "project.inventory.manage"), s(DB, "createProcurementRequisitionForTenant", "project.material.request", "project.procurement.manage"),
     ] },
-  ] },
+  ], note: "Q-32 (قرار المستشار 18-11): أمين المستودع يرى الكميات لا القيمة — قيمة المخزون ومتوسط التكلفة وتكلفة الحركة والصرف تُرجَع لقرّاء مال المشروع فقط (inventoryMoneyVisible = projectMoneyVisible)، وإلا null؛ والمخزون المسعَّر يُصرف بمتوسطه دون عرضه (علامة priced)." },
   { id: "planning", title: "الخطة والتقدم", kind: "screen", actions: [
     { tier: "see", sources: [s(DB, "getProjectResourcesForTenant", "project.read")] },
     { tier: "edit", sources: [

@@ -11,7 +11,7 @@ import { appRouter } from "./routers";
 const SLUG = "q32-mr";
 const SLUG_B = "q32-mr-b";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
-const KEYS = ["owner", "pm", "proc", "keeper", "accountant", "pmElsewhere", "ownerB"] as const;
+const KEYS = ["owner", "pm", "proc", "keeper", "accountant", "pmElsewhere", "ownerB", "site"] as const;
 type Key = (typeof KEYS)[number];
 const ids = {} as Record<Key, number>;
 const callerFor = (key: Key) => appRouter.createCaller({ user: { id: ids[key], openId: `q32m-${key}`, name: `Q32 ${key}`, email: `q32m-${key}@q32.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
@@ -25,7 +25,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["audit_logs", "procurement_requisitions", "material_masters", "project_warehouses"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["audit_logs", "material_issues", "cost_entries", "warehouse_inventory_transactions", "procurement_requisitions", "material_masters", "project_warehouses", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [id]);
       await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -48,7 +48,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-32 (P0-03): the materi
     ({ tenantId: tenantB } = await callerFor("ownerB").tenant.create({ legalName: "Q32 MR Other Co.", slug: SLUG_B, packageCode: "ALL-IN-ONE" }));
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q32-1', 'MR one', 'villas', 'SAR', 'active'), (?, ?, 'Q32-2', 'MR two', 'villas', 'SAR', 'active'), (?, ?, 'Q32-B', 'Other company', 'villas', 'SAR', 'active')", [P, tenantId, P2, tenantId, PB, tenantB]);
     const owner = callerFor("owner");
-    for (const [key, roleCode, project] of [["pm", "PROJECT_MANAGER", P], ["proc", "PROCUREMENT_OFFICER", P], ["keeper", "WAREHOUSE_CUSTODIAN", P], ["accountant", "ACCOUNTANT", P], ["pmElsewhere", "PROJECT_MANAGER", P2]] as const) await owner.tenant.assignMember({ tenantId, targetUserId: ids[key], roleId: await templateRole(roleCode), scopeType: "project", scopeId: project });
+    for (const [key, roleCode, project] of [["pm", "PROJECT_MANAGER", P], ["proc", "PROCUREMENT_OFFICER", P], ["keeper", "WAREHOUSE_CUSTODIAN", P], ["accountant", "ACCOUNTANT", P], ["pmElsewhere", "PROJECT_MANAGER", P2], ["site", "SITE_ENGINEER", P]] as const) await owner.tenant.assignMember({ tenantId, targetUserId: ids[key], roleId: await templateRole(roleCode), scopeType: "project", scopeId: project });
     await connection.query("UPDATE memberships SET status = 'active' WHERE tenantId = ?", [tenantId]);
     ({ id: materialId } = await owner.materials.createMaster({ tenantId, code: "Q32-CEM", description: "Synthetic cement bag", unitOfMeasure: "bag", category: "Concrete" }));
   });
@@ -77,6 +77,31 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-32 (P0-03): the materi
     for (const read of [(c: ReturnType<typeof callerFor>) => c.procurement.register(scope()), (c: ReturnType<typeof callerFor>) => c.materials.list(scope()), (c: ReturnType<typeof callerFor>) => c.warehouses.list(scope())]) expect(await code(read(callerFor("accountant")))).toBe("PROJECT_OS_PERMISSION_DENIED");
     // and nobody gained project.read: the project manager still does not open the whole controls page through this change
     expect(await code(callerFor("pm").projects.getControls(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
+  });
+
+  // Adviser 18-11 (Q-32): the warehouse keeper sees quantities, not value; the value is for the project-money readers (205-1).
+  it("MONEY: the keeper reads quantities with no value, and his issue returns no cost; the owner reads the value; the site engineer's issue list carries no average cost", async () => {
+    const owner = callerFor("owner");
+    const { id: warehouseId } = await owner.warehouses.create({ ...scope(), code: "Q32-WH", name: "Synthetic main store" });
+    await owner.warehouses.recordInventory({ ...scope(), warehouseId, materialId, transactionType: "receipt", quantityDelta: 100, unitCost: 25, referenceNumber: "GRN-Q32-1", note: "Opening receipt", occurredAt: new Date("2026-11-01T00:00:00Z") });
+    const { id: wbsItemId } = await owner.wbs.create({ ...scope(), code: "Q32-W1", name: "Synthetic slab works" });
+    const keeper = callerFor("keeper");
+    const keeperView = await keeper.warehouses.list(scope());
+    expect(keeperView.moneyVisible).toBe(false);
+    expect(keeperView.balances.map(item => [item.quantityOnHand, item.stockValue, item.averageCost, item.priced])).toEqual([["100.000", null, null, true]]);
+    expect(keeperView.transactions.every(item => item.unitCost === null && item.valueDelta === null)).toBe(true);
+    const level = await keeper.scopes.warehouse({ ...scope(), warehouseId });
+    expect([level.moneyVisible, level.totals.stockValue, level.stock.map(line => [line.quantity, line.value])]).toEqual([false, null, [[100, null]]]);
+    expect(level.recentMovements.every(item => item.valueDelta === null)).toBe(true);
+    // the keeper still issues priced stock at its average without seeing it, and the result names no cost
+    const issued = await keeper.warehouses.issueToWork({ ...scope(), warehouseId, materialId, wbsItemId, issuedQuantity: 10, issuedAt: new Date("2026-11-02T00:00:00Z") });
+    expect([issued.totalCost, issued.unitCost, issued.nextQuantity]).toEqual([null, null, 90]);
+    const ownerView = await owner.warehouses.list(scope());
+    expect(ownerView.moneyVisible).toBe(true);
+    expect(ownerView.balances.map(item => [item.quantityOnHand, item.stockValue, item.averageCost])).toEqual([["90.000", "2250.00", "25.0000"]]);
+    expect((await owner.scopes.warehouse({ ...scope(), warehouseId })).totals.stockValue).toBe(2250);
+    const site = (await callerFor("site").fieldEntry.context(scope())).materials.find(item => item.id === materialId)!;
+    expect([site.lastUnitCost, site.onHand.map(shelf => [shelf.quantity, shelf.averageCost, shelf.priced])]).toEqual([null, [[90, null, true]]]);
   });
 
   it("SCOPE: the project manager of another project of the same company does not read this project's requests", async () => {
