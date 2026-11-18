@@ -1971,6 +1971,13 @@
 | المسارات الشقيقة (القاعدة 18) | `SOURCE_VERIFIED` | `readMatrix` (التأكيد) يستعمل `detectTracker` نفسه فيقبل الملف الصغير ويرفض غيره بـ`MATRIX_NOT_RECOGNISED`؛ `confirmSmartUpload` يرفض النوع غير الجدولي قبل `understand`؛ الملف المحفوظ يُعاد بنوعه فقط إن كان في `KINDS`. `detectMatrix` و`detectConsultantExport` يبقيان بحد خمس وحدات: مع نوعهما المختار يُرفض الملف الصغير بالرمز نفسه (لا 500)، وبلا نوع يُقرأ جدولًا — `OPEN`، لم يُغيَّر لأنه خارج الأمر |
 | الأعداد (2026-11-12) | `PROVEN` | `pnpm test:db` ← 641 ناجحًا، 0 فاشل، 20 متخطى (خادم خاص 5438) · `pnpm test` ← 3387 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 · `coverage:trpc` 69 غير مصنّف كما على `main` نفسه، ولا جديد |
 
+### Q-42 (P2-04): طلب مواد مستقبلي من الموقع — تصور فقط (2026-11-18، المبرمج ب، Q-30 بند 5)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| جدول المطابقة: الطلب بتاريخ حاجة لاحق قائم فعلًا (`procurement_requisitions.required_at` إلزامي، والإنشاء لا يمس المخزون، والخصم عند الصرف وحده). الناقص: المستودع والمقاول المستفيد على الطلب، وإرسال مهندس الموقع لطلبه (كل انتقال اليوم يتطلب `project.procurement.manage`)، وعرض «يستحق خلال 7 أيام»، ورفض تاريخ في الماضي | `SOURCE_VERIFIED` | `docs/proposals/future-mr.md` §1 على `main` @ `b79b490` (`server/db.ts` `createProcurementRequisitionForTenant` و`transitionProcurementRequisitionForTenant` و`recordWarehouseInventoryTransactionForTenant`) |
+| التصور: بلا حالة جديدة ولا حجز ولا «كمية ملتزم بها»؛ ترحيلة إضافية بعمودين اختياريين (`warehouse_id`، `beneficiary_contract_id`) مع أثرها وخطة رجوعها؛ إرسال/إلغاء المنشئ لطلبه فقط؛ جدول اختبارات موجب وسالب؛ خمسة أسئلة للمالك | `WRITTEN` | بانتظار موافقة المالك قبل أي ترحيلة أو كود |
+
 ### Q-34: «حاسبة مدد التطوير» تُظهر خطأً عند فتحها (P0، أمر المالك 2026-11-18، المبرمج ج، بلا ترحيلة)
 
 | البند | الحالة | الدليل |
