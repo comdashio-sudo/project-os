@@ -196,11 +196,11 @@ describe("role matrix: the claims the document makes about the code", () => {
     expect(read("drizzle/schema.ts")).not.toMatch(/beneficiar|مستفيد/i);
     expect(matrixColumns.find(column => column.id === "beneficiaries")?.actions).toEqual([]);
   });
-  it("section 1 (Q-17, 205-3): nine of the seventeen templates lack project.read — the money, HR and warehouse roles, the planner, the project manager and the two company views; the field and technical roles carry it", () => {
+  it("section 1 (Q-17, 205-3): nine of the eighteen templates lack project.read — the money, HR and warehouse roles, the planner, the project manager and the two company views; the field and technical roles carry it", () => {
     const without = operationalRoleDefinitions.filter(role => !(role.permissions as readonly string[]).includes("project.read")).map(role => role.code);
     expect(without).toEqual(["WAREHOUSE_CUSTODIAN", "PROCUREMENT_OFFICER", "FINANCE_MANAGER", "ACCOUNTANT", "HR_MANAGER", "PLANNING_ENGINEER", "PROJECT_MANAGER", "EXECUTIVE", "PMO_LEAD"]);
-    for (const field of ["SITE_ENGINEER", "HSE_MANAGER", "QA_QC_MANAGER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL"]) expect(operationalRoleDefinitions.find(role => role.code === field)!.permissions, field).toContain("project.read");
-    expect(operationalRoleDefinitions.length).toBe(17);
+    for (const field of ["SITE_ENGINEER", "HSE_MANAGER", "QA_QC_MANAGER", "PROJECT_COORDINATOR", "DESIGN_COORDINATOR_ARCHITECTURAL", "DESIGN_COORDINATOR_TECHNICAL", "MANAGEMENT_VIEWER"]) expect(operationalRoleDefinitions.find(role => role.code === field)!.permissions, field).toContain("project.read");
+    expect(operationalRoleDefinitions.length).toBe(18);
   });
   it("Q-17 (205-5, G-146): no ready-made template manages the company or reads the executive view, except the executive role's own executive.read", () => {
     const holders = (code: string) => operationalRoleDefinitions.filter(role => (role.permissions as readonly string[]).includes(code)).map(role => role.code);

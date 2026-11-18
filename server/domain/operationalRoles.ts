@@ -117,6 +117,10 @@ export const operationalRoleDefinitions = [
   // The executive and the PMO lead are company-level views of one product each; they open no project.
   { code: "EXECUTIVE", name: "Executive", productCode: "EXECUTIVE", permissions: ["executive.read"] },
   { code: "PMO_LEAD", name: "PMO Lead", productCode: "PMO", permissions: ["pmo.read", "pmo.write"] },
+  // Q-39 (adviser 18-11): the management viewer reads the projects and the PMO view and nothing else — no money (205-1 keeps it behind project.cashflow.read),
+  // no pay, no write, no approval. Whoever needs the money is given EXECUTIVE on top, explicitly. It holds codes of two products: the role is installed
+  // as PROJECT (assigning it needs PROJECT), and pmo.read takes effect only where the company holds PMO (assertTenantAccess checks the product's entitlement).
+  { code: "MANAGEMENT_VIEWER", name: "Management Viewer", permissions: ["project.read", "pmo.read"] },
   // Controls the money without moving it: budgets, actual cost, cash flow, earned value and the levelling of tender bids. Holds neither commitments nor invoice matching.
   { code: "COST_CONTROLLER", name: "Cost Controller", permissions: ["project.read", "project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.evm.manage", "project.tender.level", "project.performance.read_own"] },
   // Keeps the work moving between teams and the consultant: site records, material requests, and the approval side of design (closing comments, recording consultant replies).
