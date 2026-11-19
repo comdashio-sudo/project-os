@@ -1,5 +1,5 @@
 {
-  "id": "d31f8e68-bfe9-423d-a458-338b08672f98",
+  "id": "6d5c0260-9b0a-4a1f-ac9f-6106603a35f7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -24311,6 +24311,12 @@
         "percent_complete": {
           "name": "percent_complete",
           "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remaining_hours": {
+          "name": "remaining_hours",
+          "type": "numeric(10, 2)",
           "primaryKey": false,
           "notNull": false
         },

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "schedule_snapshot_activities" (
 	"actual_finish_at" timestamp with time zone,
 	"total_float_hours" numeric(10, 2),
 	"percent_complete" numeric(5, 2),
+	"remaining_hours" numeric(10, 2),
 	"status" varchar(24) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -57,7 +58,9 @@ CREATE INDEX IF NOT EXISTS "schedule_snapshots_tenant_project_created_idx" ON "s
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "schedule_snapshots_one_baseline_per_project" ON "schedule_snapshots" USING btree ("project_id") WHERE "schedule_snapshots"."is_baseline";
 --> statement-breakpoint
--- the application role writes a snapshot once and reads it: no UPDATE, no DELETE (a snapshot is the record of what a schedule said on that day); the baseline mark is the one column it may move
+-- the privileges the application needs: read and add snapshots, and move the baseline mark. NOTE (review of #400): project_os_apply_conventions(), run after this
+-- file, grants the standard set (UPDATE, DELETE) as on every table, so «a snapshot is never changed or deleted» holds by the code (no path writes one
+-- after it is taken), NOT by the database. Making it a database rule (append-only triggers, as on audit_logs) is OPEN in docs/STATE.md.
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'project_os_app') THEN
     GRANT SELECT, INSERT ON "schedule_snapshots", "schedule_snapshot_activities" TO project_os_app;
@@ -66,6 +69,6 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'schedule_snapshot_activities_snapshot_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0036: the same-project snapshot key is missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'schedule_snapshots_one_baseline_per_project') THEN RAISE EXCEPTION '0036: the one-baseline-per-project index is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'schedule_snapshot_activities_snapshot_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0037: the same-project snapshot key is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'schedule_snapshots_one_baseline_per_project') THEN RAISE EXCEPTION '0037: the one-baseline-per-project index is missing'; END IF;
 END $$;

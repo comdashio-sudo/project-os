@@ -87,6 +87,9 @@ export async function confirmScheduleUpdate(input: Scope & { bytes: Uint8Array; 
     const { plan: current, changes } = await plan(tx as unknown as Reader, input, model, fileHash); // re-counted inside the transaction: the project may have changed since the preview
     if (!current.canConfirm) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: current.issues.slice(0, 20) });
     const now = new Date(); const at = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00Z`) : null);
+    const importId = randomUUID();
+    // Q-23 (G-208): the activities as they stood BEFORE this update, in the same transaction — what undoing it puts back
+    await captureScheduleSnapshot(tx, { tenantId: input.tenantId, projectId: input.projectId, importId, source: "p6_update_before", dataDate: null, userId: input.userId });
     // batched (≤500 rows per UPDATE … FROM (VALUES …)), grouped by what the row changes so a date the file does not carry is never overwritten; every row must be written (bulkUpdate checks the count)
     const scope = { tenantId: input.tenantId, projectId: input.projectId };
     const startOnly = changes.filter(change => change.actualStart && !change.actualFinish);
@@ -100,7 +103,6 @@ export async function confirmScheduleUpdate(input: Scope & { bytes: Uint8Array; 
       rows: finishing.filter(change => !change.actualStart).map(change => ({ id: change.id, values: { actualFinishAt: at(change.actualFinish), status: "completed", percentComplete: "100", remainingHours: "0", updatedAt: now } })) });
     await bulkUpdate(tx, { table: activities, columns: { actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt }, scope,
       rows: finishing.filter(change => change.actualStart).map(change => ({ id: change.id, values: { actualStartAt: at(change.actualStart), actualFinishAt: at(change.actualFinish), status: "completed", percentComplete: "100", remainingHours: "0", updatedAt: now } })) });
-    const importId = randomUUID();
     await tx.insert(dataImports).values({ id: importId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "p6update", templateCode: "p6update_v1", sourceFormat: detectFormat(input.bytes, input.source.name) === "xls" ? "xls" : "xlsx", fileName: input.source.name, fileKey: input.source.key, fileHash, status: "completed",
       totalRows: current.rowsInFile, validRows: current.updated + current.unchanged, invalidRows: current.unknown + current.issues.length, createdRows: 0, updatedRows: current.updated, skippedRows: current.unchanged,
       summaryJson: JSON.stringify({ scheduleUpdate: { updated: current.updated, started: current.started, finished: current.finished, moved: current.moved, unknown: current.unknown } }), createdByUserId: input.userId, progressPercent: 100, completedAt: now });

@@ -1568,6 +1568,7 @@ export const scheduleSnapshotActivities = pgTable(
     actualFinishAt: timestamp("actual_finish_at", { withTimezone: true }),
     totalFloatHours: numeric("total_float_hours", { precision: 10, scale: 2 }),
     percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+    remainingHours: numeric("remaining_hours", { precision: 10, scale: 2 }),
     status: varchar("status", { length: 24 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
