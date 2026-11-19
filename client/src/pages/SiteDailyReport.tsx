@@ -16,7 +16,11 @@ import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
 import { SectionOnlyReport, useReportSections } from "@/components/dailyReport/SectionOnlyReport";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
+import { isNetworkError, type QueueItem, type SendResult } from "@/lib/offlineQueue";
+import { useOfflineQueue } from "@/lib/useOfflineQueue";
+import { offlineReasons } from "@/lib/offlineReasons";
 import { useParams } from "wouter";
 
 // The daily site report on the phone (work order 14, item 1). The site engineer writes it in four short parts — the day, the people and equipment, the work done per
@@ -26,6 +30,7 @@ import { useParams } from "wouter";
 const NONE = "__none";
 const text = {
   ar: {
+    keptOffline: "حُفظ التقرير على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر حفظ التقرير على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.",
     header: "الرأس", weekday: "اليوم", windHours: "الرياح وساعات العمل", inspections: "الفحوصات (WIR/RFI)", materials: "المواد المستلمة", hse: "السلامة (HSE)", tomorrow: "خطة الغد", approval: "الاعتماد", pickRole: "اختر الدور", pickEquipment: "اختر المعدة", noRoles: "لا أدوار عمالة في قائمة المشروع بعد.", seedRoles: "انسخ القائمة الافتراضية", seeded: "أُضيفت الأدوار الافتراضية", noEquipment: "لا معدات في سجل المشروع بعد.", askManager: "يضيفها مدير المشروع.", workers: (n: number) => `المجموع: ${n === 1 ? "عامل واحد" : n === 2 ? "عاملان" : n >= 3 && n <= 10 ? `${n} عمال` : `${n} عاملًا`}`, units: (n: number) => `المجموع: ${n}`, lineCount: (n: number) => `${n} سطر`, matrix: "مصفوفة الشركات والأدوار ونسخ الأمس", statusNow: "حالة التقرير", chain: "سلسلة أعدّه ← راجعه ← اعتمده", 
     title: "التقرير اليومي", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     day: "يوم العمل", weather: "الطقس", temperature: "الحرارة (°م)", summary: "ملخص اليوم", obstacles: "العوائق",
@@ -43,6 +48,7 @@ const text = {
     noPermission: "دورك لا يتيح كتابة التقرير اليومي.", noReview: "اعتماد التقارير لمدير المشروع.", otherReports: "تقارير الآخرين",
   },
   en: {
+    keptOffline: "The report is kept on this phone and will be sent when the connection returns.", notKept: "Could not keep the report on this phone (storage full or blocked). Save again when online.",
     header: "Header", weekday: "Day", windHours: "Wind and working hours", inspections: "Inspections (WIR/RFI)", materials: "Materials received", hse: "Safety (HSE)", tomorrow: "Plan for tomorrow", approval: "Approval", pickRole: "Pick the role", pickEquipment: "Pick the equipment", noRoles: "The project has no labour roles yet.", seedRoles: "Copy the default list", seeded: "Default roles added", noEquipment: "The project has no equipment yet.", askManager: "The project manager adds them.", workers: (n: number) => `Total: ${n} workers`, units: (n: number) => `Total: ${n}`, lineCount: (n: number) => `${n} lines`, matrix: "Company × role matrix and copy from yesterday", statusNow: "Report status", chain: "Prepared → reviewed → approved chain", 
     title: "Daily report", back: "Back to quick entry", loading: "Loading…", retry: "Retry",
     day: "Work day", weather: "Weather", temperature: "Temperature (°C)", summary: "Summary of the day", obstacles: "Obstacles",
@@ -60,6 +66,7 @@ const text = {
     noPermission: "Your role does not allow writing the daily report.", noReview: "Approving reports belongs to the project manager.", otherReports: "Other people's reports",
   },
   ur: {
+    keptOffline: "رپورٹ اس فون پر محفوظ ہو گئی، کنکشن واپس آنے پر بھیجی جائے گی۔", notKept: "رپورٹ فون پر محفوظ نہ ہو سکی (اسٹوریج بھرا یا بند)۔ کنکشن پر دوبارہ محفوظ کریں۔",
     header: "سرخی", weekday: "دن", windHours: "ہوا اور کام کے اوقات", inspections: "معائنے (WIR/RFI)", materials: "موصول شدہ مواد", hse: "حفاظت (HSE)", tomorrow: "کل کا منصوبہ", approval: "منظوری", pickRole: "کردار منتخب کریں", pickEquipment: "سازوسامان منتخب کریں", noRoles: "پروجیکٹ میں ابھی مزدوروں کے کردار نہیں۔", seedRoles: "پہلے سے طے شدہ فہرست نقل کریں", seeded: "پہلے سے طے شدہ کردار شامل ہو گئے", noEquipment: "پروجیکٹ میں ابھی کوئی سازوسامان نہیں۔", askManager: "پروجیکٹ مینیجر انہیں شامل کرتا ہے۔", workers: (n: number) => `کل: ${n} مزدور`, units: (n: number) => `کل: ${n}`, lineCount: (n: number) => `${n} سطریں`, matrix: "کمپنی × کردار میٹرکس اور کل سے نقل", statusNow: "رپورٹ کی حالت", chain: "تیار ← جائزہ ← منظوری کا سلسلہ", 
     title: "روزانہ رپورٹ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش",
     day: "کام کا دن", weather: "موسم", temperature: "درجۂ حرارت (°C)", summary: "دن کا خلاصہ", obstacles: "رکاوٹیں",
@@ -144,8 +151,18 @@ export default function SiteDailyReport() {
   const detail = trpc.siteReports.get.useQuery({ ...scope, reportId: reportId ?? "" }, { enabled: enabled && Boolean(reportId) });
   const upload = useDirectUpload({ tenantId, projectId, purpose: "sitePhoto" });
 
+  // Q-24 (P-120): a save that cannot reach the server is kept on this phone (with when it was kept) and sent when the connection returns; a report saved
+  // after it was kept is not overwritten — the server refuses (PROJECT_OS_SITE_REPORT_CHANGED_SINCE) and the refusal is shown here
+  const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const client = utils.client;
+  const sendKept = useCallback(async (item: QueueItem): Promise<SendResult> => { await client.siteReports.save.mutate({ ...item.payload, clientRequestId: item.id } as never); }, [client]);
+  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:siteReport` : null, sendKept);
   const save = trpc.siteReports.save.useMutation({
     onSuccess: result => { setReportId(result.id); setMessage(t.saved); void utils.siteReports.list.invalidate(); },
+    onError: (error, variables) => {
+      if (!isNetworkError(error) || !variables.clientRequestId) return;
+      setMessage(queue.keep({ id: variables.clientRequestId, kind: "siteReport", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${t.title} · ${variables.reportDate}` }) ? t.keptOffline : t.notKept);
+    },
   });
   const submit = trpc.siteReports.submit.useMutation({
     onSuccess: () => { setLocked(true); setMessage(t.submitted); void utils.siteReports.list.invalidate(); },
@@ -191,7 +208,7 @@ export default function SiteDailyReport() {
   const weatherName: Record<string, string> = { clear: t.weatherClear, cloudy: t.weatherCloudy, rain: t.weatherRain, dust: t.weatherDust, hot: t.weatherHot, windy: t.weatherWindy };
   const reports = list.data ?? [];
   const waiting = reports.filter(report => report.status === "submitted");
-  const error = save.error ?? submit.error ?? attach.error ?? detail.error ?? copy.error;
+  const error = (save.error && !isNetworkError(save.error) ? save.error : null) ?? submit.error ?? attach.error ?? detail.error ?? copy.error; // a save kept offline is not an error
 
   const addPhoto = async (file: File | undefined) => {
     if (!file || !reportId) return;
@@ -265,10 +282,11 @@ export default function SiteDailyReport() {
 
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
+      <OfflineQueuePanel identityError={me.error} items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} reason={item => offlineReasons(item.error, {}, language)} language={language} />
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
         {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
-        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate(body()); }}>
+        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate({ ...body(), clientRequestId: crypto.randomUUID() }); }}>
           {!reportId && !locked && (
             <div className="space-y-1 rounded-xl border bg-card p-3" data-copy-yesterday>
               <Button type="button" variant="outline" className={tap} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date }); }}>{coreText.copy}</Button>

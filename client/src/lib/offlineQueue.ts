@@ -3,7 +3,8 @@ import { projectErrorCode } from "./errorCode";
 // with the identifier it was first sent with, and is sent again, one at a time and in order, when the phone is back
 // online. The server answers a repeated identifier with the stored first answer (client_requests), so a request whose
 // reply was lost on the way back is never applied twice.
-export type QueueKind = "progress" | "issue" | "team" | "receipt";
+// Q-24 (P-120): «pmcProgress», «qcReceipt» and «siteReport» — the PMC progress update, the QC receipt and the daily report, kept the same way
+export type QueueKind = "progress" | "issue" | "team" | "receipt" | "pmcProgress" | "qcReceipt" | "siteReport";
 export type QueueItem = { id: string; kind: QueueKind; payload: Record<string, unknown>; summary: string; createdAt: string; status: "pending" | "failed"; error?: string; busyAnswers?: number };
 export type SendResult = void | { rejected: string };
 export type QueueStore = Pick<Storage, "getItem" | "setItem">;
@@ -11,7 +12,7 @@ export type QueueStore = Pick<Storage, "getItem" | "setItem">;
 /** The server says the same request is still running (or its outcome is not known). Asked again a few times before it is shown to the person as failed. */
 export const IN_PROGRESS_CODE = "PROJECT_OS_CLIENT_REQUEST_IN_PROGRESS";
 export const MAX_BUSY_ANSWERS = 5;
-const DATE_FIELDS = ["reportedAt", "issuedAt", "workDate", "receivedAt"];
+const DATE_FIELDS = ["reportedAt", "issuedAt", "workDate", "receivedAt"]; // `queuedAt` stays a string: the server reads it as one
 const keyFor = (scope: string) => `projectOs.offlineQueue.v1:${scope}`;
 const defaultStore = (): QueueStore | null => { try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; } };
 

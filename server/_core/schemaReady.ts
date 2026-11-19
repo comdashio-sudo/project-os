@@ -64,7 +64,21 @@ export const REQUIRED_SCHEMA = [
   { migration: "0034_weekly_reports", kind: "table", table: "weekly_report_photos" },
   { migration: "0035_stocktakes", kind: "table", table: "stocktakes" },
   { migration: "0035_stocktakes", kind: "table", table: "stocktake_lines" },
+  { migration: "0037_schedule_snapshots", kind: "table", table: "schedule_snapshots" },
+  { migration: "0037_schedule_snapshots", kind: "table", table: "schedule_snapshot_activities" },
   { migration: "0036_qc_receipt_batch_id", kind: "column", table: "pmc_qc_receipt_events", column: "batch_id" },
+  // G-209: a trigger is present when the table carries it by that name
+  { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activity_code_assignments", column: "activity_code_assignments_same_project" },
+  { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activity_resource_assignments", column: "activity_resource_assignments_same_project" },
+  { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activity_code_values", column: "activity_code_values_same_project" },
+  { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activities", column: "activities_calendar_same_project" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meetings" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meeting_attendees" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meeting_items" },
+  { migration: "0039_project_meetings", kind: "column", table: "actions", column: "meeting_id" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meetings", column: "project_meetings_issue_only" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meeting_items", column: "project_meeting_items_append_only" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meeting_attendees", column: "project_meeting_attendees_append_only" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -97,6 +111,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = ${item.table} AND e.enumlabel = ${item.column}) AS present`)).rows[0]?.present
         : item.kind === "unique-index-confirmed-only"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
+        : item.kind === "trigger"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = ${`public.${item.table}`}::regclass AND tgname = ${item.column} AND NOT tgisinternal) AS present`)).rows[0]?.present
         : item.kind === "immutable-column-locked"
         ? (await db.execute(sql`SELECT (current_user <> 'project_os_app') OR NOT has_column_privilege(current_user, ${`public.${item.table}`}, ${item.column}, 'UPDATE') AS present`)).rows[0]?.present
         : (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${item.table} AND column_name = ${item.column}) AS present`)).rows[0]?.present;

@@ -7,10 +7,10 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { auditLogs, pmcActivityDefinitions, pmcBlocks, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { authorize, mine, type Scope } from "./pmcService";
-import { resolveVillaBatch } from "./pmcProgressUpdate";
+import { assertCellsNotChangedSince, resolveVillaBatch } from "./pmcProgressUpdate";
 import { villaKey } from "./wo22Shared";
 
-export type QcReceiptInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; received: boolean; date: string };
+export type QcReceiptInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; received: boolean; date: string; queuedAt?: string };
 
 export async function updatePmcQcReceipts(input: QcReceiptInput) {
   const db = await authorize(input, "project.qc.receive");
@@ -19,6 +19,7 @@ export async function updatePmcQcReceipts(input: QcReceiptInput) {
   const now = new Date();
   const batchId = randomUUID(); // Q-44: the save's id, on each event and the audit row, so it can be undone
   return db.transaction(async tx => {
+    await assertCellsNotChangedSince(tx, input, pmcQcReceipts, targets); // Q-24: a receipt kept offline does not overwrite one recorded after it
     const existing = await tx.select({ id: pmcQcReceipts.id, unitId: pmcQcReceipts.unitId, activityDefinitionId: pmcQcReceipts.activityDefinitionId, received: pmcQcReceipts.received, receivedOn: pmcQcReceipts.receivedOn })
       .from(pmcQcReceipts).where(and(mine(pmcQcReceipts, input), inArray(pmcQcReceipts.unitId, unitIds)));
     const byKey = new Map(existing.map(row => [`${row.unitId}/${row.activityDefinitionId}`, row]));

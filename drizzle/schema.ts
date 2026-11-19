@@ -1529,6 +1529,124 @@ export const materialReturns = pgTable(
 // counted, and the variance. While it is being counted nothing moves in the books; approving it (by someone other than the person who opened it) posts one
 // adjustment per material that differs, with the stocktake's number and reason, in the same transaction as the approval and its audit row.
 export const stocktakesStatusEnum = pgEnum("stocktakes_status", ["counting", "approved"]);
+// Q-25 (P-113): a project meeting — its type, when and where, who attended, the minutes item by item, and the actions it raised (in `actions`, by
+// meeting_id). «Issued» minutes are final: nothing is added after. The previous meeting of the series is named, so the open actions carry forward.
+export const projectMeetings = pgTable(
+  "project_meetings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    meetingType: varchar("meeting_type", { length: 24 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    heldAt: timestamp("held_at", { withTimezone: true }).notNull(),
+    location: varchar("location", { length: 255 }),
+    previousMeetingId: varchar("previous_meeting_id", { length: 36 }),
+    status: varchar("status", { length: 16 }).default("draft").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    unique("project_meetings_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    index("project_meetings_tenant_project_held_idx").on(table.tenantId, table.projectId, table.heldAt),
+    check("project_meetings_type_check", sql`${table.meetingType} IN ('progress', 'coordination', 'safety', 'client', 'design', 'other')`),
+    check("project_meetings_status_check", sql`${table.status} IN ('draft', 'issued')`),
+    foreignKey({ columns: [table.previousMeetingId, table.tenantId, table.projectId], foreignColumns: [table.id, table.tenantId, table.projectId], name: "project_meetings_previous_fk" }),
+  ],
+);
+
+export const projectMeetingAttendees = pgTable(
+  "project_meeting_attendees",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    meetingId: varchar("meeting_id", { length: 36 }).notNull(),
+    membershipId: varchar("membership_id", { length: 36 }).references(() => memberships.id),
+    name: varchar("name", { length: 160 }).notNull(),
+    organisation: varchar("organisation", { length: 160 }),
+    present: boolean("present").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    index("project_meeting_attendees_meeting_idx").on(table.tenantId, table.meetingId),
+    foreignKey({ columns: [table.meetingId, table.tenantId, table.projectId], foreignColumns: [projectMeetings.id, projectMeetings.tenantId, projectMeetings.projectId], name: "project_meeting_attendees_meeting_fk" }),
+  ],
+);
+
+export const projectMeetingItems = pgTable(
+  "project_meeting_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    meetingId: varchar("meeting_id", { length: 36 }).notNull(),
+    itemNumber: integer("item_number").notNull(),
+    topic: varchar("topic", { length: 255 }).notNull(),
+    discussion: text("discussion"),
+    decision: text("decision"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("project_meeting_items_number_unique").on(table.meetingId, table.itemNumber),
+    foreignKey({ columns: [table.meetingId, table.tenantId, table.projectId], foreignColumns: [projectMeetings.id, projectMeetings.tenantId, projectMeetings.projectId], name: "project_meeting_items_meeting_fk" }),
+  ],
+);
+
+// Q-23 (P-105..P-107): the live schedule. Every P6 import or update keeps a SNAPSHOT of the project's activities as they stood after it (dates, float, completion),
+// in the same transaction, so a later read can show each activity's deviation from the baseline (the first snapshot, or the one marked baseline), the
+// planned-against-actual at the data date, and two updates side by side. Snapshots are a record: never edited, never deleted by the application. Migration 0036.
+export const scheduleSnapshots = pgTable(
+  "schedule_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    importId: varchar("import_id", { length: 36 }),
+    source: varchar("source", { length: 24 }).notNull(),
+    dataDate: timestamp("data_date", { withTimezone: true }),
+    isBaseline: boolean("is_baseline").default(false).notNull(),
+    activityCount: integer("activity_count").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    unique("schedule_snapshots_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    index("schedule_snapshots_tenant_project_created_idx").on(table.tenantId, table.projectId, table.createdAt),
+    uniqueIndex("schedule_snapshots_one_baseline_per_project").on(table.projectId).where(sql`${table.isBaseline}`),
+  ],
+);
+export const scheduleSnapshotActivities = pgTable(
+  "schedule_snapshot_activities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    snapshotId: varchar("snapshot_id", { length: 36 }).notNull(),
+    activityId: varchar("activity_id", { length: 36 }).notNull(),
+    code: varchar("code", { length: 80 }).notNull(),
+    plannedStartAt: timestamp("planned_start_at", { withTimezone: true }),
+    plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }),
+    actualStartAt: timestamp("actual_start_at", { withTimezone: true }),
+    actualFinishAt: timestamp("actual_finish_at", { withTimezone: true }),
+    totalFloatHours: numeric("total_float_hours", { precision: 10, scale: 2 }),
+    percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+    remainingHours: numeric("remaining_hours", { precision: 10, scale: 2 }),
+    status: varchar("status", { length: 24 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.snapshotId, table.tenantId, table.projectId], foreignColumns: [scheduleSnapshots.id, scheduleSnapshots.tenantId, scheduleSnapshots.projectId], name: "schedule_snapshot_activities_snapshot_fk" }),
+    uniqueIndex("schedule_snapshot_activities_snapshot_activity_unique").on(table.snapshotId, table.activityId),
+  ],
+);
+
 export const stocktakes = pgTable(
   "stocktakes",
   {
@@ -1884,11 +2002,14 @@ export const actions = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }),
     evidenceDocumentId: varchar("evidence_document_id", { length: 36 }),
     escalationStatus: actionsEscalationStatusEnum("escalation_status").default("none").notNull(),
+    // Q-25 (P-113): the meeting that raised the action (its minutes), if any — same project, by the composite key below
+    meetingId: varchar("meeting_id", { length: 36 }),
     status: actionsStatusEnum("status").default("open").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [index("actions_tenant_project_due_idx").on(table.tenantId, table.projectId, table.dueAt)],
+  table => [index("actions_tenant_project_due_idx").on(table.tenantId, table.projectId, table.dueAt), index("actions_meeting_idx").on(table.tenantId, table.meetingId),
+    foreignKey({ columns: [table.meetingId, table.tenantId, table.projectId], foreignColumns: [projectMeetings.id, projectMeetings.tenantId, projectMeetings.projectId], name: "actions_meeting_fk" })],
 );
 
 export const decisionsStatusEnum = pgEnum("decisions_status", ["draft", "submitted", "approved", "rejected", "implemented"]);

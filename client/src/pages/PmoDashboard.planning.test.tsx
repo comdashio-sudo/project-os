@@ -7,6 +7,7 @@ import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false, linkMutate: vi.fn() }));
 
+vi.mock("@/components/OwnerSelect", () => ({ OwnerSelect: () => null }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1" }), Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
@@ -48,6 +49,13 @@ describe("PmoDashboard planning control center", () => {
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(4);
     fireEvent.change(screen.getByLabelText("Projects"), { target: { value: "all" } });
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(5);
+  });
+
+  it("Q-37 (a): the portfolio and program setup explains the three levels and puts a required/optional line under every field", () => {
+    render(<PmoDashboard />);
+    expect(document.querySelector("[data-pmo-setup-guide]")!.textContent).toContain("Portfolio, program and project: what is the difference?");
+    const fields = Array.from(document.querySelectorAll("[data-field-help]")).map(node => node.getAttribute("data-field-help"));
+    expect(fields).toEqual(["code", "name", "programPortfolio", "code", "name", "linkProject", "linkProgram", "linkPortfolio"]);
   });
 
   it("renders a material shortage in the existing today exceptions center", () => {

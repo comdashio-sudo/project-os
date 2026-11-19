@@ -54,4 +54,15 @@ describe("PmcColumnMapping (Q-31)", () => {
     fireEvent.click(button);
     expect(state.mutate).not.toHaveBeenCalled();
   });
+
+  it("an operational ledger names its own fields (Q-31 remainder); a field the caller does not name shows its key", () => {
+    const ledger = { headers: ["Spend date", "Value"], fields: [{ key: "incurredAt", required: true, header: null }, { key: "amount", required: true, header: "Value" }, { key: "category", required: false, header: null }], overridden: false };
+    render(<PmcColumnMapping tenantId="t-1" projectId="p-1" importId="i-1" columns={ledger} language="en" isArabic={false} fieldLabel={key => ({ incurredAt: "Cost Date", amount: "Amount (SAR)" } as Record<string, string>)[key]} />);
+    expect((screen.getByLabelText("Amount (SAR)") as HTMLSelectElement).value).toBe("Value");
+    expect(screen.getByLabelText("category")).toBeTruthy();
+    expect(screen.queryByLabelText("Block code")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Cost Date"), { target: { value: "Spend date" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these columns" }));
+    expect(state.mutate.mock.calls[0][0].mappingOverride).toEqual({ incurredAt: "Spend date", amount: "Value", category: "", __others__: "ignore" });
+  });
 });

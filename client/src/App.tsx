@@ -10,7 +10,7 @@ import NotFound from "./pages/NotFound";
 import RequireAuth from "./components/RequireAuth";
 import { ContentSkeleton } from "./components/ShellSkeleton";
 import { PageGate, PermissionProvider } from "./lib/permissions";
-import type { PageKey } from "@shared/pageAccess";
+import { IMPORT_HUB_READERS, REPORTS_HUB_READERS, SITE_HUB_READERS, type PageKey } from "@shared/pageAccess";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { ProductShell, isFramedPath } from "./components/ProductShell";
 import { Suspense, lazy, type ComponentType } from "react";
@@ -26,6 +26,7 @@ const EvmCalculator = lazyPage(lazy(() => import("./pages/EvmCalculator")));
 const ExecutiveDashboard = lazyPage(lazy(() => import("./pages/ExecutiveDashboard")));
 const ProjectControls = lazyPage(lazy(() => import("./pages/ProjectControls")));
 const MyPerformance = lazyPage(lazy(() => import("./pages/MyPerformance")));
+const MyWork = lazyPage(lazy(() => import("./pages/MyWork")));
 const ProjectRegistry = lazyPage(lazy(() => import("./pages/ProjectRegistry")));
 const SetupWizard = lazyPage(lazy(() => import("./pages/SetupWizard")));
 const MyCompanies = lazyPage(lazy(() => import("./pages/MyCompanies")));
@@ -53,6 +54,11 @@ const PmcSiteUpdate = lazyPage(lazy(() => import("./pages/PmcSiteUpdate")));
 const PmcProgressUpdate = lazyPage(lazy(() => import("./pages/PmcProgressUpdate")));
 const PmcQcReceipt = lazyPage(lazy(() => import("./pages/PmcQcReceipt")));
 const StalledUnits = lazyPage(lazy(() => import("./pages/StalledUnits")));
+const ProjectMeetings = lazyPage(lazy(() => import("./pages/ProjectMeetings")));
+const ProjectSite = lazyPage(lazy(() => import("./pages/ProjectSite")));
+const ProjectReports = lazyPage(lazy(() => import("./pages/ProjectReports")));
+const ProjectImportHub = lazyPage(lazy(() => import("./pages/ProjectImportHub")));
+const LiveSchedule = lazyPage(lazy(() => import("./pages/LiveSchedule")));
 const LevelEntry = lazyPage(lazy(() => import("./pages/LevelEntry")));
 const LevelCompany = lazyPage(lazy(() => import("./pages/LevelCompany")));
 const LevelPortfolio = lazyPage(lazy(() => import("./pages/LevelPortfolio")));
@@ -90,6 +96,7 @@ const ProtectedPeople = withAuth(EmployeeRegistry);
 const ProtectedPayroll = withAuth(PayrollWorkspace);
 const ProtectedAdministration = withAuth(TenantAdministration);
 const ProtectedMyPerformance = withAuth(MyPerformance);
+const ProtectedMyWork = withAuth(MyWork);
 // D-20 (G-160/G-161): a project page opened by its address without what its server read needs shows the translated «no permission» page (PageGate)
 // Q-33: every page of shared/pageAccess.ts, not only six — the controls page, the field entry and its quality, progress and QC screens included
 function gatedPage<P extends object>(Page: React.ComponentType<P>, page: PageKey) {
@@ -105,11 +112,22 @@ const ProtectedFieldEntry = withAuth(gatedPage(FieldEntry, "fieldEntry"));
 const ProtectedQuickIssue = withAuth(QuickIssue);
 const ProtectedPmc = withAuth(gatedPage(ProjectPmc, "pmc"));
 const ProtectedBaseline = withAuth(gatedPage(ProjectBaseline, "baseline"));
-const ProtectedSiteConsultant = withAuth(PmcSiteConsultant);
-const ProtectedSiteUpdate = withAuth(PmcSiteUpdate);
+const ProtectedSiteConsultant = withAuth(gatedPage(PmcSiteConsultant, "siteConsultant"));
+const ProtectedSiteUpdate = withAuth(gatedPage(PmcSiteUpdate, "siteUpdate"));
 const ProtectedProgressUpdate = withAuth(gatedPage(PmcProgressUpdate, "progress"));
 const ProtectedQcReceipt = withAuth(gatedPage(PmcQcReceipt, "qc"));
 const ProtectedStalledUnits = withAuth(gatedPage(StalledUnits, "stalled"));
+const ProtectedProjectMeetings = withAuth(gatedPage(ProjectMeetings, "meetings"));
+// Q-36 (2 b): the site's entry page opens for whoever may open one of its four pages; each card has its own gate (shared/pageAccess.ts SITE_HUB_PAGES)
+function SiteHubGate() { const { projectId } = useParams<{ projectId: string }>(); return <PageGate permission={SITE_HUB_READERS} projectId={projectId}><ProjectSite /></PageGate>; }
+const ProtectedSite = withAuth(SiteHubGate);
+// Q-36 (2 c): the reports' entry page, the same way (shared/pageAccess.ts REPORTS_HUB_PAGES)
+function ReportsHubGate() { const { projectId } = useParams<{ projectId: string }>(); return <PageGate permission={REPORTS_HUB_READERS} projectId={projectId}><ProjectReports /></PageGate>; }
+const ProtectedReports = withAuth(ReportsHubGate);
+// Q-36 (3 c): one entry for every import, the same way (shared/pageAccess.ts IMPORT_HUB_PAGES)
+function ImportHubGate() { const { projectId } = useParams<{ projectId: string }>(); return <PageGate permission={IMPORT_HUB_READERS} projectId={projectId}><ProjectImportHub /></PageGate>; }
+const ProtectedImportHub = withAuth(ImportHubGate);
+const ProtectedLiveSchedule = withAuth(gatedPage(LiveSchedule, "schedule"));
 const ProtectedProjects = withAuth(ProjectRegistry); // the registry shows its own «no permission» card (ProjectRegistry: ErrorState); its links are gated (registry)
 const ProtectedSetup = withAuth(SetupWizard);
 const ProtectedMyCompanies = withAuth(MyCompanies);
@@ -124,14 +142,14 @@ const ProtectedLevelProject = withAuth(LevelProject);
 const ProtectedLevelWarehouse = withAuth(LevelWarehouse);
 const ProtectedSiteReport = withAuth(SiteDailyReport);
 const ProtectedSubmittals = withAuth(ProjectSubmittals);
-const ProtectedWeeklyReport = withAuth(WeeklyReport);
-const ProtectedMonthlyReport = withAuth(MonthlyReport);
+const ProtectedWeeklyReport = withAuth(gatedPage(WeeklyReport, "weeklyReport"));
+const ProtectedMonthlyReport = withAuth(gatedPage(MonthlyReport, "monthlyReport"));
 const ProtectedQuality = withAuth(gatedPage(ProjectQuality, "quality"));
 const ProtectedUnitCard = withAuth(UnitCard);
 const ProtectedIntegrations = withAuth(IntegrationSettings);
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/design-preview/frame/:direction/:screen" component={ProtectedDesignFrame} /><Route path="/design-preview" component={ProtectedDesignPreview} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/companies" component={ProtectedMyCompanies} /><Route path="/companies/:tenantId" component={ProtectedMyCompanies} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/levels/:tenantId" component={ProtectedLevelEntry} /><Route path="/levels/:tenantId/company" component={ProtectedLevelCompany} /><Route path="/levels/:tenantId/portfolio" component={ProtectedLevelPortfolio} /><Route path="/levels/:tenantId/projects/:projectId" component={ProtectedLevelProject} /><Route path="/levels/:tenantId/projects/:projectId/warehouse" component={ProtectedLevelWarehouse} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/platform" component={ProtectedPlatform} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId/report" component={ProtectedSiteReport} /><Route path="/m/:tenantId/:projectId/site-update" component={ProtectedSiteUpdate} /><Route path="/m/:tenantId/:projectId/progress" component={ProtectedProgressUpdate} /><Route path="/m/:tenantId/:projectId/qc" component={ProtectedQcReceipt} /><Route path="/m/:tenantId/:projectId/unit/:unitNumber" component={ProtectedUnitCard} /><Route path="/projects/:tenantId/:projectId/submittals" component={ProtectedSubmittals} /><Route path="/projects/:tenantId/:projectId/quality" component={ProtectedQuality} /><Route path="/integrations/:tenantId" component={ProtectedIntegrations} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/site-consultant" component={ProtectedSiteConsultant} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/stalled" component={ProtectedStalledUnits} /><Route path="/projects/:tenantId/:projectId/baseline" component={ProtectedBaseline} /><Route path="/projects/:tenantId/:projectId/team" component={ProtectedTeam} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/planner/:tenantId" component={ProtectedPlanner} /><Route path="/projects/:tenantId/:projectId/weekly-report" component={ProtectedWeeklyReport} /><Route path="/projects/:tenantId/:projectId/monthly-report" component={ProtectedMonthlyReport} /><Route path="/projects/:tenantId/new" component={ProtectedSetupWizard} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={Login} /><Route path="/design-preview/frame/:direction/:screen" component={ProtectedDesignFrame} /><Route path="/design-preview" component={ProtectedDesignPreview} /><Route path="/profile" component={ProtectedProfile} /><Route path="/evm" component={ProtectedEvm} /><Route path="/invite/accept" component={AcceptInvitation} /><Route path="/companies" component={ProtectedMyCompanies} /><Route path="/companies/:tenantId" component={ProtectedMyCompanies} /><Route path="/setup" component={ProtectedSetup} /><Route path="/setup/:tenantId" component={ProtectedSetup} /><Route path="/levels/:tenantId" component={ProtectedLevelEntry} /><Route path="/levels/:tenantId/company" component={ProtectedLevelCompany} /><Route path="/levels/:tenantId/portfolio" component={ProtectedLevelPortfolio} /><Route path="/levels/:tenantId/projects/:projectId" component={ProtectedLevelProject} /><Route path="/levels/:tenantId/projects/:projectId/warehouse" component={ProtectedLevelWarehouse} /><Route path="/my-work/:tenantId" component={ProtectedMyWork} /><Route path="/executive/:tenantId" component={ProtectedExecutive} /><Route path="/pmo/:tenantId" component={ProtectedPmo} /><Route path="/platform" component={ProtectedPlatform} /><Route path="/licensing/:tenantId" component={ProtectedLicensing} /><Route path="/billing/:tenantId" component={ProtectedBilling} /><Route path="/support/:tenantId" component={ProtectedSupport} /><Route path="/people/:tenantId" component={ProtectedPeople} /><Route path="/payroll/:tenantId" component={ProtectedPayroll} /><Route path="/tenants/:tenantId/administration" component={ProtectedAdministration} /><Route path="/projects/:tenantId/:projectId/my-performance" component={ProtectedMyPerformance} /><Route path="/projects/:tenantId/:projectId/controls" component={ProtectedControls} /><Route path="/projects/:tenantId/:projectId/commercial" component={ProtectedCommercial} /><Route path="/projects/:tenantId/:projectId/profitability" component={ProtectedProfitability} /><Route path="/m/:tenantId/:projectId/issue" component={ProtectedQuickIssue} /><Route path="/m/:tenantId/:projectId/report" component={ProtectedSiteReport} /><Route path="/m/:tenantId/:projectId/site-update" component={ProtectedSiteUpdate} /><Route path="/m/:tenantId/:projectId/progress" component={ProtectedProgressUpdate} /><Route path="/m/:tenantId/:projectId/qc" component={ProtectedQcReceipt} /><Route path="/m/:tenantId/:projectId/unit/:unitNumber" component={ProtectedUnitCard} /><Route path="/projects/:tenantId/:projectId/submittals" component={ProtectedSubmittals} /><Route path="/projects/:tenantId/:projectId/quality" component={ProtectedQuality} /><Route path="/integrations/:tenantId" component={ProtectedIntegrations} /><Route path="/m/:tenantId/:projectId" component={ProtectedFieldEntry} /><Route path="/projects/:tenantId/:projectId/site-consultant" component={ProtectedSiteConsultant} /><Route path="/projects/:tenantId/:projectId/pmc" component={ProtectedPmc} /><Route path="/projects/:tenantId/:projectId/stalled" component={ProtectedStalledUnits} /><Route path="/projects/:tenantId/:projectId/site" component={ProtectedSite} /><Route path="/projects/:tenantId/:projectId/reports" component={ProtectedReports} /><Route path="/projects/:tenantId/:projectId/import" component={ProtectedImportHub} /><Route path="/projects/:tenantId/:projectId/meetings" component={ProtectedProjectMeetings} /><Route path="/projects/:tenantId/:projectId/schedule" component={ProtectedLiveSchedule} /><Route path="/projects/:tenantId/:projectId/baseline" component={ProtectedBaseline} /><Route path="/projects/:tenantId/:projectId/team" component={ProtectedTeam} /><Route path="/projects/:tenantId/:projectId/guide" component={ProtectedGuide} /><Route path="/planner/:tenantId" component={ProtectedPlanner} /><Route path="/projects/:tenantId/:projectId/weekly-report" component={ProtectedWeeklyReport} /><Route path="/projects/:tenantId/:projectId/monthly-report" component={ProtectedMonthlyReport} /><Route path="/projects/:tenantId/new" component={ProtectedSetupWizard} /><Route path="/projects/:tenantId" component={ProtectedProjects} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {

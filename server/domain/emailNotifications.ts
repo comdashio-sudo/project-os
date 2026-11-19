@@ -126,3 +126,41 @@ export function stalledUnitsEmail(input: { date: string; projectCode: string; pr
     link: input.link,
   });
 }
+
+/** Q-26 (P-119): one project's overdue items in the daily deadlines mail (server/deadlineAlerts.ts builds them). */
+export type DeadlineDigestProject = {
+  code: string; name: string;
+  activities: ReadonlyArray<{ code: string; name: string; daysLate: number }>;
+  actions: ReadonlyArray<{ title: string; daysLate: number }>;
+  rfis: ReadonlyArray<{ number: string; title: string; daysLate: number }>;
+  submittals: ReadonlyArray<{ number: string; title: string; daysLate: number }>;
+};
+
+/** Q-26 (P-119): the one daily mail of what is overdue for this person, project by project. Nothing overdue means no mail. */
+export function deadlinesEmail(input: { date: string; projects: readonly DeadlineDigestProject[]; link: string | null }): BuiltEmail | null {
+  const count = (p: DeadlineDigestProject) => p.activities.length + p.actions.length + p.rfis.length + p.submittals.length;
+  const total = input.projects.reduce((sum, p) => sum + count(p), 0);
+  if (!total) return null;
+  const LIMIT = 15; // per list: the screen behind the link has every item
+  const list = <T,>(items: readonly T[], line: (item: T) => string, lang: "ar" | "en") => [
+    ...items.slice(0, LIMIT).map(item => `  • ${line(item)}`),
+    ...(items.length > LIMIT ? [lang === "ar" ? `  • و${items.length - LIMIT} أخرى في الشاشة.` : `  • and ${items.length - LIMIT} more on the screen.`] : []),
+  ];
+  const lines = (lang: "ar" | "en") => input.projects.filter(p => count(p) > 0).flatMap(p => {
+    const head = p.code ? `${p.code} · ${clip(p.name, 60)}` : (lang === "ar" ? "مهام الشركة" : "Company actions");
+    const late = (days: number) => (lang === "ar" ? `متأخر ${days} يوم` : `${days} day(s) late`);
+    return [
+      lang === "ar" ? `مشروع ${head}:` : `Project ${head}:`,
+      ...(p.activities.length ? [lang === "ar" ? `أنشطة حرجة متأخرة: ${p.activities.length}` : `Late critical activities: ${p.activities.length}`, ...list(p.activities, a => `${a.code} ${clip(a.name, 60)} — ${late(a.daysLate)}`, lang)] : []),
+      ...(p.actions.length ? [lang === "ar" ? `مهام متأخرة: ${p.actions.length}` : `Overdue actions: ${p.actions.length}`, ...list(p.actions, a => `${clip(a.title, 80)} — ${late(a.daysLate)}`, lang)] : []),
+      ...(p.rfis.length ? [lang === "ar" ? `طلبات معلومات RFI متأخرة: ${p.rfis.length}` : `Overdue RFIs: ${p.rfis.length}`, ...list(p.rfis, r => `${r.number} ${clip(r.title, 60)} — ${late(r.daysLate)}`, lang)] : []),
+      ...(p.submittals.length ? [lang === "ar" ? `تقديمات للاستشاري بلا رد: ${p.submittals.length}` : `Submittals awaiting the consultant: ${p.submittals.length}`, ...list(p.submittals, s => `${s.number} ${clip(s.title, 60)} — ${late(s.daysLate)}`, lang)] : []),
+    ];
+  });
+  return compose({
+    subject: `المواعيد المتأخرة ${input.date}: ${total} | Overdue ${input.date}: ${total}`,
+    ar: [`ما تأخّر عن موعده في مشاريعك (${input.date}):`, ...lines("ar")],
+    en: [`What is past its due date in your projects (${input.date}):`, ...lines("en")],
+    link: input.link,
+  });
+}
