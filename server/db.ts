@@ -1386,6 +1386,10 @@ export const BOQ_MONEY_READERS = ["project.cashflow.read", "project.wbs.manage"]
 export function projectMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, PROJECT_MONEY_READERS, { type: "project", id: projectId });
 }
+/** Q-45 (b): who sees the value of a project's purchase orders — whoever sees its money (205-1), and whoever manages its procurement. */
+export function purchaseOrderMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return projectMoneyVisible(snapshot, projectId) || holdsPermission(snapshot, "project.procurement.manage", { type: "project", id: projectId });
+}
 export function contractMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, CONTRACT_MONEY_READERS, { type: "project", id: projectId });
 }
@@ -1625,7 +1629,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
   ]) : [[], [], []];
   const commercialSignals = projectRows.map(project => {
     const seesMoney = projectMoneyVisible(snapshot, project.id);
-    const seesOrders = seesMoney || holdsPermission(snapshot, "project.procurement.manage", { type: "project", id: project.id });
+    const seesOrders = purchaseOrderMoneyVisible(snapshot, project.id);
     const orders = openOrderRows.find(row => row.projectId === project.id);
     return {
       projectId: project.id, currency: project.currency,
