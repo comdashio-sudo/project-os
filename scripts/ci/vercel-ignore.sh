@@ -12,6 +12,13 @@ if [ "${VERCEL_ENV:-}" = "production" ] && [ "${VERCEL_GIT_COMMIT_REF:-}" = "mai
   echo "vercel-ignore: skip (production is deployed from the production branch, after the migrations; main is a Preview only)"; exit 0
 fi
 
+# Q-52 (adviser, 2026-11-19): a Preview is built for main only. A pull-request branch is checked by CI, not by a deployment, and every Preview counts against the
+# plan's rolling daily limit (100), which open pull requests used up and so blocked main's own builds. Skipped only when Vercel says it is a Preview of a named branch other
+# than main; a production build, a Preview of main and a run without those variables go on to the checks below.
+if [ "${VERCEL_ENV:-}" = "preview" ] && [ -n "${VERCEL_GIT_COMMIT_REF:-}" ] && [ "${VERCEL_GIT_COMMIT_REF}" != "main" ]; then
+  echo "vercel-ignore: skip (a Preview of ${VERCEL_GIT_COMMIT_REF}: only main gets a Preview; pull requests are checked by CI)"; exit 0
+fi
+
 previous="${VERCEL_GIT_PREVIOUS_SHA:-}"
 current="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
 
