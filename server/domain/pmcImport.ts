@@ -17,6 +17,27 @@ export type PmcStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLE
 export type PmcImportCounts = { create: number; update: number; unchanged: number };
 
 type Field = { key: string; required: boolean; aliases: string[] };
+const ENGLISH_NAME_ALIASES = ["activity title", "english name", "name en", "name (en)", "activity name en", "activity name (en)", "activity english name", "الاسم بالإنجليزية", "الاسم بالانجليزية", "الاسم الإنجليزي", "اسم النشاط بالإنجليزية"];
+
+/**
+ * Q-49: a name cell that holds both languages («أعمال التشطيبات Finishes», «Finishes - أعمال التشطيبات») is split into its Arabic and English parts — only
+ * when the cell is exactly one Arabic run and one English run, side by side. Anything else (a code with Arabic, «03 30 00 خرسانة», or the two languages
+ * interleaved) stays whole with no English part. Used for group and stage names that come without an English column.
+ */
+const ARABIC_LETTER = /[\u0600-\u06FF]/;
+const LATIN_LETTER = /[A-Za-z]/;
+export function splitMixedName(value: string): { ar: string; en: string | null } {
+  const whole = value.trim();
+  if (!ARABIC_LETTER.test(whole) || !LATIN_LETTER.test(whole)) return { ar: whole, en: null };
+  const cut = (ar: string, en: string) => {
+    const arabic = ar.replace(/[\s\-–—/|(]+$/, "").replace(/^[\s\-–—/|)]+/, "").trim();
+    const english = en.replace(/^[\s\-–—/|(]+/, "").replace(/[\s\-–—/|)]+$/, "").trim();
+    return arabic && english && !LATIN_LETTER.test(arabic) && !ARABIC_LETTER.test(english) ? { ar: arabic, en: english } : null;
+  };
+  const englishLast = /^([^A-Za-z]*[\u0600-\u06FF][^A-Za-z]*?)([A-Za-z][^\u0600-\u06FF]*)$/.exec(whole);
+  const englishFirst = /^([A-Za-z][^\u0600-\u06FF]*?)([^A-Za-z]*[\u0600-\u06FF][^A-Za-z]*)$/.exec(whole);
+  return (englishLast && cut(englishLast[1], englishLast[2])) || (englishFirst && cut(englishFirst[2], englishFirst[1])) || { ar: whole, en: null };
+}
 const FIELDS: Record<PmcImportKind, Field[]> = {
   locations: [
     // Q-3: a villa list often has no zone column (البلوك | الفيلا | النموذج); the units then go to one zone, DEFAULT_ZONE_CODE
@@ -37,6 +58,10 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "stageName", required: false, aliases: ["stage name", "اسم المرحلة"] },
     { key: "activityCode", required: true, aliases: ["activity code", "activity", "رمز النشاط", "النشاط"] },
     { key: "activityName", required: true, aliases: ["activity name", "اسم النشاط"] },
+    // Q-49: the optional English names (the Arabic one stays required); an empty cell keeps what is stored
+    { key: "activityNameEn", required: false, aliases: ENGLISH_NAME_ALIASES },
+    { key: "groupNameEn", required: false, aliases: ["group name en", "group name (en)", "group english name", "اسم المجموعة بالإنجليزية"] },
+    { key: "stageNameEn", required: false, aliases: ["stage name en", "stage name (en)", "stage english name", "اسم المرحلة بالإنجليزية"] },
     { key: "weightPercent", required: true, aliases: ["weight", "weight percent", "الوزن", "نسبة الوزن"] },
     { key: "wbsCode", required: false, aliases: ["wbs code", "wbs", "رمز wbs", "رمز هيكل العمل"] },
   ],
@@ -74,6 +99,8 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "activityName", required: true, aliases: ["activity", "activity name", "description", "النشاط", "اسم النشاط", "البند"] },
     { key: "weight", required: true, aliases: ["weight", "weight percent", "percentage", "new percentage", "الوزن", "نسبة الوزن", "النسبة"] },
     { key: "modelCode", required: false, aliases: ["model", "model code", "النموذج", "رمز النموذج"] },
+    // Q-49: the owner's «Activity Title» is the activity's English name
+    { key: "activityNameEn", required: false, aliases: ENGLISH_NAME_ALIASES },
   ],
   baselineDates: [
     { key: "modelCode", required: true, aliases: ["model", "model code", "النموذج", "رمز النموذج", "الطراز"] },
@@ -423,18 +450,24 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
 export type CatalogContext = {
   /** How far from 100 a model's total may be. The catalogue: 0.0001. The weights table (Q-47, owner decision 18-11): 0.01, accepted with a note. */
   totalTolerance?: number;
-  groups: Map<string, { id: string }>;
-  stages: Map<string, { id: string; groupCode: string }>;
-  definitions: Map<string, { id: string; weightPercent: number; groupCode: string; stageCode: string; name: string; wbsItemId: string | null }>;
+  groups: Map<string, { id: string; nameEn?: string | null }>;
+  stages: Map<string, { id: string; groupCode: string; nameEn?: string | null }>;
+  definitions: Map<string, { id: string; weightPercent: number; groupCode: string; stageCode: string; name: string; wbsItemId: string | null; nameEn?: string | null }>;
   activityCodesByModel: Map<string, Set<string>>;
   wbsItems: Map<string, string>;
 };
 export type CatalogPlan = {
   errors: PmcImportError[];
-  newGroups: Array<{ code: string; name: string }>;
-  newStages: Array<{ code: string; name: string; groupCode: string }>;
-  newDefinitions: Array<{ modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; stageCode: string; wbsItemId: string | null }>;
-  updatedDefinitions: Array<{ id: string; name: string; weightPercent: number; groupCode: string; stageCode: string; wbsItemId: string | null }>;
+  newGroups: Array<{ code: string; name: string; nameEn: string | null }>;
+  newStages: Array<{ code: string; name: string; groupCode: string; nameEn: string | null }>;
+  newDefinitions: Array<{ modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; stageCode: string; wbsItemId: string | null; nameEn: string | null }>;
+  /** `nameEn` null: the file gave no English name, the stored one is kept (an empty cell never erases it; the catalogue screen does). */
+  updatedDefinitions: Array<{ id: string; name: string; weightPercent: number; groupCode: string; stageCode: string; wbsItemId: string | null; nameEn: string | null }>;
+  /** Q-49: an existing group or stage the file gives a new English name. */
+  updatedGroupNames: Array<{ id: string; nameEn: string }>;
+  updatedStageNames: Array<{ id: string; nameEn: string }>;
+  /** Q-49: names the reader split into Arabic and English (shown in the preview), at most 20. */
+  splitNames: Array<{ original: string; ar: string; en: string }>;
   models: Array<{ modelCode: string; activities: number; totalWeight: number }>;
   counts: PmcImportCounts;
 };
@@ -443,7 +476,16 @@ const round4 = (value: number) => Math.round((value + Number.EPSILON) * 10000) /
 
 export function planCatalog(rows: ParsedRow[], context: CatalogContext): CatalogPlan {
   const errors: PmcImportError[] = [];
-  const valid: Array<{ modelCode: string; groupCode: string; groupName: string; stageCode: string; stageName: string; code: string; name: string; weightPercent: number; wbsItemId: string | null }> = [];
+  const valid: Array<{ modelCode: string; groupCode: string; groupName: string; groupNameEn: string | null; stageCode: string; stageName: string; stageNameEn: string | null; code: string; name: string; nameEn: string | null; weightPercent: number; wbsItemId: string | null }> = [];
+  const splitNames = new Map<string, { original: string; ar: string; en: string }>();
+  // a name and its English: the English column when the file has one, otherwise a mixed cell split in two
+  const named = (raw: string, english: unknown) => {
+    const explicit = text(english);
+    if (explicit) return { name: raw, nameEn: explicit };
+    const split = splitMixedName(raw);
+    if (split.en && splitNames.size < 20) splitNames.set(raw, { original: raw, ar: split.ar, en: split.en });
+    return { name: split.ar, nameEn: split.en };
+  };
   const seen = new Set<string>();
   const stageGroup = new Map<string, string>();
   for (const { rowNumber, cells } of rows) {
@@ -472,7 +514,9 @@ export function planCatalog(rows: ParsedRow[], context: CatalogContext): Catalog
     if (errors.length > before || weightPercent === undefined) continue;
     seen.add(defKey(modelCode, code));
     if (!stageGroup.has(stageCode)) stageGroup.set(stageCode, groupCode);
-    valid.push({ modelCode, groupCode, groupName: text(cells.groupName) || groupCode, stageCode, stageName: text(cells.stageName) || stageCode, code, name, weightPercent, wbsItemId });
+    const group = named(text(cells.groupName) || groupCode, cells.groupNameEn);
+    const stage = named(text(cells.stageName) || stageCode, cells.stageNameEn);
+    valid.push({ modelCode, groupCode, groupName: group.name, groupNameEn: group.nameEn, stageCode, stageName: stage.name, stageNameEn: stage.nameEn, code, name, nameEn: text(cells.activityNameEn) || null, weightPercent, wbsItemId });
   }
 
   // Rule 4, per model: weights total exactly 100; and the file is the whole model, so it cannot silently drop an existing activity.
@@ -490,22 +534,35 @@ export function planCatalog(rows: ParsedRow[], context: CatalogContext): Catalog
     context.activityCodesByModel.get(modelCode)?.forEach(existingCode => { if (!fileCodes.has(existingCode)) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_ACTIVITY_OMITTED", field: modelCode, detail: `${modelCode}/${existingCode}` }); } });
   });
 
-  const newGroups = new Map<string, string>();
-  const newStages = new Map<string, { name: string; groupCode: string }>();
+  const newGroups = new Map<string, { name: string; nameEn: string | null }>();
+  const newStages = new Map<string, { name: string; groupCode: string; nameEn: string | null }>();
+  const updatedGroupNames = new Map<string, { id: string; nameEn: string }>();
+  const updatedStageNames = new Map<string, { id: string; nameEn: string }>();
   const newDefinitions: CatalogPlan["newDefinitions"] = [];
   const updatedDefinitions: CatalogPlan["updatedDefinitions"] = [];
   let unchanged = 0;
   for (const row of valid) {
     if (brokenModels.has(row.modelCode)) continue;
-    if (!context.groups.has(row.groupCode) && !newGroups.has(row.groupCode)) newGroups.set(row.groupCode, row.groupName);
-    if (!context.stages.has(row.stageCode) && !newStages.has(row.stageCode)) newStages.set(row.stageCode, { name: row.stageName, groupCode: row.groupCode });
+    const storedGroup = context.groups.get(row.groupCode);
+    if (!storedGroup && !newGroups.has(row.groupCode)) newGroups.set(row.groupCode, { name: row.groupName, nameEn: row.groupNameEn });
+    if (storedGroup && row.groupNameEn && row.groupNameEn !== (storedGroup.nameEn ?? null)) updatedGroupNames.set(row.groupCode, { id: storedGroup.id, nameEn: row.groupNameEn });
+    const storedStage = context.stages.get(row.stageCode);
+    if (!storedStage && !newStages.has(row.stageCode)) newStages.set(row.stageCode, { name: row.stageName, groupCode: row.groupCode, nameEn: row.stageNameEn });
+    if (storedStage && row.stageNameEn && row.stageNameEn !== (storedStage.nameEn ?? null)) updatedStageNames.set(row.stageCode, { id: storedStage.id, nameEn: row.stageNameEn });
     const existing = context.definitions.get(defKey(row.modelCode, row.code));
-    if (!existing) { newDefinitions.push({ modelCode: row.modelCode, code: row.code, name: row.name, weightPercent: row.weightPercent, groupCode: row.groupCode, stageCode: row.stageCode, wbsItemId: row.wbsItemId }); continue; }
-    const same = existing.name === row.name && existing.weightPercent === row.weightPercent && existing.groupCode === row.groupCode && existing.stageCode === row.stageCode && existing.wbsItemId === row.wbsItemId;
+    if (!existing) { newDefinitions.push({ modelCode: row.modelCode, code: row.code, name: row.name, weightPercent: row.weightPercent, groupCode: row.groupCode, stageCode: row.stageCode, wbsItemId: row.wbsItemId, nameEn: row.nameEn }); continue; }
+    const sameEnglish = row.nameEn === null || row.nameEn === (existing.nameEn ?? null);
+    const same = existing.name === row.name && existing.weightPercent === row.weightPercent && existing.groupCode === row.groupCode && existing.stageCode === row.stageCode && existing.wbsItemId === row.wbsItemId && sameEnglish;
     if (same) unchanged += 1;
-    else updatedDefinitions.push({ id: existing.id, name: row.name, weightPercent: row.weightPercent, groupCode: row.groupCode, stageCode: row.stageCode, wbsItemId: row.wbsItemId });
+    else updatedDefinitions.push({ id: existing.id, name: row.name, weightPercent: row.weightPercent, groupCode: row.groupCode, stageCode: row.stageCode, wbsItemId: row.wbsItemId, nameEn: row.nameEn });
   }
-  return { errors, newGroups: Array.from(newGroups, ([code, name]) => ({ code, name })), newStages: Array.from(newStages, ([code, value]) => ({ code, ...value })), newDefinitions, updatedDefinitions, models, counts: { create: newDefinitions.length, update: updatedDefinitions.length, unchanged } };
+  // a group or stage that only gains an English name is a change to save, counted with the updates (so the same file twice is still «nothing to do»)
+  const renamed = updatedGroupNames.size + updatedStageNames.size;
+  return {
+    errors, newGroups: Array.from(newGroups, ([code, value]) => ({ code, ...value })), newStages: Array.from(newStages, ([code, value]) => ({ code, ...value })), newDefinitions, updatedDefinitions,
+    updatedGroupNames: Array.from(updatedGroupNames.values()), updatedStageNames: Array.from(updatedStageNames.values()), splitNames: Array.from(splitNames.values()),
+    models, counts: { create: newDefinitions.length, update: updatedDefinitions.length + renamed, unchanged },
+  };
 }
 
 // ---- unit-activity status (one row per cell, natural key: unit + activity)
@@ -758,7 +815,7 @@ export function weightActivityCode(name: string): string {
 const FORMULA_ERROR = /^#(?:REF!|VALUE!|DIV\/0!|N\/A|NAME\?|NUM!|NULL!|SPILL!|CALC!|GETTING_DATA)/i;
 export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[]): WeightsTranslation {
   const errors: PmcImportError[] = [];
-  const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; weight: number; modelCode: string }> = [];
+  const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; nameEn: string; weight: number; modelCode: string }> = [];
   let ignoredZeroWeight = 0;
   for (const { rowNumber, cells } of rows) {
     const weightCell = text(cells.weight);
@@ -771,7 +828,7 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[])
     if (weight === undefined || weight < 0) { errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "weightPercent" }); continue; }
     if (!csi) { errors.push({ rowNumber, code: "PMC_CLASSIFICATION_BLANK", field: "groupCode" }); continue; }
     if (!name) { errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "activityName" }); continue; }
-    kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, weight, modelCode: text(cells.modelCode) });
+    kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, nameEn: text(cells.activityNameEn), weight, modelCode: text(cells.modelCode) });
   }
   const total = kept.reduce((sum, row) => sum + row.weight, 0);
   const scaledFromFractions = kept.length > 0 && kept.every(row => row.weight <= 1) && Math.abs(total - 1) <= 0.0001 * kept.length + 0.0001;
@@ -783,7 +840,7 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[])
     const weightPercent = scaledFromFractions ? Math.round(row.weight * 100 * 10000) / 10000 : row.weight;
     const stage = row.sub || row.csi;
     for (const modelCode of row.modelCode ? [row.modelCode] : models) {
-      out.push({ rowNumber: row.rowNumber, cells: { modelCode, groupCode: row.csi.slice(0, 80), groupName: row.csi, stageCode: `${row.csi} / ${stage}`.slice(0, 80), stageName: stage, activityCode: row.code.slice(0, 80), activityName: row.name, weightPercent } });
+      out.push({ rowNumber: row.rowNumber, cells: { modelCode, groupCode: row.csi.slice(0, 80), groupName: row.csi, stageCode: `${row.csi} / ${stage}`.slice(0, 80), stageName: stage, activityCode: row.code.slice(0, 80), activityName: row.name, activityNameEn: row.nameEn, weightPercent } });
     }
   }
   return { rows: out, errors, ignoredZeroWeight, scaledFromFractions };

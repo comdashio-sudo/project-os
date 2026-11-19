@@ -1,5 +1,5 @@
 {
-  "id": "5fa65a26-e5ec-4915-af6a-b59bafacff6c",
+  "id": "b4d9f086-930e-4fa4-9be7-2709bdc9ff16",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14910,6 +14910,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "name_en": {
+          "name": "name_en",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "weight_percent": {
           "name": "weight_percent",
           "type": "numeric(7, 4)",
@@ -15100,6 +15106,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "name_en": {
+          "name": "name_en",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -15225,6 +15237,12 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

@@ -23,7 +23,7 @@ export function RoleTemplateUpdatesCard({ tenantId }: { tenantId: string }) {
   if (list.isLoading || list.isError || !items.length) return null;
   return (
     <Card data-role-template-updates>
-      <CardHeader><CardTitle className="text-lg">{t.title}</CardTitle><p className="text-sm text-slate-600">{t.note}</p></CardHeader>
+      <CardHeader><CardTitle className="text-lg">{t.title}</CardTitle><p className="text-sm text-muted-foreground">{t.note}</p></CardHeader>
       <CardContent className="space-y-3">
         {items.map(item => (
           <div key={item.id} className="space-y-2 rounded-xl border p-3" data-removal={item.id}>
