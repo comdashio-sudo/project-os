@@ -23,7 +23,7 @@ jobs:
     name: three screens within the budget
     # a manual run from another branch is refused: the budget is a statement about main
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.56 has no chromium build for ubuntu-26.04 (ubuntu-latest since 2026-11)
     timeout-minutes: 30
     services:
       postgres:

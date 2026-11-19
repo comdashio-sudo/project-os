@@ -13,6 +13,7 @@ const operationalRoleNames = {
   PROJECT_MANAGER: { ar: "مدير المشروع", en: "Project Manager", ur: "پروجیکٹ مینیجر" },
   EXECUTIVE: { ar: "المستوى التنفيذي", en: "Executive", ur: "ایگزیکٹو" },
   PMO_LEAD: { ar: "مسؤول مكتب إدارة المشاريع (PMO)", en: "PMO Lead", ur: "PMO لیڈ" },
+  MANAGEMENT_VIEWER: { ar: "مشاهد الإدارة", en: "Management Viewer", ur: "انتظامیہ ناظر" },
   COST_CONTROLLER: { ar: "مراقب التكلفة (كوست كنترول)", en: "Cost Controller", ur: "لاگت کنٹرولر" },
   PROJECT_COORDINATOR: { ar: "منسق المشروع", en: "Project Coordinator", ur: "پروجیکٹ کوآرڈینیٹر" },
   DESIGN_COORDINATOR_ARCHITECTURAL: { ar: "منسق التصميم المعماري", en: "Design Coordinator (Architectural)", ur: "ڈیزائن کوآرڈینیٹر (تعمیراتی)" },
@@ -68,6 +69,10 @@ export const operationalRoleProfiles = {
   PMO_LEAD: {
     ar: { purpose: "ضبط المحفظة والاستثناءات", focus: "المحافظ والبرامج والمخاطر والقضايا والإجراءات والتصعيد", boundary: "لا يعدّل بيانات تشغيل المشروع (التكلفة والتخطيط والمشتريات)" },
     en: { purpose: "Govern the portfolio and its exceptions", focus: "Portfolios, programs, risks, issues, actions and escalation", boundary: "Does not edit a project's operating data (cost, planning, procurement)" }, ur: { purpose: "پورٹ فولیو اور اس کے استثنیات کا انتظام کریں", focus: "پورٹ فولیوز، پروگرامز، خطرات، مسائل، اقدامات اور اضافہ", boundary: "پروجیکٹ کا آپریٹنگ ڈیٹا (لاگت، منصوبہ بندی، خریداری) تبدیل نہیں کرتا" },
+  },
+  MANAGEMENT_VIEWER: {
+    ar: { purpose: "متابعة سير المشاريع دون تدخل", focus: "سجل المشاريع وصفحاتها ولوحة مكتب إدارة المشاريع", boundary: "للاطلاع فقط؛ لا يرى المال ولا الرواتب، ولا يكتب ولا يعتمد" },
+    en: { purpose: "Follow the projects without acting on them", focus: "The project register and pages, and the PMO dashboard", boundary: "Read-only; sees no money or pay, writes and approves nothing" }, ur: { purpose: "مداخلت کے بغیر منصوبوں کی پیش رفت دیکھیں", focus: "منصوبوں کا رجسٹر اور صفحات، اور PMO ڈیش بورڈ", boundary: "صرف پڑھنے کے لیے؛ رقم یا تنخواہ نہیں دیکھتا، نہ لکھتا ہے نہ منظوری دیتا ہے" },
   },
   COST_CONTROLLER: {
     ar: { purpose: "ضبط التكلفة دون تحريك المال", focus: "الميزانية والتكلفة الفعلية والتدفق النقدي وEVM وتسوية عروض المناقصات", boundary: "لا يحمل الالتزامات ولا مطابقة الفواتير ولا إدخال العروض" },

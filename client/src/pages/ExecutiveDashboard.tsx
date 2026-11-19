@@ -26,6 +26,7 @@ import { PortfolioProfitability } from "./PortfolioProfitability";
 import { enumLabel } from "@/lib/labels";
 import { WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
+import { OwnerSelect } from "@/components/OwnerSelect";
 import { CheckedForm } from "@/components/CheckedForm";
 
 const PortfolioCashFlowChart = lazy(() => import("./PortfolioCashFlowChart"));
@@ -43,10 +44,11 @@ export default function ExecutiveDashboard() {
     problem: "",
     options: "",
     recommendation: "",
+    decisionOwnerMembershipId: "",
   });
   const mutation = trpc.executive.createDecision.useMutation({
     onSuccess: () => {
-      setForm({ projectId: "", problem: "", options: "", recommendation: "" });
+      setForm({ projectId: "", problem: "", options: "", recommendation: "", decisionOwnerMembershipId: "" });
       utils.dashboards.invalidate();
     },
   });
@@ -136,7 +138,8 @@ export default function ExecutiveDashboard() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!form.projectId) return; // the list has no native «required»: no project, no decision
-    mutation.mutate({ tenantId, ...form });
+    const { decisionOwnerMembershipId, ...rest } = form;
+    mutation.mutate({ tenantId, ...rest, ...(decisionOwnerMembershipId ? { decisionOwnerMembershipId } : {}) });
   };
   const cash = pickLanguage(language, { ar: {
         title: "ملخص التدفق النقدي التنفيذي",
@@ -388,6 +391,10 @@ export default function ExecutiveDashboard() {
                     onValueChange={value => setForm({ ...form, projectId: value })}
                     options={data.projects.map(project => ({ value: project.id, label: `${project.code} · ${project.name}` }))}
                   />
+                </Label>
+                <Label htmlFor="decision-owner">
+                  {pickLanguage(language, { ar: "مالك القرار (يعتمده أو يرفضه)", en: "Decision owner (approves or rejects it)", ur: "فیصلے کا مالک (منظور یا مسترد کرتا ہے)" })}
+                  <OwnerSelect id="decision-owner" tenantId={tenantId} projectId={form.projectId} value={form.decisionOwnerMembershipId} onChange={decisionOwnerMembershipId => setForm({ ...form, decisionOwnerMembershipId })} />
                 </Label>
                 <Label>
                   {t.problem}
