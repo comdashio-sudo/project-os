@@ -1,4 +1,5 @@
-import { DirectImportRunner } from "@/components/DirectImportRunner";
+import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ledgerErrorLabel } from "@/lib/ledgerMessages";
@@ -63,6 +64,12 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
   const columns = ledgerColumns[moduleCode].filter(column => !column.readOnly);
   const fieldLabel = (field: string) => ledgerColumns[moduleCode].find(column => column.key === field)?.[locale];
   const error = template.error ?? exporter.error;
+  // Q-31 (P0-02): which column each field was read from; the person can choose another and analyse again (the preview and the write then read the same way)
+  const renderReport = (view: DirectImportView) => {
+    const report = view.external?.report as { ledger?: { columns?: PmcImportColumns } } | undefined;
+    const found = report?.ledger?.columns;
+    return found ? <PmcColumnMapping key={`${view.id}:${JSON.stringify(found.fields)}`} tenantId={tenantId} projectId={projectId} importId={view.id} columns={found} language={language} isArabic={isArabic} fieldLabel={fieldLabel} /> : null;
+  };
   return (
     <section className="rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-sm sm:p-6" data-testid="operational-imports">
       <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] bg-[var(--dashio-indigo)]/10 text-primary"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 className="font-semibold">{t.title}</h2><p className="mt-1 text-xs text-muted-foreground">{t.note}</p></div></div>
@@ -77,7 +84,7 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="mt-5 border-t border-border pt-4">
         <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.ur.denied }}>
-          <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} />
+          <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} renderReport={renderReport} />
         </WriteGate>
       </div>
     </section>
