@@ -3,7 +3,11 @@
 // (2) check the rows against what the project already holds and produce a plan
 // (what would be created, updated, left alone) plus every rejected row with its
 // reason. The service executes a plan only when it has no errors.
-import { readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./excelWorkbook";
+import type ExcelJS from "exceljs";
+import { readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
+import { normalizeHeader } from "./smartImport/dictionary";
+import { parseNumber } from "./smartImport/numbers";
+import { decodeCsv } from "./smartImport/sheetReader";
 
 export const PMC_IMPORT_LIMITS = { maxRows: 60_000, maxColumns: 20 } as const;
 export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline", "baselineDates", "weights"] as const;
@@ -64,7 +68,7 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
   // Q-3: the project's weights table as the owner keeps it (Excel, CSV, or an export from Google Sheets / AppSheet): section (CSI) | sub-item | activity | weight.
   // It is translated into catalogue rows (weightsToCatalogRows) and checked and saved by the catalogue's own rules; columns it does not know are ignored.
   weights: [
-    { key: "csi", required: true, aliases: ["csi", "csi section", "section", "division", "بند csi", "القسم", "قسم csi"] },
+    { key: "csi", required: true, aliases: ["csi", "csi section", "section csi", "csi code", "section", "division", "بند csi", "رمز csi", "القسم", "قسم csi"] },
     { key: "sub", required: false, aliases: ["sub", "sub item", "subitem", "sub-item", "البند الفرعي", "بند فرعي"] },
     { key: "activityCode", required: false, aliases: ["activity code", "code", "wir", "wir code", "رمز النشاط"] },
     { key: "activityName", required: true, aliases: ["activity", "activity name", "description", "النشاط", "اسم النشاط", "البند"] },
@@ -131,35 +135,122 @@ export function parseUnitList(value: unknown): { units: number[]; error?: "PMC_U
 // ------------------------------------------------------------------ stage 1
 
 export type ParsedRow = { rowNumber: number; cells: Record<string, unknown> };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[] };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; notes?: { skippedTotals: number; filledDown: number } };
+
+/**
+ * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
+ * brackets do not count, nor a percent sign ("Weight (%)" is "weight"). The spellings go through the same function, so «القسم» matches «القسـم».
+ */
+export const pmcHeaderKey = (value: unknown) => normalizeHeader(String(value ?? "").replace(/^\uFEFF/, "").replace(/[%٪]/g, " "));
+const HEADER_SEARCH_ROWS = 10;
+// a totals line at the foot of the table («الإجمالي … 100»): skipped, never read as an activity (narrow on purpose: «خصم» or «صافي» can be real activity names)
+// The WHOLE label must be total words («الإجمالي», «المجموع الكلي», «Grand total»): a label that only starts with one («Total station survey») is an activity
+// (review of #370). Matched on pmcHeaderKey, which strips punctuation, so «Total:» counts.
+const TOTAL_LINE = /^(?:ال)?(?:مجموع|اجمالي)(?: (?:ال)?(?:كلي|عام))?$|^(?:sub ?total|grand total|total|totals)$/;
+
+type HeaderMatch = { mapping: Map<string, string>; missing: string[]; ambiguous: Array<{ field: string; headers: string[] }>; unsupported: string[] };
+
+// Generic words that name a field only when nothing clearer does: «البند» is the activity when there is no «النشاط», «code» the activity code when
+// there is no «activity code». Every other spelling is a clear name.
+const GENERIC_SPELLINGS = new Set(["البند", "code", "description", "type", "النسبة", "percentage"].map(pmcHeaderKey));
+
+/**
+ * Which column is which field. A header serves one field only. A field takes the one column that names it clearly; a generic word counts only when no
+ * column names it clearly. Two columns that both name a field clearly («الوزن» and «Weight») are AMBIGUOUS: refused with both names, never a guess.
+ */
+function matchHeaders(fields: Field[], headers: string[]): HeaderMatch {
+  const keys = headers.map(pmcHeaderKey);
+  const taken = new Set<number>();
+  const mapping = new Map<string, string>();
+  const ambiguous: HeaderMatch["ambiguous"] = [];
+  const ordered = [...fields].sort((a, b) => Number(b.required) - Number(a.required));
+  const candidates = (field: Field, generic: boolean) => {
+    const aliasKeys = new Set(field.aliases.map(pmcHeaderKey).filter(key => GENERIC_SPELLINGS.has(key) === generic));
+    return keys.flatMap((key, column) => (key && !taken.has(column) && aliasKeys.has(key) ? [column] : []));
+  };
+  // clear names first for every field, so a generic word never takes a column another field names clearly
+  const clear = new Map(ordered.map(field => [field.key, candidates(field, false)]));
+  for (const field of ordered) {
+    const columns = clear.get(field.key)!.filter(column => !taken.has(column));
+    if (columns.length > 1) { ambiguous.push({ field: field.key, headers: columns.map(column => headers[column]) }); columns.forEach(column => taken.add(column)); }
+    else if (columns.length === 1) { mapping.set(field.key, headers[columns[0]]); taken.add(columns[0]); }
+  }
+  for (const field of ordered) {
+    if (mapping.has(field.key) || ambiguous.some(item => item.field === field.key)) continue;
+    const columns = candidates(field, true);
+    if (columns.length > 1) { ambiguous.push({ field: field.key, headers: columns.map(column => headers[column]) }); columns.forEach(column => taken.add(column)); }
+    else if (columns.length === 1) { mapping.set(field.key, headers[columns[0]]); taken.add(columns[0]); }
+  }
+  const known = new Set(fields.flatMap(field => field.aliases.map(pmcHeaderKey)));
+  return {
+    mapping, ambiguous,
+    missing: fields.filter(field => field.required && !mapping.has(field.key) && !ambiguous.some(item => item.field === field.key)).map(field => field.key),
+    unsupported: headers.filter((header, column) => header && !taken.has(column) && !known.has(keys[column])),
+  };
+}
+
+/** The header row: the first of the top rows that names every required field (a title or a logo above the table is common); otherwise row 1. */
+function findHeaderRow(sheet: ExcelJS.Worksheet, fields: Field[]): { row: number; match: HeaderMatch; headers: string[] } {
+  let first: { row: number; match: HeaderMatch; headers: string[] } | undefined;
+  for (let row = 1; row <= Math.min(HEADER_SEARCH_ROWS, Math.max(sheet.rowCount, 1)); row += 1) {
+    const headers = worksheetToRows(sheet, { maxRows: 0, maxColumns: PMC_IMPORT_LIMITS.maxColumns }, row).headers;
+    const match = matchHeaders(fields, headers);
+    const candidate = { row, match, headers };
+    if (!first) first = candidate;
+    if (match.missing.length === 0) return candidate; // every field found (an ambiguity, if any, is reported on this row)
+  }
+  return first!;
+}
+
+/** Columns that hold something in the header row; formatted but empty columns at the right (common in exports) do not count against the limit. */
+function filledColumns(sheet: ExcelJS.Worksheet, headerRow: number) {
+  const row = sheet.getRow(headerRow);
+  let last = 0;
+  for (let column = 1; column <= Math.min(sheet.columnCount, 500); column += 1) if (String(row.getCell(column).text ?? "").trim()) last = column;
+  return last;
+}
 
 export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array }): Promise<ParsedFile> {
-  const fail = (code: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code }] });
-  const parsed = await readSpreadsheetSafely(input.format === "csv" ? Buffer.from(input.bytes).toString("utf8") : input.bytes, input.format);
+  const fail = (code: string, detail?: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code, ...(detail ? { detail } : {}) }] });
+  // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
+  const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
   if (!parsed.ok) return fail(parsed.code);
-  const sheets = parsed.workbook.worksheets;
-  if (sheets.length !== 1) return fail(sheets.length === 0 ? "IMPORT_EMPTY_WORKBOOK" : "IMPORT_SINGLE_SHEET_REQUIRED");
-  const sheet = sheets[0];
-  const { headers, rows } = worksheetToRows(sheet, PMC_IMPORT_LIMITS);
-  const bounds = spreadsheetBoundsError(sheet, rows, PMC_IMPORT_LIMITS);
-  if (bounds) return { headers, rows: [], errors: [{ rowNumber: 0, code: bounds }] };
   const fields = FIELDS[input.kind];
-  const known = new Set(fields.flatMap(field => field.aliases));
-  const mapping = new Map<string, string>();
-  for (const field of fields) {
-    const header = headers.find(candidate => field.aliases.includes(normalize(candidate)));
-    if (header) mapping.set(field.key, header);
-  }
+  const sheets = parsed.workbook.worksheets.filter(sheet => sheet.state !== "hidden" && sheet.state !== "veryHidden");
+  if (sheets.length === 0) return fail("IMPORT_EMPTY_WORKBOOK");
+  // Q-31: a workbook may carry other sheets (notes, a cover, the villa list beside the weights): the sheet whose header names every required field is read.
+  const found = sheets.map(sheet => ({ sheet, ...findHeaderRow(sheet, fields) }));
+  const complete = found.filter(item => item.match.missing.length === 0);
+  if (complete.length > 1) return fail("IMPORT_SHEET_AMBIGUOUS", complete.map(item => item.sheet.name).join(" | "));
+  const chosen = complete[0] ?? found.reduce((a, b) => (b.match.missing.length < a.match.missing.length ? b : a));
+  const { sheet, row: headerRow, match } = chosen;
+  if (filledColumns(sheet, headerRow) > PMC_IMPORT_LIMITS.maxColumns) return fail("IMPORT_TOO_MANY_COLUMNS");
+  const { headers, rows, rowNumbers } = worksheetToRows(sheet, PMC_IMPORT_LIMITS, headerRow);
+  if (sheet.rowCount - headerRow > PMC_IMPORT_LIMITS.maxRows) return { headers, rows: [], errors: [{ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" }] };
   const errors: PmcImportError[] = [];
   // a weights table exported from a spreadsheet tool carries its own extra columns (ids, totals, notes): they are ignored, not refused
-  if (input.kind !== "weights") for (const header of headers) if (header && !known.has(normalize(header))) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
-  for (const field of fields) if (field.required && !mapping.has(field.key)) errors.push({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: field.key });
+  if (input.kind !== "weights") for (const header of match.unsupported) errors.push({ rowNumber: headerRow, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
+  for (const item of match.ambiguous) errors.push({ rowNumber: headerRow, code: "IMPORT_COLUMN_AMBIGUOUS", field: item.field, detail: item.headers.join(" | ") });
+  for (const key of match.missing) errors.push({ rowNumber: headerRow, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: key, detail: headers.filter(Boolean).join(" | ") });
   if (errors.length) return { headers, rows: [], errors };
-  return {
-    headers,
-    errors,
-    rows: rows.map((row, index) => ({ rowNumber: index + 2, cells: Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined])) })),
-  };
+  const mapping = match.mapping;
+  const out: ParsedRow[] = [];
+  const notes = { skippedTotals: 0, filledDown: 0 };
+  let lastCsi = "";
+  rows.forEach((row, index) => {
+    const cells = Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined]));
+    if (input.kind === "weights") {
+      // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
+      const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
+      if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { notes.skippedTotals += 1; return; }
+      // Q-47 (owner decision 18-11): a section written once above its activities — the empty section cells below it take it, counted and shown in the preview
+      const csi = String(cells.csi ?? "").trim();
+      if (csi) lastCsi = csi;
+      else if (lastCsi && String(cells.activityName ?? "").trim()) { cells.csi = lastCsi; notes.filledDown += 1; }
+    }
+    out.push({ rowNumber: rowNumbers[index], cells });
+  });
+  return { headers, errors, rows: out, notes };
 }
 
 // ------------------------------------------------------------------ stage 2
@@ -233,6 +324,8 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
 // ---- catalogue (activities, groups, stages, weights)
 
 export type CatalogContext = {
+  /** How far from 100 a model's total may be. The catalogue: 0.0001. The weights table (Q-47, owner decision 18-11): 0.01, accepted with a note. */
+  totalTolerance?: number;
   groups: Map<string, { id: string }>;
   stages: Map<string, { id: string; groupCode: string }>;
   definitions: Map<string, { id: string; weightPercent: number; groupCode: string; stageCode: string; name: string; wbsItemId: string | null }>;
@@ -295,7 +388,7 @@ export function planCatalog(rows: ParsedRow[], context: CatalogContext): Catalog
     const totalWeight = round4(modelRows.reduce((sum, row) => sum + row.weightPercent, 0));
     models.push({ modelCode, activities: modelRows.length, totalWeight });
     if (modelsWithRowErrors.has(modelCode)) return;
-    if (Math.abs(totalWeight - 100) > 0.0001) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight} (${totalWeight < 100 ? "missing" : "over by"} ${round4(Math.abs(100 - totalWeight))})` }); }
+    if (Math.abs(totalWeight - 100) > (context.totalTolerance ?? 0.0001) + 1e-9) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_WEIGHTS_NOT_100", field: modelCode, detail: `${modelCode} totals ${totalWeight} (${totalWeight < 100 ? "missing" : "over by"} ${round4(Math.abs(100 - totalWeight))})` }); }
     const fileCodes = new Set(modelRows.map(row => row.code));
     context.activityCodesByModel.get(modelCode)?.forEach(existingCode => { if (!fileCodes.has(existingCode)) { brokenModels.add(modelCode); errors.push({ rowNumber: 0, code: "PMC_MODEL_ACTIVITY_OMITTED", field: modelCode, detail: `${modelCode}/${existingCode}` }); } });
   });
@@ -546,12 +639,12 @@ export { defKey as pmcDefinitionKey };
 
 export const DEFAULT_ZONE_CODE = "Z1";
 export type WeightsTranslation = { rows: ParsedRow[]; errors: PmcImportError[]; ignoredZeroWeight: number; scaledFromFractions: boolean };
+// Q-31: Arabic-Indic digits, «٪» and «%», «٫», and a decimal comma («2,5» is two and a half, not 25) are read as people write them (parseNumber).
 const weightNumber = (value: unknown): number | undefined => {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  const raw = text(value).replace(/,/g, "").replace(/%$/, "").trim();
-  if (!raw) return undefined;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  if (!text(value)) return undefined;
+  const parsed = parseNumber(text(value));
+  return parsed ? parsed.value : undefined;
 };
 /** A stable code for an activity that came without one, so importing the same table again finds the same activity. */
 export function weightActivityCode(name: string): string {
