@@ -39,6 +39,7 @@
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
     "0037_schedule_snapshots.sql": "d26a397b86ba18920fe3299c6f1e49151b6acf0506cf5ec930112d00dee70153",
     "0038_p6_same_project_guards.sql": "cf92a6fab0398b6391422f88505cca09b97d268c757f5552712d6a5f6f1dda6c",
-    "0039_project_meetings.sql": "df1b26f0ed25fd6f2b1fc7eeec81f4c03e0f9f712aead7ce3030c685fd2cec3c"
+    "0039_project_meetings.sql": "df1b26f0ed25fd6f2b1fc7eeec81f4c03e0f9f712aead7ce3030c685fd2cec3c",
+    "0040_work_confirmations.sql": "be8b6429ac2bc07fb06447185027f123807814ca1f5d27615c1a0c0ea8f93547"
   }
 }
