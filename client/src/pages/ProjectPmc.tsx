@@ -26,6 +26,7 @@ import { pmcImportReason } from "@/lib/pmcImportMessages";
 import { wo22Text } from "@/lib/wo22Text";
 import { SourcePercentages } from "@/components/pmc/SourcePercentages";
 import { TableScroll } from "@/components/ds/TableScroll";
+import { PMC_GUIDE_LABELS, PMC_NOT_IN_PLATFORM, PMC_TAB_GUIDE } from "@/lib/pmcTabGuide";
 
 export const PMC_TEXT = {
   ar: {
@@ -368,6 +369,15 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         {/* Work order 22: the three percentages and the two site screens */}
         <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
+        {/* Q-37 (c): what the open tab is for and when to use it; the whole list, and what PMC does not have, one click away */}
+        <section className="space-y-2 print:hidden" data-pmc-tab-guide={tab}>
+          <p className="text-sm text-muted-foreground">{pickLanguage(language, PMC_TAB_GUIDE[tab].what)} <span className="font-semibold text-foreground">{pickLanguage(language, PMC_GUIDE_LABELS.when)}:</span> {pickLanguage(language, PMC_TAB_GUIDE[tab].when)}</p>
+          <details className="rounded-[var(--radius)] border border-border bg-card text-sm">
+            <summary className="flex min-h-11 cursor-pointer items-center px-3 font-medium">{pickLanguage(language, PMC_GUIDE_LABELS.all)}</summary>
+            <dl className="grid gap-2 border-t border-border p-3 md:grid-cols-2" data-pmc-guide-all>{TABS.map(key => <div key={key}><dt className="font-semibold">{t.tabs[key]}</dt><dd className="text-muted-foreground">{pickLanguage(language, PMC_TAB_GUIDE[key].what)} {pickLanguage(language, PMC_TAB_GUIDE[key].when)}</dd></div>)}</dl>
+            <p className="border-t border-border p-3 text-muted-foreground" data-pmc-not-in-platform>{pickLanguage(language, PMC_NOT_IN_PLATFORM)}</p>
+          </details>
+        </section>
         {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && (
           <section aria-label={pickLanguage(language, { ar: "عوامل التصفية", en: "Filters", ur: "فلٹرز" })} className="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border print:hidden">
             {select("zone", t.filters.zone, options.zones)}{select("block", t.filters.block, options.blocks)}{select("group", t.filters.group, options.groups)}{select("stage", t.filters.stage, options.stages)}{select("activity", t.filters.activity, options.activities)}
