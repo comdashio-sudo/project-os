@@ -19,7 +19,7 @@ type TextKey = (typeof TEXTS)[number];
 const MAX_PHOTOS = 24;
 const text = {
   ar: {
-    title: "التقرير الأسبوعي", back: "ضوابط المشروع", week: "بداية الأسبوع", previous: "الأسبوع السابق", next: "الأسبوع التالي", figures: "أرقام الأسبوع (من اليوميات المعتمدة، لا تُحرَّر)",
+    title: "التقرير الأسبوعي", back: "لوحة المشروع", week: "بداية الأسبوع", previous: "الأسبوع السابق", next: "الأسبوع التالي", figures: "أرقام الأسبوع (من اليوميات المعتمدة، لا تُحرَّر)",
     reports: "تقارير يومية معدودة", workingDays: "أيام العمل", missing: "أيام بلا تقرير", labour: "العمالة (رجل×يوم)", direct: "مباشرة", indirect: "غير مباشرة", ncrOpen: "NCR مفتوحة", incidents: "حوادث",
     activity: "النشاط", planned: "المخطط", actual: "الفعلي", variance: "الانحراف", ofPlan: "من المخطط", completed: "وحدات اكتملت", noActivities: "لا أسطر عمل في يوميات هذا الأسبوع.",
     words: "نصوص التقرير", suggest: "اقترح من الأرقام", suggested: "مُلئت النصوص الفارغة من الأرقام؛ عدّلها كما تشاء.", photos: "صور الأسبوع", chosen: (n: number) => `${formatNumber(n)} من ${MAX_PHOTOS} مختارة`, noPhotos: "لا صور في يوميات هذا الأسبوع.",
@@ -27,7 +27,7 @@ const text = {
     labels: { summary: "الملخص", analysis: "التحليل", correctiveActions: "الإجراءات التصحيحية", milestones: "المعالم", outlook: "النظرة للأسبوعين القادمين", engineering: "الهندسة", procurement: "المشتريات", commercial: "التجاري", interfaces: "الواجهات", issues: "المشكلات", decisions: "القرارات المطلوبة" } as Record<TextKey, string>,
   },
   en: {
-    title: "Weekly report", back: "Project controls", week: "Week starting", previous: "Previous week", next: "Next week", figures: "The week's figures (from approved daily reports, not editable)",
+    title: "Weekly report", back: "Project board", week: "Week starting", previous: "Previous week", next: "Next week", figures: "The week's figures (from approved daily reports, not editable)",
     reports: "Daily reports counted", workingDays: "Working days", missing: "Days without a report", labour: "Labour (man-days)", direct: "Direct", indirect: "Indirect", ncrOpen: "Open NCRs", incidents: "Incidents",
     activity: "Activity", planned: "Planned", actual: "Actual", variance: "Variance", ofPlan: "Of plan", completed: "Units completed", noActivities: "No work lines in this week's daily reports.",
     words: "Report texts", suggest: "Suggest from the figures", suggested: "Empty texts were filled from the figures; edit them as you wish.", photos: "The week's photos", chosen: (n: number) => `${formatNumber(n)} of ${MAX_PHOTOS} chosen`, noPhotos: "No photos in this week's daily reports.",
@@ -35,7 +35,7 @@ const text = {
     labels: { summary: "Summary", analysis: "Analysis", correctiveActions: "Corrective actions", milestones: "Milestones", outlook: "Outlook for the next two weeks", engineering: "Engineering", procurement: "Procurement", commercial: "Commercial", interfaces: "Interfaces", issues: "Issues", decisions: "Decisions required" } as Record<TextKey, string>,
   },
   ur: {
-    title: "ہفتہ وار رپورٹ", back: "پروجیکٹ کنٹرولز", week: "ہفتے کا آغاز", previous: "پچھلا ہفتہ", next: "اگلا ہفتہ", figures: "ہفتے کے اعداد (منظور شدہ روزانہ رپورٹوں سے، قابلِ ترمیم نہیں)",
+    title: "ہفتہ وار رپورٹ", back: "پروجیکٹ بورڈ", week: "ہفتے کا آغاز", previous: "پچھلا ہفتہ", next: "اگلا ہفتہ", figures: "ہفتے کے اعداد (منظور شدہ روزانہ رپورٹوں سے، قابلِ ترمیم نہیں)",
     reports: "شمار شدہ روزانہ رپورٹیں", workingDays: "کام کے دن", missing: "رپورٹ کے بغیر دن", labour: "مزدوری (آدمی-دن)", direct: "براہِ راست", indirect: "بالواسطہ", ncrOpen: "کھلی NCR", incidents: "حادثات",
     activity: "سرگرمی", planned: "منصوبہ", actual: "اصل", variance: "فرق", ofPlan: "منصوبے کا", completed: "مکمل یونٹس", noActivities: "اس ہفتے کی روزانہ رپورٹوں میں کام کی کوئی سطر نہیں۔",
     words: "رپورٹ کی تحریریں", suggest: "اعداد سے تجویز کریں", suggested: "خالی تحریریں اعداد سے بھری گئیں؛ جیسے چاہیں ترمیم کریں۔", photos: "ہفتے کی تصاویر", chosen: (n: number) => `${MAX_PHOTOS} میں سے ${formatNumber(n)} منتخب`, noPhotos: "اس ہفتے کی روزانہ رپورٹوں میں کوئی تصویر نہیں۔",
