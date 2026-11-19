@@ -1173,6 +1173,11 @@ export const projectErrorMessages = {
     en: "This save has already been undone; it cannot be undone twice.",
     ur: "یہ محفوظ کاری پہلے ہی واپس لی جا چکی ہے؛ دوبارہ واپسی نہیں۔",
   },
+  PROJECT_OS_UNDO_CELLS_CONFIRMED: {
+    ar: "بعض فلل هذا الحفظ دخلت إثبات أعمال مقاول مُرسَلًا أو معتمدًا، فلا يُتراجع عنه: التراجع يترك مطالبة بلا إنجاز. صحّح الإنجاز بحفظ جديد بعد معالجة الإثبات.",
+    en: "Some villas of this save are in a subcontractor's work confirmation that is submitted or approved, so it is not undone: undoing it would leave a claim with no progress behind it. Correct the progress by a new save once the confirmation is dealt with.",
+    ur: "اس محفوظ کردہ کے کچھ ولاز ٹھیکیدار کے بھیجے گئے یا منظور شدہ کام کی تصدیق میں ہیں، اس لیے اسے واپس نہیں کیا جاتا: واپسی دعوے کو بغیر پیش رفت کے چھوڑ دے گی۔ تصدیق نمٹنے کے بعد نئی محفوظ کاری سے پیش رفت درست کریں۔",
+  },
   PROJECT_OS_UNDO_CELLS_CHANGED: {
     ar: "تغيّرت فلل من هذا الحفظ بعده، فلا تراجع؛ صحّح بحفظ جديد.",
     en: "Villas of this save changed after it, so it cannot be undone; correct it with a new save.",
