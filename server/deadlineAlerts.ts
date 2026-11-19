@@ -14,7 +14,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, lt, ne, notInArray, sql } fro
 import { actions, activities, consultantSubmittals, internalNotifications, memberships, projects, rfis } from "../drizzle/schema";
 import { activeTenantIds, enqueueEmail, linkTo, mailerFromEnv, permissionHolders, projectsReachedBy, recipientsWhoWant, type ProjectRow } from "./emailNotifications";
 import { dailyMailWindow, deadlinesEmail } from "./domain/emailNotifications";
-import { getDb, getTenantAccessSnapshot } from "./db";
+import { assertDecisionParticipant, getDb, getTenantAccessSnapshot } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 export const DEADLINES_NOTICE_CODE = "DEADLINES_DAILY";
@@ -150,10 +150,12 @@ export async function enqueueDeadlineDigests(db: Db, now: Date, options: { mail?
   return result;
 }
 
-/** deadlines.mine: what is overdue for the signed-in person in this company, now, by the digest's own rule. Any active member may ask about themselves. */
+/** executive.myDeadlines: what is overdue for the signed-in person in this company, now, by the digest's own rule. Any active member of a licensed company may ask about themselves. */
 export async function getMyDeadlinesForTenant(input: { userId: number; tenantId: string; now?: Date }): Promise<Deadlines> {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot || snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  // the same gate as «مهامي» (server/myWork.ts): an active membership of a company licensed for the executive, PMO or project product
+  assertDecisionParticipant(snapshot);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   return (await overdueByUser(db, input.tenantId, input.now ?? new Date(), input.userId)).get(input.userId) ?? empty();
