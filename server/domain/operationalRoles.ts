@@ -47,6 +47,9 @@ export const operationalPermissionCatalog = [
   { code: "strategy.read", name: "View the strategy centre", productCode: "EXECUTIVE" as const },
   { code: "strategy.manage", name: "Enter strategy assumptions and change requests", productCode: "EXECUTIVE" as const },
   { code: "strategy.approve", name: "Approve strategy assumptions and their changes", productCode: "EXECUTIVE" as const },
+
+  // Q-43 (P2-06): record a subcontractor's completed work (units × activities, or BOQ quantities) without prices, for the commitments manager to approve
+  { code: "project.subcontract.progress.record", name: "Record subcontractor work confirmations (no prices)", productCode: "PROJECT" as const },
   // Tenders before award (work order 5): packages and invitations, bids, levelling, award.
   { code: "project.tender.manage", name: "Manage tender packages and invitations", productCode: "PROJECT" as const },
   { code: "project.tender.bids", name: "Enter and correct bids", productCode: "PROJECT" as const },
@@ -85,7 +88,7 @@ export const operationalRoleDefinitions = [
   { code: "PLANNING_ENGINEER", name: "Planning Engineer", permissions: ["project.create", "project.pmc.read", "project.pmc.manage", "project.wbs.manage", "project.schedule.manage", "project.evm.manage", "project.team.invite", "project.consultant.respond", "project.performance.read_own"] },
   // Q-17 (205-3): the field and technical roles open the project page (project.read); its money stays behind project.cashflow.read (205-1).
   // Q-17 (205-5, G-162): the site engineer records attendance on site, as the HR manager does.
-  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.attendance.manage", "project.performance.read_own"] },
+  { code: "SITE_ENGINEER", name: "Site Engineer", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.progress.manage", "project.field.manage", "project.quality.manage", "project.hse.manage", "project.rfi.manage", "project.ncr.manage", "project.material.request", "project.attendance.manage", "project.performance.read_own", "project.subcontract.progress.record"] },
   { code: "QA_QC_MANAGER", name: "QA/QC Manager", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.quality.manage", "project.qc.receive", "project.ncr.manage", "project.performance.read_own"] },
   { code: "HSE_MANAGER", name: "HSE Manager", permissions: ["project.read", "project.hse.manage", "project.field.manage", "project.performance.read_own"] },
   {
@@ -97,6 +100,7 @@ export const operationalRoleDefinitions = [
       "project.manage",
       "project.team.invite",
       "project.consultant.respond",
+      "project.subcontract.progress.record",
       "project.pmc.read",
       "project.pmc.update",
       "project.pmc.manage",

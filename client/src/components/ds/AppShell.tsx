@@ -45,6 +45,7 @@ function NavList({ nav, activeId, onNavigate, collapsed }: Pick<Props, "nav" | "
               className={cn("flex min-h-11 items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-medium transition-colors", collapsed && "justify-center px-0", active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>
               <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
+              {active && !collapsed ? <span aria-hidden="true" data-nav-active-mark className="ms-auto h-2 w-2 shrink-0 rounded-full bg-sidebar-mark" /> : null}
             </a>
           </li>); })}
       </ul>
@@ -66,14 +67,14 @@ export function AppShell(props: Props) {
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-40 bg-foreground/50 md:hidden" />
             <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 start-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 border-e border-sidebar-border bg-sidebar p-4 text-sidebar-foreground md:hidden">
-              <div className="flex items-center justify-between"><Dialog.Title asChild><span><Logo variant="horizontal" size={28} /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
+              <div className="flex items-center justify-between"><Dialog.Title asChild><span><Logo variant="horizontal" size={28} onDark /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
               <Switchers {...props} vertical />
               <NavList nav={props.nav} activeId={props.activeId} onNavigate={item => { props.onNavigate?.(item); setDrawer(false); }} />
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <Logo variant="horizontal" size={28} className="shrink-0" />
-        <div className="ms-3 hidden md:block"><Switchers {...props} /></div>
+        <Logo variant="horizontal" size={28} className="shrink-0 md:hidden" />
+        <div className="hidden md:block"><Select aria-label={text.project} options={props.projects} value={props.project} onValueChange={props.onProject} className="min-h-9 w-56 md:min-h-9" /></div>
         <div className="ms-auto flex items-center gap-1">
           <Menu.Root>
             <Menu.Trigger aria-label={text.language} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted"><Languages className="h-5 w-5" aria-hidden="true" /></Menu.Trigger>
@@ -95,8 +96,15 @@ export function AppShell(props: Props) {
       </header>
       <div className="flex min-h-0 flex-1">
         <aside className={cn("hidden shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] md:block", collapsed ? "w-[4.5rem]" : "w-60")}>
-          <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] flex-col justify-between p-3">
-            <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
+          <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] flex-col justify-between gap-3 p-3">
+            <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+              {/* Q-19 (2): the logo on dark and the company switcher head the dark menu */}
+              <div className={cn("flex flex-col gap-3 border-b border-sidebar-border pb-3", collapsed && "items-center")} data-sidebar-head>
+                <Logo variant={collapsed ? "symbol" : "horizontal"} size={28} className="shrink-0" onDark />
+                {collapsed ? null : <Select aria-label={text.company} options={props.companies} value={props.company} onValueChange={props.onCompany} className="min-h-9 w-full md:min-h-9" />}
+              </div>
+              <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
+            </div>
             <button type="button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? text.expand : text.collapse} aria-expanded={!collapsed} className="flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius)] text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60">
               {collapsed ? <ChevronsRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}{collapsed ? null : <span>{text.collapse}</span>}
             </button>

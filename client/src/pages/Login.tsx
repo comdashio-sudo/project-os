@@ -15,6 +15,7 @@ type Method = "code" | "password";
 const messages = {
   ar: {
     title: "تسجيل الدخول",
+    tagline: "إدارة مشاريع البناء من الموقع إلى الإدارة التنفيذية، بأرقام من بيانات المشروع نفسه.",
     emailHelp: "أدخل بريدك وسنرسل إليك رمز الدخول. الدخول بدعوة من مدير شركتك أو من مالك المنصة.",
     email: "البريد الإلكتروني",
     send: "إرسال الرمز",
@@ -33,6 +34,7 @@ const messages = {
   },
   en: {
     title: "Sign in",
+    tagline: "Construction projects from the site to the board, with figures from the project's own data.",
     emailHelp: "Enter your e-mail and we will send you a sign-in code. Sign-in is by invitation from your company administrator or the platform owner.",
     email: "E-mail address",
     send: "Send code",
@@ -51,6 +53,7 @@ const messages = {
   },
   ur: {
     title: "لاگ ان",
+    tagline: "تعمیراتی منصوبے سائٹ سے انتظامیہ تک، منصوبے کے اپنے ڈیٹا کے اعداد کے ساتھ۔",
     emailHelp: "اپنا ای میل درج کریں، ہم آپ کو لاگ ان کوڈ بھیجیں گے۔ لاگ ان آپ کی کمپنی کے منتظم یا پلیٹ فارم کے مالک کی دعوت پر ہے۔",
     email: "ای میل ایڈریس",
     send: "کوڈ بھیجیں",
@@ -176,10 +179,15 @@ export default function Login() {
 
   return (
     <DirectionProvider direction="a">
-      <main className="relative flex min-h-screen items-center justify-center bg-background p-5 text-foreground">
-        <div className="absolute end-4 top-4"><LanguageToggle showNote /></div>
+      <main className="grid min-h-screen bg-background text-foreground md:grid-cols-2">
+        {/* Q-19 (2): the dark panel with the logo on dark and the line that says what Dashio is (on the right in Arabic and Urdu; a band above the form on a phone) */}
+        <aside className="flex flex-col justify-center gap-4 bg-sidebar px-6 py-8 text-sidebar-foreground md:px-12" data-login-panel>
+          <Logo size={40} onDark />
+          <p className="max-w-md text-base leading-relaxed md:text-lg">{t.tagline}</p>
+        </aside>
+        <div className="flex flex-col items-center justify-center gap-4 p-5">
+        <div className="flex w-full max-w-sm justify-end"><LanguageToggle showNote /></div>
         <Card className="w-full max-w-sm p-6">
-          <div className="mb-5 flex justify-center"><Logo /></div>
           <h1 className="text-center text-xl font-semibold">{forgot ? t.forgotTitle : t.title}</h1>
           {forgot ? (
             <div className="mt-5 grid gap-4">
@@ -231,6 +239,7 @@ export default function Login() {
           ) : null}
           </>)}
         </Card>
+        </div>
       </main>
     </DirectionProvider>
   );
