@@ -40,11 +40,11 @@ export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
       </div>
       <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t.basis}</p>
       {liability.isLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">{t.loading}</p>}
-      {liability.error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(liability.error, isArabic)}</p>}
+      {liability.error && <p role="alert" className="mt-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(liability.error, isArabic)}</p>}
       {liability.data && liability.data.months.length === 0 && <p className="mt-3 text-sm text-muted-foreground">{t.empty}</p>}
       {liability.data && liability.data.months.length > 0 && (
         <div className="mt-3 space-y-4">
-          {liability.data.currencies.length > 1 && <p role="status" className="rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{t.mixed}</p>}
+          {liability.data.currencies.length > 1 && <p role="status" className="rounded-xl bg-warning-soft p-2 text-xs text-warning-soft-foreground">{t.mixed}</p>}
           <table className="w-full text-sm">
             <thead><tr className="text-start text-xs text-muted-foreground"><th className="py-1 text-start">{t.month}</th><th className="text-end">{t.accrued}</th><th className="text-end">{t.cumulative}</th><th className="text-end">{t.employees}</th></tr></thead>
             <tbody>{liability.data.months.map(row => <tr key={row.month} className="border-t"><td className="py-1" dir="ltr">{row.month}</td><td className="text-end">{money(row.accrued)}</td><td className="text-end font-semibold">{money(row.cumulative)}</td><td className="text-end">{row.employees}</td></tr>)}</tbody>

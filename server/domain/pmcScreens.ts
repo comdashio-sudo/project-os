@@ -5,7 +5,20 @@ import { calculateUnitProgress, normalizeUnitRange, type PmcUnitActivityStatus a
 
 export const SCREEN_STATUSES: readonly Status[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"];
 export type PmcUnit = { id: string; number: number; modelCode: string; weight: number; zoneCode: string; blockCode: string; geometry?: unknown };
-export type PmcDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; groupName: string; stageCode: string; stageName: string };
+export type PmcDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; groupName: string; stageCode: string; stageName: string; nameEn?: string | null; groupNameEn?: string | null; stageNameEn?: string | null };
+
+/**
+ * Q-49: the PMC screens (and their exports) with the activity, group and stage names in the chosen language. «en» shows each English name and, where one
+ * is missing, the Arabic name with a light mark in the reader's language; «ar» (and a project with no English name at all) leaves the names as stored.
+ * Display only: codes, weights and every figure are untouched, so a screen reads the same numbers in both languages.
+ */
+const OTHER_LANGUAGE_MARK = { ar: "بالعربية", en: "in Arabic", ur: "عربی میں" } as const;
+export const datasetHasEnglishNames = (ds: Pick<PmcDataset, "definitions">) => ds.definitions.some(d => Boolean(d.nameEn?.trim() || d.groupNameEn?.trim() || d.stageNameEn?.trim()));
+export function withActivityNames(ds: PmcDataset, names: "ar" | "en" | undefined, language: keyof typeof OTHER_LANGUAGE_MARK = "ar"): PmcDataset {
+  if (names !== "en" || !datasetHasEnglishNames(ds)) return ds;
+  const pick = (arabic: string, english: string | null | undefined, mark: boolean) => (english?.trim() ? english.trim() : mark ? `${arabic} · ${OTHER_LANGUAGE_MARK[language]}` : arabic);
+  return { ...ds, definitions: ds.definitions.map(d => ({ ...d, name: pick(d.name, d.nameEn, true), groupName: pick(d.groupName, d.groupNameEn, false), stageName: pick(d.stageName, d.stageNameEn, false) })) };
+}
 export type PmcCell = { id: string; unitId: string; definitionId: string; status: Status; verificationStatusId: string | null; assignedUserId: number | null; lastChangedAt: Date };
 export type PmcHistory = { unitId: string; definitionId: string; from: Status | null; to: Status; userId: number; at: Date };
 export type PmcVerification = { id: string; code: string; label: string; pending: boolean; sortOrder: number };

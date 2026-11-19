@@ -95,7 +95,7 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
       <ul className="space-y-2">
         {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
+            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
               <span className="font-semibold">{item.code} · {item.name}</span>
               <span className="block text-xs text-muted-foreground">{t.nowAt}: {item.lastPercent === null ? t.never : `${item.lastPercent}%`}</span>
             </button>
@@ -158,7 +158,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       <ul className="max-h-72 space-y-2 overflow-y-auto">
         {context.materials.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
+            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
               <span className="font-semibold">{item.code} · {item.description}</span>
               <span className="block text-xs text-muted-foreground">{item.unitOfMeasure}</span>
             </button>
@@ -224,7 +224,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
       <ul className="space-y-2">
         {orders.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
+            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
               <span className="font-semibold">{item.purchaseOrderNumber}</span>
               <span className="block text-xs text-muted-foreground">{item.supplierName}</span>
             </button>

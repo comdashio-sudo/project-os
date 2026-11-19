@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextArea, TextInput, formatDate, formatNumber, formatPercent } from "@/components/ds";
 import { PageMain } from "@/components/pageFrame";
@@ -59,6 +60,10 @@ export default function WeeklyReport() {
   const [weekStart, setWeekStart] = useState(currentWeekStart());
   const canWrite = useCan(["project.field.manage", "project.manage"], projectId);
   const figures = trpc.reportPeriods.get.useQuery({ ...scope, kind: "week", anchor: weekStart }, { enabled: Boolean(tenantId && projectId && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) });
+  // Q-49: the activity names in Arabic or English (display only), offered when an activity has an English name
+  const [nameLanguage, setNameLanguage] = useActivityNameLanguage();
+  const withEnglish = hasEnglishNames(figures.data?.activities);
+  const activityLabel = useActivityLabel(nameLanguage, withEnglish);
   const saved = trpc.reportPeriods.weekly.useQuery({ ...scope, weekStart }, { enabled: Boolean(tenantId && projectId && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) });
   const profile = trpc.projects.profile.get.useQuery(scope, { enabled: Boolean(tenantId && projectId) });
   const utils = trpc.useUtils();
@@ -97,13 +102,14 @@ export default function WeeklyReport() {
         <Card aria-label={t.figures} data-week-figures>
           <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi dir="ltr">{formatDate(data.period.start, language)} – {formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
+            {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-6">{([[t.reports, data.reports.length], [t.workingDays, data.period.workingDayCount], [t.missing, data.missingWorkingDays.length], [`${t.labour} · ${t.direct}`, data.labour.period.direct], [`${t.labour} · ${t.indirect}`, data.labour.period.indirect], [t.ncrOpen, data.quality.ncr.open]] as const).map(([label, value]) => (
               <div key={label} className="rounded-[var(--radius)] bg-muted p-2"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="text-lg font-semibold">{formatNumber(value)}</dd></div>))}</dl>
             {data.activities.length === 0 ? <p className="text-sm text-muted-foreground">{t.noActivities}</p> : (
               <TableScroll label={t.figures}>
                 <table className="w-full text-sm"><thead className="text-xs text-muted-foreground"><tr>{[t.activity, t.planned, t.actual, t.variance, t.ofPlan, t.completed].map(head => <th key={head} scope="col" className="p-2 text-start">{head}</th>)}</tr></thead>
                   <tbody className="divide-y">{data.activities.map(activity => (
-                    <tr key={activity.activityId}><th scope="row" className="p-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activity.name}</th><td className="p-2">{figure(activity.period.planned, 2)}</td><td className="p-2">{figure(activity.period.actual, 2)}</td>
+                    <tr key={activity.activityId}><th scope="row" className="p-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activityLabel(activity)}</th><td className="p-2">{figure(activity.period.planned, 2)}</td><td className="p-2">{figure(activity.period.actual, 2)}</td>
                       <td className="p-2">{figure(activity.period.variance, 2)}</td><td className="p-2">{activity.period.percentOfPlan === null ? "—" : formatPercent(activity.period.percentOfPlan, 1)}</td><td className="p-2">{formatNumber(activity.period.completedUnits)}</td></tr>
                   ))}</tbody></table>
               </TableScroll>
