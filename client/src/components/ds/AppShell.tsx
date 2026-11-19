@@ -11,7 +11,8 @@ import { Select, type SelectOption } from "./Select";
 import { DIRECTIONS, useDirection, type Mode } from "./direction";
 import { useDsText } from "./strings";
 
-export type NavItem = { id: string; label: string; icon: LucideIcon; href?: string };
+/** `group`: the heading of the group the item belongs to (Q-36); a heading is drawn where it changes. */
+export type NavItem = { id: string; label: string; icon: LucideIcon; href?: string; group?: string };
 
 type Props = {
   nav: NavItem[]; activeId: string; onNavigate?: (item: NavItem) => void;
@@ -37,8 +38,9 @@ function NavList({ nav, activeId, onNavigate, collapsed }: Pick<Props, "nav" | "
   return (
     <nav aria-label={text.navigation}>
       <ul className="flex flex-col gap-1">
-        {nav.map(item => { const active = item.id === activeId; const Icon = item.icon; return (
+        {nav.map((item, index) => { const active = item.id === activeId; const Icon = item.icon; const heading = item.group && item.group !== nav[index - 1]?.group ? item.group : null; return (
           <li key={item.id}>
+            {heading ? <p className={cn("px-3 pb-1 text-xs font-semibold text-sidebar-foreground/60", index > 0 && "mt-3", collapsed && "sr-only")} data-nav-group>{heading}</p> : null}
             <a href={item.href ?? "#"} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined} onClick={event => { if (onNavigate) { event.preventDefault(); onNavigate(item); } }}
               className={cn("flex min-h-11 items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-medium transition-colors", collapsed && "justify-center px-0", active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>
               <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
