@@ -30,7 +30,7 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
   const t = pickLanguage(language, text);
   const query = trpc.profitability.cashFlow.useQuery({ tenantId, projectId });
   const money = (value: number) => formatMoney(value, currency, isArabic);
-  if (query.isLoading) return <p role="status" className="mt-6 text-sm text-slate-500">{t.loading}</p>;
+  if (query.isLoading) return <p role="status" className="mt-6 text-sm text-muted-foreground">{t.loading}</p>;
   if (!query.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => query.refetch()}>{t.retry}</Button></div>;
   const { months, lowestCumulative } = query.data;
   // The export uses the same headers and the same rows as the table below; the rows are the raw amounts, not the formatted text.
@@ -47,11 +47,11 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
         <h3 className="font-semibold">{t.title}</h3>
         <ExportExcelButton fileName="cash-flow-monthly" sheetName={t.title} title={t.title} rows={months} columns={columns} />
       </div>
-      {months.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
+      {months.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={t.monthlyTable}>
             <table className="w-full min-w-[34rem] text-sm">
-              <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.month}</th><th className="text-start">{t.receipts}</th><th className="text-start">{t.outflows}</th><th className="text-start">{t.net}</th><th className="text-start">{t.cumulative}</th></tr></thead>
+              <thead><tr className="text-xs text-muted-foreground"><th className="py-1 text-start">{t.month}</th><th className="text-start">{t.receipts}</th><th className="text-start">{t.outflows}</th><th className="text-start">{t.net}</th><th className="text-start">{t.cumulative}</th></tr></thead>
               <tbody>{months.map(row => (
                 <tr key={row.month} className="border-t">
                   <td className="py-1.5 pe-3">{row.month}</td><td className="whitespace-nowrap pe-3">{money(row.receipts)}</td><td className="whitespace-nowrap pe-3">{money(row.outflows)}</td>
@@ -63,7 +63,7 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
           {lowestCumulative && lowestCumulative.cumulative < 0 && <p role="status" className="mt-2 text-sm text-red-700">{t.lowest(lowestCumulative.month, money(lowestCumulative.cumulative))}</p>}
         </>
       )}
-      <p className="mt-2 text-xs text-slate-500">{t.basis}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{t.basis}</p>
     </section>
   );
 }

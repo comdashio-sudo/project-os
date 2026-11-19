@@ -40,12 +40,13 @@ const wordmarkStyle: Record<DirectionId, React.CSSProperties> = {
 };
 
 /** The mark: symbol alone, symbol + name side by side ("horizontal"), or the name with its Arabic form under it ("stacked"). */
-export function Logo({ variant = "horizontal", size = 32, direction, className = "" }: { variant?: "symbol" | "horizontal" | "stacked"; size?: number; direction?: DirectionId; className?: string }) {
+/** `onDark`: the wordmark in the dark menu's text colour (Q-19 (2): the logo on dark heads the menu). */
+export function Logo({ variant = "horizontal", size = 32, direction, className = "", onDark = false }: { variant?: "symbol" | "horizontal" | "stacked"; size?: number; direction?: DirectionId; className?: string; onDark?: boolean }) {
   const current = useDirection().direction;
   const which = direction ?? current;
   const symbol = <Symbol direction={which} size={size} />;
   if (variant === "symbol") return <span className={`inline-flex ${className}`}>{symbol}</span>;
-  const name = <span style={{ ...wordmarkStyle[which], fontSize: size * 0.62, lineHeight: 1 }} dir="ltr" className="text-foreground">Dashio</span>;
+  const name = <span style={{ ...wordmarkStyle[which], fontSize: size * 0.62, lineHeight: 1 }} dir="ltr" className={onDark ? "text-sidebar-foreground" : "text-foreground"}>Dashio</span>;
   if (variant === "horizontal") return <span className={`inline-flex items-center gap-2.5 ${className}`}>{symbol}{name}</span>;
   return <span className={`inline-flex items-center gap-3 ${className}`}>{symbol}<span className="flex flex-col gap-1">{name}<span dir="rtl" lang="ar" className="text-muted-foreground" style={{ fontFamily: "var(--font-ar)", fontSize: size * 0.4, lineHeight: 1 }}>داشيو</span></span></span>;
 }
