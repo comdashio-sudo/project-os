@@ -5,7 +5,7 @@ import { conflictReasons } from "@/components/ImportDiffPreview";
 // The sentences for what an operational import (costs, purchase orders, employees, hours) can refuse, by the code the server gives. A code without a sentence is shown as it is.
 const messages: Record<"ar" | "en" | "ur", Record<string, string>> = {
   ar: {
-    IMPORT_INVALID_NUMBER: "الرقم غير صالح (أكبر من صفر وبدون حروف).", IMPORT_INVALID_DATE: "التاريخ غير صالح؛ اكتبه بصيغة 2026-09-15.", IMPORT_REQUIRED_VALUE_MISSING: "قيمة مطلوبة ناقصة.",
+    IMPORT_MAPPING_INVALID: "اختيار الأعمدة غير صالح (حقل أو عمود غير موجود، أو عمود واحد لحقلين).", IMPORT_INVALID_NUMBER: "الرقم غير صالح (أكبر من صفر وبدون حروف).", IMPORT_INVALID_DATE: "التاريخ غير صالح؛ اكتبه بصيغة 2026-09-15.", IMPORT_REQUIRED_VALUE_MISSING: "قيمة مطلوبة ناقصة.",
     IMPORT_REQUIRED_COLUMN_MISSING: "عمود مطلوب غير موجود في الملف.", IMPORT_UNSUPPORTED_COLUMN: "عمود غير معتمد لهذا النوع من البيانات.", IMPORT_DUPLICATE_FILE_KEY: "الصف مكرر داخل الملف.",
     COST_ROW_NOT_LINKED: "كل تكلفة تُربط ببند WBS أو ببند ميزانية موجود: اكتب أحدهما.", COST_WBS_NOT_FOUND: "رمز WBS غير موجود في هذا المشروع.", COST_BUDGET_LINE_NOT_FOUND: "رمز بند الميزانية غير موجود في هذا المشروع.",
     COST_BUDGET_LINE_WITHOUT_WBS: "بند الميزانية غير مربوط ببند WBS؛ اكتب رمز WBS.", COST_LINK_MISMATCH: "بند الميزانية مربوط ببند WBS مختلف عن المكتوب.", COST_CATEGORY_INVALID: "الفئة غير معتمدة (مواد · عمالة · مقاول من الباطن · أخرى).",
@@ -15,7 +15,7 @@ const messages: Record<"ar" | "en" | "ur", Record<string, string>> = {
     TIME_EMPLOYEE_NOT_FOUND: "الرقم الوظيفي غير موجود.", TIME_AMBIGUOUS_ASSIGNMENT: "للموظف أكثر من إسناد مفتوح في هذا اليوم؛ سجّل الساعات من شاشة الساعات.",
   },
   en: {
-    IMPORT_INVALID_NUMBER: "Not a valid number (above zero, digits only).", IMPORT_INVALID_DATE: "Not a valid date; write it as 2026-09-15.", IMPORT_REQUIRED_VALUE_MISSING: "A required value is missing.",
+    IMPORT_MAPPING_INVALID: "The column choice is not valid (a field or column that does not exist, or one column for two fields).", IMPORT_INVALID_NUMBER: "Not a valid number (above zero, digits only).", IMPORT_INVALID_DATE: "Not a valid date; write it as 2026-09-15.", IMPORT_REQUIRED_VALUE_MISSING: "A required value is missing.",
     IMPORT_REQUIRED_COLUMN_MISSING: "A required column is not in the file.", IMPORT_UNSUPPORTED_COLUMN: "A column that is not approved for this kind of data.", IMPORT_DUPLICATE_FILE_KEY: "The row is repeated inside the file.",
     COST_ROW_NOT_LINKED: "Every cost is tied to a WBS item or an existing budget line: write one of them.", COST_WBS_NOT_FOUND: "That WBS code does not exist in this project.", COST_BUDGET_LINE_NOT_FOUND: "That budget cost code does not exist in this project.",
     COST_BUDGET_LINE_WITHOUT_WBS: "That budget line is not linked to a WBS item; write the WBS code.", COST_LINK_MISMATCH: "The budget line is linked to a different WBS item than the one written.", COST_CATEGORY_INVALID: "The category is not one of materials, labour, subcontract, other.",
@@ -24,7 +24,7 @@ const messages: Record<"ar" | "en" | "ur", Record<string, string>> = {
     EMPLOYEE_STATUS_INVALID: "That employment status is not accepted.", EMPLOYEE_TERMINATION_NOT_BY_IMPORT: "Termination is done on the HR screen, not from a file.",
     TIME_EMPLOYEE_NOT_FOUND: "No employee has that number.", TIME_AMBIGUOUS_ASSIGNMENT: "The employee has more than one open assignment that day; book the hours on the hours screen.",
   }, ur: {
-    IMPORT_INVALID_NUMBER: "درست عدد نہیں (صفر سے زیادہ، صرف ہندسے)۔", IMPORT_INVALID_DATE: "درست تاریخ نہیں؛ اسے 2026-09-15 کی شکل میں لکھیں۔", IMPORT_REQUIRED_VALUE_MISSING: "ایک ضروری قدر غائب ہے۔",
+    IMPORT_MAPPING_INVALID: "کالموں کا انتخاب درست نہیں (ایسی فیلڈ یا کالم جو موجود نہیں، یا دو فیلڈز کے لیے ایک کالم)۔", IMPORT_INVALID_NUMBER: "درست عدد نہیں (صفر سے زیادہ، صرف ہندسے)۔", IMPORT_INVALID_DATE: "درست تاریخ نہیں؛ اسے 2026-09-15 کی شکل میں لکھیں۔", IMPORT_REQUIRED_VALUE_MISSING: "ایک ضروری قدر غائب ہے۔",
     IMPORT_REQUIRED_COLUMN_MISSING: "فائل میں ایک ضروری کالم موجود نہیں ہے۔", IMPORT_UNSUPPORTED_COLUMN: "ایسا کالم جو اس قسم کے ڈیٹا کے لیے منظور نہیں۔", IMPORT_DUPLICATE_FILE_KEY: "یہ قطار فائل کے اندر دہرائی گئی ہے۔",
     COST_ROW_NOT_LINKED: "ہر لاگت کسی WBS آئٹم یا موجودہ بجٹ کی سطر سے جڑی ہونی چاہیے: ان میں سے ایک لکھیں۔", COST_WBS_NOT_FOUND: "یہ WBS کوڈ اس پروجیکٹ میں موجود نہیں ہے۔", COST_BUDGET_LINE_NOT_FOUND: "یہ بجٹ لاگت کوڈ اس پروجیکٹ میں موجود نہیں ہے۔",
     COST_BUDGET_LINE_WITHOUT_WBS: "یہ بجٹ کی سطر کسی WBS آئٹم سے نہیں جڑی؛ WBS کوڈ لکھیں۔", COST_LINK_MISMATCH: "بجٹ کی سطر لکھے گئے WBS آئٹم کے بجائے کسی اور WBS آئٹم سے جڑی ہے۔", COST_CATEGORY_INVALID: "یہ زمرہ مواد، لیبر، ذیلی ٹھیکہ، دیگر میں سے نہیں ہے۔",

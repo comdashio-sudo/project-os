@@ -7,7 +7,7 @@ import { PmcColumnMapping } from "./PmcColumnMapping";
 // Q-31 (P0-02): the column picker under a PMC import report. Synthetic headers only.
 const state = vi.hoisted(() => ({ mutate: vi.fn(), invalidate: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
-  useUtils: () => ({ dataImports: { progress: { invalidate: state.invalidate } } }),
+  useUtils: () => ({ dataImports: { progress: { invalidate: state.invalidate }, diff: { invalidate: state.invalidate } } }),
   dataImports: { reanalyze: { useMutation: () => ({ mutate: state.mutate, isPending: false, error: null }) } },
 } }));
 vi.mock("@/components/ds/Select", () => ({ Select: ({ options, value, onValueChange, "aria-label": label }: { options: { value: string; label: string }[]; value: string; onValueChange: (value: string) => void; "aria-label": string }) => (
