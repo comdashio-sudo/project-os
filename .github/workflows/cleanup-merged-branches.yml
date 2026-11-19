@@ -1,0 +1,74 @@
+name: Delete merged branches (D-34)
+
+# D-34 / Q-47 (1), adviser 18-11: the owner approved deleting merged branches (13-11) on conditions — this repository only, merged only, never main or
+# production, never a branch with an open pull request, the names and last hashes posted on #195 before deleting. A Claude Code session cannot delete
+# branches (its git proxy refuses with 403), so this workflow does it with the run's own token.
+#
+# It reads .github/cleanup/merged-branches.txt (branch|merged PR|last hash) and, for each line, deletes the branch only if ALL hold:
+#   - the name is not main or production, and does not contain «tasleem» (any case);
+#   - the branch still exists and its tip is exactly the listed hash (anything pushed since → skipped);
+#   - the listed pull request is merged, its head was this branch, and its head commit was this hash (squash merges are not ancestors of main,
+#     so "merged" is read from the pull request, not from git ancestry);
+#   - no open pull request has this branch as its head or its base.
+# Every line ends as deleted / skipped (with the reason) / absent in the run summary. Nothing is forced and nothing else is touched.
+# It runs once when the list lands on main (push touching the list) and on demand; a run from another branch is refused.
+on:
+  push:
+    branches: [main]
+    paths: [".github/cleanup/merged-branches.txt"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # delete a branch ref
+  pull-requests: read # read whether the listed pull request merged (squash merges leave no ancestry to check)
+
+concurrency:
+  group: cleanup-merged-branches
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: delete the listed merged branches
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/cleanup
+          persist-credentials: false
+      - name: check and delete, line by line
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -u
+          list=.github/cleanup/merged-branches.txt
+          deleted=0; skipped=0; absent=0
+          {
+            echo "## Merged branches (D-34)"
+            echo
+            echo "| branch | PR | result |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          report() { echo "| \`$1\` | #$2 | $3 |" >> "$GITHUB_STEP_SUMMARY"; }
+          while IFS='|' read -r branch pr sha || [ -n "$branch" ]; do
+            case "$branch" in ''|'#'*) continue ;; esac
+            if [ "$branch" = "main" ] || [ "$branch" = "production" ]; then report "$branch" "$pr" "skipped: protected name"; skipped=$((skipped+1)); continue; fi
+            # adviser 19-11 (I49): nothing that touches TASLEEM is ever deleted here, whatever the list says (case-insensitive)
+            case "$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]')" in *tasleem*) report "$branch" "$pr" "skipped: TASLEEM is never touched"; skipped=$((skipped+1)); continue ;; esac
+            encoded=$(jq -rn --arg b "$branch" '$b|@uri')
+            tip=$(gh api "repos/$REPO/git/ref/heads/$encoded" --jq .object.sha 2>/dev/null || true)
+            if [ -z "$tip" ]; then report "$branch" "$pr" "absent (already gone)"; absent=$((absent+1)); continue; fi
+            if [ "$tip" != "$sha" ]; then report "$branch" "$pr" "skipped: tip is $tip, not the listed hash"; skipped=$((skipped+1)); continue; fi
+            pull=$(gh api "repos/$REPO/pulls/$pr" --jq '[.merged, .head.ref, .head.sha] | @tsv' 2>/dev/null || true)
+            merged=$(printf '%s' "$pull" | cut -f1); head_ref=$(printf '%s' "$pull" | cut -f2); head_sha=$(printf '%s' "$pull" | cut -f3)
+            if [ "$merged" != "true" ] || [ "$head_ref" != "$branch" ] || [ "$head_sha" != "$sha" ]; then report "$branch" "$pr" "skipped: #$pr is not this branch merged at this hash"; skipped=$((skipped+1)); continue; fi
+            open_head=$(gh api "repos/$REPO/pulls?state=open&head=$OWNER:$encoded" --jq length)
+            open_base=$(gh api "repos/$REPO/pulls?state=open&base=$encoded" --jq length)
+            if [ "$open_head" != "0" ] || [ "$open_base" != "0" ]; then report "$branch" "$pr" "skipped: an open pull request uses it"; skipped=$((skipped+1)); continue; fi
+            if gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null; then report "$branch" "$pr" "deleted"; deleted=$((deleted+1)); else report "$branch" "$pr" "skipped: delete refused"; skipped=$((skipped+1)); fi
+          done < "$list"
+          { echo; echo "deleted $deleted · skipped $skipped · absent $absent"; } >> "$GITHUB_STEP_SUMMARY"
+          echo "deleted $deleted · skipped $skipped · absent $absent"

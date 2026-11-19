@@ -20,7 +20,7 @@ describe("what an import attempt means", () => {
   });
 
   it("rolls back the modules whose created rows are listed, never the opening-stock ledger or an unknown one", () => {
-    for (const code of ["wbs", "budget", "contracts", "materials", "schedule"]) expect(canRollbackModule(code)).toBe(true);
-    for (const code of ["openingBalances", "p6", "p6update", ""]) expect(canRollbackModule(code)).toBe(false);
+    for (const code of ["wbs", "budget", "contracts", "materials", "schedule", "p6update"]) expect(canRollbackModule(code)).toBe(true); // p6update: G-208, put back from its snapshot
+    for (const code of ["openingBalances", "p6", ""]) expect(canRollbackModule(code)).toBe(false);
   });
 });

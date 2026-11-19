@@ -75,7 +75,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-23: schedule snapshots
     for (const [activity, start] of [["A1020", "2023-10-06"], ["A1030", "2023-10-08"], ["A1040", "2023-10-10"]]) sheet.addRow([activity, start, ""]);
     await confirmScheduleUpdate({ userId: users.manager, tenantId: T, projectId: P, bytes: new Uint8Array(await workbook.xlsx.writeBuffer()), source: { key: "q23/update.xlsx", name: "update.xlsx" } });
     const snapshots = await one<{ source: string; isBaseline: boolean; activityCount: number }>("SELECT source, isBaseline, activityCount FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? ORDER BY createdAt", [T, P]);
-    expect(snapshots.map(row => [row.source, Boolean(row.isBaseline), row.activityCount])).toEqual([["p6_import", true, 50], ["p6_update", false, 50]]);
+    // the update leaves two: the activities as they stood BEFORE it (what undoing it puts back), then after it
+    expect(snapshots.map(row => [row.source, Boolean(row.isBaseline), row.activityCount])).toEqual([["p6_import", true, 50], ["p6_update_before", false, 50], ["p6_update", false, 50]]);
 
     // re-planned by hand after the update: A1490 now starts 5 days after the data date (in the look-ahead), A1480 20 days after (outside it)
     const [{ dataDate }] = await one<{ dataDate: Date }>("SELECT dataDate FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND isBaseline = false", [T, P]);
@@ -102,6 +103,58 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-23: schedule snapshots
     expect(live.summary.critical).toBeGreaterThan(0);
     expect(live.lookAhead).toEqual([row("A1490").id]);
     expect(row("A1000").critical).toBe(false); // complete: never critical, whatever its float
+  }, 120_000);
+
+  it("comparing two snapshots: the baseline against the first update says what the update did, activity by activity; another project's snapshot and a reader of another project are refused", async () => {
+    const [baseline] = await one<{ id: string }>("SELECT id FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND isBaseline = true", [T, P]);
+    const [firstUpdate] = await one<{ id: string }>("SELECT id FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND source = 'p6_update' ORDER BY createdAt LIMIT 1", [T, P]);
+    const result = await callerFor(users.reader, "q23-reader").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id });
+    // the update file: A1000..A1040 start (one day late each); A1000 finishes 2023-10-17 (planned 2023-10-15: two days later); A1010 finishes on its planned day
+    expect(result.summary).toEqual({ changed: 5, added: 0, removed: 0, started: 5, finished: 2, finishLater: 1, finishEarlier: 0, becameCritical: 0, noLongerCritical: 0 }); // A1000 had zero float, but it FINISHED: a complete activity is not «no longer critical»
+    expect(result.changes.map(change => [change.code, change.kinds, change.finishMovedDays])).toEqual([
+      ["A1000", ["started", "finished", "finish_moved"], 2],
+      ["A1010", ["started", "finished"], 0], ["A1020", ["started"], 0], ["A1030", ["started"], 0], ["A1040", ["started"], 0],
+    ]);
+    // NEGATIVE: a snapshot id that is not this project's, and a reader scoped to another project
+    expect(await code(callerFor(users.reader, "q23-reader").schedule.compare({ tenantId: T, projectId: PB, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toBe("PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND");
+    expect(await code(callerFor(users.scoped, "q23-scoped").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toMatch(/^PROJECT_OS_.*DENIED|FORBIDDEN/);
+    expect(await code(callerFor(users.outsider, "q23-outsider").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+  });
+
+  // G-208: undoing an activity update puts back what it changed, from the snapshot taken before it — never a delete; refused (nothing written) when it is not
+  // the latest, or when an activity it changed was edited since, or for a reader without project.manage.
+  it("G-208: an activity update is undone — refused for a reader, when not the latest, and when an activity it changed was edited since; then the activities are as before it", async () => {
+    const manager = callerFor(users.manager, "q23-manager");
+    const updates = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6update' ORDER BY createdAt", [T, P]);
+    const first = updates[0].id;
+    const actuals = async () => (await one<{ code: string; actualStartAt: Date | null; actualFinishAt: Date | null; status: string }>("SELECT code, actualStartAt, actualFinishAt, status FROM activities WHERE tenantId = ? AND projectId = ? AND code IN ('A1000','A1010','A1020','A1030','A1040','A1050') ORDER BY code", [T, P]))
+      .map(row => [row.code, row.status, row.actualStartAt ? new Date(row.actualStartAt).toISOString().slice(0, 10) : null, row.actualFinishAt ? new Date(row.actualFinishAt).toISOString().slice(0, 10) : null]);
+    const afterFirst = await actuals();
+    expect(afterFirst.slice(0, 2)).toEqual([["A1000", "completed", "2023-10-02", "2023-10-17"], ["A1010", "completed", "2023-10-04", "2023-10-17"]]);
+    // NEGATIVE: a reader (project.read) may not undo
+    expect(await code(callerFor(users.reader, "q23-reader").dataImports.rollback({ tenantId: T, projectId: P, importId: first }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    // a second update (A1050 starts) — now the first is not the latest
+    const book = new ExcelJS.Workbook(); const sheet = book.addWorksheet("TASK"); sheet.addRow(["Activity ID", "(*)Start", "(*)Finish"]); sheet.addRow(["A1050", "2023-10-12", ""]);
+    const second = (await confirmScheduleUpdate({ userId: users.manager, tenantId: T, projectId: P, bytes: new Uint8Array(await book.xlsx.writeBuffer()), source: { key: "q23/update-2.xlsx", name: "update-2.xlsx" } })).importId;
+    expect(await code(manager.dataImports.rollback({ tenantId: T, projectId: P, importId: first }))).toBe("PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST");
+    // NEGATIVE: an activity the second update changed is edited after it — undoing would erase that work, so it is refused and nothing moves
+    await connection.query("UPDATE activities SET actualStartAt = ? WHERE tenantId = ? AND projectId = ? AND code = 'A1050'", [new Date("2023-10-13T00:00:00Z"), T, P]);
+    const edited = await actuals();
+    expect(await code(manager.dataImports.rollback({ tenantId: T, projectId: P, importId: second }))).toBe("PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE");
+    expect(await actuals()).toEqual(edited);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id = ? AND status = 'completed'", [second])).toBe(1);
+    await connection.query("UPDATE activities SET actualStartAt = ? WHERE tenantId = ? AND projectId = ? AND code = 'A1050'", [new Date("2023-10-12T00:00:00Z"), T, P]);
+    // POSITIVE: the second undone, then the first — every activity back to the import's state (not started, no actual dates)
+    expect(await manager.dataImports.rollback({ tenantId: T, projectId: P, importId: second })).toMatchObject({ rolledBack: true, restored: { activities: 1 } });
+    expect((await actuals()).find(row => row[0] === "A1050")).toEqual(["A1050", "not_started", null, null]);
+    expect(await manager.dataImports.rollback({ tenantId: T, projectId: P, importId: first })).toMatchObject({ rolledBack: true, restored: { activities: 5 } });
+    expect(await actuals()).toEqual(["A1000", "A1010", "A1020", "A1030", "A1040", "A1050"].map(activity => [activity, "not_started", null, null]));
+    // recorded: both imports cancelled, an audit row each, and the undo is itself a snapshot (append-only history; nothing deleted)
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id IN (?, ?) AND status = 'cancelled'", [first, second])).toBe(2);
+    expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'data_import_rolled_back' AND entityId IN (?, ?)", [T, first, second])).toBe(2);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND source = 'p6_rollback'", [T, P])).toBe(2);
+    // and a cancelled update is not undone twice
+    expect(await code(manager.dataImports.rollback({ tenantId: T, projectId: P, importId: first }))).toMatch(/^PROJECT_OS_IMPORT_ROLLBACK/);
   }, 120_000);
 
   it("a project with no import has no baseline: the planned counts are null («not available»), not 0", async () => {

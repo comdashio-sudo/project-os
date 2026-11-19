@@ -6,15 +6,19 @@ import ProjectControls from "./ProjectControls";
 import { InShellProvider } from "@/components/pageFrame";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ saved: [] as unknown[], scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
+const state = vi.hoisted(() => ({ navigate: (() => undefined) as (to: string, options?: unknown) => void, saved: [] as unknown[], scheduleError: null as unknown, performancePartial: false, performanceEmpty: false, scheduleLoading: false, scheduleEmpty: false, financialsEmpty: false, contractsRenderFailure: false, withHealth: false, denied: [] as string[], performanceRefused: false }));
 
-vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), useLocation: () => ["/projects/tenant-1/project-1/controls", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
+vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }), useLocation: () => ["/projects/tenant-1/project-1/controls", (to: string, options?: unknown) => state.navigate(to, options)], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => <button type="button">Language</button> }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav>Navigation</nav> }));
 vi.mock("@/components/DashboardSectionReporter", () => ({ DashboardSectionReporter: () => null }));
 // the page's own permission reads (upload, + Add); WriteGate keeps its real behaviour (no provider = allowed)
-vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (permission: string | readonly string[]) => !(Array.isArray(permission) ? permission : [permission]).every(code => state.denied.includes(code)) }));
+vi.mock("@/lib/permissions", async importOriginal => {
+  const real = await importOriginal<typeof import("@/lib/permissions")>();
+  const holds = (codes: readonly string[]) => !codes.every(code => state.denied.includes(code));
+  return { ...real, useCan: (permission: string | readonly string[]) => holds(Array.isArray(permission) ? permission : [permission as string]), useCanPage: (page: keyof typeof real.PAGE_ACCESS) => real.PAGE_ACCESS[page].every(group => holds(group)) };
+});
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "safe error" }));
 vi.mock("./ProjectContracts", () => ({ ProjectContracts: () => { if (state.contractsRenderFailure) throw new Error("deliberate project contracts render failure"); return null; } }));
 vi.mock("./ProjectDocuments", () => ({ ProjectDocuments: () => <p>Documents panel alive</p> }));
@@ -39,7 +43,6 @@ vi.mock("./ProjectDataExport", () => ({ ProjectDataExport: () => null }));
 vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
 vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null }));
-vi.mock("./ProjectPmc", () => ({ ProjectPmcWorkspace: () => <p>PMC workspace</p> }));
 
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), mutateAsync: async (input: unknown) => { state.saved.push(input); return {}; }, isPending: false, error: null, data: null });
@@ -155,21 +158,39 @@ describe("ProjectControls section resilience", () => {
     consoleError.mockRestore();
   });
 
-  it("\"Upload any file\" works from the PMC tab: it returns to the overview and opens the data-imports group", () => {
-    state.performancePartial = true;
-    const frames: FrameRequestCallback[] = [];
-    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+  it("Q-36 (step 4): the groups sit under titled level sections, each with its own address; every older group address still exists, under its level", () => {
     render(<ProjectControls />);
-    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
-    expect(screen.getByText("PMC workspace")).toBeTruthy();
-    const imports = document.getElementById("manager-assurance") as HTMLDetailsElement;
-    expect(imports.closest("[hidden]")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Upload any file" }));
-    frames.forEach(callback => callback(0));
-    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
-    expect(imports.closest("[hidden]")).toBeNull();
-    expect(imports.open).toBe(true);
-    raf.mockRestore();
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts"]);
+    expect(document.getElementById("planning")!.querySelector("h2")!.textContent).toBe("Planning and control");
+    const under = (group: string) => document.getElementById(group)!.closest("[data-level-section]")!.id;
+    expect(["manager-schedule", "manager-assurance", "manager-site", "manager-design", "manager-supply", "manager-commercial", "manager-tenders"].map(under))
+      .toEqual(["planning", "planning", "site", "site", "supply", "contracts", "contracts"]);
+    expect(document.getElementById("manager-oversight")!.closest("[data-level-section]")).toBeNull();
+  });
+
+  it("Q-36 (step 4): a link to a level (controls#supply) opens that level's groups, and only those", () => {
+    window.history.replaceState(null, "", "/projects/tenant-1/project-1/controls#supply");
+    render(<ProjectControls />);
+    expect((document.getElementById("manager-supply") as HTMLDetailsElement).open).toBe(true);
+    expect((document.getElementById("manager-commercial") as HTMLDetailsElement).open).toBe(false);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("Q-36 (step 3): no PMC tab inside the page — one link to the PMC page; the old address controls#pmc goes there; no link without PMC access", () => {
+    const navigate = vi.fn(); state.navigate = navigate;
+    render(<ProjectControls />);
+    expect(screen.queryByRole("tab", { name: "PMC project control" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Project controls (PMC)" }).getAttribute("href")).toBe("/projects/tenant-1/project-1/pmc");
+    expect(navigate).not.toHaveBeenCalled();
+    cleanup();
+    window.history.replaceState(null, "", "/projects/tenant-1/project-1/controls#pmc");
+    render(<ProjectControls />);
+    expect(navigate).toHaveBeenCalledWith("/projects/tenant-1/project-1/pmc", { replace: true });
+    cleanup(); window.history.replaceState(null, "", "/");
+    state.denied = ["project.pmc.read"];
+    render(<ProjectControls />);
+    expect(screen.queryByRole("link", { name: "Project controls (PMC)" })).toBeNull();
+    state.denied = []; state.navigate = () => undefined;
   });
 
   it("puts the health results on a muted surface with full-contrast text, the overdue HSE count inside the health card", () => {
@@ -209,17 +230,13 @@ describe("ProjectControls section resilience", () => {
     for (const name of ["Upload any file", "Upload the P6 programme", "Upload the progress report", "Upload file", "Add by hand", "Add"]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
-  it("the start card's upload from the PMC tab also returns to the overview and opens the data-imports group (#217 kept)", () => {
+  it("Q-36 (3 c): the start card's upload opens the ONE import entry (it sends each kind of file where it is imported)", () => {
     state.performancePartial = true;
-    const frames: FrameRequestCallback[] = [];
-    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);
-    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
     fireEvent.click(screen.getByRole("button", { name: "Upload the P6 programme" }));
-    frames.forEach(callback => callback(0));
-    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
-    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
-    raf.mockRestore();
+    expect(navigate.mock.calls.map(call => call[0])).toEqual(["/projects/tenant-1/project-1/import"]);
+    state.navigate = () => undefined;
   });
 
   it("an empty project says the section is empty and what to do; \"not in your access scope\" stays for a real refusal", () => {
@@ -253,15 +270,13 @@ describe("ProjectControls section resilience", () => {
     });
   });
 
-  it("\"Add by hand\" from the PMC tab returns to the overview, opens the schedule group and focuses its first field", () => {
+  it("\"Add by hand\" opens the schedule group and focuses its first field", () => {
     state.performancePartial = true;
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
     render(<ProjectControls />);
-    fireEvent.click(screen.getByRole("tab", { name: "PMC project control" }));
     fireEvent.click(screen.getByRole("button", { name: "Add by hand" }));
     frames.forEach(callback => callback(0));
-    expect(screen.getByRole("tab", { name: "Overview and control tools" }).getAttribute("aria-selected")).toBe("true");
     const group = document.getElementById("manager-schedule") as HTMLDetailsElement;
     expect(group.open).toBe(true);
     expect(group.contains(document.activeElement)).toBe(true);

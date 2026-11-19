@@ -1592,7 +1592,8 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     return {
       ...project,
       health: health ? { status: health.status, overallScore: Number(health.overallScore), periodAt: health.periodAt } : null,
-      evm: evm ? { cpi: evm.cpi === null ? null : Number(evm.cpi), spi: evm.spi === null ? null : Number(evm.spi), eac: Number(evm.eac), vac: Number(evm.vac), periodAt: evm.periodAt } : null,
+      // Q-39 review (money): EAC and VAC are amounts — only for whoever may see this project's money (205-1); CPI and SPI are ratios and stay
+      evm: evm ? { cpi: evm.cpi === null ? null : Number(evm.cpi), spi: evm.spi === null ? null : Number(evm.spi), eac: projectMoneyVisible(snapshot, project.id) ? Number(evm.eac) : null, vac: projectMoneyVisible(snapshot, project.id) ? Number(evm.vac) : null, periodAt: evm.periodAt } : null,
       openRiskCount: riskRows.filter(item => item.projectId === project.id && item.status !== "closed" && item.probability * item.severity >= 15).length,
       criticalIssueCount: issueRows.filter(item => item.projectId === project.id && !["resolved", "closed"].includes(item.status) && item.priority === "critical").length,
       overdueActionCount: actionRows.filter(item => item.projectId === project.id && !["completed", "cancelled"].includes(item.status) && item.dueAt !== null && item.dueAt < today).length,
@@ -1603,7 +1604,7 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     risks: riskRows,
     issues: issueRows,
     actions: actionRows,
-    changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost) })),
+    changes: changeRows.map(change => ({ ...change, impactCost: Number(change.impactCost), costVisible: projectMoneyVisible(snapshot, change.projectId) })),
     materialShortages,
     today,
   });
@@ -3466,7 +3467,7 @@ export async function transitionActionEscalation(input: { userId: number; tenant
 }
 
 /** Q-45 (a, adviser 18-11): who records a decision — the project manager or the PMO on the project, or the company manager. Each code is checked with its own product. */
-function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string, projectId: string) {
+export function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string, projectId: string) {
   const attempts: Array<{ product: ProductCode; permission: string; scope: { type: "project"; id: string } | { type: "company" } }> = [
     { product: "PROJECT", permission: "project.manage", scope: { type: "project", id: projectId } },
     { product: "PMO", permission: "pmo.write", scope: { type: "project", id: projectId } },
@@ -3487,7 +3488,7 @@ export function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
 }
 
 /** Q-45: an owner (of a decision or an action) is an active member of THIS company. */
-async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
+export async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
   const [owner] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, tenantId))).limit(1);
   if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: refusal });
 }

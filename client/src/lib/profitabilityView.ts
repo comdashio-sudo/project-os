@@ -41,7 +41,7 @@ export function trend(delta: number): { tone: "good" | "bad" | "flat"; arrow: "�
 }
 
 /** Where in the project screen each data source is updated. */
-export const sourceAnchor: Record<Source, string> = { progress: "#manager-schedule", materials: "#manager-site", labour: "#manager-site" };
+export const sourceAnchor: Record<Source, string> = { progress: "#manager-schedule", materials: "#manager-supply", labour: "#manager-site" };
 
 export function ageSentence(ageDays: number | null, language: Language | boolean) {
   const lang = resolveLanguage(language);
@@ -70,9 +70,9 @@ export function sparklinePoints(values: readonly number[], width: number, height
 export function sourceRoute(sourceType: string | null | undefined, tenantId: string, projectId: string): { href: string; label: { ar: string; en: string; ur: string } } | null {
   const controls = `/projects/${tenantId}/${projectId}/controls`;
   switch (sourceType) {
-    case "goods_receipt_note": return { href: `${controls}#manager-commercial`, label: { ar: "إيصال استلام", en: "Goods receipt", ur: "سامان کی وصولی" } };
-    case "purchase_order": return { href: `${controls}#manager-commercial`, label: { ar: "أمر الشراء", en: "Purchase order", ur: "خریداری کا آرڈر" } };
-    case "material_issue": return { href: `${controls}#manager-site`, label: { ar: "صرف مادة", en: "Material issue", ur: "مادّے کا اجرا" } };
+    case "goods_receipt_note": return { href: `${controls}#manager-supply`, label: { ar: "إيصال استلام", en: "Goods receipt", ur: "سامان کی وصولی" } };
+    case "purchase_order": return { href: `${controls}#manager-supply`, label: { ar: "أمر الشراء", en: "Purchase order", ur: "خریداری کا آرڈر" } };
+    case "material_issue": return { href: `${controls}#manager-supply`, label: { ar: "صرف مادة", en: "Material issue", ur: "مادّے کا اجرا" } };
     case "time_entry": return { href: `${controls}#manager-site`, label: { ar: "إدخال وقت", en: "Time entry", ur: "کام کے گھنٹوں کا اندراج" } };
     case "payroll_allocation": return { href: `/payroll/${tenantId}`, label: { ar: "تخصيص رواتب", en: "Payroll allocation", ur: "تنخواہ کا مختص" } };
     default: return null;
