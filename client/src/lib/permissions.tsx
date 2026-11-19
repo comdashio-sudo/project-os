@@ -1,3 +1,4 @@
+import { PAGE_ACCESS, pageAllowed, type PageKey } from "@shared/pageAccess";
 // Presentation of what the signed-in person may do: write controls they cannot use are hidden (or the whole form is replaced by a
 // one-line reason), so nobody fills in a form the server is going to refuse. The server is still the only judge: every write is
 // checked there with the same snapshot (server/domain/authorization.ts), and this file only mirrors that rule to decide what to draw.
@@ -48,6 +49,16 @@ export function useCan(permission: string | readonly string[], projectId?: strin
   return summaryAllows(state.summary, permission, projectId);
 }
 
+/** Q-33: a page from the shared table (shared/pageAccess.ts) — every group of reads the page needs on first render must hold, for this project. */
+export function useCanPage(page: PageKey, projectId?: string): boolean {
+  const state = useContext(PermissionContext);
+  if (!state) return true;
+  if (state.status === "failed") return true;
+  if (state.status === "loading" || !state.summary) return false;
+  const summary = state.summary;
+  return pageAllowed(page, group => summaryAllows(summary, group, projectId));
+}
+
 /** True while the answer is still unknown, so a screen can hold its place instead of showing a "no permission" line for a moment. */
 export function usePermissionsLoading(): boolean {
   const state = useContext(PermissionContext);
@@ -71,8 +82,12 @@ export function WriteGate({ permission, projectId, reason, children }: { permiss
  * D-20 (G-160/G-161): a whole project page opened by its address without the permission its server read needs. Instead of an empty page or a pile of failed sections,
  * the translated «you do not have permission» page. Loading: nothing yet (no flash). No provider or a failed lookup: the page, as WriteGate does — the server still refuses.
  */
-export function PageGate({ permission, projectId, children }: { permission: string | readonly string[]; projectId?: string; children: React.ReactNode }) {
-  const allowed = useCan(permission, projectId);
+/** A page by its row in shared/pageAccess.ts (`page`), or a page outside that table by the permission its server read checks (`permission`, e.g. the planner). */
+export function PageGate(props: ({ page: PageKey } | { permission: string | readonly string[] }) & { projectId?: string; children: React.ReactNode }) {
+  const { projectId, children } = props;
+  const byPage = useCanPage("page" in props ? props.page : "registry", projectId);
+  const byPermission = useCan("permission" in props ? props.permission : [], projectId);
+  const allowed = "page" in props ? byPage : byPermission;
   const loading = usePermissionsLoading();
   const { isArabic } = useLanguage();
   if (allowed) return <>{children}</>;
@@ -80,12 +95,5 @@ export function PageGate({ permission, projectId, children }: { permission: stri
   return <main className="mx-auto max-w-3xl px-4 py-6" data-page-gate="denied"><NoPermission isArabic={isArabic} /></main>;
 }
 
-/** D-20 (G-144/G-163): what each page of «Project pages» needs to be read — the permission its server read checks. A link is drawn only for those who hold it. */
-export const PROJECT_PAGE_PERMISSIONS = {
-  baseline: ["project.read", "project.manage", "project.create"],
-  team: ["project.manage", "project.team.invite"],
-  pmc: ["project.pmc.read"],
-  stalled: ["project.pmc.read"],
-  profitability: ["project.read"],
-  commercial: ["project.read"],
-} as const satisfies Record<string, readonly string[]>;
+/** D-20 (G-144/G-163), Q-33: what each project page needs is in shared/pageAccess.ts, one table for the gate, the links and the server test. */
+export { PAGE_ACCESS };
