@@ -5,7 +5,7 @@ export type SiteStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPL
 export type SiteUnit = { unitNumber: number; modelCode: string; blockCode: string; status: SiteStatus | null };
 export type ColourKey = SiteStatus | "NOT_IN_MODEL" | "NOT_MATCHED";
 
-// Q-19: the progress states of the approved identity (design/directions.css): darker = further along; not started is white in a border.
+// Q-19: the progress states of the approved identity (index.css :root): darker = further along; not started is white in a border.
 export const SITE_COLOUR: Record<ColourKey, string> = {
   NOT_STARTED: "var(--state-none)",
   IN_PROGRESS: "var(--state-progress)",

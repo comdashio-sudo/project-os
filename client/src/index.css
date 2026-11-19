@@ -9,33 +9,47 @@
 :root {
   /* brand */
   --dashio-indigo:        #4338CA;
-  --dashio-indigo-deep:   #3A34C9;
-  --dashio-indigo-soft:   #7B78F0;
+  --dashio-indigo-deep:   #3730A3;
+  --dashio-indigo-soft:   #7C76EE;
   --dashio-aqua:          #2ED3C6;
   --dashio-aqua-deep:     #16A79C;
   /* G-175 (Q-17 item 8, 210-3 approved): the teal for text and small icons on light surfaces; aqua and aqua-deep stay for fills and dark surfaces. 7.0:1 on white, 6.5:1 on paper. */
   --dashio-aqua-text:     #0E6B70;
   --dashio-ink:           #0C1023;
   /* neutrals — light */
-  --dashio-paper:         #F5F7FC;
+  --dashio-paper:         #F3F4F9;
   --dashio-white:         #FFFFFF;
-  --dashio-line:          #E4E9F4;
+  --dashio-line:          #DEE1EE;
   /* border of a form control (input, select, textarea): 3:1 against white and the tinted panels (WCAG 1.4.11). Cards keep --dashio-line. */
   --dashio-control:       #7E8AA0;
-  --dashio-slate:         #5F6D8A;
+  --dashio-slate:         #575D78;
   /* neutrals — dark */
   --dashio-surface-dark:  #141A32;
   --dashio-line-dark:     #242C4C;
   /* border of a form control in the dark theme: 3.86:1 on the dark card and 4.32:1 on the dark page (WCAG 1.4.11; D-29, G-177). */
   --dashio-control-dark:  #6B7799;
   --dashio-bg-dark:       #0A0E1E;
-  /* project status */
-  --status-todo:          #6B7A99;
-  --status-progress:      #4A46E8;
-  --status-review:        #8B5CF6;
-  --status-done:          #2ED3C6;
-  --status-late:          #F5A524;
-  --status-blocked:       #F0384B;
+  /* Q-19 (the identity the owner approved 13-11): progress states, darker = further along, one meaning each. Not started is white inside a border;
+     stopped is the only red; each has a text colour that reads on it at 4.5:1 (client/src/design/stateContrast.test.tsx). */
+  --state-complete:            #3730A3;
+  --state-complete-foreground: #FFFFFF;
+  --state-advanced:            #7C76EE;
+  --state-advanced-foreground: #0C1023;
+  --state-progress:            #C4C1F8;
+  --state-progress-foreground: #0C1023;
+  --state-start:               #E7E8F5;
+  --state-start-foreground:    #0C1023;
+  --state-none:                #FFFFFF;
+  --state-none-foreground:     #0C1023;
+  --state-stopped:             #C2412D;
+  --state-stopped-foreground:  #FFFFFF;
+  /* project status marks (maps, the site plan): the same states; late is the amber warning. The turquoise is never a status (it is a touch on dark only). */
+  --status-todo:          var(--state-none);
+  --status-progress:      var(--state-progress);
+  --status-review:        var(--state-advanced);
+  --status-done:          var(--state-complete);
+  --status-late:          #B45309;
+  --status-blocked:       var(--state-stopped);
   /* gradient */
   --dashio-gradient: linear-gradient(135deg, #7B78F0 0%, #3A34C9 100%);
   /* radii */
@@ -44,8 +58,8 @@
   --radius-lg: 18px;
   --radius-pill: 999px;
   /* type */
-  --font-latin:  'Outfit', system-ui, -apple-system, sans-serif;
-  --font-arabic: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-latin:  'Inter', system-ui, -apple-system, sans-serif;
+  --font-arabic: 'Inter', 'IBM Plex Sans Arabic', system-ui, sans-serif; /* Q-19: Latin letters and figures in Inter, Arabic letters in IBM Plex Sans Arabic */
   --font-urdu:   'Noto Nastaliq Urdu', 'IBM Plex Sans Arabic', system-ui, sans-serif;
 }
 
@@ -131,7 +145,6 @@
   --color-state-none-foreground: var(--state-none-foreground);
   --color-state-stopped: var(--state-stopped);
   --color-state-stopped-foreground: var(--state-stopped-foreground);
-  --radius-card: var(--radius-card, var(--radius));
   --color-status-todo: var(--status-todo);
   --color-status-progress: var(--status-progress);
   --color-status-review: var(--status-review);
@@ -167,7 +180,8 @@
   --chart-3: var(--status-review);
   --chart-4: var(--status-late);
   --chart-5: var(--status-blocked);
-  --radius: var(--radius-lg);
+  --radius: var(--radius-md); /* Q-19: buttons and fields 12px */
+  --radius-card: var(--radius-lg); /* Q-19: cards and panels 18px */
   --background: var(--dashio-paper);
   --foreground: var(--dashio-ink);
   --card: var(--dashio-white);
@@ -193,7 +207,7 @@
   --sidebar-border: var(--dashio-line);
   --sidebar-ring: var(--dashio-indigo);
   --success: #0b7a4b; --success-foreground: #ffffff; --success-soft: #def5ea; --success-soft-foreground: #08573a;
-  --warning: #9a5b00; --warning-foreground: #ffffff; --warning-soft: #fff1d6; --warning-soft-foreground: #6b3f00;
+  --warning: #b45309; --warning-foreground: #ffffff; --warning-soft: #fff1d6; --warning-soft-foreground: #6b3f00;
   --danger-soft: #fde4e5; --danger-soft-foreground: #8f1b22;
   --info: #1c5fd1; --info-foreground: #ffffff; --info-soft: #e1ecfd; --info-soft-foreground: #174a9e;
   --hero: #0c1023; --hero-foreground: #f2f4fb;
@@ -409,3 +423,7 @@
     border-color: var(--input);
   }
 }
+
+/* Q-19: headings at 700 (IBM Plex Sans Arabic / Inter), and figures tabular everywhere. Unlayered on purpose: it holds over a utility's weight on a heading. */
+:is(h1, h2, h3) { font-weight: 700; }
+body { font-variant-numeric: lining-nums tabular-nums; }
