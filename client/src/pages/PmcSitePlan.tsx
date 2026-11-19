@@ -34,7 +34,7 @@ const text = {
   },
 };
 // D-75: the status colours are the tokens of client/src/index.css (light and dark themes), not fixed hex values
-const COLORS: Record<string, string> = { NOT_STARTED: "var(--status-todo)", IN_PROGRESS: "var(--status-late)", UNDER_REVIEW: "var(--status-review)", COMPLETE: "var(--status-done)" };
+const COLORS: Record<string, string> = { NOT_STARTED: "var(--status-todo)", IN_PROGRESS: "var(--status-progress)", UNDER_REVIEW: "var(--status-review)", COMPLETE: "var(--status-done)" };
 type Ring = Array<[number, number]>;
 type Geometry = { type: "Polygon"; coordinates: Ring[] } | { type: "MultiPolygon"; coordinates: Ring[][] };
 const polygonsOf = (geometry: Geometry): Ring[][] => (geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates);
