@@ -6,7 +6,7 @@ import MyPerformance from "./MyPerformance";
 
 // Q-17 (205-5, G-147): a performance manager with direct reports gets a picker on «My indicators»; choosing a report asks the server for that
 // employee's indicators (the server decides) and hides the objection form, which stays self-service. Anyone the server refuses sees no picker.
-const state = vi.hoisted(() => ({ reports: {} as unknown, inputs: [] as unknown[] }));
+const state = vi.hoisted(() => ({ reports: {} as unknown, inputs: [] as unknown[], availability: {} as unknown, reportsOptions: undefined as unknown }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/components/EnterpriseNavigation", () => ({ EnterpriseNavigation: () => <nav aria-label="navigation" /> }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
@@ -17,11 +17,12 @@ vi.mock("@/components/ds/Select", () => ({ Select: ({ options, value, onValueCha
 const metrics = { assignedCount: 1, completedCount: 0, overdueCount: 0, onTimeCompletionPercent: null, averageResponseHours: null, openCount: 1, excludedCount: 0, recordsConsidered: 1, generatedAt: new Date("2026-11-13T12:00:00Z"), formula: "f", sourceCounts: {}, sources: [] };
 vi.mock("@/lib/trpc", () => ({ trpc: { performance: {
   get: { useQuery: (input: { employeeId?: string }) => { state.inputs.push(input); return { data: { employee: { employeeNumber: input.employeeId ? "EMP-2" : "EMP-1", fullName: input.employeeId ? "Synthetic Report" : "Me", isOwn: !input.employeeId }, metrics, exclusions: [], objections: [] }, isLoading: false, error: null, refetch: vi.fn() }; } },
-  directReports: { useQuery: () => state.reports },
+  availability: { useQuery: () => state.availability },
+  directReports: { useQuery: (_input: unknown, options: unknown) => { state.reportsOptions = options; return state.reports; } },
   objections: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } },
 } } }));
 
-beforeEach(() => { state.inputs = []; });
+beforeEach(() => { state.inputs = []; state.availability = { data: { linked: true, canRead: true, canManage: true }, error: null, isLoading: false, isFetching: false, refetch: vi.fn() }; });
 afterEach(() => cleanup());
 
 describe("MyPerformance: direct reports (Q-17, G-147)", () => {
@@ -41,5 +42,19 @@ describe("MyPerformance: direct reports (Q-17, G-147)", () => {
     render(<MyPerformance />);
     expect(screen.queryByLabelText("Show indicators of")).toBeNull();
     expect(state.inputs.every(input => !(input as { employeeId?: string }).employeeId)).toBe(true);
+  });
+
+  it("NEGATIVE: a person who is not a performance manager here does not ask for the list at all (no refused request, Q-52), and sees no picker", () => {
+    state.availability = { data: { linked: true, canRead: true, canManage: false }, error: null, isLoading: false, isFetching: false, refetch: vi.fn() };
+    state.reports = { data: undefined, error: null };
+    render(<MyPerformance />);
+    expect((state.reportsOptions as { enabled: boolean }).enabled).toBe(false);
+    expect(screen.queryByLabelText("Show indicators of")).toBeNull();
+  });
+
+  it("a manager is asked for the list only once availability says so", () => {
+    state.reports = { data: [], error: null };
+    render(<MyPerformance />);
+    expect((state.reportsOptions as { enabled: boolean }).enabled).toBe(true);
   });
 });

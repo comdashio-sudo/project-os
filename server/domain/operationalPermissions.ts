@@ -19,7 +19,7 @@ export const governedActionPermissions = {
   // procurement
   createSupplierForTenant: ["project.procurement.manage"],
   createProcurementRequisitionForTenant: ["project.material.request", "project.procurement.manage"],
-  transitionProcurementRequisitionForTenant: ["project.procurement.manage"],
+  transitionProcurementRequisitionForTenant: ["project.procurement.manage", "project.material.request"],
   linkProcurementRequisitionPurchaseOrderForTenant: ["project.procurement.manage"],
   createPurchaseOrderForTenant: ["project.procurement.manage"],
   transitionPurchaseOrderStatus: ["project.procurement.manage"],

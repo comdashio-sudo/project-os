@@ -12,6 +12,7 @@ vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     performance: {
+      availability: { useQuery: () => ({ data: { linked: true, canRead: true }, error: null, isLoading: false, isFetching: false, refetch: () => undefined }) },
       get: { useQuery: () => ({ data: { employee: { employeeNumber: "EMP-1" }, metrics: { assignedCount: 4, completedCount: 2, overdueCount: 1, onTimeCompletionPercent: 100, averageResponseHours: 12, openCount: 2, excludedCount: 1, recordsConsidered: 4, generatedAt: new Date("2026-09-10T12:00:00Z"), formula: "assigned = non-excluded source records", sourceCounts: { activity: 2, action: 1, rfi: 1, ncr: 0, quality_inspection: 0, field_report: 0, material_request: 0 }, sources: [{ sourceType: "activity", sourceId: "a1", label: "A-01", status: "in_progress", createdAt: new Date(), dueAt: null, completedAt: null }] }, exclusions: [], objections: [] }, isLoading: false, error: null, refetch: vi.fn() }) },
       directReports: { useQuery: () => ({ data: undefined, error: { message: "PROJECT_OS_PERMISSION_DENIED" } }) },
       objections: { create: { useMutation: () => ({ mutate: state.createObjection, isPending: false, error: null }) } },

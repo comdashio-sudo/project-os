@@ -18,13 +18,16 @@ const text = {
   ur: { title: "فائل کے کالم", hint: "ہر فیلڈ اور آپ کی فائل کا وہ کالم جس سے وہ پڑھی گئی۔ اگر کوئی کالم پہچانا نہیں گیا یا غلط لیا گیا تو درست کالم چنیں اور دوبارہ تجزیہ کریں؛ جو کالم کسی فیلڈ نے نہیں لیے وہ نظر انداز ہوں گے۔ نئی رپورٹ کی تصدیق سے پہلے کچھ محفوظ نہیں ہوتا۔", required: "لازمی", optional: "اختیاری", none: "— کوئی کالم نہیں —", reanalyze: "ان کالموں کے ساتھ دوبارہ تجزیہ کریں", twice: "دو فیلڈز کے لیے ایک کالم: ہر فیلڈ کے لیے الگ کالم چنیں", chosen: "کالم ہاتھ سے چنے گئے", missing: "موجود نہیں" },
 };
 
-export function PmcColumnMapping({ tenantId, projectId, importId, columns, language, isArabic }: { tenantId: string; projectId: string; importId: string; columns: PmcImportColumns; language: Language; isArabic: boolean }) {
+/** `fieldLabel`: the name of a field for another importer (the operational ledgers, Q-31); PMC's own names otherwise. */
+export function PmcColumnMapping({ tenantId, projectId, importId, columns, language, isArabic, fieldLabel }: { tenantId: string; projectId: string; importId: string; columns: PmcImportColumns; language: Language; isArabic: boolean; fieldLabel?: (key: string) => string | undefined }) {
   const t = pickLanguage(language, text);
-  const labels = pickLanguage<Record<string, string>>(language, PMC_FIELD_LABELS);
+  const pmcLabels = pickLanguage<Record<string, string>>(language, PMC_FIELD_LABELS);
+  const label = (key: string) => (fieldLabel ? fieldLabel(key) : pmcLabels[key]) ?? key;
   const found = useMemo(() => Object.fromEntries(columns.fields.map(field => [field.key, field.header ?? NONE])), [columns]);
   const [choice, setChoice] = useState<Record<string, string>>(found);
   const utils = trpc.useUtils();
-  const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: () => utils.dataImports.progress.invalidate() });
+  // the differences preview (operational ledgers) is read again too: it follows the new columns
+  const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: () => Promise.all([utils.dataImports.progress.invalidate(), utils.dataImports.diff.invalidate()]) });
   const picked = Object.values(choice).filter(header => header !== NONE);
   const usedTwice = new Set(picked).size !== picked.length;
   // the first analysis with the person's own columns may change no field at all: it still says «ignore the columns no field takes»
@@ -44,11 +47,11 @@ export function PmcColumnMapping({ tenantId, projectId, importId, columns, langu
         {columns.fields.map(field => (
           <li key={field.key} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-2">
-              <span className="font-medium">{labels[field.key] ?? field.key}</span>
+              <span className="font-medium">{label(field.key)}</span>
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{field.required ? t.required : t.optional}</span>
               {field.required && choice[field.key] === NONE && <span className="text-xs text-destructive">{t.missing}</span>}
             </span>
-            <Select className="w-full sm:w-64" aria-label={labels[field.key] ?? field.key} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
+            <Select className="w-full sm:w-64" aria-label={label(field.key)} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
           </li>
         ))}
       </ul>

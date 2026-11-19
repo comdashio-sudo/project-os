@@ -102,7 +102,7 @@ describe("ProjectFpac (real profitability)", () => {
     expect(screen.getByText(/Materials:/).textContent).toContain("300 SAR");
     // the source document is a link to the screen that holds it
     const link = screen.getByRole("link", { name: /Goods receipt abcdef12/ });
-    expect(link.getAttribute("href")).toBe("/projects/t/p/controls#manager-commercial");
+    expect(link.getAttribute("href")).toBe("/projects/t/p/controls#manager-supply");
   });
 
   it("reads the same five figures at every level: a project row over the items, with the open commitment beside the actual", () => {

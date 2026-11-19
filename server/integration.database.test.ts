@@ -1320,15 +1320,15 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const foreignPurchaseOrderId = "71717171-7171-4717-8717-717171717172";
     await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name, plannedValue) VALUES (?, ?, ?, 'WBS-PRQ-FOREIGN', 'Foreign work package', 1)", [foreignWbsId, tenantB, projectB]);
     await connection.query("INSERT INTO purchase_orders (id, tenantId, projectId, purchaseOrderNumber, supplierName, orderDate, amount, currency, summary, status, createdByUserId) VALUES (?, ?, ?, 'PO-PRQ-FOREIGN', 'Foreign supplier', ?, 99, 'SAR', 'Foreign purchase order must not be linkable', 'approved', ?)", [foreignPurchaseOrderId, tenantB, projectB, new Date("2026-08-20T00:00:00.000Z"), integrationUserId]);
-    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectB, requisitionNumber: "PR-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Blocked foreign request", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
-    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-WBS-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: foreignWbsId, description: "Blocked foreign work package", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_WBS_NOT_FOUND");
+    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectB, requisitionNumber: "PR-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Blocked foreign request", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date(Date.now() + 30 * 86_400_000) /* Q-42: a request is for today or later */ })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+    await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-WBS-BLOCKED", supplierId: supplier.id, materialId: material.id, wbsItemId: foreignWbsId, description: "Blocked foreign work package", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date(Date.now() + 30 * 86_400_000) /* Q-42: a request is for today or later */ })).rejects.toThrow("PROJECT_OS_WBS_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-NO-LICENSE", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Must not write without product entitlement", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
+      await expect(caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-NO-LICENSE", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Must not write without product entitlement", requestedQuantity: 3, unitOfMeasure: "m3", requiredAt: new Date(Date.now() + 30 * 86_400_000) /* Q-42: a request is for today or later */ })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
       await connection.query("UPDATE tenant_entitlements SET active = true WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     }
-    const requisition = await caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-TRPC", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Procure structural concrete", requestedQuantity: 12, unitOfMeasure: "m3", requiredAt: new Date("2026-08-30T00:00:00.000Z") });
+    const requisition = await caller.procurement.createRequisition({ tenantId: tenantA, projectId: projectA, requisitionNumber: "PR-TRPC", supplierId: supplier.id, materialId: material.id, wbsItemId: wbs.id, activityId: activity.id, description: "Procure structural concrete", requestedQuantity: 12, unitOfMeasure: "m3", requiredAt: new Date(Date.now() + 30 * 86_400_000) /* Q-42: a request is for today or later */ });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "submitted" })).resolves.toMatchObject({ status: "submitted" });
     await expect(caller.procurement.transitionRequisition({ tenantId: tenantA, projectId: projectA, requisitionId: requisition.id, nextStatus: "approved" })).resolves.toMatchObject({ status: "approved" });
     // G-103: the order is placed with a register supplier; the name on the order is the register's, and the register's rules apply
@@ -1800,8 +1800,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ amount: string; posted: number; progress: number; audits: number }[]>("SELECT (SELECT amount FROM cost_entries WHERE id = ?) AS amount, (SELECT COUNT(*) FROM cost_entries WHERE id = ? AND status = 'posted' AND entryType = 'actual') AS posted, (SELECT COUNT(*) FROM progress_entries WHERE id = ? AND status = 'submitted') AS progress, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?, ?)) AS audits", [approved.costEntryId, approved.costEntryId, approved.progressEntryId, tenantA, assignment.id, attendance.id, time.id]);
     expect(rows[0]).toMatchObject({ amount: "1200.00", posted: 1, progress: 1, audits: 7 });
     await expect(caller.performance.get({ tenantId: tenantB, projectId: projectB, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // Q-52: availability says, without refusing, whether this account may read its own indicators here. It still refuses another company
+    // and a project outside the company, and it reads nothing but the caller's own link.
+    await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: true, canRead: true, canManage: true });
+    await expect(caller.performance.availability({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
+      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.objections.create({ tenantId: tenantA, projectId: projectA, statement: "The operating evidence should be reviewed before any interpretation." })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
@@ -1821,6 +1827,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const unlinked = appRouter.createCaller(unlinkedContext);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-perf-unlinked', ?, ?, 'active')", [tenantA, unassignedUserId]);
     try {
+      await expect(unlinked.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: false, canRead: false, canManage: false });
       await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
       await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
     } finally {
@@ -1828,6 +1835,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
     await connection.query("UPDATE employees SET employmentStatus = 'suspended' WHERE id = ?", [employee.id]);
     try {
+      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: false, canRead: true, canManage: true });
       await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
     } finally {
       await connection.query("UPDATE employees SET employmentStatus = 'active' WHERE id = ?", [employee.id]);
