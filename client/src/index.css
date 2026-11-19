@@ -8,7 +8,7 @@
    ============================================================ */
 :root {
   /* brand */
-  --dashio-indigo:        #4A46E8;
+  --dashio-indigo:        #4338CA;
   --dashio-indigo-deep:   #3A34C9;
   --dashio-indigo-soft:   #7B78F0;
   --dashio-aqua:          #2ED3C6;
@@ -119,6 +119,19 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-state-complete: var(--state-complete);
+  --color-state-complete-foreground: var(--state-complete-foreground);
+  --color-state-advanced: var(--state-advanced);
+  --color-state-advanced-foreground: var(--state-advanced-foreground);
+  --color-state-progress: var(--state-progress);
+  --color-state-progress-foreground: var(--state-progress-foreground);
+  --color-state-start: var(--state-start);
+  --color-state-start-foreground: var(--state-start-foreground);
+  --color-state-none: var(--state-none);
+  --color-state-none-foreground: var(--state-none-foreground);
+  --color-state-stopped: var(--state-stopped);
+  --color-state-stopped-foreground: var(--state-stopped-foreground);
+  --radius-card: var(--radius-card, var(--radius));
   --color-status-todo: var(--status-todo);
   --color-status-progress: var(--status-progress);
   --color-status-review: var(--status-review);
