@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ActivityNameToggle, useActivityNameLanguage } from "@/lib/activityNames";
 import { FileButton, Select } from "@/components/ds";
 
 /** Radix lists carry no empty value: the whole-unit view is this sentinel, never sent to the server. */
@@ -47,8 +48,10 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   const [activityCode, setActivityCode] = useState<string>("");
   const [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const map = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined });
-  const card = trpc.pmc.unitCard.useQuery({ tenantId, projectId, unitNumber: selected ?? 0 }, { enabled: selected !== null });
+  // Q-49: the activity names in the chosen language (the server substitutes them; display only)
+  const [nameLanguage, setNameLanguage] = useActivityNameLanguage();
+  const map = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined, names: nameLanguage, language });
+  const card = trpc.pmc.unitCard.useQuery({ tenantId, projectId, unitNumber: selected ?? 0, names: nameLanguage, language }, { enabled: selected !== null });
   const [evm, setEvm] = useState<null | { evBefore: number; evAfter: number; moved: number }>(null);
   const canUpdateStatus = useCan("project.pmc.update", projectId);
   const change = trpc.pmc.setUnitActivityStatus.useMutation({ onSuccess: result => { setEvm(result.evm ? { evBefore: result.evm.evBefore, evAfter: result.evm.evAfter, moved: result.evm.changed.length } : null); map.refetch(); card.refetch(); } });
@@ -64,6 +67,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   return (
     <div className="space-y-4" data-testid="site-plan">
       <div className="flex flex-wrap items-end gap-3">
+        {map.data?.hasEnglishNames && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
         <label className="text-sm">{t.activity}<Select aria-label={t.activity} className="mt-1 min-w-48" value={activityCode || OVERALL} onValueChange={value => { setActivityCode(value === OVERALL ? "" : value); setSelected(null); }} options={[{ value: OVERALL, label: t.overall }, ...activities.map(a => ({ value: a.code, label: `${a.code} · ${a.name}` }))]} /></label>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadPlan} accept="image/png,image/jpeg" onFile={async file => { if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></WriteGate>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadGeo} accept=".geojson,.json,application/geo+json,application/json" onFile={async file => { if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></WriteGate>
