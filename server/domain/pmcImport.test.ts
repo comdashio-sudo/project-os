@@ -88,8 +88,8 @@ describe("PMC import: catalogue and weights", () => {
     const plan = planCatalog(rows(...model("A", [60, 40]), ...model("B", [33.3333, 33.3333, 33.3334])), context);
     expect(plan.errors).toEqual([]);
     expect(plan.models).toEqual([{ modelCode: "A", activities: 2, totalWeight: 100 }, { modelCode: "B", activities: 3, totalWeight: 100 }]);
-    expect(plan.newGroups).toEqual([{ code: "FIN", name: "FIN" }]);
-    expect(plan.newStages).toEqual([{ code: "INT", name: "INT", groupCode: "FIN" }]);
+    expect(plan.newGroups).toEqual([{ code: "FIN", name: "FIN", nameEn: null }]);
+    expect(plan.newStages).toEqual([{ code: "INT", name: "INT", groupCode: "FIN", nameEn: null }]);
     expect(plan.counts.create).toBe(5);
   });
 

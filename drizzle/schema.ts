@@ -2348,6 +2348,8 @@ export const pmcActivityGroups = pgTable(
     projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    // Q-49: the optional English name; NULL reads the Arabic one
+    nameEn: varchar("name_en", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_groups_project_code_unique").on(table.projectId, table.code), index("pmc_groups_tenant_project_idx").on(table.tenantId, table.projectId)],
@@ -2362,6 +2364,8 @@ export const pmcActivityStages = pgTable(
     groupId: varchar("group_id", { length: 36 }).notNull().references(() => pmcActivityGroups.id),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    // Q-49: the optional English name; NULL reads the Arabic one
+    nameEn: varchar("name_en", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [uniqueIndex("pmc_stages_project_code_unique").on(table.projectId, table.code), index("pmc_stages_tenant_project_group_idx").on(table.tenantId, table.projectId, table.groupId)],
@@ -2379,6 +2383,8 @@ export const pmcActivityDefinitions = pgTable(
     modelCode: varchar("model_code", { length: 80 }).notNull(),
     code: varchar("code", { length: 80 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    // Q-49: the optional English name; NULL reads the Arabic one
+    nameEn: varchar("name_en", { length: 255 }),
     weightPercent: numeric("weight_percent", { precision: 7, scale: 4 }).notNull(),
     // Work order 22: the inspection request (WIR) number the monthly report writes above the activity; the key shared with the consultant's export.
     wirCode: varchar("wir_code", { length: 40 }),
