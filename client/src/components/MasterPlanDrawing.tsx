@@ -23,6 +23,8 @@ import type { DrawingCalibration, PlanPoint } from "@shared/masterPlanCalibratio
 import { ManualLinkPanel, useManualText, type LinkTool } from "@/components/MasterPlanManualLink";
 import { MasterPlanColourPanel, exportDrawingPng, useColourText } from "@/components/MasterPlanColourPanel";
 import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit, unitNumberOf } from "@/lib/masterPlanColouring";
+import { boundsOf, hatchIndexOf, pickVilla, type ListedVilla } from "@/lib/masterPlanSelection";
+import { MasterPlanVillaList, ModelHatchDefs, ModelLegend } from "@/components/MasterPlanVillaList";
 import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
 import {
   assignUnit,
@@ -318,18 +320,28 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const detailOf = new Map((siteMap.data?.units ?? []).map(unit => [unit.unitNumber, unit as SiteUnit & { overallPercent?: number | null; currentActivity?: { code: string; name: string } | null }]));
   // the villa a plan code names, from the site map itself (with or without an activity chosen for colouring)
   const villaByCode = (code: string) => { const number = unitNumberOf(code); return number === null ? undefined : detailOf.get(number); };
-  const [colourByModel, setColourByModel] = useState(false);
+  // Q-40: villa types are told apart by a hatch drawn over the shape, so the fill keeps showing progress; the choice of villas is shared by the
+  // drawing and the side list (one tap chooses one villa; with «several» on, or Ctrl/Shift held, taps add and remove).
+  const [showTypes, setShowTypes] = useState(false);
   const modelCodes = Array.from(new Set((siteMap.data?.units ?? []).map(unit => unit.modelCode))).filter(Boolean).sort();
-  const modelColours = new Map(modelCodes.map((code, index) => [code, `hsl(${Math.round(index * 137.508) % 360}, 65%, 54%)`])); // design-rules: allow hardcoded-colour — categorical map colours are generated from the model list
+  const hatchOf = useMemo(() => hatchIndexOf(modelCodes), [modelCodes.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed by the list's content
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [several, setSeveral] = useState(false);
+  const [revealId, setRevealId] = useState<string | null>(null);
+  // one pass over the shapes for 500 villas: lookups by id, never a search per shape
+  const itemByPolygon = useMemo(() => new Map(items.map((item, index) => [item.polygonId, { item, index }])), [items]);
+  const polygonById = useMemo(() => new Map((drawing?.polygons ?? []).map(polygon => [polygon.id, polygon])), [drawing]);
   const mappedVillas = items.filter(item => item.state === "confirmed" && item.unitCode);
-  function focusVilla(polygonId: string) {
+  const listedVillas: ListedVilla[] = mappedVillas.map(item => ({ polygonId: item.polygonId, unitCode: item.unitCode!, modelCode: villaByCode(item.unitCode!)?.modelCode ?? null }));
+  function focusShapes(ids: Iterable<string>) {
+    if (!geometry) return;
+    const box = boundsOf(Array.from(ids).flatMap(id => (polygonById.get(id)?.points ?? []).map(point => ({ x: point.x, y: geometry.flipY(point.y) }))));
+    if (box) pan.focus(box);
+  }
+  function choose(polygonId: string, many: boolean, from: "plan" | "list") {
+    setPicked(current => pickVilla(current, polygonId, many));
     setSelectedId(polygonId);
-    const polygon = drawing?.polygons.find(shape => shape.id === polygonId);
-    if (!polygon?.points.length || !geometry) return;
-    const xs = polygon.points.map(point => point.x);
-    const ys = polygon.points.map(point => geometry.flipY(point.y));
-    const x = Math.min(...xs), y = Math.min(...ys);
-    pan.focus({ x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y });
+    if (from === "plan") setRevealId(polygonId); else if (!many) focusShapes([polygonId]);
   }
   const detailed = pan.percent >= 150;
   // Q-20: choosing a block in the filter brings its villas into view.
@@ -578,55 +590,49 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 failed={Boolean(colourSource === "qc" ? qcMap.error : siteMap.error)}
                 onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode ? `${activityCode}-${colourSource}` : "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
               />
-              <div className="flex flex-wrap items-center gap-3">
-                {mappedVillas.length > 0 && <Select
-                  aria-label={pickLanguage(language, { ar: "الفلل المرتبطة بالمخطط", en: "Mapped villas", ur: "منسلک ولاز" })}
-                  value={mappedVillas.some(item => item.polygonId === selectedId) ? selectedId ?? "" : ""}
-                  placeholder={pickLanguage(language, { ar: "اختر فيلا من القائمة", en: "Select a villa", ur: "ولا منتخب کریں" })}
-                  options={mappedVillas.map(item => ({ value: item.polygonId, label: item.unitCode! }))}
-                  onValueChange={focusVilla}
-                />}
-                {modelCodes.length > 0 && <label className="inline-flex min-h-11 items-center gap-2 text-sm">
-                  <input type="checkbox" checked={colourByModel} onChange={event => setColourByModel(event.target.checked)} />
-                  {pickLanguage(language, { ar: "التلوين حسب نوع الفيلا", en: "Colour by villa model", ur: "ولا ماڈل کے لحاظ سے رنگ" })}
-                </label>}
-              </div>
-              {colourByModel && <ul className="flex flex-wrap gap-3 text-xs">
-                {modelCodes.map(code => <li key={code} className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: modelColours.get(code) }} />
-                  {code}
-                </li>)}
-              </ul>}
-              <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-muted ring-1 ring-border ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
+              {modelCodes.length > 0 && <label className="inline-flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" className="h-5 w-5" checked={showTypes} onChange={event => setShowTypes(event.target.checked)} />
+                {pickLanguage(language, { ar: "إظهار أنواع الفلل بنقش", en: "Show villa types as hatching", ur: "ولا کی اقسام نقش سے دکھائیں" })}
+              </label>}
+              {showTypes ? <ModelLegend models={modelCodes} hatchOf={hatchOf} /> : null}
+              <svg role="img" aria-label={t.map} aria-describedby="mp-map-summary" {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-muted ring-1 ring-border ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
+                <desc id="mp-map-summary">{pickLanguage(language, { ar: `${mappedVillas.length} فيلا مربوطة، والمحدد ${picked.size}`, en: `${mappedVillas.length} linked villas, ${picked.size} selected`, ur: `${mappedVillas.length} منسلک ولاز، ${picked.size} منتخب` })}</desc>
+                {showTypes ? <ModelHatchDefs size={Math.max(geometry.width, geometry.height) / 250} /> : null}
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
-                  const item = items.find(entry => entry.polygonId === polygon.id);
-                  if (!item) return null;
+                  const entry = itemByPolygon.get(polygon.id);
+                  if (!entry) return null;
+                  const { item, index } = entry;
                   const unit = item.unitId ? unitById.get(item.unitId) : undefined;
                   const points = polygon.points.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ");
                   const centre = polygon.points.reduce((acc, p) => ({ x: acc.x + p.x / polygon.points.length, y: acc.y + p.y / polygon.points.length }), { x: 0, y: 0 });
                   const isSelected = selectedId === polygon.id;
                   const villa = item.state === "confirmed" && item.unitCode ? villaByCode(item.unitCode) : undefined;
-                  const modelFill = colourByModel && villa ? modelColours.get(villa.modelCode) : undefined;
+                  const isPicked = picked.has(polygon.id);
+                  const hatch = showTypes && villa?.modelCode ? hatchOf.get(villa.modelCode) : undefined;
                   return (
                     <g key={polygon.id}>
                       <polygon
                         points={points}
-                        fill={modelFill ?? (colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null))}
+                        fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
                         fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
                         data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
-                        stroke={isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
-                        strokeWidth={isSelected ? 0.4 : 0.15}
+                        stroke={isPicked ? "var(--primary)" : isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
+                        strokeWidth={isPicked ? 3 : isSelected ? 0.4 : 0.15}
+                        vectorEffect={isPicked ? "non-scaling-stroke" : undefined}
+                        data-picked={isPicked || undefined}
+                        data-model={villa?.modelCode || undefined}
                         strokeDasharray={item.state === "unlinked" ? "1 0.6" : undefined}
                         role="button"
-                        aria-pressed={isSelected}
+                        aria-pressed={isPicked || isSelected}
                         tabIndex={0}
-                        aria-label={`${t.shape(items.indexOf(item) + 1)}: ${item.unitCode ?? t.state[item.state]}`}
-                        onClick={() => { if (tool === "none") setSelectedId(polygon.id); }}
-                        onKeyDown={event => { if (tool === "none" && !linkTool && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedId(polygon.id); } }}
+                        aria-label={`${t.shape(index + 1)}: ${item.unitCode ?? t.state[item.state]}${villa?.modelCode ? ` · ${pickLanguage(language, { ar: "النوع", en: "Type", ur: "قسم" })} ${villa.modelCode}` : ""}`}
+                        onClick={event => { if (tool === "none") choose(polygon.id, several || event.ctrlKey || event.metaKey || event.shiftKey, "plan"); }}
+                        onKeyDown={event => { if (tool === "none" && !linkTool && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); choose(polygon.id, several || event.ctrlKey || event.metaKey || event.shiftKey, "plan"); } }}
                         // While calibrating or measuring the shapes take no taps: a phone would otherwise move a tap onto the nearest shape.
                         style={tool === "none" && !linkTool ? { cursor: "pointer" } : { pointerEvents: "none" }}
                       />
+                      {hatch !== undefined ? <polygon points={points} fill={`url(#mp-hatch-${hatch})`} pointerEvents="none" data-hatch={hatch} aria-hidden="true" /> : null}
                       {item.unitCode ? (() => {
                         const detail = villaByCode(item.unitCode);
                         const xs = polygon.points.map(p => p.x); const ys = polygon.points.map(p => p.y); const boxHeight = Math.max(...ys) - Math.min(...ys); const boxWidth = Math.max(...xs) - Math.min(...xs);
@@ -648,6 +654,11 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
               </svg>
               <p className="mt-2 text-xs text-muted-foreground">{t.legend}</p>
             </div>
+          ) : null}
+
+          {geometry ? (
+            <MasterPlanVillaList villas={listedVillas} picked={picked} several={several} onSeveral={setSeveral} revealId={revealId}
+              onPick={(id, many) => choose(id, many, "list")} onClear={() => setPicked(new Set())} onShow={() => focusShapes(picked)} />
           ) : null}
 
           <div className="space-y-2">
