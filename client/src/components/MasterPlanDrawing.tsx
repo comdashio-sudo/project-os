@@ -503,10 +503,10 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const reasonText = (reason: string | null) => (reason && (t.reason as Record<string, string>)[reason]) || null;
 
   return (
-    <section aria-labelledby="master-plan-drawing-title" className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <section aria-labelledby="master-plan-drawing-title" className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-border">
       <div>
         <h3 id="master-plan-drawing-title" className="text-lg font-semibold">{t.title}</h3>
-        <p className="mt-1 text-sm text-slate-600">{t.intro}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.intro}</p>
       </div>
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
@@ -525,17 +525,17 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
         ) : null}
       </div>
 
-      {saved.layout?.latestVersion ? <p className="text-sm text-slate-700">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
+      {saved.layout?.latestVersion ? <p className="text-sm text-foreground">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
       {savedNotice ? <p role="status" className="text-sm text-emerald-800">{t.saved}</p> : null}
-      {progress ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{t.busy(progress.done, progress.total)}</p> : null}
+      {progress ? <p role="status" aria-live="polite" className="text-sm text-foreground">{t.busy(progress.done, progress.total)}</p> : null}
 
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{pickLanguage(language, error.message)}</p> : null}
 
-      {!drawing ? <p className="text-sm text-slate-500">{t.empty}</p> : (
+      {!drawing ? <p className="text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
           {rasterStats ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
-          {ignoredCount > 0 ? <p className="text-xs text-slate-500">{t.ignored}: {ignoredCount}</p> : null}
+          {ignoredCount > 0 ? <p className="text-xs text-muted-foreground">{t.ignored}: {ignoredCount}</p> : null}
 
           {geometry ? (
             <div>
@@ -597,7 +597,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                   {code}
                 </li>)}
               </ul>}
-              <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-slate-50 ring-1 ring-slate-200 ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
+              <svg role="img" aria-label={t.map} {...pan.svgProps} ref={node => { svgRef.current = node; (pan.svgProps.ref as React.MutableRefObject<SVGSVGElement | null>).current = node; }} onClick={onMapClick} className={`h-auto w-full rounded-lg bg-muted ring-1 ring-border ${tool !== "none" || linkTool ? "cursor-crosshair" : ""}`}>
                 {background ? <image href={background.href} x={0} y={0} width={background.width} height={background.height} preserveAspectRatio="none" data-testid="drawing-background" /> : null}
                 {drawing?.polygons.map(polygon => {
                   const item = items.find(entry => entry.polygonId === polygon.id);
@@ -646,40 +646,40 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 {linkPicks.length > 0 ? <polyline data-testid="link-polygon" points={linkPicks.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ")} fill="none" stroke="currentColor" className="text-red-600" strokeWidth={Math.max(geometry.width, geometry.height) / 400} pointerEvents="none" /> : null}
                 <MeasureOverlay picks={picks} flipY={geometry.flipY} size={Math.max(geometry.width, geometry.height) / 150} />
               </svg>
-              <p className="mt-2 text-xs text-slate-600">{t.legend}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{t.legend}</p>
             </div>
           ) : null}
 
           <div className="space-y-2">
             <h4 className="font-semibold">{t.shapes}</h4>
-            <ul className="divide-y divide-slate-200">
+            <ul className="divide-y divide-border">
               {items.map((item, index) => {
                 return (
-                  <li key={item.polygonId} className={`py-3 ${selectedId === item.polygonId ? "bg-slate-50" : ""}`}>
+                  <li key={item.polygonId} className={`py-3 ${selectedId === item.polygonId ? "bg-muted" : ""}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <button type="button" className="min-h-[44px] text-start font-medium" onClick={() => setSelectedId(item.polygonId)} aria-pressed={selectedId === item.polygonId}>
                         {t.shape(index + 1)} · {t.state[item.state]}{item.unitCode ? ` · ${item.unitCode}` : ""}
                       </button>
-                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-slate-600">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
-                      {reasonText(item.reason) ? <span className="text-xs text-slate-600">{reasonText(item.reason)}</span> : null}
-                      {colouring && item.state === "confirmed" && item.unitCode ? <span className="text-xs text-slate-600" data-site-status>{colourText.keys[colouring.keyOf(item.unitCode)]}</span> : null}
+                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-muted-foreground">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
+                      {reasonText(item.reason) ? <span className="text-xs text-muted-foreground">{reasonText(item.reason)}</span> : null}
+                      {colouring && item.state === "confirmed" && item.unitCode ? <span className="text-xs text-muted-foreground" data-site-status>{colourText.keys[colouring.keyOf(item.unitCode)]}</span> : null}
                     </div>
                     {selectedId === item.polygonId && item.state === "confirmed" && item.unitCode && colouring?.villaOf(item.unitCode) ? (
-                      <a className="mt-2 inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-sm" href={`/m/${tenantId}/${projectId}/unit/${colouring.villaOf(item.unitCode)!.unitNumber}${activityCode ? `?activity=${encodeURIComponent(activityCode)}` : ""}`}>{colourText.card}</a>
+                      <a className="mt-2 inline-flex min-h-[44px] items-center rounded-lg border border-border px-3 text-sm" href={`/m/${tenantId}/${projectId}/unit/${colouring.villaOf(item.unitCode)!.unitNumber}${activityCode ? `?activity=${encodeURIComponent(activityCode)}` : ""}`}>{colourText.card}</a>
                     ) : null}
                     {selectedId === item.polygonId ? (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
                         {item.state === "proposed" ? (
                           <>
                             <button type="button" className="min-h-[44px] rounded-lg bg-primary px-3 text-sm text-white" onClick={() => applyResult(confirmLink(items, item.polygonId))}>{t.confirm}</button>
-                            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => applyResult(rejectLink(items, item.polygonId))}>{t.reject}</button>
+                            <button type="button" className="min-h-[44px] rounded-lg border border-border px-3 text-sm" onClick={() => applyResult(rejectLink(items, item.polygonId))}>{t.reject}</button>
                           </>
                         ) : null}
                         {item.state === "confirmed" ? (
-                          <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => applyResult(clearLink(items, item.polygonId))}>{t.clear}</button>
+                          <button type="button" className="min-h-[44px] rounded-lg border border-border px-3 text-sm" onClick={() => applyResult(clearLink(items, item.polygonId))}>{t.clear}</button>
                         ) : null}
                         {item.layer === MANUAL_LAYER ? (
-                          <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm" onClick={() => { if (!drawing) return; const next = removeManualShape(drawing, items, item.polygonId); setDrawing(next.drawing); setItems(next.items); setSelectedId(null); }}>{manualText.removeShape}</button>
+                          <button type="button" className="min-h-[44px] rounded-lg border border-border px-3 text-sm" onClick={() => { if (!drawing) return; const next = removeManualShape(drawing, items, item.polygonId); setDrawing(next.drawing); setItems(next.items); setSelectedId(null); }}>{manualText.removeShape}</button>
                         ) : null}
                         {item.state !== "confirmed" ? (
                           <>
@@ -690,7 +690,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                             </label>
                             <button
                               type="button"
-                              className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
+                              className="min-h-[44px] rounded-lg border border-border px-3 text-sm"
                               disabled={!choice[item.polygonId]}
                               onClick={() => {
                                 const unit = unitById.get(choice[item.polygonId]);
@@ -707,13 +707,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 );
               })}
             </ul>
-            {items.length === 0 ? <p className="text-sm text-slate-500">{t.none}</p> : null}
+            {items.length === 0 ? <p className="text-sm text-muted-foreground">{t.none}</p> : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white disabled:opacity-50" disabled={!drawing || !hasVersion || saved.busy || (!file && !saved.layout?.latestVersion)} onClick={onSave}>{t.save}</button>
-            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
-            <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
+            <button type="button" className="min-h-[44px] rounded-lg border border-border px-4 text-sm" onClick={() => download("master-plan-links.csv", exportLinksCsv(items), "text/csv")}>{t.exportCsv}</button>
+            <button type="button" className="min-h-[44px] rounded-lg border border-border px-4 text-sm" onClick={() => download("master-plan-links.json", exportLinksJson(items), "application/json")}>{t.exportJson}</button>
           </div>
         </>
       )}

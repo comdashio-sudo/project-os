@@ -6,7 +6,7 @@ import { Button, FileDropzone } from "@/components/ds";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { buildWeeklyDeck, type ChartSpec, type DeckInput, type Item, type Slide, SLIDE } from "@/lib/weeklyDeck";
-import { downloadBytes, weeklyDeckPptx } from "@/lib/weeklyDeckPptx";
+import { downloadBytes, tokenPalette, weeklyDeckPptx } from "@/lib/weeklyDeckPptx";
 
 const PX = 96;
 const text = {
@@ -15,9 +15,13 @@ const text = {
   ur: { title: "ہفتہ وار رپورٹ برآمد کریں", pptx: "PowerPoint", pdf: "PDF", map: "رنگین ماسٹر پلان کی تصویر (اختیاری)", mapHint: "اسے «ماسٹر پلان کی انٹرایکٹو ڈرائنگ» سے PNG برآمد کریں، پھر یہاں منتخب کریں۔", working: "تیار ہو رہا ہے…", failed: "فائل نہیں بن سکی۔ دوبارہ کوشش کریں۔" },
 };
 
-const colour = (index: number) => `var(--chart-${(index % 5) + 1})`;
+// Q-29 (P-100): the PDF pictures the slides onto a canvas, which cannot resolve var(--chart-N) inside an SVG fill or stroke attribute (the bars and lines came out black);
+// the same resolved palette as the PowerPoint (tokenPalette, read once per drawing) colours them, so both files show the identity's chart colours.
+let resolvedPalette: string[] | null = null;
+const colour = (index: number) => `#${(resolvedPalette ??= tokenPalette())[index % 5]}`;
+export const resetChartPalette = () => { resolvedPalette = null; };
 
-function SvgChart({ title, chart, w, h }: { title: string; chart: ChartSpec; w: number; h: number }) {
+export function SvgChart({ title, chart, w, h }: { title: string; chart: ChartSpec; w: number; h: number }) {
   const top = 30; const bottom = 46; const left = 44; const plotW = w - left - 12; const plotH = h - top - bottom;
   const legend = <g>{chart.series.length > 1 || chart.type === "doughnut" ? (chart.type === "doughnut" ? chart.labels : chart.series.map(s => s.name)).map((name, i) => <g key={name} transform={`translate(${left + i * 140}, ${h - 14})`}><rect width="10" height="10" y="-9" fill={colour(i)} /><text x="14" fontSize="11">{name}</text></g>) : null}</g>;
   if (chart.type === "doughnut") {
@@ -66,6 +70,7 @@ async function deckPdf(slides: Slide[], rtl: boolean, fileName: string) {
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
+    resetChartPalette(); // the theme may have changed since the last file
     root.render(<div>{slides.map((slide, i) => <SlideView key={i} slide={slide} rtl={rtl} />)}</div>);
     await new Promise(resolve => setTimeout(resolve, 300));
     await Promise.all(Array.from(host.querySelectorAll("img")).map(img => (img.complete ? null : new Promise(resolve => { img.onload = img.onerror = resolve; }))));

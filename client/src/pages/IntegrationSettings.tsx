@@ -87,9 +87,9 @@ export default function IntegrationSettings() {
   const [message, setMessage] = useState<string | null>(null);
   const back = `/tenants/${tenantId}/administration`;
 
-  const tabButton = (value: Tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
-  if (!isManager) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="note" className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">{t.managersOnly}</p></FieldShell>;
-  if (meta.isLoading) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  const tabButton = (value: Tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
+  if (!isManager) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="note" className="rounded-xl bg-muted p-4 text-sm text-foreground">{t.managersOnly}</p></FieldShell>;
+  if (meta.isLoading) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   if (meta.error || !meta.data) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(meta.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => void meta.refetch()}>{t.retry}</Button></FieldShell>;
   const info = meta.data;
 
@@ -149,17 +149,17 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
         <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreate || create.isPending} onClick={() => { onMessage(null); create.mutate({ tenantId, system: form.system, name: form.name.trim(), baseUrl: form.baseUrl.trim(), database: form.database.trim() || undefined, username: form.username.trim() || undefined, secret: form.secret, settings, scheduledDaily: form.scheduledDaily }); }}>{create.isPending ? t.creating : t.create}</Button>
       </details>
       {list.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(list.error, isArabic)}</p>}
-      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noConnections}</p> : (
+      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noConnections}</p> : (
         <ul className="space-y-2">{rows.map(row => {
           const result = results[row.id];
           return (
             <li key={row.id} className="space-y-2 rounded-xl border bg-white p-3" data-connection={row.name}>
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div><p className="text-base font-semibold">{row.name} · {SYSTEM_NAME[row.system] ?? row.system}</p><p className="text-xs text-slate-600" dir="ltr">{row.baseUrl}{row.database ? ` · ${row.database}` : ""}{row.username ? ` · ${row.username}` : ""}</p>
-                  <p className="text-xs text-slate-600">{t.lastRun}: {row.lastRunAt ? showDate(row.lastRunAt, language) : t.never} · {row.active ? t.active : t.inactive}{row.scheduledDaily ? ` · ${t.scheduled}` : ""}</p></div>
+                <div><p className="text-base font-semibold">{row.name} · {SYSTEM_NAME[row.system] ?? row.system}</p><p className="text-xs text-muted-foreground" dir="ltr">{row.baseUrl}{row.database ? ` · ${row.database}` : ""}{row.username ? ` · ${row.username}` : ""}</p>
+                  <p className="text-xs text-muted-foreground">{t.lastRun}: {row.lastRunAt ? showDate(row.lastRunAt, language) : t.never} · {row.active ? t.active : t.inactive}{row.scheduledDaily ? ` · ${t.scheduled}` : ""}</p></div>
                 {row.connector && <p data-connector-status={row.connector.status} className={`rounded-lg px-2 py-1 text-xs font-semibold ${proven(row.connector) ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{tt[connectorWord(row.connector)]}</p>}
               </div>
-              {row.connector && <p className="text-xs text-slate-600">{t.reads}: {row.connector.pulls.join(", ")} · {t.writes}: {row.connector.pushes.length ? row.connector.pushes.join(", ") : t.readOnly}</p>}
+              {row.connector && <p className="text-xs text-muted-foreground">{t.reads}: {row.connector.pulls.join(", ")} · {t.writes}: {row.connector.pushes.length ? row.connector.pushes.join(", ") : t.readOnly}</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" className={tap} disabled={test.isPending} onClick={() => test.mutate({ tenantId, connectionId: row.id })}>{test.isPending && test.variables?.connectionId === row.id ? t.testing : t.test}</Button>
                 <Select aria-label={t.direction} className="w-auto" value={direction[row.id] ?? "in"} onValueChange={value => setDirection({ ...direction, [row.id]: value as "in" | "out" | "both" })} options={[{ value: "in", label: t.dirIn }, ...(row.connector && row.connector.pushes.length > 0 ? [{ value: "out", label: t.dirOut }, { value: "both", label: t.dirBoth }] : [])]} />
@@ -200,12 +200,12 @@ function Keys({ tenantId, t, tt, isArabic, language, scopes, utils }: Common & {
         </div>
         <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!valid || create.isPending} onClick={() => create.mutate({ tenantId, name: form.name.trim(), scopes: form.scopes as never, rateLimitPerMinute: rate, expiresInDays: days })}>{t.create}</Button>
       </details>
-      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noKeys}</p> : (
+      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noKeys}</p> : (
         <ul className="space-y-2">{rows.map(row => (
           <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white p-3" data-key={row.name}>
             <div><p className="text-base font-semibold">{row.name} {row.revokedAt && <span className="text-sm font-normal text-red-700">· {t.revoked}</span>}</p>
-              <p className="text-xs text-slate-600" dir="ltr">{row.keyPrefix}… · {row.scopes} · {row.rateLimitPerMinute}{t.perMinute}</p>
-              <p className="text-xs text-slate-600">{t.lastUsed}: {row.lastUsedAt ? showDate(row.lastUsedAt, language) : t.never}</p></div>
+              <p className="text-xs text-muted-foreground" dir="ltr">{row.keyPrefix}… · {row.scopes} · {row.rateLimitPerMinute}{t.perMinute}</p>
+              <p className="text-xs text-muted-foreground">{t.lastUsed}: {row.lastUsedAt ? showDate(row.lastUsedAt, language) : t.never}</p></div>
             {!row.revokedAt && <Button variant="outline" className={tap} disabled={revoke.isPending} onClick={() => revoke.mutate({ tenantId, keyId: row.id })}>{t.revoke}</Button>}
           </li>))}</ul>
       )}
@@ -238,14 +238,14 @@ function Webhooks({ tenantId, t, isArabic, language, events, utils }: Common & {
         </div>
         <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!/^https:\/\//.test(form.url.trim()) || form.events.length === 0 || create.isPending} onClick={() => create.mutate({ tenantId, url: form.url.trim(), events: form.events })}>{t.create}</Button>
       </details>
-      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noHooks}</p> : (
+      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noHooks}</p> : (
         <ul className="space-y-2">{rows.map(row => (
           <li key={row.id} className="space-y-2 rounded-xl border bg-white p-3" data-webhook={row.url}>
             <p className="break-all text-base font-semibold" dir="ltr">{row.url}</p>
-            <p className="text-xs text-slate-600"><span dir="ltr">{row.events}</span> · {row.active ? t.active : t.inactive} · {t.deliveries}: {t.delivered} {row.deliveries.delivered ?? 0} · {t.pending} {row.deliveries.pending ?? 0} · {t.failed} {row.deliveries.failed ?? 0} · {showDate(row.createdAt, language)}</p>
+            <p className="text-xs text-muted-foreground"><span dir="ltr">{row.events}</span> · {row.active ? t.active : t.inactive} · {t.deliveries}: {t.delivered} {row.deliveries.delivered ?? 0} · {t.pending} {row.deliveries.pending ?? 0} · {t.failed} {row.deliveries.failed ?? 0} · {showDate(row.createdAt, language)}</p>
             <div className="flex flex-wrap gap-2"><Button variant="outline" className={tap} disabled={test.isPending} onClick={() => test.mutate({ tenantId, endpointId: row.id })}>{t.sendTest}</Button>
               <Button variant="outline" className={tap} disabled={toggle.isPending} onClick={() => toggle.mutate({ tenantId, endpointId: row.id, active: !row.active })}>{row.active ? t.deactivate : t.activate}</Button></div>
-            {tested[row.id] && <p role="status" className="rounded-lg bg-slate-50 p-2 text-sm">{t.testResult}: {tested[row.id]}</p>}
+            {tested[row.id] && <p role="status" className="rounded-lg bg-muted p-2 text-sm">{t.testResult}: {tested[row.id]}</p>}
           </li>))}</ul>
       )}
     </section>
@@ -272,8 +272,8 @@ function Mappings({ tenantId, t, tt, isArabic, onMessage, utils }: Common & { tt
         {needsProject && <label className="block text-sm font-medium sm:col-span-2">{t.forProject}<input className={`${fieldInput} mt-1`} dir="ltr" value={form.project} onChange={event => setForm({ ...form, project: event.target.value })} /></label>}
         <Button className={`${tap} sm:col-span-2 sm:w-auto`} disabled={!valid || save.isPending} onClick={() => save.mutate({ tenantId, system, type: form.type, records: [{ externalId: form.externalId.trim(), ref: form.ref.trim(), project: needsProject ? form.project.trim() : undefined }] })}>{t.saveMap}</Button>
       </div>
-      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noMaps}</p> : (
-        <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm" data-mappings><thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.mapType}</th><th scope="col" className="p-2 text-start">{t.externalId}</th><th scope="col" className="p-2 text-start">{t.ours}</th></tr></thead>
+      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noMaps}</p> : (
+        <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm" data-mappings><thead><tr className="bg-muted"><th scope="col" className="p-2 text-start">{t.mapType}</th><th scope="col" className="p-2 text-start">{t.externalId}</th><th scope="col" className="p-2 text-start">{t.ours}</th></tr></thead>
           <tbody>{rows.map(row => <tr key={`${row.type}-${row.externalId}`} className="border-t"><td className="p-2">{tt[row.type] ?? row.type}</td><td className="p-2" dir="ltr">{row.externalId}</td><td className="p-2" dir="ltr">{row.internalCode ?? "—"}</td></tr>)}</tbody></table></div>
       )}
     </section>
@@ -290,9 +290,9 @@ function SyncLog({ tenantId, t, tt, isArabic, language }: Common & { tt: Record<
   return (
     <section aria-label={t.tabLog} className="space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noRuns}</p> : (
+      {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noRuns}</p> : (
         <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm" data-runs>
-          <thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.when}</th><th scope="col" className="p-2 text-start">{t.system}</th><th scope="col" className="p-2 text-start">{t.entity}</th><th scope="col" className="p-2 text-start">{t.trigger}</th><th scope="col" className="p-2 text-center">{t.received}</th><th scope="col" className="p-2 text-center">{t.accepted}</th><th scope="col" className="p-2 text-center">{t.rejected}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2"><span className="sr-only">{t.items}</span></th></tr></thead>
+          <thead><tr className="bg-muted"><th scope="col" className="p-2 text-start">{t.when}</th><th scope="col" className="p-2 text-start">{t.system}</th><th scope="col" className="p-2 text-start">{t.entity}</th><th scope="col" className="p-2 text-start">{t.trigger}</th><th scope="col" className="p-2 text-center">{t.received}</th><th scope="col" className="p-2 text-center">{t.accepted}</th><th scope="col" className="p-2 text-center">{t.rejected}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2"><span className="sr-only">{t.items}</span></th></tr></thead>
           <tbody>{rows.map(run => <tr key={run.id} className="border-t" data-run={run.id}>
             <td className="p-2">{showDate(run.startedAt, language)}</td><td className="p-2" dir="ltr">{run.system}</td><td className="p-2" dir="ltr">{run.direction === "out" ? "→ " : "← "}{run.entityType ?? "—"}</td><td className="p-2" dir="ltr">{run.trigger}</td>
             <td className="p-2 text-center">{run.received}</td><td className="p-2 text-center">{run.accepted}</td><td className={`p-2 text-center ${run.rejected > 0 ? "font-semibold text-red-700" : ""}`}>{run.rejected}</td><td className="p-2">{tt[runKey[run.status] ?? run.status] ?? run.status}</td>
@@ -302,7 +302,7 @@ function SyncLog({ tenantId, t, tt, isArabic, language }: Common & { tt: Record<
         <div className="space-y-2" data-items>
           <div className="flex items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.items}</h2>
             <label className="flex items-center gap-2 text-sm font-medium">{t.outcome}<Select className="w-auto" value={outcome} onValueChange={setOutcome} options={[{ value: "all", label: t.all }, ...Object.keys(outcomeKey).map(value => ({ value, label: tt[outcomeKey[value]] }))]} /></label></div>
-          <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.record}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2 text-start">{t.reason}</th></tr></thead>
+          <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm"><thead><tr className="bg-muted"><th scope="col" className="p-2 text-start">{t.record}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2 text-start">{t.reason}</th></tr></thead>
             <tbody>{(items.data ?? []).map(item => <tr key={item.id} className="border-t" data-outcome={item.outcome}><td className="p-2" dir="ltr">{item.entityType} {item.externalId ?? ""}</td><td className="p-2">{tt[outcomeKey[item.outcome]] ?? item.outcome}</td><td className="p-2" dir="ltr">{item.reason ?? ""}{item.detail ? ` — ${item.detail}` : ""}</td></tr>)}</tbody></table></div>
         </div>
       )}

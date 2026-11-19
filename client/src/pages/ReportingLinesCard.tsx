@@ -23,12 +23,12 @@ export function ReportingLinesCard({ tenantId }: { tenantId: string }) {
   if (list.error || !list.data) return null;
   const active = list.data.filter(row => row.employmentStatus === "active");
   return (
-    <section aria-label={t.title} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <section aria-label={t.title} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-border">
       <h2 className="font-semibold">{t.title}</h2>
-      <p className="mt-1 max-w-3xl text-xs text-slate-500">{t.hint}</p>
-      {setManager.error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(setManager.error, isArabic)}</p>}
-      {setManager.isSuccess && !setManager.error && <p role="status" className="mt-3 text-sm text-emerald-700">{t.saved}</p>}
-      {active.length === 0 ? <p className="mt-3 text-sm text-slate-500">{t.empty}</p> : (
+      <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t.hint}</p>
+      {setManager.error && <p role="alert" className="mt-3 text-sm text-destructive">{getLocalizedProjectError(setManager.error, isArabic)}</p>}
+      {setManager.isSuccess && !setManager.error && <p role="status" className="mt-3 text-sm text-success-soft-foreground">{t.saved}</p>}
+      {active.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">{t.empty}</p> : (
         <ul className="mt-3 divide-y">
           {active.map(row => (
             <li key={row.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
