@@ -2012,9 +2012,9 @@
 |---|---|---|
 | «لوحة المشروع» لم تعد تعرض PMC تبويبًا ثانيًا (`ProjectPmcWorkspace embedded`): مكانه رابط «ضبط المشروع PMC» إلى `/pmc` في صف صفحات المشروع، لمن يفتح PMC فقط؛ والعنوان القديم `controls#pmc` يحوّل إلى `/pmc` (استبدال لا إضافة في السجل) | `PROVEN` | `ProjectControls.resilience.test.tsx` (موجب: الرابط والتحويل؛ سالب: لا رابط بلا `project.pmc.read`) |
 | دليل الاستخدام: خطوتا PMC تشيران إلى صفحة `pmc` لا إلى التبويب، والاختبار يرفض `pmc#…` | `PROVEN` | `userGuide.test.tsx` 7/7 |
-| مراجعة #419 (ب): «تحديث الموقع» (`/m/:t/:p/site-update`) صار ببوابة «لا صلاحية» (`siteUpdate` = `project.pmc.read`، قراءة `pmcSite.activities`) كبقية صفحات المشروع | `UNVERIFIED` | `pageAccess.database.test.ts` يُشغَّل قبل فتح الطلب |
+| مراجعة #419 (ب): «تحديث الموقع» (`/m/:t/:p/site-update`) صار ببوابة «لا صلاحية» (`siteUpdate` = `project.pmc.read`، قراءة `pmcSite.activities`) كبقية صفحات المشروع | `PROVEN` | `pageAccess.database.test.ts` 7/7: يظهر ⇔ يجيب الخادم للأدوار الستة، فروق 0 |
 | سكربتات الفحص (`e2e-roles` و`check-keyboard` و`check-pdf-export` و`capture-screenshots`) تفتح `/pmc` مباشرة | `WRITTEN` | — |
-| البوابات حتى الآن: `pnpm check` 0؛ `pnpm test` 4097/0 | `PROVEN` | 2026-11-19 |
+| البوابات: `pnpm check` 0؛ `pnpm test` 4097/0؛ `pnpm test:db` 861/0 | `PROVEN` | 2026-11-19 |
 | التالي: (ب) الأسبوعي والشهري صفحة واحدة بتبويبين؛ (ج) مداخل الاستيراد الخمسة مدخلًا واحدًا | `OPEN` | — |
 
 ### Q-36 الدفعة 2 (ج): «التقارير» في القائمة وصفحة مدخلها (2026-11-19، المبرمج ج، بلا ترحيلة؛ بند قائمة بشرط صلاحية — يحتاج مراجعة مستقلة)
