@@ -163,6 +163,7 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   const [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
   if (existing && (existing.status === "submitted" || existing.status === "approved")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
   // Q-24 (P-120): a report kept on the phone while offline does not overwrite one saved after it was kept — shown to the person, never swallowed
+  if (input.queuedAt && new Date(input.queuedAt).getTime() > Date.now() + 5 * 60_000) throw refuse("BAD_REQUEST", "PROJECT_OS_CLIENT_CLOCK_AHEAD"); // review of #407: a clock ahead must not switch the check off
   if (existing && input.queuedAt && existing.updatedAt.getTime() > new Date(input.queuedAt).getTime()) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
   const id = existing?.id ?? crypto.randomUUID();
   await oneReportPerDay(db.transaction(async tx => {

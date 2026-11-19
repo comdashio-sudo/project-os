@@ -160,5 +160,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-4: the site engineer's
     expect(issueCodes(refused)).toEqual(["SITE_CHANGED_SINCE:2"]);
     expect(await progressOf(2)).toBe(40); // still COMPLETE: the newer save stands
     expect(await progressOf(3)).toBe(100); // the villa that had not changed was not written either: refused whole
+    // a phone clock ahead must not switch the check off (review of #407): refused, said as such, nothing written
+    const ahead = await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["2"], status: "NOT_STARTED", date: today, queuedAt: new Date(Date.now() + 3_600_000).toISOString(), clientRequestId: crypto.randomUUID() }).then(() => null, caught => caught);
+    expect(issueCodes(ahead)).toEqual(["SITE_CLOCK_AHEAD"]);
+    expect(await progressOf(2)).toBe(40);
   });
 });

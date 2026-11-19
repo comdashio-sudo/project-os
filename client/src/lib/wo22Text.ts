@@ -39,6 +39,7 @@ const ar = {
   statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", DONE: "منتهٍ", INSPECTION_REQUESTED: "طُلب الفحص", QC_APPROVED: "اعتمد QC" } as Record<string, string>,
   issues: {
     SITE_VILLA_UNKNOWN: (villa?: string) => `الفيلا ${villa ?? ""} غير موجودة في المشروع.`,
+    SITE_CLOCK_AHEAD: () => "ساعة هذا الهاتف متقدمة على الوقت الحقيقي؛ صحّحها ثم احفظ من جديد.",
     SITE_CHANGED_SINCE: (villa?: string) => `الفيلا ${villa ?? ""} حُدّثت بعد أن حفظتَ هذا الإدخال دون اتصال؛ لم يُرسل حتى لا يمحو الأحدث.`,
     SITE_DATE_IN_FUTURE: (_v?: string, detail?: string) => `التاريخ ${detail ?? ""} في المستقبل.`,
     SITE_FIELD_MISSING: (_v?: string, detail?: string) => `حقل ناقص: ${({ villas: "الفلل", date: "التاريخ", status: "الحالة", activity: "النشاط" } as Record<string, string>)[detail ?? ""] ?? detail ?? ""}.`,
@@ -100,6 +101,7 @@ const en: Text = {
   statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", DONE: "Done", INSPECTION_REQUESTED: "Inspection requested", QC_APPROVED: "QC approved" },
   issues: {
     SITE_VILLA_UNKNOWN: (villa?: string) => `Villa ${villa ?? ""} is not in the project.`,
+    SITE_CLOCK_AHEAD: () => "This phone's clock is ahead of the real time; correct it, then save again.",
     SITE_CHANGED_SINCE: (villa?: string) => `Villa ${villa ?? ""} was updated after you kept this entry offline; it was not sent, to avoid erasing the newer one.`,
     SITE_DATE_IN_FUTURE: (_v?: string, detail?: string) => `The date ${detail ?? ""} is in the future.`,
     SITE_FIELD_MISSING: (_v?: string, detail?: string) => `Missing: ${detail ?? ""}.`,
@@ -137,6 +139,7 @@ const ur: Text = {
   issues: {
     ...en.issues,
     SITE_VILLA_UNKNOWN: (villa?: string) => `ولا ${villa ?? ""} پروجیکٹ میں نہیں ہے۔`,
+    SITE_CLOCK_AHEAD: () => "اس فون کی گھڑی اصل وقت سے آگے ہے؛ درست کریں پھر دوبارہ محفوظ کریں۔",
     SITE_CHANGED_SINCE: (villa?: string) => `ولا ${villa ?? ""} آپ کے آف لائن محفوظ کرنے کے بعد اپ ڈیٹ ہوا؛ نیا نہ مٹے اس لیے یہ نہیں بھیجا گیا۔`,
     SITE_DATE_IN_FUTURE: (_v?: string, detail?: string) => `تاریخ ${detail ?? ""} مستقبل میں ہے۔`,
     SITE_TARGET_AMBIGUOUS: () => "ولاز چننے کا ایک طریقہ منتخب کریں: نمبر، رینج یا پورا بلاک، ایک سے زیادہ نہیں۔",

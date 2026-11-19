@@ -1813,6 +1813,11 @@ export const projectErrorMessages = {
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
   },
+  PROJECT_OS_CLIENT_CLOCK_AHEAD: {
+    ar: "ساعة هذا الهاتف متقدمة على الوقت الحقيقي، فلا يمكن التحقق من أن ما حفظته لا يمحو عملًا أحدث. صحّح ساعة الهاتف ثم احفظ من جديد.",
+    en: "This phone's clock is ahead of the real time, so it cannot be checked that what you kept does not erase newer work. Correct the phone's clock, then save again.",
+    ur: "اس فون کی گھڑی اصل وقت سے آگے ہے، اس لیے جانچ نہیں ہو سکتی کہ آپ کا محفوظ کیا نئے کام کو نہ مٹائے۔ فون کی گھڑی درست کریں پھر دوبارہ محفوظ کریں۔",
+  },
   PROJECT_OS_SITE_REPORT_CHANGED_SINCE: {
     ar: "حُفظ تقرير هذا اليوم بعد أن حفظتَ نسختك على الهاتف دون اتصال، فلم تُرسل نسختك حتى لا تمحو الأحدث. افتح التقرير وأضف ما ينقصه ثم احذف النسخة المحفوظة.",
     en: "This day's report was saved after you kept your version on the phone offline, so yours was not sent, to avoid erasing the newer one. Open the report, add what is missing, then discard the kept version.",

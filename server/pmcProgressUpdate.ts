@@ -5,7 +5,7 @@
 // (from, to, who, when) and its audit row — all in ONE transaction; the villa's and the project's progress are then read from the weights and returned.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { applyCellStatus, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
@@ -42,10 +42,15 @@ export type ProgressUpdateInput = Scope & { activityCode: string; villas?: strin
 export async function assertCellsNotChangedSince(tx: Parameters<Parameters<Awaited<ReturnType<typeof authorize>>["transaction"]>[0]>[0], input: Scope & { queuedAt?: string },
   table: typeof pmcUnitActivityProgress | typeof pmcQcReceipts, targets: Array<{ unitId: string; villa: string; activityDefinitionId: string }>) {
   if (!input.queuedAt) return;
-  const since = new Date(input.queuedAt);
-  if (Number.isNaN(since.getTime())) throw refuse([{ code: "SITE_FIELD_MISSING", detail: "queuedAt" }]);
-  const rows = await tx.select({ unitId: table.unitId, activityDefinitionId: table.activityDefinitionId }).from(table)
-    .where(and(eq(table.tenantId, input.tenantId), eq(table.projectId, input.projectId), inArray(table.unitId, targets.map(target => target.unitId)), gt(table.updatedAt, since)));
+  const kept = new Date(input.queuedAt);
+  if (Number.isNaN(kept.getTime())) throw refuse([{ code: "SITE_FIELD_MISSING", detail: "queuedAt" }]);
+  // a phone clock ahead (or a made-up value) must not switch the check off (review of #407): more than five minutes in the future is refused, said as such
+  if (kept.getTime() > Date.now() + 5 * 60_000) throw refuse([{ code: "SITE_CLOCK_AHEAD" }]);
+  const since = kept;
+  // the target cells are locked while checked and written, so a save landing between the check and the write waits (review of #407)
+  const rows = await tx.select({ unitId: table.unitId, activityDefinitionId: table.activityDefinitionId, updatedAt: table.updatedAt }).from(table)
+    .where(and(eq(table.tenantId, input.tenantId), eq(table.projectId, input.projectId), inArray(table.unitId, targets.map(target => target.unitId)))).for("update")
+    .then(found => found.filter(row => row.updatedAt.getTime() > since.getTime()));
   const changed = new Set(rows.map(row => `${row.unitId}/${row.activityDefinitionId}`));
   const villas = targets.filter(target => changed.has(`${target.unitId}/${target.activityDefinitionId}`)).map(target => target.villa);
   if (villas.length) throw refuse(villas.map(villa => ({ code: "SITE_CHANGED_SINCE", villa })));
