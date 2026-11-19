@@ -67,6 +67,7 @@ export const REQUIRED_SCHEMA = [
   { migration: "0036_qc_receipt_batch_id", kind: "column", table: "pmc_qc_receipt_events", column: "batch_id" },
   { migration: "0037_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
   { migration: "0037_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
+  { migration: "0038_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

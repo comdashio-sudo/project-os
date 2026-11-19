@@ -3839,6 +3839,10 @@ export const strategyAssumptionSourceEnum = pgEnum("strategy_assumption_source",
 export const strategyAssumptionConfidenceEnum = pgEnum("strategy_assumption_confidence", ["high", "medium", "low"]);
 export const strategyAssumptionReviewEnum = pgEnum("strategy_assumption_review", ["monthly", "quarterly", "annual", "event"]);
 export const strategyAssumptionStatusEnum = pgEnum("strategy_assumption_status", ["draft", "pending", "approved", "retired"]);
+// Q-21 (a), batch 2: a market indicator is an assumption of the «market» module, and every one says how sure it is: confirmed (a published figure),
+// estimate (a judgement), or analysis (derived from other figures). It also names where it came from (a link, a note, or both).
+export const strategyAssumptionModuleEnum = pgEnum("strategy_assumption_module", ["general", "market"]);
+export const strategyAssumptionEvidenceEnum = pgEnum("strategy_assumption_evidence", ["confirmed", "estimate", "analysis"]);
 export const strategyAssumptions = pgTable(
   "strategy_assumptions",
   {
@@ -3849,6 +3853,9 @@ export const strategyAssumptions = pgTable(
     unit: strategyAssumptionUnitEnum("unit").notNull(),
     sourceType: strategyAssumptionSourceEnum("source_type").notNull(),
     sourceNote: varchar("source_note", { length: 500 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    module: strategyAssumptionModuleEnum("module").default("general").notNull(),
+    evidence: strategyAssumptionEvidenceEnum("evidence").default("estimate").notNull(),
     confidence: strategyAssumptionConfidenceEnum("confidence").notNull(),
     reviewFrequency: strategyAssumptionReviewEnum("review_frequency").notNull(),
     nextReviewAt: date("next_review_at", { mode: "string" }),
@@ -3870,6 +3877,7 @@ export const strategyAssumptions = pgTable(
   },
   table => [
     uniqueIndex("strategy_assumptions_tenant_code_unique").on(table.tenantId, table.code),
+    index("strategy_assumptions_tenant_module_idx").on(table.tenantId, table.module),
     unique("strategy_assumptions_id_tenant_unique").on(table.id, table.tenantId),
   ],
 );

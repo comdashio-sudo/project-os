@@ -130,6 +130,10 @@ const strategyAssumptionFields = {
   reviewFrequency: z.enum(["monthly", "quarterly", "annual", "event"]),
   nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   values: strategyValues,
+  // Q-21 (a), batch 2: the market study
+  module: z.enum(["general", "market"]).optional(),
+  evidence: z.enum(["confirmed", "estimate", "analysis"]).optional(),
+  sourceUrl: z.string().trim().max(500).nullish(),
 };
 export const appRouter = router({
   system: systemRouter,
@@ -834,7 +838,7 @@ export const appRouter = router({
   }),
   // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
   strategy: router({
-    assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
+    assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), module: z.enum(["general", "market"]).optional() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
     assumptionChanges: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).query(({ ctx, input }) => getStrategyAssumptionChanges({ userId: ctx.user.id, ...input })),
     createAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_.-]+$/), ...strategyAssumptionFields })).mutation(({ ctx, input }) => createStrategyAssumption({ userId: ctx.user.id, ...input })),
     updateDraft: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), ...strategyAssumptionFields })).mutation(({ ctx, input }) => updateStrategyAssumptionDraft({ userId: ctx.user.id, ...input })),
