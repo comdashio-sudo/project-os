@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "schedule_snapshot_activities" (
 	"actual_finish_at" timestamp with time zone,
 	"total_float_hours" numeric(10, 2),
 	"percent_complete" numeric(5, 2),
+	"remaining_hours" numeric(10, 2),
 	"status" varchar(24) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
