@@ -1678,6 +1678,26 @@ export const projectErrorMessages = {
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
   },
+  PROJECT_OS_CERTIFICATE_OPEN_EXISTS: {
+    ar: "لهذا العقد من الباطن مستخلص لم يُعتمد بعد. اعتمده أو ألغه قبل إنشاء مستخلص جديد، حتى لا تُطالب الكمية نفسها مرتين.",
+    en: "This subcontract already has a certificate that is not approved yet. Approve or cancel it before creating a new one, so the same quantity is not claimed twice.",
+    ur: "اس ذیلی ٹھیکے کا ایک سرٹیفکیٹ ابھی منظور نہیں ہوا۔ نیا سرٹیفکیٹ بنانے سے پہلے اسے منظور یا منسوخ کریں، تاکہ ایک ہی مقدار دو بار نہ مانگی جائے۔",
+  },
+  PROJECT_OS_CERTIFICATE_NOT_FOUND: {
+    ar: "المستخلص غير موجود في هذا المشروع.",
+    en: "The certificate was not found in this project.",
+    ur: "یہ سرٹیفکیٹ اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_CERTIFICATE_SELF_APPROVAL: {
+    ar: "لا يعتمد المستخلص من أعدّه أو أرسله. يعتمده شخص آخر يملك صلاحية الالتزامات (فصل المهام).",
+    en: "A certificate is not approved by the person who prepared or submitted it. Someone else who manages commitments approves it (separation of duties).",
+    ur: "سرٹیفکیٹ وہ شخص منظور نہیں کرتا جس نے اسے تیار یا جمع کیا۔ اسے کوئی اور شخص منظور کرے جس کے پاس وابستگیوں کا اختیار ہو (فرائض کی علیحدگی)۔",
+  },
+  PROJECT_OS_CERTIFICATE_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل المستخلص إلى هذه الحالة من حالته الحالية. المسار: مسودة ← مُرسَل ← معتمد ← مدفوع، والإلغاء قبل الاعتماد فقط.",
+    en: "The certificate cannot move to this status from its current one. The path is draft → submitted → approved → paid, and it can be cancelled only before approval.",
+    ur: "سرٹیفکیٹ اپنی موجودہ حالت سے اس حالت میں نہیں جا سکتا۔ راستہ: مسودہ ← جمع شدہ ← منظور شدہ ← ادا شدہ، اور منسوخی صرف منظوری سے پہلے۔",
+  },
   PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND: {
     ar: "لا مستلم مؤهل لهذا التنبيه في الشركة.",
     en: "No eligible recipient for this alert was found in the company.",
