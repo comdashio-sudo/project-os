@@ -26,6 +26,11 @@ export const PAGE_ACCESS = {
   stalled: [["project.pmc.read"]],
   // siteReports.list — listSiteDailyReportsForTenant (server/siteReports.ts)
   dailyReport: [DAILY_REPORT_READERS],
+  // reportPeriods.weekly / reportPeriods.monthly — getWeeklyReport, getMonthlyReport (server/siteReports.ts READ_PERMISSIONS)
+  weeklyReport: [DAILY_REPORT_READERS],
+  monthlyReport: [DAILY_REPORT_READERS],
+  // pmcSite.percentages — pmcSourcePercentages (server/pmcSiteService.ts)
+  siteConsultant: [["project.pmc.read"]],
   // schedule.live — getLiveSchedule (server/scheduleSnapshots.ts), Q-23
   schedule: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
@@ -42,3 +47,7 @@ export const pageAllowed = (page: PageKey, holds: (codes: readonly string[]) => 
  */
 export const SITE_HUB_PAGES = ["dailyReport", "progress", "qc", "stalled"] as const satisfies readonly PageKey[];
 export const SITE_HUB_READERS: readonly string[] = Array.from(new Set(SITE_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
+
+/** Q-36 (step 2 c): «التقارير» — the weekly report, the monthly report and the site ↔ consultant comparison, gathered the same way as the site's page. */
+export const REPORTS_HUB_PAGES = ["weeklyReport", "monthlyReport", "siteConsultant"] as const satisfies readonly PageKey[];
+export const REPORTS_HUB_READERS: readonly string[] = Array.from(new Set(REPORTS_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
