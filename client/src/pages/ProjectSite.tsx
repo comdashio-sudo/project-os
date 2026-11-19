@@ -12,6 +12,8 @@ import { PAGE_NAMES } from "@shared/pageNames";
 
 /** The site's calendar day (Riyadh, UTC+3): the day a report is filed for and a QC receipt is dated by. */
 export const siteToday = (now = new Date()) => new Date(now.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
+/** The most QC events the card reads (pmc.qcHistory's own ceiling): a full page means there may be more, and the card says «100+» rather than a short count. */
+const QC_PAGE = 100;
 const dayOf = (value: unknown) => (value instanceof Date ? siteToday(value) : typeof value === "string" ? value.slice(0, 10) : "");
 
 const text = {
@@ -44,12 +46,18 @@ export default function ProjectSite() {
   const can = { dailyReport: useCanPage("dailyReport", projectId), progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), stalled: useCanPage("stalled", projectId) };
   const reports = trpc.siteReports.list.useQuery(scope, { enabled: can.dailyReport });
   const activities = trpc.pmc.progressActivities.useQuery(scope, { enabled: can.progress });
-  const receipts = trpc.pmc.qcHistory.useQuery({ ...scope, limit: 100 }, { enabled: can.qc });
+  const receipts = trpc.pmc.qcHistory.useQuery({ ...scope, limit: QC_PAGE }, { enabled: can.qc });
   const stalled = trpc.pmc.stalledUnits.useQuery(scope, { enabled: can.stalled });
   const today = siteToday();
   const todayReport = reports.data?.find(report => dayOf(report.reportDate) === today);
+  // siteReports.list returns the latest 60 reports; a report still awaiting approval after 60 newer ones is not counted (rare: one report a day)
   const awaiting = reports.data?.filter(report => report.status === "submitted").length ?? 0;
-  const receivedToday = receipts.data?.filter(receipt => dayOf(receipt.on) === today).length ?? 0;
+  // pmc.qcHistory returns CHANGE events, newest first: count only those that marked a villa received (not an undo), RECORDED today at the site (`at`, not
+  // the receipt date the engineer typed); a full page may hide older ones of today, so it reads «100+» (review of #410 by programmer A)
+  const qcEvents = receipts.data ?? [];
+  const receivedToday = qcEvents.filter(event => event.to === true && dayOf(event.at) === today).length;
+  const cutToday = qcEvents.length >= QC_PAGE && dayOf(qcEvents[qcEvents.length - 1].at) === today; // the oldest on a full page is still today's
+  const receivedTodayLabel = cutToday ? `${receivedToday}+` : null;
   const count = (value: number) => <bdi dir="ltr" className="font-semibold text-foreground">{value}</bdi>;
   const any = can.dailyReport || can.progress || can.qc || can.stalled;
 
@@ -70,7 +78,7 @@ export default function ProjectSite() {
             {activities.data ? <span>{count(activities.data.length)} {t.activities}</span> : null}
           </SiteCard> : null}
           {can.qc ? <SiteCard testId="qc" icon={ClipboardCheck} title={name("qcReceipt")} href={`/m/${tenantId}/${projectId}/qc`}>
-            {receipts.data ? <span>{count(receivedToday)} {t.today}</span> : null}
+            {receipts.data ? <span>{receivedTodayLabel ? <bdi dir="ltr" className="font-semibold text-foreground">{receivedTodayLabel}</bdi> : count(receivedToday)} {t.today}</span> : null}
           </SiteCard> : null}
           {can.stalled ? <SiteCard testId="stalled" icon={PauseCircle} title={name("stalled")} href={`/projects/${tenantId}/${projectId}/stalled`}>
             {stalled.data ? <><Badge tone="warning">{count(stalled.data.counts.stalled)} {t.stalled}</Badge><Badge tone="danger">{count(stalled.data.counts.long)} {t.long}</Badge></> : null}

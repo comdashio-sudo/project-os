@@ -68,15 +68,22 @@ describe("the import log shows what each attempt is and what can be done with it
     expect(ledger.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
   });
 
-  // D-4 (#153): a Primavera schedule (p6) and its progress update (p6update) are written «completed», but the server refuses their rollback
-  // (PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED) — so the log offers neither button for them, while a «schedule» import still gets both.
-  it.each(["p6", "p6update"])("offers neither «Roll back» nor «Replace» on a completed %s import (the server refuses its rollback)", moduleCode => {
+  // D-4 (#153): a full Primavera schedule (p6) is written «completed», but the server refuses its rollback (PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED) —
+  // so the log offers neither button for it, while a «schedule» import still gets both. Its progress update (p6update) is undone since G-208 (below).
+  it.each(["p6"])("offers neither «Roll back» nor «Replace» on a completed %s import (the server refuses its rollback)", moduleCode => {
     state.mock.list = [row("00000000-0000-4000-8000-0000000000a6", "schedule.xer", "completed", 0, moduleCode)];
     render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
     const imported = within(screen.getByTestId("import-attempt-imported"));
     expect(imported.getByText("Imported")).toBeTruthy();
     expect(imported.queryByRole("button", { name: "Roll back this import" })).toBeNull();
     expect(imported.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
+  });
+
+  it("G-208 (Q-23): offers both on a completed p6update import — the server puts the activities back from the snapshot taken before it", () => {
+    state.mock.list = [row("00000000-0000-4000-8000-0000000000a8", "update.xls", "completed", 0, "p6update")];
+    render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
+    const imported = within(screen.getByTestId("import-attempt-imported"));
+    expect(imported.getByRole("button", { name: "Roll back this import" })).toBeTruthy();
   });
 
   it("still offers both on a completed «schedule» import (positive control for the p6 case)", () => {

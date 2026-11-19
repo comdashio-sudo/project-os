@@ -36,7 +36,7 @@ export type ReportHseInput = { kind: (typeof HSE_KINDS)[number]; description: st
 export type ReportObstacleInput = { issue: string; impact?: string; responsible?: string; action?: string; dueDate?: string };
 export type ReportTomorrowInput = { area?: string; activity: string; quantity?: number; unit?: string; resources?: string };
 type Sections = { materials?: ReportMaterialInput[]; hse?: ReportHseInput[]; obstacleItems?: ReportObstacleInput[]; tomorrow?: ReportTomorrowInput[] };
-export type ReportInput = Sections & { reportDate: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
+export type ReportInput = Sections & { reportDate: string; queuedAt?: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
 
 export async function authorize(input: Scope, permission: string | readonly string[]) {
   const db = await getDb();
@@ -163,6 +163,9 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   await validateSections(db, input, input);
   const [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
   if (existing && (existing.status === "submitted" || existing.status === "approved")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
+  // Q-24 (P-120): a report kept on the phone while offline does not overwrite one saved after it was kept — shown to the person, never swallowed
+  if (input.queuedAt && new Date(input.queuedAt).getTime() > Date.now() + 5 * 60_000) throw refuse("BAD_REQUEST", "PROJECT_OS_CLIENT_CLOCK_AHEAD"); // review of #407: a clock ahead must not switch the check off
+  if (existing && input.queuedAt && existing.updatedAt.getTime() > new Date(input.queuedAt).getTime()) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
   const id = existing?.id ?? crypto.randomUUID();
   await oneReportPerDay(db.transaction(async tx => {
     const header = { weather: input.weather?.trim() || null, temperatureC: input.temperatureC === undefined ? null : String(input.temperatureC), wind: input.wind?.trim() || null, workHours: input.workHours === undefined ? null : String(input.workHours), summary: input.summary?.trim() || null, obstacles: input.obstacles?.trim() || null };

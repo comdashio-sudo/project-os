@@ -39,6 +39,8 @@ async function clear() {
   await connection.query("DELETE FROM memberships WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T]);
+  await connection.query("DELETE FROM schedule_snapshot_activities WHERE tenantId = ?", [T]); // Q-23
+  await connection.query("DELETE FROM schedule_snapshots WHERE tenantId = ?", [T]); // Q-23
   await connection.query("DELETE FROM projects WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM companies WHERE id = ?", [T]);
   await clearP6Tenant(connection, T2);
@@ -200,5 +202,40 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE id = '79000000-0000-4000-8000-00000000f0a1'")).toBe(0);
     await insert("79000000-0000-4000-8000-00000000f0a2", b1.id, b2.id);
     expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE id = '79000000-0000-4000-8000-00000000f0a2'")).toBe(1);
+  }, 60_000);
+
+  // G-209: the same guard on the schedule's other sibling tables. Both projects hold a full import written AFTER the guards existed (the positive: the
+  // import's own rows pass); each negative points one of project B's rows at project A's row and is refused, and the row is left as it was.
+  it("G-209: a code assignment, a resource assignment, a code value's parent or type, and an activity's calendar cannot reach another project", async () => {
+    const first = async (sql: string, params: unknown[]) => (await one<Record<string, string>>(sql, params))[0];
+    const crossing = async (sql: string, params: unknown[], message: string) => expect(connection.query(sql, params)).rejects.toThrow(message);
+    // an activity's calendar
+    const actB = await first("SELECT id, calendarId FROM activities WHERE tenantId = ? AND projectId = ? AND calendarId IS NOT NULL ORDER BY code LIMIT 1", [T, PB]);
+    const calA = await first("SELECT id FROM schedule_calendars WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, P]);
+    const calB2 = await first("SELECT id FROM schedule_calendars WHERE tenantId = ? AND projectId = ? AND id <> ? LIMIT 1", [T, PB, actB.calendarId]);
+    await crossing("UPDATE activities SET calendarId = ? WHERE id = ?", [calA.id, actB.id], "ACTIVITY_CALENDAR_CROSS_PROJECT");
+    await connection.query("UPDATE activities SET calendarId = ? WHERE id = ?", [calB2.id, actB.id]); // positive: another calendar of B
+    expect((await first("SELECT calendarId FROM activities WHERE id = ?", [actB.id])).calendarId).toBe(calB2.id);
+    await connection.query("UPDATE activities SET calendarId = ? WHERE id = ?", [actB.calendarId, actB.id]);
+    // a resource assignment
+    const resB = await first("SELECT id, resourceId FROM activity_resource_assignments WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, PB]);
+    const resA = await first("SELECT id FROM project_resources WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, P]);
+    await crossing("UPDATE activity_resource_assignments SET resourceId = ? WHERE id = ?", [resA.id, resB.id], "ACTIVITY_RESOURCE_ASSIGNMENT_CROSS_PROJECT");
+    const actA = await first("SELECT id FROM activities WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, P]);
+    await crossing("UPDATE activity_resource_assignments SET activityId = ? WHERE id = ?", [actA.id, resB.id], "ACTIVITY_RESOURCE_ASSIGNMENT_CROSS_PROJECT");
+    expect((await first("SELECT resourceId FROM activity_resource_assignments WHERE id = ?", [resB.id])).resourceId).toBe(resB.resourceId);
+    // a code assignment: A's value, and a value of B that belongs to another code type
+    const codeB = await first("SELECT id, codeTypeId, codeValueId FROM activity_code_assignments WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, PB]);
+    const valueA = await first("SELECT id FROM activity_code_values WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, P]);
+    const otherTypeB = await first("SELECT id FROM activity_code_values WHERE tenantId = ? AND projectId = ? AND codeTypeId <> ? LIMIT 1", [T, PB, codeB.codeTypeId]);
+    await crossing("UPDATE activity_code_assignments SET codeValueId = ? WHERE id = ?", [valueA.id, codeB.id], "ACTIVITY_CODE_ASSIGNMENT_CROSS_PROJECT");
+    await crossing("UPDATE activity_code_assignments SET codeValueId = ? WHERE id = ?", [otherTypeB.id, codeB.id], "ACTIVITY_CODE_ASSIGNMENT_CROSS_PROJECT");
+    expect((await first("SELECT codeValueId FROM activity_code_assignments WHERE id = ?", [codeB.id])).codeValueId).toBe(codeB.codeValueId);
+    // a code value: A's code type, and a parent of A
+    const valueB = await first("SELECT id, codeTypeId FROM activity_code_values WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, PB]);
+    const typeA = await first("SELECT id FROM activity_code_types WHERE tenantId = ? AND projectId = ? LIMIT 1", [T, P]);
+    await crossing("UPDATE activity_code_values SET codeTypeId = ? WHERE id = ?", [typeA.id, valueB.id], "ACTIVITY_CODE_VALUE_CROSS_PROJECT");
+    await crossing("UPDATE activity_code_values SET parentId = ? WHERE id = ?", [valueA.id, valueB.id], "ACTIVITY_CODE_VALUE_CROSS_PROJECT");
+    expect(await n("SELECT COUNT(*) AS n FROM activity_code_values WHERE id = ? AND parentId IS NULL", [valueB.id])).toBe(1);
   }, 60_000);
 });
