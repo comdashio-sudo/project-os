@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAILY_REPORT_READERS, PAGE_ACCESS, REPORTS_HUB_PAGES, REPORTS_HUB_READERS, SITE_HUB_PAGES, SITE_HUB_READERS, pageAllowed } from "../../shared/pageAccess";
+import { DAILY_REPORT_READERS, IMPORT_HUB_PAGES, IMPORT_HUB_READERS, PAGE_ACCESS, REPORTS_HUB_PAGES, REPORTS_HUB_READERS, SITE_HUB_PAGES, SITE_HUB_READERS, pageAllowed } from "../../shared/pageAccess";
 import { READ_PERMISSIONS } from "../siteReports";
 
 // Q-36 (step 2 b): the side menu's «الموقع والتنفيذ» item, the entry page's gate and each card's gate read one table, so the entry is shown exactly to whoever
@@ -31,6 +31,16 @@ describe("Q-36 (2 c): the reports entry's readers", () => {
   });
   it("NEGATIVE: the warehouse keeper's code opens no report", () => {
     expect(REPORTS_HUB_PAGES.filter(page => pageAllowed(page, group => group.includes("project.inventory.manage")))).toEqual([]);
+  });
+});
+
+describe("Q-36 (3 c): the import entry's readers", () => {
+  it("each page an import card leads to has a single «any of» group, and the entry's readers are their union", () => {
+    for (const page of IMPORT_HUB_PAGES) expect(PAGE_ACCESS[page]).toHaveLength(1);
+    expect([...IMPORT_HUB_READERS].sort()).toEqual(Array.from(new Set(IMPORT_HUB_PAGES.flatMap(page => [...PAGE_ACCESS[page][0]]))).sort());
+  });
+  it("NEGATIVE: the warehouse keeper's code opens none of them", () => {
+    expect(IMPORT_HUB_PAGES.filter(page => pageAllowed(page, group => group.includes("project.inventory.manage")))).toEqual([]);
   });
 });
 

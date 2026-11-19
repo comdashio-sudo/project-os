@@ -367,4 +367,52 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Excel cycle for costs, p
       expect(Number((await one<{ h: string }>("SELECT actualHours AS h FROM employee_time_entries WHERE tenantId = ?", [T])).h)).toBe(8);
     });
   });
+
+  // -------------------------------------------------------------------------------------------------------------- Q-31 (P0-02): choosing the columns
+  describe("a person chooses the columns of a file whose headers the importer does not know", () => {
+    const customSheet = async (rows: unknown[][]) => {
+      const workbook = new ExcelJS.Workbook(); const worksheet = workbook.addWorksheet("Data");
+      worksheet.addRow(["Ref WBS", "Spend date", "Value", "Notes"]); rows.forEach(row => worksheet.addRow(row));
+      return Buffer.from(await workbook.xlsx.writeBuffer());
+    };
+    const ledgerColumnsOf = (view: Awaited<ReturnType<typeof pollUntilDone>>) => (view.external?.report as { ledger?: { columns?: { headers: string[]; fields: Array<{ key: string; header: string | null }>; overridden: boolean } } } | undefined)?.ledger?.columns;
+
+    it("the report lists the file's columns and what each field found; the chosen columns are analysed again, previewed and written the same way", async () => {
+      const ops = callerFor(users.ops, "led-ops");
+      const view = await upload(ops, "costs", await customSheet([["1.2", "2026-09-02", 777, "site note"]]), "costs-own-headers.xlsx");
+      expect(view.status).toBe("uploaded");
+      expect(errorCodes(view)).toEqual(expect.arrayContaining(["IMPORT_REQUIRED_COLUMN_MISSING", "IMPORT_UNSUPPORTED_COLUMN"]));
+      const found = ledgerColumnsOf(view)!;
+      expect(found.headers).toEqual(["Ref WBS", "Spend date", "Value", "Notes"]);
+      expect(found.fields.find(field => field.key === "amount")).toMatchObject({ header: null });
+      expect(found.overridden).toBe(false);
+
+      const before = await countOf("cost_entries");
+      await ops.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { wbsCode: "Ref WBS", incurredAt: "Spend date", amount: "Value", __others__: "ignore" } });
+      const again = await pollUntilDone(ops, view.id);
+      expect(again.status).toBe("validated");
+      expect(ledgerColumnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([{ key: "amount", required: true, header: "Value" }]) });
+      expect(await ops.dataImports.diff({ ...scope, importId: view.id })).toMatchObject({ supported: true, summary: { new: 1, conflict: 0 }, rejected: 0 });
+      expect(await countOf("cost_entries")).toBe(before); // nothing written before the confirmation
+      expect(await confirmWithHash(ops, view.id)).toMatchObject({ status: "completed", createdRows: 1 });
+      const posted = await one<{ amount: string; wbsItemId: string }>("SELECT amount, wbsItemId FROM cost_entries WHERE tenantId = ? AND sourceId = ?", [T, view.id]);
+      expect([Number(posted.amount), posted.wbsItemId]).toEqual([777, W2]);
+    });
+
+    it("a choice naming a column the file does not have, or one column for two fields, is refused whole; a person who may not import costs cannot re-analyse", async () => {
+      const ops = callerFor(users.ops, "led-ops");
+      const view = await upload(ops, "costs", await customSheet([["1.2", "2026-09-03", 555, ""]]), "costs-bad-choice.xlsx");
+      await ops.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { incurredAt: "Spend date", amount: "Total" } });
+      const missing = await pollUntilDone(ops, view.id);
+      expect(missing.analysis?.errors).toEqual([expect.objectContaining({ code: "IMPORT_MAPPING_INVALID", field: "Total" })]);
+      await ops.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { incurredAt: "Value", amount: "Value" } });
+      const twice = await pollUntilDone(ops, view.id);
+      expect(twice.analysis?.errors).toEqual([expect.objectContaining({ code: "IMPORT_MAPPING_INVALID", field: "Value" })]);
+      expect(twice.external?.canConfirm).toBe(false);
+
+      const reader = callerFor(users.reader, "led-reader");
+      await expect(reader.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { incurredAt: "Spend date", amount: "Value" } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(await countOf("cost_entries", "AND sourceId = '" + view.id + "'")).toBe(0);
+    });
+  });
 });

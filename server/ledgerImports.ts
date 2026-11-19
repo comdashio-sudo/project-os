@@ -31,6 +31,8 @@ export type LedgerPlan = {
   missing: MissingRow[];
   /** True when the plan read employee records (names, numbers): the caller audits that read. */
   readsEmployeeRecords: boolean;
+  /** Which column each field was read from (absent when the file could not be read at all). */
+  columns?: LedgerColumns;
   apply: ((context: { importId: string; db: Db }) => Promise<{ counts: LedgerCounts; results: Array<{ rowNumber: number; key: string; action: "created" | "updated" | "skipped"; entityId: string | null }> }>) | null;
 };
 
@@ -59,8 +61,38 @@ const dayKey = (date: Date | null | undefined) => (date ? date.toISOString().sli
 
 type ParsedRow = { rowNumber: number; cells: Record<string, unknown>; fileId?: string; fileVersion?: string };
 
-async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer): Promise<{ rows: ParsedRow[]; errors: LedgerError[] }> {
-  const fail = (code: string): { rows: ParsedRow[]; errors: LedgerError[] } => ({ rows: [], errors: [{ rowNumber: 0, code }] });
+/** Which column of the file each field was read from (Q-31, P0-02): shown with the report so a person can choose another and analyse again. Same shape as PMC's. */
+export type LedgerColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
+/** The key that says «the columns no field takes are ignored, not refused» (the person saw the whole list). Same key as the PMC importer. */
+export const IGNORE_OTHER_COLUMNS = "__others__";
+type Table = { rows: ParsedRow[]; errors: LedgerError[]; columns?: LedgerColumns };
+
+/**
+ * A person's choice of columns (field key → the header as the file writes it) replaces what was found for those fields. An EMPTY header means «no column»
+ * (a required field then reads as missing). A field the module does not have, a header the file does not have, the id/version columns, or one header for two
+ * fields is refused whole (IMPORT_MAPPING_INVALID, with the offending name): a mapping is never half applied.
+ */
+function applyChoice(columns: LedgerColumn[], headers: string[], found: Map<string, string>, override: Record<string, string>): { mapping: Map<string, string>; ignoreOthers: boolean } | { invalid: string } {
+  const keys = new Set(columns.map(column => column.key));
+  const chosen = Object.entries(override).filter(([key]) => key !== IGNORE_OTHER_COLUMNS);
+  const ignoreOthers = override[IGNORE_OTHER_COLUMNS] === "ignore";
+  if (IGNORE_OTHER_COLUMNS in override && !ignoreOthers) return { invalid: IGNORE_OTHER_COLUMNS };
+  const used = new Set<string>();
+  for (const [key, header] of chosen) {
+    if (!keys.has(key)) return { invalid: key };
+    if (header === "") continue;
+    if (!headers.includes(header) || header === LEDGER_ID_HEADER || header === LEDGER_VERSION_HEADER || used.has(header)) return { invalid: header };
+    used.add(header);
+  }
+  const named = new Set(chosen.map(([key]) => key));
+  const mapping = new Map(Array.from(found).filter(([key, header]) => !named.has(key) && !used.has(header)));
+  for (const [key, header] of chosen) if (header !== "") mapping.set(key, header);
+  return { mapping, ignoreOthers };
+}
+
+async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer, override?: Record<string, string>): Promise<Table> {
+  // the offending field or column travels as `field` (the stored error row keeps it, and the screen shows it beside the sentence)
+  const fail = (code: string, field?: string): Table => ({ rows: [], errors: [{ rowNumber: 0, code, ...(field ? { field } : {}) }] });
   const parsed = await readSpreadsheetSafely(format === "csv" ? bytes.toString("utf8") : bytes, format);
   if (!parsed.ok) return fail(parsed.code);
   if (parsed.workbook.worksheets.length !== 1) return fail(parsed.workbook.worksheets.length === 0 ? "IMPORT_EMPTY_WORKBOOK" : "IMPORT_SINGLE_SHEET_REQUIRED");
@@ -70,15 +102,25 @@ async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes
   if (bounds) return fail(bounds);
   const columns = ledgerColumns[moduleCode];
   const accepted = (column: LedgerColumn) => new Set(acceptedHeaders(column).map(norm));
-  const headerOf = new Map<string, string>();
+  let headerOf = new Map<string, string>();
   for (const column of columns) { const names = accepted(column); const header = headers.find(candidate => names.has(norm(candidate))); if (header) headerOf.set(column.key, header); }
+  let ignoreOthers = false;
+  const choice = override && Object.keys(override).length ? override : undefined;
+  if (choice) {
+    const applied = applyChoice(columns, headers, headerOf, choice);
+    if ("invalid" in applied) return fail("IMPORT_MAPPING_INVALID", applied.invalid);
+    ({ mapping: headerOf, ignoreOthers } = applied);
+  }
+  const fileColumns = headers.filter(header => header && header !== LEDGER_ID_HEADER && header !== LEDGER_VERSION_HEADER);
+  const report: LedgerColumns = { headers: fileColumns, fields: columns.map(column => ({ key: column.key, required: column.required, header: headerOf.get(column.key) ?? null })), overridden: Boolean(choice) };
   const known = new Set(Array.from(headerOf.values()));
   const errors: LedgerError[] = [];
-  for (const header of headers) if (header && !known.has(header) && header !== LEDGER_ID_HEADER && header !== LEDGER_VERSION_HEADER) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
+  if (!ignoreOthers) for (const header of fileColumns) if (!known.has(header)) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
   for (const column of columns) if (column.required && !headerOf.has(column.key)) errors.push({ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: column.key });
-  if (errors.length) return { rows: [], errors };
+  if (errors.length) return { rows: [], errors, columns: report };
   return {
     errors,
+    columns: report,
     rows: rows.map((row, index) => ({
       rowNumber: index + 2,
       cells: Object.fromEntries(columns.map(column => [column.key, headerOf.has(column.key) ? row[headerOf.get(column.key)!] : undefined])),
@@ -362,13 +404,17 @@ export async function authorizeLedgerModule(scope: LedgerScope, moduleCode: Ledg
   if (moduleCode === "employees" || moduleCode === "timeEntries") await assertHrRecordAccess({ userId: scope.userId, tenantId: scope.tenantId, permission: "project.hr.manage" });
 }
 
-export async function planLedgerImport(db: Db, scope: LedgerScope, moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer): Promise<LedgerPlan> {
-  const table = await readTable(moduleCode, format, bytes);
-  if (table.errors.length) return { totalRows: 0, entries: [], errors: table.errors, missing: [], readsEmployeeRecords: false, apply: null };
-  if (moduleCode === "costs") return planCosts(db, scope, table.rows);
-  if (moduleCode === "purchaseOrders") return planPurchaseOrders(db, scope, table.rows);
-  if (moduleCode === "employees") return planEmployees(db, scope, table.rows);
-  return planTimeEntries(db, scope, table.rows);
+/** `mappingOverride`: a person's choice of columns (Q-31); the analysis and the write take the same one, so the write is what the report described. */
+export async function planLedgerImport(db: Db, scope: LedgerScope, moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer, mappingOverride?: Record<string, string>): Promise<LedgerPlan> {
+  const table = await readTable(moduleCode, format, bytes, mappingOverride);
+  if (table.errors.length) return { totalRows: 0, entries: [], errors: table.errors, missing: [], readsEmployeeRecords: false, apply: null, columns: table.columns };
+  return { ...(await planRows(db, scope, moduleCode, table.rows)), columns: table.columns };
+}
+async function planRows(db: Db, scope: LedgerScope, moduleCode: LedgerModule, rows: ParsedRow[]): Promise<LedgerPlan> {
+  if (moduleCode === "costs") return planCosts(db, scope, rows);
+  if (moduleCode === "purchaseOrders") return planPurchaseOrders(db, scope, rows);
+  if (moduleCode === "employees") return planEmployees(db, scope, rows);
+  return planTimeEntries(db, scope, rows);
 }
 
 export const ledgerPlanHash = (plan: LedgerPlan) => diffHash({ entries: plan.entries, missing: plan.missing });

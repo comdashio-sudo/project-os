@@ -61,16 +61,61 @@ export function horizontalMergeCover(sheet: ExcelJS.Worksheet): (row: number, co
   return (row, column) => merges.some(range => row >= range.top && row <= range.bottom && column >= range.left && column <= range.right && !(row === range.top && column === range.left));
 }
 
+/** Q-48: the letters of a 1-based column number (5 → «E»), the way a person names a column. */
+export const columnLetters = (column: number): string => {
+  let letters = "";
+  for (let rest = column; rest > 0; rest = Math.floor((rest - 1) / 26)) letters = String.fromCharCode(65 + ((rest - 1) % 26)) + letters;
+  return letters;
+};
+
+/**
+ * Q-48: a cell's text that never throws. exceljs's own `cell.text` throws on a covered cell of a merge whose first cell is empty (a section merged over
+ * many rows with no name in it), and writes a formula whose result is an error as «[object Object]». A covered cell reads its merge's first cell; an empty
+ * one is ""; a formula's result is read (an error result is its code, «#REF!»); rich text is its plain text.
+ */
+export function cellText(cell: ExcelJS.Cell): string {
+  const source = cell.isMerged ? cell.master : cell;
+  const read = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (value instanceof Date) return source.text ?? "";
+    if (typeof value !== "object") return String(value);
+    const object = value as { error?: unknown; result?: unknown; formula?: unknown; sharedFormula?: unknown; richText?: Array<{ text?: unknown }>; text?: unknown; hyperlink?: unknown };
+    if ("error" in object) return String(object.error ?? "");
+    if ("formula" in object || "sharedFormula" in object) return read(object.result);
+    if (Array.isArray(object.richText)) return object.richText.map(part => String(part.text ?? "")).join("");
+    if ("text" in object) return read(object.text);
+    return "";
+  };
+  return read(source.value);
+}
+
+/**
+ * Q-48: whether a cell lies in a VERTICAL merge whose first cell is empty (a section merged over its rows and left without a name). Such cells are empty on
+ * purpose: a reader that fills a section down from the row above must not give them the previous section.
+ */
+export function emptyVerticalMergeCover(sheet: ExcelJS.Worksheet): (row: number, column: number) => boolean {
+  const merges = ((sheet.model as unknown as { merges?: string[] }).merges ?? []).map(parseRange).filter((range): range is NonNullable<typeof range> => range !== null)
+    .filter(range => range.left === range.right && range.bottom > range.top && cellText(sheet.getCell(range.top, range.left)).trim() === "");
+  return (row, column) => merges.some(range => column === range.left && row >= range.top && row <= range.bottom);
+}
+
 export type SpreadsheetLimits = { maxRows: number; maxColumns: number };
 const defaultLimits: SpreadsheetLimits = { maxRows: MAX_IMPORT_ROWS, maxColumns: MAX_IMPORT_COLUMNS };
 
-/** headerRowNumber (default 1): the row that holds the column names; the data starts below it. rowNumbers[i] is the sheet row of rows[i] (blank rows are dropped, so they differ). */
-export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLimits = defaultLimits, headerRowNumber = 1): { headers: string[]; rows: Record<string, unknown>[]; rowNumbers: number[] } {
+/**
+ * headerRowNumber (default 1): the row that holds the column names; the data starts below it. rowNumbers[i] is the sheet row of rows[i] (blank rows are dropped, so they differ).
+ * Q-48 `uniqueHeaders`: a name written over two columns («القسم» in B and in E), and a column with no name that holds data, would share one key and one would
+ * overwrite the other. With the option each such column is keyed by its name and its letter («القسم (B)», «القسم (E)», «(L)»), so both are read and a person
+ * can tell them apart; `baseHeaders[i]` keeps the name as written.
+ */
+export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLimits = defaultLimits, headerRowNumber = 1, options: { uniqueHeaders?: boolean } = {}): { headers: string[]; baseHeaders: string[]; rows: Record<string, unknown>[]; rowNumbers: number[] } {
   const headerRow = sheet.getRow(headerRowNumber);
-  const headers = Array.from({ length: Math.min(sheet.columnCount, limits.maxColumns + 1) }, (_unused, index) => {
-    const cell = headerRow.getCell(index + 1);
-    return canonicalHeader(String(cell.text ?? "").trim());
-  });
+  const baseHeaders = Array.from({ length: Math.min(sheet.columnCount, limits.maxColumns + 1) }, (_unused, index) => canonicalHeader(cellText(headerRow.getCell(index + 1)).trim()));
+  const counts = new Map<string, number>();
+  for (const header of baseHeaders) counts.set(header, (counts.get(header) ?? 0) + 1);
+  const headers = options.uniqueHeaders
+    ? baseHeaders.map((header, index) => (header === "" ? `(${columnLetters(index + 1)})` : (counts.get(header) ?? 0) > 1 ? `${header} (${columnLetters(index + 1)})` : header))
+    : baseHeaders;
   const rows: Record<string, unknown>[] = [];
   const rowNumbers: number[] = [];
   const covered = horizontalMergeCover(sheet);
@@ -83,11 +128,11 @@ export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLim
       const value = typeof cell.value === "object" && cell.value !== null && "result" in cell.value
         ? cell.value.result
         : cell.value;
-      return [header, value instanceof Date ? value : cell.text || value || ""];
+      return [header, value instanceof Date ? value : cellText(cell) || (typeof value === "object" ? "" : value) || ""];
     }));
     if (Object.values(values).some(value => String(value ?? "").trim() !== "")) { rows.push(values); rowNumbers.push(rowNumber); }
   }
-  return { headers, rows, rowNumbers };
+  return { headers, baseHeaders, rows, rowNumbers };
 }
 
 export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<string, unknown>[], limits: SpreadsheetLimits = defaultLimits) {

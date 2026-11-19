@@ -51,6 +51,22 @@ describe.each(modes)("direction $name", ({ vars }) => {
   });
 });
 
+// Q-19: the progress states of the approved identity (Direction A, the one the platform runs): each state's text reads on it, and the states step
+// from light to dark so they can be told apart without hue.
+describe("Q-19: Direction A progress states", () => {
+  const states = ["none", "start", "progress", "advanced", "complete", "stopped"];
+  it.each(states.map(state => [state]))("text on %s is at least 4.5:1", state => {
+    const a = { ...block('[data-direction="a"]'), ...block('[data-direction="a"][data-mode="dark"]') };
+    for (const vars of [block('[data-direction="a"]'), a]) expect(contrastRatio(vars[`state-${state}-foreground`], vars[`state-${state}`]), state).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+  it("not started, start, in progress, advanced and complete get darker in that order", () => {
+    const vars = block('[data-direction="a"]');
+    const white = "#ffffff";
+    const steps = ["none", "start", "progress", "advanced", "complete"].map(state => contrastRatio(vars[`state-${state}`], white));
+    for (let i = 1; i < steps.length; i++) expect(steps[i]!, `${i}`).toBeGreaterThan(steps[i - 1]!);
+  });
+});
+
 describe("the directions are really different", () => {
   it("do not share a primary colour, a radius or an Arabic face", () => {
     const set = (name: string) => css.match(new RegExp(`\\[data-direction="${name}"\\] \\{[\\s\\S]*?\\n\\}`))![0];
