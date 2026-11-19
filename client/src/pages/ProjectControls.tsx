@@ -38,7 +38,6 @@ import { ProjectReferenceLists as ProjectReferenceListsContent } from "./Project
 import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExport";
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
 import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/MasterPlanDrawing";
-import { ProjectPmcWorkspace } from "./ProjectPmc";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
@@ -51,7 +50,7 @@ import { ContentSkeleton } from "@/components/ShellSkeleton";
 import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
-import { PAGE_ACCESS, WriteGate, useCan } from "@/lib/permissions";
+import { PAGE_ACCESS, WriteGate, useCan, useCanPage } from "@/lib/permissions";
 import { ProjectPageLink } from "@/components/ProjectPageLink";
 import { pickLanguage } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -124,8 +123,6 @@ export default function ProjectControls() {
   const [progress, setProgress] = useState({ wbsItemId: "", percentComplete: "", reportedAt: today });
   const [evm, setEvm] = useState({ periodAt: today, pv: "", ev: "", ac: "", bac: "", eacMethod: "bac_over_cpi" as const });
   const [operationalPeriod, setOperationalPeriod] = useState(today);
-  const [view, setView] = useState<"overview" | "pmc">(typeof window !== "undefined" && window.location.hash === "#pmc" ? "pmc" : "overview");
-  React.useEffect(() => { const onChange = () => { if (window.location.hash === "#pmc") setView("pmc"); }; window.addEventListener("hashchange", onChange); return () => window.removeEventListener("hashchange", onChange); }, []);
   const [healthPeriod, setHealthPeriod] = useState(today);
   // D-1: no button the server refuses. "Upload" only for a person who may import something (the gate ProjectImports uses), "+ Add" / "Add by hand"
   // only for one who may write the section's records.
@@ -133,6 +130,9 @@ export default function ProjectControls() {
   const canWriteSchedule = useCan(["project.wbs.manage", "project.schedule.manage"], projectId);
   const canWriteRecords = useCan(["project.budget.manage", "project.cost.enter", "project.progress.manage"], projectId);
   const [, navigate] = useLocation();
+  // Q-36 (step 3, docs/proposals/navigation.md §4): PMC has ONE address, /pmc. The old «PMC tab» address (controls#pmc) still works: it goes there.
+  React.useEffect(() => { if (typeof window !== "undefined" && window.location.hash === "#pmc") navigate(`/projects/${tenantId}/${projectId}/pmc`, { replace: true }); }, [navigate, tenantId, projectId]);
+  const canOpenPmc = useCanPage("pmc", projectId);
 
   const t = pickLanguage(language, { ar: {
         registry: "سجل المشاريع", level: "المستوى 3 · تسليم المشروع", loading: "جارٍ تحميل لوحة المشروع…", project: "المشروع", title: "لوحة المشروع", subtitle: "سجل البيانات التشغيلية أولاً، ثم احفظ لقطة EVM موثقة وقابلة للتدقيق.", wbs: "هيكل تجزئة العمل", activities: "الأنشطة والجدولة", budget: "الميزانية", cost: "التكلفة الفعلية", progress: "التقدم", snapshot: "لقطة EVM", health: "صحة المشروع", healthNote: "تستخدم اللقطة أحدث EVM والمخاطر عالية التعرض والإجراءات وطلبات المعلومات وحالات عدم المطابقة المتأخرة. لا توجد بعد مصادر للموافقات، ولذلك تدخل بقيم صفرية معلنة.", captureHealth: "حساب وحفظ لقطة الصحة", healthPending: "جارٍ حساب الصحة…", healthExceptions: "استثناءات الصحة وخطط التعافي", score: "الدرجة", confidence: "الثقة", highRisks: "مخاطر عالية", overdueActions: "إجراءات متأخرة", overdueRfis: "طلبات معلومات متأخرة", overdueNcrs: "حالات عدم مطابقة متأخرة", noHealth: "لا توجد لقطة صحة محفوظة حتى الآن.", code: "الرمز", name: "الاسم", planned: "القيمة المخططة", start: "البداية المخططة", finish: "النهاية المخططة", addWbs: "إضافة بند WBS", addActivity: "جدولة نشاط", activityLink: "ربط WBS (اختياري)", noActivities: "لا توجد أنشطة مجدولة حتى الآن.", notStarted: "لم يبدأ", inProgress: "قيد التنفيذ", completed: "مكتمل", blocked: "متعثر", costCode: "رمز التكلفة", original: "الميزانية الأصلية", current: "الميزانية الحالية", link: "ربط WBS", projectLevel: "على مستوى المشروع", addBudget: "تسجيل بند الميزانية", amount: "القيمة", date: "التاريخ", addCost: "تسجيل تكلفة فعلية", percent: "نسبة الإنجاز", addProgress: "تسجيل التقدم", pv: "PV القيمة المخططة", ev: "EV القيمة المكتسبة", ac: "AC التكلفة الفعلية", bac: "BAC الميزانية عند الإتمام", save: "حفظ لقطة EVM", latest: "أحدث لقطة", noSnapshot: "لا توجد لقطة EVM محفوظة حتى الآن.", emptyWbs: "أضف بند WBS أولًا لربط الميزانيات والتكاليف والتقدم.", entries: "القيود المسجلة", noEntries: "لا توجد قيود تشغيلية حتى الآن.", submitting: "جارٍ الحفظ…", actual: "فعلي", recorded: "مسجل", captureNote: "تدخل قيم لقطة EVM يدويًا في هذه الدفعة. لا تدّعي الواجهة أنها محسوبة من سجلات التشغيل قبل اكتمال محرك التجميع.", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC", contractsAndDocuments: "العقود والمستندات والمطالبات", siteDelivery: "سجل الموقع والجودة", planningAndData: "التخطيط وملفات البيانات", supportAndOversight: "المتابعة والذكاء والإشعارات",
@@ -205,7 +205,7 @@ export default function ProjectControls() {
       jumpToManagerLane(id);
       if (focusFirstField) document.getElementById(id)?.querySelector<HTMLElement>('form input:not([type="hidden"]):not([disabled]), form textarea:not([disabled]), form [role="combobox"]:not([disabled])')?.focus();
     };
-    if (view === "pmc") { setView("overview"); requestAnimationFrame(go); } else go();
+    go();
   };
   // The page's one upload ("Upload any file", the start card, "Upload file" on a section): the smart-import screen once it has a route
   // (client/src/lib/uploadAnyFile.ts), the data-imports group until then.
@@ -247,19 +247,16 @@ export default function ProjectControls() {
               <ProjectPageLink key={path} tenantId={tenantId} projectId={projectId} path={path} label={label} />
             ))}
             <WriteGate permission={PAGE_ACCESS.stalled[0]} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
+            <WriteGate permission={PAGE_ACCESS.meetings[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="meetings" label={pickLanguage(language, PAGE_NAMES.meetings)} /></WriteGate>
             <WriteGate permission={PAGE_ACCESS.schedule[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
+            {/* Q-36 (step 3): PMC is its own page; the tab that showed it a second time inside this page is gone (its old address redirects, above) */}
+            {canOpenPmc ? <ProjectPageLink tenantId={tenantId} projectId={projectId} path="pmc" label={pickLanguage(language, PAGE_NAMES.pmc)} /> : null}
           </nav>
           </PageHeader>
         </section>
         {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={upload} onManual={canWriteSchedule || canWriteRecords ? () => goToOverviewLane("manager-schedule", true) : undefined} /> : null}
 
-        <nav role="tablist" aria-label={pickLanguage(language, { ar: "أقسام صفحة الضبط", en: "Controls page views", ur: "کنٹرول صفحے کے حصے" })} className="flex flex-wrap gap-2 print:hidden">
-          {([["overview", pickLanguage(language, { ar: "نظرة عامة وأدوات الضبط", en: "Overview and control tools", ur: "جائزہ اور کنٹرول کے ٹولز" })], ["pmc", pickLanguage(language, { ar: "ضبط المشروع PMC", en: "PMC project control", ur: "PMC پروجیکٹ کنٹرول" })]] as const).map(([key, label]) => (
-            <button key={key} id={`controls-tab-${key}`} role="tab" type="button" aria-selected={view === key} aria-controls={`controls-panel-${key}`} className={`min-h-11 rounded-[var(--radius)] border px-4 text-sm font-medium ${view === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => { setView(key); try { window.history.replaceState(null, "", key === "pmc" ? "#pmc" : window.location.pathname + window.location.search); } catch { /* the address bar is a convenience, not state */ } }}>{label}</button>
-          ))}
-        </nav>
-        {view === "pmc" && <section id="controls-panel-pmc" role="tabpanel" aria-labelledby="controls-tab-pmc"><SectionErrorBoundary title={pickLanguage(language, { ar: "ضبط المشروع PMC", en: "PMC project control", ur: "PMC پروجیکٹ کنٹرول" })} isArabic={isArabic}><ProjectPmcWorkspace embedded /></SectionErrorBoundary></section>}
-        <div id="controls-panel-overview" role={view === "overview" ? "tabpanel" : undefined} hidden={view === "pmc"} className="flex flex-col gap-5 [&>*]:min-w-0">
+        <div id="controls-panel-overview" className="flex flex-col gap-5 [&>*]:min-w-0">
 
         <section aria-label={manager.label} className="rounded-[var(--radius)] border border-border bg-card p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold text-primary">{manager.label}</p><h2 className="mt-1 text-xl font-semibold">{manager.title}</h2><p className="mt-1 max-w-3xl text-sm text-muted-foreground">{manager.note}</p></div><Badge variant="secondary">{manager.scope}: {data.project.code}</Badge></div>
