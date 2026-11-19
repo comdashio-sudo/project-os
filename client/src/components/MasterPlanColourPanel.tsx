@@ -76,7 +76,7 @@ export function MasterPlanColourPanel(props: {
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label={t.colourBy} data-colour-key>
             {(props.source === "qc" ? QC_KEYS : SITE_KEYS).filter(key => key !== "NOT_MATCHED" || props.counts![key] > 0).map(key => (
               <li key={key} className="flex items-center gap-1" data-key={key}>
-                <span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm ring-1 ring-slate-400" style={{ background: SITE_COLOUR[key] }} />
+                <span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm ring-1 ring-muted-foreground" style={{ background: SITE_COLOUR[key] }} />
                 {t.keys[key]}: <b data-count>{props.counts![key]}</b>
               </li>
             ))}

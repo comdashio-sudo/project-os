@@ -150,7 +150,7 @@ export default function PmoDashboard() {
         <section className="rounded-3xl bg-primary p-7 text-white">
           <p className="text-xs font-bold tracking-[.16em] text-secondary">PROJECT OS</p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
-          <p className="mt-2 text-slate-300">{t.sub}</p>
+          <p className="mt-2 text-primary-foreground/85">{t.sub}</p>
         </section>
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           {setupQuery.isLoading && <SectionMessage title={pickLanguage(language, { ar: "إعداد المحفظة والبرنامج", en: "Portfolio and program setup", ur: "پورٹ فولیو اور پروگرام کی ترتیب" })} isArabic={isArabic} kind="loading" />}

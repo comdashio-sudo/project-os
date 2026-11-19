@@ -41,7 +41,7 @@ export function ManualLinkPanel(props: {
 }) {
   const t = useManualText();
   const button = "min-h-[44px] rounded-lg border border-border px-3 text-sm disabled:opacity-50";
-  const active = "min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm text-white";
+  const active = "min-h-[44px] rounded-lg bg-foreground px-3 text-sm text-white";
   return (
     <div className="space-y-2 rounded-lg bg-muted p-3" data-manual-link>
       <p className="text-sm font-semibold" data-unlinked-count>{props.unlinked.length === 0 ? t.all : t.title(props.unlinked.length, props.total)}</p>
@@ -49,7 +49,7 @@ export function ManualLinkPanel(props: {
         <>
           <ul className="flex max-h-28 flex-wrap gap-1 overflow-y-auto" aria-label={t.title(props.unlinked.length, props.total)}>
             {props.unlinked.map(unit => (
-              <li key={unit.id}><button type="button" className={`min-h-[44px] rounded-md border px-2 text-xs ${unit.id === props.unitId ? "border-slate-900 bg-white font-semibold" : "border-border"}`} aria-pressed={unit.id === props.unitId} onClick={() => props.onUnit(unit.id)}>{unit.code}</button></li>
+              <li key={unit.id}><button type="button" className={`min-h-[44px] rounded-md border px-2 text-xs ${unit.id === props.unitId ? "border-foreground bg-white font-semibold" : "border-border"}`} aria-pressed={unit.id === props.unitId} onClick={() => props.onUnit(unit.id)}>{unit.code}</button></li>
             ))}
           </ul>
           <div className="flex flex-wrap gap-2">
