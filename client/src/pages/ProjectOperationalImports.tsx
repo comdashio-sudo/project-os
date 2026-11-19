@@ -1,4 +1,5 @@
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { ImportTemplatesList } from "@/components/ImportTemplates";
 import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -84,8 +85,10 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
       {error && <p role="alert" className="mt-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="mt-5 border-t border-border pt-4">
         <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.ur.denied }}>
-          <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} renderReport={renderReport} />
+          <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} renderReport={renderReport} templates />
         </WriteGate>
+        {/* Q-50 batch 2b: the company's saved ledger column templates (the server lists only the kinds this person may import) */}
+        <div className="mt-4"><ImportTemplatesList tenantId={tenantId} projectId={projectId} kinds={LEDGER_MODULES} kindLabel={code => t.modules[code as LedgerModule]} language={language} /></div>
       </div>
     </section>
   );
