@@ -479,7 +479,7 @@ export const appRouter = router({
     pmoActions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => ({ actions: (await getPmoDashboard({ userId: ctx.user.id, ...input })).actions })),
     pmoPlanning: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
-      return { planningOverview: dashboard.planningOverview };
+      return { planningOverview: dashboard.planningOverview, activitySignals: dashboard.activitySignals, commercialSignals: dashboard.commercialSignals, programTotals: dashboard.programTotals, portfolioTotals: dashboard.portfolioTotals, programs: dashboard.programs, portfolios: dashboard.portfolios, projects: dashboard.projects.map(project => ({ id: project.id, code: project.code, name: project.name })) };
     }),
     pmoTodayExceptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
